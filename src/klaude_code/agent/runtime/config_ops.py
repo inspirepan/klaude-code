@@ -249,7 +249,7 @@ class ConfigHandler:
         response = await self._request_user_interaction(session_id, uuid4().hex, source, payload)
         if response.status != "submitted" or response.payload is None:
             return None
-        if response.payload.kind != "operation_select":
+        if not isinstance(response.payload, user_interaction.OperationSelectResponsePayload):
             return None
         return response.payload.selected_option_id
 

@@ -18,7 +18,7 @@ import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TextIO
+from typing import Any, TextIO
 
 from klaude_code.const import BASH_MODE_SESSION_OUTPUT_MAX_BYTES, BASH_TERMINATE_TIMEOUT_SEC, TOOL_OUTPUT_TRUNCATION_DIR
 from klaude_code.protocol import events, message
@@ -156,7 +156,7 @@ async def run_bash_command(
     pending = ""
 
     try:
-        kwargs: dict[str, object] = {
+        kwargs: dict[str, Any] = {
             "stdin": asyncio.subprocess.DEVNULL,
             "stdout": asyncio.subprocess.PIPE,
             "stderr": asyncio.subprocess.STDOUT,
@@ -169,7 +169,7 @@ async def run_bash_command(
             kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 
         shell_argv = _resolve_shell_command(command)
-        proc = await asyncio.create_subprocess_exec(*shell_argv, **kwargs)  # type: ignore[arg-type]
+        proc = await asyncio.create_subprocess_exec(*shell_argv, **kwargs)
         assert proc.stdout is not None
 
         with log_path.open("w", encoding="utf-8", errors="replace") as out_file:

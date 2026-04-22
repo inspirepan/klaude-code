@@ -138,7 +138,8 @@ def test_at_files_completer_formats_display_labels() -> None:
     ]
 
     def _plain(ft: object) -> str:
-        return "".join(seg[1] for seg in ft)  # type: ignore[index]
+        items = cast("list[tuple[str, str]]", ft)
+        return "".join(seg[1] for seg in items)
 
     # Each label is a FormattedText (list of (style, text[, handler]) tuples).
     # The first suggestion should have a dim directory prefix and a basename segment.

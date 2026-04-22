@@ -1,6 +1,7 @@
 import asyncio
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Coroutine
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -19,8 +20,8 @@ from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
 
 
-def arun(coro: object) -> object:
-    return asyncio.run(coro)  # type: ignore[arg-type]
+def arun[T](coro: Coroutine[Any, Any, T]) -> T:
+    return asyncio.run(coro)
 
 
 @pytest.fixture(autouse=True)

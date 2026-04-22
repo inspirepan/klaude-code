@@ -219,7 +219,10 @@ def _strip_dim_fg(fragments: StyleAndTextTuples) -> StyleAndTextTuples:
             if cls in style:
                 style = style.replace(cls, "")
         style = " ".join(style.split())
-        result.append((style, item[1], *item[2:]))  # type: ignore[arg-type]
+        if len(item) >= 3:
+            result.append((style, item[1], item[2]))  # ty: ignore[index-out-of-bounds]
+        else:
+            result.append((style, item[1]))
     return result
 
 
@@ -610,7 +613,7 @@ class PromptToolkitInput(InputProviderABC):
                 )
 
                 try:
-                    original_height_value = original_height() if callable(original_height) else original_height
+                    original_height_value = original_height() if callable(original_height) else original_height  # ty: ignore[call-top-callable]
                 except Exception:
                     original_height_value = None
                 original_min = 0

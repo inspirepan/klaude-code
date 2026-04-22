@@ -135,12 +135,11 @@ async def _load_at_file(
             formatted_blocks.append(_fmt_file_already_in_context(path_str, tools.READ))
             return
 
-        read_kwargs: dict[str, object] = {"file_path": path_str}
-        if ref.line_start is not None:
-            read_kwargs["offset"] = ref.line_start
+        offset: int | None = ref.line_start
+        limit: int | None = None
         if ref.line_end is not None and ref.line_start is not None:
-            read_kwargs["limit"] = ref.line_end - ref.line_start + 1
-        args = ReadTool.ReadArguments(**read_kwargs)  # type: ignore[arg-type]
+            limit = ref.line_end - ref.line_start + 1
+        args = ReadTool.ReadArguments(file_path=path_str, offset=offset, limit=limit)
         tool_result = await ReadTool.call_with_args(args, tool_context)
         images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
 

@@ -5,6 +5,7 @@ import gzip as gzip_module
 import json
 import socket
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
@@ -47,7 +48,7 @@ class TestHelperFunctions:
             def getheader(self, name: str, default: str = "") -> str:
                 return "text/html"
 
-        content_type, charset = _extract_content_type_and_charset(MockResponse())  # type: ignore[arg-type]
+        content_type, charset = _extract_content_type_and_charset(cast(Any, MockResponse()))
         assert content_type == "text/html"
         assert charset is None
 
@@ -62,7 +63,7 @@ class TestHelperFunctions:
             def getheader(self, name: str, default: str = "") -> str:
                 return "text/html; charset=utf-8"
 
-        content_type, charset = _extract_content_type_and_charset(MockResponse())  # type: ignore[arg-type]
+        content_type, charset = _extract_content_type_and_charset(cast(Any, MockResponse()))
         assert content_type == "text/html"
         assert charset == "utf-8"
 
@@ -71,7 +72,7 @@ class TestHelperFunctions:
             def getheader(self, name: str, default: str = "") -> str:
                 return default
 
-        content_type, charset = _extract_content_type_and_charset(MockResponse())  # type: ignore[arg-type]
+        content_type, charset = _extract_content_type_and_charset(cast(Any, MockResponse()))
         assert content_type == ""
         assert charset is None
 
@@ -299,16 +300,16 @@ class TestFetchUrlRedirectHandling:
             def __init__(self) -> None:
                 self.calls = 0
 
-            def open(self, req: object, timeout: int = 30) -> MockResponse:
+            def open(self, req: urllib.request.Request, timeout: int = 30) -> MockResponse:
                 del timeout
                 self.calls += 1
-                url = cast(str, req.full_url)  # type: ignore[attr-defined]
+                url = req.full_url
                 if self.calls == 1:
                     raise urllib.error.HTTPError(
                         url=url,
                         code=302,
                         msg="Found",
-                        hdrs={"Location": "https://accounts.feishu.cn/login"},  # pyright: ignore[reportArgumentType]
+                        hdrs=cast(Any, {"Location": "https://accounts.feishu.cn/login"}),
                         fp=None,
                     )
                 if self.calls == 2:
@@ -316,7 +317,7 @@ class TestFetchUrlRedirectHandling:
                         url=url,
                         code=302,
                         msg="Found",
-                        hdrs={"Location": "https://my.feishu.cn/wiki/doc?login_redirect_times=1"},  # pyright: ignore[reportArgumentType]
+                        hdrs=cast(Any, {"Location": "https://my.feishu.cn/wiki/doc?login_redirect_times=1"}),
                         fp=None,
                     )
                 return MockResponse(
@@ -343,14 +344,14 @@ class TestFetchUrlRedirectHandling:
 
     def test_too_many_redirects_returns_error(self) -> None:
         class LoopOpener:
-            def open(self, req: object, timeout: int = 30) -> object:
+            def open(self, req: urllib.request.Request, timeout: int = 30) -> object:
                 del timeout
-                url = cast(str, req.full_url)  # type: ignore[attr-defined]
+                url = req.full_url
                 raise urllib.error.HTTPError(
                     url=url,
                     code=302,
                     msg="Found",
-                    hdrs={"Location": "https://my.feishu.cn/wiki/doc"},  # pyright: ignore[reportArgumentType]
+                    hdrs=cast(Any, {"Location": "https://my.feishu.cn/wiki/doc"}),
                     fp=None,
                 )
 
@@ -394,10 +395,10 @@ class TestFetchUrlRedirectHandling:
                 self.calls = 0
                 self.requested_urls: list[str] = []
 
-            def open(self, req: object, timeout: int = 30) -> MockResponse:
+            def open(self, req: urllib.request.Request, timeout: int = 30) -> MockResponse:
                 del timeout
                 self.calls += 1
-                url = cast(str, req.full_url)  # type: ignore[attr-defined]
+                url = req.full_url
                 self.requested_urls.append(url)
 
                 if self.calls <= len(redirects):
@@ -405,7 +406,7 @@ class TestFetchUrlRedirectHandling:
                         url=url,
                         code=302,
                         msg="Found",
-                        hdrs={"Location": redirects[self.calls - 1]},  # pyright: ignore[reportArgumentType]
+                        hdrs=cast(Any, {"Location": redirects[self.calls - 1]}),
                         fp=None,
                     )
 
@@ -546,7 +547,7 @@ class TestFetchUrlWithRetry:
         def fake_fetch(*_args: object, **_kwargs: object) -> tuple[str, bytes, str | None]:
             nonlocal call_count
             call_count += 1
-            raise urllib.error.HTTPError(url="https://x.com/", code=404, msg="Not Found", hdrs={}, fp=None)  # type: ignore[arg-type]
+            raise urllib.error.HTTPError(url="https://x.com/", code=404, msg="Not Found", hdrs=cast(Any, {}), fp=None)
 
         with patch("klaude_code.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch):
             try:
@@ -577,7 +578,9 @@ class TestFetchUrlWithRetry:
 
     def test_retry_exhausted_raises_last_exception(self) -> None:
         def fake_fetch(*_args: object, **_kwargs: object) -> tuple[str, bytes, str | None]:
-            raise urllib.error.HTTPError(url="https://x.com/", code=503, msg="Service Unavailable", hdrs={}, fp=None)  # type: ignore[arg-type]
+            raise urllib.error.HTTPError(
+                url="https://x.com/", code=503, msg="Service Unavailable", hdrs=cast(Any, {}), fp=None
+            )
 
         with (
             patch("klaude_code.tool.web.web_fetch_tool._fetch_url", side_effect=fake_fetch),

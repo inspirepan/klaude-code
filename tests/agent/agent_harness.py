@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import klaude_code.agent.task as task_module
 from klaude_code.agent.agent_profile import AgentProfile
@@ -85,7 +85,10 @@ class FakeLLMClient(LLMClientABC):
         if not self._responses:
             raise RuntimeError("FakeLLMClient has no queued response")
         entry = self._responses.pop(0)
-        items = entry(param) if callable(entry) else entry
+        if isinstance(entry, list):
+            items = cast("list[message.LLMStreamItem]", entry)
+        else:
+            items = cast("Callable[[llm_param.LLMCallParameter], list[message.LLMStreamItem]]", entry)(param)
         return ScriptedLLMStream(items)
 
 

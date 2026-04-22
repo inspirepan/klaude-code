@@ -646,6 +646,7 @@ def test_runtime_hub_request_user_interaction_roundtrip() -> None:
         response = await task
         assert response.status == "submitted"
         assert response.payload is not None
+        assert isinstance(response.payload, user_interaction.AskUserQuestionResponsePayload)
         assert response.payload.kind == "ask_user_question"
         assert response.payload.answers[0].selected_option_ids == ["o1"]
         assert hub.pending_request_count("s1") == 0

@@ -8,6 +8,7 @@ import json
 from typing import Literal, cast
 
 from anthropic.types.beta.beta_base64_image_source_param import BetaBase64ImageSourceParam
+from anthropic.types.beta.beta_cache_control_ephemeral_param import BetaCacheControlEphemeralParam
 from anthropic.types.beta.beta_content_block_param import BetaContentBlockParam
 from anthropic.types.beta.beta_image_block_param import BetaImageBlockParam
 from anthropic.types.beta.beta_message_param import BetaMessageParam
@@ -94,11 +95,10 @@ def _user_message_to_message(
     for part in msg.parts:
         if isinstance(part, message.TextPart):
             blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
-        elif (
-            isinstance(part, (message.ImageURLPart, message.ImageFilePart))
-            and (block := _image_part_to_block(part, max_dimension=max_dimension)) is not None
-        ):
-            blocks.append(block)
+        elif isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
+            block = _image_part_to_block(part, max_dimension=max_dimension)
+            if block is not None:
+                blocks.append(block)
     if attachment.text:
         blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": attachment.text}))
     for image in attachment.images:
@@ -248,10 +248,10 @@ def _add_cache_control(messages: list[BetaMessageParam], *, ttl: Literal["5m", "
         if content_list:
             last_content_part = content_list[-1]
             if last_content_part.get("type", "") in ["text", "tool_result", "tool_use"]:
-                cache_control: dict[str, str] = {"type": "ephemeral"}
+                cache_control: BetaCacheControlEphemeralParam = {"type": "ephemeral"}
                 if ttl == "1h":
                     cache_control["ttl"] = "1h"
-                last_content_part["cache_control"] = cache_control  # type: ignore
+                last_content_part["cache_control"] = cache_control
 
 
 def convert_history_to_input(
@@ -303,8 +303,8 @@ def convert_system_to_input(
     blocks: list[BetaTextBlockParam] = []
     has_explicit_cache_block = False
 
-    def _cache_control() -> dict[str, str]:
-        control: dict[str, str] = {"type": "ephemeral"}
+    def _cache_control() -> BetaCacheControlEphemeralParam:
+        control: BetaCacheControlEphemeralParam = {"type": "ephemeral"}
         if cache_ttl == "1h":
             control["ttl"] = "1h"
         return control
@@ -313,7 +313,7 @@ def convert_system_to_input(
         nonlocal has_explicit_cache_block
         block: BetaTextBlockParam = {"type": "text", "text": text}
         if cache_control:
-            block["cache_control"] = _cache_control()  # type: ignore[typeddict-item]
+            block["cache_control"] = _cache_control()
             has_explicit_cache_block = True
         blocks.append(block)
 
@@ -335,7 +335,7 @@ def convert_system_to_input(
     if not blocks:
         return []
     if not has_explicit_cache_block:
-        blocks[-1]["cache_control"] = _cache_control()  # type: ignore[typeddict-item]
+        blocks[-1]["cache_control"] = _cache_control()
     return blocks
 
 

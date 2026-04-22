@@ -1,5 +1,5 @@
 import json
-from typing import Any, override
+from typing import Any, Literal, cast, override
 
 import httpx
 import openai
@@ -42,7 +42,8 @@ def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreatePa
     }
 
     if param.verbosity:
-        payload["verbosity"] = param.verbosity  # type: ignore[typeddict-item]
+        # Our verbosity literal ("max") is wider than the SDK's TypedDict declaration.
+        payload["verbosity"] = cast(Literal["low", "medium", "high"], param.verbosity)
 
     return payload, extra_body
 

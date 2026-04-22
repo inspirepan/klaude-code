@@ -96,6 +96,8 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                             text = "Todo hasn't been updated recently"
                         case "empty":
                             text = "Todo list is empty"
+                        case _:
+                            text = ""
                     grid = create_grid()
                     grid.add_row(
                         Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),

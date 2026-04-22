@@ -54,8 +54,8 @@ def decode_conversation_item(obj: dict[str, Any]) -> message.HistoryEvent | None
             item = cls(**data_without_ui_extra)
         except (TypeError, ValidationError):
             return None
-    # pyright: ignore[reportReturnType]
-    return item  # type: ignore[return-value]
+    # Return is a BaseModel instance from the registry; cast to HistoryEvent union.
+    return cast(message.HistoryEvent, item)
 
 
 def encode_jsonl_line(item: message.HistoryEvent) -> str:

@@ -283,7 +283,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         request_event: events.UserInteractionRequestEvent,
     ) -> user_interaction.UserInteractionResponse:
         payload = request_event.payload
-        if payload.kind == "operation_select":
+        if isinstance(payload, user_interaction.OperationSelectRequestPayload):
             tui_display.hide_progress_ui()
             if pause_esc_monitor is not None:
                 await pause_esc_monitor()
@@ -302,7 +302,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             tui_display.show_progress_ui()
             return _submitted_single_choice_response(selected_option_id=selected)
 
-        if payload.kind != "ask_user_question":
+        if not isinstance(payload, user_interaction.AskUserQuestionRequestPayload):
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
         answers: list[user_interaction.AskUserQuestionAnswer] = []
@@ -330,11 +330,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             await pause_esc_monitor()
 
         try:
+            # to_thread erases the T generic in select_questions; rebind it explicitly.
             selections = await asyncio.to_thread(
-                select_questions,
-                questions=prompts,
-                pointer="→",
-                style=DEFAULT_PICKER_STYLE(),
+                lambda: select_questions(
+                    questions=prompts,
+                    pointer="→",
+                    style=DEFAULT_PICKER_STYLE(),
+                )
             )
         finally:
             if resume_esc_monitor is not None:

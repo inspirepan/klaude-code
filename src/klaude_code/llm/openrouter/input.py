@@ -94,7 +94,7 @@ def _add_cache_control(messages: list[chat.ChatCompletionMessageParam], use_cach
         if role in ("user", "tool"):
             content = msg.get("content")
             if isinstance(content, list) and len(content) > 0:
-                last_part = content[-1]
+                last_part = cast(dict[str, object], content[-1])
                 if isinstance(last_part, dict) and last_part.get("type") == "text":
                     last_part["cache_control"] = {"type": "ephemeral"}
             break
@@ -179,7 +179,8 @@ def convert_history_to_input(
                 continue
             content = msg.get("content")
             if isinstance(content, list) and len(content) > 0 and isinstance(content[-1], dict):
-                content[-1]["cache_control"] = {"type": "ephemeral"}
+                last_block = cast(dict[str, object], content[-1])
+                last_block["cache_control"] = {"type": "ephemeral"}
                 break
 
     _add_cache_control(messages, use_cache_control)

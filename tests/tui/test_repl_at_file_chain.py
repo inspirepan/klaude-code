@@ -1,7 +1,10 @@
 import asyncio
+from collections.abc import Coroutine
 from pathlib import Path
+from typing import Any
 
 import pytest
+from prompt_toolkit.completion import CompleteEvent
 from prompt_toolkit.document import Document
 
 from klaude_code.agent.attachments.files import at_file_reader_attachment, image_attachment
@@ -14,8 +17,8 @@ from klaude_code.tui.components.user_input import INLINE_RENDER_PATTERN, render_
 from klaude_code.tui.input.completers import create_repl_completer
 
 
-def _arun(coro):  # type: ignore
-    return asyncio.run(coro)  # type: ignore
+def _arun[T](coro: Coroutine[Any, Any, T]) -> T:
+    return asyncio.run(coro)
 
 
 def _extract_plain_text(renderable: object) -> str:
@@ -54,7 +57,7 @@ def test_at_files_completer_quotes_paths_with_spaces(tmp_path: Path, monkeypatch
     text = "@dir"
     doc = Document(text=text, cursor_position=len(text))
 
-    completions = list(completer.get_completions(doc, complete_event=None))  # type: ignore[arg-type]
+    completions = list(completer.get_completions(doc, complete_event=CompleteEvent()))
     assert completions, "Expected at least one completion for @dir"
 
     # Collect insertion texts for debugging and assertions

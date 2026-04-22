@@ -1,5 +1,5 @@
 import json
-from typing import override
+from typing import Literal, cast, override
 
 import anthropic
 import httpx
@@ -79,7 +79,8 @@ def _build_responses_payload(param: llm_param.LLMCallParameter) -> ResponseCreat
         }
 
     if param.verbosity:
-        payload["text"] = {"verbosity": param.verbosity}  # type: ignore[typeddict-item]
+        # Our verbosity literal ("max") is wider than the SDK's TypedDict declaration.
+        payload["text"] = {"verbosity": cast(Literal["low", "medium", "high"], param.verbosity)}
 
     return payload
 
@@ -122,7 +123,8 @@ def _build_anthropic_payload(param: llm_param.LLMCallParameter) -> MessageCreate
         thinking_config: dict[str, str] = {"type": "adaptive"}
         if _is_opus47:
             thinking_config["display"] = "summarized"
-        payload["thinking"] = thinking_config  # type: ignore[typeddict-item]
+        # "adaptive" thinking and "display" are beta features not yet in the SDK TypedDict.
+        payload["thinking"] = cast(anthropic.types.ThinkingConfigEnabledParam, thinking_config)
     elif param.thinking and param.thinking.type == "enabled":
         payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
             type="enabled",
@@ -130,7 +132,8 @@ def _build_anthropic_payload(param: llm_param.LLMCallParameter) -> MessageCreate
         )
 
     if param.effort:
-        payload["output_config"] = {"effort": param.effort}  # type: ignore[typeddict-item]
+        # Our effort literal is wider than the SDK's TypedDict (xhigh/max accepted at runtime).
+        payload["output_config"] = {"effort": cast(Literal["low", "medium", "high"], param.effort)}
 
     return payload
 

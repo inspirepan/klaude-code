@@ -1,5 +1,5 @@
 import json
-from typing import Any, cast, override
+from typing import Any, Literal, cast, override
 
 import httpx
 import openai
@@ -88,7 +88,8 @@ def build_payload(
         "messages": messages,
         "max_tokens": param.max_tokens,
         "tools": tools,
-        "verbosity": _or_verbosity,  # type: ignore[typeddict-item]
+        # Our effort/verbosity literal is wider than the SDK's TypedDict declaration.
+        "verbosity": cast(Literal["low", "medium", "high"] | None, _or_verbosity),
     }
 
     # Opus 4.7 ignores temperature; omit for cleanliness

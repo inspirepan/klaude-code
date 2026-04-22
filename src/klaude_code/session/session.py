@@ -59,7 +59,7 @@ class Session(BaseModel):
 
     _messages_count_cache: int | None = PrivateAttr(default=None)
     _user_messages_cache: list[str] | None = PrivateAttr(default=None)
-    _store: JsonlSessionStore = PrivateAttr(default=None)  # type: ignore[assignment]  # set in model_post_init
+    _store: JsonlSessionStore = PrivateAttr(default=None)  # ty: ignore[invalid-assignment]  # set in model_post_init
 
     def model_post_init(self, __context: Any) -> None:
         self._store = get_store_for_path(self.work_dir)

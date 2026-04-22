@@ -7,9 +7,9 @@ import time
 import urllib.error
 import urllib.request
 import zlib
-from http.client import HTTPResponse
+from http.client import HTTPMessage, HTTPResponse
 from pathlib import Path
-from typing import cast
+from typing import IO, cast
 from urllib.parse import quote, urljoin, urlparse, urlunparse
 
 from pydantic import BaseModel
@@ -43,15 +43,15 @@ _MAX_FETCH_RETRIES = 2
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
     """Suppress automatic redirects so we can check each hop for SSRF."""
 
-    def redirect_request(  # type: ignore[override]
+    def redirect_request(
         self,
         req: urllib.request.Request,
-        fp: HTTPResponse,
+        fp: IO[bytes],
         code: int,
         msg: str,
-        headers: dict[str, str],
+        headers: HTTPMessage,
         newurl: str,
-    ) -> None:
+    ) -> urllib.request.Request | None:
         del req, fp, code, msg, headers, newurl
         return None
 

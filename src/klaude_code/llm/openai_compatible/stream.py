@@ -318,7 +318,8 @@ async def parse_chat_completions_stream(
             if on_event is not None:
                 on_event(event)
 
-            if not state.response_id and (event_id := getattr(event, "id", None)):
+            event_id = getattr(event, "id", None)
+            if not state.response_id and event_id:
                 state.set_response_id(str(event_id))
                 reasoning_handler.set_response_id(str(event_id))
 

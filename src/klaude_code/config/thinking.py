@@ -5,6 +5,7 @@ that are shared between command layer and UI layer.
 """
 
 from dataclasses import dataclass
+from typing import Literal, cast
 
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.model_id import (
@@ -334,7 +335,18 @@ def parse_thinking_value(value: str) -> llm_param.Thinking | None:
 
     if value.startswith("effort:"):
         effort = value[7:]
-        return llm_param.Thinking(reasoning_effort=effort)  # type: ignore[arg-type]
+        ReasoningEffort = Literal["high", "medium", "low", "minimal", "none", "xhigh"]
+        valid_efforts: tuple[ReasoningEffort, ...] = (
+            "high",
+            "medium",
+            "low",
+            "minimal",
+            "none",
+            "xhigh",
+        )
+        if effort not in valid_efforts:
+            return None
+        return llm_param.Thinking(reasoning_effort=cast(ReasoningEffort, effort))
 
     if value.startswith("budget:"):
         budget = int(value[7:])

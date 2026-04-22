@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Coroutine
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 import pytest
 
@@ -14,8 +15,8 @@ from klaude_code.tool.core.context import ToolContext
 from tests.agent.agent_harness import create_harness
 
 
-def arun(coro: object) -> object:
-    return asyncio.run(coro)  # type: ignore[arg-type]
+def arun[T](coro: Coroutine[Any, Any, T]) -> T:
+    return asyncio.run(coro)
 
 
 @pytest.fixture(autouse=True)
@@ -94,10 +95,10 @@ def _make_usage() -> Usage:
     )
 
 
-def _text_assistant_message(text: str, *, stop_reason: str = "stop") -> message.AssistantMessage:
+def _text_assistant_message(text: str, *, stop_reason: message.StopReason = "stop") -> message.AssistantMessage:
     return message.AssistantMessage(
         parts=[message.TextPart(text=text)],
-        stop_reason=stop_reason,  # type: ignore[arg-type]
+        stop_reason=stop_reason,
         usage=_make_usage(),
     )
 
