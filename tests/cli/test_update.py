@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import subprocess
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -61,7 +62,7 @@ def test_start_background_auto_upgrade_if_needed_starts_thread(monkeypatch: pyte
         def __init__(
             self,
             *,
-            target: object,
+            target: Callable[[], None],
             name: str | None = None,
             daemon: bool | None = None,
         ) -> None:
@@ -73,9 +74,7 @@ def test_start_background_auto_upgrade_if_needed_starts_thread(monkeypatch: pyte
             calls["thread_started"] += 1
             assert self.name == "auto-upgrade"
             assert self.daemon is True
-            target = self._target
-            assert callable(target)
-            target()
+            self._target()
 
     def _fake_perform_auto_upgrade_if_needed() -> None:
         calls["upgrade_runs"] += 1
