@@ -102,7 +102,9 @@ def test_task_finish_cancelled_clears_terminal_title_prefix() -> None:
     machine = DisplayStateMachine()
     session_id = "s1"
 
-    machine.transition(events.WelcomeEvent(session_id=session_id, work_dir="/tmp/project", llm_config=_llm_config(), title="T"))
+    machine.transition(
+        events.WelcomeEvent(session_id=session_id, work_dir="/tmp/project", llm_config=_llm_config(), title="T")
+    )
     machine.transition(events.TaskStartEvent(session_id=session_id, model_id="gpt-5"))
 
     cmds = machine.transition(events.TaskFinishEvent(session_id=session_id, task_result="task cancelled"))
