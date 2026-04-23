@@ -55,6 +55,29 @@ class _FakeLLMClient(LLMClientABC):
         return _FakeStream(self.items)
 
 
+class _SequencedFakeLLMClient(LLMClientABC):
+    def __init__(self, responses: list[list[message.LLMStreamItem]]) -> None:
+        super().__init__(
+            llm_param.LLMConfigParameter(
+                provider_name="test",
+                protocol=llm_param.LLMClientProtocol.OPENAI,
+                model_id="fake-compact",
+            )
+        )
+        self._responses = responses
+        self.calls: list[llm_param.LLMCallParameter] = []
+
+    @classmethod
+    def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        del config
+        return cls([])
+
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
+        self.calls.append(param)
+        index = len(self.calls) - 1
+        return _FakeStream(self._responses[index])
+
+
 def test_generate_session_title_uses_only_user_messages() -> None:
     client = _FakeLLMClient(
         [
@@ -87,6 +110,21 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     assert "assistant" not in rendered.lower()
     assert client.calls[0].system is not None
     assert "same language" in client.calls[0].system.lower()
+
+
+def test_generate_session_title_retries_up_to_three_attempts() -> None:
+    client = _SequencedFakeLLMClient(
+        [
+            [message.StreamErrorItem(error="temporary failure")],
+            [message.StreamErrorItem(error="temporary failure")],
+            [message.AssistantMessage(parts=[message.TextPart(text="修复 session title 重试")], stop_reason="stop")],
+        ]
+    )
+
+    title = asyncio.run(generate_session_title(llm_client=client, user_messages=["给标题生成加重试"]))
+
+    assert title == "修复 session title 重试"
+    assert len(client.calls) == 3
 
 
 def test_normalize_session_title_canonicalizes_separator() -> None:
