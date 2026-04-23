@@ -143,12 +143,12 @@ def run_web_server_command(*, host: str, port: int, no_open: bool, debug: bool) 
     _run_web_server_command(host=host, port=port, no_open=no_open, debug=debug)
 
 
-def _maybe_auto_upgrade_and_reexec() -> None:
-    """Perform an in-place upgrade before entering the interactive loop.
+def _maybe_start_auto_upgrade() -> None:
+    """Start auto-upgrade in the background for interactive startup.
 
-    Controlled by ``Config.auto_upgrade`` (default True). Only runs when the
-    persisted update state indicates a newer release is available. Re-executes
-    the current process on success so the new version is loaded.
+    Controlled by ``Config.auto_upgrade`` (default True). Only attempts an
+    upgrade when the persisted update state indicates a newer release is
+    available. Any successful upgrade applies on the next process start.
     """
 
     try:
@@ -163,14 +163,9 @@ def _maybe_auto_upgrade_and_reexec() -> None:
     except Exception:
         return
 
-    from klaude_code.log import log
-    from klaude_code.update import perform_auto_upgrade_if_needed, reexec_after_auto_upgrade
+    from klaude_code.update import start_background_auto_upgrade_if_needed
 
-    result = perform_auto_upgrade_if_needed()
-    if result.message:
-        log((result.message, "yellow" if result.level == "warn" else "cyan"))
-    if result.performed:
-        reexec_after_auto_upgrade()
+    start_background_auto_upgrade_if_needed()
 
 
 app = typer.Typer(
@@ -307,7 +302,7 @@ def main_callback(
             log(("Hint: run klaude from an interactive terminal", "yellow"))
             raise typer.Exit(2)
 
-        _maybe_auto_upgrade_and_reexec()
+        _maybe_start_auto_upgrade()
 
         from klaude_code.app.runtime import AppInitConfig
         from klaude_code.tui.command.model_picker import ModelSelectStatus, select_model_interactive

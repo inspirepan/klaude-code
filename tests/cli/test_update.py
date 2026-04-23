@@ -54,6 +54,65 @@ def test_persist_current_update_info_writes_state_file(monkeypatch: pytest.Monke
     assert payload["install_kind"] == update.INSTALL_KIND_INDEX
 
 
+def test_start_background_auto_upgrade_if_needed_starts_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = {"thread_started": 0, "upgrade_runs": 0}
+
+    class _FakeThread:
+        def __init__(
+            self,
+            *,
+            target: object,
+            name: str | None = None,
+            daemon: bool | None = None,
+        ) -> None:
+            self._target = target
+            self.name = name
+            self.daemon = daemon
+
+        def start(self) -> None:
+            calls["thread_started"] += 1
+            assert self.name == "auto-upgrade"
+            assert self.daemon is True
+            target = self._target
+            assert callable(target)
+            target()
+
+    def _fake_perform_auto_upgrade_if_needed() -> None:
+        calls["upgrade_runs"] += 1
+
+    monkeypatch.setattr(update, "perform_auto_upgrade_if_needed", _fake_perform_auto_upgrade_if_needed)
+    monkeypatch.setattr(update.threading, "Thread", _FakeThread)
+    monkeypatch.setattr(update, "_background_auto_upgrade_in_progress", False)
+
+    update.start_background_auto_upgrade_if_needed()
+
+    assert calls == {"thread_started": 1, "upgrade_runs": 1}
+    assert update._background_auto_upgrade_in_progress is False
+
+
+def test_start_background_auto_upgrade_if_needed_skips_duplicate_start(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(update, "_background_auto_upgrade_in_progress", True)
+    monkeypatch.setattr(update.threading, "Thread", lambda **_: (_ for _ in ()).throw(AssertionError("unexpected")))
+
+    update.start_background_auto_upgrade_if_needed()
+
+
+def test_run_background_auto_upgrade_swallows_exceptions(monkeypatch: pytest.MonkeyPatch) -> None:
+    messages: list[str] = []
+
+    def _raise() -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(update, "perform_auto_upgrade_if_needed", _raise)
+    monkeypatch.setattr(update, "_background_auto_upgrade_in_progress", True)
+    monkeypatch.setattr("klaude_code.log.log_debug", lambda message: messages.append(message))
+
+    update._run_background_auto_upgrade()
+
+    assert update._background_auto_upgrade_in_progress is False
+    assert messages == ["Background auto-upgrade failed: boom"]
+
+
 def test_get_startup_update_summary_returns_message_from_persisted_state(
     monkeypatch: pytest.MonkeyPatch, isolated_home: Path
 ) -> None:
