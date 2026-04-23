@@ -7,9 +7,9 @@ import sys
 
 from klaude_code.log import DebugType, log_debug
 
-# Blink state: alternates terminal title prefix between small squares
-_BLINK_GLYPHS = ("\u25ab", "\u25aa")  # ▫ ▪
-_BLINK_INTERVAL = 0.8  # seconds
+# Blink state: cycles a single-glyph Braille spinner to keep title width stable.
+_BLINK_PREFIXES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+_BLINK_INTERVAL = 0.08  # seconds
 
 _blink_task: asyncio.Task[None] | None = None
 _blink_model_name: str | None = None
@@ -72,7 +72,7 @@ def update_terminal_title(
 
 
 # ---------------------------------------------------------------------------
-# Terminal title blink (hollow/solid circle alternation while task is active)
+# Terminal title blink (single-glyph spinner while task is active)
 # ---------------------------------------------------------------------------
 
 
@@ -81,15 +81,15 @@ async def _blink_loop() -> None:
     while True:
         update_terminal_title(
             _blink_model_name,
-            prefix=_BLINK_GLYPHS[idx],
+            prefix=_BLINK_PREFIXES[idx],
             session_title=_blink_session_title,
         )
-        idx = 1 - idx
+        idx = (idx + 1) % len(_BLINK_PREFIXES)
         await asyncio.sleep(_BLINK_INTERVAL)
 
 
 def start_terminal_title_blink(model_name: str | None, session_title: str | None) -> None:
-    """Start alternating the terminal title prefix between hollow and solid circle."""
+    """Start cycling the terminal title prefix through the active-task spinner."""
     global _blink_task, _blink_model_name, _blink_session_title
     stop_terminal_title_blink()
     _blink_model_name = model_name

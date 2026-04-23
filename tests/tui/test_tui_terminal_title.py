@@ -64,7 +64,7 @@ def test_title_change_preserves_active_terminal_prefix() -> None:
 
     update_cmds = machine.transition(events.SessionTitleChangedEvent(session_id="s1", title="New title"))
     update_title_cmd = _last_title_cmd(update_cmds)
-    assert update_title_cmd.prefix == "\u26ac"
+    assert update_title_cmd.prefix == "⠋"
     assert update_title_cmd.session_title == "New title"
 
 
@@ -81,3 +81,16 @@ def test_update_terminal_title_prefers_session_title(monkeypatch: pytest.MonkeyP
     )
 
     assert captured == ["✔ 生成的标题"]
+
+
+def test_task_finish_cancelled_clears_terminal_title_prefix() -> None:
+    machine = DisplayStateMachine()
+    session_id = "s1"
+
+    machine.transition(events.WelcomeEvent(session_id=session_id, work_dir="/tmp/project", llm_config=_llm_config(), title="T"))
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="gpt-5"))
+
+    cmds = machine.transition(events.TaskFinishEvent(session_id=session_id, task_result="task cancelled"))
+
+    cmd = _last_title_cmd(cmds)
+    assert cmd.prefix is None
