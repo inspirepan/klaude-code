@@ -23,7 +23,9 @@ from klaude_code.prompts.prompt_suggestion import PROMPT_SUGGESTION_PROMPT
 from klaude_code.protocol import llm_param, message
 from klaude_code.session.session import Session
 
-_MAX_SUGGESTION_TOKENS = 128
+# Reasoning models (for example gpt-5.4) may spend most of a tiny budget on
+# thinking, leaving no visible suggestion text in the final output.
+_MAX_SUGGESTION_TOKENS = 4096
 _MIN_ASSISTANT_TURNS = 2
 
 # Cache cold heuristic: if the parent response's own output + uncached input
