@@ -66,6 +66,8 @@ class StartupUpdateSummary(NamedTuple):
 _cached_installation_info: InstallationInfo | None = None
 _background_check_lock = threading.Lock()
 _background_check_in_progress = False
+_background_auto_upgrade_lock = threading.Lock()
+_background_auto_upgrade_in_progress = False
 
 
 def _has_uv() -> bool:
@@ -324,6 +326,38 @@ def _start_background_update_check() -> None:
         _background_check_in_progress = True
 
     thread = threading.Thread(target=persist_current_update_info, daemon=True)
+    thread.start()
+
+
+def _run_background_auto_upgrade() -> None:
+    global _background_auto_upgrade_in_progress
+
+    try:
+        perform_auto_upgrade_if_needed()
+    except Exception as exc:
+        from klaude_code.log import log_debug
+
+        log_debug(f"Background auto-upgrade failed: {exc}")
+    finally:
+        with _background_auto_upgrade_lock:
+            _background_auto_upgrade_in_progress = False
+
+
+def start_background_auto_upgrade_if_needed() -> None:
+    """Start auto-upgrade work in a background thread.
+
+    Background upgrades apply to the next process start; the current process is
+    not re-execed.
+    """
+
+    global _background_auto_upgrade_in_progress
+
+    with _background_auto_upgrade_lock:
+        if _background_auto_upgrade_in_progress:
+            return
+        _background_auto_upgrade_in_progress = True
+
+    thread = threading.Thread(target=_run_background_auto_upgrade, name="auto-upgrade", daemon=True)
     thread.start()
 
 
