@@ -6,7 +6,7 @@ import pytest
 
 from klaude_code.protocol import events
 from klaude_code.protocol.llm_param import LLMClientProtocol, LLMConfigParameter
-from klaude_code.tui.commands import StartTitleBlink, UpdateTerminalTitlePrefix
+from klaude_code.tui.commands import StartTitleBlink, StopTitleBlink, UpdateTerminalTitlePrefix
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.terminal import title as terminal_title
 
@@ -111,3 +111,34 @@ def test_task_finish_cancelled_clears_terminal_title_prefix() -> None:
 
     cmd = _last_title_cmd(cmds)
     assert cmd.prefix is None
+
+
+def test_non_retryable_error_stops_title_blink_and_marks_error() -> None:
+    machine = DisplayStateMachine()
+    session_id = "s1"
+
+    machine.transition(
+        events.WelcomeEvent(session_id=session_id, work_dir="/tmp/project", llm_config=_llm_config(), title="T")
+    )
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="gpt-5"))
+
+    cmds = machine.transition(events.ErrorEvent(session_id=session_id, error_message="boom", can_retry=False))
+
+    assert any(isinstance(cmd, StopTitleBlink) for cmd in cmds)
+    cmd = _last_title_cmd(cmds)
+    assert cmd.prefix == "❌"
+
+
+def test_retryable_error_keeps_title_blink() -> None:
+    machine = DisplayStateMachine()
+    session_id = "s1"
+
+    machine.transition(
+        events.WelcomeEvent(session_id=session_id, work_dir="/tmp/project", llm_config=_llm_config(), title="T")
+    )
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="gpt-5"))
+
+    cmds = machine.transition(events.ErrorEvent(session_id=session_id, error_message="transient", can_retry=True))
+
+    assert not any(isinstance(cmd, StopTitleBlink) for cmd in cmds)
+    assert not any(isinstance(cmd, UpdateTerminalTitlePrefix) and cmd.prefix == "❌" for cmd in cmds)

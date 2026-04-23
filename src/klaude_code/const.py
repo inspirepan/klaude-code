@@ -134,6 +134,22 @@ TOOL_OUTPUT_DISPLAY_TAIL_LINES = 1000  # Lines to show from the end of truncated
 TOOL_OUTPUT_TRUNCATION_DIR = get_system_temp()  # Directory for saving full truncated output
 
 # =============================================================================
+# Attachment - DeveloperMessage reminder truncation
+# =============================================================================
+# These caps protect the <system-reminder> blocks produced by
+# agent/attachments/ from blowing up the context window. Unlike tool outputs
+# we do not offload to disk: the underlying source is always a file the model
+# can re-read with the Read tool.
+
+ATTACHMENT_MEMORY_MAX_LINES = 200  # Lines to keep from a single memory file
+ATTACHMENT_MEMORY_MAX_BYTES_PER_FILE = 32 * 1024  # Byte cap per memory file after line truncation
+
+ATTACHMENT_DIFF_MAX_LINES = 500  # Lines to keep from a single external-change diff snippet
+ATTACHMENT_DIFF_SOURCE_MAX_BYTES = 256 * 1024  # If old+new content exceeds this, skip diffing entirely
+
+ATTACHMENT_SKILL_MAX_LINES = 500  # Lines to keep from a single SKILL.md inlined via /skill:xxx
+
+# =============================================================================
 # UI - Display
 # =============================================================================
 
