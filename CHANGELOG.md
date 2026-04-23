@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.27.0] - 2026-04-23
+
+### Added
+
+- add transport switch and harden ConverseStream content ([#302](https://github.com/inspirepan/klaude-code/pull/302) by [@inspirepan](https://github.com/inspirepan))
+
+### Fixed
+
+- refine task UX and suggestion reliability ([#303](https://github.com/inspirepan/klaude-code/pull/303) by [@inspirepan](https://github.com/inspirepan))
+
 ## [2.26.0] - 2026-04-22
 
 ### Added
@@ -2280,7 +2290,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.26.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.27.0...HEAD
+[2.27.0]: https://github.com/inspirepan/klaude-code/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/inspirepan/klaude-code/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/inspirepan/klaude-code/compare/v2.24.0...v2.25.0
 [2.24.0]: https://github.com/inspirepan/klaude-code/compare/v2.23.0...v2.24.0
