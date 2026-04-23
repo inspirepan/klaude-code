@@ -88,4 +88,5 @@ Always use the [Conventional Commits](https://www.conventionalcommits.org/) spec
 - `src/klaude_code/tool/AGENTS.md` - Adding new tools, ToolABC interface, registration pattern
 - `src/klaude_code/tui/command/AGENTS.md` - Adding new slash commands, CommandABC interface
 - `src/klaude_code/tui/input/AGENTS.md` - REPL input handling, markers, and special syntax
+- `tests/AGENTS.md` - Test conventions, mandatory `isolated_home` fixture usage
 - `web/AGENTS.md` - Web frontend component rules and design system

@@ -32,7 +32,11 @@ class _FakeLLMClient(LLMClientABC):
         raise AssertionError("generate_away_summary should be monkeypatched in this test")
 
 
-def test_manual_recap_emits_spinner_events_but_auto_does_not(tmp_path: Path, monkeypatch: Any) -> None:
+def test_manual_recap_emits_spinner_events_but_auto_does_not(
+    tmp_path: Path, isolated_home: Path, monkeypatch: Any
+) -> None:
+    del isolated_home
+
     async def _test() -> None:
         emitted: list[Any] = []
         client = _FakeLLMClient()
