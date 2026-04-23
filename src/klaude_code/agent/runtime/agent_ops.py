@@ -458,7 +458,7 @@ class AgentOperationHandler:
     async def _generate_prompt_suggestion(self, agent: Agent) -> None:
         session = agent.session
         try:
-            suggestion = await run_prompt_suggestion(
+            result = await run_prompt_suggestion(
                 session=session,
                 main_profile=agent.profile,
             )
@@ -474,12 +474,19 @@ class AgentOperationHandler:
                 debug_type=DebugType.EXECUTION,
             )
             return
-        if suggestion is None:
+        if result is None:
             log_debug(
-                f"[PromptSuggestion] no suggestion session={session.id} (model returned [DONE] or filtered)",
+                f"[PromptSuggestion] no suggestion session={session.id} (generation failed before a response was produced)",
                 debug_type=DebugType.EXECUTION,
             )
             return
+        if result.suggestion is None:
+            log_debug(
+                f"[PromptSuggestion] no suggestion session={session.id} reason={result.drop_reason} raw={result.raw!r}",
+                debug_type=DebugType.EXECUTION,
+            )
+            return
+        suggestion = result.suggestion
         log_debug(
             f"[PromptSuggestion] ready session={session.id}",
             suggestion,

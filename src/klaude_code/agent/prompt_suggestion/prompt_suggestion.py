@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from dataclasses import dataclass
 
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.cache_safe import CacheSafeParams, build_cache_safe_messages
@@ -29,6 +30,13 @@ _MIN_ASSISTANT_TURNS = 2
 # exceeds this, the fork has to re-process a lot of un-cached tokens too.
 # Skip generation to avoid paying for it just to get a single suggestion.
 _MAX_PARENT_UNCACHED_TOKENS = 10_000
+
+
+@dataclass(frozen=True)
+class PromptSuggestionResult:
+    suggestion: str | None
+    raw: str
+    drop_reason: str | None = None
 
 
 def should_suggest(session: Session) -> str | None:
@@ -79,9 +87,11 @@ async def run_prompt_suggestion(
     session: Session,
     main_profile: AgentProfile,
     cancel: asyncio.Event | None = None,
-) -> str | None:
-    """Ask the main LLM to predict the user's next prompt. Returns the text,
-    or ``None`` when the model replied ``[DONE]`` / the output was filtered.
+) -> PromptSuggestionResult | None:
+    """Ask the main LLM to predict the user's next prompt.
+
+    Returns a result object after a successful model call, or ``None`` when the
+    call/stream failed before a usable response was produced.
 
     The wire prefix equals ``session.get_llm_history()`` (parent's most recent
     request), and the appended UserMessage is the suggestion instruction.
@@ -143,16 +153,20 @@ async def run_prompt_suggestion(
             f"input={usage.input_tokens} output={usage.output_tokens}",
             debug_type=DebugType.RESPONSE,
         )
-    suggestion = _normalize(raw)
-    if suggestion is None:
+    result = _finalize_result(raw)
+    if result.suggestion is None and result.drop_reason == "done_or_empty":
         log_debug("[PromptSuggestion] filtered ([DONE] or empty)", raw, debug_type=DebugType.RESPONSE)
-        return None
-    reason = _filter_reason(suggestion)
-    if reason is not None:
-        log_debug(f"[PromptSuggestion] filtered ({reason})", suggestion, debug_type=DebugType.RESPONSE)
-        return None
-    log_debug("[PromptSuggestion] accepted", suggestion, debug_type=DebugType.RESPONSE)
-    return suggestion
+        return result
+    if result.drop_reason is not None:
+        log_debug(
+            f"[PromptSuggestion] filtered ({result.drop_reason})",
+            result.suggestion or result.raw,
+            debug_type=DebugType.RESPONSE,
+        )
+        return result
+    assert result.suggestion is not None
+    log_debug("[PromptSuggestion] accepted", result.suggestion, debug_type=DebugType.RESPONSE)
+    return result
 
 
 _DONE_RE = re.compile(r"^\s*\[\s*done\s*\]\s*$", re.IGNORECASE)
@@ -196,3 +210,15 @@ def _filter_reason(suggestion: str) -> str | None:
     if _ASSISTANT_VOICE_RE.match(suggestion):
         return "assistant_voice"
     return None
+
+
+def _finalize_result(raw: str) -> PromptSuggestionResult:
+    suggestion = _normalize(raw)
+    if suggestion is None:
+        return PromptSuggestionResult(suggestion=None, raw=raw, drop_reason="done_or_empty")
+
+    reason = _filter_reason(suggestion)
+    if reason is not None:
+        return PromptSuggestionResult(suggestion=None, raw=raw, drop_reason=reason)
+
+    return PromptSuggestionResult(suggestion=suggestion, raw=raw)
