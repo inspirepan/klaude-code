@@ -460,7 +460,7 @@ class PromptToolkitInput(InputProviderABC):
         )
 
     def _build_placeholder(self) -> FormattedText:
-        """Build placeholder showing repo/directory name and Git branch.
+        """Build placeholder showing repo/directory name, Git branch, and model.
 
         When a prompt suggestion is pending, show it with an accept hint instead.
         When an image is detected on the system clipboard, replace the hint
@@ -490,6 +490,14 @@ class PromptToolkitInput(InputProviderABC):
         repo_display, branch = _get_git_info()
         cwd_name = Path.cwd().name or str(Path.cwd())
         dir_name = repo_display or cwd_name
+        current_model: str | None = None
+        if self._get_current_model_config_name is not None:
+            with contextlib.suppress(Exception):
+                current_model = self._get_current_model_config_name()
+        if not current_model:
+            with contextlib.suppress(Exception):
+                current_model = load_config().main_model
+        model_name = current_model.split("@", 1)[0] if current_model else None
 
         parts = [dir_name]
         # Show cwd in brackets when it differs from the repo name
@@ -499,7 +507,14 @@ class PromptToolkitInput(InputProviderABC):
             parts.append(f"({branch})")
 
         text = " ".join(parts)
-        return FormattedText([("class:placeholder", f"   {text}")])
+        if not model_name:
+            return FormattedText([("class:placeholder", f"   {text}")])
+        return FormattedText(
+            [
+                ("class:placeholder", f"   {text} > "),
+                ("class:accent.blue", model_name),
+            ]
+        )
 
     def _is_bash_mode_active(self) -> bool:
         try:
