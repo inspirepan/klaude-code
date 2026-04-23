@@ -25,6 +25,19 @@ def _format_session_title(session_title: str | None) -> str | None:
     return single_line[:80]
 
 
+def _project_name(work_dir: str | None) -> str:
+    folder_name = os.path.basename(work_dir or os.getcwd())
+    return folder_name or "klaude"
+
+
+def _build_terminal_title(work_dir: str | None, session_title: str | None) -> str:
+    project_name = _project_name(work_dir)
+    formatted_session_title = _format_session_title(session_title)
+    if formatted_session_title:
+        return f"{project_name} · {formatted_session_title}"
+    return f"{project_name} · klaude"
+
+
 def set_terminal_title(title: str) -> None:
     """Set terminal window title using an ANSI escape sequence."""
     stream = getattr(sys, "__stdout__", None) or sys.stdout
@@ -49,21 +62,8 @@ def update_terminal_title(
     work_dir: str | None = None,
     session_title: str | None = None,
 ) -> None:
-    """Update terminal title with folder name, optional model name, and session title."""
-    formatted_session_title = _format_session_title(session_title)
-    if formatted_session_title:
-        title = formatted_session_title
-        if prefix:
-            title = f"{prefix} {title}"
-        set_terminal_title(title)
-        return
-
-    folder_name = os.path.basename(work_dir or os.getcwd())
-    if model_name:
-        model_alias = model_name.split("@")[0]
-        title = f"klaude [{model_alias}] · {folder_name}"
-    else:
-        title = f"klaude · {folder_name}"
+    """Update terminal title with an optional status prefix and session title."""
+    title = _build_terminal_title(work_dir, session_title)
 
     if prefix:
         title = f"{prefix} {title}"

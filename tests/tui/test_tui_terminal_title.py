@@ -80,7 +80,22 @@ def test_update_terminal_title_prefers_session_title(monkeypatch: pytest.MonkeyP
         session_title="生成的标题",
     )
 
-    assert captured == ["✔ 生成的标题"]
+    assert captured == ["✔ project · 生成的标题"]
+
+
+def test_update_terminal_title_falls_back_to_default_title(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[str] = []
+
+    monkeypatch.setattr(terminal_title, "set_terminal_title", captured.append)
+
+    terminal_title.update_terminal_title(
+        model_name="gpt-5@openai",
+        prefix="✔",
+        work_dir="/tmp/project",
+        session_title=None,
+    )
+
+    assert captured == ["✔ project · klaude"]
 
 
 def test_task_finish_cancelled_clears_terminal_title_prefix() -> None:
