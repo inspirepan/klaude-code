@@ -4,6 +4,7 @@ from pathlib import Path
 from klaude_code.agent.prompt_suggestion.prompt_suggestion import (
     _MAX_PARENT_UNCACHED_TOKENS,  # pyright: ignore[reportPrivateUsage]
     _filter_reason,  # pyright: ignore[reportPrivateUsage]
+    _finalize_result,  # pyright: ignore[reportPrivateUsage]
     _normalize,  # pyright: ignore[reportPrivateUsage]
     should_suggest,
 )
@@ -140,6 +141,29 @@ class TestFilterReason(unittest.TestCase):
         self.assertEqual(_filter_reason("Let me try that"), "assistant_voice")
         self.assertEqual(_filter_reason("I'll run it"), "assistant_voice")
         self.assertEqual(_filter_reason("Here's the plan"), "assistant_voice")
+
+
+class TestFinalizeResult(unittest.TestCase):
+    def test_keeps_done_raw_for_logging(self) -> None:
+        result = _finalize_result(" [DONE] ")
+
+        self.assertIsNone(result.suggestion)
+        self.assertEqual(result.raw, " [DONE] ")
+        self.assertEqual(result.drop_reason, "done_or_empty")
+
+    def test_keeps_filter_reason_for_logging(self) -> None:
+        result = _finalize_result("Let me try that")
+
+        self.assertIsNone(result.suggestion)
+        self.assertEqual(result.raw, "Let me try that")
+        self.assertEqual(result.drop_reason, "assistant_voice")
+
+    def test_returns_normalized_suggestion_when_accepted(self) -> None:
+        result = _finalize_result('"run the tests"')
+
+        self.assertEqual(result.suggestion, "run the tests")
+        self.assertEqual(result.raw, '"run the tests"')
+        self.assertIsNone(result.drop_reason)
 
 
 if __name__ == "__main__":

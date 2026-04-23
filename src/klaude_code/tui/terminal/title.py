@@ -7,9 +7,9 @@ import sys
 
 from klaude_code.log import DebugType, log_debug
 
-# Blink state: alternates terminal title prefix between small squares
-_BLINK_GLYPHS = ("\u25ab", "\u25aa")  # ▫ ▪
-_BLINK_INTERVAL = 0.8  # seconds
+# Blink state: cycles a single-glyph Braille spinner to keep title width stable.
+_BLINK_PREFIXES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+_BLINK_INTERVAL = 0.08  # seconds
 
 _blink_task: asyncio.Task[None] | None = None
 _blink_model_name: str | None = None
@@ -23,6 +23,19 @@ def _format_session_title(session_title: str | None) -> str | None:
     if not single_line:
         return None
     return single_line[:80]
+
+
+def _project_name(work_dir: str | None) -> str:
+    folder_name = os.path.basename(work_dir or os.getcwd())
+    return folder_name or "klaude"
+
+
+def _build_terminal_title(work_dir: str | None, session_title: str | None) -> str:
+    project_name = _project_name(work_dir)
+    formatted_session_title = _format_session_title(session_title)
+    if formatted_session_title:
+        return f"{project_name} · {formatted_session_title}"
+    return f"{project_name} · klaude"
 
 
 def set_terminal_title(title: str) -> None:
@@ -49,21 +62,8 @@ def update_terminal_title(
     work_dir: str | None = None,
     session_title: str | None = None,
 ) -> None:
-    """Update terminal title with folder name, optional model name, and session title."""
-    formatted_session_title = _format_session_title(session_title)
-    if formatted_session_title:
-        title = formatted_session_title
-        if prefix:
-            title = f"{prefix} {title}"
-        set_terminal_title(title)
-        return
-
-    folder_name = os.path.basename(work_dir or os.getcwd())
-    if model_name:
-        model_alias = model_name.split("@")[0]
-        title = f"klaude [{model_alias}] · {folder_name}"
-    else:
-        title = f"klaude · {folder_name}"
+    """Update terminal title with an optional status prefix and session title."""
+    title = _build_terminal_title(work_dir, session_title)
 
     if prefix:
         title = f"{prefix} {title}"
@@ -72,7 +72,7 @@ def update_terminal_title(
 
 
 # ---------------------------------------------------------------------------
-# Terminal title blink (hollow/solid circle alternation while task is active)
+# Terminal title blink (single-glyph spinner while task is active)
 # ---------------------------------------------------------------------------
 
 
@@ -81,15 +81,15 @@ async def _blink_loop() -> None:
     while True:
         update_terminal_title(
             _blink_model_name,
-            prefix=_BLINK_GLYPHS[idx],
+            prefix=_BLINK_PREFIXES[idx],
             session_title=_blink_session_title,
         )
-        idx = 1 - idx
+        idx = (idx + 1) % len(_BLINK_PREFIXES)
         await asyncio.sleep(_BLINK_INTERVAL)
 
 
 def start_terminal_title_blink(model_name: str | None, session_title: str | None) -> None:
-    """Start alternating the terminal title prefix between hollow and solid circle."""
+    """Start cycling the terminal title prefix through the active-task spinner."""
     global _blink_task, _blink_model_name, _blink_session_title
     stop_terminal_title_blink()
     _blink_model_name = model_name

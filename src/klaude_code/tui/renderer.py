@@ -955,9 +955,10 @@ class TUICommandRenderer:
         if self.is_sub_agent_session(event.event.session_id):
             return
         body = self._compact_result_text(event.event.task_result)
+        normalized_result = event.event.task_result.strip().lower()
         notification = Notification(
             type=NotificationType.AGENT_TASK_COMPLETE,
-            title="Task Completed",
+            title="Task Cancelled" if normalized_result in {"task cancelled", "task canceled"} else "Task Completed",
             body=body,
         )
         self._notifier.notify(notification)

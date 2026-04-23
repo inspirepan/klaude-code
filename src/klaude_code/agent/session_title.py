@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 
 from klaude_code.llm.client import LLMClientABC
@@ -14,6 +15,7 @@ _SESSION_TITLE_SYSTEM_PROMPT = (
     "Reply with only the title, no quotes, no markdown, no explanation."
 )
 
+_SESSION_TITLE_MAX_ATTEMPTS = 3
 _SESSION_TITLE_MAX_TOKENS = 4096
 
 
@@ -78,21 +80,40 @@ async def generate_session_title(
         debug_type=DebugType.RESPONSE,
     )
 
-    stream = await llm_client.call(call_param)
-    parts: list[str] = []
-    final_text: str | None = None
-    stop_reason: str | None = None
-    async for item in stream:
-        if isinstance(item, message.AssistantTextDelta):
-            parts.append(item.content)
-        elif isinstance(item, message.AssistantMessage):
-            final_text = message.join_text_parts(item.parts)
-            stop_reason = item.stop_reason
-        elif isinstance(item, message.StreamErrorItem):
-            raise RuntimeError(item.error)
+    for attempt in range(1, _SESSION_TITLE_MAX_ATTEMPTS + 1):
+        try:
+            stream = await llm_client.call(call_param)
+            parts: list[str] = []
+            final_text: str | None = None
+            stop_reason: str | None = None
+            async for item in stream:
+                if isinstance(item, message.AssistantTextDelta):
+                    parts.append(item.content)
+                elif isinstance(item, message.AssistantMessage):
+                    final_text = message.join_text_parts(item.parts)
+                    stop_reason = item.stop_reason
+                elif isinstance(item, message.StreamErrorItem):
+                    raise RuntimeError(item.error)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            if attempt == _SESSION_TITLE_MAX_ATTEMPTS:
+                raise
+            log_debug(
+                f"[SessionTitle] attempt {attempt}/{_SESSION_TITLE_MAX_ATTEMPTS} failed: {exc!s}; retrying",
+                debug_type=DebugType.RESPONSE,
+            )
+            continue
 
-    title = _normalize_session_title(final_text if final_text is not None else "".join(parts))
-    if stop_reason:
-        log_debug(f"[SessionTitle] stop_reason {stop_reason}", debug_type=DebugType.RESPONSE)
-    log_debug("[SessionTitle] result", title or "<empty>", debug_type=DebugType.RESPONSE)
-    return title
+        title = _normalize_session_title(final_text if final_text is not None else "".join(parts))
+        if stop_reason:
+            log_debug(f"[SessionTitle] stop_reason {stop_reason}", debug_type=DebugType.RESPONSE)
+        if title is not None or attempt == _SESSION_TITLE_MAX_ATTEMPTS:
+            log_debug("[SessionTitle] result", title or "<empty>", debug_type=DebugType.RESPONSE)
+            return title
+        log_debug(
+            f"[SessionTitle] attempt {attempt}/{_SESSION_TITLE_MAX_ATTEMPTS} returned empty title; retrying",
+            debug_type=DebugType.RESPONSE,
+        )
+
+    return None

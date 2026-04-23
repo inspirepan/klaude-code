@@ -9,7 +9,7 @@ from unittest.mock import Mock
 from rich.console import Console
 
 from klaude_code.protocol import events, tools
-from klaude_code.tui.commands import RenderToolCall
+from klaude_code.tui.commands import RenderTaskFinish, RenderToolCall
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 
@@ -67,3 +67,27 @@ def test_hide_progress_ui_flushes_open_renderer_blocks() -> None:
 
     assert display._renderer._tool_block_open is False
     assert output.getvalue().endswith("\n\n")
+
+
+def test_cancelled_task_notification_uses_cancelled_title() -> None:
+    notifier = Mock(spec=TerminalNotifier)
+    display = TUIDisplay(notifier=notifier)
+
+    asyncio.run(
+        display._renderer.execute(
+            [
+                RenderTaskFinish(
+                    event=events.TaskFinishEvent(
+                        session_id="main",
+                        task_result="task cancelled",
+                    )
+                )
+            ]
+        )
+    )
+
+    notifier.notify.assert_called_once()
+    sent = notifier.notify.call_args.args[0]
+    assert isinstance(sent, Notification)
+    assert sent.type == NotificationType.AGENT_TASK_COMPLETE
+    assert sent.title == "Task Cancelled"
