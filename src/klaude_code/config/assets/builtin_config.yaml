@@ -375,6 +375,22 @@ provider_list:
   - *gpt54mini
   - *gpt54
   - *gpt54_xhigh
+  - model_name: gpt-5.5
+    model_id: gpt-5.5
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
+  - model_name: gpt-5.5:xhigh
+    model_id: gpt-5.5
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
 
 # ######################################## github-copilot ########################################
 - provider_name: github-copilot
