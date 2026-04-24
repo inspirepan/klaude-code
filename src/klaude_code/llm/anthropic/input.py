@@ -351,7 +351,6 @@ def convert_tool_schema(
             BetaToolParam,
             {
                 "input_schema": tool.parameters,
-                "type": "custom",
                 "name": tool.name,
                 "description": tool.description,
                 **({"eager_input_streaming": True} if enable_eager_input_streaming else {}),
