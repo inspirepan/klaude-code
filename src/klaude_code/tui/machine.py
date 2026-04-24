@@ -1346,6 +1346,18 @@ class DisplayStateMachine:
                 if not is_replay and not e.can_retry:
                     self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
+                    if not s.is_sub_agent:
+                        cmds.append(TaskClockClear())
+                        cmds.append(StopTitleBlink())
+                        self._terminal_title_prefix = "❌"
+                        cmds.append(
+                            UpdateTerminalTitlePrefix(
+                                prefix=self._terminal_title_prefix,
+                                model_name=self._model_name,
+                                session_title=self._session_title,
+                            )
+                        )
+                        self._clear_active_sub_agent_sessions()
                 if not is_replay:
                     cmds.extend(self._spinner_update_commands())
                 return cmds

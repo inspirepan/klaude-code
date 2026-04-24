@@ -5,11 +5,18 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from klaude_code.const import ProjectPaths, find_git_repo_root, project_key_from_path
+from klaude_code.const import (
+    ATTACHMENT_MEMORY_MAX_BYTES_PER_FILE,
+    ATTACHMENT_MEMORY_MAX_LINES,
+    ProjectPaths,
+    find_git_repo_root,
+    project_key_from_path,
+)
 from klaude_code.prompts.attachments import (
     AUTO_MEMORY_HINT_TEMPLATE,
     AUTO_MEMORY_INSTRUCTION,
     DISCOVERED_MEMORY_INSTRUCTION,
+    MEMORY_FILE_BYTE_TRUNCATED_TEMPLATE,
     MEMORY_FILE_TRUNCATED_TEMPLATE,
     MEMORY_HEADER,
     MEMORY_TRUNCATED_TEMPLATE,
@@ -20,13 +27,16 @@ from klaude_code.protocol import message
 from klaude_code.protocol.models import DeveloperUIExtra, DeveloperUIItem, MemoryFileLoaded, MemoryLoadedUIItem
 from klaude_code.session import Session
 
+from . import truncate_text_by_lines
 from .state import is_memory_loaded, mark_memory_loaded
 
 MEMORY_FILE_NAMES = ["AGENTS.md", "CLAUDE.md", "AGENT.md"]
 
 AUTO_MEMORY_FILE = "MEMORY.md"
-AUTO_MEMORY_MAX_LINES = 200
-MEMORY_MAX_BYTES_PER_FILE = 4096
+# Kept as module-level aliases for backwards compatibility with existing tests
+# and callers. See src/klaude_code/const.py for the canonical values.
+AUTO_MEMORY_MAX_LINES = ATTACHMENT_MEMORY_MAX_LINES
+MEMORY_MAX_BYTES_PER_FILE = ATTACHMENT_MEMORY_MAX_BYTES_PER_FILE
 MEMORY_MAX_SESSION_BYTES = 60 * 1024
 
 
@@ -131,23 +141,31 @@ def format_memories_attachment(memories: list[Memory], include_header: bool = Tr
 
 
 def truncate_memory_content(text: str, path: str) -> str:
-    """Truncate memory content to the shared per-file limits used by attachments."""
+    """Truncate memory content to the first :data:`AUTO_MEMORY_MAX_LINES` lines.
 
-    lines = text.splitlines()
-    truncated = False
+    Mirrors Read tool behaviour: show a bounded prefix and tell the agent how
+    to fetch the rest. A generous byte cap still applies as a last-resort
+    guard against pathologically long single lines (e.g. minified JSON).
+    """
+    truncation = truncate_text_by_lines(text, max_lines=AUTO_MEMORY_MAX_LINES)
+    result = truncation.text
 
-    if len(lines) > AUTO_MEMORY_MAX_LINES:
-        lines = lines[:AUTO_MEMORY_MAX_LINES]
-        truncated = True
-
-    result = "\n".join(lines)
     if len(result.encode("utf-8")) > MEMORY_MAX_BYTES_PER_FILE:
         encoded = result.encode("utf-8")[:MEMORY_MAX_BYTES_PER_FILE]
         result = encoded.decode("utf-8", errors="ignore")
-        truncated = True
+        total_lines = truncation.total_lines or len(text.splitlines())
+        return result + MEMORY_FILE_BYTE_TRUNCATED_TEMPLATE.format(
+            max_bytes=MEMORY_MAX_BYTES_PER_FILE,
+            total_lines=total_lines,
+            path=path,
+        )
 
-    if truncated:
-        result += MEMORY_FILE_TRUNCATED_TEMPLATE.format(max_bytes=MEMORY_MAX_BYTES_PER_FILE, path=path)
+    if truncation.truncated:
+        return result + MEMORY_FILE_TRUNCATED_TEMPLATE.format(
+            max_lines=AUTO_MEMORY_MAX_LINES,
+            total_lines=truncation.total_lines,
+            path=path,
+        )
     return result
 
 

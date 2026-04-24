@@ -15,7 +15,14 @@ MEMORY_HEADER = (
 MEMORY_TRUNCATED_TEMPLATE = "\n\n> Memory truncated due to session budget ({budget_bytes} bytes total)."
 
 MEMORY_FILE_TRUNCATED_TEMPLATE = (
-    "\n\n> This memory file was truncated ({max_bytes} byte limit). "
+    "\n\n> This memory file was truncated to the first {max_lines} lines "
+    "(file has {total_lines} lines total). "
+    "Use the Read tool to view the complete file at: {path}"
+)
+
+MEMORY_FILE_BYTE_TRUNCATED_TEMPLATE = (
+    "\n\n> This memory file was truncated at {max_bytes} bytes while loading it "
+    "(file has {total_lines} lines total). The last visible line may be incomplete. "
     "Use the Read tool to view the complete file at: {path}"
 )
 
@@ -47,6 +54,12 @@ SKILL_BLOCK_TEMPLATE = """{preface}
 
 {skill_content}
 </skill>"""
+
+SKILL_CONTENT_TRUNCATED_TEMPLATE = (
+    "\n\n> SKILL.md inlined up to the first {max_lines} lines "
+    "(file has {total_lines} lines total). "
+    "Use the Read tool to view the complete file at: {path}"
+)
 
 DYNAMIC_AVAILABLE_SKILLS_TEMPLATE = """The following skills are available from directories you have accessed.
 
@@ -100,6 +113,16 @@ FILE_CHANGED_EXTERNALLY_TEMPLATE = (
     "This change was intentional, so make sure to take it into account "
     "as you proceed (ie. don't revert it unless the user asks you to). "
     "Here are the relevant changes:\n\n{file_content}"
+)
+
+FILE_CHANGED_DIFF_TRUNCATED_TEMPLATE = (
+    "\n\n... ({hidden_lines} more diff lines omitted; total {total_lines} lines of diff. "
+    "Use the Read tool with offset/limit to inspect the current file at: {file_path})"
+)
+
+FILE_CHANGED_DIFF_SKIPPED_TEMPLATE = (
+    "[diff skipped: combined old+new content is {total_bytes} bytes, exceeding the "
+    "{limit_bytes}-byte limit. Use the Read tool with offset/limit to inspect the current file at: {file_path}]"
 )
 
 PASTE_FILE_HINT_TEMPLATE = (

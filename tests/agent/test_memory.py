@@ -150,3 +150,20 @@ def test_discover_memory_files_near_paths_truncates_content(tmp_path: Path) -> N
     assert f"line {memory.AUTO_MEMORY_MAX_LINES}" in discovered.content
     assert f"line {memory.AUTO_MEMORY_MAX_LINES + 1}" not in discovered.content
     assert "This memory file was truncated" in discovered.content
+    assert f"first {memory.AUTO_MEMORY_MAX_LINES} lines" in discovered.content
+    assert f"file has {len(agents_lines)} lines total" in discovered.content
+    assert "Use the Read tool" in discovered.content
+    assert str(agents_path) in discovered.content
+
+
+def test_truncate_memory_content_reports_byte_cap_for_single_long_line(tmp_path: Path) -> None:
+    memory_path = tmp_path / "AGENTS.md"
+    text = "x" * (memory.MEMORY_MAX_BYTES_PER_FILE + 1024)
+
+    truncated = memory.truncate_memory_content(text, str(memory_path))
+
+    assert "truncated at" in truncated
+    assert f"{memory.MEMORY_MAX_BYTES_PER_FILE} bytes" in truncated
+    assert "last visible line may be incomplete" in truncated
+    assert "first 200 lines" not in truncated
+    assert str(memory_path) in truncated

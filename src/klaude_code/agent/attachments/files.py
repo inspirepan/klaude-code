@@ -5,8 +5,11 @@ import re
 import shlex
 from pathlib import Path
 
+from klaude_code.const import ATTACHMENT_DIFF_MAX_LINES, ATTACHMENT_DIFF_SOURCE_MAX_BYTES
 from klaude_code.prompts.attachments import (
     FILE_ALREADY_IN_CONTEXT_TEMPLATE,
+    FILE_CHANGED_DIFF_SKIPPED_TEMPLATE,
+    FILE_CHANGED_DIFF_TRUNCATED_TEMPLATE,
     FILE_CHANGED_EXTERNALLY_TEMPLATE,
     PASTE_FILE_HINT_TEMPLATE,
     TOOL_RESULT_TEMPLATE,
@@ -28,6 +31,7 @@ from klaude_code.session import Session
 from klaude_code.skill.loader import discover_skills_near_paths
 from klaude_code.tool import BashTool, ReadTool
 
+from . import truncate_text_by_lines
 from .memory import Memory, discover_memory_files_near_paths, format_memory_content
 from .skills import build_dynamic_skill_listing_attachment
 from .state import (
@@ -254,7 +258,27 @@ async def at_file_reader_attachment(session: Session) -> message.DeveloperMessag
     )
 
 
-def _compute_diff_snippet(old_content: str, new_content: str) -> str:
+def _compute_diff_snippet(old_content: str, new_content: str, file_path: str) -> str:
+    """Render a small unified-style diff, capped so it cannot blow up context.
+
+    Guards (see ``const.ATTACHMENT_DIFF_*``):
+
+    * If ``old_content + new_content`` already exceeds the source size limit,
+      skip ``difflib`` entirely. Large HTML/minified blobs produce diffs that
+      approach ``2x`` the source, which in past sessions pushed the next turn
+      past the 1M-token ceiling even after a successful compaction.
+    * After the diff is built, keep only the first ``ATTACHMENT_DIFF_MAX_LINES``
+      lines and append a Read-tool-style notice, mirroring how the Read tool
+      truncates long files.
+    """
+    combined_size_bytes = len(old_content.encode("utf-8")) + len(new_content.encode("utf-8"))
+    if combined_size_bytes > ATTACHMENT_DIFF_SOURCE_MAX_BYTES:
+        return FILE_CHANGED_DIFF_SKIPPED_TEMPLATE.format(
+            total_bytes=combined_size_bytes,
+            limit_bytes=ATTACHMENT_DIFF_SOURCE_MAX_BYTES,
+            file_path=file_path,
+        )
+
     old_lines = old_content.splitlines(keepends=True)
     new_lines = new_content.splitlines(keepends=True)
 
@@ -280,7 +304,15 @@ def _compute_diff_snippet(old_content: str, new_content: str) -> str:
                     diff_lines.append(f"  {line_no:>6}+\t{line.rstrip()}")
         diff_lines.append("  ------")
 
-    return "\n".join(diff_lines).rstrip("\n -")
+    rendered = "\n".join(diff_lines).rstrip("\n -")
+    truncation = truncate_text_by_lines(rendered, max_lines=ATTACHMENT_DIFF_MAX_LINES)
+    if truncation.truncated:
+        return truncation.text + FILE_CHANGED_DIFF_TRUNCATED_TEMPLATE.format(
+            hidden_lines=truncation.hidden_lines,
+            total_lines=truncation.total_lines,
+            file_path=file_path,
+        )
+    return truncation.text
 
 
 async def file_changed_externally_attachment(session: Session) -> message.DeveloperMessage | None:
@@ -316,7 +348,7 @@ async def file_changed_externally_attachment(session: Session) -> message.Develo
             if new_status is None or new_status.cached_content is None:
                 continue
 
-            snippet = _compute_diff_snippet(old_content, new_status.cached_content)
+            snippet = _compute_diff_snippet(old_content, new_status.cached_content, path)
             if not snippet:
                 continue
             changed_files.append((path, snippet))

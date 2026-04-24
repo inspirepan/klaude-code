@@ -6,11 +6,13 @@ from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Literal, cast
 
+from klaude_code.const import ATTACHMENT_SKILL_MAX_LINES
 from klaude_code.prompts.attachments import (
     AVAILABLE_SKILLS_ADDED_TEMPLATE,
     AVAILABLE_SKILLS_TEMPLATE,
     DYNAMIC_AVAILABLE_SKILLS_TEMPLATE,
     SKILL_BLOCK_TEMPLATE,
+    SKILL_CONTENT_TRUNCATED_TEMPLATE,
     SKILL_DISCOVERED_PREFACE_TEMPLATE,
     SKILL_EXPLICIT_PREFACE_TEMPLATE,
 )
@@ -33,6 +35,7 @@ from klaude_code.skill.loader import (
 from klaude_code.skill.system_skills import install_system_skills
 from klaude_code.tool.file._utils import hash_text_sha256
 
+from . import truncate_text_by_lines
 from .state import is_tracked_file_unchanged
 
 # Match /skill:xxx or //skill:xxx inline (at start of line or after whitespace).
@@ -141,6 +144,27 @@ def _read_skill_content(skill: Skill) -> str | None:
     return content or None
 
 
+def _render_skill_inline_content(raw_content: str, skill: Skill) -> str:
+    """Cap inlined SKILL.md for the <system-reminder> block.
+
+    Mirrors Read tool behaviour: keep the first ``ATTACHMENT_SKILL_MAX_LINES``
+    lines and tell the agent how to fetch the rest. Returning the raw content
+    unchanged when it fits preserves the existing behaviour for small skills.
+
+    The raw content (not the rendered/truncated version) should still be used
+    when computing the skill's file-tracker sha256; otherwise a truncated skill
+    would be re-classified as "changed" on every turn.
+    """
+    truncation = truncate_text_by_lines(raw_content, max_lines=ATTACHMENT_SKILL_MAX_LINES)
+    if not truncation.truncated:
+        return truncation.text
+    return truncation.text + SKILL_CONTENT_TRUNCATED_TEMPLATE.format(
+        max_lines=ATTACHMENT_SKILL_MAX_LINES,
+        total_lines=truncation.total_lines,
+        path=str(skill.skill_path),
+    )
+
+
 def _mark_skill_loaded(session: Session, path: str, content: str, *, source: Literal["dynamic", "explicit"]) -> None:
     existing = session.file_tracker.get(path)
     try:
@@ -179,7 +203,7 @@ def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool)
         skill_name=skill.name,
         skill_path=skill.skill_path,
         base_dir=skill.base_dir,
-        skill_content=skill_content,
+        skill_content=_render_skill_inline_content(skill_content, skill),
         explicit=explicit,
     )
 

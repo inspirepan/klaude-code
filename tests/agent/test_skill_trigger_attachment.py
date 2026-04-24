@@ -113,6 +113,42 @@ def test_skill_attachment_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.
     assert tracked.is_memory is False
 
 
+def test_skill_attachment_truncates_oversized_skill_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.const import ATTACHMENT_SKILL_MAX_LINES
+
+    skill_dir = tmp_path / "giant-skill"
+    skill_dir.mkdir(parents=True)
+    skill_path = skill_dir / "SKILL.md"
+    total_lines = ATTACHMENT_SKILL_MAX_LINES + 50
+    skill_content = "\n".join(f"line {i}" for i in range(total_lines)) + "\n"
+    skill_path.write_text(skill_content, encoding="utf-8")
+
+    skill = Skill(
+        name="giant",
+        description="oversized skill",
+        location="project",
+        skill_path=skill_path,
+        base_dir=skill_dir,
+    )
+
+    monkeypatch.setattr(skill_attachments, "resolve_skill_for_input", lambda _s, _n: skill)
+
+    session = _build_session_with_user_text("/skill:giant")
+    attachment = _arun(skill_attachments.skill_attachment(session))
+    assert attachment is not None
+
+    text = message.join_text_parts(attachment.parts)
+    assert f"line {ATTACHMENT_SKILL_MAX_LINES - 1}" in text
+    assert f"line {ATTACHMENT_SKILL_MAX_LINES}" not in text
+    assert f"inlined up to the first {ATTACHMENT_SKILL_MAX_LINES} lines" in text
+    assert str(skill_path) in text
+    assert "Read tool" in text
+
+    # Raw sha256 is preserved so skill isn't falsely detected as "changed" next turn.
+    tracked = session.file_tracker[str(skill_path)]
+    assert tracked.content_sha256 == hash_text_sha256(skill_content)
+
+
 def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     skills: dict[str, Skill] = {}
     for name in ("alpha", "beta"):
