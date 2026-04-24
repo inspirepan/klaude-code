@@ -113,9 +113,7 @@ def test_skill_attachment_tracks_skill_file(tmp_path: Path, monkeypatch: pytest.
     assert tracked.is_memory is False
 
 
-def test_skill_attachment_truncates_oversized_skill_content(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_skill_attachment_truncates_oversized_skill_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.const import ATTACHMENT_SKILL_MAX_LINES
 
     skill_dir = tmp_path / "giant-skill"

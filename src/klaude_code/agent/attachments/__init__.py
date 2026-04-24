@@ -33,7 +33,9 @@ def truncate_text_by_lines(text: str, *, max_lines: int) -> LineTruncationResult
     ends with a bare newline before the notice.
     """
     if max_lines <= 0:
-        return LineTruncationResult(text="", total_lines=text.count("\n") + (1 if text else 0), kept_lines=0, truncated=bool(text))
+        return LineTruncationResult(
+            text="", total_lines=text.count("\n") + (1 if text else 0), kept_lines=0, truncated=bool(text)
+        )
 
     lines = text.splitlines()
     total = len(lines)

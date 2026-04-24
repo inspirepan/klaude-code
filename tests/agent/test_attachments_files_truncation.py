@@ -89,9 +89,7 @@ def test_compute_diff_snippet_small_diff_unchanged(tmp_path: Path) -> None:
     assert "mars" in snippet
 
 
-def test_file_changed_externally_attachment_caps_reminder_size(
-    tmp_path: Path, isolated_home: Path
-) -> None:
+def test_file_changed_externally_attachment_caps_reminder_size(tmp_path: Path, isolated_home: Path) -> None:
     del isolated_home
 
     async def _test() -> None:
