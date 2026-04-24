@@ -602,7 +602,9 @@ sub_agent_models:
   - gemini-flash:minimal
   - haiku
   code-reviewer:
-  - gpt-5.4
+  - gpt-5.5:xhigh
+  - gpt-5.5
+  - gpt-5.4:xhigh
   - opus
 
 fast_model:
