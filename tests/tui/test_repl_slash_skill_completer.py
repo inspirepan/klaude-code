@@ -100,7 +100,7 @@ def test_command_display_uses_gray_marker() -> None:
 def test_slash_long_fragment_includes_name_contains_match_after_prefix() -> None:
     def command_info_provider() -> list[CommandInfo]:
         return [
-            CommandInfo(name="model", summary="Change model (saves to config)"),
+            CommandInfo(name="model", summary="Change model (preserves fallback)"),
             CommandInfo(name="sub-agent-model", summary="Change sub-agent models"),
         ]
 
@@ -116,7 +116,7 @@ def test_slash_long_fragment_includes_name_contains_match_after_prefix() -> None
 def test_slash_short_fragment_keeps_prefix_only_for_commands() -> None:
     def command_info_provider() -> list[CommandInfo]:
         return [
-            CommandInfo(name="model", summary="Change model (saves to config)"),
+            CommandInfo(name="model", summary="Change model (preserves fallback)"),
             CommandInfo(name="sub-agent-model", summary="Change sub-agent models"),
         ]
 

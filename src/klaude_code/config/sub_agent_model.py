@@ -14,7 +14,7 @@ from klaude_code.protocol.sub_agent import (
 from klaude_code.protocol.tools import SubAgentType
 
 if TYPE_CHECKING:
-    from klaude_code.config.config import Config, ModelEntry
+    from klaude_code.config.config import Config, ModelConfigCandidate, ModelEntry
 
 
 @dataclass
@@ -118,4 +118,18 @@ class SubAgentModelResolver:
                     continue
                 if resolved is not None:
                     result[profile.name] = resolved
+        return result
+
+    def build_sub_agent_client_candidates(self) -> dict[SubAgentType, list[ModelConfigCandidate]]:
+        """Return fallback candidate chains for sub-agents that need dedicated clients."""
+
+        result: dict[SubAgentType, list[ModelConfigCandidate]] = {}
+        for profile in iter_sub_agent_profiles():
+            role_key = profile.name
+            model_pref = self._config.sub_agent_models.get(role_key)
+            if model_pref is None:
+                continue
+            candidates = self._config.iter_model_config_candidates(model_pref)
+            if candidates:
+                result[profile.name] = candidates
         return result

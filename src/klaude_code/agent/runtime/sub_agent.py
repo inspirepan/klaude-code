@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
-from klaude_code.agent.runtime.llm import LLMClients
+from klaude_code.agent.runtime.llm import LLMClients, clone_llm_client
 from klaude_code.agent.system_prompt import build_sub_agent_env_info, load_prompt_by_path
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT, FORK_CONTEXT_WITH_ROLE_PROMPT
@@ -83,8 +83,10 @@ class SubAgentExecutor:
             child_profile = parent_agent.profile
         else:
             clients = llm_clients or self._llm_clients
+            child_client = clients.sub_clients.get(state.sub_agent_type)
+            child_client = clone_llm_client(child_client) if child_client is not None else clients.main
             child_profile = self._model_profile_provider.build_profile(
-                clients.get_client(state.sub_agent_type),
+                child_client,
                 state.sub_agent_type,
                 work_dir=parent_session.work_dir,
             )
@@ -93,6 +95,7 @@ class SubAgentExecutor:
             session=child_session,
             profile=child_profile,
             request_user_interaction=parent_agent.request_user_interaction,
+            model_profile_provider=self._model_profile_provider,
         )
 
         log_debug(

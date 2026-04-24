@@ -18,6 +18,7 @@ from klaude_code.agent.runtime.llm import build_llm_clients
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import Config, load_config
+from klaude_code.config.config import ModelPreference
 from klaude_code.control.event_bus import EventBus, EventSubscription
 from klaude_code.control.event_relay import EventRelayPublisher, event_relay_socket_path
 from klaude_code.control.session_meta_relay import SessionMetaRelayPublisher, session_meta_relay_socket_path
@@ -252,7 +253,7 @@ async def initialize_session(
 def backfill_session_model_config(
     agent: Agent | None,
     model_override: str | None,
-    default_model: str | None,
+    default_model: ModelPreference,
     *,
     is_new_session: bool,
 ) -> None:
@@ -262,7 +263,7 @@ def backfill_session_model_config(
 
     if model_override is not None:
         agent.session.model_config_name = model_override
-    elif is_new_session and default_model is not None:
+    elif is_new_session and isinstance(default_model, str):
         agent.session.model_config_name = default_model
     else:
         return

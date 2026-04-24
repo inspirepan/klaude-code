@@ -124,6 +124,18 @@ class PromptSuggestionEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class FallbackModelConfigWarnEntry(BaseModel):
+    """Persisted record of a runtime model fallback."""
+
+    sub_agent_type: str | None = None
+    from_model: str
+    from_provider: str | None = None
+    to_model: str
+    to_provider: str | None = None
+    reason: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class SpawnSubAgentEntry(BaseModel):
     """Recorded in the parent session when a sub-agent is spawned.
 
@@ -274,6 +286,7 @@ HistoryEvent = (
     | CompactionEntry
     | RewindEntry
     | CacheHitRateEntry
+    | FallbackModelConfigWarnEntry
     | SpawnSubAgentEntry
     | AwaySummaryEntry
     | PromptSuggestionEntry

@@ -379,25 +379,34 @@ def main_callback(
         # If still no model, check main_model; if not configured or invalid,
         # trigger interactive selection.
         if chosen_model is None:
-            from klaude_code.config import ModelAvailability, load_config
+            from klaude_code.config import ModelAvailability, format_model_preference, load_config
 
             cfg = load_config()
-            main_model = (cfg.main_model.strip() or None) if cfg.main_model else None
+            main_model = cfg.main_model
 
             picker_highlighted: list[str] | None = None
             picker_initial: str | None = None
             needs_picker = main_model is None
 
             if main_model is not None:
-                diag = cfg.diagnose_model(main_model)
-                if diag.availability != ModelAvailability.AVAILABLE:
+                main_candidates = (
+                    cfg.iter_model_config_candidates(main_model)
+                    if hasattr(cfg, "iter_model_config_candidates")
+                    else None
+                )
+                if main_candidates == []:
+                    main_display = format_model_preference(main_model) or ""
                     from klaude_code.log import log
 
-                    log((f"Error: main_model '{main_model}' is unavailable ({diag.detail})", "red"))
-                    if diag.suggestions:
-                        log(("Did you mean: " + ", ".join(diag.suggestions) + " ?", "yellow"))
-                    picker_highlighted = diag.suggestions or None
-                    picker_initial = diag.suggestions[0] if diag.suggestions else None
+                    if isinstance(main_model, str):
+                        diag = cfg.diagnose_model(main_model)
+                        log((f"Error: main_model '{main_display}' is unavailable ({diag.detail})", "red"))
+                        if diag.availability != ModelAvailability.AVAILABLE and diag.suggestions:
+                            log(("Did you mean: " + ", ".join(diag.suggestions) + " ?", "yellow"))
+                            picker_highlighted = diag.suggestions or None
+                            picker_initial = diag.suggestions[0] if diag.suggestions else None
+                    else:
+                        log((f"Error: main_model '{main_display}' has no available candidates", "red"))
                     needs_picker = True
 
             if needs_picker:
@@ -415,7 +424,7 @@ def main_callback(
 
                 asyncio.run(cfg.save())
                 log(f"Saved main_model={chosen_model} to {config_path}")
-            else:
+            elif isinstance(main_model, str):
                 chosen_model = main_model
 
         debug_enabled, log_path = prepare_debug_logging(debug)

@@ -62,6 +62,16 @@ class ModelDiagnosis:
         return self.availability == ModelAvailability.AVAILABLE
 
 
+@dataclass(frozen=True)
+class ModelConfigCandidate:
+    """Resolved model selector with its concrete provider config."""
+
+    selector: str
+    model_name: str
+    provider: str
+    llm_config: llm_param.LLMConfigParameter
+
+
 def parse_env_var_syntax(value: str | None) -> tuple[str | None, str | None]:
     """Parse a value that may use ${ENV_VAR} syntax.
 
@@ -127,6 +137,21 @@ def format_model_preference(value: ModelPreference) -> str | None:
     if not choices:
         return None
     return " > ".join(choices)
+
+
+def prioritize_model_preference(current: ModelPreference, selected_model: str) -> ModelPreference:
+    """Move or insert a selected model to the front of a preference chain."""
+
+    selected = selected_model.strip()
+    if not selected:
+        return current
+    if current is None:
+        return selected
+    if isinstance(current, str):
+        return current if current == selected else [selected, current]
+
+    remaining = [model for model in current if model != selected]
+    return [selected, *remaining]
 
 
 config_path = Path.home() / ".klaude" / "klaude-config.yaml"
@@ -285,9 +310,9 @@ class ModelEntry(llm_param.LLMConfigModelParameter):
 class UserConfig(BaseModel):
     """User configuration (what gets saved to disk)."""
 
-    main_model: str | None = None
-    fast_model: str | list[str] | None = None
-    compact_model: str | list[str] | None = None
+    main_model: ModelPreference = None
+    fast_model: ModelPreference = None
+    compact_model: ModelPreference = None
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     theme: str | None = None
     auto_upgrade: bool | None = None
@@ -296,6 +321,7 @@ class UserConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_sub_agent_models(cls, data: dict[str, Any]) -> dict[str, Any]:
+        data["main_model"] = _normalize_model_preference(data.get("main_model"))
         data["fast_model"] = _normalize_model_preference(data.get("fast_model"))
         data["compact_model"] = _normalize_model_preference(data.get("compact_model"))
         raw_val: Any = data.get("sub_agent_models") or {}
@@ -320,9 +346,9 @@ class UserConfig(BaseModel):
 class Config(BaseModel):
     """Merged configuration (builtin + user) for runtime use."""
 
-    main_model: str | None = None
-    fast_model: str | list[str] | None = None
-    compact_model: str | list[str] | None = None
+    main_model: ModelPreference = None
+    fast_model: ModelPreference = None
+    compact_model: ModelPreference = None
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     theme: str | None = None
     auto_upgrade: bool = True
@@ -334,6 +360,7 @@ class Config(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_sub_agent_models(cls, data: dict[str, Any]) -> dict[str, Any]:
+        data["main_model"] = _normalize_model_preference(data.get("main_model"))
         data["fast_model"] = _normalize_model_preference(data.get("fast_model"))
         data["compact_model"] = _normalize_model_preference(data.get("compact_model"))
         raw_val: Any = data.get("sub_agent_models") or {}
@@ -583,8 +610,11 @@ class Config(BaseModel):
         return None
 
     def get_model_config(self, model_name: str) -> llm_param.LLMConfigParameter:
-        requested_model, requested_provider = self._split_model_selector(model_name)
+        candidates = self.iter_model_config_candidates(model_name)
+        if candidates:
+            return candidates[0].llm_config
 
+        requested_model, requested_provider = self._split_model_selector(model_name)
         for provider in self.provider_list:
             if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
                 continue
@@ -600,7 +630,6 @@ class Config(BaseModel):
                         f"Provider '{provider.provider_name}' is not available (missing credentials) for: {model_name}"
                     )
                 continue
-
             for model in provider.model_list:
                 if model.model_name != requested_model:
                     continue
@@ -612,25 +641,67 @@ class Config(BaseModel):
                         )
                     break
 
-                provider_dump = provider.model_dump(exclude={"model_list", "disabled"})
-                provider_dump["api_key"] = provider.get_resolved_api_key()
-                for field in (
-                    "aws_access_key",
-                    "aws_secret_key",
-                    "aws_region",
-                    "aws_session_token",
-                    "aws_profile",
-                    "google_application_credentials",
-                    "google_cloud_project",
-                    "google_cloud_location",
-                ):
-                    _, provider_dump[field] = parse_env_var_syntax(provider_dump.get(field))
-                return llm_param.LLMConfigParameter(
-                    **provider_dump,
-                    **model.model_dump(exclude={"model_name"}),
-                )
-
         raise ValueError(f"Unknown model: {model_name}")
+
+    @staticmethod
+    def _build_llm_config(provider: ProviderConfig, model: ModelConfig) -> llm_param.LLMConfigParameter:
+        provider_dump = provider.model_dump(exclude={"model_list", "disabled"})
+        provider_dump["api_key"] = provider.get_resolved_api_key()
+        for field in (
+            "aws_access_key",
+            "aws_secret_key",
+            "aws_region",
+            "aws_session_token",
+            "aws_profile",
+            "google_application_credentials",
+            "google_cloud_project",
+            "google_cloud_location",
+        ):
+            _, provider_dump[field] = parse_env_var_syntax(provider_dump.get(field))
+        return llm_param.LLMConfigParameter(
+            **provider_dump,
+            **model.model_dump(exclude={"model_name"}),
+        )
+
+    def iter_model_config_candidates(self, model_preference: ModelPreference) -> list[ModelConfigCandidate]:
+        """Expand a model preference into concrete provider-qualified candidates.
+
+        Unqualified selectors expand to all available providers in provider_list order.
+        Provider-qualified selectors expand to only that provider.
+        """
+
+        candidates: list[ModelConfigCandidate] = []
+        seen: set[str] = set()
+        for model_selector in _iter_model_preference_values(model_preference):
+            try:
+                requested_model, requested_provider = self._split_model_selector(model_selector)
+            except ValueError:
+                continue
+
+            for provider in self.provider_list:
+                if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
+                    continue
+                if provider.disabled or provider.is_api_key_missing():
+                    continue
+
+                for model in provider.model_list:
+                    if model.model_name != requested_model or model.disabled:
+                        continue
+                    selector = f"{requested_model}@{provider.provider_name}"
+                    if selector in seen:
+                        break
+                    seen.add(selector)
+                    candidates.append(
+                        ModelConfigCandidate(
+                            selector=selector,
+                            model_name=requested_model,
+                            provider=provider.provider_name,
+                            llm_config=self._build_llm_config(provider, model),
+                        )
+                    )
+                    break
+
+        return candidates
 
     def iter_model_entries(self, only_available: bool = False, include_disabled: bool = True) -> list[ModelEntry]:
         """Return all model entries with their provider names.

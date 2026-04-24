@@ -17,7 +17,8 @@ _WEB_STATE_DEP: Final = Depends(get_web_state)
 async def list_models() -> dict[str, list[dict[str, str | bool | list[str]]]]:
     config = load_config()
     entries = config.iter_model_entries(only_available=True, include_disabled=False)
-    default_model = (config.main_model or "").strip()
+    default_candidates = config.iter_model_config_candidates(config.main_model)
+    default_model = default_candidates[0].selector if default_candidates else ""
     models = [
         {
             "name": entry.selector,
@@ -25,7 +26,7 @@ async def list_models() -> dict[str, list[dict[str, str | bool | list[str]]]]:
             "model_name": entry.model_name,
             "model_id": entry.model_id or entry.model_name,
             "params": format_model_params(entry),
-            "is_default": entry.selector == default_model or entry.model_name == default_model,
+            "is_default": entry.selector == default_model,
         }
         for entry in entries
     ]

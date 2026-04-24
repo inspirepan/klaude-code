@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
-from klaude_code.agent.runtime.llm import LLMClients, build_llm_clients
+from klaude_code.agent.runtime.llm import FallbackLLMClient, LLMClients, build_llm_clients
 from klaude_code.agent.session_title import _normalize_session_title, generate_session_title
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
@@ -164,6 +164,48 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
     assert clients.fast.model_name == "fast-model-id"
     assert clients.compact is not None
     assert clients.compact.model_name == "compact-model-id"
+
+
+def test_build_llm_clients_uses_main_model_fallback_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    providers = [
+        ProviderConfig(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="openai-key",
+            model_list=[ModelConfig(model_name="gpt-5.4", model_id="openai/gpt-5.4")],
+        ),
+        ProviderConfig(
+            provider_name="openrouter",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="openrouter-key",
+            model_list=[
+                ModelConfig(model_name="gpt-5.4", model_id="openrouter/gpt-5.4"),
+                ModelConfig(model_name="sonnet", model_id="openrouter/sonnet"),
+            ],
+        ),
+    ]
+    config = Config(
+        provider_list=providers,
+        main_model=["gpt-5.4", "sonnet"],
+    )
+
+    def _create_client(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return _FakeLLMClient([], config=llm_config)
+
+    monkeypatch.setattr(
+        "klaude_code.agent.runtime.llm.create_llm_client",
+        _create_client,
+    )
+
+    clients = build_llm_clients(config, skip_sub_agents=True)
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == [
+        "gpt-5.4@openai",
+        "gpt-5.4@openrouter",
+        "sonnet@openrouter",
+    ]
+    assert clients.main_model_alias == "gpt-5.4 > sonnet"
 
 
 def test_refresh_session_title_prefers_fast_client(

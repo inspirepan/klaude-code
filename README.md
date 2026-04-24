@@ -107,9 +107,14 @@ klaude
 
 On first run, you'll be prompted to select a model. Your choice is saved as `main_model`.
 
-You can also configure fallback lists for helper models:
+You can also configure fallback lists for the main model and helper models:
 
 ```yaml
+main_model:
+  - gpt-5.5
+  - gpt-5.4
+  - opus
+
 fast_model:
   - haiku
   - gemini-flash
@@ -120,7 +125,9 @@ compact_model:
   - haiku
 ```
 
-Klaude tries these entries in order and uses the first available model. `fast_model` is used for session-title generation; `compact_model` is used for compact/helper tasks.
+Klaude expands each entry into concrete provider candidates in `provider_list` order, then falls through to the next model in the list. For example, `gpt-5.4` will try available providers such as `gpt-5.4@openai`, `gpt-5.4@github-copilot`, and `gpt-5.4@openrouter` before moving to the next model. Runtime fallback is used for non-retryable provider/model failures such as quota, billing, permission, or model-unavailable errors. `fast_model` is used for session-title generation; `compact_model` is used for compact/helper tasks.
+
+When you switch models with `/model`, Klaude updates `main_model` without discarding the fallback chain: the selected model is moved to the front if it already exists, or inserted at the front otherwise.
 
 #### Built-in Providers
 
@@ -196,7 +203,10 @@ You can add custom models to built-in providers or define new ones. Configuratio
 
 ```yaml
 # ~/.klaude/klaude-config.yaml
-main_model: opus
+main_model:
+  - gpt-5.5
+  - gpt-5.4
+  - opus
 
 fast_model:
   - haiku
@@ -236,7 +246,8 @@ provider_list:
 - **Merging**: If `provider_name` matches a built-in provider, settings like `protocol` and `api_key` are inherited.
 - **Overriding**: Use the same `model_name` as a built-in model to override its parameters.
 - **Environment Variables**: Use `${VAR_NAME}` syntax for secrets.
-- **Model Preference Lists**: `fast_model` and `compact_model` accept either a single string or a list of model selectors. When you provide a list, Klaude tries them in order and picks the first available one.
+- **Model Preference Lists**: `main_model`, `fast_model`, and `compact_model` accept either a single string or a list of model selectors. When you provide a list, Klaude first tries matching providers in `provider_list` order for each selector, then moves to the next selector.
+- **Updating Defaults**: `/model` keeps saving the selected model back to `main_model`, but preserves fallback order by moving or inserting the selected model at the front of the list.
 
 ##### Sub-agent Model Configuration
 
@@ -307,7 +318,7 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 - `/refresh-terminal` - Refresh terminal display.
 - `/web` - Switch to web UI mode.
 - `/new` - Start a new session (clears context).
-- `/model` - Switch the active LLM during the session.
+- `/model` - Switch the active LLM and update `main_model` in config while preserving fallback order (the selected model is moved/inserted to the front).
 - `/sub-agent-model` - Configure sub-agent models at runtime.
 - `/thinking` - Change thinking/reasoning level.
 - `/status` - Show session usage statistics (cost, tokens, model breakdown).

@@ -17,6 +17,7 @@ from klaude_code.config.config import (
     UserProviderConfig,
     config_path,
     parse_env_var_syntax,
+    prioritize_model_preference,
 )
 from klaude_code.config.loader import load_config
 from klaude_code.config.merge import merge_configs
@@ -165,11 +166,12 @@ class TestConfig:
     def test_config_accepts_model_preference_lists(self, sample_provider: ProviderConfig) -> None:
         config = Config(
             provider_list=[sample_provider],
-            main_model="test-model",
+            main_model=["main-a", "main-b"],
             fast_model=["fast-a", "fast-b"],
             compact_model=["compact-a", "compact-b"],
         )
 
+        assert config.main_model == ["main-a", "main-b"]
         assert config.fast_model == ["fast-a", "fast-b"]
         assert config.compact_model == ["compact-a", "compact-b"]
 
@@ -190,6 +192,73 @@ class TestConfig:
         )
 
         assert config.get_first_available_model(config.fast_model) == "fallback-model"
+
+    def test_iter_model_config_candidates_expands_providers_then_model_preferences(self) -> None:
+        config = Config(
+            provider_list=[
+                ProviderConfig(
+                    provider_name="openai",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="openai-key",
+                    model_list=[
+                        ModelConfig(model_name="gpt-5.4", model_id="openai/gpt-5.4"),
+                    ],
+                ),
+                ProviderConfig(
+                    provider_name="openrouter",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="openrouter-key",
+                    model_list=[
+                        ModelConfig(model_name="gpt-5.4", model_id="openrouter/gpt-5.4"),
+                        ModelConfig(model_name="opus", model_id="openrouter/opus"),
+                    ],
+                ),
+                ProviderConfig(
+                    provider_name="anthropic",
+                    protocol=llm_param.LLMClientProtocol.ANTHROPIC,
+                    api_key="anthropic-key",
+                    model_list=[
+                        ModelConfig(model_name="opus", model_id="anthropic/opus"),
+                    ],
+                ),
+            ]
+        )
+
+        candidates = config.iter_model_config_candidates(["gpt-5.4", "opus"])
+
+        assert [candidate.selector for candidate in candidates] == [
+            "gpt-5.4@openai",
+            "gpt-5.4@openrouter",
+            "opus@openrouter",
+            "opus@anthropic",
+        ]
+
+    def test_iter_model_config_candidates_skips_invalid_entries_and_continues_fallback(self) -> None:
+        config = Config(
+            provider_list=[
+                ProviderConfig(
+                    provider_name="openai",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="openai-key",
+                    model_list=[
+                        ModelConfig(model_name="gpt-5.4", model_id="openai/gpt-5.4"),
+                    ],
+                )
+            ]
+        )
+
+        candidates = config.iter_model_config_candidates(["broken@", "missing-model", "gpt-5.4"])
+
+        assert [candidate.selector for candidate in candidates] == ["gpt-5.4@openai"]
+
+    def test_prioritize_model_preference_inserts_new_model_at_front(self) -> None:
+        assert prioritize_model_preference("opus@anthropic", "gpt@openai") == ["gpt@openai", "opus@anthropic"]
+
+    def test_prioritize_model_preference_moves_existing_model_to_front(self) -> None:
+        assert prioritize_model_preference(["gpt@openai", "opus@anthropic"], "opus@anthropic") == [
+            "opus@anthropic",
+            "gpt@openai",
+        ]
 
     def test_get_model_config(self, sample_config: Config) -> None:
         """Test getting model config by name."""

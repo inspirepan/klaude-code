@@ -8,8 +8,9 @@ from uuid import uuid4
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
 from klaude_code.agent.runtime.agent_ops import AgentRunner
+from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.session_stats import build_session_stats_ui_extra
-from klaude_code.config import format_model_preference, load_config
+from klaude_code.config import format_model_preference, load_config, prioritize_model_preference
 from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.config.sub_agent_model import SubAgentModelResolver
 from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
@@ -41,7 +42,7 @@ class ModelSwitcher:
         agent.session.model_thinking = llm_config.thinking
 
         if save_as_default:
-            config.main_model = model_name
+            config.main_model = prioritize_model_preference(config.main_model, model_name)
             await config.save()
 
         return llm_config, model_name
@@ -174,8 +175,11 @@ class ConfigHandler:
             session_clients.sub_clients.pop(sub_agent_type, None)
             display_model = f"({behavior.description})"
         else:
-            llm_config = config.get_model_config(model_name)
-            new_client = create_llm_client(llm_config)
+            candidates = config.iter_model_config_candidates(model_name)
+            if not candidates:
+                _ = config.get_model_config(model_name)
+                raise ValueError(f"Unknown model: {model_name}")
+            new_client = FallbackLLMClient(candidates)
             session_clients.sub_clients[sub_agent_type] = new_client
             display_model = new_client.model_name
 
@@ -255,15 +259,20 @@ class ConfigHandler:
 
     async def _save_main_model_default_if_needed(self, *, session_id: str, model_name: str) -> bool:
         config = load_config()
-        if config.main_model == model_name:
+        updated_preference = prioritize_model_preference(config.main_model, model_name)
+        if config.main_model == updated_preference:
             return False
 
-        config.main_model = model_name
+        config.main_model = updated_preference
         await config.save()
         await self._emit_event(
             events.NoticeEvent(
                 session_id=session_id,
-                content=f"Main model: {model_name} (saved in ~/.klaude/klaude-config.yaml)",
+                content=(
+                    "Main model: "
+                    f"{format_model_preference(config.main_model) or model_name} "
+                    "(saved in ~/.klaude/klaude-config.yaml)"
+                ),
             )
         )
         return True

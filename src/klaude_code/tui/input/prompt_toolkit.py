@@ -497,7 +497,9 @@ class PromptToolkitInput(InputProviderABC):
                 current_model = self._get_current_model_config_name()
         if not current_model:
             with contextlib.suppress(Exception):
-                current_model = load_config().main_model
+                config = load_config()
+                main_candidates = config.iter_model_config_candidates(config.main_model)
+                current_model = main_candidates[0].selector if main_candidates else None
         model_name = current_model.split("@", 1)[0] if current_model else None
 
         parts = [dir_name]
@@ -698,7 +700,8 @@ class PromptToolkitInput(InputProviderABC):
                 initial = self._get_current_model_config_name()
         if initial is None:
             config = load_config()
-            initial = config.main_model
+            main_candidates = config.iter_model_config_candidates(config.main_model)
+            initial = main_candidates[0].selector if main_candidates else None
         if isinstance(initial, str) and initial and "@" not in initial:
             config = load_config()
             try:

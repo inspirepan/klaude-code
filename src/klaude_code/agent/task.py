@@ -17,6 +17,7 @@ from klaude_code.agent.compaction import (
 )
 from klaude_code.agent.handoff import HandoffManager, run_handoff
 from klaude_code.agent.rewind import RewindManager
+from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.const import (
     INITIAL_RETRY_DELAY_S,
@@ -27,7 +28,7 @@ from klaude_code.const import (
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
-from klaude_code.protocol import events, message, tools, user_interaction
+from klaude_code.protocol import events, llm_param, message, tools, user_interaction
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
@@ -37,7 +38,7 @@ from klaude_code.protocol.models import (
     Usage,
 )
 from klaude_code.session.session import Session
-from klaude_code.tool import FileTracker, TodoContext, ToolABC
+from klaude_code.tool import FileTracker, TodoContext, ToolABC, get_registry
 from klaude_code.tool.core.context import RunSubtask
 
 type RequestUserInteraction = Callable[
@@ -227,6 +228,7 @@ class TaskExecutionContext:
     sub_agent_state: SubAgentState | None
     # LLM client for compaction (uses main if not set)
     compact_llm_client: LLMClientABC | None = None
+    apply_llm_client_change: Callable[[LLMClientABC], AgentProfile] | None = None
 
 
 class TaskExecutor:
@@ -268,6 +270,52 @@ class TaskExecutor:
             return None
         task_duration_s = time.perf_counter() - self._started_at
         return self._metadata_accumulator.get_partial(task_duration_s)
+
+    def _fallback_model(self, error_message: str) -> tuple[AgentProfile, events.FallbackModelConfigWarnEvent] | None:
+        ctx = self._context
+        client = ctx.profile.llm_client
+        if not isinstance(client, FallbackLLMClient):
+            return None
+        if not _is_fallbackable_llm_error(error_message):
+            return None
+
+        fallback = client.fallback_to_next()
+        if fallback is None:
+            return None
+
+        if ctx.apply_llm_client_change is not None:
+            new_profile = ctx.apply_llm_client_change(client)
+        else:
+            new_profile = AgentProfile(
+                llm_client=client,
+                system_prompt=ctx.profile.system_prompt,
+                tools=ctx.profile.tools,
+                attachments=ctx.profile.attachments,
+            )
+        ctx.profile = new_profile
+        ctx.tool_registry = _build_tool_registry(new_profile.tools)
+
+        sub_agent_type = ctx.sub_agent_state.sub_agent_type if ctx.sub_agent_state is not None else None
+        reason = _fallback_reason(error_message)
+        entry = message.FallbackModelConfigWarnEntry(
+            sub_agent_type=sub_agent_type,
+            from_model=fallback.from_candidate.model_name,
+            from_provider=fallback.from_candidate.provider,
+            to_model=fallback.to_candidate.model_name,
+            to_provider=fallback.to_candidate.provider,
+            reason=reason,
+        )
+        ctx.session_ctx.append_history([entry])
+        event = events.FallbackModelConfigWarnEvent(
+            session_id=ctx.session_ctx.session_id,
+            sub_agent_type=entry.sub_agent_type,
+            from_model=entry.from_model,
+            from_provider=entry.from_provider,
+            to_model=entry.to_model,
+            to_provider=entry.to_provider,
+            reason=entry.reason,
+        )
+        return new_profile, event
 
     def on_interrupt(self) -> list[events.Event]:
         """Handle an interrupt by finalizing the current turn and emitting partial metadata.
@@ -445,27 +493,27 @@ class TaskExecutor:
                             session_id=session_ctx.session_id,
                         )
 
-            turn_context = TurnExecutionContext(
-                session_ctx=session_ctx,
-                llm_client=profile.llm_client,
-                system_prompt=profile.system_prompt,
-                tools=profile.tools,
-                tool_registry=ctx.tool_registry,
-                sub_agent_state=ctx.sub_agent_state,
-                rewind_manager=self._rewind_manager,
-                handoff_manager=self._handoff_manager,
-                prev_turn_input_tokens=metadata_accumulator.prev_turn_input_tokens,
-            )
-
-            metadata_accumulator.cache.record_pre_call_state(
-                profile.system_prompt, profile.tools, profile.llm_client.model_name
-            )
-
             turn: TurnExecutor | None = None
             turn_succeeded = False
             last_error_message: str | None = None
+            failed_attempts = 0
 
-            for attempt in range(MAX_FAILED_TURN_RETRIES + 1):
+            while failed_attempts <= MAX_FAILED_TURN_RETRIES:
+                turn_context = TurnExecutionContext(
+                    session_ctx=session_ctx,
+                    llm_client=profile.llm_client,
+                    system_prompt=profile.system_prompt,
+                    tools=profile.tools,
+                    tool_registry=ctx.tool_registry,
+                    sub_agent_state=ctx.sub_agent_state,
+                    rewind_manager=self._rewind_manager,
+                    handoff_manager=self._handoff_manager,
+                    prev_turn_input_tokens=metadata_accumulator.prev_turn_input_tokens,
+                )
+
+                metadata_accumulator.cache.record_pre_call_state(
+                    profile.system_prompt, profile.tools, profile.llm_client.model_name
+                )
                 turn = TurnExecutor(turn_context)
                 self._current_turn = turn
 
@@ -561,6 +609,7 @@ class TaskExecutor:
                             )
                             if result.fork_event is not None:
                                 yield result.fork_event
+                            failed_attempts += 1
                             continue
                         except asyncio.CancelledError:
                             yield events.CompactionEndEvent(
@@ -597,15 +646,30 @@ class TaskExecutor:
                             if ctx.sub_agent_state is not None:
                                 raise RuntimeError(error_message) from exc
                             return
-                    if attempt < MAX_FAILED_TURN_RETRIES:
-                        delay = _retry_delay_seconds(attempt + 1)
-                        error_msg = f"Retrying {attempt + 1}/{MAX_FAILED_TURN_RETRIES} in {delay:.1f}s"
+
+                    fallback_result = self._fallback_model(last_error_message)
+                    if fallback_result is not None:
+                        profile, fallback_event = fallback_result
+                        metadata_accumulator.cache.notify_compaction()
+                        failed_attempts = 0
+                        yield fallback_event
+                        continue
+                    if _is_fallbackable_llm_error(last_error_message):
+                        break
+
+                    if failed_attempts < MAX_FAILED_TURN_RETRIES:
+                        retry_number = failed_attempts + 1
+                        delay = _retry_delay_seconds(retry_number)
+                        error_msg = f"Retrying {retry_number}/{MAX_FAILED_TURN_RETRIES} in {delay:.1f}s"
                         if last_error_message:
                             error_msg = f"{error_msg} - {last_error_message}"
                         yield events.ErrorEvent(
                             error_message=error_msg, can_retry=True, session_id=session_ctx.session_id
                         )
+                        failed_attempts += 1
                         await asyncio.sleep(delay)
+                        continue
+                    break
                 finally:
                     self._current_turn = None
 
@@ -614,7 +678,11 @@ class TaskExecutor:
                     "Maximum consecutive failed turns reached, aborting task",
                     debug_type=DebugType.EXECUTION,
                 )
-                final_error = f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
+                final_error = (
+                    "Turn failed after model fallback candidates were exhausted."
+                    if last_error_message and _is_fallbackable_llm_error(last_error_message)
+                    else f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
+                )
                 if last_error_message:
                     final_error = f"{last_error_message}\n{final_error}"
                 yield events.ErrorEvent(error_message=final_error, can_retry=False, session_id=session_ctx.session_id)
@@ -777,8 +845,43 @@ def _reset_attachment_loaded_flags(file_tracker: dict[str, FileStatus]) -> None:
         del file_tracker[path]
 
 
+def _build_tool_registry(tool_schemas: list[llm_param.ToolSchema]) -> dict[str, type[ToolABC]]:
+    available_tool_names = {tool.name for tool in tool_schemas}
+    return {name: tool_class for name, tool_class in get_registry().items() if name in available_tool_names}
+
+
 def _retry_delay_seconds(attempt: int) -> float:
     """Compute exponential backoff delay for the given attempt count."""
     capped_attempt = max(1, attempt)
     delay = INITIAL_RETRY_DELAY_S * (2 ** (capped_attempt - 1))
     return min(delay, MAX_RETRY_DELAY_S)
+
+
+def _fallback_reason(error_message: str) -> str:
+    first_line = error_message.strip().splitlines()[0] if error_message.strip() else "LLM request failed"
+    return first_line[:500]
+
+
+def _is_fallbackable_llm_error(error_message: str) -> bool:
+    text = error_message.casefold()
+    if is_context_overflow(error_message):
+        return False
+    fallbackable_markers = (
+        "insufficient_quota",
+        "exceeded your current quota",
+        "quota exceeded",
+        "quota_exceeded",
+        "billing",
+        "credit balance",
+        "credits exhausted",
+        "insufficient credits",
+        "payment required",
+        "model_not_found",
+        "model_not_available",
+        "does not have access to model",
+        "not authorized to access",
+        "permission_denied",
+        "permission denied",
+        "usage_limit_reached",
+    )
+    return any(marker in text for marker in fallbackable_markers)

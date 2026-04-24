@@ -38,6 +38,7 @@ __all__ = [
     "ErrorEvent",
     "Event",
     "EventEnvelope",
+    "FallbackModelConfigWarnEvent",
     "ForkCacheHitRateEvent",
     "InterruptEvent",
     "ModelChangedEvent",
@@ -220,6 +221,15 @@ class SubAgentModelChangedEvent(Event):
 class CompactModelChangedEvent(Event):
     model_display: str
     saved_as_default: bool = False
+
+
+class FallbackModelConfigWarnEvent(Event):
+    sub_agent_type: str | None = None
+    from_model: str
+    from_provider: str | None = None
+    to_model: str
+    to_provider: str | None = None
+    reason: str
 
 
 class SessionStatsEvent(Event):
@@ -447,6 +457,7 @@ type ReplayEventUnion = (
     | CompactionEndEvent
     | RewindEvent
     | CacheHitRateEvent
+    | FallbackModelConfigWarnEvent
     | BashCommandStartEvent
     | BashCommandOutputDeltaEvent
     | BashCommandEndEvent
