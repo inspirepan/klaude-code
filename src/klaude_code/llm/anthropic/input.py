@@ -33,7 +33,11 @@ from klaude_code.llm.input_common import (
 )
 from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.model_id import model_supports_eager_input_streaming, model_supports_unsigned_thinking
+from klaude_code.protocol.model_id import (
+    is_deepseek_model,
+    model_supports_eager_input_streaming,
+    model_supports_unsigned_thinking,
+)
 from klaude_code.protocol.system_prompt import SYSTEM_PROMPT_DYNAMIC_BOUNDARY, split_system_prompt_for_cache
 
 AllowedMediaType = Literal["image/png", "image/jpeg", "image/gif", "image/webp"]
@@ -151,6 +155,28 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
     native_thinking_parts, _ = split_thinking_parts(msg, model_name)
     native_thinking_ids = {id(part) for part in native_thinking_parts}
     supports_unsigned = model_supports_unsigned_thinking(model_name)
+    inserted_empty_deepseek_thinking = False
+
+    def _append_tool_use_block(part: message.ToolCallPart) -> None:
+        tool_input: dict[str, object] = {}
+        if part.arguments_json:
+            try:
+                parsed = json.loads(part.arguments_json)
+            except json.JSONDecodeError:
+                parsed = {"_raw": part.arguments_json}
+            tool_input = cast(dict[str, object], parsed) if isinstance(parsed, dict) else {"_value": parsed}
+
+        content.append(
+            cast(
+                BetaToolUseBlockParam,
+                {
+                    "type": "tool_use",
+                    "id": part.call_id,
+                    "name": part.tool_name,
+                    "input": tool_input,
+                },
+            )
+        )
 
     def _degraded_thinking_block(text: str) -> BetaTextBlockParam | None:
         stripped = text.strip()
@@ -216,25 +242,15 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
         if isinstance(part, message.TextPart):
             content.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
         elif isinstance(part, message.ToolCallPart):
-            tool_input: dict[str, object] = {}
-            if part.arguments_json:
-                try:
-                    parsed = json.loads(part.arguments_json)
-                except json.JSONDecodeError:
-                    parsed = {"_raw": part.arguments_json}
-                tool_input = cast(dict[str, object], parsed) if isinstance(parsed, dict) else {"_value": parsed}
-
-            content.append(
-                cast(
-                    BetaToolUseBlockParam,
-                    {
-                        "type": "tool_use",
-                        "id": part.call_id,
-                        "name": part.tool_name,
-                        "input": tool_input,
-                    },
-                )
-            )
+            if (
+                is_deepseek_model(model_name)
+                and msg.stop_reason == "tool_use"
+                and not native_thinking_parts
+                and not inserted_empty_deepseek_thinking
+            ):
+                content.append(cast(BetaContentBlockParam, {"type": "thinking", "thinking": ""}))
+                inserted_empty_deepseek_thinking = True
+            _append_tool_use_block(part)
 
     _flush_thinking()
 
