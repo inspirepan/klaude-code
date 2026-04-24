@@ -409,6 +409,12 @@ def create_key_bindings(
         if not isinstance(data, str) or not data:
             return
 
+        # Normalize line endings and tabs.
+        # Browsers and some editors put \r\n on the clipboard; without
+        # normalization, \r renders as ^M and \t renders as ^I in the
+        # prompt_toolkit buffer.
+        data = data.replace("\r\n", "\n").replace("\r", "\n").replace("\t", "    ")
+
         pasted_lines = data.splitlines()
         line_count = max(1, len(pasted_lines))
         total_chars = len(data)
