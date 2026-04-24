@@ -5,9 +5,12 @@ from collections.abc import AsyncIterator
 from typing import Any, cast
 
 import httpx
+import pytest
 from openai._models import construct_type_unchecked
 from openai.types import responses
 
+from klaude_code.llm.bedrock_anthropic import client as bedrock_client_module
+from klaude_code.llm.bedrock_anthropic.client import BedrockLLMStream
 from klaude_code.llm.anthropic.client import AnthropicLLMStream
 from klaude_code.llm.openai_compatible.stream import DefaultReasoningHandler, OpenAILLMStream
 from klaude_code.llm.openai_responses.client import ResponsesLLMStream
@@ -78,6 +81,17 @@ class _ListAsyncIterator:
         item = self._items[self._index]
         self._index += 1
         return item
+
+
+class _SyncExceptionIterator:
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+
+    def __iter__(self) -> _SyncExceptionIterator:
+        return self
+
+    def __next__(self) -> object:
+        raise self._exc
 
 
 def _basic_call_param(*, model_id: str) -> llm_param.LLMCallParameter:
@@ -211,4 +225,25 @@ def test_responses_stream_connection_reset_becomes_stream_error_item() -> None:
     error_items = [item for item in items if isinstance(item, message.StreamErrorItem)]
     assert error_items
     assert "ConnectionResetError" in error_items[0].error
+    assert any(isinstance(item, message.AssistantMessage) for item in items)
+
+
+def test_bedrock_stream_urllib3_error_becomes_stream_error_item(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _TestProtocolError(Exception):
+        pass
+
+    monkeypatch.setattr(bedrock_client_module, "_Urllib3HTTPErrorType", _TestProtocolError)
+
+    param = _basic_call_param(model_id="anthropic.claude-sonnet-4-6")
+    stream = BedrockLLMStream(
+        {"stream": _SyncExceptionIterator(_TestProtocolError("Response ended prematurely"))},
+        param=param,
+        metadata_tracker=MetadataTracker(),
+    )
+
+    items = _collect_stream(stream)
+    error_items = [item for item in items if isinstance(item, message.StreamErrorItem)]
+    assert error_items
+    assert "_TestProtocolError" in error_items[0].error
+    assert "Response ended prematurely" in error_items[0].error
     assert any(isinstance(item, message.AssistantMessage) for item in items)
