@@ -9,9 +9,9 @@ import pytest
 from openai._models import construct_type_unchecked
 from openai.types import responses
 
+from klaude_code.llm.anthropic.client import AnthropicLLMStream
 from klaude_code.llm.bedrock_anthropic import client as bedrock_client_module
 from klaude_code.llm.bedrock_anthropic.client import BedrockLLMStream
-from klaude_code.llm.anthropic.client import AnthropicLLMStream
 from klaude_code.llm.openai_compatible.stream import DefaultReasoningHandler, OpenAILLMStream
 from klaude_code.llm.openai_responses.client import ResponsesLLMStream
 from klaude_code.llm.usage import MetadataTracker

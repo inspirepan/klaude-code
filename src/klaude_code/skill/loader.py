@@ -237,8 +237,7 @@ class SkillLoader:
 
             if name != parent_dir_name:
                 warning = (
-                    f'skill name "{name}" should match directory name "{parent_dir_name}":\n'
-                    f'- [{location}] {skill_path}'
+                    f'skill name "{name}" should match directory name "{parent_dir_name}":\n- [{location}] {skill_path}'
                 )
                 self.skill_warnings_by_location.setdefault(location, []).append(warning)
 

@@ -22,7 +22,7 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
         loaded_skill_warnings={
             "project": [
                 'skill name "youtube-draft" should match directory name "pi-youtube-draft":\n'
-                '- [project] /tmp/project/.claude/skills/pi-youtube-draft/SKILL.md',
+                "- [project] /tmp/project/.claude/skills/pi-youtube-draft/SKILL.md",
                 "another warning",
             ]
         },
@@ -35,7 +35,7 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
 
     assert "skill warnings" in output
     assert 'skill name "youtube-draft" should match directory name "pi-youtube-draft":' in output
-    assert '  • [project] .claude/skills/pi-youtube-draft/SKILL.md' in output
+    assert "  • [project] .claude/skills/pi-youtube-draft/SKILL.md" in output
     assert "another warning" in output
     # Each warning should be on its own line, not joined with " | "
     assert " | " not in output
@@ -56,11 +56,7 @@ def test_render_welcome_shows_duplicate_skill_warning_as_multiline_paths() -> No
         work_dir="/tmp/project",
         llm_config=llm_config,
         loaded_skill_warnings={
-            "project": [
-                'duplicate "pdf" skill:\n'
-                f'- [system] {system_path}\n'
-                f'- [project] {project_path} (using this)'
-            ]
+            "project": [f'duplicate "pdf" skill:\n- [system] {system_path}\n- [project] {project_path} (using this)']
         },
     )
 
@@ -70,13 +66,13 @@ def test_render_welcome_shows_duplicate_skill_warning_as_multiline_paths() -> No
     output = out.getvalue()
 
     assert 'duplicate "pdf" skill:' in output
-    assert '[system]' in output
-    assert '[project]' in output
-    assert '~/.klaude/skills/.system/pdf/SKILL.md' in output
-    assert '.claude/skills/pdf/SKILL.md (using this)' in output
-    assert '  • [system]' in output
-    assert '  • [project] .claude/skills/pdf/SKILL.md (using this)' in output
-    assert '╰── [project]' not in output
+    assert "[system]" in output
+    assert "[project]" in output
+    assert "~/.klaude/skills/.system/pdf/SKILL.md" in output
+    assert ".claude/skills/pdf/SKILL.md (using this)" in output
+    assert "  • [system]" in output
+    assert "  • [project] .claude/skills/pdf/SKILL.md (using this)" in output
+    assert "╰── [project]" not in output
 
 
 def test_render_welcome_merges_memories_and_skills_into_context_tree() -> None:

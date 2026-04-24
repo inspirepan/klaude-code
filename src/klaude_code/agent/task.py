@@ -734,8 +734,7 @@ class TaskExecutor:
                     )
                     yield events.ErrorEvent(
                         error_message=(
-                            "Empty response from model, retrying "
-                            f"{empty_response_retries}/{MAX_EMPTY_RESPONSE_RETRIES}"
+                            f"Empty response from model, retrying {empty_response_retries}/{MAX_EMPTY_RESPONSE_RETRIES}"
                         ),
                         can_retry=True,
                         session_id=session_ctx.session_id,

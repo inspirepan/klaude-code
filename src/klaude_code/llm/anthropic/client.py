@@ -61,6 +61,8 @@ def _map_anthropic_stop_reason(reason: str) -> StopReason | None:
         "aborted": "aborted",
     }
     return mapping.get(reason)
+
+
 class AnthropicStreamStateManager:
     """Manages streaming state for Anthropic API responses.
 

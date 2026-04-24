@@ -24,8 +24,7 @@ def test_discover_skills_records_name_folder_mismatch_warning(tmp_path: Path, mo
     warnings = loader.skill_warnings_by_location["user"]
     assert len(warnings) == 1
     assert warnings[0] == (
-        'skill name "skill-name" should match directory name "folder-name":\n'
-        f'- [user] {skill_dir / "SKILL.md"}'
+        f'skill name "skill-name" should match directory name "folder-name":\n- [user] {skill_dir / "SKILL.md"}'
     )
 
 
