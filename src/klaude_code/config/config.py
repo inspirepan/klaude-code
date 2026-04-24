@@ -679,7 +679,10 @@ class Config(BaseModel):
                 continue
 
             for provider in self.provider_list:
-                if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
+                if (
+                    requested_provider is not None
+                    and provider.provider_name.casefold() != requested_provider.casefold()
+                ):
                     continue
                 if provider.disabled or provider.is_api_key_missing():
                     continue

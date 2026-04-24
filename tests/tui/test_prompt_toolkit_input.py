@@ -31,4 +31,4 @@ def test_placeholder_shows_paste_image_hint_with_prompt_suggestion() -> None:
     placeholder = prompt_input._build_placeholder()
 
     assert ("class:prompt-suggestion", "run tests") in placeholder
-    assert any("ctrl+v to paste image" in text and "\n" not in text for _style, text in placeholder)
+    assert any("ctrl+v to paste image" in text and "\n" not in text for _style, text, *_ in placeholder)

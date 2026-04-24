@@ -302,9 +302,7 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
     arun(_test())
 
 
-def test_fallback_model_rebuilds_profile_and_replays_warning(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "project"
     project_dir.mkdir()
 
