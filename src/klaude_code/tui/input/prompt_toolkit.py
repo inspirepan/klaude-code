@@ -462,9 +462,9 @@ class PromptToolkitInput(InputProviderABC):
     def _build_placeholder(self) -> FormattedText:
         """Build placeholder showing repo/directory name, Git branch, and model.
 
-        When a prompt suggestion is pending, show it with an accept hint instead.
-        When an image is detected on the system clipboard, replace the hint
-        with a ctrl+v paste reminder instead.
+        When a prompt suggestion is pending, show it with an accept hint.
+        When an image is detected on the system clipboard, also show a ctrl+v
+        paste reminder.
         """
         if self._prompt_suggestion:
             hint = "[enter send · tab edit]"
@@ -477,12 +477,13 @@ class PromptToolkitInput(InputProviderABC):
             prompt_width = get_cwidth(self._prompt_text)
             used = get_cwidth(suggestion) + get_cwidth(hint)
             padding = max(1, cols - prompt_width - used)
-            return FormattedText(
-                [
-                    ("class:prompt-suggestion", suggestion),
-                    ("class:placeholder-hint", " " * padding + hint),
-                ]
-            )
+            parts: StyleAndTextTuples = [
+                ("class:prompt-suggestion", suggestion),
+                ("class:placeholder-hint", " " * padding + hint),
+            ]
+            if self._clipboard_has_image:
+                parts.append(("class:placeholder", "\n   ctrl+v to paste image"))
+            return FormattedText(parts)
 
         if self._clipboard_has_image:
             return FormattedText([("class:placeholder", "   ctrl+v to paste image")])
