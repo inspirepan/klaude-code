@@ -468,6 +468,8 @@ class PromptToolkitInput(InputProviderABC):
         """
         if self._prompt_suggestion:
             hint = "[enter send · tab edit]"
+            if self._clipboard_has_image:
+                hint = f"{hint} · ctrl+v to paste image"
             suggestion = self._prompt_suggestion
             try:
                 cols = get_app().output.get_size().columns
@@ -481,8 +483,6 @@ class PromptToolkitInput(InputProviderABC):
                 ("class:prompt-suggestion", suggestion),
                 ("class:placeholder-hint", " " * padding + hint),
             ]
-            if self._clipboard_has_image:
-                parts.append(("class:placeholder", "\n   ctrl+v to paste image"))
             return FormattedText(parts)
 
         if self._clipboard_has_image:
