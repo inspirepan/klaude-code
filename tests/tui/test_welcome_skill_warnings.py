@@ -1,4 +1,5 @@
 import io
+from pathlib import Path
 
 from rich.console import Console
 
@@ -16,9 +17,15 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
     )
     event = events.WelcomeEvent(
         session_id="s1",
-        work_dir="/tmp",
+        work_dir="/tmp/project",
         llm_config=llm_config,
-        loaded_skill_warnings={"project": ["name mismatch", "another warning"]},
+        loaded_skill_warnings={
+            "project": [
+                'skill name "youtube-draft" should match directory name "pi-youtube-draft":\n'
+                '- [project] /tmp/project/.claude/skills/pi-youtube-draft/SKILL.md',
+                "another warning",
+            ]
+        },
     )
 
     out = io.StringIO()
@@ -27,10 +34,49 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
     output = out.getvalue()
 
     assert "skill warnings" in output
-    assert "name mismatch" in output
+    assert 'skill name "youtube-draft" should match directory name "pi-youtube-draft":' in output
+    assert '  • [project] .claude/skills/pi-youtube-draft/SKILL.md' in output
     assert "another warning" in output
     # Each warning should be on its own line, not joined with " | "
     assert " | " not in output
+    assert "╰── [project]" not in output
+    assert "├── [project]" not in output
+
+
+def test_render_welcome_shows_duplicate_skill_warning_as_multiline_paths() -> None:
+    system_path = Path.home() / ".klaude/skills/.system/pdf/SKILL.md"
+    project_path = Path("/tmp/project/.claude/skills/pdf/SKILL.md")
+    llm_config = LLMConfigParameter(
+        protocol=LLMClientProtocol.OPENAI,
+        provider_name="demo",
+        model_id="gpt-demo",
+    )
+    event = events.WelcomeEvent(
+        session_id="s1",
+        work_dir="/tmp/project",
+        llm_config=llm_config,
+        loaded_skill_warnings={
+            "project": [
+                'duplicate "pdf" skill:\n'
+                f'- [system] {system_path}\n'
+                f'- [project] {project_path} (using this)'
+            ]
+        },
+    )
+
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=False, width=120, theme=get_theme().app_theme)
+    console.print(render_welcome(event))
+    output = out.getvalue()
+
+    assert 'duplicate "pdf" skill:' in output
+    assert '[system]' in output
+    assert '[project]' in output
+    assert '~/.klaude/skills/.system/pdf/SKILL.md' in output
+    assert '.claude/skills/pdf/SKILL.md (using this)' in output
+    assert '  • [system]' in output
+    assert '  • [project] .claude/skills/pdf/SKILL.md (using this)' in output
+    assert '╰── [project]' not in output
 
 
 def test_render_welcome_merges_memories_and_skills_into_context_tree() -> None:

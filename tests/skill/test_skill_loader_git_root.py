@@ -60,4 +60,8 @@ def test_discover_skills_prefers_cwd_project_skill_over_git_root(
     assert loader.loaded_skills["shared-skill"].description == "from cwd"
     warnings = loader.skill_warnings_by_location["project"]
     assert len(warnings) == 1
-    assert 'duplicate skill "shared-skill"' in warnings[0]
+    assert warnings[0] == (
+        'duplicate "shared-skill" skill:\n'
+        f"- [project] {root_skill_file}\n"
+        f"- [project] {cwd_skill_file} (using this)"
+    )

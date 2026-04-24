@@ -236,7 +236,10 @@ class SkillLoader:
                 return None
 
             if name != parent_dir_name:
-                warning = f'{skill_path}: name "{name}" should match directory name'
+                warning = (
+                    f'skill name "{name}" should match directory name "{parent_dir_name}":\n'
+                    f'- [{location}] {skill_path}'
+                )
                 self.skill_warnings_by_location.setdefault(location, []).append(warning)
 
             # Create Skill object
@@ -299,14 +302,21 @@ class SkillLoader:
             if skill.skill_path == existing.skill_path:
                 return
 
-            warning_prefix = f'{skill.skill_path}: duplicate skill "{skill.name}" conflicts with {existing.skill_path}'
             if priority.get(skill.location, -1) >= priority.get(existing.location, -1):
-                warning = f"{warning_prefix}; overriding previous definition"
+                warning = (
+                    f'duplicate "{skill.name}" skill:\n'
+                    f"- [{existing.location}] {existing.skill_path}\n"
+                    f"- [{skill.location}] {skill.skill_path} (using this)"
+                )
                 self.skill_warnings_by_location.setdefault(skill.location, []).append(warning)
                 self.loaded_skills[skill.name] = skill
                 return
 
-            warning = f"{warning_prefix}; keeping higher-priority definition"
+            warning = (
+                f'duplicate "{skill.name}" skill:\n'
+                f"- [{skill.location}] {skill.skill_path}\n"
+                f"- [{existing.location}] {existing.skill_path} (using this)"
+            )
             self.skill_warnings_by_location.setdefault(skill.location, []).append(warning)
 
         # Load system-level skills first (lowest priority, can be overridden)

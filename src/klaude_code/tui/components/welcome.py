@@ -11,6 +11,7 @@ from rich.tree import Tree
 from klaude_code.config.formatters import format_model_params
 from klaude_code.log import is_debug_enabled
 from klaude_code.protocol import events
+from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.update import get_display_version
@@ -44,6 +45,9 @@ def _shorten_warning_path(warning: str, work_dir: Path) -> str:
     - Strips everything up to and including '/skills/' to show just '<skill-dir>/SKILL.md'
     - Falls back to relative path or ~ notation
     """
+    if "\n" in warning:
+        return warning
+
     sep = ": "
     idx = warning.find(sep)
     if idx < 0:
@@ -59,6 +63,99 @@ def _shorten_warning_path(warning: str, work_dir: Path) -> str:
             short = short[: -len("/SKILL.md")]
         return short + message
     return _format_memory_path(path_str, work_dir=work_dir) + message
+
+
+def _parse_duplicate_warning(warning: str) -> tuple[str, list[tuple[str, str, bool]]] | None:
+    lines = warning.splitlines()
+    if len(lines) != 3 or not lines[0].startswith('duplicate "') or not lines[0].endswith('" skill:'):
+        return None
+
+    name = lines[0][len('duplicate "') : -len('" skill:')]
+    items: list[tuple[str, str, bool]] = []
+    for line in lines[1:]:
+        if not line.startswith("- ["):
+            return None
+        scope_end = line.find("] ")
+        if scope_end < 0:
+            return None
+        scope = line[3:scope_end]
+        item = line[scope_end + 2 :]
+        using_this = item.endswith(" (using this)")
+        if using_this:
+            item = item[: -len(" (using this)")]
+        items.append((scope, item, using_this))
+    return name, items
+
+
+def _parse_name_mismatch_warning(warning: str) -> tuple[str, str, str, str] | None:
+    lines = warning.splitlines()
+    if len(lines) != 2 or not lines[0].startswith('skill name "') or not lines[0].endswith('":'):
+        return None
+
+    rest = lines[0][len('skill name "') :]
+    sep = '" should match directory name "'
+    idx = rest.find(sep)
+    if idx < 0:
+        return None
+
+    skill_name = rest[:idx]
+    directory_name = rest[idx + len(sep) : -2]
+
+    line = lines[1]
+    if not line.startswith("- ["):
+        return None
+    scope_end = line.find("] ")
+    if scope_end < 0:
+        return None
+
+    scope = line[3:scope_end]
+    path = line[scope_end + 2 :]
+    return skill_name, directory_name, scope, path
+
+
+def _render_warning(warning: str, *, work_dir: Path) -> RenderableType:
+    mismatch = _parse_name_mismatch_warning(warning)
+    if mismatch is not None:
+        skill_name, directory_name, scope, path = mismatch
+        title = Text()
+        title.append('skill name "', style=ThemeKey.WARN)
+        title.append(skill_name, style=ThemeKey.WARN_BOLD)
+        title.append('" should match directory name "', style=ThemeKey.WARN)
+        title.append(directory_name, style=ThemeKey.WARN_BOLD)
+        title.append('":', style=ThemeKey.WARN)
+
+        paths_grid = create_grid()
+        path_text = Text()
+        path_text.append(f"[{scope}]", style=ThemeKey.WARN_SCOPE)
+        path_text.append(" ", style=ThemeKey.WARN)
+        path_text.append(_format_memory_path(path, work_dir=work_dir), style=ThemeKey.WARN)
+        paths_grid.add_row(Text("  •", style=ThemeKey.WARN_BOLD), path_text)
+        return Group(title, paths_grid)
+
+    duplicate = _parse_duplicate_warning(warning)
+    if duplicate is not None:
+        name, items = duplicate
+        title = Text()
+        title.append('duplicate "', style=ThemeKey.WARN)
+        title.append(name, style=ThemeKey.WARN_BOLD)
+        title.append('" skill:', style=ThemeKey.WARN)
+        paths_grid = create_grid()
+        for scope, path, using_this in items:
+            path_text = Text()
+            path_text.append(f"[{scope}]", style=ThemeKey.WARN_SCOPE)
+            path_text.append(" ", style=ThemeKey.WARN)
+            path_text.append(_format_memory_path(path, work_dir=work_dir), style=ThemeKey.WARN)
+            if using_this:
+                path_text.append(" (using this)", style=ThemeKey.WARN)
+            paths_grid.add_row(Text("  •", style=ThemeKey.WARN_BOLD), path_text)
+        return Group(title, paths_grid)
+
+    lines = _shorten_warning_path(warning, work_dir).splitlines() or [warning]
+    text = Text(lines[0], style=ThemeKey.WARN)
+    for line in lines[1:]:
+        text.append("\n")
+        text.append(line, style=ThemeKey.WARN)
+    return text
 
 
 def _build_multi_column_tree(
@@ -184,23 +281,18 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
         renderables.append(_build_multi_column_tree("context", grouped_context))
 
     loaded_skill_warnings = e.loaded_skill_warnings or {}
-    warning_items: list[tuple[str, list[str]]] = []
+    warning_items: list[str] = []
     for scope in ("user", "project", "system"):
         warnings = loaded_skill_warnings.get(scope) or []
         if warnings:
-            warning_items.append((f"[{scope}]", warnings))
+            warning_items.extend(warnings)
     if warning_items:
         warning_tree = _RoundedTree(
             Text("skill warnings", style=ThemeKey.WARN_BOLD),
             guide_style=ThemeKey.LINES,
         )
-        for label, warnings in warning_items:
-            scope_text = Text()
-            scope_text.append(label, style=ThemeKey.WARN_SCOPE)
-            for warning in warnings:
-                scope_text.append("\n")
-                scope_text.append(f"  {_shorten_warning_path(warning, work_dir)}", style=ThemeKey.WARN)
-            warning_tree.add(scope_text)
+        for warning in warning_items:
+            warning_tree.add(_render_warning(warning, work_dir=work_dir))
         renderables.append(Text())
         renderables.append(warning_tree)
 
