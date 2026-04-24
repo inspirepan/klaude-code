@@ -62,6 +62,15 @@ Python tests are located in the `tests/` directory. Web frontend tests are in `w
 - Prefer `list[str]` over `typing.List[str]`
 - For complex function inputs or outputs, define a Pydantic model rather than returning tuples
 
+## Usage Model Semantics
+
+Internal `Usage` model (`protocol/models/usage.py`) uses **inclusive counts** — consumers must subtract when they want net values:
+
+- `input_tokens` is the **total prompt** and includes `cached_tokens + cache_write_tokens` (for most providers: Anthropic, OpenAI responses, OpenAI chat, Google). The **exception** is Anthropic-Bedrock, whose upstream `inputTokens` is "non-cached only"; consumers that need the true total across providers use `max(input_tokens, cached_tokens + cache_write_tokens)` as a robust normalization (see `agent/cache_break_detection.py`, `agent/cache_safe.py`, `agent/prompt_suggestion/`).
+- `output_tokens` is the **total output** and includes `reasoning_tokens` (thinking / Google thoughts / OpenAI reasoning). Net text output = `output_tokens - reasoning_tokens`.
+
+TUI display (`tui/components/metadata.py`) subtracts to show net values: `input = input_tokens - cached_tokens - cache_write_tokens`, `output = output_tokens - reasoning_tokens`. New display or aggregation code must apply the same subtraction (or the `max(...)` normalization for cross-provider totals) — never treat `input_tokens` as "just the non-cached portion".
+
 ## Architecture Constraints
 
 - Layered architecture enforced by import-linter: `cli > tui/web > app > agent > tool/control > skill > session > config > llm > protocol > auth > log > prompts/const`
