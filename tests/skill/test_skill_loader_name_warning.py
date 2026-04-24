@@ -23,7 +23,9 @@ def test_discover_skills_records_name_folder_mismatch_warning(tmp_path: Path, mo
 
     warnings = loader.skill_warnings_by_location["user"]
     assert len(warnings) == 1
-    assert 'name "skill-name" should match directory name' in warnings[0]
+    assert warnings[0] == (
+        f'skill name "skill-name" should match directory name "folder-name":\n- [user] {skill_dir / "SKILL.md"}'
+    )
 
 
 def test_discover_skills_no_warning_when_name_matches_folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -121,7 +123,11 @@ def test_discover_skills_records_conflict_warning_on_override(tmp_path: Path, mo
     assert loader.loaded_skills["dup-skill"].location == "user"
     warnings = loader.skill_warnings_by_location["user"]
     assert len(warnings) == 1
-    assert 'duplicate skill "dup-skill"' in warnings[0]
+    assert warnings[0] == (
+        'duplicate "dup-skill" skill:\n'
+        f"- [system] {system_skill_dir / 'SKILL.md'}\n"
+        f"- [user] {user_skill_dir / 'SKILL.md'} (using this)"
+    )
 
 
 def test_discover_skills_no_warning_for_symlink_duplicate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

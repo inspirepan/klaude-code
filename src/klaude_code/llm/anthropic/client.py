@@ -232,8 +232,10 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
             type="enabled",
             budget_tokens=param.thinking.budget_tokens or DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
         )
+    elif param.thinking and param.thinking.type == "disabled":
+        cast(dict[str, Any], payload)["thinking"] = {"type": "disabled"}
 
-    if "thinking" in payload:
+    if "thinking" in payload and param.thinking and param.thinking.type != "disabled":
         payload["context_management"] = {  # type: ignore[typeddict-item]
             "edits": [{"type": "clear_thinking_20251015", "keep": "all"}],
         }

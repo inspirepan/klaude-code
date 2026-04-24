@@ -159,6 +159,19 @@ def test_build_payload_includes_interleaved_beta_when_needed() -> None:
     assert ANTHROPIC_BETA_INTERLEAVED_THINKING in payload.get("betas", [])
 
 
+def test_build_payload_sets_explicit_disabled_thinking() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-sonnet-4-6",
+        thinking=llm_param.Thinking(type="disabled"),
+    )
+
+    payload = build_payload(param)
+
+    assert payload.get("thinking") == {"type": "disabled"}
+    assert "context_management" not in payload
+
+
 def test_build_payload_enables_eager_input_streaming_for_claude_tools() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -169,6 +182,7 @@ def test_build_payload_enables_eager_input_streaming_for_claude_tools() -> None:
     payload = build_payload(param)
 
     tools = list(payload.get("tools", []))
+    assert "type" not in tools[0]
     assert tools[0]["eager_input_streaming"] is True  # type: ignore[typeddict-item]
 
 
@@ -188,7 +202,7 @@ def test_build_payload_does_not_enable_eager_input_streaming_for_opus_47() -> No
 def test_build_payload_does_not_enable_eager_input_streaming_for_non_claude_models() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
-        model_id="deepseek-reasoner",
+        model_id="deepseek-v4-flash",
         tools=_dummy_tools(),
     )
 

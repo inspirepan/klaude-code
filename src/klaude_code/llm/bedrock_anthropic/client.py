@@ -18,6 +18,13 @@ try:
 except ModuleNotFoundError:
     _botocore_exceptions = None
 
+try:
+    import urllib3.exceptions as _urllib3_exceptions_import  # pyright: ignore[reportMissingTypeStubs]
+
+    _urllib3_exceptions: ModuleType | None = _urllib3_exceptions_import
+except ModuleNotFoundError:
+    _urllib3_exceptions = None
+
 import httpx
 
 from klaude_code.const import (
@@ -54,6 +61,16 @@ _BotocoreClientErrorType = cast(
 _BotocoreEventStreamErrorType = cast(
     type[Exception],
     _botocore_exceptions.EventStreamError if _botocore_exceptions is not None else Exception,
+)
+
+
+class _UnavailableUrllib3HTTPError(Exception):
+    pass
+
+
+_Urllib3HTTPErrorType = cast(
+    type[Exception],
+    _urllib3_exceptions.HTTPError if _urllib3_exceptions is not None else _UnavailableUrllib3HTTPError,
 )
 
 
@@ -536,7 +553,13 @@ class BedrockLLMStream(LLMStreamABC):
                 if isinstance(item, message.AssistantMessage):
                     self._completed = True
                 yield item
-        except (BedrockStreamError, _BotocoreBotoCoreErrorType, _BotocoreEventStreamErrorType, httpx.HTTPError) as e:
+        except (
+            BedrockStreamError,
+            _BotocoreBotoCoreErrorType,
+            _BotocoreEventStreamErrorType,
+            _Urllib3HTTPErrorType,
+            httpx.HTTPError,
+        ) as e:
             yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             self._metadata_tracker.set_model_name(str(self._param.model_id))
             self._metadata_tracker.set_response_id(self._state.response_id)
@@ -650,6 +673,7 @@ class BedrockClient(LLMClientABC):
             _BotocoreBotoCoreErrorType,
             _BotocoreClientErrorType,
             _BotocoreEventStreamErrorType,
+            _Urllib3HTTPErrorType,
             httpx.HTTPError,
         ) as e:
             error_message = f"{e.__class__.__name__} {e!s}"

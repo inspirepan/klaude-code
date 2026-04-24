@@ -290,13 +290,44 @@ provider_list:
   base_url: https://api.deepseek.com/anthropic
   model_list:
 
-  - model_name: deepseek
-    model_id: deepseek-reasoner
-    context_limit: 128000
+  - model_name: v4-flash:no-thinking
+    model_id: deepseek-v4-flash
+    context_limit: 1000000
+    thinking:
+      type: disabled
+    cost: { input: 1, output: 2, cache_read: 0.2, currency: CNY }
+
+  - model_name: v4-flash:high
+    model_id: deepseek-v4-flash
+    context_limit: 1000000
+    effort: high
     thinking:
       type: enabled
-      budget_tokens: 2048
-    cost: { input: 2, output: 3, cache_read: 0.2, currency: CNY }
+    cost: { input: 1, output: 2, cache_read: 0.2, currency: CNY }
+
+  - model_name: v4-flash:max
+    model_id: deepseek-v4-flash
+    context_limit: 1000000
+    effort: max
+    thinking:
+      type: enabled
+    cost: { input: 1, output: 2, cache_read: 0.2, currency: CNY }
+
+  - model_name: v4-pro:high
+    model_id: deepseek-v4-pro
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: enabled
+    cost: { input: 12, output: 24, cache_read: 1, currency: CNY }
+
+  - model_name: v4-pro:max
+    model_id: deepseek-v4-pro
+    context_limit: 1000000
+    effort: max
+    thinking:
+      type: enabled
+    cost: { input: 12, output: 24, cache_read: 1, currency: CNY }
 
 # ######################################## moonshot-cn ########################################
 - provider_name: moonshot-cn
@@ -375,6 +406,22 @@ provider_list:
   - *gpt54mini
   - *gpt54
   - *gpt54_xhigh
+  - model_name: gpt-5.5
+    model_id: gpt-5.5
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
+  - model_name: gpt-5.5:xhigh
+    model_id: gpt-5.5
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
 
 # ######################################## github-copilot ########################################
 - provider_name: github-copilot

@@ -56,12 +56,19 @@ def model_supports_eager_input_streaming(model_name: str | None) -> bool:
     return (is_opus_46_model(model_name) or is_sonnet_46_model(model_name)) and not is_opus_47_model(model_name)
 
 
+def is_deepseek_model(model_name: str | None) -> bool:
+    """Return True if the model name represents a DeepSeek model."""
+    return model_name is not None and model_name.startswith("deepseek-")
+
+
+def is_kimi_model(model_name: str | None) -> bool:
+    """Return True if the model name represents a Kimi model."""
+    return model_name is not None and "kimi" in model_name.lower()
+
+
 def model_supports_unsigned_thinking(model_name: str | None) -> bool:
     """Check if the model supports thinking blocks without signature (e.g., kimi, deepseek)."""
-    if not model_name:
-        return False
-    model_lower = model_name.lower()
-    return "kimi" in model_lower or "deepseek" in model_lower
+    return is_kimi_model(model_name) or is_deepseek_model(model_name)
 
 
 # -- OpenAI / Responses -------------------------------------------------------

@@ -330,6 +330,7 @@ button, input, summary { font: inherit; }
 
 .content > * {
   width: min(100%, 960px);
+  min-width: 0;
   margin: 0 auto;
 }
 
@@ -356,6 +357,10 @@ button, input, summary { font: inherit; }
   justify-content: space-between;
   align-items: start;
   gap: 16px;
+}
+
+.hero-title-row > * {
+  min-width: 0;
 }
 
 /* Large text: tight tracking (Schoger #5) */
@@ -428,6 +433,7 @@ button, input, summary { font: inherit; }
 /* ── Panel (details/summary) ── */
 
 .panel {
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -485,6 +491,7 @@ button, input, summary { font: inherit; }
 }
 
 .tool-item {
+  min-width: 0;
   border: 0;
   border-radius: var(--r-inner);
   background: var(--well);
@@ -534,11 +541,13 @@ button, input, summary { font: inherit; }
   padding: 14px;
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .tool-params {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
   font-size: var(--fs);
 }
 
@@ -548,6 +557,8 @@ button, input, summary { font: inherit; }
   vertical-align: top;
   padding: 8px 6px;
   border-top: 1px solid rgba(9, 9, 11, 0.06);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .tool-params th {
@@ -586,6 +597,7 @@ button, input, summary { font: inherit; }
 }
 
 .entry-card {
+  min-width: 0;
   padding: 20px 22px;
 }
 
@@ -637,6 +649,7 @@ button, input, summary { font: inherit; }
 .entry-body {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 /* ── Content blocks: well containers (inset ring, sunken bg) ── */
@@ -658,6 +671,7 @@ button, input, summary { font: inherit; }
 .tool-output,
 .empty-state {
   padding: 14px 16px;
+  min-width: 0;
 }
 
 .markdown-block > :first-child,
@@ -674,6 +688,8 @@ button, input, summary { font: inherit; }
 .markdown-block p {
   text-wrap: pretty;
   line-height: 1.7;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Inline code: subtle bg chip */

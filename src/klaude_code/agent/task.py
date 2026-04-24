@@ -732,6 +732,13 @@ class TaskExecutor:
                         f"attempt {empty_response_retries}/{MAX_EMPTY_RESPONSE_RETRIES}",
                         debug_type=DebugType.RESPONSE,
                     )
+                    yield events.ErrorEvent(
+                        error_message=(
+                            f"Empty response from model, retrying {empty_response_retries}/{MAX_EMPTY_RESPONSE_RETRIES}"
+                        ),
+                        can_retry=True,
+                        session_id=session_ctx.session_id,
+                    )
                     session_ctx.append_history(
                         [message.UserMessage(parts=[message.TextPart(text=EMPTY_RESPONSE_CONTINUATION_PROMPT)])]
                     )
