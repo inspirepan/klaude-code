@@ -103,7 +103,10 @@ def select_model_interactive(
         else:
             message = f"Select a model ({total_count}):"
 
-        initial_value = initial_selector if initial_selector else config.main_model
+        initial_value = initial_selector
+        if initial_value is None:
+            main_candidates = config.iter_model_config_candidates(config.main_model)
+            initial_value = main_candidates[0].selector if main_candidates else None
         if isinstance(initial_value, str) and initial_value and "@" not in initial_value:
             try:
                 resolved = config.resolve_model_location_prefer_available(
@@ -133,18 +136,12 @@ def select_model_interactive(
         # If we can't interactively select, fall back to a known configured model.
         if result.matched_model and result.matched_model in names:
             return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=result.matched_model)
-        if config.main_model and config.main_model in names:
+        if isinstance(config.main_model, str) and config.main_model in names:
             return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=config.main_model)
-        if config.main_model and "@" not in config.main_model:
-            try:
-                resolved = config.resolve_model_location_prefer_available(
-                    config.main_model
-                ) or config.resolve_model_location(config.main_model)
-            except ValueError:
-                resolved = None
-            if resolved is not None:
-                selector = f"{resolved[0]}@{resolved[1]}"
-                if selector in names:
-                    return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=selector)
+        main_candidates = config.iter_model_config_candidates(config.main_model)
+        if main_candidates:
+            selector = main_candidates[0].selector
+            if selector in names:
+                return ModelSelectResult(status=ModelSelectStatus.SELECTED, model=selector)
 
     return ModelSelectResult(status=ModelSelectStatus.ERROR)

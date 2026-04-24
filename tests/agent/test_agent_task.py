@@ -8,11 +8,19 @@ from typing import Any, ClassVar
 
 import pytest
 
+import klaude_code.agent.runtime.llm as runtime_llm
+import klaude_code.agent.task as task_module
+from klaude_code.agent.agent_profile import AgentProfile
+from klaude_code.agent.runtime.llm import FallbackLLMClient
+from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
+from klaude_code.config.config import ModelConfigCandidate
+from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import Usage
+from klaude_code.session.session import Session
 from klaude_code.tool.core.abc import ToolABC
-from klaude_code.tool.core.context import ToolContext
-from tests.agent.agent_harness import create_harness
+from klaude_code.tool.core.context import ToolContext, build_todo_context
+from tests.agent.agent_harness import ScriptedLLMStream, create_harness
 
 
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
@@ -71,6 +79,23 @@ class MockUpperTool(ToolABC):
             status="success",
             output_text=args["text"].upper(),
         )
+
+
+class ConfiguredScriptedClient(LLMClientABC):
+    def __init__(self, config: llm_param.LLMConfigParameter, responses: list[list[message.LLMStreamItem]]) -> None:
+        super().__init__(config)
+        self._responses = list(responses)
+        self.calls: list[llm_param.LLMCallParameter] = []
+
+    @classmethod
+    def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return cls(config, [])
+
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
+        self.calls.append(param)
+        if not self._responses:
+            raise RuntimeError("ConfiguredScriptedClient has no queued response")
+        return ScriptedLLMStream(self._responses.pop(0))
 
 
 @pytest.fixture(autouse=True)
@@ -273,6 +298,116 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
         # Final assistant text
         assert "recovered" in harness.get_assistant_texts()
+
+    arun(_test())
+
+
+def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    async def _test() -> None:
+        def _never_compact(*, session: Session, config: Any, llm_config: Any) -> bool:
+            del session, config, llm_config
+            return False
+
+        monkeypatch.setattr(task_module, "should_compact_threshold", _never_compact)
+
+        first_config = llm_param.LLMConfigParameter(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="gpt-5.5",
+        )
+        second_config = llm_param.LLMConfigParameter(
+            provider_name="openrouter",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="gpt-5.4",
+        )
+        first_client = ConfiguredScriptedClient(
+            first_config,
+            [[message.StreamErrorItem(error="RateLimitError insufficient_quota: credits exhausted")]],
+        )
+        second_client = ConfiguredScriptedClient(
+            second_config,
+            [[message.AssistantTextDelta(content="recovered"), _text_assistant_message("recovered")]],
+        )
+
+        def _create_llm_client(config: llm_param.LLMConfigParameter) -> LLMClientABC:
+            return first_client if config.provider_name == "openai" else second_client
+
+        monkeypatch.setattr(runtime_llm, "create_llm_client", _create_llm_client)
+
+        fallback_client = FallbackLLMClient(
+            [
+                ModelConfigCandidate(
+                    selector="gpt-5.5@openai",
+                    model_name="gpt-5.5",
+                    provider="openai",
+                    llm_config=first_config,
+                ),
+                ModelConfigCandidate(
+                    selector="gpt-5.4@openrouter",
+                    model_name="gpt-5.4",
+                    provider="openrouter",
+                    llm_config=second_config,
+                ),
+            ]
+        )
+
+        session = Session.create(work_dir=project_dir)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("try fallback"))])
+        session_ctx = SessionContext(
+            session_id=session.id,
+            work_dir=project_dir,
+            get_conversation_history=session.get_llm_history,
+            append_history=session.append_history,
+            file_tracker=session.file_tracker,
+            file_change_summary=session.file_change_summary,
+            todo_context=build_todo_context(session),
+            run_subtask=None,
+            request_user_interaction=None,
+        )
+        profile = AgentProfile(
+            llm_client=fallback_client,
+            system_prompt="prompt gpt-5.5",
+            tools=[],
+            attachments=[],
+        )
+
+        def _apply_llm_client_change(llm_client: LLMClientABC) -> AgentProfile:
+            return AgentProfile(
+                llm_client=llm_client,
+                system_prompt=f"prompt {llm_client.model_name}",
+                tools=[],
+                attachments=[],
+            )
+
+        executor = TaskExecutor(
+            TaskExecutionContext(
+                session=session,
+                session_ctx=session_ctx,
+                profile=profile,
+                tool_registry={},
+                sub_agent_state=None,
+                apply_llm_client_change=_apply_llm_client_change,
+            )
+        )
+
+        collected: list[events.Event] = []
+        async for event in executor.run(message.UserInputPayload(text="try fallback")):
+            collected.append(event)
+
+        fallback_events = [e for e in collected if isinstance(e, events.FallbackModelConfigWarnEvent)]
+        assert len(fallback_events) == 1
+        assert fallback_events[0].from_provider == "openai"
+        assert fallback_events[0].to_provider == "openrouter"
+        assert second_client.calls[0].system == "prompt gpt-5.4"
+        assert any(isinstance(item, message.FallbackModelConfigWarnEntry) for item in session.conversation_history)
+        assert "recovered" in [e.task_result for e in collected if isinstance(e, events.TaskFinishEvent)]
+
+        await session.wait_for_flush()
+        replayed = list(Session.load(session.id, work_dir=project_dir).get_history_item())
+        assert any(isinstance(event, events.FallbackModelConfigWarnEvent) for event in replayed)
 
     arun(_test())
 

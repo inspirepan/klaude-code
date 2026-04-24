@@ -705,6 +705,21 @@ class DisplayStateMachine:
             content=f"Compact model: {event.model_display}",
         )
 
+    @staticmethod
+    def _notice_from_fallback_model_config_warn(event: events.FallbackModelConfigWarnEvent) -> events.NoticeEvent:
+        def _display(model: str, provider: str | None) -> str:
+            return f"{model}@{provider}" if provider else model
+
+        label = f"{event.sub_agent_type} model" if event.sub_agent_type else "Model"
+        return events.NoticeEvent(
+            session_id=event.session_id,
+            content=(
+                f"{label} fallback: {_display(event.from_model, event.from_provider)} -> "
+                f"{_display(event.to_model, event.to_provider)} ({event.reason})"
+            ),
+            style="warn",
+        )
+
     def show_sigint_exit_toast(self) -> list[RenderCommand]:
         self._spinner.set_toast_status(SIGINT_DOUBLE_PRESS_EXIT_TEXT)
         return self._spinner_update_commands()
@@ -958,6 +973,10 @@ class DisplayStateMachine:
 
             case events.CompactModelChangedEvent() as e:
                 cmds.append(RenderNotice(self._notice_from_compact_model_changed(e)))
+                return cmds
+
+            case events.FallbackModelConfigWarnEvent() as e:
+                cmds.append(RenderNotice(self._notice_from_fallback_model_config_warn(e)))
                 return cmds
 
             case events.OperationRejectedEvent() as e:

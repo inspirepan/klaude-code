@@ -1089,11 +1089,20 @@ def _render_header(
         ("Meta Events", str(counts["meta"])),
     ]
     if has_usage:
+        # `Usage.input_tokens` / `output_tokens` are inclusive totals (see AGENTS.md).
+        # Subtract so the labels below describe disjoint categories.
+        net_input = max(
+            assistant_usage.input_tokens - assistant_usage.cached_tokens - assistant_usage.cache_write_tokens,
+            0,
+        )
+        net_output = max(assistant_usage.output_tokens - assistant_usage.reasoning_tokens, 0)
         stats_items.extend(
             [
-                ("Input Tokens", _format_number(assistant_usage.input_tokens)),
-                ("Output Tokens", _format_number(assistant_usage.output_tokens)),
+                ("Input Tokens", _format_number(net_input)),
+                ("Output Tokens", _format_number(net_output)),
                 ("Cached Tokens", _format_number(assistant_usage.cached_tokens)),
+                ("Cache Write Tokens", _format_number(assistant_usage.cache_write_tokens)),
+                ("Reasoning Tokens", _format_number(assistant_usage.reasoning_tokens)),
             ]
         )
         if assistant_usage.total_cost is not None:
@@ -1552,12 +1561,19 @@ def _usage_summary(usage: Usage | None) -> str | None:
     if usage is None:
         return None
     parts: list[str] = []
-    if usage.input_tokens:
-        parts.append(f"in {usage.input_tokens}")
-    if usage.output_tokens:
-        parts.append(f"out {usage.output_tokens}")
+    # `Usage.input_tokens` / `output_tokens` are inclusive totals (see AGENTS.md).
+    net_input = max(usage.input_tokens - usage.cached_tokens - usage.cache_write_tokens, 0)
+    net_output = max(usage.output_tokens - usage.reasoning_tokens, 0)
+    if net_input:
+        parts.append(f"in {net_input}")
+    if net_output:
+        parts.append(f"out {net_output}")
     if usage.cached_tokens:
         parts.append(f"cached {usage.cached_tokens}")
+    if usage.cache_write_tokens:
+        parts.append(f"cache write {usage.cache_write_tokens}")
+    if usage.reasoning_tokens:
+        parts.append(f"thinking {usage.reasoning_tokens}")
     if usage.total_cost is not None:
         parts.append(f"cost {usage.total_cost:.4f} {usage.currency}")
     return ", ".join(parts) if parts else None

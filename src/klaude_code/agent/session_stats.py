@@ -69,6 +69,7 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
 
         total.input_tokens += usage.input_tokens
         total.cached_tokens += usage.cached_tokens
+        total.cache_write_tokens += usage.cache_write_tokens
         total.reasoning_tokens += usage.reasoning_tokens
         total.output_tokens += usage.output_tokens
 

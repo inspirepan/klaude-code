@@ -485,6 +485,7 @@ class Session(BaseModel):
                 message.ToolResultMessage,
                 message.DeveloperMessage,
                 message.CacheHitRateEntry,
+                message.FallbackModelConfigWarnEntry,
                 message.CompactionEntry,
                 message.InterruptEntry,
                 message.RewindEntry,
@@ -732,6 +733,17 @@ class Session(BaseModel):
                         cache_hit_rate=cr.cache_hit_rate,
                         cached_tokens=cr.cached_tokens,
                         prev_turn_input_tokens=cr.prev_turn_input_tokens,
+                        timestamp=msg_ts,
+                    )
+                case message.FallbackModelConfigWarnEntry() as fw:
+                    yield events.FallbackModelConfigWarnEvent(
+                        session_id=self.id,
+                        sub_agent_type=fw.sub_agent_type,
+                        from_model=fw.from_model,
+                        from_provider=fw.from_provider,
+                        to_model=fw.to_model,
+                        to_provider=fw.to_provider,
+                        reason=fw.reason,
                         timestamp=msg_ts,
                     )
                 case message.AwaySummaryEntry() as aw:

@@ -304,6 +304,7 @@ class AgentOperationHandler:
             profile=profile,
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
+            model_profile_provider=self._model_profile_provider,
         )
 
         startup_update = get_startup_update_summary()
@@ -711,6 +712,7 @@ class AgentOperationHandler:
             profile=self._model_profile_provider.build_profile(session_clients.main, work_dir=new_session.work_dir),
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
+            model_profile_provider=self._model_profile_provider,
         )
 
         # Transfer holder from old session to new session before clearing.
@@ -762,6 +764,7 @@ class AgentOperationHandler:
             profile=self._model_profile_provider.build_profile(session_clients.main, work_dir=new_session.work_dir),
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
+            model_profile_provider=self._model_profile_provider,
         )
 
         old_holder_key = old_runtime.get_holder_key()

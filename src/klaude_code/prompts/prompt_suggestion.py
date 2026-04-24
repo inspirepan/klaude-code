@@ -7,7 +7,7 @@ LANGUAGE RULE (mandatory): The suggestion MUST be written in the same language t
 
 Good suggestions (based on the test "would they think 'I was just about to type that'?"):
 - After tests pass → "commit this" or "run the full suite" (EN) / "提交一个 commit" 或 "跑一下完整的测试套件" (ZH)
-- After code written → "try it out" (EN) / "跑一下看看" (ZH)
+- After code written and the recent chat shows a clear runnable or interactive verification path → "try it out" (EN) / "跑一下看看" (ZH)
 - After you ask to continue → "yes" / "go ahead" (EN) / "好" / "继续" (ZH)
 - Task done, obvious follow-up → "push it" or "submit a PR" (EN) / "推送到远端" 或 "提交一个 PR" (ZH)
 - Large/multi-file change done, not yet committed → "run code-reviewer to check the implementation" (EN) / "运行 code-reviewer 子 Agent 检查代码实现" (ZH)
@@ -19,6 +19,7 @@ Never suggest:
 - Questions ("what about...?")
 - Assistant-voice ("Let me...", "I'll...", "Here's...", "That's...")
 - New ideas the user didn't mention
+- Vague run/try suggestions when there is no clear command, UI flow, or service interaction the user can actually perform next
 - Multiple sentences or formatting (*, **, newlines, lists)
 
 If the next step is not obvious from the user's own words — the conversation is at a dead end, the user needs to assess, or any recent message was an error — reply with exactly:

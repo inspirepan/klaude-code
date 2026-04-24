@@ -79,10 +79,15 @@ def render_session_stats(e: events.SessionStatsEvent) -> RenderableType:
                 model_label = f"{meta.model_name} ({meta.provider.lower().replace(' ', '-')})"
 
             if meta.usage:
+                # `Usage.input_tokens` includes cached+cache_write; `output_tokens`
+                # includes reasoning. Subtract so each field displayed is disjoint.
+                net_input = max(meta.usage.input_tokens - meta.usage.cached_tokens - meta.usage.cache_write_tokens, 0)
+                net_output = max(meta.usage.output_tokens - meta.usage.reasoning_tokens, 0)
                 usage_detail = (
-                    f"{_format_tokens(meta.usage.input_tokens)} input, "
-                    f"{_format_tokens(meta.usage.output_tokens)} output, "
+                    f"{_format_tokens(net_input)} input, "
+                    f"{_format_tokens(net_output)} output, "
                     f"{_format_tokens(meta.usage.cached_tokens)} cache read, "
+                    f"{_format_tokens(meta.usage.cache_write_tokens)} cache write, "
                     f"{_format_tokens(meta.usage.reasoning_tokens)} thinking, "
                     f"({_format_cost(meta.usage.total_cost, meta.usage.currency)})"
                 )

@@ -107,14 +107,18 @@ def build_fork_cache_event(
             cache_hit_rate=0.0,
             fallback_used=fallback_used,
         )
-    total = usage.cached_tokens + usage.cache_write_tokens + usage.input_tokens
+    # ``Usage.input_tokens`` is provider-dependent: Anthropic/OpenAI paths store it
+    # as the full prompt total (cached + write + non-cached), while others use only
+    # the non-cached portion. ``max(input_tokens, cached + write)`` normalizes to
+    # the true total prompt size across providers (same trick as CacheTracker).
+    total = max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
     hit_rate = usage.cached_tokens / total if total > 0 else 0.0
     return events.ForkCacheHitRateEvent(
         session_id=session_id,
         fork_label=fork_label,
         cache_read_tokens=usage.cached_tokens,
         cache_creation_tokens=usage.cache_write_tokens,
-        input_tokens=usage.input_tokens,
+        input_tokens=max(0, total - usage.cached_tokens - usage.cache_write_tokens),
         cache_hit_rate=hit_rate,
         fallback_used=fallback_used,
     )

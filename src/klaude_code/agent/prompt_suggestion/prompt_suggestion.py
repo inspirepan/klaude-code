@@ -70,10 +70,11 @@ def should_suggest(session: Session) -> str | None:
         # skip when the parent turn had to do a lot of fresh (un-cached) work,
         # because the fork inherits similar cost.
         #
-        # Providers disagree on ``Usage.input_tokens`` semantics (Anthropic raw =
-        # un-cached only; OpenAI-compat = total including cached). Use the same
-        # robust normalization as CacheTracker: ``max(input_tokens, cached +
-        # cache_write)`` approximates the total prompt size across providers.
+        # Providers disagree on ``Usage.input_tokens`` semantics (most paths =
+        # total including cached+write; Anthropic-Bedrock = un-cached only).
+        # Use the same robust normalization as CacheTracker: ``max(input_tokens,
+        # cached + cache_write)`` approximates the total prompt size across
+        # providers. See AGENTS.md "Usage Model Semantics".
         total_input = max(
             usage.input_tokens,
             usage.cached_tokens + usage.cache_write_tokens,
@@ -147,7 +148,7 @@ async def run_prompt_suggestion(
     raw = message.join_text_parts(final_message.parts) if final_message else "".join(accumulated)
     usage = final_message.usage if final_message else None
     if usage is not None:
-        total = usage.cached_tokens + usage.cache_write_tokens + usage.input_tokens
+        total = max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
         hit = (usage.cached_tokens / total) if total > 0 else 0.0
         log_debug(
             f"[PromptSuggestion] usage cache_hit={hit:.2%} "

@@ -294,11 +294,11 @@ def test_request_model_operation_same_runtime_model_still_saves_default(
 
         await handler.handle_request_model(op.RequestModelOperation(session_id=session.id))
 
-        assert fake_config.main_model == "gpt@openai"
+        assert fake_config.main_model == ["gpt@openai", "opus@anthropic"]
         assert fake_config.saved is True
         assert len(emitted) == 1
         assert isinstance(emitted[0], events.NoticeEvent)
-        assert emitted[0].content == "Main model: gpt@openai (saved in ~/.klaude/klaude-config.yaml)"
+        assert emitted[0].content == "Main model: gpt@openai > opus@anthropic (saved in ~/.klaude/klaude-config.yaml)"
 
     arun(_test())
 

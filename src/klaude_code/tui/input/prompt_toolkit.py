@@ -462,12 +462,14 @@ class PromptToolkitInput(InputProviderABC):
     def _build_placeholder(self) -> FormattedText:
         """Build placeholder showing repo/directory name, Git branch, and model.
 
-        When a prompt suggestion is pending, show it with an accept hint instead.
-        When an image is detected on the system clipboard, replace the hint
-        with a ctrl+v paste reminder instead.
+        When a prompt suggestion is pending, show it with an accept hint.
+        When an image is detected on the system clipboard, also show a ctrl+v
+        paste reminder.
         """
         if self._prompt_suggestion:
             hint = "[enter send · tab edit]"
+            if self._clipboard_has_image:
+                hint = f"{hint} · ctrl+v to paste image"
             suggestion = self._prompt_suggestion
             try:
                 cols = get_app().output.get_size().columns
@@ -477,12 +479,11 @@ class PromptToolkitInput(InputProviderABC):
             prompt_width = get_cwidth(self._prompt_text)
             used = get_cwidth(suggestion) + get_cwidth(hint)
             padding = max(1, cols - prompt_width - used)
-            return FormattedText(
-                [
-                    ("class:prompt-suggestion", suggestion),
-                    ("class:placeholder-hint", " " * padding + hint),
-                ]
-            )
+            parts: StyleAndTextTuples = [
+                ("class:prompt-suggestion", suggestion),
+                ("class:placeholder-hint", " " * padding + hint),
+            ]
+            return FormattedText(parts)
 
         if self._clipboard_has_image:
             return FormattedText([("class:placeholder", "   ctrl+v to paste image")])
@@ -496,7 +497,9 @@ class PromptToolkitInput(InputProviderABC):
                 current_model = self._get_current_model_config_name()
         if not current_model:
             with contextlib.suppress(Exception):
-                current_model = load_config().main_model
+                config = load_config()
+                main_candidates = config.iter_model_config_candidates(config.main_model)
+                current_model = main_candidates[0].selector if main_candidates else None
         model_name = current_model.split("@", 1)[0] if current_model else None
 
         parts = [dir_name]
@@ -697,7 +700,8 @@ class PromptToolkitInput(InputProviderABC):
                 initial = self._get_current_model_config_name()
         if initial is None:
             config = load_config()
-            initial = config.main_model
+            main_candidates = config.iter_model_config_candidates(config.main_model)
+            initial = main_candidates[0].selector if main_candidates else None
         if isinstance(initial, str) and initial and "@" not in initial:
             config = load_config()
             try:

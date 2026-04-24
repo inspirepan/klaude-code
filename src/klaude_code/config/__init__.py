@@ -6,6 +6,7 @@ from .config import (
     config_path,
     example_config_path,
     format_model_preference,
+    prioritize_model_preference,
 )
 from .loader import (
     create_example_config,
@@ -24,4 +25,5 @@ __all__ = [
     "format_model_preference",
     "load_config",
     "print_no_available_models_hint",
+    "prioritize_model_preference",
 ]

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterable
 
-from klaude_code.agent.agent_profile import AgentProfile
+from klaude_code.agent.agent_profile import AgentProfile, ModelProfileProvider
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
@@ -32,6 +32,7 @@ class Agent:
             ]
             | None
         ) = None,
+        model_profile_provider: ModelProfileProvider | None = None,
     ):
         self.session: Session = session
         self.profile: AgentProfile = profile
@@ -40,6 +41,7 @@ class Agent:
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text: str | None = None
         self.request_user_interaction = request_user_interaction
+        self._model_profile_provider = model_profile_provider
         if not self.session.model_name:
             self.session.model_name = profile.llm_client.model_name
 
@@ -98,6 +100,7 @@ class Agent:
             tool_registry=tool_registry,
             sub_agent_state=self.session.sub_agent_state,
             compact_llm_client=self.compact_llm_client,
+            apply_llm_client_change=self._apply_llm_client_change,
         )
 
         task = TaskExecutor(context)
@@ -126,6 +129,26 @@ class Agent:
 
         self.profile = profile
         self.session.model_name = profile.llm_client.model_name
+
+    def _apply_llm_client_change(self, llm_client: LLMClientABC) -> AgentProfile:
+        if self._model_profile_provider is None:
+            profile = AgentProfile(
+                llm_client=llm_client,
+                system_prompt=self.profile.system_prompt,
+                tools=self.profile.tools,
+                attachments=self.profile.attachments,
+            )
+        else:
+            sub_agent_type = None
+            if self.session.sub_agent_state is not None and not self.session.sub_agent_state.fork_context:
+                sub_agent_type = self.session.sub_agent_state.sub_agent_type
+            profile = self._model_profile_provider.build_profile(
+                llm_client,
+                sub_agent_type,
+                work_dir=self.session.work_dir,
+            )
+        self.set_model_profile(profile)
+        return profile
 
     def get_llm_client(self) -> LLMClientABC:
         return self.profile.llm_client
