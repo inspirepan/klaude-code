@@ -1,5 +1,8 @@
 import asyncio
+from typing import Any, cast
 
+from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
+from anthropic.types.beta.beta_raw_content_block_stop_event import BetaRawContentBlockStopEvent
 from anthropic.types.beta.beta_raw_message_delta_event import BetaRawMessageDeltaEvent
 from anthropic.types.beta.beta_raw_message_start_event import BetaRawMessageStartEvent
 
@@ -212,6 +215,68 @@ def test_build_payload_does_not_enable_eager_input_streaming_for_non_claude_mode
     assert "eager_input_streaming" not in tools[0]
 
 
+def test_build_payload_preserves_empty_deepseek_thinking_before_tool_use() -> None:
+    param = llm_param.LLMCallParameter(
+        input=[
+            message.UserMessage(parts=[message.TextPart(text="call tool")]),
+            message.AssistantMessage(
+                parts=[
+                    message.ThinkingTextPart(text="", model_id="deepseek-v4-pro"),
+                    message.ToolCallPart(call_id="toolu_test", tool_name="write", arguments_json='{"file_path":"x"}'),
+                ]
+            ),
+            message.ToolResultMessage(
+                call_id="toolu_test",
+                tool_name="write",
+                status="success",
+                output_text="ok",
+            ),
+        ],
+        model_id="deepseek-v4-pro",
+        thinking=llm_param.Thinking(type="enabled", budget_tokens=1024),
+    )
+
+    payload = build_payload(param)
+
+    payload_messages = list(payload["messages"])
+    assistant_content = payload_messages[1]["content"]
+    assert not isinstance(assistant_content, str)
+    blocks = [cast(dict[str, Any], block) for block in assistant_content]
+    assert blocks[0] == {"type": "thinking", "thinking": ""}
+    assert blocks[1]["type"] == "tool_use"
+
+
+def test_build_payload_adds_empty_deepseek_thinking_for_legacy_tool_use_without_thinking() -> None:
+    param = llm_param.LLMCallParameter(
+        input=[
+            message.UserMessage(parts=[message.TextPart(text="call tool")]),
+            message.AssistantMessage(
+                parts=[
+                    message.ToolCallPart(call_id="toolu_test", tool_name="write", arguments_json='{"file_path":"x"}')
+                ],
+                stop_reason="tool_use",
+            ),
+            message.ToolResultMessage(
+                call_id="toolu_test",
+                tool_name="write",
+                status="success",
+                output_text="ok",
+            ),
+        ],
+        model_id="deepseek-v4-pro",
+        thinking=llm_param.Thinking(type="enabled", budget_tokens=1024),
+    )
+
+    payload = build_payload(param)
+
+    payload_messages = list(payload["messages"])
+    assistant_content = payload_messages[1]["content"]
+    assert not isinstance(assistant_content, str)
+    blocks = [cast(dict[str, Any], block) for block in assistant_content]
+    assert blocks[0] == {"type": "thinking", "thinking": ""}
+    assert blocks[1]["type"] == "tool_use"
+
+
 def test_parse_anthropic_stream_reads_stop_reason_from_nested_delta() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -264,3 +329,75 @@ def test_parse_anthropic_stream_reads_stop_reason_from_nested_delta() -> None:
 
     assert isinstance(items[-1], message.AssistantMessage)
     assert items[-1].stop_reason == "tool_use"
+
+
+def test_parse_anthropic_stream_adds_deepseek_empty_thinking_for_tool_use_without_thinking() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="deepseek-v4-pro",
+        context_limit=1000,
+        max_tokens=256,
+        thinking=llm_param.Thinking(type="enabled", budget_tokens=1024),
+    )
+    stream = _FakeAnthropicStream(
+        [
+            BetaRawMessageStartEvent.model_validate(
+                {
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_test",
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [],
+                        "model": "deepseek-v4-pro",
+                        "usage": {
+                            "input_tokens": 10,
+                            "output_tokens": 0,
+                            "cache_read_input_tokens": 0,
+                            "cache_creation_input_tokens": 0,
+                        },
+                    },
+                }
+            ),
+            BetaRawContentBlockStartEvent.model_validate(
+                {
+                    "type": "content_block_start",
+                    "index": 0,
+                    "content_block": {
+                        "type": "tool_use",
+                        "id": "toolu_test",
+                        "name": "write",
+                        "input": {},
+                    },
+                }
+            ),
+            BetaRawContentBlockStopEvent.model_validate({"type": "content_block_stop", "index": 0}),
+            BetaRawMessageDeltaEvent.model_validate(
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "tool_use"},
+                    "usage": {"output_tokens": 5},
+                }
+            ),
+        ]
+    )
+
+    async def _collect() -> list[message.LLMStreamItem]:
+        items: list[message.LLMStreamItem] = []
+        async for item in parse_anthropic_stream(
+            stream,
+            param,
+            MetadataTracker(),
+            AnthropicStreamStateManager(model_id=str(param.model_id)),
+        ):
+            items.append(item)
+        return items
+
+    items = asyncio.run(_collect())
+
+    assert isinstance(items[-1], message.AssistantMessage)
+    parts = items[-1].parts
+    assert isinstance(parts[0], message.ThinkingTextPart)
+    assert parts[0].text == ""
+    assert parts[0].model_id == "deepseek-v4-pro"
+    assert isinstance(parts[1], message.ToolCallPart)

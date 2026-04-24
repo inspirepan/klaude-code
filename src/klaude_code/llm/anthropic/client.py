@@ -44,7 +44,7 @@ from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
 from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
+from klaude_code.protocol.model_id import is_deepseek_model, is_opus_47_model, supports_adaptive_thinking
 from klaude_code.protocol.models import StopReason, Usage
 
 
@@ -61,6 +61,30 @@ def _map_anthropic_stop_reason(reason: str) -> StopReason | None:
         "aborted": "aborted",
     }
     return mapping.get(reason)
+
+
+def _needs_deepseek_empty_thinking_fallback(
+    parts: list[message.Part],
+    *,
+    param: llm_param.LLMCallParameter,
+    stop_reason: StopReason | None,
+) -> bool:
+    if stop_reason != "tool_use":
+        return False
+    if not param.thinking or param.thinking.type == "disabled":
+        return False
+    if not is_deepseek_model(str(param.model_id)):
+        return False
+    if any(isinstance(part, message.ThinkingTextPart) for part in parts):
+        return False
+    return any(isinstance(part, message.ToolCallPart) for part in parts)
+
+
+def _insert_empty_thinking_before_first_tool_call(parts: list[message.Part], *, model_id: str) -> None:
+    for index, part in enumerate(parts):
+        if isinstance(part, message.ToolCallPart):
+            parts.insert(index, message.ThinkingTextPart(text="", model_id=model_id))
+            return
 
 
 class AnthropicStreamStateManager:
@@ -358,6 +382,8 @@ async def parse_anthropic_stream(
                 pass
 
     parts = state.flush_all()
+    if _needs_deepseek_empty_thinking_fallback(parts, param=param, stop_reason=state.stop_reason):
+        _insert_empty_thinking_before_first_tool_call(parts, model_id=str(param.model_id))
     if parts:
         metadata_tracker.record_token()
     metadata_tracker.set_model_name(str(param.model_id))
