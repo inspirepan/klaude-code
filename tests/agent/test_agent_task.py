@@ -349,6 +349,38 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
     arun(_test())
 
 
+def test_empty_response_triggers_retry_error_event(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Empty model responses emit a retryable ErrorEvent before retrying."""
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    async def _test() -> None:
+        harness = await create_harness(work_dir=project_dir, monkeypatch=monkeypatch)
+
+        harness.fake_llm.enqueue(
+            message.AssistantMessage(parts=[], stop_reason="stop", usage=_make_usage()),
+        )
+        harness.fake_llm.enqueue(
+            message.AssistantTextDelta(content="recovered"),
+            _text_assistant_message("recovered"),
+        )
+
+        collected = await harness.run_task("try again")
+
+        error_events = [e for e in collected if isinstance(e, events.ErrorEvent)]
+        assert len(error_events) == 1
+        assert error_events[0].can_retry is True
+        assert error_events[0].error_message == "Empty response from model, retrying 1/3"
+
+        assert harness.get_user_texts() == [
+            "try again",
+            "Please continue. If the task is already complete and there is nothing more to do, reply with exactly `[DONE]`.",
+        ]
+        assert "recovered" in harness.get_assistant_texts()
+
+    arun(_test())
+
+
 def test_task_lifecycle_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """All lifecycle events are emitted."""
     project_dir = tmp_path / "project"
