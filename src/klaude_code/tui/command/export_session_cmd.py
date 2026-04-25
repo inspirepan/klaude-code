@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import NoReturn
 
 from klaude_code.protocol import events, message
+from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 from .command_abc import Agent, CommandABC, CommandResult
 from .export_session_html import render_session_export_html
@@ -79,7 +80,7 @@ class ExportSessionCommand(CommandABC):
         profile = agent.profile
         html_text = render_session_export_html(
             agent.session,
-            system_prompt=profile.system_prompt if profile is not None else None,
+            system_prompt=strip_system_prompt_boundary(profile.system_prompt) if profile is not None else None,
             tools=profile.tools if profile is not None else None,
         )
         output_path.write_text(html_text, encoding="utf-8")
