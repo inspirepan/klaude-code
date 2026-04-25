@@ -20,15 +20,17 @@ from anthropic.types.beta.beta_url_image_source_param import BetaURLImageSourceP
 
 from klaude_code.llm.image import (
     MAX_IMAGE_DIMENSION,
-    image_file_to_data_url,
-    image_url_to_request_url,
     parse_data_url,
 )
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     ImagePart,
+    apply_inline_image_budget,
     attach_developer_messages,
+    count_images,
+    image_part_to_request_url,
     merge_attachment_text,
+    missing_image_placeholder,
     split_thinking_parts,
 )
 from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
@@ -52,21 +54,8 @@ _MANY_IMAGE_DIMENSION = 2000
 _MANY_IMAGE_THRESHOLD = 2
 
 
-def _count_images(messages: list[tuple[message.Message, DeveloperAttachment]]) -> int:
-    count = 0
-    for msg, attachment in messages:
-        if isinstance(msg, (message.UserMessage, message.ToolResultMessage)):
-            count += sum(1 for p in msg.parts if isinstance(p, (message.ImageURLPart, message.ImageFilePart)))
-        count += len(attachment.images)
-    return count
-
-
 def _image_part_to_block(image: ImagePart, *, max_dimension: int) -> BetaImageBlockParam | None:
-    url = (
-        image_file_to_data_url(image, max_dimension=max_dimension)
-        if isinstance(image, message.ImageFilePart)
-        else image_url_to_request_url(image, max_dimension=max_dimension)
-    )
+    url = image_part_to_request_url(image, max_dimension=max_dimension)
     if url is None:
         return None
     if url.startswith("data:"):
@@ -103,11 +92,15 @@ def _user_message_to_message(
             block = _image_part_to_block(part, max_dimension=max_dimension)
             if block is not None:
                 blocks.append(block)
+            else:
+                blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": missing_image_placeholder(part)}))
     if attachment.text:
         blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": attachment.text}))
     for image in attachment.images:
         if (block := _image_part_to_block(image, max_dimension=max_dimension)) is not None:
             blocks.append(block)
+        else:
+            blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": missing_image_placeholder(image)}))
     if not blocks:
         blocks.append(cast(BetaTextBlockParam, {"type": "text", "text": ""}))
     return {"role": "user", "content": blocks}
@@ -130,9 +123,13 @@ def _tool_message_to_block(
     for image in [part for part in msg.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))]:
         if (block := _image_part_to_block(image, max_dimension=max_dimension)) is not None:
             tool_content.append(block)
+        else:
+            tool_content.append(cast(BetaTextBlockParam, {"type": "text", "text": missing_image_placeholder(image)}))
     for image in attachment.images:
         if (block := _image_part_to_block(image, max_dimension=max_dimension)) is not None:
             tool_content.append(block)
+        else:
+            tool_content.append(cast(BetaTextBlockParam, {"type": "text", "text": missing_image_placeholder(image)}))
     return {
         "type": "tool_result",
         "tool_use_id": msg.call_id,
@@ -278,8 +275,9 @@ def convert_history_to_input(
 ) -> list[BetaMessageParam]:
     """Convert a list of messages to beta message params."""
     attached = attach_developer_messages(history)
-    image_count = _count_images(attached)
+    image_count = count_images(attached)
     max_dim = _MANY_IMAGE_DIMENSION if image_count >= _MANY_IMAGE_THRESHOLD else MAX_IMAGE_DIMENSION
+    attached = apply_inline_image_budget(attached, max_dimension=max_dim)
 
     messages: list[BetaMessageParam] = []
     pending_tool_blocks: list[BetaToolResultBlockParam] = []

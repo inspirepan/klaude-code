@@ -33,9 +33,15 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
 
 PARALLEL_TOOL_CALLS_INST = """- Parallelize independent tool calls in a single message whenever possible."""
 
+STOPPING_CONDITION_INST = (
+    "- After each tool result, ask: can I now correctly answer the user's core request with the evidence in hand? "
+    "If yes, stop calling tools and answer. Persistence means finishing the task, not maximizing tool loops."
+)
+
 BASH_SPECIALIZED_TOOL_INST = """- Use specialized file tools for reads/edits instead of Bash fallbacks."""
 BASH_RG_SEARCH_INST = """- For file and text search in Bash, prefer `rg` and `rg --files`."""
 BASH_NO_PYTHON_IO_INST = """- Do not use Python for simple file read/write operations."""
+BASH_NO_CHAINED_SEPARATORS_INST = """- Do not chain unrelated bash commands with separator prints like `echo "===";` -- the merged output renders poorly. Run them as separate calls (in parallel when independent)."""
 BASH_GIT_HISTORY_INST = (
     """- Use `git log` and `git blame` to search codebase history when additional context is required."""
 )
@@ -62,6 +68,11 @@ ASK_USER_QUESTION_USAGE_INST = (
 
 EDIT_WRITE_PREFERENCE_INST = """- Prefer `edit` for existing files. Use `write` only for new files, or after reading an existing file and deciding to replace it end-to-end because most of it is changing."""
 EDIT_PARALLELIZE_INST = """- Parallelize independent work when safe, such as reads, searches, checks, or disjoint `edit` calls, including disjoint sections of the same file."""
+EDIT_VALIDATION_LOOP_INST = (
+    "- After making changes, run the most relevant validation available: targeted unit tests for the changed behavior, "
+    "type checks or linters when applicable, build checks for affected packages, or a minimal smoke command when full "
+    "validation is too expensive. If validation cannot be run in this environment, say so and describe the next best check."
+)
 
 WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
 
@@ -104,11 +115,22 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
 
     tool_name_set = {tool_schema.name for tool_schema in available_tools}
 
-    strategy_lines: list[str] = [PARALLEL_TOOL_CALLS_INST, PREFER_TOOL_OVER_SPECULATION_INST, EXTERNAL_REFS_INST]
+    strategy_lines: list[str] = [
+        PARALLEL_TOOL_CALLS_INST,
+        STOPPING_CONDITION_INST,
+        PREFER_TOOL_OVER_SPECULATION_INST,
+        EXTERNAL_REFS_INST,
+    ]
 
     if tools.BASH in tool_name_set:
         strategy_lines.extend(
-            [BASH_SPECIALIZED_TOOL_INST, BASH_RG_SEARCH_INST, BASH_NO_PYTHON_IO_INST, BASH_GIT_HISTORY_INST]
+            [
+                BASH_SPECIALIZED_TOOL_INST,
+                BASH_RG_SEARCH_INST,
+                BASH_NO_PYTHON_IO_INST,
+                BASH_NO_CHAINED_SEPARATORS_INST,
+                BASH_GIT_HISTORY_INST,
+            ]
         )
 
     if tools.READ in tool_name_set and (
@@ -132,6 +154,9 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
 
     if tools.EDIT in tool_name_set and tools.WRITE in tool_name_set:
         strategy_lines.extend([EDIT_WRITE_PREFERENCE_INST, EDIT_PARALLELIZE_INST])
+
+    if tools.EDIT in tool_name_set or tools.WRITE in tool_name_set or tools.APPLY_PATCH in tool_name_set:
+        strategy_lines.append(EDIT_VALIDATION_LOOP_INST)
 
     if tools.WRITE in tool_name_set:
         strategy_lines.append(WRITE_CREATE_WHEN_NEEDED_INST)

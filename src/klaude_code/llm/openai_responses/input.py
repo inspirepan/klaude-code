@@ -6,9 +6,10 @@ from typing import Any, cast
 
 from openai.types import responses
 
-from klaude_code.llm.image import image_file_to_data_url, image_url_to_request_url
+from klaude_code.llm.image import MAX_IMAGE_DIMENSION, image_file_to_data_url, image_url_to_request_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
+    apply_inline_image_budget,
     attach_developer_messages,
     merge_attachment_text,
     split_thinking_parts,
@@ -113,7 +114,8 @@ def convert_history_to_input(
     """
     items: list[responses.ResponseInputItemParam] = []
 
-    for msg, attachment in attach_developer_messages(history):
+    attached = apply_inline_image_budget(attach_developer_messages(history), max_dimension=MAX_IMAGE_DIMENSION)
+    for msg, attachment in attached:
         match msg:
             case message.SystemMessage():
                 continue

@@ -112,6 +112,9 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     def _install_sigint_interrupt(_cb: Callable[[], None]) -> Callable[[], None]:
         return lambda: None
 
+    def _noop_prevent_sleep() -> None:
+        return None
+
     monkeypatch.setattr(runner, "TUIDisplay", _FakeDisplay)
     monkeypatch.setattr(runner, "PromptToolkitInput", _FakePromptToolkitInput)
     monkeypatch.setattr(runner, "load_config", _load_config)
@@ -120,6 +123,9 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(runner, "cleanup_app_components", _noop_cleanup)
     monkeypatch.setattr(runner, "initialize_session", _fake_initialize_session)
     monkeypatch.setattr(runner, "install_sigint_interrupt", _install_sigint_interrupt)
+    monkeypatch.setattr(runner, "start_prevent_sleep", _noop_prevent_sleep)
+    monkeypatch.setattr(runner, "stop_prevent_sleep", _noop_prevent_sleep)
+    monkeypatch.setattr(runner, "force_stop_prevent_sleep", _noop_prevent_sleep)
 
     return runner
 
@@ -358,6 +364,73 @@ def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPat
     assert response is not None
     assert response.status == "submitted"
     assert state["max_active_during_select"] == 0
+
+
+def test_interaction_collection_pauses_prevent_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    calls: list[str] = []
+    state: dict[str, Any] = {
+        "interaction_handler": None,
+        "calls_during_select": [],
+    }
+
+    monkeypatch.setattr(runner, "start_prevent_sleep", lambda: calls.append("start"))
+    monkeypatch.setattr(runner, "stop_prevent_sleep", lambda: calls.append("stop"))
+    monkeypatch.setattr(runner, "force_stop_prevent_sleep", lambda: calls.append("force"))
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+        async def wait_for(self, _wait_id: str) -> None:
+            while state["interaction_handler"] is None:
+                await asyncio.sleep(0)
+
+            request_event = events.UserInteractionRequestEvent(
+                session_id="s1",
+                request_id="req1",
+                source="tool",
+                tool_call_id="call1",
+                payload=_default_question_payload(),
+            )
+            await state["interaction_handler"].collect_response(request_event)
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            del operation
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**kwargs: Any) -> _FakeComponents:
+        state["interaction_handler"] = kwargs.get("interaction_handler")
+        return components
+
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        return runner.SubmitUserInputResult(wait_id="wait-1")
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    def _select_questions(**_: Any) -> list[QuestionSelectResult[str]]:
+        state["calls_during_select"] = list(calls)
+        return [QuestionSelectResult(selected_values=["o1"], input_text="")]
+
+    monkeypatch.setattr(runner, "select_questions", _select_questions)
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert state["calls_during_select"] == ["start", "stop"]
+    assert calls == ["start", "stop", "start", "stop", "force"]
 
 
 def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest.MonkeyPatch) -> None:

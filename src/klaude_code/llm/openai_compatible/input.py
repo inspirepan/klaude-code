@@ -7,7 +7,9 @@ from typing import cast
 
 from openai.types import chat
 
+from klaude_code.llm.image import MAX_IMAGE_DIMENSION
 from klaude_code.llm.input_common import (
+    apply_inline_image_budget,
     attach_developer_messages,
     build_assistant_common_fields,
     build_chat_content_parts,
@@ -41,7 +43,8 @@ def convert_history_to_input(
         [cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system})] if system else []
     )
 
-    for msg, attachment in attach_developer_messages(history):
+    attached = apply_inline_image_budget(attach_developer_messages(history), max_dimension=MAX_IMAGE_DIMENSION)
+    for msg, attachment in attached:
         match msg:
             case message.SystemMessage():
                 system_text = "\n".join(part.text for part in msg.parts)

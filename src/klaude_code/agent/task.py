@@ -8,6 +8,7 @@ from pathlib import Path
 
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.attachments.collection import collect_attachments
+from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 from klaude_code.agent.cache_break_detection import CacheBreakReport, CacheTracker
 from klaude_code.agent.compaction import (
     CompactionReason,
@@ -252,6 +253,32 @@ class TaskExecutor:
     def _has_tool(self, tool_name: str) -> bool:
         return any(tool.name == tool_name for tool in self._context.profile.tools)
 
+    @staticmethod
+    def _developer_message_key(item: message.DeveloperMessage) -> str:
+        return item.model_dump_json(exclude={"id", "created_at", "response_id"})
+
+    async def _collect_and_append_attachments(
+        self, *, skip_existing: bool = False
+    ) -> list[events.DeveloperMessageEvent]:
+        ctx = self._context
+        attachment_results = await collect_attachments(ctx.session, ctx.profile.attachments)
+        events_to_emit: list[events.DeveloperMessageEvent] = []
+        existing: set[str] = set()
+        if skip_existing:
+            existing = {
+                self._developer_message_key(item)
+                for item in ctx.session.get_llm_history()
+                if isinstance(item, message.DeveloperMessage)
+            }
+        for item in attachment_results:
+            key = self._developer_message_key(item)
+            if skip_existing and key in existing:
+                continue
+            ctx.session.append_history([item])
+            existing.add(key)
+            events_to_emit.append(events.DeveloperMessageEvent(session_id=ctx.session_ctx.session_id, item=item))
+        return events_to_emit
+
     @property
     def last_interrupt_show_notice(self) -> bool:
         return self._last_interrupt_show_notice
@@ -405,12 +432,6 @@ class TaskExecutor:
         empty_response_retries = 0
 
         while True:
-            # Process attachments in parallel with error isolation
-            attachment_results = await collect_attachments(ctx.session, profile.attachments)
-            for item in attachment_results:
-                ctx.session.append_history([item])
-                yield events.DeveloperMessageEvent(session_id=session_ctx.session_id, item=item)
-
             # Threshold-based compaction before starting a new turn.
             # This matters for multi-turn tool loops where no new user input occurs.
             if (
@@ -492,6 +513,11 @@ class TaskExecutor:
                             can_retry=True,
                             session_id=session_ctx.session_id,
                         )
+
+            # Process attachments in parallel with error isolation after compaction
+            # resets transient loaded flags.
+            for event in await self._collect_and_append_attachments():
+                yield event
 
             turn: TurnExecutor | None = None
             turn_succeeded = False
@@ -609,6 +635,8 @@ class TaskExecutor:
                             )
                             if result.fork_event is not None:
                                 yield result.fork_event
+                            for event in await self._collect_and_append_attachments(skip_existing=True):
+                                yield event
                             failed_attempts += 1
                             continue
                         except asyncio.CancelledError:
@@ -835,14 +863,7 @@ class TaskExecutor:
 
 
 def _reset_attachment_loaded_flags(file_tracker: dict[str, FileStatus]) -> None:
-    """Remove attachment-only entries so transient reminders can re-inject after compaction."""
-    transient_paths = [
-        path
-        for path, status in file_tracker.items()
-        if status.is_memory or status.is_skill_listing or status.skill_attachment_source == "dynamic"
-    ]
-    for path in transient_paths:
-        del file_tracker[path]
+    reset_attachment_loaded_flags(file_tracker)
 
 
 def _build_tool_registry(tool_schemas: list[llm_param.ToolSchema]) -> dict[str, type[ToolABC]]:

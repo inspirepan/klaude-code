@@ -40,7 +40,33 @@ def test_replace_blocks_are_grouped_remove_then_add() -> None:
     kinds = [line.kind for line in diff.files[0].lines]
 
     assert kinds == ["remove", "remove", "remove", "add", "add", "add"]
+    assert [line.old_line_no for line in diff.files[0].lines if line.kind == "remove"] == [1, 2, 3]
     assert [line.new_line_no for line in diff.files[0].lines if line.kind == "add"] == [1, 2, 3]
+
+
+def test_delete_lines_have_old_line_numbers() -> None:
+    before = "keep\ndelete\nalso delete\nkeep too\n"
+    after = "keep\nkeep too\n"
+
+    diff = build_structured_diff(before, after, file_path="test.txt")
+    remove_lines = [line for line in diff.files[0].lines if line.kind == "remove"]
+
+    assert [line.old_line_no for line in remove_lines] == [2, 3]
+    assert [line.new_line_no for line in remove_lines] == [None, None]
+
+
+def test_eof_newline_only_change_is_visible() -> None:
+    before = "hello"
+    after = "hello\n"
+
+    diff = build_structured_diff(before, after, file_path="test.txt")
+
+    file_diff = diff.files[0]
+    assert [line.kind for line in file_diff.lines] == ["remove", "add"]
+    assert file_diff.stats_add == 1
+    assert file_diff.stats_remove == 1
+    assert diff.raw_unified_diff is not None
+    assert "\\ No newline at end of file" in diff.raw_unified_diff
 
 
 # ============================================================================

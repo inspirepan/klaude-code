@@ -24,6 +24,10 @@ def build_structured_file_diff(before: str, after: str, *, file_path: str) -> Di
 def build_unified_diff_text(before: str, after: str, *, from_file: str, to_file: str | None = None) -> str:
     """Build raw unified diff text using default context lines."""
     target_file = to_file if to_file is not None else from_file
+    eof_newline_diff = _build_eof_newline_unified_diff(before, after, from_file=from_file, to_file=target_file)
+    if eof_newline_diff is not None:
+        return eof_newline_diff
+
     lines = difflib.unified_diff(
         before.splitlines(),
         after.splitlines(),
@@ -39,6 +43,10 @@ def _build_file_diff(before: str, after: str, *, file_path: str) -> DiffFileDiff
     before_lines = _split_lines(before)
     after_lines = _split_lines(after)
 
+    eof_newline_diff = _build_eof_newline_file_diff(before, after, before_lines, after_lines, file_path=file_path)
+    if eof_newline_diff is not None:
+        return eof_newline_diff
+
     matcher = difflib.SequenceMatcher(None, before_lines, after_lines)
     lines: list[DiffLine] = []
     stats_add = 0
@@ -49,17 +57,20 @@ def _build_file_diff(before: str, after: str, *, file_path: str) -> DiffFileDiff
         if group_idx > 0:
             lines.append(_gap_line())
 
-        # Anchor line numbers to the actual start of the displayed hunk in the "after" file.
+        # Anchor line numbers to the actual start of the displayed hunk.
+        old_line_no = group[0][1] + 1
         new_line_no = group[0][3] + 1
 
         for tag, i1, i2, j1, j2 in group:
             if tag == "equal":
                 for line in after_lines[j1:j2]:
-                    lines.append(_ctx_line(line, new_line_no))
+                    lines.append(_ctx_line(line, old_line_no, new_line_no))
+                    old_line_no += 1
                     new_line_no += 1
             elif tag == "delete":
                 for line in before_lines[i1:i2]:
-                    lines.append(_remove_line([DiffSpan(op="equal", text=line)]))
+                    lines.append(_remove_line([DiffSpan(op="equal", text=line)], old_line_no))
+                    old_line_no += 1
                     stats_remove += 1
             elif tag == "insert":
                 for line in after_lines[j1:j2]:
@@ -86,14 +97,19 @@ def _build_file_diff(before: str, after: str, *, file_path: str) -> DiffFileDiff
                 for new_line in new_block[paired_len:]:
                     add_block.append([DiffSpan(op="equal", text=new_line)])
 
-                for spans in remove_block:
-                    lines.append(_remove_line(spans))
+                old_block_start = old_line_no
+                new_block_start = new_line_no
+
+                for idx, spans in enumerate(remove_block):
+                    lines.append(_remove_line(spans, old_block_start + idx))
                     stats_remove += 1
 
-                for spans in add_block:
-                    lines.append(_add_line(spans, new_line_no))
+                for idx, spans in enumerate(add_block):
+                    lines.append(_add_line(spans, new_block_start + idx))
                     stats_add += 1
-                    new_line_no += 1
+
+                old_line_no += len(old_block)
+                new_line_no += len(new_block)
 
     return DiffFileDiff(
         file_path=file_path,
@@ -109,9 +125,58 @@ def _split_lines(text: str) -> list[str]:
     return text.splitlines()
 
 
-def _ctx_line(text: str, new_line_no: int) -> DiffLine:
+def _is_eof_newline_only_change(before: str, after: str, before_lines: list[str], after_lines: list[str]) -> bool:
+    return before != after and before_lines == after_lines and before.endswith("\n") != after.endswith("\n")
+
+
+def _build_eof_newline_file_diff(
+    before: str,
+    after: str,
+    before_lines: list[str],
+    after_lines: list[str],
+    *,
+    file_path: str,
+) -> DiffFileDiff | None:
+    if not _is_eof_newline_only_change(before, after, before_lines, after_lines):
+        return None
+
+    line_no = len(before_lines)
+    line_text = before_lines[-1]
+    spans = [DiffSpan(op="equal", text=line_text)]
+    return DiffFileDiff(
+        file_path=file_path,
+        lines=[_remove_line(spans, line_no), _add_line(spans, line_no)],
+        stats_add=1,
+        stats_remove=1,
+    )
+
+
+def _build_eof_newline_unified_diff(before: str, after: str, *, from_file: str, to_file: str) -> str | None:
+    before_lines = _split_lines(before)
+    after_lines = _split_lines(after)
+    if not _is_eof_newline_only_change(before, after, before_lines, after_lines):
+        return None
+
+    line_no = len(before_lines)
+    line_text = before_lines[-1]
+    lines = [
+        f"--- {from_file}",
+        f"+++ {to_file}",
+        f"@@ -{line_no} +{line_no} @@",
+        f"-{line_text}",
+    ]
+    if not before.endswith("\n"):
+        lines.append(r"\ No newline at end of file")
+    lines.append(f"+{line_text}")
+    if not after.endswith("\n"):
+        lines.append(r"\ No newline at end of file")
+    return "\n".join(lines)
+
+
+def _ctx_line(text: str, old_line_no: int, new_line_no: int) -> DiffLine:
     return DiffLine(
         kind="ctx",
+        old_line_no=old_line_no,
         new_line_no=new_line_no,
         spans=[DiffSpan(op="equal", text=text)],
     )
@@ -120,6 +185,7 @@ def _ctx_line(text: str, new_line_no: int) -> DiffLine:
 def _gap_line() -> DiffLine:
     return DiffLine(
         kind="gap",
+        old_line_no=None,
         new_line_no=None,
         spans=[DiffSpan(op="equal", text="")],
     )
@@ -129,8 +195,8 @@ def _add_line(spans: list[DiffSpan], new_line_no: int) -> DiffLine:
     return DiffLine(kind="add", new_line_no=new_line_no, spans=_ensure_spans(spans))
 
 
-def _remove_line(spans: list[DiffSpan]) -> DiffLine:
-    return DiffLine(kind="remove", new_line_no=None, spans=_ensure_spans(spans))
+def _remove_line(spans: list[DiffSpan], old_line_no: int) -> DiffLine:
+    return DiffLine(kind="remove", old_line_no=old_line_no, new_line_no=None, spans=_ensure_spans(spans))
 
 
 def _ensure_spans(spans: list[DiffSpan]) -> list[DiffSpan]:

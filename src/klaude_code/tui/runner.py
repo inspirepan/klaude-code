@@ -36,6 +36,7 @@ from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
 from klaude_code.tui.input.pt_theme import configure_pt_theme
 from klaude_code.tui.terminal.color import is_light_terminal_background
 from klaude_code.tui.terminal.control import install_sigint_interrupt, start_esc_interrupt_monitor
+from klaude_code.tui.terminal.prevent_sleep import force_stop_prevent_sleep, start_prevent_sleep, stop_prevent_sleep
 from klaude_code.tui.terminal.selector import (
     DEFAULT_PICKER_STYLE,
     QuestionPrompt,
@@ -169,6 +170,22 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     display: DisplayABC = tui_display
     pause_esc_monitor: Callable[[], Awaitable[None]] | None = None
     resume_esc_monitor: Callable[[], None] | None = None
+    prevent_sleep_active = False
+
+    def _start_prevent_sleep_if_needed() -> None:
+        nonlocal prevent_sleep_active
+        if prevent_sleep_active:
+            return
+        start_prevent_sleep()
+        prevent_sleep_active = True
+
+    def _stop_prevent_sleep_if_needed() -> bool:
+        nonlocal prevent_sleep_active
+        if not prevent_sleep_active:
+            return False
+        stop_prevent_sleep()
+        prevent_sleep_active = False
+        return True
 
     def _build_question_items(
         question: user_interaction.AskUserQuestionQuestion,
@@ -285,6 +302,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         payload = request_event.payload
         if isinstance(payload, user_interaction.OperationSelectRequestPayload):
             tui_display.hide_progress_ui()
+            was_preventing_sleep = _stop_prevent_sleep_if_needed()
             if pause_esc_monitor is not None:
                 await pause_esc_monitor()
 
@@ -296,6 +314,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             finally:
                 if resume_esc_monitor is not None:
                     resume_esc_monitor()
+                if was_preventing_sleep:
+                    _start_prevent_sleep_if_needed()
 
             if selected is None:
                 return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
@@ -312,6 +332,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 headers=[q.header for q in payload.questions],
             )
         tui_display.hide_progress_ui()
+        was_preventing_sleep = _stop_prevent_sleep_if_needed()
 
         prompts: list[QuestionPrompt[str]] = []
         for question in payload.questions:
@@ -341,6 +362,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         finally:
             if resume_esc_monitor is not None:
                 resume_esc_monitor()
+            if was_preventing_sleep:
+                _start_prevent_sleep_if_needed()
 
         if selections is None:
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
@@ -514,10 +537,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         resume_esc_monitor = _start_esc_monitor
         _start_esc_monitor()
         restore_sigint = install_sigint_interrupt(_request_interrupt_once)
+        _start_prevent_sleep_if_needed()
 
         try:
             await wait_task
         finally:
+            _stop_prevent_sleep_if_needed()
             pause_esc_monitor = None
             resume_esc_monitor = None
             await _stop_esc_monitor()
@@ -596,6 +621,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         await handle_keyboard_interrupt(components.runtime)
         exit_hint_printed = True
     finally:
+        force_stop_prevent_sleep()
         with contextlib.suppress(Exception):
             await away_summary_coordinator.stop()
 

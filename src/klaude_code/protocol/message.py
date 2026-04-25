@@ -172,6 +172,7 @@ class ImageFilePart(BaseModel):
     mime_type: str | None = None
     byte_size: int | None = None
     sha256: str | None = None
+    frozen: bool = False
 
 
 class ThinkingTextPart(BaseModel):

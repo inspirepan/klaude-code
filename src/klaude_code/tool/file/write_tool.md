@@ -6,3 +6,4 @@ If this is an existing file, you MUST use the Read tool first to read the file's
 ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
 Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
+Avoid writing an entire large file in one `Write` call. For existing files, prefer multiple targeted `Edit` calls over a single `Write` that replaces the whole file. When creating a new large file, split the work into an initial `Write` of the skeleton followed by `Edit` calls to fill in sections.
