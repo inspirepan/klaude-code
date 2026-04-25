@@ -72,6 +72,18 @@ def mark_directory_accessed(session: Session, path: str) -> None:
     )
 
 
+def reset_attachment_loaded_flags(file_tracker: dict[str, FileStatus]) -> None:
+    """Remove attachment-only entries so transient reminders can re-inject after compaction."""
+
+    transient_paths = [
+        path
+        for path, status in file_tracker.items()
+        if status.is_memory or status.is_skill_listing or status.skill_attachment_source == "dynamic"
+    ]
+    for path in transient_paths:
+        del file_tracker[path]
+
+
 def is_memory_loaded(session: Session, path: str) -> bool:
     """Check if a memory file has already been loaded or read unchanged."""
 

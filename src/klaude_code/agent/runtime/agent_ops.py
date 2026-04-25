@@ -12,6 +12,7 @@ from uuid import uuid4
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
 from klaude_code.agent.attachments.memory import get_existing_memory_paths_by_location
+from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, run_compaction
@@ -944,6 +945,7 @@ class AgentOperationHandler:
                 main_profile=agent.profile,
             )
             log_debug(f"[Compact:{reason}] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+            reset_attachment_loaded_flags(agent.session.file_tracker)
             agent.session.append_history([result.to_entry()])
             await self._emit_event(
                 events.CompactionEndEvent(

@@ -10,10 +10,11 @@ import pytest
 
 import klaude_code.agent.task as task_module
 from klaude_code.agent.agent_profile import AgentProfile
+from klaude_code.agent.compaction.compaction import CompactionResult
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.agent.turn import TurnError
 from klaude_code.protocol import events, message
-from klaude_code.protocol.models import SubAgentState
+from klaude_code.protocol.models import FileStatus, SubAgentState
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
 from klaude_code.tool.core.context import build_todo_context
@@ -36,7 +37,12 @@ def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedF
     return isolated_home
 
 
-def _build_executor(session: Session, *, sub_agent_state: SubAgentState | None = None) -> TaskExecutor:
+def _build_executor(
+    session: Session,
+    *,
+    sub_agent_state: SubAgentState | None = None,
+    attachments: list[Any] | None = None,
+) -> TaskExecutor:
     llm_config = SimpleNamespace(model_id="test-model")
     llm_client = SimpleNamespace(model_name="test-model", get_llm_config=lambda: llm_config)
 
@@ -51,7 +57,7 @@ def _build_executor(session: Session, *, sub_agent_state: SubAgentState | None =
         run_subtask=None,
         request_user_interaction=None,
     )
-    profile = AgentProfile(llm_client=cast(Any, llm_client), system_prompt=None, tools=[], attachments=[])
+    profile = AgentProfile(llm_client=cast(Any, llm_client), system_prompt=None, tools=[], attachments=attachments or [])
     return TaskExecutor(
         TaskExecutionContext(
             session=session,
@@ -110,6 +116,82 @@ def test_threshold_compaction_failure_emits_error_once_per_task(
         assert len(error_events) == 1
         assert error_events[0].can_retry is True
         assert "Compaction failed, continuing without compaction: compact boom" in error_events[0].error_message
+        await close_default_store()
+
+    arun(_test())
+
+
+def test_threshold_compaction_recollects_attachments_before_turn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
+        session.file_tracker[str(project_dir / ".klaude-system-skill-listing")] = FileStatus(
+            mtime=0.0,
+            is_skill_listing=True,
+        )
+
+        monkeypatch.setattr(task_module, "should_compact_threshold", _always_compact)
+
+        async def _successful_run_compaction(**_: Any) -> CompactionResult:
+            return CompactionResult(
+                summary="compact summary",
+                first_kept_index=0,
+                tokens_before=100,
+                details=None,
+                kept_items_brief=[],
+            )
+
+        monkeypatch.setattr(task_module, "run_compaction", _successful_run_compaction)
+
+        attachment_calls = 0
+
+        async def _available_skills_attachment(session_arg: Session) -> message.DeveloperMessage | None:
+            nonlocal attachment_calls
+            attachment_calls += 1
+            if any(status.is_skill_listing for status in session_arg.file_tracker.values()):
+                return None
+            return message.DeveloperMessage(
+                parts=message.text_parts_from_str("<system-reminder>available skills</system-reminder>"),
+                attachment_position="prepend",
+            )
+
+        histories_seen_by_turn: list[list[message.HistoryEvent]] = []
+
+        class StubTurnExecutor:
+            def __init__(self, context: Any) -> None:
+                histories_seen_by_turn.append(list(context.session_ctx.get_conversation_history()))
+                self.task_finished = True
+                self.continue_agent = False
+                self.task_result = "done"
+
+            async def run(self) -> AsyncGenerator[events.Event]:
+                if False:
+                    yield cast(events.Event, None)
+
+        monkeypatch.setattr(task_module, "TurnExecutor", StubTurnExecutor)
+
+        executor = _build_executor(session, attachments=[_available_skills_attachment])
+        collected = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
+
+        developer_events = [event for event in collected if isinstance(event, events.DeveloperMessageEvent)]
+        assert attachment_calls == 1
+        assert len(developer_events) == 1
+        assert message.join_text_parts(developer_events[0].item.parts) == (
+            "<system-reminder>available skills</system-reminder>"
+        )
+        assert histories_seen_by_turn
+        assert any(
+            isinstance(item, message.DeveloperMessage)
+            and "available skills" in message.join_text_parts(item.parts)
+            for item in histories_seen_by_turn[0]
+        )
+        assert not any(status.is_skill_listing for status in session.file_tracker.values())
         await close_default_store()
 
     arun(_test())
