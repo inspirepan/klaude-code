@@ -409,7 +409,15 @@ async def paste_file_attachment(session: Session) -> message.DeveloperMessage | 
     for item in reversed(session.conversation_history):
         if isinstance(item, message.ToolResultMessage):
             return None
-        if isinstance(item, message.UserMessage) and item.pasted_files:
+        if (
+            isinstance(item, message.DeveloperMessage)
+            and item.ui_extra is not None
+            and any(isinstance(ui_item, PasteFilesUIItem) for ui_item in item.ui_extra.items)
+        ):
+            return None
+        if isinstance(item, message.UserMessage):
+            if not item.pasted_files:
+                return None
             return message.DeveloperMessage(
                 parts=message.text_parts_from_str(
                     f"<system-reminder>{_fmt_paste_file_hint(item.pasted_files)}\n</system-reminder>"
