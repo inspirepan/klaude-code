@@ -270,6 +270,50 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.OPENAI
         assert llm_config.api_key == "test-api-key"
 
+    def test_model_alias_resolves_to_canonical_model(self) -> None:
+        provider = ProviderConfig(
+            provider_name="google",
+            protocol=llm_param.LLMClientProtocol.GOOGLE,
+            api_key="test-api-key",
+            model_list=[
+                ModelConfig(
+                    model_name="gemini-pro",
+                    model_alias=["gemini-3-pro"],
+                    model_id="gemini-3.1-pro-preview",
+                )
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        llm_config = config.get_model_config("gemini-3-pro")
+        candidates = config.iter_model_config_candidates("gemini-3-pro@google")
+        diagnosis = config.diagnose_model("gemini-3-pro@google")
+
+        assert llm_config.model_id == "gemini-3.1-pro-preview"
+        assert not hasattr(llm_config, "model_alias")
+        assert config.has_model_config_name("gemini-3-pro") is True
+        assert config.resolve_model_location("gemini-3-pro") == ("gemini-pro", "google")
+        assert [candidate.selector for candidate in candidates] == ["gemini-pro@google"]
+        assert diagnosis.availability == ModelAvailability.AVAILABLE
+
+    def test_model_name_wins_over_alias_conflict(self) -> None:
+        provider = ProviderConfig(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[
+                ModelConfig(model_name="old-model", model_alias=["new-model"], model_id="old-id"),
+                ModelConfig(model_name="new-model", model_id="new-id"),
+            ],
+        )
+        config = Config(provider_list=[provider])
+
+        llm_config = config.get_model_config("new-model@p")
+        candidates = config.iter_model_config_candidates("new-model@p")
+
+        assert llm_config.model_id == "new-id"
+        assert [candidate.selector for candidate in candidates] == ["new-model@p"]
+
     def test_parse_env_var_syntax_supports_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(_config_module, "get_auth_env", _auth_env_none)
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
@@ -1226,6 +1270,49 @@ class TestMatchModelFromConfig:
 
         result = match_model_from_config(preferred="gpt52")
         assert result.matched_model == "gpt-5.2@p"
+
+    def test_match_model_supports_configured_model_alias(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
+
+        provider = ProviderConfig(
+            provider_name="google",
+            protocol=llm_param.LLMClientProtocol.GOOGLE,
+            api_key="test-api-key",
+            model_list=[
+                ModelConfig(
+                    model_name="gemini-pro",
+                    model_alias=["gemini-3-pro"],
+                    model_id="gemini-3.1-pro-preview",
+                )
+            ],
+        )
+        config = Config(provider_list=[provider], main_model="gemini-pro")
+
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
+
+        result = match_model_from_config(preferred="gemini-3-pro@google")
+        assert result.matched_model == "gemini-pro@google"
+
+    def test_match_model_prefers_model_name_over_alias_conflict(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import klaude_code.config.model_matcher as model_matcher_module
+        from klaude_code.config.model_matcher import match_model_from_config
+
+        provider = ProviderConfig(
+            provider_name="p",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[
+                ModelConfig(model_name="old-model", model_alias=["new-model"], model_id="old-id"),
+                ModelConfig(model_name="new-model", model_id="new-id"),
+            ],
+        )
+        config = Config(provider_list=[provider], main_model="new-model")
+
+        monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
+
+        result = match_model_from_config(preferred="new-model@p")
+        assert result.matched_model == "new-model@p"
 
     def test_match_model_supports_normalized_punctuation_variants(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config.model_matcher as model_matcher_module

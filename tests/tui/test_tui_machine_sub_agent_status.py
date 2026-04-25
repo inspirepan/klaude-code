@@ -424,9 +424,11 @@ def test_sub_agent_finish_emits_blank_line_after_result() -> None:
     )
 
     render_task_finish_index = next(i for i, cmd in enumerate(finish_cmds) if isinstance(cmd, RenderTaskFinish))
-    print_blank_line_index = next(i for i, cmd in enumerate(finish_cmds) if isinstance(cmd, PrintBlankLine))
+    print_blank_line = next(cmd for cmd in finish_cmds if isinstance(cmd, PrintBlankLine))
+    print_blank_line_index = finish_cmds.index(print_blank_line)
 
     assert print_blank_line_index > render_task_finish_index
+    assert print_blank_line.session_id == sub_session
 
 
 def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> None:

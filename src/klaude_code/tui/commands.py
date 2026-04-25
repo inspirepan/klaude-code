@@ -158,7 +158,7 @@ class SpinnerUpdate(RenderCommand):
 
 @dataclass(frozen=True, slots=True)
 class PrintBlankLine(RenderCommand):
-    pass
+    session_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

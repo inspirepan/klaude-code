@@ -32,6 +32,7 @@ def get_example_config() -> _schema.UserConfig:
                 model_list=[
                     _schema.ModelConfig(
                         model_name="my-model",
+                        model_alias=["my-model-legacy"],
                         model_id="model-id-from-provider",
                         max_tokens=16000,
                         context_limit=200000,

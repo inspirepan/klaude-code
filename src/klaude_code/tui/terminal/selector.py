@@ -192,7 +192,8 @@ def build_model_select_items(
                 title = [("class:meta", "  "), *title]
 
             provider = str(getattr(m, "provider", ""))
-            search_text = f"{m.selector} {m.model_name} {model_id_str} {provider}"
+            aliases = " ".join(getattr(m, "model_alias", []))
+            search_text = f"{m.selector} {m.model_name} {aliases} {model_id_str} {provider}"
             items.append(SelectItem(title=title, value=m.selector, search_text=search_text))
 
     return items

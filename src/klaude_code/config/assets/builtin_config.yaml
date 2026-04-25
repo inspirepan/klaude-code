@@ -334,14 +334,16 @@ provider_list:
   base_url: https://api.deepseek.com/anthropic
   model_list:
 
-  - model_name: v4-flash:no-thinking
+  - model_name: deepseek-flash
+    model_alias: [ v4-flash, v4-flash:no-thinking, deepseek-flash:no-thinking ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
     thinking:
       type: disabled
     cost: { input: 1, output: 2, cache_read: 0.2, currency: CNY }
 
-  - model_name: v4-flash:high
+  - model_name: deepseek-flash:high
+    model_alias: [ v4-flash:high ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
     effort: high
@@ -349,7 +351,8 @@ provider_list:
       type: enabled
     cost: { input: 1, output: 2, cache_read: 0.2, currency: CNY }
 
-  - model_name: v4-flash:max
+  - model_name: deepseek-flash:max
+    model_alias: [ v4-flash:max ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
     effort: max
@@ -357,7 +360,8 @@ provider_list:
       type: enabled
     cost: { input: 1, output: 2, cache_read: 0.2, currency: CNY }
 
-  - model_name: v4-pro:high
+  - model_name: deepseek
+    model_alias: [ deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high ]
     model_id: deepseek-v4-pro
     context_limit: 1000000
     effort: high
@@ -365,7 +369,8 @@ provider_list:
       type: enabled
     cost: { input: 12, output: 24, cache_read: 1, currency: CNY }
 
-  - model_name: v4-pro:max
+  - model_name: deepseek:max
+    model_alias: [ deepseek-pro:max, v4-pro:max ]
     model_id: deepseek-v4-pro
     context_limit: 1000000
     effort: max
@@ -381,6 +386,7 @@ provider_list:
   model_list:
 
   - model_name: kimi
+    model_alias: [ k2.6, kimi-k2.6 ]
     model_id: kimi-k2.6
     context_limit: 262144
     thinking:
@@ -396,6 +402,7 @@ provider_list:
   model_list:
 
   - model_name: kimi
+    model_alias: [ k2.6, kimi-k2.6 ]
     model_id: kimi-k2.6
     context_limit: 262144
     thinking:
@@ -410,7 +417,8 @@ provider_list:
   base_url: https://api.minimax.io/anthropic
   model_list:
 
-  - model_name: m2.7
+  - model_name: minimax
+    model_alias: [ m2.7, minimax-m2.7 ]
     model_id: MiniMax-M2.7
     context_limit: 204800
     thinking:
@@ -418,7 +426,8 @@ provider_list:
       budget_tokens: 8192
     cost: { input: 0.3, output: 1.2, cache_read: 0.06, cache_write: 0.375 }
 
-  - model_name: m2.7:highspeed
+  - model_name: minimax:highspeed
+    model_alias: [ m2.7:highspeed, minimax-m2.7-highspeed ]
     model_id: MiniMax-M2.7-highspeed
     context_limit: 204800
     thinking:
@@ -434,10 +443,56 @@ provider_list:
   model_list:
 
   - model_name: glm
+    model_alias: [ glm-4.7, zai-glm-4.7 ]
     model_id: zai-glm-4.7
     context_limit: 131072
     max_tokens: 12800
     cost: { input: 2.25, output: 2.75 }
+
+# ######################################## opencode-go ########################################
+- provider_name: opencode-go
+  protocol: openai
+  api_key: ${OPENCODE_API_KEY}
+  base_url: https://opencode.ai/zen/go/v1
+  model_list:
+
+  - model_name: glm
+    model_alias: [ glm-5.1 ]
+    model_id: glm-5.1
+    context_limit: 202752
+
+  - model_name: kimi
+    model_alias: [ k2.6, kimi-k2.6 ]
+    model_id: kimi-k2.6
+    context_limit: 262144
+
+  - model_name: mimo
+    model_alias: [ mimo-v2.5-pro, v2.5-pro ]
+    model_id: mimo-v2.5-pro
+    context_limit: 262144
+
+# ######################################## opencode-go-anthropic ########################################
+- provider_name: opencode-go-anthropic
+  protocol: anthropic
+  api_key: ${OPENCODE_API_KEY}
+  base_url: https://opencode.ai/zen/go
+  model_list:
+
+  - model_name: deepseek
+    model_alias: [ deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high, deepseek-v4-pro ]
+    model_id: deepseek-v4-pro
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: enabled
+
+  - model_name: deepseek:max
+    model_alias: [ deepseek-pro:max, v4-pro:max, deepseek-v4-pro:max ]
+    model_id: deepseek-v4-pro
+    context_limit: 1000000
+    effort: max
+    thinking:
+      type: enabled
 
 # ######################################## codex ########################################
 - provider_name: codex
@@ -622,7 +677,7 @@ provider_list:
     cost: { input: 0.5, output: 3, cache_read: 0.05 }
 
   - model_name: gemini-flash:minimal
-    model_id: gemini-flash-latest
+    model_id: google/gemini-3-flash-preview
     context_limit: 1048576
     thinking:
       reasoning_effort: minimal
@@ -636,6 +691,7 @@ provider_list:
     cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
 
   - model_name: kimi
+    model_alias: [ k2.6, kimi-k2.6 ]
     model_id: moonshotai/kimi-k2.6
     context_limit: 262144
     provider_routing:
@@ -646,6 +702,7 @@ provider_list:
     cost: { input: 0.95, output: 4, cache_read: 0.16 }
 
   - model_name: minimax
+    model_alias: [ m2.7, minimax-m2.7 ]
     model_id: minimax/minimax-m2.7
     context_limit: 204800
     thinking:
@@ -654,6 +711,7 @@ provider_list:
     cost: { input: 0.3, output: 1.2, cache_read: 0.06 }
 
   - model_name: glm
+    model_alias: [ glm-5.1 ]
     model_id: z-ai/glm-5.1
     context_limit: 202752
     provider_routing:
@@ -664,7 +722,7 @@ provider_list:
 
 sub_agent_models:
   finder:
-  - v4-flash:no-thinking@deepseek
+  - deepseek-flash@deepseek
   - gpt-5.4-mini
   - gemini-flash:minimal
   - haiku
@@ -675,7 +733,7 @@ sub_agent_models:
   - opus
 
 fast_model:
-- v4-flash:no-thinking@deepseek
+- deepseek-flash@deepseek
 - gpt-5.4-nano
 - gemini-flash-lite
 - gpt-5.4-mini
