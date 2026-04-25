@@ -162,6 +162,7 @@ class ModelConfig(llm_param.LLMConfigModelParameter):
     """Model configuration that flattens LLMConfigModelParameter fields."""
 
     model_name: str = Field(default="", validate_default=True)
+    model_alias: list[str] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -176,6 +177,15 @@ class ModelConfig(llm_param.LLMConfigModelParameter):
         if not v:
             raise ValueError("model_name or model_id must be provided")
         return v
+
+    @field_validator("model_alias", mode="before")
+    @classmethod
+    def _normalize_model_alias(cls, value: Any) -> Any:
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return [alias for item in value if (alias := str(item).strip())]
+        return value
 
 
 class ProviderConfig(llm_param.LLMConfigProviderParameter):
@@ -294,6 +304,7 @@ class ModelEntry(llm_param.LLMConfigModelParameter):
     """Model entry with provider info, flattens LLMConfigModelParameter fields."""
 
     model_name: str
+    model_alias: list[str] = Field(default_factory=list)
     provider: str
 
     @property
@@ -305,6 +316,20 @@ class ModelEntry(llm_param.LLMConfigModelParameter):
         """
 
         return f"{self.model_name}@{self.provider}"
+
+
+def _find_model(provider: ProviderConfig, requested_model: str) -> ModelConfig | None:
+    for model in provider.model_list:
+        if model.model_name == requested_model:
+            return model
+    for model in provider.model_list:
+        if requested_model in model.model_alias:
+            return model
+    return None
+
+
+def _model_similarity_names(model: ModelEntry) -> list[str]:
+    return [model.model_name, *model.model_alias]
 
 
 class UserConfig(BaseModel):
@@ -438,10 +463,10 @@ class Config(BaseModel):
             for provider in self.provider_list:
                 if provider.provider_name.casefold() != provider_name.casefold():
                     continue
-                return any(m.model_name == model_name for m in provider.model_list)
+                return _find_model(provider, model_name) is not None
             return False
 
-        return any(any(m.model_name == model_name for m in provider.model_list) for provider in self.provider_list)
+        return any(_find_model(provider, model_name) is not None for provider in self.provider_list)
 
     def diagnose_model(self, model_selector: str, *, max_suggestions: int = 3) -> ModelDiagnosis:
         """Diagnose whether a selector is available and suggest close alternatives.
@@ -470,7 +495,8 @@ class Config(BaseModel):
             if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
                 continue
             provider_matched = True
-            model_present = any(m.model_name == requested_model for m in provider.model_list)
+            model = _find_model(provider, requested_model)
+            model_present = model is not None
 
             if provider.disabled:
                 if model_present:
@@ -488,16 +514,15 @@ class Config(BaseModel):
                     )
                 continue
 
-            for model in provider.model_list:
-                if model.model_name != requested_model:
-                    continue
-                if model.disabled:
-                    best_failure = ModelDiagnosis(
-                        availability=ModelAvailability.MODEL_DISABLED,
-                        detail=f"Model '{requested_model}' is disabled in provider '{provider.provider_name}'",
-                    )
-                    break
-                return ModelDiagnosis(availability=ModelAvailability.AVAILABLE, detail="")
+            if model is None:
+                continue
+            if model.disabled:
+                best_failure = ModelDiagnosis(
+                    availability=ModelAvailability.MODEL_DISABLED,
+                    detail=f"Model '{requested_model}' is disabled in provider '{provider.provider_name}'",
+                )
+                continue
+            return ModelDiagnosis(availability=ModelAvailability.AVAILABLE, detail="")
 
         suggestions = self._suggest_models(requested_model, requested_provider, max_suggestions=max_suggestions)
 
@@ -544,9 +569,13 @@ class Config(BaseModel):
 
         scored: list[tuple[float, str]] = []
         for cand in candidates:
-            raw_ratio = difflib.SequenceMatcher(None, requested_model, cand.model_name).ratio()
-            norm_ratio = difflib.SequenceMatcher(None, requested_norm, _normalize_model_key(cand.model_name)).ratio()
-            score = max(raw_ratio, norm_ratio)
+            score = max(
+                max(
+                    difflib.SequenceMatcher(None, requested_model, name).ratio(),
+                    difflib.SequenceMatcher(None, requested_norm, _normalize_model_key(name)).ratio(),
+                )
+                for name in _model_similarity_names(cand)
+            )
             if requested_provider_cf and cand.provider.casefold() == requested_provider_cf:
                 score += _PROVIDER_MATCH_BONUS
             if score >= _SUGGESTION_MIN_SCORE:
@@ -576,13 +605,15 @@ class Config(BaseModel):
             for provider in self.provider_list:
                 if provider.provider_name.casefold() != provider_name.casefold():
                     continue
-                if any(m.model_name == model_name for m in provider.model_list):
-                    return model_name, provider.provider_name
+                model = _find_model(provider, model_name)
+                if model is not None:
+                    return model.model_name, provider.provider_name
             return None
 
         for provider in self.provider_list:
-            if any(m.model_name == model_name for m in provider.model_list):
-                return model_name, provider.provider_name
+            model = _find_model(provider, model_name)
+            if model is not None:
+                return model.model_name, provider.provider_name
         return None
 
     def resolve_model_location_prefer_available(self, model_selector: str) -> tuple[str, str] | None:
@@ -600,12 +631,10 @@ class Config(BaseModel):
             if provider.disabled or provider.is_api_key_missing():
                 continue
 
-            for model in provider.model_list:
-                if model.model_name != requested_model:
-                    continue
-                if model.disabled:
-                    continue
-                return requested_model, provider.provider_name
+            model = _find_model(provider, requested_model)
+            if model is None or model.disabled:
+                continue
+            return model.model_name, provider.provider_name
 
         return None
 
@@ -630,16 +659,13 @@ class Config(BaseModel):
                         f"Provider '{provider.provider_name}' is not available (missing credentials) for: {model_name}"
                     )
                 continue
-            for model in provider.model_list:
-                if model.model_name != requested_model:
-                    continue
-
-                if model.disabled:
-                    if requested_provider is not None:
-                        raise ValueError(
-                            f"Model '{requested_model}' is disabled in provider '{provider.provider_name}' for: {model_name}"
-                        )
-                    break
+            model = _find_model(provider, requested_model)
+            if model is not None and model.disabled:
+                if requested_provider is not None:
+                    raise ValueError(
+                        f"Model '{requested_model}' is disabled in provider '{provider.provider_name}' for: {model_name}"
+                    )
+                continue
 
         raise ValueError(f"Unknown model: {model_name}")
 
@@ -660,7 +686,7 @@ class Config(BaseModel):
             _, provider_dump[field] = parse_env_var_syntax(provider_dump.get(field))
         return llm_param.LLMConfigParameter(
             **provider_dump,
-            **model.model_dump(exclude={"model_name"}),
+            **model.model_dump(exclude={"model_name", "model_alias"}),
         )
 
     def iter_model_config_candidates(self, model_preference: ModelPreference) -> list[ModelConfigCandidate]:
@@ -687,22 +713,21 @@ class Config(BaseModel):
                 if provider.disabled or provider.is_api_key_missing():
                     continue
 
-                for model in provider.model_list:
-                    if model.model_name != requested_model or model.disabled:
-                        continue
-                    selector = f"{requested_model}@{provider.provider_name}"
-                    if selector in seen:
-                        break
-                    seen.add(selector)
-                    candidates.append(
-                        ModelConfigCandidate(
-                            selector=selector,
-                            model_name=requested_model,
-                            provider=provider.provider_name,
-                            llm_config=self._build_llm_config(provider, model),
-                        )
+                model = _find_model(provider, requested_model)
+                if model is None or model.disabled:
+                    continue
+                selector = f"{model.model_name}@{provider.provider_name}"
+                if selector in seen:
+                    continue
+                seen.add(selector)
+                candidates.append(
+                    ModelConfigCandidate(
+                        selector=selector,
+                        model_name=model.model_name,
+                        provider=provider.provider_name,
+                        llm_config=self._build_llm_config(provider, model),
                     )
-                    break
+                )
 
         return candidates
 

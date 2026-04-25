@@ -29,6 +29,18 @@ def _matches_query(value: str, query: str) -> bool:
     return query_norm in _normalize_model_key(value)
 
 
+def _model_lookup_values(model: ModelEntry) -> list[str]:
+    return [model.model_name, model.model_id or "", *model.model_alias]
+
+
+def _model_alias_selector_values(model: ModelEntry) -> list[str]:
+    return [f"{alias}@{model.provider}" for alias in model.model_alias]
+
+
+def _matches_model_query(model: ModelEntry, query: str) -> bool:
+    return any(_matches_query(value, query) for value in _model_lookup_values(model))
+
+
 def _match_provider_qualified_query(models: list[ModelEntry], preferred: str) -> list[ModelEntry]:
     if "@" not in preferred:
         return []
@@ -48,7 +60,7 @@ def _match_provider_qualified_query(models: list[ModelEntry], preferred: str) ->
         model
         for model in models
         if any(_matches_query(model.provider, query) for query in provider_queries)
-        and (_matches_query(model.model_name, model_query) or _matches_query(model.model_id or "", model_query))
+        and _matches_model_query(model, model_query)
     ]
 
 
@@ -95,19 +107,22 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
             error_message="No models available",
         )
 
-    selectors: list[str] = [m.selector for m in models]
-
     # Try to match preferred model name
     filter_hint = preferred
     if preferred and preferred.strip():
         preferred = preferred.strip()
 
-        # Exact match on selector (e.g. sonnet@openrouter)
-        if preferred in selectors:
-            return ModelMatchResult(matched_model=preferred, filtered_models=models, filter_hint=None)
+        # Exact match on canonical selector (e.g. sonnet@openrouter) wins over aliases.
+        exact_selector_matches = [m for m in models if preferred == m.selector]
+        if len(exact_selector_matches) == 1:
+            return ModelMatchResult(
+                matched_model=exact_selector_matches[0].selector,
+                filtered_models=models,
+                filter_hint=None,
+            )
 
-        # Exact match on base model name (e.g. sonnet)
-        exact_base_matches = [m for m in models if m.model_name == preferred]
+        # Exact match on canonical base model name (e.g. sonnet) also wins over aliases.
+        exact_base_matches = [m for m in models if preferred == m.model_name]
         if len(exact_base_matches) == 1:
             return ModelMatchResult(
                 matched_model=exact_base_matches[0].selector,
@@ -117,8 +132,26 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
         if len(exact_base_matches) > 1:
             return ModelMatchResult(matched_model=None, filtered_models=exact_base_matches, filter_hint=filter_hint)
 
+        exact_alias_selector_matches = [m for m in models if preferred in _model_alias_selector_values(m)]
+        if len(exact_alias_selector_matches) == 1:
+            return ModelMatchResult(
+                matched_model=exact_alias_selector_matches[0].selector,
+                filtered_models=models,
+                filter_hint=None,
+            )
+
+        exact_alias_matches = [m for m in models if preferred in m.model_alias]
+        if len(exact_alias_matches) == 1:
+            return ModelMatchResult(
+                matched_model=exact_alias_matches[0].selector,
+                filtered_models=models,
+                filter_hint=None,
+            )
+        if len(exact_alias_matches) > 1:
+            return ModelMatchResult(matched_model=None, filtered_models=exact_alias_matches, filter_hint=filter_hint)
+
         preferred_lower = preferred.lower()
-        # Case-insensitive exact match (selector/model_name/model_id)
+        # Case-insensitive exact match keeps canonical names ahead of aliases.
         exact_ci_matches = [
             m
             for m in models
@@ -129,6 +162,19 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
         if len(exact_ci_matches) == 1:
             return ModelMatchResult(
                 matched_model=exact_ci_matches[0].selector,
+                filtered_models=models,
+                filter_hint=None,
+            )
+
+        exact_alias_ci_matches = [
+            m
+            for m in models
+            if any(preferred_lower == selector.lower() for selector in _model_alias_selector_values(m))
+            or any(preferred_lower == alias.lower() for alias in m.model_alias)
+        ]
+        if len(exact_alias_ci_matches) == 1:
+            return ModelMatchResult(
+                matched_model=exact_alias_ci_matches[0].selector,
                 filtered_models=models,
                 filter_hint=None,
             )
@@ -165,6 +211,17 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
                     filter_hint=None,
                 )
 
+            if not normalized_matches:
+                normalized_matches = [
+                    m for m in models if any(preferred_norm == _normalize_model_key(alias) for alias in m.model_alias)
+                ]
+                if len(normalized_matches) == 1:
+                    return ModelMatchResult(
+                        matched_model=normalized_matches[0].selector,
+                        filtered_models=models,
+                        filter_hint=None,
+                    )
+
             if not normalized_matches and len(preferred_norm) >= 4:
                 normalized_matches = [
                     m
@@ -172,6 +229,7 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
                     if preferred_norm in _normalize_model_key(m.selector)
                     or preferred_norm in _normalize_model_key(m.model_name)
                     or preferred_norm in _normalize_model_key(m.model_id or "")
+                    or any(preferred_norm in _normalize_model_key(alias) for alias in m.model_alias)
                 ]
                 if len(normalized_matches) == 1:
                     return ModelMatchResult(
@@ -188,6 +246,7 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
             if preferred_lower in m.selector.lower()
             or preferred_lower in m.model_name.lower()
             or preferred_lower in (m.model_id or "").lower()
+            or any(preferred_lower in alias.lower() for alias in m.model_alias)
         ]
         if len(matches) == 1:
             return ModelMatchResult(matched_model=matches[0].selector, filtered_models=models, filter_hint=None)
