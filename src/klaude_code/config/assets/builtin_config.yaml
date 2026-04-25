@@ -439,6 +439,39 @@ provider_list:
     max_tokens: 12800
     cost: { input: 2.25, output: 2.75 }
 
+# ######################################## opencode-go ########################################
+- provider_name: opencode-go
+  protocol: openai
+  api_key: ${OPENCODE_API_KEY}
+  base_url: https://opencode.ai/zen/go/v1
+  model_list:
+
+  - model_name: glm
+    model_id: glm-5.1
+    context_limit: 202752
+
+  - model_name: kimi
+    model_id: kimi-k2.6
+    context_limit: 262144
+
+  - model_name: mimo-v2.5-pro
+    model_id: mimo-v2.5-pro
+    context_limit: 262144
+
+# ######################################## opencode-go-anthropic ########################################
+- provider_name: opencode-go-anthropic
+  protocol: anthropic
+  api_key: ${OPENCODE_API_KEY}
+  base_url: https://opencode.ai/zen/go
+  model_list:
+
+  - model_name: deepseek
+    model_id: deepseek-v4-pro
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: enabled
+
 # ######################################## codex ########################################
 - provider_name: codex
   protocol: codex_oauth
