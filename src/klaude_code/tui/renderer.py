@@ -1021,10 +1021,7 @@ class TUICommandRenderer:
                                 self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                             self._flush_thinking()
                 case EndThinkingStream(session_id=_):
-                    had_content = bool(self._thinking_stream.buffer.strip())
-                    finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
-                    if finalized and had_content:
-                        self.print()
+                    self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
                 case StartAssistantStream(session_id=_):
                     if not self._assistant_stream.is_active:
                         self._assistant_stream.start(self._new_assistant_mdstream())
@@ -1037,10 +1034,7 @@ class TUICommandRenderer:
                                 self._assistant_stream.render()
                             self._flush_assistant()
                 case EndAssistantStream(session_id=_):
-                    had_content = bool(self._assistant_stream.buffer.strip())
-                    finalized = self._assistant_stream.finalize()
-                    if finalized and had_content:
-                        self.print()
+                    self._assistant_stream.finalize()
                 case RenderToolCall(event=event):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call(event)

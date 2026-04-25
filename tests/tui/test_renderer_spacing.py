@@ -8,6 +8,10 @@ from rich.console import Console
 from klaude_code.protocol import events, message, tools
 from klaude_code.protocol.models import DeveloperUIExtra, SkillActivatedUIItem, SubAgentState
 from klaude_code.tui.commands import (
+    AppendAssistant,
+    AppendThinking,
+    EndAssistantStream,
+    EndThinkingStream,
     FlushOpenBlocks,
     PrintBlankLine,
     RenderDeveloperMessage,
@@ -16,6 +20,8 @@ from klaude_code.tui.commands import (
     RenderToolCall,
     RenderToolResult,
     RenderUserMessage,
+    StartAssistantStream,
+    StartThinkingStream,
 )
 from klaude_code.tui.components.sub_agent import render_sub_agent_call
 from klaude_code.tui.machine import DisplayStateMachine
@@ -165,6 +171,56 @@ def test_tool_call_and_result_stay_grouped_until_next_visible_block() -> None:
     rendered = output.getvalue()
     assert "next" in rendered
     assert "\n\n└ hi" not in rendered
+
+
+def test_stream_end_does_not_emit_extra_blank_line_in_interactive_mode() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "main"
+
+    asyncio.run(
+        renderer.execute(
+            [
+                StartAssistantStream(session_id=session_id),
+                AppendAssistant(session_id=session_id, content="hello"),
+                EndAssistantStream(session_id=session_id),
+                StartThinkingStream(session_id=session_id),
+                AppendThinking(session_id=session_id, content="thinking"),
+                EndThinkingStream(session_id=session_id),
+            ]
+        )
+    )
+
+    rendered = output.getvalue()
+    assert "● hello\n∵ thinking" in rendered
+    assert "● hello\n\n∵ thinking" not in rendered
+
+
+def test_replay_stream_end_does_not_emit_extra_blank_line_before_tool_call() -> None:
+    renderer, output = _renderer_and_output()
+    renderer.set_replay_mode(True)
+    session_id = "main"
+
+    asyncio.run(
+        renderer.execute(
+            [
+                StartAssistantStream(session_id=session_id),
+                AppendAssistant(session_id=session_id, content="hello"),
+                EndAssistantStream(session_id=session_id),
+                RenderToolCall(
+                    event=events.ToolCallEvent(
+                        session_id=session_id,
+                        tool_call_id="tool-1",
+                        tool_name=tools.APPLY_PATCH,
+                        arguments="{}",
+                    )
+                ),
+            ]
+        )
+    )
+
+    rendered = output.getvalue()
+    assert "● hello\n± Patch" in rendered
+    assert "● hello\n\n± Patch" not in rendered
 
 
 def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
