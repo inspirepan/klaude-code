@@ -5,7 +5,6 @@ import contextlib
 import hashlib
 import json
 import os
-from base64 import b64encode
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,8 +17,10 @@ from klaude_code.const import (
     READ_MAX_CHARS,
     READ_MAX_IMAGE_BYTES,
     READ_PARTIAL_PREVIEW_MAX_LINES,
+    ProjectPaths,
+    project_key_from_path,
 )
-from klaude_code.llm.image import detect_mime_type_from_bytes
+from klaude_code.llm.image import detect_mime_type_from_bytes, freeze_image_to_file_for_history
 from klaude_code.prompts.messages import FILE_UNCHANGED_STUB
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import FileStatus, ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
@@ -172,6 +173,12 @@ def _image_mime_type(file_path: str) -> str:
     if mime_type is None:
         raise ValueError(f"Unsupported image file extension: {suffix}")
     return mime_type
+
+
+def _session_images_dir(context: ToolContext) -> Path:
+    images_dir = ProjectPaths(project_key=project_key_from_path(context.work_dir)).images_dir(context.session_id)
+    images_dir.mkdir(parents=True, exist_ok=True)
+    return images_dir
 
 
 def _missing_file_directory_candidate(file_path: str) -> str | None:
@@ -484,9 +491,12 @@ class ReadTool(ToolABC):
             detected = detect_mime_type_from_bytes(image_bytes)
             if detected:
                 mime_type = detected
-            # Note: downstream LLM input layer calls normalize_image_data_url()
-            # which handles resize/compression, so we don't resize here.
-            data_url = f"data:{mime_type};base64,{b64encode(image_bytes).decode('ascii')}"
+            image_part = freeze_image_to_file_for_history(
+                message.ImageFilePart(file_path=file_path, mime_type=mime_type),
+                images_dir=_session_images_dir(context),
+            )
+            if image_part is None:
+                raise OSError("failed to snapshot image for session history")
         except Exception as exc:
             return message.ToolResultMessage(
                 status="error",
@@ -496,7 +506,6 @@ class ReadTool(ToolABC):
         _track_file_access(context.file_tracker, file_path, content_sha256=hashlib.sha256(image_bytes).hexdigest())
         size_kb = size_bytes / 1024.0 if size_bytes else 0.0
         output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
-        image_part = message.ImageURLPart(url=data_url, id=None)
         return message.ToolResultMessage(
             status="success",
             output_text=output_text,

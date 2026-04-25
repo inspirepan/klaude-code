@@ -10,10 +10,11 @@ from typing import Any, cast
 
 from google.genai import types
 
-from klaude_code.llm.image import image_file_to_data_url, image_url_to_request_url, parse_data_url
+from klaude_code.llm.image import MAX_IMAGE_DIMENSION, image_file_to_data_url, image_url_to_request_url, parse_data_url
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
     ImagePart,
+    apply_inline_image_budget,
     attach_developer_messages,
     merge_attachment_text,
     split_thinking_parts,
@@ -209,7 +210,8 @@ def convert_history_to_contents(
             contents.extend(_tool_messages_to_contents(pending_tool_messages, model_name=model_name))
             pending_tool_messages = []
 
-    for msg, attachment in attach_developer_messages(history):
+    attached = apply_inline_image_budget(attach_developer_messages(history), max_dimension=MAX_IMAGE_DIMENSION)
+    for msg, attachment in attached:
         match msg:
             case message.ToolResultMessage():
                 pending_tool_messages.append((msg, attachment))

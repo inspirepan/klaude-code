@@ -124,7 +124,7 @@ async def _load_at_file(
     ref: AtFileRef,
     at_ops: list[AtFileOp],
     formatted_blocks: list[str],
-    collected_images: list[message.ImageURLPart],
+    collected_images: list[message.ImageURLPart | message.ImageFilePart],
     collected_image_paths: list[str],
     discovered_memories: list[Memory],
     skill_discovery_paths: list[str],
@@ -145,7 +145,7 @@ async def _load_at_file(
             limit = ref.line_end - ref.line_start + 1
         args = ReadTool.ReadArguments(file_path=path_str, offset=offset, limit=limit)
         tool_result = await ReadTool.call_with_args(args, tool_context)
-        images = [part for part in tool_result.parts if isinstance(part, message.ImageURLPart)]
+        images = [part for part in tool_result.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))]
 
         formatted_blocks.append(
             _fmt_tool_result(tools.READ, args.model_dump_json(exclude_none=True), tool_result.output_text)
@@ -214,7 +214,7 @@ async def at_file_reader_attachment(session: Session) -> message.DeveloperMessag
 
     at_ops: list[AtFileOp] = []
     formatted_blocks: list[str] = []
-    collected_images: list[message.ImageURLPart] = []
+    collected_images: list[message.ImageURLPart | message.ImageFilePart] = []
     collected_image_paths: list[str] = []
     discovered_memories: list[Memory] = []
     skill_discovery_paths: list[str] = []

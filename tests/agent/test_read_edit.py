@@ -50,7 +50,9 @@ def _get_at_file_ops(attachment: message.DeveloperMessage) -> list[AtFileOp]:
 class BaseTempDirTest(unittest.TestCase):
     def setUp(self) -> None:
         self._orig_cwd = os.getcwd()
+        self._orig_home = os.environ.get("HOME")
         self._tmp = tempfile.TemporaryDirectory()
+        os.environ["HOME"] = self._tmp.name
         os.chdir(self._tmp.name)
         self.session = Session(work_dir=Path.cwd())
         self.tool_context = ToolContext(
@@ -63,6 +65,10 @@ class BaseTempDirTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         os.chdir(self._orig_cwd)
+        if self._orig_home is None:
+            os.environ.pop("HOME", None)
+        else:
+            os.environ["HOME"] = self._orig_home
         self._tmp.cleanup()
 
 
@@ -193,8 +199,10 @@ class TestReadTool(BaseTempDirTest):
         self.assertTrue(res.parts)
         assert res.parts
         part = res.parts[0]
-        assert isinstance(part, message.ImageURLPart)
-        self.assertTrue(part.url.startswith("data:image/png;base64,"))
+        assert isinstance(part, message.ImageFilePart)
+        self.assertTrue(Path(part.file_path).exists())
+        self.assertTrue(part.frozen)
+        self.assertIn(f"/.klaude/projects/{Path.cwd().as_posix().strip('/').replace('/', '-')}/sessions/", part.file_path)
         self.assertIn("[image] tiny.png", res.output_text or "")
 
     def test_read_image_too_large_error(self):
@@ -222,10 +230,9 @@ class TestAttachments(BaseTempDirTest):
         self.assertIsNotNone(attachment)
         assert attachment is not None
 
-        # Images are now in parts
-        image_parts = [p for p in attachment.parts if isinstance(p, message.ImageURLPart)]
+        image_parts = [p for p in attachment.parts if isinstance(p, message.ImageFilePart)]
         self.assertTrue(len(image_parts) > 0)
-        self.assertTrue(image_parts[0].url.startswith("data:image/png;base64,"))
+        self.assertTrue(Path(image_parts[0].file_path).exists())
 
         self.assertEqual(len(_get_at_file_ops(attachment)), 1)
 

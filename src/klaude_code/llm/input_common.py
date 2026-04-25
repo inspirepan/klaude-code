@@ -2,17 +2,22 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
 
 from klaude_code.const import DEFAULT_MAX_TOKENS
-from klaude_code.llm.image import image_file_to_data_url, image_url_to_request_url
+from klaude_code.llm.image import (
+    image_data_url_within_single_image_limits,
+    image_file_to_data_url,
+    image_url_to_request_url,
+)
 from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import message
 
 ImagePart = message.ImageURLPart | message.ImageFilePart
+INLINE_IMAGE_PAYLOAD_BUDGET_BYTES = 24 * 1024 * 1024
 
 
 def _empty_image_parts() -> list[ImagePart]:
@@ -24,6 +29,172 @@ class DeveloperAttachment:
     prefix_text: str = ""
     text: str = ""
     images: list[ImagePart] = field(default_factory=_empty_image_parts)
+
+
+@dataclass(frozen=True)
+class _ImageOccurrence:
+    tuple_index: int
+    source: Literal["message", "attachment"]
+    part_index: int
+    request_url: str
+
+
+def count_images(messages: list[tuple[message.Message, DeveloperAttachment]]) -> int:
+    count = 0
+    for msg, attachment in messages:
+        if isinstance(msg, (message.UserMessage, message.ToolResultMessage)):
+            count += sum(1 for p in msg.parts if isinstance(p, (message.ImageURLPart, message.ImageFilePart)))
+        count += len(attachment.images)
+    return count
+
+
+def image_part_to_request_url(image: ImagePart, *, max_dimension: int) -> str | None:
+    if isinstance(image, message.ImageFilePart):
+        return image_file_to_data_url(image, max_dimension=max_dimension)
+    return image_url_to_request_url(image, max_dimension=max_dimension)
+
+
+def image_placeholder(image: ImagePart, request_url: str) -> str:
+    source = image.source_file_path if isinstance(image, message.ImageURLPart) else image.file_path
+    source_text = f" source={source}" if source else ""
+    size_kb = len(request_url.encode("utf-8")) / 1024
+    if request_url.startswith("data:") and not image_data_url_within_single_image_limits(request_url):
+        reason = "single image size limit exceeded"
+    else:
+        reason = "inline image payload budget exceeded"
+    return f"[image omitted from request: {reason};{source_text} size={size_kb:.1f}KB]"
+
+
+def missing_image_placeholder(image: ImagePart) -> str:
+    source = image.source_file_path if isinstance(image, message.ImageURLPart) else image.file_path
+    source_text = f" source={source}" if source else ""
+    return f"[image unavailable: referenced image file could not be read;{source_text}]"
+
+
+def _frozen_url_part(image: ImagePart, request_url: str) -> message.ImageURLPart:
+    return message.ImageURLPart(
+        url=request_url,
+        id=image.id if isinstance(image, message.ImageURLPart) else None,
+        frozen=True,
+        source_file_path=image.source_file_path if isinstance(image, message.ImageURLPart) else image.file_path,
+    )
+
+
+def _collect_image_occurrences(
+    attached: list[tuple[message.Message, DeveloperAttachment]],
+    *,
+    max_dimension: int,
+) -> list[_ImageOccurrence]:
+    occurrences: list[_ImageOccurrence] = []
+    for tuple_index, (msg, attachment) in enumerate(attached):
+        if isinstance(msg, (message.UserMessage, message.ToolResultMessage)):
+            for part_index, part in enumerate(msg.parts):
+                if isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
+                    request_url = image_part_to_request_url(part, max_dimension=max_dimension)
+                    if request_url is not None:
+                        occurrences.append(_ImageOccurrence(tuple_index, "message", part_index, request_url))
+        for part_index, image in enumerate(attachment.images):
+            request_url = image_part_to_request_url(image, max_dimension=max_dimension)
+            if request_url is not None:
+                occurrences.append(_ImageOccurrence(tuple_index, "attachment", part_index, request_url))
+    return occurrences
+
+
+def _kept_image_occurrences(occurrences: list[_ImageOccurrence]) -> set[tuple[int, str, int]]:
+    kept: set[tuple[int, str, int]] = set()
+    inline_bytes = 0
+    inline_cutoff_reached = False
+    for occurrence in reversed(occurrences):
+        key = (occurrence.tuple_index, occurrence.source, occurrence.part_index)
+        if not occurrence.request_url.startswith("data:"):
+            kept.add(key)
+            continue
+        if not image_data_url_within_single_image_limits(occurrence.request_url):
+            continue
+        if inline_cutoff_reached:
+            continue
+        size = len(occurrence.request_url.encode("utf-8"))
+        if inline_bytes + size <= INLINE_IMAGE_PAYLOAD_BUDGET_BYTES:
+            inline_bytes += size
+            kept.add(key)
+        else:
+            inline_cutoff_reached = True
+    return kept
+
+
+def apply_inline_image_budget(
+    attached: list[tuple[message.Message, DeveloperAttachment]],
+    *,
+    max_dimension: int,
+) -> list[tuple[message.Message, DeveloperAttachment]]:
+    if count_images(attached) == 0:
+        return attached
+
+    occurrences = _collect_image_occurrences(attached, max_dimension=max_dimension)
+    occurrence_by_key = {
+        (occurrence.tuple_index, occurrence.source, occurrence.part_index): occurrence for occurrence in occurrences
+    }
+    kept = _kept_image_occurrences(occurrences)
+
+    result: list[tuple[message.Message, DeveloperAttachment]] = []
+    for tuple_index, (msg, attachment) in enumerate(attached):
+        new_msg = msg
+        if isinstance(msg, (message.UserMessage, message.ToolResultMessage)):
+            new_parts: list[message.Part] = []
+            omitted_message_text: list[str] = []
+            changed = False
+            for part_index, part in enumerate(msg.parts):
+                if not isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
+                    new_parts.append(part)
+                    continue
+                key = (tuple_index, "message", part_index)
+                occurrence = occurrence_by_key.get(key)
+                changed = True
+                if occurrence is None:
+                    placeholder = missing_image_placeholder(part)
+                elif key in kept:
+                    new_parts.append(_frozen_url_part(part, occurrence.request_url))
+                    continue
+                else:
+                    placeholder = image_placeholder(part, occurrence.request_url)
+                if isinstance(msg, message.ToolResultMessage):
+                    omitted_message_text.append(placeholder)
+                else:
+                    new_parts.append(message.TextPart(text=placeholder))
+            if changed:
+                update: dict[str, object] = {"parts": new_parts}
+                if omitted_message_text and isinstance(msg, message.ToolResultMessage):
+                    suffix = "\n".join(omitted_message_text)
+                    output_text = msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE
+                    update["output_text"] = f"{output_text}\n{suffix}" if output_text else suffix
+                new_msg = msg.model_copy(update=update)
+
+        attachment_images: list[ImagePart] = []
+        omitted_attachment_text: list[str] = []
+        attachment_changed = False
+        for part_index, image in enumerate(attachment.images):
+            key = (tuple_index, "attachment", part_index)
+            occurrence = occurrence_by_key.get(key)
+            attachment_changed = True
+            if occurrence is None:
+                omitted_attachment_text.append(missing_image_placeholder(image))
+            elif key in kept:
+                attachment_images.append(_frozen_url_part(image, occurrence.request_url))
+            else:
+                omitted_attachment_text.append(image_placeholder(image, occurrence.request_url))
+        if attachment_changed:
+            attachment_text = attachment.text
+            if omitted_attachment_text:
+                suffix = "\n".join(omitted_attachment_text)
+                attachment_text = f"{attachment_text}\n{suffix}" if attachment_text else suffix
+            attachment = DeveloperAttachment(
+                prefix_text=attachment.prefix_text,
+                text=attachment_text,
+                images=attachment_images,
+            )
+
+        result.append((new_msg, attachment))
+    return result
 
 
 def _extract_developer_content(msg: message.DeveloperMessage) -> tuple[str, list[ImagePart]]:

@@ -11,6 +11,7 @@ _OVERFLOW_PATTERNS = [
     re.compile(r"exceeds the available context size", re.IGNORECASE),
     re.compile(r"greater than the context length", re.IGNORECASE),
     re.compile(r"context length exceeded", re.IGNORECASE),
+    re.compile(r"input is too long", re.IGNORECASE),
     re.compile(r"too many tokens", re.IGNORECASE),
     re.compile(r"token limit exceeded", re.IGNORECASE),
 ]

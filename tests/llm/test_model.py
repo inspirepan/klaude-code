@@ -8,8 +8,10 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from klaude_code.llm import image as image_module
+from klaude_code.llm import input_common as input_common_module
 from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
 from klaude_code.llm.anthropic.input import convert_system_to_input as anthropic_system_input
+from klaude_code.llm.google.input import convert_history_to_contents as google_history
 from klaude_code.protocol.models import Usage
 
 if TYPE_CHECKING:
@@ -109,6 +111,161 @@ def test_anthropic_history_keeps_frozen_user_images_stable_when_more_images_are_
     first_blocks = _ensure_list(first["content"])
     first_image = _ensure_dict(first_blocks[1])
     assert _ensure_dict(first_image["source"])["data"] == SAMPLE_IMAGE_BASE64
+
+
+def test_anthropic_history_keeps_frozen_file_images_stable_when_more_images_are_added(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "frozen.png"
+    path.write_bytes(b64decode(SAMPLE_IMAGE_BASE64))
+    frozen_file = message.ImageFilePart(file_path=str(path), mime_type="image/png", frozen=True)
+    frozen_url = message.ImageURLPart(url=SAMPLE_DATA_URL, id="new", frozen=True)
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.TextPart(text="first"), frozen_file)),
+        message.UserMessage(parts=_parts(message.TextPart(text="second"), frozen_url)),
+    ]
+
+    def _fail(_image_bytes: bytes, _mime_type: str, *, max_dimension: int = image_module.MAX_IMAGE_DIMENSION):
+        raise AssertionError(f"frozen file history images should not be recompressed: {max_dimension}")
+
+    monkeypatch.setattr(image_module, "_compress_image_bytes_for_request", _fail)
+
+    messages = anthropic_history(history, model_name=None)
+    first = _ensure_dict(messages[0])
+    first_blocks = _ensure_list(first["content"])
+    first_image = _ensure_dict(first_blocks[1])
+    assert _ensure_dict(first_image["source"])["data"] == SAMPLE_IMAGE_BASE64
+
+
+def test_anthropic_history_marks_missing_file_images(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.png"
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.ImageFilePart(file_path=str(missing), mime_type="image/png")))
+    ]
+
+    messages = anthropic_history(history, model_name=None)
+
+    first = _ensure_dict(messages[0])
+    first_blocks = _ensure_list(first["content"])
+    placeholder = _ensure_dict(first_blocks[0])
+    assert placeholder["type"] == "text"
+    assert "image unavailable" in str(placeholder["text"])
+    assert str(missing) in str(placeholder["text"])
+
+
+def test_anthropic_history_omits_single_image_that_exceeds_inline_limit(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 100)
+    monkeypatch.setattr(image_module, "_MAX_BASE64_IMAGE_SIZE_BYTES", 8)
+    path = tmp_path / "too-large.png"
+    path.write_bytes(b"not-really-a-png-but-large")
+    history: list[message.Message] = [
+        message.UserMessage(parts=_parts(message.ImageFilePart(file_path=str(path), mime_type="image/png", frozen=True)))
+    ]
+
+    messages = anthropic_history(history, model_name=None)
+
+    first = _ensure_dict(messages[0])
+    first_blocks = _ensure_list(first["content"])
+    placeholder = _ensure_dict(first_blocks[0])
+    assert placeholder["type"] == "text"
+    assert "single image size limit exceeded" in str(placeholder["text"])
+    assert not any(_ensure_dict(block).get("type") == "image" for block in first_blocks)
+
+
+def test_inline_image_budget_applies_across_provider_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
+    oversized_url = f"data:image/png;base64,{'A' * 1024}"
+    history: list[message.Message] = [
+        message.UserMessage(parts=[message.ImageURLPart(url=oversized_url, id=None)]),
+    ]
+    monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", 10)
+
+    openai_messages = openai_history(history, system=None, model_name=None)
+    openai_content = _ensure_list(_ensure_dict(openai_messages[0])["content"])
+    openai_text = _ensure_dict(openai_content[0])
+    assert openai_text["type"] == "text"
+    assert "image omitted from request" in str(openai_text["text"])
+
+    openrouter_messages = openrouter_history(history, system=None, model_name=None)
+    openrouter_content = _ensure_list(_ensure_dict(openrouter_messages[0])["content"])
+    openrouter_text = _ensure_dict(openrouter_content[0])
+    assert openrouter_text["type"] == "text"
+    assert "image omitted from request" in str(openrouter_text["text"])
+
+    responses_items = responses_history(history, model_name=None)
+    responses_content = _ensure_list(_ensure_dict(responses_items[0])["content"])
+    responses_text = _ensure_dict(responses_content[0])
+    assert responses_text["type"] == "input_text"
+    assert "image omitted from request" in str(responses_text["text"])
+
+    google_contents = google_history(history, model_name=None)
+    assert google_contents[0].parts is not None
+    assert "image omitted from request" in str(google_contents[0].parts[0].text)
+
+
+def test_anthropic_history_omits_old_tool_images_when_inline_payload_exceeds_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    image_data = "A" * 1024
+    image_url = f"data:image/png;base64,{image_data}"
+    history: list[message.Message] = [
+        message.ToolResultMessage(
+            call_id=f"tool-{idx}",
+            tool_name="Read",
+            status="success",
+            output_text=f"[image] img-{idx}.png",
+            parts=[message.ImageURLPart(url=image_url, id=None)],
+        )
+        for idx in range(3)
+    ]
+    monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", 2500)
+
+    messages = anthropic_history(history, model_name=None)
+
+    tool_message = _ensure_dict(messages[0])
+    tool_results = [_ensure_dict(block) for block in _ensure_list(tool_message["content"])]
+    first_tool_content = _ensure_list(tool_results[0]["content"])
+    first_tool_text = _ensure_dict(first_tool_content[0])
+    assert "image omitted from request" in str(first_tool_text["text"])
+    assert all(_ensure_dict(block).get("type") != "image" for block in first_tool_content)
+
+    for tool_result in tool_results[1:]:
+        content = [_ensure_dict(block) for block in _ensure_list(tool_result["content"])]
+        assert any(block.get("type") == "image" for block in content)
+
+
+def test_anthropic_history_keeps_contiguous_recent_tool_images_when_trimming(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    urls = [
+        f"data:image/png;base64,{'A' * 100}",
+        f"data:image/png;base64,{'A' * 2000}",
+        f"data:image/png;base64,{'A' * 1800}",
+    ]
+    history: list[message.Message] = [
+        message.ToolResultMessage(
+            call_id=f"tool-{idx}",
+            tool_name="Read",
+            status="success",
+            output_text=f"[image] img-{idx}.png",
+            parts=[message.ImageURLPart(url=url, id=None)],
+        )
+        for idx, url in enumerate(urls)
+    ]
+    monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", 1900)
+
+    messages = anthropic_history(history, model_name=None)
+
+    tool_message = _ensure_dict(messages[0])
+    tool_results = [_ensure_dict(block) for block in _ensure_list(tool_message["content"])]
+    image_counts = []
+    for tool_result in tool_results:
+        content = [_ensure_dict(block) for block in _ensure_list(tool_result["content"])]
+        image_counts.append(sum(1 for block in content if block.get("type") == "image"))
+    assert image_counts == [0, 0, 1]
 
 
 def test_openai_compatible_history_includes_image_url_parts():

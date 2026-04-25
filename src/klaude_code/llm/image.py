@@ -6,6 +6,7 @@ across different LLM providers and protocols (OpenAI, Anthropic, etc.).
 
 from __future__ import annotations
 
+import hashlib
 import mimetypes
 import shutil
 import subprocess
@@ -13,13 +14,18 @@ import sys
 import tempfile
 from base64 import b64decode, b64encode
 from binascii import Error as BinasciiError
+from io import BytesIO
 from pathlib import Path
+
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from klaude_code.protocol import message
 
 _MAX_IMAGE_SIZE_BYTES = 4_500_000
 _MAX_BASE64_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
+_IMAGE_TARGET_RAW_SIZE_BYTES = (_MAX_BASE64_IMAGE_SIZE_BYTES // 4) * 3
 MAX_IMAGE_DIMENSION = 8000
+_JPEG_FALLBACK_QUALITIES = (85, 70, 55, 40, 25)
 _JPEG_SOF_MARKERS = {
     0xC0,
     0xC1,
@@ -210,7 +216,60 @@ def _resize_image_windows(input_path: Path, output_path: Path, *, width: int, he
     return result.returncode == 0 and "ok" in result.stdout and output_path.exists() and output_path.stat().st_size > 0
 
 
+def _flatten_for_jpeg(image: Image.Image) -> Image.Image:
+    if image.mode in {"RGBA", "LA"} or "transparency" in image.info:
+        rgba = image.convert("RGBA")
+        background = Image.new("RGB", rgba.size, (255, 255, 255))
+        background.paste(rgba, mask=rgba.getchannel("A"))
+        return background
+    return image.convert("RGB")
+
+
+def _pillow_reencode_image_bytes(
+    image_bytes: bytes,
+    mime_type: str,
+    *,
+    width: int | None = None,
+    height: int | None = None,
+    output_mime_type: str | None = None,
+    quality: int = 85,
+    quantize: bool = False,
+) -> bytes | None:
+    output_mime = (output_mime_type or mime_type).lower()
+    try:
+        with Image.open(BytesIO(image_bytes)) as opened:
+            image = ImageOps.exif_transpose(opened)
+            if width is not None and height is not None and image.size != (width, height):
+                image = image.resize((width, height), Image.Resampling.LANCZOS)
+
+            output = BytesIO()
+            if output_mime == "image/png":
+                png_image = image
+                if quantize and image.mode not in {"RGBA", "LA"} and "transparency" not in image.info:
+                    png_image = image.convert("RGB").quantize(colors=256)
+                png_image.save(output, format="PNG", optimize=True, compress_level=9)
+            elif output_mime in {"image/jpeg", "image/jpg"}:
+                _flatten_for_jpeg(image).save(
+                    output,
+                    format="JPEG",
+                    quality=quality,
+                    optimize=True,
+                    progressive=True,
+                )
+            elif output_mime == "image/webp":
+                image.save(output, format="WEBP", quality=quality, method=6)
+            else:
+                return None
+            return output.getvalue()
+    except (OSError, UnidentifiedImageError, ValueError):
+        return None
+
+
 def _resize_image_bytes(image_bytes: bytes, mime_type: str, *, width: int, height: int) -> bytes | None:
+    pillow_resized = _pillow_reencode_image_bytes(image_bytes, mime_type, width=width, height=height)
+    if pillow_resized is not None:
+        return pillow_resized
+
     suffix = _suffix_for_mime_type(mime_type)
     if suffix is None:
         return None
@@ -237,12 +296,34 @@ def _base64_size_bytes(decoded_size_bytes: int) -> int:
 
 
 def _max_inline_image_size_bytes() -> int:
-    return min(_MAX_IMAGE_SIZE_BYTES, (_MAX_BASE64_IMAGE_SIZE_BYTES // 4) * 3)
+    return min(_MAX_IMAGE_SIZE_BYTES, (_MAX_BASE64_IMAGE_SIZE_BYTES // 4) * 3, _IMAGE_TARGET_RAW_SIZE_BYTES)
 
 
 def _image_bytes_within_limits(image_bytes: bytes) -> bool:
     size_bytes = len(image_bytes)
     return size_bytes <= _MAX_IMAGE_SIZE_BYTES and _base64_size_bytes(size_bytes) <= _MAX_BASE64_IMAGE_SIZE_BYTES
+
+
+def image_data_url_within_single_image_limits(url: str) -> bool:
+    """Return whether a data URL fits the provider-facing single-image size limits."""
+
+    if not url.startswith("data:"):
+        return True
+    try:
+        _, base64_payload, decoded = parse_data_url(url)
+    except ValueError:
+        return False
+    return _image_bytes_within_limits(decoded) and len(base64_payload.encode("ascii")) <= _MAX_BASE64_IMAGE_SIZE_BYTES
+
+
+def _image_bytes_within_target(image_bytes: bytes) -> bool:
+    return len(image_bytes) <= _max_inline_image_size_bytes()
+
+
+def _pick_smaller(current: bytes, candidate: bytes | None) -> bytes:
+    if candidate is not None and len(candidate) < len(current):
+        return candidate
+    return current
 
 
 def _resize_image_bytes_if_needed(
@@ -297,6 +378,45 @@ def _resize_image_bytes_if_needed(
     return current
 
 
+def _compress_image_bytes_for_request(
+    image_bytes: bytes,
+    mime_type: str,
+    *,
+    max_dimension: int = MAX_IMAGE_DIMENSION,
+) -> tuple[bytes, str]:
+    media_type = mime_type.lower()
+    if not media_type.startswith("image/"):
+        return image_bytes, mime_type
+
+    current = _resize_image_bytes_if_needed(image_bytes, media_type, max_dimension=max_dimension)
+    current_mime = media_type
+
+    optimized = _pillow_reencode_image_bytes(current, current_mime)
+    current = _pick_smaller(current, optimized)
+    if _image_bytes_within_target(current):
+        return current, current_mime
+
+    if current_mime == "image/png":
+        quantized = _pillow_reencode_image_bytes(current, current_mime, quantize=True)
+        current = _pick_smaller(current, quantized)
+        if _image_bytes_within_target(current):
+            return current, current_mime
+
+    best_jpeg: bytes | None = None
+    for quality in _JPEG_FALLBACK_QUALITIES:
+        jpeg = _pillow_reencode_image_bytes(current, current_mime, output_mime_type="image/jpeg", quality=quality)
+        if jpeg is None:
+            continue
+        if best_jpeg is None or len(jpeg) < len(best_jpeg):
+            best_jpeg = jpeg
+        if _image_bytes_within_target(jpeg):
+            return jpeg, "image/jpeg"
+
+    if best_jpeg is not None and len(best_jpeg) < len(current):
+        return best_jpeg, "image/jpeg"
+    return current, current_mime
+
+
 def parse_data_url(url: str) -> tuple[str, str, bytes]:
     """Parse a base64 data URL and return (mime_type, base64_payload, decoded_bytes)."""
 
@@ -335,23 +455,31 @@ def normalize_image_data_url(url: str, *, max_dimension: int = MAX_IMAGE_DIMENSI
     if detected:
         mime_type = detected
 
-    resized = _resize_image_bytes_if_needed(decoded, mime_type, max_dimension=max_dimension)
-    if resized is decoded and detected is None:
+    resized, output_mime_type = _compress_image_bytes_for_request(decoded, mime_type, max_dimension=max_dimension)
+    if resized is decoded and output_mime_type == mime_type.lower() and detected is None:
         return url
     encoded = b64encode(resized).decode("ascii")
-    return f"data:{mime_type};base64,{encoded}"
+    return f"data:{output_mime_type};base64,{encoded}"
 
 
 def freeze_image_for_history(
     image: message.ImageURLPart | message.ImageFilePart,
+    *,
+    images_dir: Path | None = None,
 ) -> message.ImageURLPart | message.ImageFilePart:
     """Freeze an image into a stable history representation.
 
     History images should not be re-encoded on later requests, otherwise prompt
-    prefixes can drift between turns. File-backed images are converted to data
-    URLs once when they enter history. Existing URL-backed images are marked as
-    frozen after a one-time normalization pass for inline data URLs.
+    prefixes can drift between turns. When ``images_dir`` is provided, image
+    bytes are snapshotted there and history stores a file reference instead of
+    inline base64. Without ``images_dir``, the legacy data URL representation is
+    preserved for callers that do not have session storage.
     """
+
+    if images_dir is not None:
+        frozen_file = freeze_image_to_file_for_history(image, images_dir=images_dir)
+        if frozen_file is not None:
+            return frozen_file
 
     if isinstance(image, message.ImageURLPart):
         url = normalize_image_data_url(image.url) if image.url.startswith("data:") else image.url
@@ -366,6 +494,67 @@ def freeze_image_for_history(
     if url is None:
         return image
     return message.ImageURLPart(url=url, frozen=True, source_file_path=image.file_path)
+
+
+def freeze_image_to_file_for_history(
+    image: message.ImageURLPart | message.ImageFilePart,
+    *,
+    images_dir: Path,
+) -> message.ImageFilePart | None:
+    """Snapshot an image into session storage and return a file-backed history part."""
+
+    try:
+        if isinstance(image, message.ImageURLPart):
+            if not image.url.startswith("data:"):
+                return None
+            mime_type, _, image_bytes = parse_data_url(normalize_image_data_url(image.url))
+        else:
+            file_path = Path(image.file_path)
+            image_bytes = file_path.read_bytes()
+            mime_type = image.mime_type or mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
+
+        detected = detect_mime_type_from_bytes(image_bytes)
+        if detected:
+            mime_type = detected
+        image_bytes, mime_type = _compress_image_bytes_for_request(image_bytes, mime_type)
+        suffix = _suffix_for_mime_type(mime_type) or ".img"
+        digest = hashlib.sha256(image_bytes).hexdigest()
+        images_dir.mkdir(parents=True, exist_ok=True)
+        target = images_dir / f"{digest}{suffix}"
+        if not target.exists():
+            target.write_bytes(image_bytes)
+        return message.ImageFilePart(
+            file_path=str(target),
+            mime_type=mime_type,
+            byte_size=len(image_bytes),
+            sha256=digest,
+            frozen=True,
+        )
+    except OSError:
+        return None
+
+
+def _is_session_image_snapshot_path(file_path: Path) -> bool:
+    parts = file_path.resolve(strict=False).parts
+    for index, part in enumerate(parts):
+        if (
+            part == ".klaude"
+            and index + 5 < len(parts)
+            and parts[index + 1] == "projects"
+            and parts[index + 3] == "sessions"
+            and parts[index + 5] == "images"
+        ):
+            return True
+    return False
+
+
+def _can_preserve_existing_snapshot(file_path: Path, image_bytes: bytes, mime_type: str) -> bool:
+    if not _is_session_image_snapshot_path(file_path):
+        return False
+    if not _image_bytes_within_limits(image_bytes):
+        return False
+    dims = _detect_image_dimensions(image_bytes, mime_type)
+    return dims is None or (dims[0] <= MAX_IMAGE_DIMENSION and dims[1] <= MAX_IMAGE_DIMENSION)
 
 
 def image_url_to_request_url(image: message.ImageURLPart, *, max_dimension: int = MAX_IMAGE_DIMENSION) -> str:
@@ -398,7 +587,16 @@ def image_file_to_data_url(image: message.ImageFilePart, *, max_dimension: int =
     if detected:
         mime_type = detected
 
-    decoded = _resize_image_bytes_if_needed(decoded, mime_type, max_dimension=max_dimension)
+    if image.frozen and _image_bytes_within_limits(decoded):
+        encoded = b64encode(decoded).decode("ascii")
+        return f"data:{mime_type};base64,{encoded}"
+
+    if not image.frozen and _can_preserve_existing_snapshot(file_path, decoded, mime_type):
+        encoded = b64encode(decoded).decode("ascii")
+        return f"data:{mime_type};base64,{encoded}"
+
+    request_max_dimension = MAX_IMAGE_DIMENSION if image.frozen else max_dimension
+    decoded, mime_type = _compress_image_bytes_for_request(decoded, mime_type, max_dimension=request_max_dimension)
 
     encoded = b64encode(decoded).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
