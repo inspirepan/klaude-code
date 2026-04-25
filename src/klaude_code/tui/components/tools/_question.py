@@ -78,7 +78,13 @@ def render_ask_user_question_summary(ui_extra: AskUserQuestionSummaryUIExtra) ->
         for line in summary_lines:
             answer_text = Text()
             answer_text.append(Text("\u2192 ", style=ThemeKey.TOOL_RESULT_TRUNCATED, overflow="fold"))
-            answer_text.append(line.expandtabs(TAB_EXPAND_WIDTH), style=summary_style)
+            label, separator, description = line.partition(": ")
+            if item.answered and separator and label:
+                answer_text.append(label.expandtabs(TAB_EXPAND_WIDTH), style=ThemeKey.TOOL_PARAM_BOLD)
+                answer_text.append(" \u00b7 ", style=summary_style)
+                answer_text.append(description.expandtabs(TAB_EXPAND_WIDTH), style=summary_style)
+            else:
+                answer_text.append(line.expandtabs(TAB_EXPAND_WIDTH), style=summary_style)
             grid.add_row(
                 Text(""),
                 answer_text,
