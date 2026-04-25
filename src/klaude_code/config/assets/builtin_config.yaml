@@ -106,6 +106,50 @@ provider_list:
   api_key: ${OPENAI_API_KEY}
   model_list:
 
+  - &gpt55
+    model_name: gpt-5.5
+    model_id: gpt-5.5
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
+
+  - &gpt55_xhigh
+    model_name: gpt-5.5:xhigh
+    model_id: gpt-5.5
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
+
+  - model_name: gpt-5.5:fast
+    model_id: gpt-5.5
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: detailed
+    cost: { input: 10, output: 60, cache_read: 1 }
+
+  - model_name: gpt-5.5:xhigh:fast
+    model_id: gpt-5.5
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: detailed
+    cost: { input: 10, output: 60, cache_read: 1 }
+
   - &gpt54nano
     model_name: gpt-5.4-nano
     model_id: gpt-5.4-nano
@@ -400,12 +444,6 @@ provider_list:
   protocol: codex_oauth
   model_list:
 
-  - *gpt53codex
-  - *gpt53codex_xhigh
-  - *gpt54nano
-  - *gpt54mini
-  - *gpt54
-  - *gpt54_xhigh
   - model_name: gpt-5.5
     model_id: gpt-5.5
     context_limit: 400000
@@ -422,12 +460,20 @@ provider_list:
       reasoning_effort: xhigh
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
+  - *gpt53codex
+  - *gpt53codex_xhigh
+  - *gpt54nano
+  - *gpt54mini
+  - *gpt54
+  - *gpt54_xhigh
 
 # ######################################## github-copilot ########################################
 - provider_name: github-copilot
   protocol: github_copilot_oauth
   model_list:
 
+  - *gpt55
+  - *gpt55_xhigh
   - *gpt53codex
   - *gpt53codex_xhigh
   - *gpt54nano
@@ -459,6 +505,26 @@ provider_list:
   protocol: openrouter
   api_key: ${OPENROUTER_API_KEY}
   model_list:
+
+  - model_name: gpt-5.5
+    model_id: openai/gpt-5.5
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
+
+  - model_name: gpt-5.5:xhigh
+    model_id: openai/gpt-5.5
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - model_name: gpt-5.3-codex
     model_id: openai/gpt-5.3-codex
