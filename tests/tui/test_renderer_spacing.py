@@ -173,7 +173,7 @@ def test_tool_call_and_result_stay_grouped_until_next_visible_block() -> None:
     assert "\n\n└ hi" not in rendered
 
 
-def test_stream_end_does_not_emit_extra_blank_line_in_interactive_mode() -> None:
+def test_stream_end_emits_single_blank_line_in_interactive_mode() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"
 
@@ -191,11 +191,11 @@ def test_stream_end_does_not_emit_extra_blank_line_in_interactive_mode() -> None
     )
 
     rendered = output.getvalue()
-    assert "● hello\n∵ thinking" in rendered
-    assert "● hello\n\n∵ thinking" not in rendered
+    assert "● hello\n\n∵ thinking" in rendered
+    assert "● hello\n\n\n∵ thinking" not in rendered
 
 
-def test_replay_stream_end_does_not_emit_extra_blank_line_before_tool_call() -> None:
+def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:
     renderer, output = _renderer_and_output()
     renderer.set_replay_mode(True)
     session_id = "main"
@@ -219,8 +219,8 @@ def test_replay_stream_end_does_not_emit_extra_blank_line_before_tool_call() -> 
     )
 
     rendered = output.getvalue()
-    assert "● hello\n± Patch" in rendered
-    assert "● hello\n\n± Patch" not in rendered
+    assert "● hello\n\n± Patch" in rendered
+    assert "● hello\n\n\n± Patch" not in rendered
 
 
 def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:

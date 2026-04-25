@@ -3,7 +3,9 @@ from __future__ import annotations
 import io
 import re
 from pathlib import Path
+from typing import Any
 
+import pytest
 from rich.console import Console
 from rich.text import Text
 from rich.theme import Theme
@@ -133,6 +135,27 @@ def test_update_applies_mark_to_live_when_all_live() -> None:
 
     # Same as above: without any stable block, we don't emit a live renderable.
     assert live_calls == []
+
+
+def test_stable_chunk_print_does_not_pass_trailing_newline_to_rich(monkeypatch: pytest.MonkeyPatch) -> None:
+    stream = _make_stream()
+    stream.min_delay = 0
+
+    original_print = stream.console.print
+    calls: list[tuple[str, str]] = []
+
+    def _print_spy(*objects: Any, end: str = "\n", **kwargs: Any) -> None:
+        first = objects[0] if objects else ""
+        plain = first.plain if isinstance(first, Text) else str(first)
+        calls.append((plain, end))
+        original_print(*objects, end=end, **kwargs)
+
+    monkeypatch.setattr(stream.console, "print", _print_spy)
+
+    stream.update("Intro\n\n- item", final=False)
+
+    assert calls
+    assert all(not (plain.endswith("\n") and end) for plain, end in calls)
 
 
 def test_update_invokes_image_callback_for_local_svg(tmp_path: Path) -> None:

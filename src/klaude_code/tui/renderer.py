@@ -470,11 +470,7 @@ class TUICommandRenderer:
                 if pad_lines:
                     stream = Padding(stream, (0, 0, pad_lines, 0))
                 stream_part = stream
-                gap_part = (
-                    Text(" ")
-                    if (self._spinner_visible and (self._bash_stream_active or self._stream_renderable))
-                    else Group()
-                )
+                gap_part = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
 
         status_part: RenderableType = self._status_spinner if self._spinner_visible else Group()
         renderable = Group(top_gap_part, stream_part, gap_part, status_part)
@@ -1021,7 +1017,10 @@ class TUICommandRenderer:
                                 self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                             self._flush_thinking()
                 case EndThinkingStream(session_id=_):
-                    self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
+                    had_content = bool(self._thinking_stream.buffer.strip())
+                    finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
+                    if finalized and had_content:
+                        self.print()
                 case StartAssistantStream(session_id=_):
                     if not self._assistant_stream.is_active:
                         self._assistant_stream.start(self._new_assistant_mdstream())
@@ -1034,7 +1033,10 @@ class TUICommandRenderer:
                                 self._assistant_stream.render()
                             self._flush_assistant()
                 case EndAssistantStream(session_id=_):
-                    self._assistant_stream.finalize()
+                    had_content = bool(self._assistant_stream.buffer.strip())
+                    finalized = self._assistant_stream.finalize()
+                    if finalized and had_content:
+                        self.print()
                 case RenderToolCall(event=event):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call(event)

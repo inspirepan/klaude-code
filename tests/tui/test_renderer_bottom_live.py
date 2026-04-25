@@ -174,6 +174,29 @@ def test_bottom_renderable_keeps_blank_line_between_bash_live_region_and_status(
     assert line_text[2].startswith(STATUS_DEFAULT_TEXT)
 
 
+def test_bottom_renderable_does_not_add_blank_line_between_markdown_stream_and_status() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    output = io.StringIO()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
+    renderer.console.push_theme(renderer.themes.markdown_theme)
+
+    renderer._spinner_visible = True
+    renderer._bash_stream_active = False
+    renderer._stream_renderable = Text("markdown live")
+    renderer._stream_last_height = 1
+    renderer._stream_last_width = renderer.console.size.width
+    renderer._stream_max_height = 1
+
+    renderable = renderer._bottom_renderable()
+    lines = renderer.console.render_lines(renderable, renderer.console.options, pad=False)
+    line_text = ["".join(segment.text for segment in line if not segment.control).rstrip() for line in lines]
+
+    assert line_text[0] == "markdown live"
+    assert line_text[1].startswith(STATUS_DEFAULT_TEXT)
+
+
 def test_bottom_renderable_adds_blank_line_above_status_before_bash_stream_starts() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 

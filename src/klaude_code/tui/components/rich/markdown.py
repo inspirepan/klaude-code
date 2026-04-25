@@ -709,6 +709,10 @@ class MarkdownStream:
             live_lines, _ = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_to_live)
 
             if self._stable_rendered_lines:
+                if stable_source.endswith("\n\n"):
+                    while live_lines and not live_lines[0].strip():
+                        live_lines = live_lines[1:]
+
                 stable_trailing_blank = 0
                 for line in reversed(self._stable_rendered_lines):
                     if line.strip():
@@ -737,7 +741,9 @@ class MarkdownStream:
                 self._live_sink(live_text_to_set)
 
             if stable_chunk_to_print:
-                self.console.print(Text.from_ansi(stable_chunk_to_print), end="\n")
+                end = "\n" if stable_chunk_to_print.endswith("\n") else ""
+                stable_text = stable_chunk_to_print[:-1] if end else stable_chunk_to_print
+                self.console.print(Text.from_ansi(stable_text), end=end)
 
             if new_images and self._image_callback:
                 for img_path, img_alt in new_images:
