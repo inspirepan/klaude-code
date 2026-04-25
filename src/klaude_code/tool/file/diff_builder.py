@@ -24,6 +24,10 @@ def build_structured_file_diff(before: str, after: str, *, file_path: str) -> Di
 def build_unified_diff_text(before: str, after: str, *, from_file: str, to_file: str | None = None) -> str:
     """Build raw unified diff text using default context lines."""
     target_file = to_file if to_file is not None else from_file
+    eof_newline_diff = _build_eof_newline_unified_diff(before, after, from_file=from_file, to_file=target_file)
+    if eof_newline_diff is not None:
+        return eof_newline_diff
+
     lines = difflib.unified_diff(
         before.splitlines(),
         after.splitlines(),
@@ -38,6 +42,10 @@ def build_unified_diff_text(before: str, after: str, *, from_file: str, to_file:
 def _build_file_diff(before: str, after: str, *, file_path: str) -> DiffFileDiff:
     before_lines = _split_lines(before)
     after_lines = _split_lines(after)
+
+    eof_newline_diff = _build_eof_newline_file_diff(before, after, before_lines, after_lines, file_path=file_path)
+    if eof_newline_diff is not None:
+        return eof_newline_diff
 
     matcher = difflib.SequenceMatcher(None, before_lines, after_lines)
     lines: list[DiffLine] = []
@@ -115,6 +123,54 @@ def _split_lines(text: str) -> list[str]:
     if not text:
         return []
     return text.splitlines()
+
+
+def _is_eof_newline_only_change(before: str, after: str, before_lines: list[str], after_lines: list[str]) -> bool:
+    return before != after and before_lines == after_lines and before.endswith("\n") != after.endswith("\n")
+
+
+def _build_eof_newline_file_diff(
+    before: str,
+    after: str,
+    before_lines: list[str],
+    after_lines: list[str],
+    *,
+    file_path: str,
+) -> DiffFileDiff | None:
+    if not _is_eof_newline_only_change(before, after, before_lines, after_lines):
+        return None
+
+    line_no = len(before_lines)
+    line_text = before_lines[-1]
+    spans = [DiffSpan(op="equal", text=line_text)]
+    return DiffFileDiff(
+        file_path=file_path,
+        lines=[_remove_line(spans, line_no), _add_line(spans, line_no)],
+        stats_add=1,
+        stats_remove=1,
+    )
+
+
+def _build_eof_newline_unified_diff(before: str, after: str, *, from_file: str, to_file: str) -> str | None:
+    before_lines = _split_lines(before)
+    after_lines = _split_lines(after)
+    if not _is_eof_newline_only_change(before, after, before_lines, after_lines):
+        return None
+
+    line_no = len(before_lines)
+    line_text = before_lines[-1]
+    lines = [
+        f"--- {from_file}",
+        f"+++ {to_file}",
+        f"@@ -{line_no} +{line_no} @@",
+        f"-{line_text}",
+    ]
+    if not before.endswith("\n"):
+        lines.append(r"\ No newline at end of file")
+    lines.append(f"+{line_text}")
+    if not after.endswith("\n"):
+        lines.append(r"\ No newline at end of file")
+    return "\n".join(lines)
 
 
 def _ctx_line(text: str, old_line_no: int, new_line_no: int) -> DiffLine:

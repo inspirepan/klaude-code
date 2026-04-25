@@ -55,6 +55,20 @@ def test_delete_lines_have_old_line_numbers() -> None:
     assert [line.new_line_no for line in remove_lines] == [None, None]
 
 
+def test_eof_newline_only_change_is_visible() -> None:
+    before = "hello"
+    after = "hello\n"
+
+    diff = build_structured_diff(before, after, file_path="test.txt")
+
+    file_diff = diff.files[0]
+    assert [line.kind for line in file_diff.lines] == ["remove", "add"]
+    assert file_diff.stats_add == 1
+    assert file_diff.stats_remove == 1
+    assert diff.raw_unified_diff is not None
+    assert "\\ No newline at end of file" in diff.raw_unified_diff
+
+
 # ============================================================================
 # Property-based tests for diff_builder
 # ============================================================================
