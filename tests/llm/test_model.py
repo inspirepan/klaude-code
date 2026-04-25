@@ -163,7 +163,9 @@ def test_anthropic_history_omits_single_image_that_exceeds_inline_limit(
     path = tmp_path / "too-large.png"
     path.write_bytes(b"not-really-a-png-but-large")
     history: list[message.Message] = [
-        message.UserMessage(parts=_parts(message.ImageFilePart(file_path=str(path), mime_type="image/png", frozen=True)))
+        message.UserMessage(
+            parts=_parts(message.ImageFilePart(file_path=str(path), mime_type="image/png", frozen=True))
+        )
     ]
 
     messages = anthropic_history(history, model_name=None)

@@ -202,7 +202,9 @@ class TestReadTool(BaseTempDirTest):
         assert isinstance(part, message.ImageFilePart)
         self.assertTrue(Path(part.file_path).exists())
         self.assertTrue(part.frozen)
-        self.assertIn(f"/.klaude/projects/{Path.cwd().as_posix().strip('/').replace('/', '-')}/sessions/", part.file_path)
+        self.assertIn(
+            f"/.klaude/projects/{Path.cwd().as_posix().strip('/').replace('/', '-')}/sessions/", part.file_path
+        )
         self.assertIn("[image] tiny.png", res.output_text or "")
 
     def test_read_image_too_large_error(self):

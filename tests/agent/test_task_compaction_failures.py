@@ -57,7 +57,9 @@ def _build_executor(
         run_subtask=None,
         request_user_interaction=None,
     )
-    profile = AgentProfile(llm_client=cast(Any, llm_client), system_prompt=None, tools=[], attachments=attachments or [])
+    profile = AgentProfile(
+        llm_client=cast(Any, llm_client), system_prompt=None, tools=[], attachments=attachments or []
+    )
     return TaskExecutor(
         TaskExecutionContext(
             session=session,
@@ -187,8 +189,7 @@ def test_threshold_compaction_recollects_attachments_before_turn(
         )
         assert histories_seen_by_turn
         assert any(
-            isinstance(item, message.DeveloperMessage)
-            and "available skills" in message.join_text_parts(item.parts)
+            isinstance(item, message.DeveloperMessage) and "available skills" in message.join_text_parts(item.parts)
             for item in histories_seen_by_turn[0]
         )
         assert not any(status.is_skill_listing for status in session.file_tracker.values())
