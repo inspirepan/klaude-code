@@ -995,8 +995,8 @@ class DisplayStateMachine:
                 return cmds
 
             case events.TurnStartEvent():
+                cmds.append(FlushOpenBlocks())
                 if not is_replay:
-                    cmds.append(FlushOpenBlocks())
                     if s.is_sub_agent:
                         s.clear_status_activity()
                     else:

@@ -197,6 +197,49 @@ def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
     assert output.getvalue().endswith("\n\n")
 
 
+def test_replay_turn_start_flushes_open_tool_block() -> None:
+    renderer, output = _renderer_and_output()
+    machine = DisplayStateMachine()
+    session_id = "main"
+
+    commands = [
+        RenderToolCall(
+            event=events.ToolCallEvent(
+                session_id=session_id,
+                tool_call_id="tool-1",
+                tool_name=tools.BASH,
+                arguments='{"command":"one"}',
+            )
+        ),
+        RenderToolResult(
+            event=events.ToolResultEvent(
+                session_id=session_id,
+                tool_call_id="tool-1",
+                tool_name=tools.BASH,
+                result="one",
+                status="success",
+                is_last_in_turn=True,
+            ),
+            is_sub_agent_session=False,
+        ),
+        *machine.transition_replay(events.TurnStartEvent(session_id=session_id)),
+        RenderToolCall(
+            event=events.ToolCallEvent(
+                session_id=session_id,
+                tool_call_id="tool-2",
+                tool_name=tools.BASH,
+                arguments='{"command":"two"}',
+            )
+        ),
+    ]
+
+    assert any(isinstance(cmd, FlushOpenBlocks) for cmd in commands)
+
+    asyncio.run(renderer.execute(commands))
+
+    assert "└      one\n\n$ Bash two" in output.getvalue()
+
+
 def test_sub_agent_call_prompt_renders_as_markdown() -> None:
     renderer, output = _renderer_and_output()
 
