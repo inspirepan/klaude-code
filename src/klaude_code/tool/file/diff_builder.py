@@ -49,17 +49,20 @@ def _build_file_diff(before: str, after: str, *, file_path: str) -> DiffFileDiff
         if group_idx > 0:
             lines.append(_gap_line())
 
-        # Anchor line numbers to the actual start of the displayed hunk in the "after" file.
+        # Anchor line numbers to the actual start of the displayed hunk.
+        old_line_no = group[0][1] + 1
         new_line_no = group[0][3] + 1
 
         for tag, i1, i2, j1, j2 in group:
             if tag == "equal":
                 for line in after_lines[j1:j2]:
-                    lines.append(_ctx_line(line, new_line_no))
+                    lines.append(_ctx_line(line, old_line_no, new_line_no))
+                    old_line_no += 1
                     new_line_no += 1
             elif tag == "delete":
                 for line in before_lines[i1:i2]:
-                    lines.append(_remove_line([DiffSpan(op="equal", text=line)]))
+                    lines.append(_remove_line([DiffSpan(op="equal", text=line)], old_line_no))
+                    old_line_no += 1
                     stats_remove += 1
             elif tag == "insert":
                 for line in after_lines[j1:j2]:
@@ -86,14 +89,19 @@ def _build_file_diff(before: str, after: str, *, file_path: str) -> DiffFileDiff
                 for new_line in new_block[paired_len:]:
                     add_block.append([DiffSpan(op="equal", text=new_line)])
 
-                for spans in remove_block:
-                    lines.append(_remove_line(spans))
+                old_block_start = old_line_no
+                new_block_start = new_line_no
+
+                for idx, spans in enumerate(remove_block):
+                    lines.append(_remove_line(spans, old_block_start + idx))
                     stats_remove += 1
 
-                for spans in add_block:
-                    lines.append(_add_line(spans, new_line_no))
+                for idx, spans in enumerate(add_block):
+                    lines.append(_add_line(spans, new_block_start + idx))
                     stats_add += 1
-                    new_line_no += 1
+
+                old_line_no += len(old_block)
+                new_line_no += len(new_block)
 
     return DiffFileDiff(
         file_path=file_path,
@@ -109,9 +117,10 @@ def _split_lines(text: str) -> list[str]:
     return text.splitlines()
 
 
-def _ctx_line(text: str, new_line_no: int) -> DiffLine:
+def _ctx_line(text: str, old_line_no: int, new_line_no: int) -> DiffLine:
     return DiffLine(
         kind="ctx",
+        old_line_no=old_line_no,
         new_line_no=new_line_no,
         spans=[DiffSpan(op="equal", text=text)],
     )
@@ -120,6 +129,7 @@ def _ctx_line(text: str, new_line_no: int) -> DiffLine:
 def _gap_line() -> DiffLine:
     return DiffLine(
         kind="gap",
+        old_line_no=None,
         new_line_no=None,
         spans=[DiffSpan(op="equal", text="")],
     )
@@ -129,8 +139,8 @@ def _add_line(spans: list[DiffSpan], new_line_no: int) -> DiffLine:
     return DiffLine(kind="add", new_line_no=new_line_no, spans=_ensure_spans(spans))
 
 
-def _remove_line(spans: list[DiffSpan]) -> DiffLine:
-    return DiffLine(kind="remove", new_line_no=None, spans=_ensure_spans(spans))
+def _remove_line(spans: list[DiffSpan], old_line_no: int) -> DiffLine:
+    return DiffLine(kind="remove", old_line_no=old_line_no, new_line_no=None, spans=_ensure_spans(spans))
 
 
 def _ensure_spans(spans: list[DiffSpan]) -> list[DiffSpan]:

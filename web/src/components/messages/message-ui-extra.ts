@@ -4,6 +4,7 @@ export interface DiffUIExtra {
     file_path: string;
     lines: Array<{
       kind: "ctx" | "add" | "remove" | "gap";
+      old_line_no?: number | null;
       new_line_no: number | null;
       spans: Array<{ op: "equal" | "insert" | "delete"; text: string }>;
     }>;
