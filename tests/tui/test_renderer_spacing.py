@@ -138,6 +138,19 @@ def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
     assert "+ Activated skill commit\n\n+ Activated skill submit-pr" not in rendered
 
 
+def test_sub_agent_blank_line_keeps_quote_prefix() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "sub-1"
+    renderer.register_session(
+        session_id,
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="searching", sub_agent_prompt="prompt"),
+    )
+
+    asyncio.run(renderer.execute([PrintBlankLine(session_id=session_id)]))
+
+    assert output.getvalue() == "▌ \n"
+
+
 def test_tool_call_and_result_stay_grouped_until_next_visible_block() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"

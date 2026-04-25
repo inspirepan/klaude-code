@@ -1115,9 +1115,13 @@ class TUICommandRenderer:
                     )
                 case FlushOpenBlocks():
                     continue
-                case PrintBlankLine():
+                case PrintBlankLine(session_id=session_id):
                     self._clear_open_blocks()
-                    self.print()
+                    if session_id is not None and self.is_sub_agent_session(session_id):
+                        with self.session_print_context(session_id):
+                            self.print(Text(""))
+                    else:
+                        self.print()
                 case PrintRuleLine():
                     self.console.print(Rule(characters="╸", style=ThemeKey.USER_INPUT_RULE))
                 case TaskClockStart():
