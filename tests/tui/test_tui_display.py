@@ -91,3 +91,27 @@ def test_cancelled_task_notification_uses_cancelled_title() -> None:
     assert isinstance(sent, Notification)
     assert sent.type == NotificationType.AGENT_TASK_COMPLETE
     assert sent.title == "Task Cancelled"
+
+
+def test_interrupt_cancelled_task_suggests_continue() -> None:
+    suggestions: list[str | None] = []
+    display = TUIDisplay(notifier=Mock(spec=TerminalNotifier), on_prompt_suggestion=suggestions.append)
+
+    display._handle_prompt_suggestion_event(events.InterruptEvent(session_id="main"))
+    display._handle_prompt_suggestion_event(events.TaskFinishEvent(session_id="main", task_result="task cancelled"))
+
+    assert suggestions == ["/continue"]
+
+
+def test_replay_interrupt_cancelled_task_restores_continue_suggestion() -> None:
+    suggestions: list[str | None] = []
+    display = TUIDisplay(notifier=Mock(spec=TerminalNotifier), on_prompt_suggestion=suggestions.append)
+
+    display._restore_prompt_suggestion_from_replay(
+        [
+            events.InterruptEvent(session_id="main"),
+            events.TaskFinishEvent(session_id="main", task_result="task cancelled"),
+        ]
+    )
+
+    assert suggestions == ["/continue"]

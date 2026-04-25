@@ -8,7 +8,7 @@ from typing import Any, override
 from klaude_code.app.ports import DisplayABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
-from klaude_code.tui.machine import DisplayStateMachine
+from klaude_code.tui.machine import DisplayStateMachine, is_cancelled_task_result
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 from klaude_code.tui.terminal.title import update_terminal_title
@@ -16,6 +16,8 @@ from klaude_code.tui.terminal.title import update_terminal_title
 
 class TUIDisplay(DisplayABC):
     """Interactive terminal display using Rich for rendering."""
+
+    _CONTINUE_PROMPT_SUGGESTION = "/continue"
 
     def __init__(
         self,
@@ -27,6 +29,7 @@ class TUIDisplay(DisplayABC):
         self._machine = DisplayStateMachine()
         self._renderer = TUICommandRenderer(theme=theme, notifier=self._notifier)
         self._on_prompt_suggestion = on_prompt_suggestion
+        self._interrupt_prompt_suggestion_session_id: str | None = None
 
         self._sigint_toast_clear_handle: asyncio.Handle | None = None
         self._bg_tasks: set[asyncio.Task[None]] = set()
@@ -68,39 +71,66 @@ class TUIDisplay(DisplayABC):
             event.model_dump_json(exclude_none=True),
             debug_type=DebugType.UI_EVENT,
         )
-        if self._on_prompt_suggestion is not None:
-            match event:
-                case events.PromptSuggestionReadyEvent() as e:
-                    with contextlib.suppress(Exception):
-                        self._on_prompt_suggestion(e.text)
-                case events.PromptSuggestionClearedEvent():
-                    with contextlib.suppress(Exception):
-                        self._on_prompt_suggestion(None)
-                case _:
-                    pass
+        self._handle_prompt_suggestion_event(event)
         commands = self._machine.transition(event)
         if commands:
             await self._renderer.execute(commands)
+
+    def _set_prompt_suggestion(self, text: str | None) -> None:
+        if self._on_prompt_suggestion is None:
+            return
+        with contextlib.suppress(Exception):
+            self._on_prompt_suggestion(text)
+
+    def _handle_prompt_suggestion_event(self, event: events.Event) -> None:
+        match event:
+            case events.PromptSuggestionReadyEvent() as e:
+                self._interrupt_prompt_suggestion_session_id = None
+                self._set_prompt_suggestion(e.text)
+            case events.PromptSuggestionClearedEvent():
+                self._interrupt_prompt_suggestion_session_id = None
+                self._set_prompt_suggestion(None)
+            case events.InterruptEvent() as e:
+                self._interrupt_prompt_suggestion_session_id = e.session_id
+            case events.TaskFinishEvent() as e:
+                if self._interrupt_prompt_suggestion_session_id != e.session_id:
+                    return
+                self._interrupt_prompt_suggestion_session_id = None
+                if is_cancelled_task_result(e.task_result):
+                    self._set_prompt_suggestion(self._CONTINUE_PROMPT_SUGGESTION)
+            case events.UserMessageEvent():
+                self._interrupt_prompt_suggestion_session_id = None
+            case _:
+                pass
 
     def _restore_prompt_suggestion_from_replay(self, replay_events: list[events.ReplayEventUnion]) -> None:
         """Pre-fill the input placeholder with the last still-valid suggestion.
 
         A suggestion is invalidated by any later UserMessageEvent in the same
         replay stream (mirrors the live ``PromptSuggestionClearedEvent`` that
-        fires on a new turn but is not persisted).
+        fires on a new turn but is not persisted). Interrupted cancelled tasks
+        synthesize the same ``/continue`` fallback used by live display events.
         """
         if self._on_prompt_suggestion is None:
             return
         suggestion: str | None = None
+        interrupt_session_id: str | None = None
         for item in replay_events:
             if isinstance(item, events.PromptSuggestionReadyEvent):
                 suggestion = item.text
+                interrupt_session_id = None
             elif isinstance(item, events.UserMessageEvent):
                 suggestion = None
+                interrupt_session_id = None
+            elif isinstance(item, events.InterruptEvent):
+                suggestion = None
+                interrupt_session_id = item.session_id
+            elif isinstance(item, events.TaskFinishEvent) and interrupt_session_id == item.session_id:
+                suggestion = self._CONTINUE_PROMPT_SUGGESTION if is_cancelled_task_result(item.task_result) else None
+                interrupt_session_id = None
         if suggestion is None:
             return
-        with contextlib.suppress(Exception):
-            self._on_prompt_suggestion(suggestion)
+        self._set_prompt_suggestion(suggestion)
 
     @override
     async def start(self) -> None:

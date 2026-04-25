@@ -94,7 +94,7 @@ def _empty_bash_chunks() -> list[str]:
     return []
 
 
-def _is_cancelled_task_result(task_result: str) -> bool:
+def is_cancelled_task_result(task_result: str) -> bool:
     return task_result.strip().lower() in {"task cancelled", "task canceled"}
 
 
@@ -1305,7 +1305,7 @@ class DisplayStateMachine:
                     and not s.is_sub_agent
                     and s.assistant_char_count == 0
                     and e.task_result.strip()
-                    and not _is_cancelled_task_result(e.task_result)
+                    and not is_cancelled_task_result(e.task_result)
                 ):
                     cmds.append(StartAssistantStream(session_id=e.session_id))
                     cmds.append(AppendAssistant(session_id=e.session_id, content=e.task_result))
@@ -1316,7 +1316,7 @@ class DisplayStateMachine:
                     self._spinner.clear_task_state()
                     cmds.append(SpinnerStop())
                     cmds.append(StopTitleBlink())
-                    self._terminal_title_prefix = None if _is_cancelled_task_result(e.task_result) else "✅"
+                    self._terminal_title_prefix = None if is_cancelled_task_result(e.task_result) else "✅"
                     cmds.append(
                         UpdateTerminalTitlePrefix(
                             prefix=self._terminal_title_prefix,
