@@ -240,11 +240,7 @@ def _assistant_message_to_message(msg: message.AssistantMessage, model_name: str
         if isinstance(part, message.TextPart):
             content.append(cast(BetaTextBlockParam, {"type": "text", "text": part.text}))
         elif isinstance(part, message.ToolCallPart):
-            if (
-                is_deepseek_model(model_name)
-                and not has_native_thinking_text
-                and not inserted_empty_deepseek_thinking
-            ):
+            if is_deepseek_model(model_name) and not has_native_thinking_text and not inserted_empty_deepseek_thinking:
                 content.append(cast(BetaContentBlockParam, {"type": "thinking", "thinking": ""}))
                 inserted_empty_deepseek_thinking = True
             _append_tool_use_block(part)
