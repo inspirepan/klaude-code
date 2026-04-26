@@ -496,7 +496,9 @@ class Session(BaseModel):
         """Check whether this session's task has completed (normally or via interruption)."""
         return any(isinstance(it, TaskMetadataItem) for it in self.conversation_history)
 
-    def get_history_item(self, *, emit_finish: bool = True) -> Iterable[events.ReplayEventUnion]:
+    def get_history_item(
+        self, *, emit_finish: bool = True, parent_session_id: str | None = None
+    ) -> Iterable[events.ReplayEventUnion]:
         seen_sub_agent_sessions: set[str] = set()
         prev_item: message.HistoryEvent | None = None
         last_assistant_content: str = ""
@@ -510,6 +512,7 @@ class Session(BaseModel):
             session_id=self.id,
             sub_agent_state=self.sub_agent_state,
             timestamp=self.created_at if self.created_at > 0 else time.time(),
+            parent_session_id=parent_session_id,
         )
         msg_ts: float = 0.0
 
@@ -544,6 +547,7 @@ class Session(BaseModel):
                     session_id=self.id,
                     sub_agent_state=self.sub_agent_state,
                     timestamp=msg_ts,
+                    parent_session_id=parent_session_id,
                 )
 
             if self.need_turn_start(prev_item, it):
@@ -778,7 +782,9 @@ class Session(BaseModel):
             sub_session = Session.load(session_id, work_dir=self.work_dir)
         except (OSError, json.JSONDecodeError, ValueError):
             return
-        yield from sub_session.get_history_item(emit_finish=sub_session._has_task_completed())
+        yield from sub_session.get_history_item(
+            emit_finish=sub_session._has_task_completed(), parent_session_id=self.id
+        )
 
     def _iter_sub_agent_history(
         self, tool_result: message.ToolResultMessage, seen_sub_agent_sessions: set[str]

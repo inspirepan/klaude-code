@@ -277,6 +277,41 @@ def test_build_payload_adds_empty_deepseek_thinking_for_legacy_tool_use_without_
     assert blocks[1]["type"] == "tool_use"
 
 
+def test_build_payload_adds_empty_deepseek_thinking_for_cross_model_tool_use() -> None:
+    param = llm_param.LLMCallParameter(
+        input=[
+            message.UserMessage(parts=[message.TextPart(text="call tool")]),
+            message.AssistantMessage(
+                parts=[
+                    message.ThinkingTextPart(text="gpt thought", model_id="gpt-5.5"),
+                    message.ThinkingSignaturePart(signature="gpt-sig", model_id="gpt-5.5", format="openai"),
+                    message.ToolCallPart(call_id="toolu_test", tool_name="write", arguments_json='{"file_path":"x"}'),
+                ],
+                stop_reason="stop",
+            ),
+            message.ToolResultMessage(
+                call_id="toolu_test",
+                tool_name="write",
+                status="success",
+                output_text="ok",
+            ),
+        ],
+        model_id="deepseek-v4-pro",
+        thinking=llm_param.Thinking(type="enabled", budget_tokens=1024),
+    )
+
+    payload = build_payload(param)
+
+    payload_messages = list(payload["messages"])
+    assistant_content = payload_messages[1]["content"]
+    assert not isinstance(assistant_content, str)
+    blocks = [cast(dict[str, Any], block) for block in assistant_content]
+    assert blocks[0]["type"] == "text"
+    assert "gpt thought" in blocks[0]["text"]
+    assert blocks[1] == {"type": "thinking", "thinking": ""}
+    assert blocks[2]["type"] == "tool_use"
+
+
 def test_parse_anthropic_stream_reads_stop_reason_from_nested_delta() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),

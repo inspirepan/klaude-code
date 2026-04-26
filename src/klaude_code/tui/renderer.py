@@ -205,7 +205,9 @@ class TUICommandRenderer:
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
         self._developer_block_open: bool = False
+        self._developer_block_session_id: str | None = None
         self._tool_block_open: bool = False
+        self._tool_block_session_id: str | None = None
 
     def set_replay_mode(self, enabled: bool) -> None:
         """Enable or disable replay rendering mode.
@@ -281,16 +283,26 @@ class TUICommandRenderer:
 
     def _clear_open_blocks(self) -> None:
         self._developer_block_open = False
+        self._developer_block_session_id = None
         self._tool_block_open = False
+        self._tool_block_session_id = None
 
-    def _flush_open_blocks(self) -> None:
+    def _print_blank_line(self, session_id: str | None = None) -> None:
+        if session_id is not None and self.is_sub_agent_session(session_id):
+            with self.session_print_context(session_id):
+                self.print(Text(""))
+        else:
+            self.print()
+
+    def _flush_open_blocks(self, *, scoped: bool = True) -> None:
         if not (self._developer_block_open or self._tool_block_open):
             return
-        self.print()
+        session_id = self._developer_block_session_id if self._developer_block_open else self._tool_block_session_id
+        self._print_blank_line(session_id if scoped else None)
         self._clear_open_blocks()
 
-    def flush_open_blocks(self) -> None:
-        self._flush_open_blocks()
+    def flush_open_blocks(self, *, scoped: bool = True) -> None:
+        self._flush_open_blocks(scoped=scoped)
 
     def _flush_open_blocks_before(self, cmd: RenderCommand) -> None:
         if not (self._developer_block_open or self._tool_block_open):
@@ -990,7 +1002,9 @@ class TUICommandRenderer:
                 case RenderDeveloperMessage(event=event):
                     if self.display_developer_message(event):
                         self._developer_block_open = True
+                        self._developer_block_session_id = event.session_id
                         self._tool_block_open = False
+                        self._tool_block_session_id = None
                 case RenderNotice(event=event):
                     self.display_notice(event)
                 case RenderAwaySummary(event=event):
@@ -1042,15 +1056,19 @@ class TUICommandRenderer:
                         rendered = self.display_tool_call(event)
                     if rendered:
                         self._tool_block_open = True
+                        self._tool_block_session_id = event.session_id
                         self._developer_block_open = False
+                        self._developer_block_session_id = None
                 case RenderToolResult(event=event, is_sub_agent_session=is_sub_agent_session):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call_result(event, is_sub_agent=is_sub_agent_session)
                     if rendered and not self._tool_block_open:
-                        self.print()
+                        self._print_blank_line(event.session_id)
                     elif rendered:
                         self._tool_block_open = True
+                        self._tool_block_session_id = event.session_id
                         self._developer_block_open = False
+                        self._developer_block_session_id = None
                 case RenderTaskMetadata(event=event):
                     self.display_task_metadata(event)
                 case RenderTaskFinish() as cmd_finish:
@@ -1117,11 +1135,7 @@ class TUICommandRenderer:
                     continue
                 case PrintBlankLine(session_id=session_id):
                     self._clear_open_blocks()
-                    if session_id is not None and self.is_sub_agent_session(session_id):
-                        with self.session_print_context(session_id):
-                            self.print(Text(""))
-                    else:
-                        self.print()
+                    self._print_blank_line(session_id)
                 case PrintRuleLine():
                     self.console.print(Rule(characters="╸", style=ThemeKey.USER_INPUT_RULE))
                 case TaskClockStart():

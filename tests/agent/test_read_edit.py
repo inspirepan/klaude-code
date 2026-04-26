@@ -20,7 +20,13 @@ if SRC_DIR.is_dir() and str(SRC_DIR) not in os.sys.path:  # type: ignore
 
 from klaude_code.agent.attachments.files import at_file_reader_attachment  # noqa: E402
 from klaude_code.protocol import message  # noqa: E402
-from klaude_code.protocol.models import AtFileOp, AtFileOpsUIItem, FileStatus, MemoryLoadedUIItem  # noqa: E402
+from klaude_code.protocol.models import (  # noqa: E402
+    AtFileOp,
+    AtFileOpsUIItem,
+    FileStatus,
+    MemoryLoadedUIItem,
+    ReadPreviewUIExtra,
+)
 from klaude_code.session.session import Session  # noqa: E402
 from klaude_code.tool import (  # noqa: E402
     BashTool,
@@ -164,6 +170,26 @@ class TestReadTool(BaseTempDirTest):
         res = arun(ReadTool.call(json.dumps({"file_path": p, "offset": 2}), self.tool_context))
         self.assertEqual(res.status, "success")
         self.assertIn("shorter than the provided offset (2)", res.output_text or "")
+
+    def test_read_from_first_line_with_limit_does_not_use_preview_ui(self):
+        p = os.path.abspath("limited.txt")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("one\ntwo\nthree\n")
+
+        res = arun(ReadTool.call(json.dumps({"file_path": p, "offset": 1, "limit": 2}), self.tool_context))
+
+        self.assertEqual(res.status, "success")
+        self.assertIsNone(res.ui_extra)
+
+    def test_read_from_middle_uses_preview_ui(self):
+        p = os.path.abspath("middle.txt")
+        with open(p, "w", encoding="utf-8") as f:
+            f.write("one\ntwo\nthree\n")
+
+        res = arun(ReadTool.call(json.dumps({"file_path": p, "offset": 2, "limit": 2}), self.tool_context))
+
+        self.assertEqual(res.status, "success")
+        self.assertIsInstance(res.ui_extra, ReadPreviewUIExtra)
 
     def test_read_total_chars_limit_truncates(self):
         # Files exceeding char limit are now truncated instead of erroring

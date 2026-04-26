@@ -17,6 +17,8 @@ from klaude_code.tui.commands import (
     RenderDeveloperMessage,
     RenderError,
     RenderNotice,
+    RenderTaskFinish,
+    RenderTaskStart,
     RenderToolCall,
     RenderToolResult,
     RenderUserMessage,
@@ -149,6 +151,163 @@ def test_sub_agent_blank_line_keeps_quote_prefix() -> None:
     asyncio.run(renderer.execute([PrintBlankLine(session_id=session_id)]))
 
     assert output.getvalue() == "▌ \n"
+
+
+def test_sub_agent_finish_result_does_not_include_trailing_quote_blank_line() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "sub-1"
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderTaskStart(
+                    event=events.TaskStartEvent(
+                        session_id=session_id,
+                        model_id="test-model",
+                        sub_agent_state=SubAgentState(
+                            sub_agent_type="finder",
+                            sub_agent_desc="searching",
+                            sub_agent_prompt="prompt",
+                        ),
+                    )
+                ),
+                RenderTaskFinish(event=events.TaskFinishEvent(session_id=session_id, task_result="done")),
+            ]
+        )
+    )
+
+    assert output.getvalue().endswith("▌  searching \n▌ done\n")
+
+
+def test_sub_agent_finish_blank_line_after_result_is_not_quoted() -> None:
+    renderer, output = _renderer_and_output()
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    commands = [
+        *machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model")),
+        *machine.transition(
+            events.TaskStartEvent(
+                session_id=sub_session,
+                model_id="test-model",
+                sub_agent_state=SubAgentState(
+                    sub_agent_type="finder",
+                    sub_agent_desc="searching",
+                    sub_agent_prompt="prompt",
+                ),
+            )
+        ),
+        *machine.transition(events.TaskFinishEvent(session_id=sub_session, task_result="done")),
+    ]
+
+    asyncio.run(renderer.execute(commands))
+
+    assert output.getvalue().endswith("▌  searching \n▌ done\n\n")
+    assert not output.getvalue().endswith("▌  searching \n▌ done\n▌ \n")
+
+
+def test_sub_agent_block_flush_keeps_quote_prefix() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "sub-1"
+    renderer.register_session(
+        session_id,
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="searching", sub_agent_prompt="prompt"),
+    )
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderDeveloperMessage(
+                    event=events.DeveloperMessageEvent(
+                        session_id=session_id,
+                        item=message.DeveloperMessage(
+                            parts=[], ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="commit")])
+                        ),
+                    )
+                ),
+                RenderToolCall(
+                    event=events.ToolCallEvent(
+                        session_id=session_id,
+                        tool_call_id="tool-1",
+                        tool_name=tools.READ,
+                        arguments='{"file_path":"gpt-image-gen/SKILL.md","limit":1}',
+                    )
+                ),
+                RenderDeveloperMessage(
+                    event=events.DeveloperMessageEvent(
+                        session_id=session_id,
+                        item=message.DeveloperMessage(
+                            parts=[], ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="submit-pr")])
+                        ),
+                    )
+                ),
+            ]
+        )
+    )
+
+    rendered = output.getvalue()
+    assert "▌ + Activated skill commit\n▌ \n▌ → Read" in rendered
+    assert "▌ → Read Skill" in rendered
+    assert "SKILL.md 1:1\n▌ \n▌ + Activated skill submit-pr" in rendered
+    assert "commit\n\n▌ → Read" not in rendered
+    assert "SKILL.md 1:1\n\n▌ + Activated skill submit-pr" not in rendered
+
+
+def test_sub_agent_block_flush_can_force_top_level_blank_line() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "sub-1"
+    renderer.register_session(
+        session_id,
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="searching", sub_agent_prompt="prompt"),
+    )
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderDeveloperMessage(
+                    event=events.DeveloperMessageEvent(
+                        session_id=session_id,
+                        item=message.DeveloperMessage(
+                            parts=[], ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="commit")])
+                        ),
+                    )
+                )
+            ]
+        )
+    )
+    renderer.flush_open_blocks(scoped=False)
+
+    assert output.getvalue().endswith("▌ + Activated skill commit\n\n")
+    assert not output.getvalue().endswith("▌ + Activated skill commit\n▌ \n")
+
+
+def test_sub_agent_standalone_tool_result_blank_line_keeps_quote_prefix() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "sub-1"
+    renderer.register_session(
+        session_id,
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="searching", sub_agent_prompt="prompt"),
+    )
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderToolResult(
+                    event=events.ToolResultEvent(
+                        session_id=session_id,
+                        tool_call_id="tool-1",
+                        tool_name=tools.BASH,
+                        result="done",
+                        status="success",
+                    ),
+                    is_sub_agent_session=True,
+                ),
+            ]
+        )
+    )
+
+    assert output.getvalue().endswith("▌ └      done\n▌ \n")
 
 
 def test_tool_call_and_result_stay_grouped_until_next_visible_block() -> None:

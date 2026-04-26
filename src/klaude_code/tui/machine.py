@@ -486,6 +486,7 @@ class SpinnerStatusState:
 class _SessionState:
     session_id: str
     sub_agent_state: SubAgentState | None = None
+    parent_session_id: str | None = None
     model_id: str | None = None
     assistant_stream_active: bool = False
     thinking_stream_active: bool = False
@@ -835,6 +836,7 @@ class DisplayStateMachine:
 
             case events.TaskStartEvent() as e:
                 s.sub_agent_state = e.sub_agent_state
+                s.parent_session_id = e.parent_session_id
                 s.model_id = e.model_id
                 s.task_active = True
                 s.clear_status_activity()
@@ -1214,6 +1216,8 @@ class DisplayStateMachine:
                 return cmds
 
             case events.ToolResultEvent() as e:
+                if isinstance(e.ui_extra, SessionIdUIExtra):
+                    self._session(e.ui_extra.session_id).parent_session_id = e.session_id
                 pending = self._pending_bash_tool_outputs.pop(e.tool_call_id, None)
                 if not is_replay and s.is_sub_agent:
                     s.finish_status_tool_call(e.tool_call_id)
@@ -1287,7 +1291,9 @@ class DisplayStateMachine:
                 s.clear_status_activity()
                 cmds.append(RenderTaskFinish(e))
                 if s.is_sub_agent:
-                    cmds.append(PrintBlankLine(session_id=e.session_id))
+                    parent = self._sessions.get(s.parent_session_id or "")
+                    parent_session_id = parent.session_id if parent is not None and parent.is_sub_agent else None
+                    cmds.append(PrintBlankLine(session_id=parent_session_id))
 
                 # Defensive: finalize any open streams so buffered markdown is flushed.
                 if s.thinking_stream_active:

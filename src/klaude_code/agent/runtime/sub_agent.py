@@ -163,6 +163,8 @@ class SubAgentExecutor:
 
                 if isinstance(event, events.TaskFinishEvent):
                     result = event.task_result
+                elif isinstance(event, events.TaskStartEvent):
+                    event.parent_session_id = parent_session.id
                 elif isinstance(event, events.TaskMetadataEvent):
                     task_metadata = event.metadata.main_agent
                     task_metadata.sub_agent_name = state.sub_agent_type

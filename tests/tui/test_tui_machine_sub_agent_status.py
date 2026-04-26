@@ -398,7 +398,7 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
     assert finish_update.leading_blank_line is False
 
 
-def test_sub_agent_finish_emits_blank_line_after_result() -> None:
+def test_sub_agent_finish_emits_unscoped_blank_line_after_result() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
     sub_session = "sub-1"
@@ -428,7 +428,45 @@ def test_sub_agent_finish_emits_blank_line_after_result() -> None:
     print_blank_line_index = finish_cmds.index(print_blank_line)
 
     assert print_blank_line_index > render_task_finish_index
-    assert print_blank_line.session_id == sub_session
+    assert print_blank_line.session_id is None
+
+
+def test_nested_sub_agent_finish_emits_parent_scoped_blank_line() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    parent_session = "sub-parent"
+    child_session = "sub-child"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=parent_session,
+            parent_session_id=main_session,
+            sub_agent_state=SubAgentState(
+                sub_agent_type="general-purpose",
+                sub_agent_desc="parent",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=child_session,
+            parent_session_id=parent_session,
+            sub_agent_state=SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="child",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    finish_cmds = machine.transition(events.TaskFinishEvent(session_id=child_session, task_result="done"))
+    print_blank_line = next(cmd for cmd in finish_cmds if isinstance(cmd, PrintBlankLine))
+
+    assert print_blank_line.session_id == parent_session
 
 
 def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> None:
