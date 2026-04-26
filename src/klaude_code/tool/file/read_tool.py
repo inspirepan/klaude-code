@@ -459,9 +459,9 @@ class ReadTool(ToolABC):
             read_complete=is_full_read,
         )
 
-        # When offset/limit is provided, keep the UI preview compact.
+        # When reading from the middle of a file, keep the UI preview compact.
         ui_extra = None
-        if args.offset is not None or args.limit is not None:
+        if offset > 1:
             preview_count = READ_PARTIAL_PREVIEW_MAX_LINES
             preview_lines = [
                 ReadPreviewLine(line_no=line_no, content=content)
