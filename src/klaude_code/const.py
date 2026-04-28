@@ -155,7 +155,7 @@ ATTACHMENT_SKILL_MAX_LINES = 500  # Lines to keep from a single SKILL.md inlined
 
 TAB_EXPAND_WIDTH = 8  # Tab expansion width for text rendering
 DIFF_PREFIX_WIDTH = 4  # Width of line number prefix in diff display
-DIFF_MAX_RENDER_WIDTH = 100  # Maximum width for highlighted diff rows
+DIFF_MAX_RENDER_WIDTH = 120  # Maximum width for highlighted diff rows
 INVALID_TOOL_CALL_MAX_LENGTH = 200  # Maximum length for invalid tool call display
 TRUNCATE_DISPLAY_MAX_LINE_LENGTH = 500  # Maximum line length for truncated display
 TRUNCATE_DISPLAY_MAX_LINES = 6  # Maximum lines for truncated display
