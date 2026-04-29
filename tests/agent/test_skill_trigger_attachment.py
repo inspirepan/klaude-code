@@ -185,6 +185,42 @@ def test_skill_attachment_loads_multiple_skills(tmp_path: Path, monkeypatch: pyt
     assert str(skills["beta"].skill_path) in session.file_tracker
 
 
+def test_skill_attachment_does_not_repeat_unchanged_explicit_skill(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    skill_dir = tmp_path / "demo-skill"
+    skill_dir.mkdir(parents=True)
+    skill_path = skill_dir / "SKILL.md"
+    skill_path.write_text("# Demo Skill\n\nFollow these instructions.\n", encoding="utf-8")
+
+    skill = Skill(
+        name="demo",
+        description="demo skill",
+        location="project",
+        skill_path=skill_path,
+        base_dir=skill_dir,
+    )
+    monkeypatch.setattr(skill_attachments, "resolve_skill_for_input", lambda _session, _name: skill)
+
+    session = _build_session_with_user_text("//skill:demo")
+    first_attachment = _arun(skill_attachments.skill_attachment(session))
+    assert first_attachment is not None
+    assert "Follow these instructions." in message.join_text_parts(first_attachment.parts)
+    session.conversation_history.append(first_attachment)
+
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("//skill:demo again")))
+    second_attachment = _arun(skill_attachments.skill_attachment(session))
+
+    assert second_attachment is not None
+    assert second_attachment.ui_extra is not None
+    activated = [item for item in second_attachment.ui_extra.items if isinstance(item, SkillActivatedUIItem)]
+    assert [item.name for item in activated] == ["demo"]
+    second_text = message.join_text_parts(second_attachment.parts)
+    assert "already in context and unchanged" in second_text
+    assert "If needed, use the Read tool to re-read it." in second_text
+    assert "Follow these instructions." not in second_text
+
+
 def test_skill_attachment_hot_reloads_new_static_skill(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     work_dir = tmp_path / "repo"
     work_dir.mkdir()

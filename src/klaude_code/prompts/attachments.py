@@ -61,6 +61,11 @@ SKILL_CONTENT_TRUNCATED_TEMPLATE = (
     "Use the Read tool to view the complete file at: {path}"
 )
 
+SKILL_ALREADY_IN_CONTEXT_TEMPLATE = (
+    'The user activated the "{skill_name}" skill. Its SKILL.md at {path} is already in context and unchanged. '
+    "If needed, use the {read_tool_name} tool to re-read it."
+)
+
 DYNAMIC_AVAILABLE_SKILLS_TEMPLATE = """The following skills are available from directories you have accessed.
 
 <available_skills>

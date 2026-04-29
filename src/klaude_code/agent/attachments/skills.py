@@ -11,12 +11,13 @@ from klaude_code.prompts.attachments import (
     AVAILABLE_SKILLS_ADDED_TEMPLATE,
     AVAILABLE_SKILLS_TEMPLATE,
     DYNAMIC_AVAILABLE_SKILLS_TEMPLATE,
+    SKILL_ALREADY_IN_CONTEXT_TEMPLATE,
     SKILL_BLOCK_TEMPLATE,
     SKILL_CONTENT_TRUNCATED_TEMPLATE,
     SKILL_DISCOVERED_PREFACE_TEMPLATE,
     SKILL_EXPLICIT_PREFACE_TEMPLATE,
 )
-from klaude_code.protocol import message
+from klaude_code.protocol import message, tools
 from klaude_code.protocol.models import (
     DeveloperUIExtra,
     DeveloperUIItem,
@@ -74,6 +75,14 @@ def _fmt_available_skills(skills_xml: str) -> str:
 
 def _fmt_available_skills_added(skills_xml: str) -> str:
     return AVAILABLE_SKILLS_ADDED_TEMPLATE.format(skills_xml=skills_xml)
+
+
+def _fmt_skill_already_in_context(skill_name: str, path: str, read_tool_name: str) -> str:
+    return SKILL_ALREADY_IN_CONTEXT_TEMPLATE.format(
+        skill_name=skill_name,
+        path=path,
+        read_tool_name=read_tool_name,
+    )
 
 
 def get_skills_from_user_input(session: Session) -> list[str]:
@@ -174,6 +183,7 @@ def _mark_skill_loaded(session: Session, path: str, content: str, *, source: Lit
     session.file_tracker[path] = FileStatus(
         mtime=mtime,
         content_sha256=hash_text_sha256(content),
+        cached_content=existing.cached_content if existing else None,
         is_memory=existing.is_memory if existing else False,
         is_skill=True,
         is_skill_listing=existing.is_skill_listing if existing else False,
@@ -206,6 +216,15 @@ def _format_skill_block_str(skill: Skill, skill_content: str, *, explicit: bool)
         skill_content=_render_skill_inline_content(skill_content, skill),
         explicit=explicit,
     )
+
+
+def _is_skill_content_already_in_context(session: Session, path: str) -> bool:
+    status = session.file_tracker.get(path)
+    if status is None:
+        return False
+    if not status.read_complete and status.skill_attachment_source != "explicit":
+        return False
+    return is_tracked_file_unchanged(session, path)
 
 
 def _build_skills_xml(skills: Sequence[Skill]) -> str:
@@ -336,6 +355,14 @@ def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bo
             continue
 
         skill_path = str(skill.skill_path)
+        if explicit and _is_skill_content_already_in_context(session, skill_path):
+            _mark_skill_loaded(session, skill_path, skill_content, source="explicit")
+            loaded_dynamic_paths_by_name[skill.name] = skill_path
+            loaded_all_paths_by_name[skill.name] = skill_path
+            skill_blocks.append(_fmt_skill_already_in_context(skill.name, skill_path, tools.READ))
+            activated_skills.append(skill)
+            continue
+
         if not explicit:
             non_dynamic_path = loaded_all_paths_by_name.get(skill.name)
             dynamic_path = loaded_dynamic_paths_by_name.get(skill.name)
