@@ -1,5 +1,6 @@
 from rich.console import Console
 
+from klaude_code.const import DIFF_MAX_RENDER_WIDTH
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import DiffFileDiff, DiffLine, DiffSpan, DiffUIExtra
 from klaude_code.tui.components.diffs import render_structured_diff
@@ -131,7 +132,7 @@ def test_structured_diff_highlight_width_is_capped() -> None:
     console.print(render_structured_diff(ui_extra))
     output = console.export_text()
 
-    assert len(output.splitlines()[0]) == 100
+    assert len(output.splitlines()[0]) == DIFF_MAX_RENDER_WIDTH
 
 
 def test_structured_diff_keeps_large_line_number_prefix() -> None:
