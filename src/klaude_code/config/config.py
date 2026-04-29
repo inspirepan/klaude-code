@@ -731,6 +731,33 @@ class Config(BaseModel):
 
         return candidates
 
+    def iter_model_config_candidates_with_preference_fallback(
+        self,
+        model_selector: str,
+        fallback_preference: ModelPreference,
+    ) -> list[ModelConfigCandidate]:
+        """Resolve a selector, preserving fallback candidates from a preference chain.
+
+        If ``model_selector`` appears in ``fallback_preference``, return that
+        preference chain starting at the matching concrete candidate. Otherwise,
+        return only the selector's own candidates.
+        """
+
+        primary_candidates = self.iter_model_config_candidates(model_selector)
+        if not primary_candidates:
+            return []
+
+        fallback_candidates = self.iter_model_config_candidates(fallback_preference)
+        if not fallback_candidates:
+            return primary_candidates
+
+        primary_selectors = {candidate.selector for candidate in primary_candidates}
+        for index, candidate in enumerate(fallback_candidates):
+            if candidate.selector in primary_selectors:
+                return fallback_candidates[index:]
+
+        return primary_candidates
+
     def iter_model_entries(self, only_available: bool = False, include_disabled: bool = True) -> list[ModelEntry]:
         """Return all model entries with their provider names.
 

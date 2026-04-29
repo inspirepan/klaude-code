@@ -9,7 +9,10 @@ from typing import Any
 
 import pytest
 
+from klaude_code.agent.agent import Agent
+from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
+from klaude_code.agent.runtime.config_ops import ModelSwitcher
 from klaude_code.agent.runtime.llm import FallbackLLMClient, LLMClients, build_llm_clients
 from klaude_code.agent.session_title import _normalize_session_title, generate_session_title
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
@@ -206,6 +209,193 @@ def test_build_llm_clients_uses_main_model_fallback_candidates(monkeypatch: pyte
         "sonnet@openrouter",
     ]
     assert clients.main_model_alias == "gpt-5.4 > sonnet"
+
+
+def test_build_llm_clients_model_override_keeps_main_fallback_suffix(monkeypatch: pytest.MonkeyPatch) -> None:
+    providers = [
+        ProviderConfig(
+            provider_name="codex",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="codex-key",
+            model_list=[ModelConfig(model_name="gpt-5.5", model_id="gpt-5.5")],
+        ),
+        ProviderConfig(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="openai-key",
+            model_list=[ModelConfig(model_name="gpt-5.5", model_id="openai/gpt-5.5")],
+        ),
+        ProviderConfig(
+            provider_name="ant-gw",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="anthropic-key",
+            model_list=[ModelConfig(model_name="opus", model_id="anthropic/opus")],
+        ),
+    ]
+    config = Config(
+        provider_list=providers,
+        main_model=["gpt-5.5@codex", "gpt-5.5@openai", "opus@ant-gw"],
+    )
+
+    def _create_client(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return _FakeLLMClient([], config=llm_config)
+
+    monkeypatch.setattr(
+        "klaude_code.agent.runtime.llm.create_llm_client",
+        _create_client,
+    )
+
+    clients = build_llm_clients(config, model_override="gpt-5.5@codex", skip_sub_agents=True)
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == [
+        "gpt-5.5@codex",
+        "gpt-5.5@openai",
+        "opus@ant-gw",
+    ]
+    assert clients.main_model_alias == "gpt-5.5@codex > gpt-5.5@openai > opus@ant-gw"
+
+
+def test_session_model_config_restore_keeps_main_fallback_suffix(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del isolated_home
+
+    providers = [
+        ProviderConfig(
+            provider_name="codex",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="codex-key",
+            model_list=[ModelConfig(model_name="gpt-5.5", model_id="gpt-5.5")],
+        ),
+        ProviderConfig(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="openai-key",
+            model_list=[ModelConfig(model_name="gpt-5.5", model_id="openai/gpt-5.5")],
+        ),
+        ProviderConfig(
+            provider_name="ant-gw",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="anthropic-key",
+            model_list=[ModelConfig(model_name="opus", model_id="anthropic/opus")],
+        ),
+    ]
+    config = Config(
+        provider_list=providers,
+        main_model=["gpt-5.5@codex", "gpt-5.5@openai", "opus@ant-gw"],
+    )
+    template_client = _FakeLLMClient([], config=config.get_model_config("opus@ant-gw"))
+    session = Session.create(work_dir=tmp_path)
+    session.model_config_name = "gpt-5.5@codex"
+
+    class _FakeSessionActor:
+        def __init__(self) -> None:
+            self.clients: LLMClients | None = None
+
+        def get_llm_clients(self) -> LLMClients | None:
+            return self.clients
+
+        def set_llm_clients(self, clients: LLMClients) -> None:
+            self.clients = clients
+
+    actor = _FakeSessionActor()
+    monkeypatch.setattr("klaude_code.agent.runtime.agent_ops.load_config", lambda: config)
+
+    handler = AgentOperationHandler(
+        emit_event=_noop_emit,
+        llm_clients=LLMClients(main=template_client),
+        model_profile_provider=cast_any(object()),
+        sub_agent_manager=cast_any(object()),
+        on_child_task_state_change=_noop_child_task_state_change,
+        ensure_session_actor=lambda _sid: cast_any(actor),
+        get_session_actor=lambda _sid: None,
+        get_session_actor_for_operation=lambda _op: None,
+        list_session_actors=lambda: [],
+        register_task=_noop_register_task,
+        remove_task=_noop_remove_task,
+        request_user_interaction=_noop_request_user_interaction,
+    )
+
+    clients = handler._ensure_session_llm_clients(session)
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == [
+        "gpt-5.5@codex",
+        "gpt-5.5@openai",
+        "opus@ant-gw",
+    ]
+    assert clients.main_model_alias == "gpt-5.5@codex > gpt-5.5@openai > opus@ant-gw"
+
+
+def test_model_switcher_keeps_main_fallback_suffix_after_selection(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del isolated_home
+
+    providers = [
+        ProviderConfig(
+            provider_name="codex",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="codex-key",
+            model_list=[ModelConfig(model_name="gpt-5.5", model_id="gpt-5.5")],
+        ),
+        ProviderConfig(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="openai-key",
+            model_list=[ModelConfig(model_name="gpt-5.5", model_id="openai/gpt-5.5")],
+        ),
+        ProviderConfig(
+            provider_name="ant-gw",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="anthropic-key",
+            model_list=[ModelConfig(model_name="opus", model_id="anthropic/opus")],
+        ),
+    ]
+    config = Config(
+        provider_list=providers,
+        main_model=["gpt-5.5@codex", "gpt-5.5@openai", "opus@ant-gw"],
+    )
+
+    def _create_client(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return _FakeLLMClient([], config=llm_config)
+
+    class _FakeProfileProvider:
+        def build_profile(
+            self,
+            llm_client: LLMClientABC,
+            sub_agent_type: object = None,
+            *,
+            work_dir: Path,
+        ) -> AgentProfile:
+            del sub_agent_type
+            del work_dir
+            return AgentProfile(llm_client=llm_client, system_prompt=None, tools=[], attachments=[])
+
+    monkeypatch.setattr("klaude_code.agent.runtime.config_ops.load_config", lambda: config)
+    monkeypatch.setattr("klaude_code.agent.runtime.llm.create_llm_client", _create_client)
+
+    initial_client = _FakeLLMClient([], config=config.get_model_config("opus@ant-gw"))
+    agent = Agent(
+        session=Session.create(work_dir=tmp_path),
+        profile=AgentProfile(llm_client=initial_client, system_prompt=None, tools=[], attachments=[]),
+    )
+
+    switcher = ModelSwitcher(_FakeProfileProvider())
+    llm_config, selected_model = asyncio.run(
+        switcher.change_model(agent, model_name="gpt-5.5@codex", save_as_default=False)
+    )
+
+    assert selected_model == "gpt-5.5@codex"
+    assert llm_config.provider_name == "codex"
+    assert agent.session.model_config_name == "gpt-5.5@codex"
+    assert isinstance(agent.profile.llm_client, FallbackLLMClient)
+    assert [candidate.selector for candidate in agent.profile.llm_client.candidates] == [
+        "gpt-5.5@codex",
+        "gpt-5.5@openai",
+        "opus@ant-gw",
+    ]
 
 
 def test_refresh_session_title_prefers_fast_client(
