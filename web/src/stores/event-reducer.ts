@@ -57,6 +57,7 @@ const SKIP_EVENT_TYPES = new Set([
   "model.changed",
   "session.title.changed",
   "todo.change",
+  "task.file.change.summary",
   "cache.hit.rate",
   "fork.cache.hit.rate",
   "usage.snapshot",

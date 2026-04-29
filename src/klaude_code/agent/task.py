@@ -34,6 +34,7 @@ from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
     SubAgentState,
+    TaskFileChange,
     TaskMetadata,
     TaskMetadataItem,
     Usage,
@@ -232,6 +233,39 @@ class TaskExecutionContext:
     apply_llm_client_change: Callable[[LLMClientABC], AgentProfile] | None = None
 
 
+def _build_task_file_change_summary(
+    before: FileChangeSummary, after: FileChangeSummary
+) -> message.TaskFileChangeSummaryEntry | None:
+    created_before = set(before.created_files)
+    edited_before = set(before.edited_files)
+    deleted_before = set(before.deleted_files)
+    created_after = set(after.created_files)
+    edited_after = set(after.edited_files)
+    deleted_after = set(after.deleted_files)
+    paths = set(after.file_diffs) | (created_after - created_before) | (edited_after - edited_before) | (
+        deleted_after - deleted_before
+    )
+
+    files: list[TaskFileChange] = []
+    for path in sorted(paths):
+        before_stats = before.file_diffs.get(path)
+        after_stats = after.file_diffs.get(path)
+        added = max((after_stats.added if after_stats else 0) - (before_stats.added if before_stats else 0), 0)
+        removed = max((after_stats.removed if after_stats else 0) - (before_stats.removed if before_stats else 0), 0)
+        created = path in created_after and path not in created_before
+        edited = path in edited_after and path not in edited_before
+        deleted = path in deleted_after and path not in deleted_before
+        if added == 0 and removed == 0 and not created and not edited and not deleted:
+            continue
+        files.append(
+            TaskFileChange(path=path, added=added, removed=removed, created=created, edited=edited, deleted=deleted)
+        )
+
+    if not files:
+        return None
+    return message.TaskFileChangeSummaryEntry(files=files)
+
+
 class TaskExecutor:
     """Executes a complete task (multiple turns until no more tool calls).
 
@@ -402,6 +436,7 @@ class TaskExecutor:
         self._task_visible_output_started = False
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text = None
+        file_change_baseline = session_ctx.file_change_summary.model_copy(deep=True)
         has_user_input = bool(user_input.text.strip() or user_input.images)
 
         if ctx.sub_agent_state is None:
@@ -852,6 +887,11 @@ class TaskExecutor:
             metadata=accumulated, session_id=session_ctx.session_id, is_partial=is_partial_metadata
         )
         session_ctx.append_history([accumulated])
+
+        file_change_summary = _build_task_file_change_summary(file_change_baseline, session_ctx.file_change_summary)
+        if file_change_summary is not None:
+            yield events.TaskFileChangeSummaryEvent(summary=file_change_summary, session_id=session_ctx.session_id)
+            session_ctx.append_history([file_change_summary])
 
         # Get task result from turn
         task_result = turn.task_result if turn is not None else ""

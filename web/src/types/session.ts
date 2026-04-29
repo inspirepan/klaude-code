@@ -16,6 +16,7 @@ export interface FileDiffStats {
 export interface FileChangeSummary {
   created_files: string[];
   edited_files: string[];
+  deleted_files: string[];
   diff_lines_added: number;
   diff_lines_removed: number;
   file_diffs: Record<string, FileDiffStats>;

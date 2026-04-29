@@ -142,6 +142,7 @@ class ThemeKey(str, Enum):
     DIFF_REMOVE_CHAR = "diff.remove.char"
     DIFF_STATS_ADD = "diff.stats.add"
     DIFF_STATS_REMOVE = "diff.stats.remove"
+    DIFF_FILE_CHANGES_BACKGROUND = "diff.file_changes.background"
     # ERROR
     ERROR = "error"
     ERROR_BOLD = "error.bold"
@@ -295,6 +296,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.DIFF_REMOVE_CHAR.value: palette.diff_remove_char,
                 ThemeKey.DIFF_STATS_ADD.value: palette.green,
                 ThemeKey.DIFF_STATS_REMOVE.value: palette.red,
+                ThemeKey.DIFF_FILE_CHANGES_BACKGROUND.value: f"on {palette.green_background}",
                 # ERROR
                 ThemeKey.ERROR.value: palette.red,
                 ThemeKey.ERROR_BOLD.value: "bold " + palette.red,

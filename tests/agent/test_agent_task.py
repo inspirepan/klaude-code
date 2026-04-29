@@ -17,7 +17,7 @@ from klaude_code.config.config import ModelConfigCandidate
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
 from klaude_code.protocol import events, llm_param, message
-from klaude_code.protocol.models import Usage
+from klaude_code.protocol.models import TaskMetadataItem, Usage
 from klaude_code.session.session import Session
 from klaude_code.tool.core.abc import ToolABC
 from klaude_code.tool.core.context import ToolContext, build_todo_context
@@ -80,6 +80,45 @@ class MockUpperTool(ToolABC):
             status="success",
             output_text=args["text"].upper(),
         )
+
+
+class MockChangeTool(ToolABC):
+    @classmethod
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
+            name="change",
+            type="function",
+            description="Record a file change",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "added": {"type": "integer"},
+                    "removed": {"type": "integer"},
+                    "created": {"type": "boolean"},
+                    "deleted": {"type": "boolean"},
+                },
+                "required": ["path"],
+            },
+        )
+
+    @classmethod
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        args = json.loads(arguments)
+        path = str(args["path"])
+        if context.file_change_summary is not None:
+            if args.get("deleted", False):
+                context.file_change_summary.record_deleted(path)
+            elif args.get("created", False):
+                context.file_change_summary.record_created(path)
+            else:
+                context.file_change_summary.record_edited(path)
+            context.file_change_summary.add_diff(
+                added=int(args.get("added", 0)),
+                removed=int(args.get("removed", 0)),
+                path=path,
+            )
+        return message.ToolResultMessage(status="success", output_text=f"changed {path}")
 
 
 class ConfiguredScriptedClient(LLMClientABC):
@@ -603,6 +642,80 @@ def test_task_lifecycle_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         assert events.TurnEndEvent in event_types
         assert events.TaskMetadataEvent in event_types
         assert events.TaskFinishEvent in event_types
+
+    arun(_test())
+
+
+def test_task_file_change_summary_event_is_task_scoped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    existing_path = str(project_dir / "existing.py")
+    created_path = str(project_dir / "created.py")
+    deleted_path = str(project_dir / "deleted.py")
+
+    async def _test() -> None:
+        harness = await create_harness(work_dir=project_dir, tools={"change": MockChangeTool}, monkeypatch=monkeypatch)
+        harness.session.file_change_summary.record_edited(existing_path)
+        harness.session.file_change_summary.add_diff(added=10, removed=1, path=existing_path)
+
+        harness.fake_llm.enqueue(
+            _tool_call_assistant_message(
+                [
+                    (
+                        "change",
+                        "call_1",
+                        json.dumps({"path": existing_path, "added": 2, "removed": 3}),
+                    ),
+                    (
+                        "change",
+                        "call_2",
+                        json.dumps({"path": created_path, "added": 4, "created": True}),
+                    ),
+                    (
+                        "change",
+                        "call_3",
+                        json.dumps({"path": deleted_path, "removed": 5, "deleted": True}),
+                    ),
+                ]
+            )
+        )
+        harness.fake_llm.enqueue(
+            message.AssistantTextDelta(content="done"),
+            _text_assistant_message("done"),
+        )
+
+        collected = await harness.run_task("change files")
+
+        summary_events = [e for e in collected if isinstance(e, events.TaskFileChangeSummaryEvent)]
+        assert len(summary_events) == 1
+        metadata_index = next(i for i, e in enumerate(collected) if isinstance(e, events.TaskMetadataEvent))
+        summary_index = next(i for i, e in enumerate(collected) if isinstance(e, events.TaskFileChangeSummaryEvent))
+        assert metadata_index < summary_index
+        files = {item.path: item for item in summary_events[0].summary.files}
+        assert files[existing_path].added == 2
+        assert files[existing_path].removed == 3
+        assert files[existing_path].created is False
+        assert files[existing_path].edited is False
+        assert files[created_path].added == 4
+        assert files[created_path].removed == 0
+        assert files[created_path].created is True
+        assert files[deleted_path].added == 0
+        assert files[deleted_path].removed == 5
+        assert files[deleted_path].deleted is True
+
+        history_summaries = [h for h in harness.get_history_messages() if isinstance(h, message.TaskFileChangeSummaryEntry)]
+        assert history_summaries == [summary_events[0].summary]
+        history = harness.get_history_messages()
+        history_metadata_index = next(i for i, h in enumerate(history) if isinstance(h, TaskMetadataItem))
+        history_summary_index = next(i for i, h in enumerate(history) if isinstance(h, message.TaskFileChangeSummaryEntry))
+        assert history_metadata_index < history_summary_index
+
+        await harness.session.wait_for_flush()
+        replayed = list(Session.load(harness.session.id, work_dir=project_dir).get_history_item())
+        assert any(isinstance(event, events.TaskFileChangeSummaryEvent) for event in replayed)
+        replayed_metadata_index = next(i for i, e in enumerate(replayed) if isinstance(e, events.TaskMetadataEvent))
+        replayed_summary_index = next(i for i, e in enumerate(replayed) if isinstance(e, events.TaskFileChangeSummaryEvent))
+        assert replayed_metadata_index < replayed_summary_index
 
     arun(_test())
 

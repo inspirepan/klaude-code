@@ -85,6 +85,11 @@ class RenderTaskMetadata(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderTaskFileChangeSummary(RenderCommand):
+    event: events.TaskFileChangeSummaryEvent
+
+
+@dataclass(frozen=True, slots=True)
 class RenderTaskFinish(RenderCommand):
     event: events.TaskFinishEvent
 

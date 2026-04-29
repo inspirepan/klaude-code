@@ -179,6 +179,7 @@ class TestSessionPersistence:
             session.file_change_summary = FileChangeSummary(
                 created_files=["/path/to/created"],
                 edited_files=["/path/to/edited"],
+                deleted_files=["/path/to/deleted"],
                 diff_lines_added=5,
                 diff_lines_removed=2,
             )
@@ -200,6 +201,7 @@ class TestSessionPersistence:
             assert "/path/to/file" in loaded.file_tracker
             assert loaded.file_change_summary.created_files == ["/path/to/created"]
             assert loaded.file_change_summary.edited_files == ["/path/to/edited"]
+            assert loaded.file_change_summary.deleted_files == ["/path/to/deleted"]
             assert loaded.file_change_summary.diff_lines_added == 5
             assert loaded.file_change_summary.diff_lines_removed == 2
             await close_default_store()

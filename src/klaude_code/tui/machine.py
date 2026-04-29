@@ -45,6 +45,7 @@ from klaude_code.tui.commands import (
     RenderNotice,
     RenderRewind,
     RenderSessionStats,
+    RenderTaskFileChangeSummary,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -1259,6 +1260,12 @@ class DisplayStateMachine:
                 cmds.append(EndThinkingStream(e.session_id))
                 cmds.append(EndAssistantStream(e.session_id))
                 cmds.append(RenderTaskMetadata(e))
+                return cmds
+
+            case events.TaskFileChangeSummaryEvent() as e:
+                cmds.append(EndThinkingStream(e.session_id))
+                cmds.append(EndAssistantStream(e.session_id))
+                cmds.append(RenderTaskFileChangeSummary(e))
                 return cmds
 
             case events.UsageEvent() as e:

@@ -50,6 +50,7 @@ from klaude_code.tui.commands import (
     RenderNotice,
     RenderRewind,
     RenderSessionStats,
+    RenderTaskFileChangeSummary,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -75,6 +76,7 @@ from klaude_code.tui.components import developer as c_developer
 from klaude_code.tui.components import errors as c_errors
 from klaude_code.tui.components import metadata as c_metadata
 from klaude_code.tui.components import sub_agent as c_sub_agent
+from klaude_code.tui.components import task_file_changes as c_task_file_changes
 from klaude_code.tui.components import thinking as c_thinking
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
@@ -738,6 +740,12 @@ class TUICommandRenderer:
         self.print(c_metadata.render_task_metadata(event))
         self.print()
 
+    def display_task_file_change_summary(self, event: events.TaskFileChangeSummaryEvent) -> None:
+        if self.is_sub_agent_session(event.session_id):
+            return
+        self.print(c_task_file_changes.render_task_file_change_summary(event))
+        self.print()
+
     def display_task_finish(self, event: events.TaskFinishEvent) -> None:
         if self.is_sub_agent_session(event.session_id):
             st = self._sessions[event.session_id]
@@ -1071,6 +1079,8 @@ class TUICommandRenderer:
                         self._developer_block_session_id = None
                 case RenderTaskMetadata(event=event):
                     self.display_task_metadata(event)
+                case RenderTaskFileChangeSummary(event=event):
+                    self.display_task_file_change_summary(event)
                 case RenderTaskFinish() as cmd_finish:
                     self.display_task_finish(cmd_finish.event)
                     if not self._replay_mode:

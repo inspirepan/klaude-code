@@ -697,6 +697,8 @@ class Session(BaseModel):
                     yield events.TaskMetadataEvent(
                         session_id=self.id, metadata=mt, is_partial=mt.is_partial, timestamp=msg_ts
                     )
+                case message.TaskFileChangeSummaryEntry() as summary:
+                    yield events.TaskFileChangeSummaryEvent(session_id=self.id, summary=summary, timestamp=msg_ts)
                 case message.DeveloperMessage() as dm:
                     yield events.DeveloperMessageEvent(session_id=self.id, item=dm, timestamp=msg_ts)
                 case message.StreamErrorItem():

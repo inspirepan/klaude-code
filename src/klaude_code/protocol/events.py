@@ -59,6 +59,7 @@ __all__ = [
     "SessionStatsEvent",
     "SessionTitleChangedEvent",
     "SubAgentModelChangedEvent",
+    "TaskFileChangeSummaryEvent",
     "TaskFinishEvent",
     "TaskMetadataEvent",
     "TaskStartEvent",
@@ -365,6 +366,10 @@ class TaskMetadataEvent(Event):
     is_partial: bool = False
 
 
+class TaskFileChangeSummaryEvent(Event):
+    summary: message.TaskFileChangeSummaryEntry
+
+
 class ThinkingStartEvent(ResponseEvent):
     pass
 
@@ -450,6 +455,7 @@ type ReplayEventUnion = (
     | ToolCallEvent
     | ToolResultEvent
     | UserMessageEvent
+    | TaskFileChangeSummaryEvent
     | TaskMetadataEvent
     | InterruptEvent
     | DeveloperMessageEvent

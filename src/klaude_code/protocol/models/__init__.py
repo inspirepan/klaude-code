@@ -22,7 +22,12 @@ from klaude_code.protocol.models.developer_ui import (
     TodoAttachmentUIItem,
     UserImagesUIItem,
 )
-from klaude_code.protocol.models.file_tracking import FileChangeSummary, FileDiffStats, FileStatus
+from klaude_code.protocol.models.file_tracking import (
+    FileChangeSummary,
+    FileDiffStats,
+    FileStatus,
+    TaskFileChange,
+)
 from klaude_code.protocol.models.session_runtime import SessionOwner, SessionRuntimeState
 from klaude_code.protocol.models.sub_agent import SubAgentState
 from klaude_code.protocol.models.task_metadata import TaskMetadata, TaskMetadataItem
@@ -86,6 +91,7 @@ __all__ = [
     "SkillListingUIItem",
     "StopReason",
     "SubAgentState",
+    "TaskFileChange",
     "TaskMetadata",
     "TaskMetadataItem",
     "TodoAttachmentUIItem",

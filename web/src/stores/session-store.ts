@@ -329,6 +329,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
       file_change_summary: {
         created_files: [],
         edited_files: [],
+        deleted_files: [],
         diff_lines_added: 0,
         diff_lines_removed: 0,
         file_diffs: {},
