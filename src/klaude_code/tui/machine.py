@@ -868,6 +868,7 @@ class DisplayStateMachine:
             case events.CompactionStartEvent() as e:
                 if not is_replay:
                     if e.reason == "handoff":
+                        self._spinner.clear_tool_calls()
                         self._spinner.set_reasoning_status(STATUS_HANDOFF_TEXT)
                     else:
                         self._spinner.enter_compacting()
