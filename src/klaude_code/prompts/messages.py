@@ -34,5 +34,7 @@ REWIND_REMINDER_TEMPLATE = (
 # turn is not persisted to history, so the model has no visible trace of it -- the
 # prompt is phrased as a direct instruction rather than a reference to prior state.
 EMPTY_RESPONSE_CONTINUATION_PROMPT = (
-    "Please continue. If the task is already complete and there is nothing more to do, reply with exactly `[DONE]`."
+    "The previous model response was empty, likely due to a transient network or provider issue. "
+    "Continue the task from the current conversation state. Do not treat this reminder as a reason to stop; "
+    "only provide a final response if the task is genuinely complete."
 )

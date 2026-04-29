@@ -815,7 +815,7 @@ class TaskExecutor:
                 # Empty response (no text, no tool calls): often caused by transient
                 # provider issues returning an empty stream. Inject a continuation
                 # prompt so the model can resume or explicitly signal completion
-                # with `[DONE]`, rather than silently ending the task.
+                # with a final response, rather than silently ending the task.
                 if (
                     turn is not None
                     and turn.continue_agent

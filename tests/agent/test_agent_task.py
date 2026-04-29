@@ -15,6 +15,7 @@ from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.config.config import ModelConfigCandidate
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import Usage
 from klaude_code.session.session import Session
@@ -302,6 +303,71 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
     arun(_test())
 
 
+def test_stream_error_retry_includes_previous_tool_turn_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retry after a stream error sees prior assistant tool call and tool result."""
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    def has_previous_tool_turn(items: list[message.HistoryEvent]) -> bool:
+        has_assistant_tool_call = any(
+            isinstance(item, message.AssistantMessage)
+            and any(
+                isinstance(part, message.ToolCallPart)
+                and part.call_id == "call_1"
+                and part.tool_name == "echo"
+                for part in item.parts
+            )
+            for item in items
+        )
+        has_tool_result = any(
+            isinstance(item, message.ToolResultMessage)
+            and item.call_id == "call_1"
+            and item.tool_name == "echo"
+            and "echo: hello" in item.output_text
+            for item in items
+        )
+        return has_assistant_tool_call and has_tool_result
+
+    async def _test() -> None:
+        harness = await create_harness(
+            work_dir=project_dir,
+            tools={"echo": MockEchoTool},
+            monkeypatch=monkeypatch,
+        )
+        captured_inputs: list[list[message.HistoryEvent]] = []
+
+        # Turn 1: successful tool call writes AssistantMessage + ToolResultMessage.
+        harness.fake_llm.enqueue(
+            _tool_call_assistant_message([("echo", "call_1", '{"text":"hello"}')]),
+        )
+
+        def stream_error(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            captured_inputs.append(list(param.input))
+            return [message.StreamErrorItem(error="network error")]
+
+        def recover(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            captured_inputs.append(list(param.input))
+            return [
+                message.AssistantTextDelta(content="recovered"),
+                _text_assistant_message("recovered"),
+            ]
+
+        # Turn 2 fails once, then the failed turn is retried.
+        harness.fake_llm.enqueue_factory(stream_error)
+        harness.fake_llm.enqueue_factory(recover)
+
+        await harness.run_task("run echo then recover")
+
+        assert len(captured_inputs) == 2
+        assert has_previous_tool_turn(captured_inputs[0])
+        assert has_previous_tool_turn(captured_inputs[1])
+        assert "recovered" in harness.get_assistant_texts()
+
+    arun(_test())
+
+
 def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "project"
     project_dir.mkdir()
@@ -509,8 +575,9 @@ def test_empty_response_triggers_retry_error_event(tmp_path: Path, monkeypatch: 
 
         assert harness.get_user_texts() == [
             "try again",
-            "Please continue. If the task is already complete and there is nothing more to do, reply with exactly `[DONE]`.",
+            EMPTY_RESPONSE_CONTINUATION_PROMPT,
         ]
+        assert "[DONE]" not in EMPTY_RESPONSE_CONTINUATION_PROMPT
         assert "recovered" in harness.get_assistant_texts()
 
     arun(_test())
