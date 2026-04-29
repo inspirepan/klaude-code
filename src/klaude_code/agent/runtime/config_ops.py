@@ -8,7 +8,7 @@ from uuid import uuid4
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
 from klaude_code.agent.runtime.agent_ops import AgentRunner
-from klaude_code.agent.runtime.llm import FallbackLLMClient
+from klaude_code.agent.runtime.llm import FallbackLLMClient, create_llm_client_for_candidates
 from klaude_code.agent.session_stats import build_session_stats_ui_extra
 from klaude_code.config import format_model_preference, load_config, prioritize_model_preference
 from klaude_code.config.model_matcher import match_model_from_config
@@ -34,8 +34,12 @@ class ModelSwitcher:
         save_as_default: bool,
     ) -> tuple[LLMConfigParameter, str]:
         config = load_config()
-        llm_config = config.get_model_config(model_name)
-        llm_client = create_llm_client(llm_config)
+        candidates = config.iter_model_config_candidates_with_preference_fallback(model_name, config.main_model)
+        if not candidates:
+            _ = config.get_model_config(model_name)
+            raise ValueError(f"Unknown model: {model_name}")
+        llm_client = create_llm_client_for_candidates(candidates)
+        llm_config = llm_client.get_llm_config()
         agent.set_model_profile(self._model_profile_provider.build_profile(llm_client, work_dir=agent.session.work_dir))
 
         agent.session.model_config_name = model_name

@@ -17,20 +17,19 @@ from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, run_compaction
 from klaude_code.agent.prompt_suggestion import run_prompt_suggestion, should_suggest
-from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients
+from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients, create_llm_client_for_candidates
 from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
 from klaude_code.agent.session_title import generate_session_title
 from klaude_code.agent.skill_inventory import (
     get_skill_names_by_location,
     get_skill_warnings_by_location,
 )
-from klaude_code.config import load_config
+from klaude_code.config import format_model_preference, load_config
 from klaude_code.control.event_bus import event_publish_context
 from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.llm.image import freeze_image_for_history
-from klaude_code.llm.registry import create_llm_client
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, op, user_interaction
 from klaude_code.protocol.models import SubAgentState, TaskMetadata
@@ -175,9 +174,15 @@ class AgentOperationHandler:
         model_config_name = session.model_config_name
         if model_config_name is not None:
             with contextlib.suppress(ValueError):
-                model_config = config.get_model_config(model_config_name)
-                clients.main = create_llm_client(model_config)
-                clients.main_model_alias = model_config_name
+                candidates = config.iter_model_config_candidates_with_preference_fallback(
+                    model_config_name,
+                    config.main_model,
+                )
+                if candidates:
+                    clients.main = create_llm_client_for_candidates(candidates)
+                    clients.main_model_alias = (
+                        format_model_preference([candidate.selector for candidate in candidates]) or model_config_name
+                    )
 
         if session.model_thinking is not None:
             clients.main.get_llm_config().thinking = session.model_thinking.model_copy(deep=True)

@@ -99,6 +99,14 @@ class FallbackLLMClient(LLMClientABC):
         return client
 
 
+def create_llm_client_for_candidates(candidates: list[ModelConfigCandidate]) -> LLMClientABC:
+    if not candidates:
+        raise ValueError("At least one model candidate is required")
+    if len(candidates) > 1:
+        return FallbackLLMClient(candidates)
+    return create_llm_client(candidates[0].llm_config)
+
+
 @dataclass
 class LLMClients:
     """Container for LLM clients used by main agent and sub-agents."""
@@ -133,12 +141,20 @@ def build_llm_clients(
     model_pref: ModelPreference = model_override or config.main_model
     if model_pref is None:
         raise ValueError("No model specified. Set main_model in the config or pass --model.")
-    main_candidates = config.iter_model_config_candidates(model_pref)
+    main_candidates = (
+        config.iter_model_config_candidates_with_preference_fallback(model_override, config.main_model)
+        if model_override is not None
+        else config.iter_model_config_candidates(model_pref)
+    )
     if not main_candidates:
         _ = config.get_first_available_model(model_pref)
         raise ValueError("No available main_model candidates")
     llm_config = main_candidates[0].llm_config
-    model_name = format_model_preference(model_pref) or main_candidates[0].selector
+    model_name = (
+        format_model_preference([candidate.selector for candidate in main_candidates])
+        if model_override is not None and len(main_candidates) > 1
+        else format_model_preference(model_pref)
+    ) or main_candidates[0].selector
 
     log_debug(
         "Main LLM config",
@@ -146,7 +162,7 @@ def build_llm_clients(
         debug_type=DebugType.LLM_CONFIG,
     )
 
-    main_client = FallbackLLMClient(main_candidates) if len(main_candidates) > 1 else create_llm_client(llm_config)
+    main_client = create_llm_client_for_candidates(main_candidates)
 
     fast_client: LLMClientABC | None = None
     selected_fast_model = config.get_first_available_model(config.fast_model)
