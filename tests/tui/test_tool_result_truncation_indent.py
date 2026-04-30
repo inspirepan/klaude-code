@@ -128,11 +128,43 @@ def test_structured_diff_highlight_width_is_capped() -> None:
         ]
     )
 
-    console = Console(width=120, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console = Console(width=140, record=True, force_terminal=False, theme=get_theme().app_theme)
     console.print(render_structured_diff(ui_extra))
     output = console.export_text()
 
     assert len(output.splitlines()[0]) == DIFF_MAX_RENDER_WIDTH
+
+
+def test_structured_diff_wraps_to_narrow_width() -> None:
+    ui_extra = DiffUIExtra(
+        files=[
+            DiffFileDiff(
+                file_path="demo.txt",
+                lines=[
+                    DiffLine(
+                        kind="add",
+                        new_line_no=1,
+                        spans=[
+                            DiffSpan(
+                                op="insert",
+                                text="alpha beta gamma delta epsilon zeta eta theta iota kappa",
+                            )
+                        ],
+                    )
+                ],
+                stats_add=1,
+            )
+        ]
+    )
+
+    console = Console(width=40, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_structured_diff(ui_extra))
+    output = console.export_text()
+
+    lines = output.splitlines()
+    assert len(lines) > 1
+    assert all(len(line) == 40 for line in lines)
+    assert "kappa" in output
 
 
 def test_structured_diff_keeps_large_line_number_prefix() -> None:
