@@ -34,8 +34,8 @@ def _build_terminal_title(work_dir: str | None, session_title: str | None) -> st
     project_name = _project_name(work_dir)
     formatted_session_title = _format_session_title(session_title)
     if formatted_session_title:
-        return f"{project_name} · {formatted_session_title}"
-    return f"{project_name} · klaude"
+        return f"{formatted_session_title} · {project_name}"
+    return f"klaude · {project_name}"
 
 
 def set_terminal_title(title: str) -> None:
