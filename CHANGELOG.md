@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.28.0] - 2026-04-30
+
+### Added
+
+- support model aliases ([#310](https://github.com/inspirepan/klaude-code/pull/310) by [@inspirepan](https://github.com/inspirepan))
+- add model fallback chains and preserve /model defaults ([#308](https://github.com/inspirepan/klaude-code/pull/308) by [@inspirepan](https://github.com/inspirepan))
+- show active model in prompt placeholder ([#304](https://github.com/inspirepan/klaude-code/pull/304) by [@inspirepan](https://github.com/inspirepan))
+
+### Fixed
+
+- hide empty error usage cost ([#313](https://github.com/inspirepan/klaude-code/pull/313) by [@inspirepan](https://github.com/inspirepan))
+- preserve fallback chain for selected models ([#312](https://github.com/inspirepan/klaude-code/pull/312) by [@inspirepan](https://github.com/inspirepan))
+- address runtime and read preview regressions ([#311](https://github.com/inspirepan/klaude-code/pull/311) by [@inspirepan](https://github.com/inspirepan))
+- prevent duplicate paste attachment reminders after compaction ([#309](https://github.com/inspirepan/klaude-code/pull/309) by [@inspirepan](https://github.com/inspirepan))
+- preserve DeepSeek thinking blocks and normalize paste data ([#307](https://github.com/inspirepan/klaude-code/pull/307) by [@inspirepan](https://github.com/inspirepan))
+- refresh provider configs and stream handling ([#306](https://github.com/inspirepan/klaude-code/pull/306) by [@inspirepan](https://github.com/inspirepan))
+- cap attachment reminders and harden session test isolation ([#305](https://github.com/inspirepan/klaude-code/pull/305) by [@inspirepan](https://github.com/inspirepan))
+
 ## [2.27.0] - 2026-04-23
 
 ### Added
@@ -2290,7 +2308,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.27.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.28.0...HEAD
+[2.28.0]: https://github.com/inspirepan/klaude-code/compare/v2.27.0...v2.28.0
 [2.27.0]: https://github.com/inspirepan/klaude-code/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/inspirepan/klaude-code/compare/v2.25.0...v2.26.0
 [2.25.0]: https://github.com/inspirepan/klaude-code/compare/v2.24.0...v2.25.0
