@@ -614,15 +614,15 @@ def image_file_to_data_url(image: message.ImageFilePart, *, max_dimension: int =
     if detected:
         mime_type = detected
 
-    if image.frozen and _image_bytes_within_limits(decoded) and _image_dimensions_within_limit(
-        decoded, mime_type, max_dimension
+    if (
+        image.frozen
+        and _image_bytes_within_limits(decoded)
+        and _image_dimensions_within_limit(decoded, mime_type, max_dimension)
     ):
         encoded = b64encode(decoded).decode("ascii")
         return f"data:{mime_type};base64,{encoded}"
 
-    if not image.frozen and _can_preserve_existing_snapshot(
-        file_path, decoded, mime_type, max_dimension=max_dimension
-    ):
+    if not image.frozen and _can_preserve_existing_snapshot(file_path, decoded, mime_type, max_dimension=max_dimension):
         encoded = b64encode(decoded).decode("ascii")
         return f"data:{mime_type};base64,{encoded}"
 

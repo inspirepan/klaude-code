@@ -242,8 +242,11 @@ def _build_task_file_change_summary(
     created_after = set(after.created_files)
     edited_after = set(after.edited_files)
     deleted_after = set(after.deleted_files)
-    paths = set(after.file_diffs) | (created_after - created_before) | (edited_after - edited_before) | (
-        deleted_after - deleted_before
+    paths = (
+        set(after.file_diffs)
+        | (created_after - created_before)
+        | (edited_after - edited_before)
+        | (deleted_after - deleted_before)
     )
 
     files: list[TaskFileChange] = []

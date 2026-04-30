@@ -765,9 +765,7 @@ class TestSessionPersistence:
 
         arun(_test())
 
-    def test_replay_skips_usage_event_from_error_assistant_usage(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_replay_skips_usage_event_from_error_assistant_usage(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)

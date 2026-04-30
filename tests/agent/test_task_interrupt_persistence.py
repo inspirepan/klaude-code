@@ -62,9 +62,7 @@ def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: py
     arun(_test())
 
 
-def test_task_interrupt_does_not_emit_task_file_change_summary(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_interrupt_does_not_emit_task_file_change_summary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
     monkeypatch.chdir(project_dir)

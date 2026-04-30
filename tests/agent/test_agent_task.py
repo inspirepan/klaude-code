@@ -354,9 +354,7 @@ def test_stream_error_retry_includes_previous_tool_turn_history(
         has_assistant_tool_call = any(
             isinstance(item, message.AssistantMessage)
             and any(
-                isinstance(part, message.ToolCallPart)
-                and part.call_id == "call_1"
-                and part.tool_name == "echo"
+                isinstance(part, message.ToolCallPart) and part.call_id == "call_1" and part.tool_name == "echo"
                 for part in item.parts
             )
             for item in items
@@ -716,18 +714,24 @@ def test_task_file_change_summary_event_is_task_scoped(tmp_path: Path, monkeypat
         assert files[deleted_path].removed == 5
         assert files[deleted_path].deleted is True
 
-        history_summaries = [h for h in harness.get_history_messages() if isinstance(h, message.TaskFileChangeSummaryEntry)]
+        history_summaries = [
+            h for h in harness.get_history_messages() if isinstance(h, message.TaskFileChangeSummaryEntry)
+        ]
         assert history_summaries == [summary_events[0].summary]
         history = harness.get_history_messages()
         history_metadata_index = next(i for i, h in enumerate(history) if isinstance(h, TaskMetadataItem))
-        history_summary_index = next(i for i, h in enumerate(history) if isinstance(h, message.TaskFileChangeSummaryEntry))
+        history_summary_index = next(
+            i for i, h in enumerate(history) if isinstance(h, message.TaskFileChangeSummaryEntry)
+        )
         assert history_metadata_index < history_summary_index
 
         await harness.session.wait_for_flush()
         replayed = list(Session.load(harness.session.id, work_dir=project_dir).get_history_item())
         assert any(isinstance(event, events.TaskFileChangeSummaryEvent) for event in replayed)
         replayed_metadata_index = next(i for i, e in enumerate(replayed) if isinstance(e, events.TaskMetadataEvent))
-        replayed_summary_index = next(i for i, e in enumerate(replayed) if isinstance(e, events.TaskFileChangeSummaryEvent))
+        replayed_summary_index = next(
+            i for i, e in enumerate(replayed) if isinstance(e, events.TaskFileChangeSummaryEvent)
+        )
         assert replayed_metadata_index < replayed_summary_index
 
     arun(_test())
