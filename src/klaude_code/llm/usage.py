@@ -17,6 +17,8 @@ def calculate_cost(usage: Usage, cost_config: llm_param.Cost | None) -> None:
     """
     if cost_config is None:
         return
+    if not any((usage.input_tokens, usage.cached_tokens, usage.output_tokens)):
+        return
 
     # Set currency
     usage.currency = cost_config.currency
@@ -102,7 +104,7 @@ def error_stream_items(
     metadata = metadata_tracker.finalize()
     return [
         message.StreamErrorItem(error=error),
-        message.AssistantMessage(parts=[], response_id=response_id, usage=metadata),
+        message.AssistantMessage(parts=[], response_id=response_id, usage=metadata, stop_reason="error"),
     ]
 
 

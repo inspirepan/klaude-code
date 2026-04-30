@@ -179,6 +179,7 @@ class TestSessionPersistence:
             session.file_change_summary = FileChangeSummary(
                 created_files=["/path/to/created"],
                 edited_files=["/path/to/edited"],
+                deleted_files=["/path/to/deleted"],
                 diff_lines_added=5,
                 diff_lines_removed=2,
             )
@@ -200,6 +201,7 @@ class TestSessionPersistence:
             assert "/path/to/file" in loaded.file_tracker
             assert loaded.file_change_summary.created_files == ["/path/to/created"]
             assert loaded.file_change_summary.edited_files == ["/path/to/edited"]
+            assert loaded.file_change_summary.deleted_files == ["/path/to/deleted"]
             assert loaded.file_change_summary.diff_lines_added == 5
             assert loaded.file_change_summary.diff_lines_removed == 2
             await close_default_store()
@@ -759,6 +761,32 @@ class TestSessionPersistence:
             assert usage_event.usage.cached_tokens == 20_000
             assert usage_event.usage.total_cost is not None
             assert abs(usage_event.usage.total_cost - 0.0035) < 1e-12
+            await close_default_store()
+
+        arun(_test())
+
+    def test_replay_skips_usage_event_from_error_assistant_usage(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session.create(id="error-usage-session", work_dir=project_dir)
+            session.append_history(
+                [
+                    message.AssistantMessage(
+                        response_id="resp-error",
+                        parts=[],
+                        stop_reason="error",
+                        usage=Usage(input_cost=0.0, output_cost=0.0, cache_read_cost=0.0),
+                    )
+                ]
+            )
+            await session.wait_for_flush()
+
+            reloaded = Session.load(session.id, work_dir=project_dir)
+            events_list = list(reloaded.get_history_item())
+            assert not any(isinstance(e, events.UsageEvent) for e in events_list)
             await close_default_store()
 
         arun(_test())

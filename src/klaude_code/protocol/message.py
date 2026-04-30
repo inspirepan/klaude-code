@@ -14,6 +14,7 @@ from klaude_code.protocol.models import (
     AssistantPhase,
     DeveloperUIExtra,
     StopReason,
+    TaskFileChange,
     TaskMetadata,
     TaskMetadataItem,
     ToolResultUIExtra,
@@ -150,6 +151,13 @@ class SpawnSubAgentEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class TaskFileChangeSummaryEntry(BaseModel):
+    """Persistent task-scoped file change summary for replay-only UI."""
+
+    files: list[TaskFileChange] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 # Part types
 
 
@@ -283,6 +291,7 @@ HistoryEvent = (
     Message
     | StreamErrorItem
     | InterruptEntry
+    | TaskFileChangeSummaryEntry
     | TaskMetadataItem
     | CompactionEntry
     | RewindEntry

@@ -15,8 +15,10 @@ from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.config.config import ModelConfigCandidate
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.usage import MetadataTracker, error_stream_items
+from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
 from klaude_code.protocol import events, llm_param, message
-from klaude_code.protocol.models import Usage
+from klaude_code.protocol.models import TaskMetadataItem, Usage
 from klaude_code.session.session import Session
 from klaude_code.tool.core.abc import ToolABC
 from klaude_code.tool.core.context import ToolContext, build_todo_context
@@ -79,6 +81,45 @@ class MockUpperTool(ToolABC):
             status="success",
             output_text=args["text"].upper(),
         )
+
+
+class MockChangeTool(ToolABC):
+    @classmethod
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
+            name="change",
+            type="function",
+            description="Record a file change",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "added": {"type": "integer"},
+                    "removed": {"type": "integer"},
+                    "created": {"type": "boolean"},
+                    "deleted": {"type": "boolean"},
+                },
+                "required": ["path"],
+            },
+        )
+
+    @classmethod
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        args = json.loads(arguments)
+        path = str(args["path"])
+        if context.file_change_summary is not None:
+            if args.get("deleted", False):
+                context.file_change_summary.record_deleted(path)
+            elif args.get("created", False):
+                context.file_change_summary.record_created(path)
+            else:
+                context.file_change_summary.record_edited(path)
+            context.file_change_summary.add_diff(
+                added=int(args.get("added", 0)),
+                removed=int(args.get("removed", 0)),
+                path=path,
+            )
+        return message.ToolResultMessage(status="success", output_text=f"changed {path}")
 
 
 class ConfiguredScriptedClient(LLMClientABC):
@@ -302,6 +343,69 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
     arun(_test())
 
 
+def test_stream_error_retry_includes_previous_tool_turn_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Retry after a stream error sees prior assistant tool call and tool result."""
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    def has_previous_tool_turn(items: list[message.HistoryEvent]) -> bool:
+        has_assistant_tool_call = any(
+            isinstance(item, message.AssistantMessage)
+            and any(
+                isinstance(part, message.ToolCallPart) and part.call_id == "call_1" and part.tool_name == "echo"
+                for part in item.parts
+            )
+            for item in items
+        )
+        has_tool_result = any(
+            isinstance(item, message.ToolResultMessage)
+            and item.call_id == "call_1"
+            and item.tool_name == "echo"
+            and "echo: hello" in item.output_text
+            for item in items
+        )
+        return has_assistant_tool_call and has_tool_result
+
+    async def _test() -> None:
+        harness = await create_harness(
+            work_dir=project_dir,
+            tools={"echo": MockEchoTool},
+            monkeypatch=monkeypatch,
+        )
+        captured_inputs: list[list[message.HistoryEvent]] = []
+
+        # Turn 1: successful tool call writes AssistantMessage + ToolResultMessage.
+        harness.fake_llm.enqueue(
+            _tool_call_assistant_message([("echo", "call_1", '{"text":"hello"}')]),
+        )
+
+        def stream_error(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            captured_inputs.append(list(param.input))
+            return [message.StreamErrorItem(error="network error")]
+
+        def recover(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            captured_inputs.append(list(param.input))
+            return [
+                message.AssistantTextDelta(content="recovered"),
+                _text_assistant_message("recovered"),
+            ]
+
+        # Turn 2 fails once, then the failed turn is retried.
+        harness.fake_llm.enqueue_factory(stream_error)
+        harness.fake_llm.enqueue_factory(recover)
+
+        await harness.run_task("run echo then recover")
+
+        assert len(captured_inputs) == 2
+        assert has_previous_tool_turn(captured_inputs[0])
+        assert has_previous_tool_turn(captured_inputs[1])
+        assert "recovered" in harness.get_assistant_texts()
+
+    arun(_test())
+
+
 def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "project"
     project_dir.mkdir()
@@ -325,7 +429,12 @@ def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, mon
         )
         first_client = ConfiguredScriptedClient(
             first_config,
-            [[message.StreamErrorItem(error="RateLimitError insufficient_quota: credits exhausted")]],
+            [
+                error_stream_items(
+                    MetadataTracker(llm_param.Cost()),
+                    error="RateLimitError insufficient_quota: credits exhausted",
+                )
+            ],
         )
         second_client = ConfiguredScriptedClient(
             second_config,
@@ -404,6 +513,13 @@ def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, mon
         assert second_client.calls[0].system == "prompt gpt-5.4"
         assert any(isinstance(item, message.FallbackModelConfigWarnEntry) for item in session.conversation_history)
         assert "recovered" in [e.task_result for e in collected if isinstance(e, events.TaskFinishEvent)]
+        usage_events = [e for e in collected if isinstance(e, events.UsageEvent)]
+        assert len(usage_events) == 1
+        assert usage_events[0].usage.total_cost is None
+        metadata_events = [e for e in collected if isinstance(e, events.TaskMetadataEvent)]
+        assert len(metadata_events) == 1
+        assert metadata_events[0].metadata.main_agent.usage is not None
+        assert metadata_events[0].metadata.main_agent.usage.total_cost is None
 
         await session.wait_for_flush()
         replayed = list(Session.load(session.id, work_dir=project_dir).get_history_item())
@@ -509,8 +625,9 @@ def test_empty_response_triggers_retry_error_event(tmp_path: Path, monkeypatch: 
 
         assert harness.get_user_texts() == [
             "try again",
-            "Please continue. If the task is already complete and there is nothing more to do, reply with exactly `[DONE]`.",
+            EMPTY_RESPONSE_CONTINUATION_PROMPT,
         ]
+        assert "[DONE]" not in EMPTY_RESPONSE_CONTINUATION_PROMPT
         assert "recovered" in harness.get_assistant_texts()
 
     arun(_test())
@@ -536,6 +653,86 @@ def test_task_lifecycle_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
         assert events.TurnEndEvent in event_types
         assert events.TaskMetadataEvent in event_types
         assert events.TaskFinishEvent in event_types
+
+    arun(_test())
+
+
+def test_task_file_change_summary_event_is_task_scoped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    existing_path = str(project_dir / "existing.py")
+    created_path = str(project_dir / "created.py")
+    deleted_path = str(project_dir / "deleted.py")
+
+    async def _test() -> None:
+        harness = await create_harness(work_dir=project_dir, tools={"change": MockChangeTool}, monkeypatch=monkeypatch)
+        harness.session.file_change_summary.record_edited(existing_path)
+        harness.session.file_change_summary.add_diff(added=10, removed=1, path=existing_path)
+
+        harness.fake_llm.enqueue(
+            _tool_call_assistant_message(
+                [
+                    (
+                        "change",
+                        "call_1",
+                        json.dumps({"path": existing_path, "added": 2, "removed": 3}),
+                    ),
+                    (
+                        "change",
+                        "call_2",
+                        json.dumps({"path": created_path, "added": 4, "created": True}),
+                    ),
+                    (
+                        "change",
+                        "call_3",
+                        json.dumps({"path": deleted_path, "removed": 5, "deleted": True}),
+                    ),
+                ]
+            )
+        )
+        harness.fake_llm.enqueue(
+            message.AssistantTextDelta(content="done"),
+            _text_assistant_message("done"),
+        )
+
+        collected = await harness.run_task("change files")
+
+        summary_events = [e for e in collected if isinstance(e, events.TaskFileChangeSummaryEvent)]
+        assert len(summary_events) == 1
+        metadata_index = next(i for i, e in enumerate(collected) if isinstance(e, events.TaskMetadataEvent))
+        summary_index = next(i for i, e in enumerate(collected) if isinstance(e, events.TaskFileChangeSummaryEvent))
+        assert metadata_index < summary_index
+        files = {item.path: item for item in summary_events[0].summary.files}
+        assert files[existing_path].added == 2
+        assert files[existing_path].removed == 3
+        assert files[existing_path].created is False
+        assert files[existing_path].edited is False
+        assert files[created_path].added == 4
+        assert files[created_path].removed == 0
+        assert files[created_path].created is True
+        assert files[deleted_path].added == 0
+        assert files[deleted_path].removed == 5
+        assert files[deleted_path].deleted is True
+
+        history_summaries = [
+            h for h in harness.get_history_messages() if isinstance(h, message.TaskFileChangeSummaryEntry)
+        ]
+        assert history_summaries == [summary_events[0].summary]
+        history = harness.get_history_messages()
+        history_metadata_index = next(i for i, h in enumerate(history) if isinstance(h, TaskMetadataItem))
+        history_summary_index = next(
+            i for i, h in enumerate(history) if isinstance(h, message.TaskFileChangeSummaryEntry)
+        )
+        assert history_metadata_index < history_summary_index
+
+        await harness.session.wait_for_flush()
+        replayed = list(Session.load(harness.session.id, work_dir=project_dir).get_history_item())
+        assert any(isinstance(event, events.TaskFileChangeSummaryEvent) for event in replayed)
+        replayed_metadata_index = next(i for i, e in enumerate(replayed) if isinstance(e, events.TaskMetadataEvent))
+        replayed_summary_index = next(
+            i for i, e in enumerate(replayed) if isinstance(e, events.TaskFileChangeSummaryEvent)
+        )
+        assert replayed_metadata_index < replayed_summary_index
 
     arun(_test())
 

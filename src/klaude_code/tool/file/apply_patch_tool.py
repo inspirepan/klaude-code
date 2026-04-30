@@ -99,6 +99,8 @@ class ApplyPatchHandler:
                 resolved = resolve_path(change_path)
                 if change.type == apply_patch_module.ActionType.ADD:
                     file_change_summary.record_created(resolved)
+                elif change.type == apply_patch_module.ActionType.DELETE:
+                    file_change_summary.record_deleted(resolved)
                 elif change.type == apply_patch_module.ActionType.UPDATE:
                     tracked_path = change.move_path if change.move_path else change_path
                     resolved = resolve_path(tracked_path)

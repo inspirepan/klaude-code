@@ -175,6 +175,19 @@ describe("reduceBatch", () => {
   });
 });
 
+describe("reduceEvent — skipped events", () => {
+  it("ignores task file change summaries instead of rendering an unknown event", () => {
+    const state = reduceEvent(
+      createInitialState(),
+      "task.file.change.summary",
+      makeEvent({ summary: { files: [{ path: "src/app.py", added: 1, removed: 0 }] } }),
+      null,
+    );
+
+    expect(state.items).toHaveLength(0);
+  });
+});
+
 describe("reduceEvent — developer message", () => {
   it("keeps messages that only contain discovered skills", () => {
     const state = reduceEvent(

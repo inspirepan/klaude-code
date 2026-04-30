@@ -48,7 +48,11 @@ from klaude_code.tui.input.images import (
     has_clipboard_image,
 )
 from klaude_code.tui.input.key_bindings import create_key_bindings
-from klaude_code.tui.input.paste import expand_paste_markers, expand_paste_markers_with_file_save
+from klaude_code.tui.input.paste import (
+    expand_paste_markers,
+    expand_paste_markers_for_history,
+    expand_paste_markers_with_file_save,
+)
 from klaude_code.tui.input.pt_theme import get_base_style
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
@@ -337,6 +341,19 @@ class _KlaudeCompletionsMenuControl(pt_menus.CompletionsMenuControl):
 
 
 # ---------------------------------------------------------------------------
+# History helpers
+# ---------------------------------------------------------------------------
+
+
+class _PasteAwareFileHistory(FileHistory):
+    """Store expanded paste content so recalled history entries stay reusable."""
+
+    @override
+    def append_string(self, string: str) -> None:
+        super().append_string(expand_paste_markers_for_history(string))
+
+
+# ---------------------------------------------------------------------------
 # PromptToolkitInput
 # ---------------------------------------------------------------------------
 
@@ -439,7 +456,7 @@ class PromptToolkitInput(InputProviderABC):
         return PromptSession(
             # Use a stable prompt string; we override the style dynamically in prompt_async.
             [(INPUT_PROMPT_STYLE, prompt)],
-            history=FileHistory(str(history_path)),
+            history=_PasteAwareFileHistory(str(history_path)),
             multiline=True,
             cursor=CursorShape.BLINKING_BEAM,
             key_bindings=kb,

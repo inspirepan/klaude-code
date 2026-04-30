@@ -22,6 +22,7 @@ def test_list_sessions_includes_todos_and_file_change_summary(app_env: AppEnv) -
     raw["file_change_summary"] = {
         "created_files": ["/tmp/created.tsx"],
         "edited_files": ["/tmp/edited.tsx"],
+        "deleted_files": [],
         "diff_lines_added": 12,
         "diff_lines_removed": 4,
         "file_diffs": {
@@ -43,6 +44,7 @@ def test_list_sessions_includes_todos_and_file_change_summary(app_env: AppEnv) -
     assert listed_session["file_change_summary"] == {
         "created_files": ["/tmp/created.tsx"],
         "edited_files": ["/tmp/edited.tsx"],
+        "deleted_files": [],
         "diff_lines_added": 12,
         "diff_lines_removed": 4,
         "file_diffs": {
@@ -73,6 +75,7 @@ def test_list_sessions_defaults_missing_summary_fields(app_env: AppEnv) -> None:
     assert listed_session["file_change_summary"] == {
         "created_files": [],
         "edited_files": [],
+        "deleted_files": [],
         "diff_lines_added": 0,
         "diff_lines_removed": 0,
         "file_diffs": {},

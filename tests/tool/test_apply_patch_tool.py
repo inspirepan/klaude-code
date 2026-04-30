@@ -125,8 +125,9 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertTrue(Path(absolute_path).exists())
         self.assertEqual(Path(absolute_path).read_text(), "hello")
 
-    def test_apply_patch_records_created_edited_and_diff_totals(self) -> None:
+    def test_apply_patch_records_created_edited_deleted_and_diff_totals(self) -> None:
         Path("edit.txt").write_text("old\nkeep\n", encoding="utf-8")
+        Path("delete.txt").write_text("gone\nnow\n", encoding="utf-8")
         session = Session(work_dir=Path.cwd())
         context = ToolContext(
             file_tracker=session.file_tracker,
@@ -146,6 +147,7 @@ class TestApplyPatchTool(BaseTempDirTest):
                 "-old",
                 "+new",
                 " keep",
+                "*** Delete File: delete.txt",
                 "*** End Patch",
             ]
         )
@@ -155,8 +157,9 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertEqual(result.status, "success")
         self.assertEqual(session.file_change_summary.created_files, [str(Path("created.md").resolve())])
         self.assertEqual(session.file_change_summary.edited_files, [str(Path("edit.txt").resolve())])
+        self.assertEqual(session.file_change_summary.deleted_files, [str(Path("delete.txt").resolve())])
         self.assertEqual(session.file_change_summary.diff_lines_added, 3)
-        self.assertEqual(session.file_change_summary.diff_lines_removed, 1)
+        self.assertEqual(session.file_change_summary.diff_lines_removed, 3)
 
     def test_apply_patch_partially_applies_other_files_when_one_file_fails(self) -> None:
         Path("file1.txt").write_text("alpha\nbeta\n", encoding="utf-8")

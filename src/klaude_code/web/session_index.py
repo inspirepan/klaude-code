@@ -131,6 +131,7 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
         diff_lines_removed = 0
     created_files_raw = raw_summary.get("created_files")
     edited_files_raw = raw_summary.get("edited_files")
+    deleted_files_raw = raw_summary.get("deleted_files")
     created_files = (
         [item for item in cast(list[Any], created_files_raw) if isinstance(item, str)]
         if isinstance(created_files_raw, list)
@@ -139,6 +140,11 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
     edited_files = (
         [item for item in cast(list[Any], edited_files_raw) if isinstance(item, str)]
         if isinstance(edited_files_raw, list)
+        else []
+    )
+    deleted_files = (
+        [item for item in cast(list[Any], deleted_files_raw) if isinstance(item, str)]
+        if isinstance(deleted_files_raw, list)
         else []
     )
     file_diffs_raw = raw_summary.get("file_diffs")
@@ -155,6 +161,7 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
     file_change_summary: FileChangeSummary = {
         "created_files": created_files,
         "edited_files": edited_files,
+        "deleted_files": deleted_files,
         "diff_lines_added": diff_lines_added,
         "diff_lines_removed": diff_lines_removed,
         "file_diffs": file_diffs,

@@ -8,7 +8,7 @@ from typing import Any, cast
 import pytest
 
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
-from klaude_code.protocol import message
+from klaude_code.protocol import events, message
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
 from klaude_code.tool.core.context import build_todo_context
@@ -57,6 +57,50 @@ def test_task_interrupt_persists_interrupt_entry(tmp_path: Path, monkeypatch: py
 
         loaded = Session.load(session.id, work_dir=project_dir)
         assert any(isinstance(item, message.InterruptEntry) for item in loaded.conversation_history)
+        await close_default_store()
+
+    arun(_test())
+
+
+def test_task_interrupt_does_not_emit_task_file_change_summary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.file_change_summary.record_edited(str(project_dir / "changed.py"))
+        session.file_change_summary.add_diff(added=3, removed=1, path=str(project_dir / "changed.py"))
+        session_ctx = SessionContext(
+            session_id=session.id,
+            work_dir=session.work_dir,
+            get_conversation_history=session.get_llm_history,
+            append_history=session.append_history,
+            file_tracker=session.file_tracker,
+            file_change_summary=session.file_change_summary,
+            todo_context=build_todo_context(session),
+            run_subtask=None,
+            request_user_interaction=None,
+        )
+
+        executor = TaskExecutor(
+            TaskExecutionContext(
+                session=session,
+                session_ctx=session_ctx,
+                profile=cast(Any, object()),
+                tool_registry={},
+                sub_agent_state=None,
+            )
+        )
+
+        emitted = executor.on_interrupt()
+        await session.wait_for_flush()
+
+        assert not any(isinstance(event, events.TaskFileChangeSummaryEvent) for event in emitted)
+        loaded = Session.load(session.id, work_dir=project_dir)
+        assert not any(isinstance(item, message.TaskFileChangeSummaryEntry) for item in loaded.conversation_history)
+        assert loaded.file_change_summary.diff_lines_added == 3
+        assert loaded.file_change_summary.diff_lines_removed == 1
         await close_default_store()
 
     arun(_test())

@@ -329,9 +329,13 @@ def test_image_file_to_data_url_keeps_frozen_file_stable(
     path = tmp_path / "frozen.png"
     path.write_bytes(png_bytes)
 
+    def _fake_detect(_image_bytes: bytes, _mime_type: str) -> tuple[int, int]:
+        return (1000, 1000)
+
     def _fail(_image_bytes: bytes, _mime_type: str, *, max_dimension: int = image_module.MAX_IMAGE_DIMENSION):
         raise AssertionError(f"frozen ImageFilePart should not be recompressed: {max_dimension}")
 
+    monkeypatch.setattr(image_module, "_detect_image_dimensions", _fake_detect)
     monkeypatch.setattr(image_module, "_compress_image_bytes_for_request", _fail)
 
     result = image_module.image_file_to_data_url(
@@ -340,6 +344,37 @@ def test_image_file_to_data_url_keeps_frozen_file_stable(
     )
     assert result is not None
     assert _payload_from_data_url(result) == png_bytes
+
+
+def test_image_file_to_data_url_recompresses_frozen_file_for_request_dimension(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    path = tmp_path / "frozen.png"
+    path.write_bytes(png_bytes)
+
+    def _fake_detect(_image_bytes: bytes, _mime_type: str) -> tuple[int, int]:
+        return (1179, 2244)
+
+    def _fake_compress(
+        _image_bytes: bytes,
+        _mime_type: str,
+        *,
+        max_dimension: int = image_module.MAX_IMAGE_DIMENSION,
+    ) -> tuple[bytes, str]:
+        assert max_dimension == 2000
+        return b"request-ready", "image/png"
+
+    monkeypatch.setattr(image_module, "_detect_image_dimensions", _fake_detect)
+    monkeypatch.setattr(image_module, "_compress_image_bytes_for_request", _fake_compress)
+
+    result = image_module.image_file_to_data_url(
+        message.ImageFilePart(file_path=str(path), mime_type="image/png", frozen=True),
+        max_dimension=2000,
+    )
+    assert result is not None
+    assert _payload_from_data_url(result) == b"request-ready"
 
 
 def test_image_file_to_data_url_treats_existing_session_snapshot_as_stable(
@@ -351,9 +386,13 @@ def test_image_file_to_data_url_treats_existing_session_snapshot_as_stable(
     path.parent.mkdir(parents=True)
     path.write_bytes(png_bytes)
 
+    def _fake_detect(_image_bytes: bytes, _mime_type: str) -> tuple[int, int]:
+        return (1000, 1000)
+
     def _fail(_image_bytes: bytes, _mime_type: str, *, max_dimension: int = image_module.MAX_IMAGE_DIMENSION):
         raise AssertionError(f"existing session snapshots should not be recompressed: {max_dimension}")
 
+    monkeypatch.setattr(image_module, "_detect_image_dimensions", _fake_detect)
     monkeypatch.setattr(image_module, "_compress_image_bytes_for_request", _fail)
 
     result = image_module.image_file_to_data_url(

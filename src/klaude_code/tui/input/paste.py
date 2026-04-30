@@ -61,7 +61,7 @@ class PasteBufferState:
         self._pastes[paste_id] = text
         return marker
 
-    def expand_markers(self, text: str) -> str:
+    def expand_markers(self, text: str, *, consume: bool = True) -> str:
         used: set[int] = set()
 
         def _replace(m: re.Match[str]) -> str:
@@ -78,8 +78,9 @@ class PasteBufferState:
             return f"\n{content}\n"
 
         out = _PASTE_MARKER_RE.sub(_replace, text)
-        for pid in used:
-            self._pastes.pop(pid, None)
+        if consume:
+            for pid in used:
+                self._pastes.pop(pid, None)
         return out
 
     def expand_markers_with_file_save(self, text: str, session_dir: Path) -> tuple[str, dict[str, str]]:
@@ -129,6 +130,10 @@ def store_paste(text: str) -> str:
 
 def expand_paste_markers(text: str) -> str:
     return paste_state.expand_markers(text)
+
+
+def expand_paste_markers_for_history(text: str) -> str:
+    return paste_state.expand_markers(text, consume=False)
 
 
 def expand_paste_markers_with_file_save(text: str, session_dir: Path) -> tuple[str, dict[str, str]]:

@@ -304,6 +304,32 @@ def _image_bytes_within_limits(image_bytes: bytes) -> bool:
     return size_bytes <= _MAX_IMAGE_SIZE_BYTES and _base64_size_bytes(size_bytes) <= _MAX_BASE64_IMAGE_SIZE_BYTES
 
 
+def _image_dimensions_within_limit(image_bytes: bytes, mime_type: str, max_dimension: int) -> bool:
+    dims = _detect_image_dimensions(image_bytes, mime_type)
+    return dims is None or (dims[0] <= max_dimension and dims[1] <= max_dimension)
+
+
+def _same_image_mime_type(left: str, right: str) -> bool:
+    normalized = {left.lower(), right.lower()}
+    return len(normalized) == 1 or normalized == {"image/jpeg", "image/jpg"}
+
+
+def _data_url_within_request_limits(url: str, *, max_dimension: int) -> bool:
+    try:
+        mime_type, base64_payload, decoded = parse_data_url(url)
+    except ValueError:
+        return True
+
+    detected = detect_mime_type_from_bytes(decoded)
+    media_type = detected or mime_type
+    return (
+        (detected is None or _same_image_mime_type(mime_type, detected))
+        and _image_bytes_within_limits(decoded)
+        and len(base64_payload.encode("ascii")) <= _MAX_BASE64_IMAGE_SIZE_BYTES
+        and _image_dimensions_within_limit(decoded, media_type, max_dimension)
+    )
+
+
 def image_data_url_within_single_image_limits(url: str) -> bool:
     """Return whether a data URL fits the provider-facing single-image size limits."""
 
@@ -548,19 +574,20 @@ def _is_session_image_snapshot_path(file_path: Path) -> bool:
     return False
 
 
-def _can_preserve_existing_snapshot(file_path: Path, image_bytes: bytes, mime_type: str) -> bool:
+def _can_preserve_existing_snapshot(file_path: Path, image_bytes: bytes, mime_type: str, *, max_dimension: int) -> bool:
     if not _is_session_image_snapshot_path(file_path):
         return False
     if not _image_bytes_within_limits(image_bytes):
         return False
-    dims = _detect_image_dimensions(image_bytes, mime_type)
-    return dims is None or (dims[0] <= MAX_IMAGE_DIMENSION and dims[1] <= MAX_IMAGE_DIMENSION)
+    return _image_dimensions_within_limit(image_bytes, mime_type, max_dimension)
 
 
 def image_url_to_request_url(image: message.ImageURLPart, *, max_dimension: int = MAX_IMAGE_DIMENSION) -> str:
     """Return the URL to send to the model for an ImageURLPart."""
 
-    if image.frozen:
+    if image.frozen and (
+        not image.url.startswith("data:") or _data_url_within_request_limits(image.url, max_dimension=max_dimension)
+    ):
         return image.url
     return normalize_image_data_url(image.url, max_dimension=max_dimension)
 
@@ -587,16 +614,19 @@ def image_file_to_data_url(image: message.ImageFilePart, *, max_dimension: int =
     if detected:
         mime_type = detected
 
-    if image.frozen and _image_bytes_within_limits(decoded):
+    if (
+        image.frozen
+        and _image_bytes_within_limits(decoded)
+        and _image_dimensions_within_limit(decoded, mime_type, max_dimension)
+    ):
         encoded = b64encode(decoded).decode("ascii")
         return f"data:{mime_type};base64,{encoded}"
 
-    if not image.frozen and _can_preserve_existing_snapshot(file_path, decoded, mime_type):
+    if not image.frozen and _can_preserve_existing_snapshot(file_path, decoded, mime_type, max_dimension=max_dimension):
         encoded = b64encode(decoded).decode("ascii")
         return f"data:{mime_type};base64,{encoded}"
 
-    request_max_dimension = MAX_IMAGE_DIMENSION if image.frozen else max_dimension
-    decoded, mime_type = _compress_image_bytes_for_request(decoded, mime_type, max_dimension=request_max_dimension)
+    decoded, mime_type = _compress_image_bytes_for_request(decoded, mime_type, max_dimension=max_dimension)
 
     encoded = b64encode(decoded).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"

@@ -38,6 +38,7 @@ function normalizeFileChangeSummary(
   return {
     created_files: Array.isArray(summary?.created_files) ? summary.created_files : [],
     edited_files: Array.isArray(summary?.edited_files) ? summary.edited_files : [],
+    deleted_files: Array.isArray(summary?.deleted_files) ? summary.deleted_files : [],
     diff_lines_added: typeof summary?.diff_lines_added === "number" ? summary.diff_lines_added : 0,
     diff_lines_removed:
       typeof summary?.diff_lines_removed === "number" ? summary.diff_lines_removed : 0,

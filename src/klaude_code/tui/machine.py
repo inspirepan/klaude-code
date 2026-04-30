@@ -45,6 +45,7 @@ from klaude_code.tui.commands import (
     RenderNotice,
     RenderRewind,
     RenderSessionStats,
+    RenderTaskFileChangeSummary,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -867,6 +868,7 @@ class DisplayStateMachine:
             case events.CompactionStartEvent() as e:
                 if not is_replay:
                     if e.reason == "handoff":
+                        self._spinner.clear_tool_calls()
                         self._spinner.set_reasoning_status(STATUS_HANDOFF_TEXT)
                     else:
                         self._spinner.enter_compacting()
@@ -1259,6 +1261,12 @@ class DisplayStateMachine:
                 cmds.append(EndThinkingStream(e.session_id))
                 cmds.append(EndAssistantStream(e.session_id))
                 cmds.append(RenderTaskMetadata(e))
+                return cmds
+
+            case events.TaskFileChangeSummaryEvent() as e:
+                cmds.append(EndThinkingStream(e.session_id))
+                cmds.append(EndAssistantStream(e.session_id))
+                cmds.append(RenderTaskFileChangeSummary(e))
                 return cmds
 
             case events.UsageEvent() as e:
