@@ -635,7 +635,7 @@ class Session(BaseModel):
                     if am.stop_reason == "aborted":
                         prev_turn_interrupted = True
                         yield events.InterruptEvent(session_id=self.id, timestamp=msg_ts)
-                    if am.usage is not None:
+                    if am.usage is not None and am.stop_reason != "error":
                         yield events.UsageEvent(
                             session_id=self.id,
                             usage=am.usage,

@@ -765,6 +765,34 @@ class TestSessionPersistence:
 
         arun(_test())
 
+    def test_replay_skips_usage_event_from_error_assistant_usage(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session.create(id="error-usage-session", work_dir=project_dir)
+            session.append_history(
+                [
+                    message.AssistantMessage(
+                        response_id="resp-error",
+                        parts=[],
+                        stop_reason="error",
+                        usage=Usage(input_cost=0.0, output_cost=0.0, cache_read_cost=0.0),
+                    )
+                ]
+            )
+            await session.wait_for_flush()
+
+            reloaded = Session.load(session.id, work_dir=project_dir)
+            events_list = list(reloaded.get_history_item())
+            assert not any(isinstance(e, events.UsageEvent) for e in events_list)
+            await close_default_store()
+
+        arun(_test())
+
 
 class TestSessionListAndClean:
     """Tests for Session.list_sessions and clean methods."""

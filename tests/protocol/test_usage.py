@@ -81,6 +81,13 @@ def test_calculate_cost_non_negative(usage: Usage, cost_config: "llm_param.Cost"
 
     calculate_cost(fresh_usage, cost_config)
 
+    if not any((fresh_usage.input_tokens, fresh_usage.cached_tokens, fresh_usage.output_tokens)):
+        assert fresh_usage.input_cost is None
+        assert fresh_usage.output_cost is None
+        assert fresh_usage.cache_read_cost is None
+        assert fresh_usage.total_cost is None
+        return
+
     assert fresh_usage.input_cost is not None
     assert fresh_usage.output_cost is not None
     assert fresh_usage.cache_read_cost is not None
@@ -112,3 +119,15 @@ def test_calculate_cost_no_config_no_change(usage: Usage) -> None:
 
     assert fresh_usage.input_cost == original_input_cost
     assert fresh_usage.output_cost == original_output_cost
+
+
+def test_empty_usage_zero_cost_is_unknown() -> None:
+    usage = Usage(input_cost=0.0, output_cost=0.0, cache_read_cost=0.0)
+
+    assert usage.total_cost is None
+
+
+def test_token_usage_zero_cost_remains_known() -> None:
+    usage = Usage(input_tokens=1, input_cost=0.0, output_cost=0.0, cache_read_cost=0.0)
+
+    assert usage.total_cost == 0.0

@@ -45,7 +45,20 @@ class Usage(BaseModel):
         """Total cost computed from input + output + cache_read costs."""
         costs = [self.input_cost, self.output_cost, self.cache_read_cost]
         non_none = [cost for cost in costs if cost is not None]
-        return sum(non_none) if non_none else None
+        if not non_none:
+            return None
+        total = sum(non_none)
+        if total == 0 and not any(
+            (
+                self.input_tokens,
+                self.cached_tokens,
+                self.cache_write_tokens,
+                self.output_tokens,
+                self.reasoning_tokens,
+            )
+        ):
+            return None
+        return total
 
     @computed_field
     @property

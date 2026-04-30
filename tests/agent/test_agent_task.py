@@ -15,6 +15,7 @@ from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.config.config import ModelConfigCandidate
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.usage import MetadataTracker, error_stream_items
 from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import TaskMetadataItem, Usage
@@ -430,7 +431,12 @@ def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, mon
         )
         first_client = ConfiguredScriptedClient(
             first_config,
-            [[message.StreamErrorItem(error="RateLimitError insufficient_quota: credits exhausted")]],
+            [
+                error_stream_items(
+                    MetadataTracker(llm_param.Cost()),
+                    error="RateLimitError insufficient_quota: credits exhausted",
+                )
+            ],
         )
         second_client = ConfiguredScriptedClient(
             second_config,
@@ -509,6 +515,13 @@ def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, mon
         assert second_client.calls[0].system == "prompt gpt-5.4"
         assert any(isinstance(item, message.FallbackModelConfigWarnEntry) for item in session.conversation_history)
         assert "recovered" in [e.task_result for e in collected if isinstance(e, events.TaskFinishEvent)]
+        usage_events = [e for e in collected if isinstance(e, events.UsageEvent)]
+        assert len(usage_events) == 1
+        assert usage_events[0].usage.total_cost is None
+        metadata_events = [e for e in collected if isinstance(e, events.TaskMetadataEvent)]
+        assert len(metadata_events) == 1
+        assert metadata_events[0].metadata.main_agent.usage is not None
+        assert metadata_events[0].metadata.main_agent.usage.total_cost is None
 
         await session.wait_for_flush()
         replayed = list(Session.load(session.id, work_dir=project_dir).get_history_item())

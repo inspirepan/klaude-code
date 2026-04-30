@@ -118,6 +118,20 @@ def test_task_metadata_shows_cache_write_tokens() -> None:
     assert "cache write 5k" in output
 
 
+def test_task_metadata_hides_empty_zero_cost() -> None:
+    metadata = TaskMetadata(
+        model_name="claude-sonnet-4-6",
+        usage=Usage(input_cost=0.0, output_cost=0.0, cache_read_cost=0.0),
+    )
+    event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem(main_agent=metadata))
+
+    console = Console(width=120, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_task_metadata(event))
+    output = console.export_text(styles=False)
+
+    assert "cost" not in output
+
+
 def test_task_metadata_keeps_duration_and_steps_inline_without_worked_summary() -> None:
     metadata = TaskMetadata(model_name="claude-sonnet-4-6", turn_count=2, task_duration_s=288)
     event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem(main_agent=metadata))
