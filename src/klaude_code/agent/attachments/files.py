@@ -15,6 +15,7 @@ from klaude_code.prompts.attachments import (
     TOOL_RESULT_TEMPLATE,
 )
 from klaude_code.protocol import message, tools
+from klaude_code.protocol.input_syntax import AT_FILE_PATTERN
 from klaude_code.protocol.models import (
     AtFileImagesUIItem,
     AtFileOp,
@@ -59,18 +60,6 @@ def _fmt_file_changed_externally(file_path: str, file_content: str) -> str:
 def _fmt_paste_file_hint(pasted_files: dict[str, str]) -> str:
     mapping = "\n".join(f"- <{tag}> saved to: {path}" for tag, path in pasted_files.items())
     return PASTE_FILE_HINT_TEMPLATE.format(mapping=mapping)
-
-
-# Match @ preceded by whitespace, start of line, or -> (ReadTool line number arrow)
-# Supports optional line range suffix: @file.txt#L10-20 or @file.txt#L10.
-_AT_PLAIN_STOP_CHARS = (
-    r"\u3000-\u303f"
-    r"\uff01-\uff0f"
-    r"\uff1a-\uff20"
-    r"\uff3b-\uff40"
-    r"\uff5b-\uff65"
-)
-AT_FILE_PATTERN = re.compile(rf'(?:(?<!\S)|(?<=\u2192))@("(?P<quoted>[^"]+)"|(?P<plain>[^\s{_AT_PLAIN_STOP_CHARS}]+))')
 
 
 class AtFileRef:

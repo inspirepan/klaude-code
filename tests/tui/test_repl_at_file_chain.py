@@ -69,7 +69,11 @@ def test_at_files_completer_quotes_paths_with_spaces(tmp_path: Path, monkeypatch
     assert any((t.startswith('@"') and t.endswith(' "')) or t.endswith('" ') for t in insert_texts), insert_texts
 
 
-def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_at_file_reader_attachment_and_developer_render_chain(
+    tmp_path: Path,
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """End-to-end: @ patterns in user input -> attachment -> developer message render.
 
     The chain under test:
@@ -77,6 +81,8 @@ def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, mo
     - at_file_reader_attachment parses and reads the file, populating at_files
     - render_developer_message renders a line mentioning the file path
     """
+
+    del isolated_home
 
     # Create a file with spaces and mixed-case name
     file_path = tmp_path / "Dir With Spaces" / "ReadMe File.txt"
@@ -111,6 +117,33 @@ def test_at_file_reader_attachment_and_developer_render_chain(tmp_path: Path, mo
     assert "ReadMe File.txt" in plain
 
 
+def test_at_file_reader_attachment_allows_cjk_without_space(
+    tmp_path: Path,
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del isolated_home
+
+    file_path = tmp_path / "src" / "file.py"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text("hello cjk at\n", encoding="utf-8")
+
+    monkeypatch.chdir(tmp_path)
+
+    session = Session(work_dir=tmp_path)
+    session.conversation_history.append(message.UserMessage(parts=message.text_parts_from_str("请看@src/file.py")))
+
+    attachment = _arun(at_file_reader_attachment(session))
+    assert attachment is not None
+    assert attachment.ui_extra is not None
+
+    at_file_items = [ui_item for ui_item in attachment.ui_extra.items if isinstance(ui_item, AtFileOpsUIItem)]
+    assert len(at_file_items) == 1
+    assert len(at_file_items[0].ops) == 1
+    assert at_file_items[0].ops[0].path == str(file_path)
+    assert "hello cjk at" in message.join_text_parts(attachment.parts)
+
+
 def test_render_user_input_highlights_full_at_pattern() -> None:
     """render_user_input should highlight full @... or @"..." segments.
 
@@ -143,7 +176,9 @@ def test_at_file_render_pattern_ignores_mid_word_at() -> None:
     assert INLINE_RENDER_PATTERN.search("See @src/file.py for details") is not None
 
 
-def test_image_attachment_keeps_display_paths_for_frozen_history_images(tmp_path: Path) -> None:
+def test_image_attachment_keeps_display_paths_for_frozen_history_images(tmp_path: Path, isolated_home: Path) -> None:
+    del isolated_home
+
     image_path = tmp_path / "pasted.png"
     image_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
     image_path.write_bytes(image_bytes)

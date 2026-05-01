@@ -29,47 +29,19 @@ from prompt_toolkit.formatted_text import FormattedText
 
 from klaude_code.const import COMPLETER_CACHE_TTL_SEC, COMPLETER_CMD_TIMEOUT_SEC, COMPLETER_DEBOUNCE_SEC
 from klaude_code.log import DebugType, log_debug
+from klaude_code.protocol.input_syntax import AT_COMPLETION_PATTERN, SKILL_COMPLETION_PATTERN
 from klaude_code.tui.command.types import CommandInfo
-
-# Allow inline @ and / completion after CJK text so users typing Chinese or
-# Japanese do not need to insert an extra space before the trigger character.
-# Keep English-word boundaries unchanged to avoid matching emails or URLs.
-_CJK_COMPLETION_BOUNDARY_CHARS = (
-    r"\u3005-\u3007"
-    r"\u303b"
-    r"\u3040-\u309f"
-    r"\u30a0-\u30ff"
-    r"\u31f0-\u31ff"
-    r"\u3400-\u4dbf"
-    r"\u4e00-\u9fff"
-    r"\uf900-\ufaff"
-    r"\uff66-\uff9f"
-)
-_INLINE_COMPLETION_BOUNDARY = rf"(^|[\s{_CJK_COMPLETION_BOUNDARY_CHARS}])"
-
-# Characters that terminate an @-path token (besides whitespace).
-# Includes CJK punctuation and fullwidth ASCII punctuation so that a path
-# followed by e.g. Chinese "，" or "。" is not treated as part of the path.
-# Fullwidth digits/letters and halfwidth katakana are intentionally excluded
-# to keep them usable within paths.
-_AT_TOKEN_STOP_CHARS = (
-    r"\u3000-\u303f"  # CJK symbols and punctuation (、。「」『』《》【】 ...)
-    r"\uff01-\uff0f"  # fullwidth ASCII punctuation (！＂＃＄％＆＇（）＊＋，－．／)
-    r"\uff1a-\uff20"  # ：；＜＝＞？＠
-    r"\uff3b-\uff40"  # ［＼］＾＿｀
-    r"\uff5b-\uff65"  # ｛｜｝～｡｢｣､･ ...
-)
 
 # Pattern to match @token for completion refresh (used by key bindings).
 # Supports both plain tokens like `@src/file.py` and quoted tokens like
 # `@"path with spaces/file.py"` so that filenames with spaces remain a
 # single logical token.
-AT_TOKEN_PATTERN = re.compile(rf'{_INLINE_COMPLETION_BOUNDARY}@(?P<frag>"[^"]*"|[^\s{_AT_TOKEN_STOP_CHARS}]*)$')
+AT_TOKEN_PATTERN = AT_COMPLETION_PATTERN
 
 # Pattern to match inline /skill token for skill completion
 # (used by key bindings).
 # Supports inline matching: after whitespace, at start of line, or after CJK text.
-SKILL_TOKEN_PATTERN = re.compile(rf"{_INLINE_COMPLETION_BOUNDARY}(?P<prefix>//|/)(?P<frag>[^\s/]*)$")
+SKILL_TOKEN_PATTERN = SKILL_COMPLETION_PATTERN
 
 _SKILL_PREFIX = "skill:"
 
