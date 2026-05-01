@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
 from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any, ClassVar
@@ -119,6 +120,41 @@ class MockChangeTool(ToolABC):
                 removed=int(args.get("removed", 0)),
                 path=path,
             )
+        return message.ToolResultMessage(status="success", output_text=f"changed {path}")
+
+
+class MockFilesystemChangeTool(ToolABC):
+    @classmethod
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
+            name="fs_change",
+            type="function",
+            description="Write a file",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string"},
+                    "content": {"type": "string"},
+                    "record": {"type": "boolean"},
+                },
+                "required": ["path", "content"],
+            },
+        )
+
+    @classmethod
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        args = json.loads(arguments)
+        path = Path(str(args["path"]))
+        exists = path.exists()
+        content = str(args["content"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        if args.get("record", False) and context.file_change_summary is not None:
+            if exists:
+                context.file_change_summary.record_edited(str(path))
+            else:
+                context.file_change_summary.record_created(str(path))
+            context.file_change_summary.add_diff(added=len(content.splitlines()), removed=0, path=str(path))
         return message.ToolResultMessage(status="success", output_text=f"changed {path}")
 
 
@@ -733,6 +769,84 @@ def test_task_file_change_summary_event_is_task_scoped(tmp_path: Path, monkeypat
             i for i, e in enumerate(replayed) if isinstance(e, events.TaskFileChangeSummaryEvent)
         )
         assert replayed_metadata_index < replayed_summary_index
+
+    arun(_test())
+
+
+def test_task_file_change_summary_uses_git_diff_for_external_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=project_dir, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project_dir, check=True)
+    subprocess.run(["git", "config", "user.name", "Test User"], cwd=project_dir, check=True)
+
+    existing_path = project_dir / "existing.py"
+    existing_path.write_text("one\n", encoding="utf-8")
+    gitignore_path = project_dir / ".gitignore"
+    gitignore_path.write_text("ignored.txt\n", encoding="utf-8")
+    subprocess.run(["git", "add", "existing.py", ".gitignore"], cwd=project_dir, check=True)
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=project_dir, check=True)
+
+    preexisting_path = project_dir / "preexisting.py"
+    preexisting_path.write_text("already here\n", encoding="utf-8")
+    created_path = project_dir / "created.py"
+    ignored_path = project_dir / "ignored.txt"
+
+    async def _test() -> None:
+        harness = await create_harness(
+            work_dir=project_dir,
+            tools={"fs_change": MockFilesystemChangeTool},
+            monkeypatch=monkeypatch,
+        )
+        harness.fake_llm.enqueue(
+            _tool_call_assistant_message(
+                [
+                    (
+                        "fs_change",
+                        "call_1",
+                        json.dumps({"path": str(existing_path), "content": "one\ntwo\n"}),
+                    ),
+                    (
+                        "fs_change",
+                        "call_2",
+                        json.dumps({"path": str(created_path), "content": "created\n"}),
+                    ),
+                    (
+                        "fs_change",
+                        "call_3",
+                        json.dumps({"path": str(ignored_path), "content": "ignored\n", "record": True}),
+                    ),
+                ]
+            )
+        )
+        harness.fake_llm.enqueue(
+            message.AssistantTextDelta(content="done"),
+            _text_assistant_message("done"),
+        )
+
+        collected = await harness.run_task("change files")
+
+        summary_events = [e for e in collected if isinstance(e, events.TaskFileChangeSummaryEvent)]
+        assert len(summary_events) == 1
+        files = {Path(item.path): item for item in summary_events[0].summary.files}
+        assert set(files) == {existing_path, created_path, ignored_path}
+        assert files[existing_path].added == 1
+        assert files[existing_path].removed == 0
+        assert files[existing_path].edited is True
+        assert files[created_path].added == 1
+        assert files[created_path].removed == 0
+        assert files[created_path].created is True
+        assert files[ignored_path].added == 1
+        assert files[ignored_path].removed == 0
+        assert files[ignored_path].created is True
+        assert preexisting_path not in files
+
+        assert harness.session.file_change_summary.edited_files == [str(existing_path)]
+        assert set(harness.session.file_change_summary.created_files) == {str(created_path), str(ignored_path)}
+        assert harness.session.file_change_summary.diff_lines_added == 3
+        assert harness.session.file_change_summary.diff_lines_removed == 0
 
     arun(_test())
 
