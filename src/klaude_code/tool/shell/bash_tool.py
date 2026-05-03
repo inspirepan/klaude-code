@@ -6,6 +6,7 @@ import shlex
 import signal
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,7 @@ from pydantic import BaseModel
 
 from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_TERMINATE_TIMEOUT_SEC
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.protocol.models import FileStatus
+from klaude_code.protocol.models import FileChangeSummary, FileDiffStats, FileStatus, TaskFileChange
 from klaude_code.tool.core.abc import ToolABC, load_desc
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
@@ -43,6 +44,176 @@ _ANSI_ESCAPE_RE = re.compile(
 )
 
 _STREAM_POLL_INTERVAL_SEC = 0.05
+
+
+@dataclass
+class _GitFileChangeBaseline:
+    repo_root: Path
+    pathspec: str
+    object_dir: tempfile.TemporaryDirectory[str]
+    alternate_object_dir: Path
+    tree: str = ""
+
+
+def _run_git(cwd: Path, args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        text=True,
+        errors="surrogateescape",
+        check=True,
+    )
+
+
+def _run_git_bytes(
+    cwd: Path, args: list[str], *, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        env=env,
+        capture_output=True,
+        check=True,
+    )
+
+
+def _git_env(baseline: _GitFileChangeBaseline, *, index_file: str | None = None) -> dict[str, str]:
+    env = os.environ.copy()
+    if index_file is not None:
+        env["GIT_INDEX_FILE"] = index_file
+    env["GIT_OBJECT_DIRECTORY"] = baseline.object_dir.name
+    alternates = [str(baseline.alternate_object_dir)]
+    if existing := env.get("GIT_ALTERNATE_OBJECT_DIRECTORIES"):
+        alternates.append(existing)
+    env["GIT_ALTERNATE_OBJECT_DIRECTORIES"] = os.pathsep.join(alternates)
+    return env
+
+
+def _snapshot_git_worktree_tree(baseline: _GitFileChangeBaseline) -> str:
+    with tempfile.NamedTemporaryFile(prefix="klaude-git-index-") as index_file:
+        env = _git_env(baseline, index_file=index_file.name)
+        has_head = (
+            subprocess.run(
+                ["git", "rev-parse", "--verify", "HEAD"],
+                cwd=baseline.repo_root,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode
+            == 0
+        )
+        if has_head:
+            _run_git(baseline.repo_root, ["read-tree", "HEAD"], env=env)
+        else:
+            _run_git(baseline.repo_root, ["read-tree", "--empty"], env=env)
+        _run_git(baseline.repo_root, ["add", "-A", "--", baseline.pathspec], env=env)
+        return _run_git(baseline.repo_root, ["write-tree"], env=env).stdout.strip()
+
+
+def _build_git_file_change_baseline(work_dir: Path) -> _GitFileChangeBaseline | None:
+    object_dir: tempfile.TemporaryDirectory[str] | None = None
+    try:
+        repo_root_raw = _run_git(work_dir, ["rev-parse", "--show-toplevel"]).stdout.strip()
+        repo_root = Path(repo_root_raw).resolve()
+        alternate_object_dir_raw = _run_git(work_dir, ["rev-parse", "--git-path", "objects"]).stdout.strip()
+        alternate_object_dir = Path(alternate_object_dir_raw)
+        if not alternate_object_dir.is_absolute():
+            alternate_object_dir = (work_dir / alternate_object_dir).resolve()
+        rel = work_dir.resolve().relative_to(repo_root)
+        pathspec = "." if str(rel) == "." else rel.as_posix()
+        object_dir = tempfile.TemporaryDirectory(prefix="klaude-git-objects-")
+        baseline = _GitFileChangeBaseline(
+            repo_root=repo_root,
+            pathspec=pathspec,
+            object_dir=object_dir,
+            alternate_object_dir=alternate_object_dir,
+        )
+        baseline.tree = _snapshot_git_worktree_tree(baseline)
+        return baseline
+    except (OSError, subprocess.CalledProcessError, ValueError):
+        if object_dir is not None:
+            object_dir.cleanup()
+        return None
+
+
+def _parse_git_numstat(output: bytes) -> dict[bytes, FileDiffStats]:
+    stats_by_path: dict[bytes, FileDiffStats] = {}
+    for record in output.split(b"\0"):
+        if not record:
+            continue
+        parts = record.split(b"\t", 2)
+        if len(parts) != 3:
+            continue
+        added_raw, removed_raw, path = parts
+        added = int(added_raw) if added_raw.isdigit() else 0
+        removed = int(removed_raw) if removed_raw.isdigit() else 0
+        stats_by_path[path] = FileDiffStats(added=added, removed=removed)
+    return stats_by_path
+
+
+def _parse_git_name_status(output: bytes) -> dict[bytes, bytes]:
+    parts = [part for part in output.split(b"\0") if part]
+    statuses: dict[bytes, bytes] = {}
+    for idx in range(0, len(parts) - 1, 2):
+        status = parts[idx]
+        path = parts[idx + 1]
+        statuses[path] = status
+    return statuses
+
+
+def _build_git_file_changes(baseline: _GitFileChangeBaseline) -> list[TaskFileChange]:
+    current_tree = _snapshot_git_worktree_tree(baseline)
+    if current_tree == baseline.tree:
+        return []
+
+    diff_args = [baseline.tree, current_tree, "--", baseline.pathspec]
+    env = _git_env(baseline)
+    name_status = _run_git_bytes(
+        baseline.repo_root,
+        ["diff", "--name-status", "--no-renames", "-z", *diff_args],
+        env=env,
+    ).stdout
+    numstat = _run_git_bytes(
+        baseline.repo_root,
+        ["diff", "--numstat", "--no-renames", "-z", *diff_args],
+        env=env,
+    ).stdout
+
+    statuses = _parse_git_name_status(name_status)
+    stats_by_path = _parse_git_numstat(numstat)
+    paths = sorted(set(statuses) | set(stats_by_path))
+
+    changes: list[TaskFileChange] = []
+    for path in paths:
+        status = statuses.get(path, b"M")
+        stats = stats_by_path.get(path, FileDiffStats())
+        created = status.startswith(b"A")
+        deleted = status.startswith(b"D")
+        changes.append(
+            TaskFileChange(
+                path=str((baseline.repo_root / os.fsdecode(path)).resolve(strict=False)),
+                added=stats.added,
+                removed=stats.removed,
+                created=created,
+                edited=not created and not deleted,
+                deleted=deleted,
+            )
+        )
+    return changes
+
+
+def _record_file_changes(file_change_summary: FileChangeSummary, changes: list[TaskFileChange]) -> None:
+    for change in changes:
+        if change.created:
+            file_change_summary.record_created(change.path)
+        elif change.deleted:
+            file_change_summary.record_deleted(change.path)
+        else:
+            file_change_summary.record_edited(change.path)
+        file_change_summary.add_diff(added=change.added, removed=change.removed, path=change.path)
 
 
 @register(tools.BASH)
@@ -327,6 +498,17 @@ class BashTool(ToolABC):
                 return "", next_offset
             return _ANSI_ESCAPE_RE.sub("", data.decode(errors="replace")), next_offset
 
+        git_file_change_baseline: _GitFileChangeBaseline | None = None
+        if context.file_change_summary is not None:
+            git_file_change_baseline = await asyncio.to_thread(_build_git_file_change_baseline, context.work_dir)
+
+        async def _record_git_file_changes() -> None:
+            if git_file_change_baseline is None or context.file_change_summary is None:
+                return
+            with contextlib.suppress(OSError, subprocess.CalledProcessError):
+                changes = await asyncio.to_thread(_build_git_file_changes, git_file_change_baseline)
+                _record_file_changes(context.file_change_summary, changes)
+
         try:
             # Create a dedicated process group so we can terminate the whole tree.
             # (macOS/Linux support start_new_session; Windows does not.)
@@ -396,6 +578,8 @@ class BashTool(ToolABC):
                     with contextlib.suppress(Exception):
                         await _terminate_process(proc)
 
+                    await _record_git_file_changes()
+
                     timeout_header = f"Timeout after {args.timeout_ms} ms running: {args.command}"
                     collected_stdout = "".join(stdout_chunks).rstrip("\n")
                     collected_stderr = "".join(stderr_chunks).rstrip("\n")
@@ -417,6 +601,7 @@ class BashTool(ToolABC):
             stdout = "".join(stdout_chunks)
             stderr = "".join(stderr_chunks)
             rc = proc.returncode
+            await _record_git_file_changes()
 
             if rc == 0:
                 output = stdout
@@ -458,3 +643,6 @@ class BashTool(ToolABC):
                 status="error",
                 output_text=f"Execution error: {e}",
             )
+        finally:
+            if git_file_change_baseline is not None:
+                git_file_change_baseline.object_dir.cleanup()

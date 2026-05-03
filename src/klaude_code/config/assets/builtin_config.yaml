@@ -722,7 +722,6 @@ provider_list:
 
 sub_agent_models:
   finder:
-  - deepseek-flash@deepseek
   - gpt-5.4-mini
   - gemini-flash:minimal
   - haiku
@@ -733,7 +732,6 @@ sub_agent_models:
   - opus
 
 fast_model:
-- deepseek-flash@deepseek
 - gpt-5.4-nano
 - gemini-flash-lite
 - gpt-5.4-mini

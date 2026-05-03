@@ -54,6 +54,15 @@ class TestRenderAtAndSkillPatterns:
         )
         assert get_spans_by_style(result, "AT") == ['@"src/my file.py"']
 
+    def test_at_file_after_cjk_highlighted(self):
+        result = render_at_and_skill_patterns(
+            "请看@src/app.py",
+            at_style="AT",
+            skill_style="SKILL",
+            other_style="OTHER",
+        )
+        assert get_spans_by_style(result, "AT") == ["@src/app.py"]
+
     def test_no_email_false_positive(self):
         result = render_at_and_skill_patterns("foo@bar.com", at_style="AT", skill_style="SKILL", other_style="OTHER")
         assert get_spans_by_style(result, "AT") == []

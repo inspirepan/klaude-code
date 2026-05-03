@@ -1,24 +1,14 @@
-import re
-
 from rich.console import Group, RenderableType
 from rich.text import Text
 
 from klaude_code.const import TAB_EXPAND_WIDTH
+from klaude_code.protocol.input_syntax import INLINE_RENDER_PATTERN
 from klaude_code.skill import list_skill_names
 from klaude_code.tui.command import is_slash_command_name
 from klaude_code.tui.components.bash_syntax import highlight_bash_command
 from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
 
-# Match inline patterns only when they appear at the beginning of the line
-# or immediately after whitespace, to avoid treating mid-word email-like
-# patterns such as foo@bar.com as file references.
-# Group "skill_token" captures one of:
-# - /skill:skill-name
-# - //skill:skill-name
-INLINE_RENDER_PATTERN = re.compile(
-    r'(?<!\S)(?:@(?:"[^"]+"|\S+)|(?P<skill_token>//skill:[^\s/]+(?=\s|$)|/skill:[^\s/]+(?=\s|$)))'
-)
 USER_MESSAGE_MARK = "❯ "
 
 
@@ -39,9 +29,11 @@ def render_at_and_skill_patterns(
     """Render text with highlighted @file and skill patterns."""
     result = Text(text, style=other_style, overflow="fold")
     for match in INLINE_RENDER_PATTERN.finditer(text):
+        token_start = match.start("token")
+        token_end = match.end("token")
         skill_token = match.group("skill_token")
         if skill_token is None:
-            result.stylize(at_style, match.start(), match.end())
+            result.stylize(at_style, token_start, token_end)
             continue
 
         skill_name = skill_token.removeprefix("//skill:").removeprefix("/skill:")
@@ -51,7 +43,7 @@ def render_at_and_skill_patterns(
 
         short = skill_name.split(":")[-1] if ":" in skill_name else skill_name
         if skill_name in available_skill_names or short in available_skill_names:
-            result.stylize(skill_style, match.start(), match.end())
+            result.stylize(skill_style, token_start, token_end)
 
     return result
 

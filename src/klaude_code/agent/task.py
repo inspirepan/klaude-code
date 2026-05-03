@@ -880,6 +880,8 @@ class TaskExecutor:
                 break
             empty_response_retries = 0
 
+        file_change_summary = _build_task_file_change_summary(file_change_baseline, session_ctx.file_change_summary)
+
         # Finalize metadata
         task_duration_s = time.perf_counter() - self._started_at
         accumulated = metadata_accumulator.finalize(task_duration_s)
@@ -891,7 +893,6 @@ class TaskExecutor:
         )
         session_ctx.append_history([accumulated])
 
-        file_change_summary = _build_task_file_change_summary(file_change_baseline, session_ctx.file_change_summary)
         if file_change_summary is not None:
             yield events.TaskFileChangeSummaryEvent(summary=file_change_summary, session_id=session_ctx.session_id)
             session_ctx.append_history([file_change_summary])
