@@ -773,7 +773,7 @@ def test_task_file_change_summary_event_is_task_scoped(tmp_path: Path, monkeypat
     arun(_test())
 
 
-def test_task_file_change_summary_uses_git_diff_for_external_changes(
+def test_task_file_change_summary_uses_tool_records_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project_dir = tmp_path / "project"
@@ -831,21 +831,17 @@ def test_task_file_change_summary_uses_git_diff_for_external_changes(
         summary_events = [e for e in collected if isinstance(e, events.TaskFileChangeSummaryEvent)]
         assert len(summary_events) == 1
         files = {Path(item.path): item for item in summary_events[0].summary.files}
-        assert set(files) == {existing_path, created_path, ignored_path}
-        assert files[existing_path].added == 1
-        assert files[existing_path].removed == 0
-        assert files[existing_path].edited is True
-        assert files[created_path].added == 1
-        assert files[created_path].removed == 0
-        assert files[created_path].created is True
+        assert set(files) == {ignored_path}
         assert files[ignored_path].added == 1
         assert files[ignored_path].removed == 0
         assert files[ignored_path].created is True
+        assert existing_path not in files
+        assert created_path not in files
         assert preexisting_path not in files
 
-        assert harness.session.file_change_summary.edited_files == [str(existing_path)]
-        assert set(harness.session.file_change_summary.created_files) == {str(created_path), str(ignored_path)}
-        assert harness.session.file_change_summary.diff_lines_added == 3
+        assert harness.session.file_change_summary.edited_files == []
+        assert harness.session.file_change_summary.created_files == [str(ignored_path)]
+        assert harness.session.file_change_summary.diff_lines_added == 1
         assert harness.session.file_change_summary.diff_lines_removed == 0
 
     arun(_test())
