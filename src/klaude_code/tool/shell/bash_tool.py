@@ -67,7 +67,9 @@ def _run_git(cwd: Path, args: list[str], *, env: dict[str, str] | None = None) -
     )
 
 
-def _run_git_bytes(cwd: Path, args: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[bytes]:
+def _run_git_bytes(
+    cwd: Path, args: list[str], *, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[bytes]:
     return subprocess.run(
         ["git", *args],
         cwd=cwd,
@@ -92,14 +94,17 @@ def _git_env(baseline: _GitFileChangeBaseline, *, index_file: str | None = None)
 def _snapshot_git_worktree_tree(baseline: _GitFileChangeBaseline) -> str:
     with tempfile.NamedTemporaryFile(prefix="klaude-git-index-") as index_file:
         env = _git_env(baseline, index_file=index_file.name)
-        has_head = subprocess.run(
-            ["git", "rev-parse", "--verify", "HEAD"],
-            cwd=baseline.repo_root,
-            env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            check=False,
-        ).returncode == 0
+        has_head = (
+            subprocess.run(
+                ["git", "rev-parse", "--verify", "HEAD"],
+                cwd=baseline.repo_root,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode
+            == 0
+        )
         if has_head:
             _run_git(baseline.repo_root, ["read-tree", "HEAD"], env=env)
         else:

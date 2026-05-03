@@ -773,9 +773,7 @@ def test_task_file_change_summary_event_is_task_scoped(tmp_path: Path, monkeypat
     arun(_test())
 
 
-def test_task_file_change_summary_uses_tool_records_only(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_file_change_summary_uses_tool_records_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "project"
     project_dir.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=project_dir, check=True)

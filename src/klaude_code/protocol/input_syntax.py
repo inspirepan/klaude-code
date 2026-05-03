@@ -42,7 +42,7 @@ SKILL_COMPLETION_PATTERN = re.compile(rf"{INLINE_TOKEN_BOUNDARY}(?P<prefix>//|/)
 # line number arrow). Supports optional line range suffix in consumers:
 # @file.txt#L10-20 or @file.txt#L10.
 AT_FILE_PATTERN = re.compile(
-    rf'(?P<boundary>{INLINE_TOKEN_BOUNDARY}|(?<=\u2192))'
+    rf"(?P<boundary>{INLINE_TOKEN_BOUNDARY}|(?<=\u2192))"
     rf'(?P<at_token>@("(?P<quoted>[^"]+)"|(?P<plain>[^\s{AT_TOKEN_STOP_CHARS}]+)))'
 )
 
@@ -51,7 +51,7 @@ AT_FILE_PATTERN = re.compile(
 # - /skill:skill-name
 # - //skill:skill-name
 INLINE_RENDER_PATTERN = re.compile(
-    rf'(?P<boundary>{INLINE_TOKEN_BOUNDARY})'
+    rf"(?P<boundary>{INLINE_TOKEN_BOUNDARY})"
     rf'(?P<token>@(?:"[^"]+"|[^\s{AT_TOKEN_STOP_CHARS}]+)'
-    rf'|(?P<skill_token>//skill:[^\s/]+(?=\s|$)|/skill:[^\s/]+(?=\s|$)))'
+    rf"|(?P<skill_token>//skill:[^\s/]+(?=\s|$)|/skill:[^\s/]+(?=\s|$)))"
 )
