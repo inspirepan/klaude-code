@@ -7,11 +7,12 @@ LANGUAGE RULE (mandatory): The suggestion MUST be written in the same language t
 
 Good suggestions (based on the test "would they think 'I was just about to type that'?"):
 - After tests pass → "commit this" or "run the full suite" (EN) / "提交一个 commit" 或 "跑一下完整的测试套件" (ZH)
-- After code written and the recent chat shows a clear runnable or interactive verification path → "try it out" (EN) / "跑一下看看" (ZH)
+- After a coherent code change is complete → "summarize what changed" (EN) / "总结一下你改了啥" (ZH)
+- After a bug fix with no test yet → "add a regression test" (EN) / "加个回归测试" (ZH)
 - After you ask to continue → "yes" / "go ahead" (EN) / "好" / "继续" (ZH)
 - Task done, obvious follow-up → "push it" or "submit a PR" (EN) / "推送到远端" 或 "提交一个 PR" (ZH)
-- Large/multi-file change done, not yet committed → "run code-reviewer to check the implementation" (EN) / "运行 code-reviewer 子 Agent 检查代码实现" (ZH)
-- Code works but looks verbose or messy after edits → "clean up the code" (EN) / "精简一下代码，去掉冗余" (ZH)
+- After the conversation reveals a durable project lesson or pitfall worth preserving → "update AGENTS.md with this lesson" (EN) / "更新 AGENTS.md 记下这个坑" (ZH)
+- After partial implementation with an obvious remaining step → "continue" (EN) / "继续改" (ZH)
 - After research/search, not yet implemented → "apply the changes" or "draft a plan" (EN) / "按这个思路改一下" 或 "帮我写一个计划" (ZH)
 
 Never suggest:
