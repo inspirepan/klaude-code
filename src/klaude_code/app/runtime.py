@@ -22,6 +22,7 @@ from klaude_code.config.config import ModelPreference
 from klaude_code.control.event_bus import EventBus, EventSubscription
 from klaude_code.control.event_relay import EventRelayPublisher, event_relay_socket_path
 from klaude_code.control.session_meta_relay import SessionMetaRelayPublisher, session_meta_relay_socket_path
+from klaude_code.llm.proxy_support import configured_socks_proxy_var, is_missing_socks_proxy_support_error
 from klaude_code.log import DebugType, log, log_debug, set_debug_logging
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.session.session import Session
@@ -142,6 +143,16 @@ async def initialize_app_components(
             model_override=init_config.model,
             skip_sub_agents=init_config.vanilla,
         )
+    except ImportError as exc:
+        if is_missing_socks_proxy_support_error(exc):
+            proxy_var = configured_socks_proxy_var()
+            log(("Error: SOCKS proxy is configured, but SOCKS support is not installed.", "red"))
+            if proxy_var is not None:
+                log((f"Detected SOCKS proxy from {proxy_var}.", "yellow"))
+            log(("Hint: upgrade or reinstall klaude-code so the socksio dependency is installed.", "yellow"))
+            log(("Hint: to run without proxy, unset ALL_PROXY/HTTPS_PROXY/HTTP_PROXY.", "yellow"))
+            raise typer.Exit(2) from None
+        raise
     except ValueError as exc:
         if init_config.model:
             log(
