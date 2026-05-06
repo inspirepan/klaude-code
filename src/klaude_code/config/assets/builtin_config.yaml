@@ -113,7 +113,7 @@ provider_list:
     context_limit: 400000
     verbosity: low
     thinking:
-      reasoning_effort: high
+      reasoning_effort: medium
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
@@ -135,7 +135,7 @@ provider_list:
     verbosity: low
     fast_mode: true
     thinking:
-      reasoning_effort: high
+      reasoning_effort: medium
       reasoning_summary: detailed
     cost: { input: 10, output: 60, cache_read: 1 }
 
@@ -504,7 +504,7 @@ provider_list:
     context_limit: 400000
     verbosity: low
     thinking:
-      reasoning_effort: high
+      reasoning_effort: medium
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
   - model_name: gpt-5.5:xhigh
@@ -567,7 +567,7 @@ provider_list:
     context_limit: 400000
     verbosity: low
     thinking:
-      reasoning_effort: high
+      reasoning_effort: medium
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
 

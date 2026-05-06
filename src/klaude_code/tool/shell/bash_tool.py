@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from pydantic import BaseModel
 
@@ -44,6 +44,7 @@ _ANSI_ESCAPE_RE = re.compile(
 )
 
 _STREAM_POLL_INTERVAL_SEC = 0.05
+_GIT_FILE_CHANGE_EXCLUDED_DIRS: Final = (".venv", "node_modules")
 
 
 @dataclass
@@ -91,6 +92,13 @@ def _git_env(baseline: _GitFileChangeBaseline, *, index_file: str | None = None)
     return env
 
 
+def _git_file_change_pathspecs(pathspec: str) -> list[str]:
+    return [
+        pathspec,
+        *(f":(exclude,glob)**/{excluded_dir}/**" for excluded_dir in _GIT_FILE_CHANGE_EXCLUDED_DIRS),
+    ]
+
+
 def _snapshot_git_worktree_tree(baseline: _GitFileChangeBaseline) -> str:
     with tempfile.NamedTemporaryFile(prefix="klaude-git-index-") as index_file:
         env = _git_env(baseline, index_file=index_file.name)
@@ -109,7 +117,7 @@ def _snapshot_git_worktree_tree(baseline: _GitFileChangeBaseline) -> str:
             _run_git(baseline.repo_root, ["read-tree", "HEAD"], env=env)
         else:
             _run_git(baseline.repo_root, ["read-tree", "--empty"], env=env)
-        _run_git(baseline.repo_root, ["add", "-A", "--", baseline.pathspec], env=env)
+        _run_git(baseline.repo_root, ["add", "-A", "--", *_git_file_change_pathspecs(baseline.pathspec)], env=env)
         return _run_git(baseline.repo_root, ["write-tree"], env=env).stdout.strip()
 
 
@@ -169,7 +177,7 @@ def _build_git_file_changes(baseline: _GitFileChangeBaseline) -> list[TaskFileCh
     if current_tree == baseline.tree:
         return []
 
-    diff_args = [baseline.tree, current_tree, "--", baseline.pathspec]
+    diff_args = [baseline.tree, current_tree, "--", *_git_file_change_pathspecs(baseline.pathspec)]
     env = _git_env(baseline)
     name_status = _run_git_bytes(
         baseline.repo_root,
