@@ -23,7 +23,8 @@ from klaude_code.protocol.models import (
 )
 from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 
-_RUNTIME_META_KEYS = ("session_state", "runtime_owner", "runtime_owner_heartbeat_at")
+_RUNTIME_META_KEYS = ("session_state", "runtime_owner", "runtime_owner_heartbeat_at", "follow_up_queue")
+_DELETE_WINS_META_KEYS = ("follow_up_queue",)
 
 type SessionMetaObserver = Callable[[str, dict[str, Any]], None]
 
@@ -134,6 +135,8 @@ class JsonlSessionWriter:
                     for key in _RUNTIME_META_KEYS:
                         if key in current_meta:
                             meta[key] = current_meta[key]
+                        elif key in _DELETE_WINS_META_KEYS:
+                            meta.pop(key, None)
             meta = {k: v for k, v in meta.items() if v is not None}
 
             tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -282,7 +285,9 @@ def build_meta_snapshot(
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
     next_checkpoint_id: int = 0,
+    follow_up_queue: Sequence[message.UserInputPayload] = (),
 ) -> dict[str, Any]:
+    follow_up_queue_payload = [item.model_dump(mode="json", exclude_none=True) for item in follow_up_queue]
     snapshot: dict[str, Any] = {
         "id": session_id,
         "work_dir": str(work_dir),
@@ -306,5 +311,6 @@ def build_meta_snapshot(
         if model_thinking
         else None,
         "next_checkpoint_id": next_checkpoint_id,
+        "follow_up_queue": follow_up_queue_payload or None,
     }
     return {k: v for k, v in snapshot.items() if v is not None}

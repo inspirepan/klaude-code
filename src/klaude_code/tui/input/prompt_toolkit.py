@@ -415,6 +415,7 @@ class PromptToolkitInput(InputProviderABC):
         self._stream_lines: tuple[str, ...] = ()
         self._status_lines: tuple[str, ...] = ()
         self._pending_messages: tuple[str, ...] = ()
+        self._queued_edit_active = False
         self._prompt_active = False
         self._prompt_pause_waiter: asyncio.Future[None] | None = None
         self._external_input_pause_count = 0
@@ -543,6 +544,7 @@ class PromptToolkitInput(InputProviderABC):
             dequeue_pending_messages=lambda: (
                 self._dequeue_pending_messages() if self._dequeue_pending_messages is not None else ()
             ),
+            mark_dequeued_messages_for_edit=self._mark_queued_edit_active,
             has_pending_messages=lambda: bool(self._pending_messages),
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
@@ -817,7 +819,7 @@ class PromptToolkitInput(InputProviderABC):
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
         count = len(self._pending_messages)
-        fragments: StyleAndTextTuples = [("class:meta", f"Queued follow-up message ({count} pending).")]
+        fragments: StyleAndTextTuples = [("class:meta", f"Queued follow-up message ({count} pending) · ↑ to edit.")]
         for index, message in enumerate(self._pending_messages, start=1):
             preview = " ".join(message.split())
             fragments.append(("", "\n"))
@@ -896,6 +898,9 @@ class PromptToolkitInput(InputProviderABC):
                     self._session.app.invalidate()
         except Exception:
             return
+
+    def _mark_queued_edit_active(self, _text: str) -> None:
+        self._queued_edit_active = True
 
     # -------------------------------------------------------------------------
     # Model picker
@@ -1100,6 +1105,7 @@ class PromptToolkitInput(InputProviderABC):
                     self._on_prompt_start()
             prompt_paused = False
             line = ""
+            queued_edit = False
             try:
                 self._prompt_active = True
                 with patch_stdout(raw=True):
@@ -1109,6 +1115,7 @@ class PromptToolkitInput(InputProviderABC):
                         line = await self._session.prompt_async(message=self._get_prompt_message)
                     else:
                         line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
+                    queued_edit = self._queued_edit_active
             except _PromptPaused:
                 prompt_paused = True
             finally:
@@ -1122,6 +1129,7 @@ class PromptToolkitInput(InputProviderABC):
                 # will push a fresh one after the next task finishes.
                 if not prompt_paused:
                     self._prompt_suggestion = None
+                    self._queued_edit_active = False
                 if self._on_prompt_end is not None:
                     with contextlib.suppress(Exception):
                         self._on_prompt_end()
@@ -1146,7 +1154,12 @@ class PromptToolkitInput(InputProviderABC):
             # Extract images referenced in the input text
             images = extract_images_from_text(line)
 
-            yield UserInputPayload(text=line, images=images if images else None, pasted_files=pasted_files)
+            yield UserInputPayload(
+                text=line,
+                images=images if images else None,
+                pasted_files=pasted_files,
+                queued_edit=queued_edit,
+            )
 
     # Note: Mouse support is intentionally disabled at the PromptSession
     # level so that terminals retain their native scrollback behavior.

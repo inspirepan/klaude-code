@@ -235,6 +235,60 @@ class TestSessionPersistence:
 
         arun(_test())
 
+    def test_follow_up_queue_persists_in_meta(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Hello"))])
+            await session.wait_for_flush()
+
+            session.set_follow_up_queue(
+                [message.UserInputPayload(text="queued one"), message.UserInputPayload(text="queued two")]
+            )
+
+            loaded = Session.load_meta(session.id, work_dir=project_dir)
+            assert [item.text for item in loaded.follow_up_queue] == ["queued one", "queued two"]
+
+            session.set_follow_up_queue([])
+            loaded = Session.load_meta(session.id, work_dir=project_dir)
+            assert loaded.follow_up_queue == []
+            await close_default_store()
+
+        arun(_test())
+
+    def test_follow_up_queue_clear_wins_over_stale_history_flush(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        original_write_batch_sync = JsonlSessionWriter._write_batch_sync
+
+        def _slow_write_batch_sync(self: JsonlSessionWriter, batch: Any) -> None:
+            time.sleep(0.2)
+            original_write_batch_sync(self, batch)
+
+        monkeypatch.setattr(JsonlSessionWriter, "_write_batch_sync", _slow_write_batch_sync)
+
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            session.ensure_meta_exists()
+            session.follow_up_queue = [message.UserInputPayload(text="stale queued")]
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Hello"))])
+
+            session.set_follow_up_queue([])
+
+            await session.wait_for_flush()
+            loaded = Session.load_meta(session.id, work_dir=project_dir)
+            assert loaded.follow_up_queue == []
+            await close_default_store()
+
+        arun(_test())
+
     def test_append_history_does_not_overwrite_newer_runtime_state(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):

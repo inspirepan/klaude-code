@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
-from klaude_code.tui.input.key_bindings import merge_dequeued_messages
+from klaude_code.tui.input.key_bindings import merge_dequeued_messages, split_queued_message_edit_text
 from klaude_code.tui.input.paste import expand_paste_markers, store_paste
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, _PasteAwareFileHistory
 
@@ -20,6 +20,7 @@ def _build_input(text: str) -> PromptToolkitInput:
     prompt_input._stream_lines = ()
     prompt_input._status_lines = ()
     prompt_input._pending_messages = ()
+    prompt_input._queued_edit_active = False
     prompt_input._prompt_active = False
     prompt_input._prompt_pause_waiter = None
     prompt_input._external_input_pause_count = 0
@@ -111,7 +112,7 @@ def test_pending_messages_render_above_prompt() -> None:
 
     assert prompt_input._pending_messages == ("first queued", "second\nqueued")
     assert prompt_input._get_pending_message_fragments() == [
-        ("class:meta", "Queued follow-up message (2 pending)."),
+        ("class:meta", "Queued follow-up message (2 pending) · ↑ to edit."),
         ("", "\n"),
         ("class:meta", "  1. first queued"),
         ("", "\n"),
@@ -120,8 +121,13 @@ def test_pending_messages_render_above_prompt() -> None:
 
 
 def test_merge_dequeued_messages_keeps_queue_before_current_editor_text() -> None:
-    assert merge_dequeued_messages(("first", "second"), "current") == "first\n\nsecond\n\ncurrent"
+    assert merge_dequeued_messages(("first", "second"), "current") == "first\n---\nsecond\n---\ncurrent"
     assert merge_dequeued_messages(("first", ""), "") == "first"
+
+
+def test_split_queued_message_edit_text_uses_separator_lines() -> None:
+    assert split_queued_message_edit_text("first\n---\nsecond edited") == ("first", "second edited")
+    assert split_queued_message_edit_text("ordinary --- text") == ("ordinary --- text",)
 
 
 def test_external_input_pause_waits_until_resume() -> None:

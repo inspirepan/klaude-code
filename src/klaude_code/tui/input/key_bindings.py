@@ -27,6 +27,9 @@ from prompt_toolkit.keys import Keys
 from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.paste import store_paste
 
+QUEUED_MESSAGE_EDIT_SEPARATOR = "\n---\n"
+_QUEUED_MESSAGE_SEPARATOR_RE = re.compile(r"(?m)^---$")
+
 
 def copy_to_clipboard(text: str) -> None:
     """Copy text to system clipboard using platform-specific commands."""
@@ -64,6 +67,7 @@ def create_key_bindings(
     get_prompt_suggestion: Callable[[], str | None] | None = None,
     consume_prompt_suggestion: Callable[[], str | None] | None = None,
     dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
+    mark_dequeued_messages_for_edit: Callable[[str], None] | None = None,
     has_pending_messages: Callable[[], bool] | None = None,
     request_interrupt: Callable[[], None] | None = None,
     is_interrupt_available: Callable[[], bool] | None = None,
@@ -157,6 +161,8 @@ def create_key_bindings(
         with contextlib.suppress(Exception):
             event.current_buffer.text = text  # type: ignore[reportUnknownMemberType]
             event.current_buffer.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
+        if mark_dequeued_messages_for_edit is not None:
+            mark_dequeued_messages_for_edit(text)
         with contextlib.suppress(Exception):
             event.app.invalidate()  # type: ignore[reportUnknownMemberType]
         return True
@@ -837,4 +843,10 @@ def merge_dequeued_messages(messages: tuple[str, ...], current_text: str) -> str
     parts = [message for message in messages if message]
     if current_text:
         parts.append(current_text)
-    return "\n\n".join(parts)
+    return QUEUED_MESSAGE_EDIT_SEPARATOR.join(parts)
+
+
+def split_queued_message_edit_text(text: str) -> tuple[str, ...]:
+    if not _QUEUED_MESSAGE_SEPARATOR_RE.search(text):
+        return (text,)
+    return tuple(part.strip("\n") for part in _QUEUED_MESSAGE_SEPARATOR_RE.split(text) if part.strip())

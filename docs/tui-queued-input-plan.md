@@ -227,6 +227,7 @@ tmux capture-pane -pt klaude-phase3 -S -200
 - 长消息按终端宽度截断。
 - 多行消息展示摘要，避免撑爆输入区。
 - queue panel 由 queue snapshot 变化驱动刷新。
+- queue panel header 提示 `↑ to edit`，说明可以取回队列继续编辑。
 
 ### 可见成果
 
@@ -283,12 +284,13 @@ tmux capture-pane -pt klaude-phase4 -S -120
 - 只在 input buffer 为空时生效。
 - 只在 completion/search overlay 未激活时生效。
 - 从 follow-up queue 弹出全部消息。
-- 把这些消息用空行分隔后填回 input buffer，供用户编辑。
+- 把这些消息用 `\n---\n` 分隔后填回 input buffer，供用户编辑。
+- 如果编辑后的 input 在 busy 时重新提交，并包含单独一行 `---` 分隔符，则按分隔符拆回多条 queued messages。
 - queue 为空时，Up 保持现有 history 行为。
 
 ### 可见成果
 
-当队列非空且输入框为空时，按 Up 会把全部 queued messages 从队列中移除，并用空行分隔后恢复到编辑器里。
+当队列非空且输入框为空时，按 Up 会把全部 queued messages 从队列中移除，并用 `---` 分隔后恢复到编辑器里。
 
 ### tmux 验证
 
@@ -315,7 +317,7 @@ tmux capture-pane -pt klaude-phase5 -S -120
 
 通过标准：
 
-- `queued one` 和 `queued two to edit` 都出现在 input buffer 中，并用空行分隔。
+- `queued one` 和 `queued two to edit` 都出现在 input buffer 中，并用单独一行 `---` 分隔。
 - queue panel 清空。
 
 编辑后重新提交：
@@ -327,7 +329,8 @@ tmux capture-pane -pt klaude-phase5 -S -120
 
 通过标准：
 
-- edited message 重新进入队列。
+- edited message 按 `---` 分隔重新进入队列。
+- 如果仍有多段，重新提交后恢复为多条 queued messages。
 
 history fallback 检查：
 
@@ -399,6 +402,12 @@ klaude -c
 
 - replay 中每条 user message 只出现一次。
 - replay 顺序与实际执行顺序一致。
+
+持久化检查：
+
+- queued messages 保存在 session meta 的 `follow_up_queue` 中，而不是 conversation history。
+- `klaude -c` / resume 后能恢复 queue panel。
+- 已排队但尚未开始执行的消息不会在 replay 中显示为普通 user turn。
 
 ## 阶段 7：验证全局安装的 klaude 环境
 

@@ -239,6 +239,12 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
     class _FakeAgent:
         def __init__(self) -> None:
             self.follow_up_inputs: list[UserInputPayload] = []
+            self.session = self
+            self.id = "s1"
+            self.work_dir = Path.cwd()
+
+        async def wait_for_flush(self) -> None:
+            return None
 
         def follow_up_count(self) -> int:
             return len(self.follow_up_inputs)
@@ -250,6 +256,11 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
             if not self.follow_up_inputs:
                 return None
             return self.follow_up_inputs.pop(0)
+
+        def peek_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs[0]
 
     class _FakeRuntime:
         def __init__(self) -> None:
@@ -297,8 +308,7 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
 
     _FakePromptToolkitInput.payloads = [
         UserInputPayload(text="first"),
-        UserInputPayload(text="second while busy"),
-        UserInputPayload(text="third while busy"),
+        UserInputPayload(text="second while busy\n---\nthird while busy", queued_edit=True),
         UserInputPayload(text="exit"),
     ]
 
@@ -307,7 +317,7 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
     assert [payload.text for payload in submissions] == ["first", "second while busy", "third while busy"]
     assert runtime.current_agent.follow_up_inputs == []
     assert _FakePromptToolkitInput.pending_messages == [
-        ("second while busy",),
+        (),
         ("second while busy", "third while busy"),
         ("third while busy",),
         (),
@@ -327,6 +337,9 @@ def test_waiting_sigint_restores_prefill_when_no_visible_output(monkeypatch: pyt
             text = self._prefill
             self._prefill = None
             return text
+
+        def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            return ()
 
     class _FakeRuntime:
         def __init__(self) -> None:

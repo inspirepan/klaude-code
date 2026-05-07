@@ -31,6 +31,7 @@ from klaude_code.tui.command import (
 )
 from klaude_code.tui.command.command_abc import WebModeRequest
 from klaude_code.tui.display import TUIDisplay
+from klaude_code.tui.input.key_bindings import split_queued_message_edit_text
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
 from klaude_code.tui.input.pt_theme import configure_pt_theme
 from klaude_code.tui.terminal.color import is_light_terminal_background
@@ -583,17 +584,20 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         while True:
             agent = components.runtime.current_agent
-            follow_up = agent.pop_next_follow_up() if agent is not None else None
+            follow_up = agent.peek_next_follow_up() if agent is not None else None
             if follow_up is None:
                 _refresh_pending_messages()
                 return
-            _refresh_pending_messages()
             submission = await submit_user_input_payload(
                 runtime=components.runtime,
                 wait_for_display_idle=components.wait_for_display_idle,
                 user_input=follow_up,
                 session_id=session_id,
             )
+            if agent is not None:
+                await agent.session.wait_for_flush()
+                agent.pop_next_follow_up()
+            _refresh_pending_messages()
             if submission.wait_id is None:
                 continue
             interrupted = await _wait_for_with_interrupt(submission.wait_id, session_id=session_id)
@@ -657,6 +661,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if agent is not None and hasattr(agent, "session"):
             agent_session = agent.session
             input_provider.set_session_dir(Session.paths(agent_session.work_dir).session_dir(agent_session.id))
+        _refresh_pending_messages()
 
         await input_provider.start()
         async for user_input in input_provider.iter_inputs():
@@ -671,9 +676,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
                 sid = _get_active_session_id()
                 if sid is not None:
-                    await components.runtime.submit_and_wait(
-                        op.FollowUpAgentOperation(session_id=sid, input=user_input)
-                    )
+                    can_split_queue_edit = user_input.queued_edit and not user_input.images and not user_input.pasted_files
+                    follow_up_texts = split_queued_message_edit_text(user_input.text) if can_split_queue_edit else (user_input.text,)
+                    for text in follow_up_texts:
+                        follow_up_input = user_input if len(follow_up_texts) == 1 else UserInputPayload(text=text)
+                        await components.runtime.submit_and_wait(
+                            op.FollowUpAgentOperation(session_id=sid, input=follow_up_input)
+                        )
                     _refresh_pending_messages()
                     await components.wait_for_display_idle()
                 continue
