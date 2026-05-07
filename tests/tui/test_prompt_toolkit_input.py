@@ -176,6 +176,25 @@ def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
     ]
 
 
+def test_status_spinner_does_not_prefix_wrapped_token_metadata() -> None:
+    prompt_input = _build_input("")
+    prompt_input._status_spinner_frame = 4
+
+    prompt_input.set_status_lines(
+        (
+            "Loading…",
+            "in 18.2k · cache 33.8k · out 1.1k · thought 89 · 26.7k/272k (9.8%) · cost $0.1430 · 7",
+        )
+    )
+
+    assert prompt_input._get_status_fragments() == [
+        ("class:meta", "⠼ "),
+        ("class:meta", "Loading…"),
+        ("", "\n"),
+        ("class:meta", "in 18.2k · cache 33.8k · out 1.1k · thought 89 · 26.7k/272k (9.8%) · cost $0.1430 · 7"),
+    ]
+
+
 def test_pending_messages_render_above_prompt() -> None:
     prompt_input = _build_input("")
 

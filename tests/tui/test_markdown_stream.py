@@ -47,6 +47,138 @@ def test_split_source_stabilizes_only_before_last_block() -> None:
     assert stable_source + live_source == text
 
 
+def test_split_source_stabilizes_completed_bullet_items_before_live_item() -> None:
+    stream = _make_stream()
+    text = "- first\n- second"
+
+    stable_source, live_source, stable_line = stream.split_blocks(text, final=False)
+
+    assert stable_line == 1
+    assert stable_source == "- first\n"
+    assert live_source == "- second"
+    assert stable_source + live_source == text
+
+
+def test_split_source_stabilizes_completed_ordered_items_before_live_item() -> None:
+    stream = _make_stream()
+    text = "1. first\n2. second"
+
+    stable_source, live_source, stable_line = stream.split_blocks(text, final=False)
+
+    assert stable_line == 1
+    assert stable_source == "1. first\n"
+    assert live_source == "2. second"
+    assert stable_source + live_source == text
+
+
+def test_split_source_keeps_multiline_list_item_live_until_next_item() -> None:
+    stream = _make_stream()
+    unfinished_text = "- first\n  continuation"
+    completed_text = "- first\n  continuation\n- second"
+
+    stable_source, live_source, stable_line = stream.split_blocks(unfinished_text, final=False)
+
+    assert stable_line == 0
+    assert stable_source == ""
+    assert live_source == unfinished_text
+
+    stable_source, live_source, stable_line = stream.split_blocks(completed_text, final=False)
+
+    assert stable_line == 2
+    assert stable_source == "- first\n  continuation\n"
+    assert live_source == "- second"
+    assert stable_source + live_source == completed_text
+
+
+def test_split_source_stabilizes_nested_list_item_when_next_top_level_item_starts() -> None:
+    stream = _make_stream()
+    text = "- parent\n  - child\n- next"
+
+    stable_source, live_source, stable_line = stream.split_blocks(text, final=False)
+
+    assert stable_line == 2
+    assert stable_source == "- parent\n  - child\n"
+    assert live_source == "- next"
+    assert stable_source + live_source == text
+
+
+def test_split_source_keeps_ordered_item_live_when_trailing_line_may_be_marker_prefix() -> None:
+    stream = _make_stream()
+    text = "1. first\n2"
+
+    stable_source, live_source, stable_line = stream.split_blocks(text, final=False)
+
+    assert stable_line == 0
+    assert stable_source == ""
+    assert live_source == text
+
+
+def test_update_matches_direct_render_when_bullet_items_stabilize_incrementally() -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    text = "- first\n- second\n- third"
+
+    streamed_out = io.StringIO()
+    streamed_console = Console(file=streamed_out, force_terminal=True, width=80, theme=theme)
+    streamed = MarkdownStream(console=streamed_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    streamed.min_delay = 0
+    streamed.update("- first\n- second", final=False)
+    streamed.update(text, final=True)
+
+    direct_out = io.StringIO()
+    direct_console = Console(file=direct_out, force_terminal=True, width=80, theme=theme)
+    direct = MarkdownStream(console=direct_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    direct.min_delay = 0
+    direct.update(text, final=True)
+
+    streamed_plain = _ANSI_ESCAPE_RE.sub("", streamed_out.getvalue())
+    direct_plain = _ANSI_ESCAPE_RE.sub("", direct_out.getvalue())
+    assert streamed_plain == direct_plain
+    assert "• first" in streamed_plain
+    assert "• second" in streamed_plain
+    assert "• third" in streamed_plain
+
+
+def test_update_matches_direct_render_when_ordered_items_stabilize_incrementally() -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    text = "1. first\n2. second\n3. third"
+
+    streamed_out = io.StringIO()
+    streamed_console = Console(file=streamed_out, force_terminal=True, width=80, theme=theme)
+    streamed = MarkdownStream(console=streamed_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    streamed.min_delay = 0
+    streamed.update("1. first\n2. second", final=False)
+    streamed.update(text, final=True)
+
+    direct_out = io.StringIO()
+    direct_console = Console(file=direct_out, force_terminal=True, width=80, theme=theme)
+    direct = MarkdownStream(console=direct_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    direct.min_delay = 0
+    direct.update(text, final=True)
+
+    streamed_plain = _ANSI_ESCAPE_RE.sub("", streamed_out.getvalue())
+    direct_plain = _ANSI_ESCAPE_RE.sub("", direct_out.getvalue())
+    assert streamed_plain == direct_plain
+    assert "1 first" in streamed_plain
+    assert "2 second" in streamed_plain
+    assert "3 third" in streamed_plain
+
+
 def test_update_does_not_write_synchronized_output_sequences_when_not_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.tui.components.rich import markdown as markdown_module
 

@@ -64,7 +64,9 @@ INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
 COMPLETION_TRUNCATION_SYMBOL = "…"
 _STATUS_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
-_STATUS_METADATA_RE = re.compile(r"^(?:in\s+)?\d+(?:\.\d+)?[smh]?(?:\s*[·|].*)?$")
+_STATUS_METADATA_RE = re.compile(
+    r"^(?:(?:in|cache|cache\+|out|thought|cost)\s+)?(?:[$]?\d|[$]?\d+(?:\.\d+)?[kKmM]?).*(?:[·|].*)?$"
+)
 _STATUS_METADATA_PREFIXES = ("↑", "↓", "◎", "∵", "$")
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
