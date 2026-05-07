@@ -63,7 +63,7 @@ def test_running_placeholder_prompts_for_follow_up() -> None:
 
     placeholder = prompt_input._build_placeholder()
 
-    assert placeholder == [("class:placeholder", "   add follow up")]
+    assert placeholder == [("class:placeholder", "   Queue a follow-up")]
 
 
 def test_running_prompt_uses_cyan_style() -> None:
