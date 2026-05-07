@@ -175,6 +175,7 @@ class TUICommandRenderer:
         self._stream_last_height: int = 0
         self._stream_last_width: int = 0
         self._spinner_visible: bool = False
+        self._progress_ui_suspended: bool = False
         self._spinner_last_update_key: tuple[object, object, object, object, object] | None = None
         self._bottom_last_height: int = 0
         self._status_top_blank_line: bool = False
@@ -336,6 +337,8 @@ class TUICommandRenderer:
                 self._flush_open_blocks()
 
     def spinner_start(self) -> None:
+        if self._progress_ui_suspended:
+            return
         self._spinner_visible = True
         self._ensure_bottom_live_started()
         self._refresh_bottom_live()
@@ -375,7 +378,17 @@ class TUICommandRenderer:
             leading_blank_line=leading_blank_line,
         )
         self._status_spinner.update(text=self._status_text, style=ThemeKey.STATUS_SPINNER)
+        if self._progress_ui_suspended:
+            return
         self._refresh_bottom_live()
+
+    def set_progress_ui_suspended(self, suspended: bool) -> None:
+        self._progress_ui_suspended = suspended
+        if not suspended:
+            return
+        self._spinner_visible = False
+        self.set_stream_renderable(None)
+        self.stop_bottom_live()
 
     def _render_status_line(self, line: SpinnerStatusLine) -> RenderableType:
         text = line.text
@@ -420,6 +433,9 @@ class TUICommandRenderer:
             self._stream_last_width = 0
             self._bottom_last_height = 0
             self._refresh_bottom_live()
+            return
+
+        if self._progress_ui_suspended:
             return
 
         self._ensure_bottom_live_started()

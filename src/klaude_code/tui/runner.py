@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import shutil
-import threading
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,7 +34,7 @@ from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
 from klaude_code.tui.input.pt_theme import configure_pt_theme
 from klaude_code.tui.terminal.color import is_light_terminal_background
-from klaude_code.tui.terminal.control import install_sigint_interrupt, start_esc_interrupt_monitor
+from klaude_code.tui.terminal.control import install_sigint_interrupt
 from klaude_code.tui.terminal.prevent_sleep import force_stop_prevent_sleep, start_prevent_sleep, stop_prevent_sleep
 from klaude_code.tui.terminal.selector import (
     DEFAULT_PICKER_STYLE,
@@ -168,8 +167,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         on_prompt_suggestion=lambda text: input_provider.set_prompt_suggestion(text),
     )
     display: DisplayABC = tui_display
-    pause_esc_monitor: Callable[[], Awaitable[None]] | None = None
-    resume_esc_monitor: Callable[[], None] | None = None
     prevent_sleep_active = False
 
     def _start_prevent_sleep_if_needed() -> None:
@@ -303,8 +300,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if isinstance(payload, user_interaction.OperationSelectRequestPayload):
             tui_display.hide_progress_ui()
             was_preventing_sleep = _stop_prevent_sleep_if_needed()
-            if pause_esc_monitor is not None:
-                await pause_esc_monitor()
 
             try:
                 if request_event.source == "operation_model":
@@ -312,8 +307,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 else:
                     selected = await asyncio.to_thread(_pick_option_with_selector_style, payload)
             finally:
-                if resume_esc_monitor is not None:
-                    resume_esc_monitor()
                 if was_preventing_sleep:
                     _start_prevent_sleep_if_needed()
 
@@ -347,9 +340,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 )
             )
 
-        if pause_esc_monitor is not None:
-            await pause_esc_monitor()
-
         try:
             # to_thread erases the T generic in select_questions; rebind it explicitly.
             selections = await asyncio.to_thread(
@@ -360,8 +350,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 )
             )
         finally:
-            if resume_esc_monitor is not None:
-                resume_esc_monitor()
             if was_preventing_sleep:
                 _start_prevent_sleep_if_needed()
 
@@ -431,6 +419,19 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if isinstance(active_display, TUIDisplay):
             active_display.hide_progress_ui()
 
+    def _set_rich_progress_suspended(suspended: bool) -> None:
+        active_display = components.display
+        if isinstance(active_display, TUIDisplay):
+            active_display.set_progress_ui_suspended(suspended)
+
+    def _on_prompt_start() -> None:
+        _set_rich_progress_suspended(True)
+        away_summary_coordinator.notify_prompt_started()
+
+    def _on_prompt_end() -> None:
+        away_summary_coordinator.notify_prompt_ended()
+        _set_rich_progress_suspended(False)
+
     def _get_active_session_id() -> str | None:
         """Get the current active session ID dynamically.
 
@@ -477,8 +478,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     input_provider = PromptToolkitInput(
         pre_prompt=_stop_rich_bottom_ui,
-        on_prompt_start=away_summary_coordinator.notify_prompt_started,
-        on_prompt_end=away_summary_coordinator.notify_prompt_ended,
+        on_prompt_start=_on_prompt_start,
+        on_prompt_end=_on_prompt_end,
         on_user_activity=away_summary_coordinator.notify_user_activity,
         get_current_model_config_name=lambda: (
             components.runtime.current_agent.session.model_config_name
@@ -494,33 +495,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     loop = asyncio.get_running_loop()
 
     async def _wait_for_with_interrupt(wait_id: str, *, session_id: str) -> bool:
-        nonlocal pause_esc_monitor, resume_esc_monitor
         wait_task = asyncio.create_task(components.runtime.wait_for(wait_id))
         interrupt_requested = False
         interrupt_task: asyncio.Task[None] | None = None
-        esc_monitor: tuple[threading.Event, asyncio.Task[None]] | None = None
 
         async def _submit_interrupt(target_session_id: str) -> None:
             await components.runtime.submit_and_wait(op.InterruptOperation(session_id=target_session_id))
-
-        async def _on_esc_interrupt() -> None:
-            _request_interrupt_once()
-
-        def _start_esc_monitor() -> None:
-            nonlocal esc_monitor
-            if esc_monitor is not None:
-                return
-            esc_monitor = start_esc_interrupt_monitor(_on_esc_interrupt)
-
-        async def _stop_esc_monitor() -> None:
-            nonlocal esc_monitor
-            if esc_monitor is None:
-                return
-            stop_event, esc_task = esc_monitor
-            esc_monitor = None
-            stop_event.set()
-            with contextlib.suppress(Exception):
-                await esc_task
 
         def _start_interrupt_once() -> None:
             nonlocal interrupt_requested, interrupt_task
@@ -533,9 +513,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             with contextlib.suppress(Exception):
                 loop.call_soon_threadsafe(_start_interrupt_once)
 
-        pause_esc_monitor = _stop_esc_monitor
-        resume_esc_monitor = _start_esc_monitor
-        _start_esc_monitor()
         restore_sigint = install_sigint_interrupt(_request_interrupt_once)
         _start_prevent_sleep_if_needed()
 
@@ -543,9 +520,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             await wait_task
         finally:
             _stop_prevent_sleep_if_needed()
-            pause_esc_monitor = None
-            resume_esc_monitor = None
-            await _stop_esc_monitor()
             with contextlib.suppress(Exception):
                 restore_sigint()
             if interrupt_task is not None and not interrupt_task.done():
@@ -559,6 +533,31 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     exit_hint_printed = False
     pending_web_mode_request: WebModeRequest | None = None
+    active_wait_task: asyncio.Task[None] | None = None
+
+    async def _finish_active_wait(wait_id: str, *, session_id: str) -> None:
+        interrupted = await _wait_for_with_interrupt(wait_id, session_id=session_id)
+        # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
+        # before treating the agent as idle again.
+        await components.wait_for_display_idle()
+        away_summary_coordinator.notify_task_finished()
+        if interrupted and components.runtime.current_agent is not None:
+            input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
+
+    def _active_agent_running() -> bool:
+        nonlocal active_wait_task
+        if active_wait_task is None:
+            return False
+        if active_wait_task.done():
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                active_wait_task.result()
+            active_wait_task = None
+            return False
+        return True
+
+    def _consume_active_wait_result(task: asyncio.Task[None]) -> None:
+        with contextlib.suppress(Exception, asyncio.CancelledError):
+            task.result()
 
     try:
         await away_summary_coordinator.start()
@@ -585,7 +584,28 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         await input_provider.start()
         async for user_input in input_provider.iter_inputs():
-            if user_input.text.strip().lower() in {"exit", ":q", "quit"}:
+            is_exit_input = user_input.text.strip().lower() in {"exit", ":q", "quit"}
+            if _active_agent_running():
+                if is_exit_input:
+                    if active_wait_task is not None:
+                        with contextlib.suppress(Exception, asyncio.CancelledError):
+                            await active_wait_task
+                        active_wait_task = None
+                    break
+
+                sid = _get_active_session_id()
+                if sid is not None:
+                    await components.runtime.emit_event(
+                        events.NoticeEvent(
+                            session_id=sid,
+                            content="Agent is busy; this message was captured but queueing is not enabled yet.",
+                            style="dim",
+                        )
+                    )
+                    await components.wait_for_display_idle()
+                continue
+
+            if is_exit_input:
                 break
             if user_input.text.strip() == "":
                 continue
@@ -609,18 +629,21 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             if active_session_id is None:
                 continue
 
-            interrupted = await _wait_for_with_interrupt(wait_id, session_id=active_session_id)
-            # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
-            # before handing control back to prompt_toolkit.
-            await components.wait_for_display_idle()
-            away_summary_coordinator.notify_task_finished()
-            if interrupted and components.runtime.current_agent is not None:
-                input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
+            active_wait_task = asyncio.create_task(_finish_active_wait(wait_id, session_id=active_session_id))
+            active_wait_task.add_done_callback(_consume_active_wait_result)
 
     except KeyboardInterrupt:
         await handle_keyboard_interrupt(components.runtime)
         exit_hint_printed = True
     finally:
+        _set_rich_progress_suspended(False)
+        if active_wait_task is not None:
+            if not active_wait_task.done():
+                active_wait_task.cancel()
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                await active_wait_task
+            active_wait_task = None
+
         force_stop_prevent_sleep()
         with contextlib.suppress(Exception):
             await away_summary_coordinator.stop()

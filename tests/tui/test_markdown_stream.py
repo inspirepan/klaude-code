@@ -55,7 +55,11 @@ def test_single_line_wrapper_renders_first_line_only() -> None:
     assert len(lines) == 1
 
 
-def test_update_does_not_write_synchronized_output_sequences_when_not_tty() -> None:
+def test_update_does_not_write_synchronized_output_sequences_when_not_tty(monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.tui.components.rich import markdown as markdown_module
+
+    monkeypatch.setattr(markdown_module, "MARKDOWN_STREAM_LIVE_REPAINT_ENABLED", True)
+
     theme = Theme(
         {
             "markdown.code.border": "dim",

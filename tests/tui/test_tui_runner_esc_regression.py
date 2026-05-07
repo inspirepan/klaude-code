@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import threading
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,6 +44,10 @@ class _FakeDisplay:
         return None
 
     def show_progress_ui(self) -> None:
+        return None
+
+    def set_progress_ui_suspended(self, suspended: bool) -> None:
+        del suspended
         return None
 
     def set_model_name(self, model_name: str) -> None:
@@ -130,7 +133,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     return runner
 
 
-def test_waiting_esc_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_waiting_sigint_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 
     class _FakeRuntime:
@@ -146,9 +149,9 @@ def test_waiting_esc_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) 
             return None
 
         async def wait_for(self, _wait_id: str) -> None:
-            while esc_state["on_interrupt"] is None:
+            while sigint_state["on_interrupt"] is None:
                 await asyncio.sleep(0)
-            await esc_state["on_interrupt"]()
+            sigint_state["on_interrupt"]()
             await asyncio.wait_for(self._interrupt_received.wait(), timeout=1.0)
 
         async def submit_and_wait(self, operation: op.Operation) -> None:
@@ -177,20 +180,13 @@ def test_waiting_esc_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) 
         _submit_user_input_payload,
     )
 
-    esc_state: dict[str, Any] = {"on_interrupt": None}
+    sigint_state: dict[str, Callable[[], None] | None] = {"on_interrupt": None}
 
-    def _start_esc_monitor(
-        on_interrupt: Callable[[], Coroutine[Any, Any, None]],
-    ) -> tuple[threading.Event, asyncio.Task[None]]:
-        esc_state["on_interrupt"] = on_interrupt
-        stop_event = threading.Event()
+    def _install_sigint_interrupt(on_interrupt: Callable[[], None]) -> Callable[[], None]:
+        sigint_state["on_interrupt"] = on_interrupt
+        return lambda: None
 
-        async def _wait_stop() -> None:
-            await asyncio.to_thread(stop_event.wait)
-
-        return stop_event, asyncio.create_task(_wait_stop())
-
-    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
+    monkeypatch.setattr(runner, "install_sigint_interrupt", _install_sigint_interrupt)
 
     _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
 
@@ -200,7 +196,64 @@ def test_waiting_esc_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) 
     assert runtime.interrupts[0].session_id == "s1"
 
 
-def test_waiting_esc_restores_prefill_when_no_visible_output(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_busy_input_emits_notice_without_submitting_second_task(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self.notices: list[events.NoticeEvent] = []
+
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> None:
+            return None
+
+        async def wait_for(self, _wait_id: str) -> None:
+            await asyncio.sleep(0.01)
+
+        async def submit_and_wait(self, _operation: op.Operation) -> None:
+            return None
+
+        async def emit_event(self, event: events.Event) -> None:
+            if isinstance(event, events.NoticeEvent):
+                self.notices.append(event)
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    submissions: list[UserInputPayload] = []
+
+    async def _submit_user_input_payload(**kwargs: Any) -> Any:
+        submissions.append(kwargs["user_input"])
+        return runner.SubmitUserInputResult(wait_id="wait-1")
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    _FakePromptToolkitInput.payloads = [
+        UserInputPayload(text="first"),
+        UserInputPayload(text="second while busy"),
+        UserInputPayload(text="exit"),
+    ]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert [payload.text for payload in submissions] == ["first"]
+    assert len(runtime.notices) == 1
+    assert "queueing is not enabled yet" in runtime.notices[0].content
+
+
+def test_waiting_sigint_restores_prefill_when_no_visible_output(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 
     class _FakeAgent:
@@ -226,9 +279,9 @@ def test_waiting_esc_restores_prefill_when_no_visible_output(monkeypatch: pytest
             return self._agent
 
         async def wait_for(self, _wait_id: str) -> None:
-            while esc_state["on_interrupt"] is None:
+            while sigint_state["on_interrupt"] is None:
                 await asyncio.sleep(0)
-            await esc_state["on_interrupt"]()
+            sigint_state["on_interrupt"]()
             await asyncio.wait_for(self._interrupt_received.wait(), timeout=1.0)
 
         async def submit_and_wait(self, operation: op.Operation) -> None:
@@ -257,20 +310,13 @@ def test_waiting_esc_restores_prefill_when_no_visible_output(monkeypatch: pytest
         _submit_user_input_payload,
     )
 
-    esc_state: dict[str, Any] = {"on_interrupt": None}
+    sigint_state: dict[str, Callable[[], None] | None] = {"on_interrupt": None}
 
-    def _start_esc_monitor(
-        on_interrupt: Callable[[], Coroutine[Any, Any, None]],
-    ) -> tuple[threading.Event, asyncio.Task[None]]:
-        esc_state["on_interrupt"] = on_interrupt
-        stop_event = threading.Event()
+    def _install_sigint_interrupt(on_interrupt: Callable[[], None]) -> Callable[[], None]:
+        sigint_state["on_interrupt"] = on_interrupt
+        return lambda: None
 
-        async def _wait_stop() -> None:
-            await asyncio.to_thread(stop_event.wait)
-
-        return stop_event, asyncio.create_task(_wait_stop())
-
-    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
+    monkeypatch.setattr(runner, "install_sigint_interrupt", _install_sigint_interrupt)
 
     _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
 
@@ -279,13 +325,11 @@ def test_waiting_esc_restores_prefill_when_no_visible_output(monkeypatch: pytest
     assert _FakePromptToolkitInput.prefills == ["hello"]
 
 
-def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_interaction_collection_runs_without_esc_monitor(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 
     state: dict[str, Any] = {
         "interaction_handler": None,
-        "active_monitors": 0,
-        "max_active_during_select": 0,
         "response": None,
     }
 
@@ -336,22 +380,7 @@ def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPat
         _submit_user_input_payload,
     )
 
-    def _start_esc_monitor(
-        _on_interrupt: Callable[[], Coroutine[Any, Any, None]],
-    ) -> tuple[threading.Event, asyncio.Task[None]]:
-        stop_event = threading.Event()
-        state["active_monitors"] += 1
-
-        async def _wait_stop() -> None:
-            await asyncio.to_thread(stop_event.wait)
-            state["active_monitors"] -= 1
-
-        return stop_event, asyncio.create_task(_wait_stop())
-
-    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
-
     def _select_questions(**_: Any) -> list[QuestionSelectResult[str]]:
-        state["max_active_during_select"] = max(state["max_active_during_select"], state["active_monitors"])
         return [QuestionSelectResult(selected_values=["o1"], input_text="note")]
 
     monkeypatch.setattr(runner, "select_questions", _select_questions)
@@ -363,7 +392,6 @@ def test_interaction_collection_pauses_esc_monitor(monkeypatch: pytest.MonkeyPat
     response = state["response"]
     assert response is not None
     assert response.status == "submitted"
-    assert state["max_active_during_select"] == 0
 
 
 def test_interaction_collection_pauses_prevent_sleep(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -542,18 +570,6 @@ def test_operation_model_interaction_uses_model_picker_style(monkeypatch: pytest
 
     monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
 
-    def _start_esc_monitor(
-        _on_interrupt: Callable[[], Coroutine[Any, Any, None]],
-    ) -> tuple[threading.Event, asyncio.Task[None]]:
-        stop_event = threading.Event()
-
-        async def _wait_stop() -> None:
-            await asyncio.to_thread(stop_event.wait)
-
-        return stop_event, asyncio.create_task(_wait_stop())
-
-    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
-
     def _select_one(**kwargs: Any) -> str:
         items = kwargs["items"]
         state["saw_group_header"] = any(not item.selectable for item in items)
@@ -640,18 +656,6 @@ def test_operation_thinking_interaction_uses_selector_style(monkeypatch: pytest.
         return runner.SubmitUserInputResult(wait_id="wait-1")
 
     monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
-
-    def _start_esc_monitor(
-        _on_interrupt: Callable[[], Coroutine[Any, Any, None]],
-    ) -> tuple[threading.Event, asyncio.Task[None]]:
-        stop_event = threading.Event()
-
-        async def _wait_stop() -> None:
-            await asyncio.to_thread(stop_event.wait)
-
-        return stop_event, asyncio.create_task(_wait_stop())
-
-    monkeypatch.setattr(runner, "start_esc_interrupt_monitor", _start_esc_monitor)
 
     def _select_one(**_: Any) -> str:
         state["select_one_called"] += 1

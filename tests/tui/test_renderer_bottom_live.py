@@ -11,8 +11,16 @@ from klaude_code.const import STATUS_DEFAULT_TEXT
 from klaude_code.protocol import events
 
 
-def test_bottom_height_shrink_padding_not_applied_with_live_stream() -> None:
+def _enable_markdown_live_repaint(monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.tui import renderer as renderer_module
+
+    monkeypatch.setattr(renderer_module, "MARKDOWN_STREAM_LIVE_REPAINT_ENABLED", True)
+
+
+def test_bottom_height_shrink_padding_not_applied_with_live_stream(monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
+
+    _enable_markdown_live_repaint(monkeypatch)
 
     renderer = TUICommandRenderer()
     output = io.StringIO()
@@ -32,6 +40,23 @@ def test_bottom_height_shrink_padding_not_applied_with_live_stream() -> None:
     assert renderer._bottom_last_height == len(
         renderer.console.render_lines(renderable, renderer.console.options, pad=False)
     )
+
+
+def test_progress_ui_suspension_prevents_bottom_live_restart() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    output = io.StringIO()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
+    renderer.console.push_theme(renderer.themes.markdown_theme)
+
+    renderer.set_progress_ui_suspended(True)
+    renderer.spinner_start()
+    renderer.set_stream_renderable(Text("live stream"))
+
+    assert renderer._bottom_live is None
+    assert renderer._stream_renderable is None
+    assert renderer._spinner_visible is False
 
 
 def test_display_image_prints_caption_then_image(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -123,8 +148,10 @@ def test_bash_mode_delta_uses_live_tail_renderable() -> None:
     assert lines == [f"{' ' * BASH_OUTPUT_LEFT_PADDING}hello"]
 
 
-def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
+def test_bash_live_tail_shrink_does_not_preserve_old_height(monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
+
+    _enable_markdown_live_repaint(monkeypatch)
 
     renderer = TUICommandRenderer()
     output = io.StringIO()
@@ -148,9 +175,13 @@ def test_bash_live_tail_shrink_does_not_preserve_old_height() -> None:
     assert len(lines) == len(current_stream_lines)
 
 
-def test_bottom_renderable_keeps_blank_line_between_bash_live_region_and_status() -> None:
+def test_bottom_renderable_keeps_blank_line_between_bash_live_region_and_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
     from klaude_code.tui.renderer import TUICommandRenderer
+
+    _enable_markdown_live_repaint(monkeypatch)
 
     renderer = TUICommandRenderer()
     output = io.StringIO()
@@ -174,8 +205,12 @@ def test_bottom_renderable_keeps_blank_line_between_bash_live_region_and_status(
     assert line_text[2].startswith(STATUS_DEFAULT_TEXT)
 
 
-def test_bottom_renderable_does_not_add_blank_line_between_markdown_stream_and_status() -> None:
+def test_bottom_renderable_does_not_add_blank_line_between_markdown_stream_and_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
+
+    _enable_markdown_live_repaint(monkeypatch)
 
     renderer = TUICommandRenderer()
     output = io.StringIO()

@@ -191,6 +191,12 @@ class TUIDisplay(DisplayABC):
         with contextlib.suppress(Exception):
             self._renderer.spinner_start()
 
+    def set_progress_ui_suspended(self, suspended: bool) -> None:
+        """Prevent Rich Live progress UI from repainting while prompt-toolkit owns input."""
+
+        with contextlib.suppress(Exception):
+            self._renderer.set_progress_ui_suspended(suspended)
+
     def set_model_name(self, model_name: str | None) -> None:
         """Set model name for terminal title updates."""
         self._machine.set_model_name(model_name)
