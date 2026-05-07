@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
+from prompt_toolkit.patch_stdout import patch_stdout
+
 from klaude_code.agent.compaction import should_compact_threshold
 from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
@@ -50,6 +52,24 @@ from klaude_code.tui.terminal.title import update_terminal_title
 
 
 async def submit_user_input_payload(
+    *,
+    runtime: RuntimeFacade,
+    wait_for_display_idle: Callable[[], Awaitable[None]],
+    user_input: UserInputPayload,
+    session_id: str | None,
+) -> SubmitUserInputResult:
+    """Submit TUI input while routing immediate Rich output through prompt-toolkit."""
+
+    with patch_stdout(raw=True):
+        return await _submit_user_input_payload_inner(
+            runtime=runtime,
+            wait_for_display_idle=wait_for_display_idle,
+            user_input=user_input,
+            session_id=session_id,
+        )
+
+
+async def _submit_user_input_payload_inner(
     *,
     runtime: RuntimeFacade,
     wait_for_display_idle: Callable[[], Awaitable[None]],
