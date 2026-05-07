@@ -425,12 +425,19 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if isinstance(active_display, TUIDisplay):
             active_display.set_progress_ui_suspended(suspended)
 
+    active_wait_task: asyncio.Task[None] | None = None
+
+    def _has_active_wait_running() -> bool:
+        return active_wait_task is not None and not active_wait_task.done()
+
     def _on_prompt_start() -> None:
         _set_rich_progress_suspended(True)
         away_summary_coordinator.notify_prompt_started()
 
     def _on_prompt_end() -> None:
         away_summary_coordinator.notify_prompt_ended()
+        if _has_active_wait_running():
+            return
         _set_rich_progress_suspended(False)
 
     def _get_active_session_id() -> str | None:
@@ -536,8 +543,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     exit_hint_printed = False
     pending_web_mode_request: WebModeRequest | None = None
-    active_wait_task: asyncio.Task[None] | None = None
-
     async def _finish_active_wait(wait_id: str, *, session_id: str) -> None:
         interrupted = await _wait_for_with_interrupt(wait_id, session_id=session_id)
         # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered

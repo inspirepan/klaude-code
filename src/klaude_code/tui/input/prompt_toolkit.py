@@ -662,6 +662,11 @@ class PromptToolkitInput(InputProviderABC):
                 height=lambda: len(self._status_lines),
                 dont_extend_height=True,
             )
+            status_top_spacer = Window(
+                content=FormattedTextControl(""),
+                height=1,
+                dont_extend_height=True,
+            )
             status_spacer = Window(
                 content=FormattedTextControl(""),
                 height=1,
@@ -672,8 +677,17 @@ class PromptToolkitInput(InputProviderABC):
                 height=lambda: len(self._pending_messages) + 1,
                 dont_extend_height=True,
             )
+            queue_spacer = Window(
+                content=FormattedTextControl(""),
+                height=1,
+                dont_extend_height=True,
+            )
             self._session.app.layout.container = HSplit(
                 [
+                    ConditionalContainer(
+                        status_top_spacer,
+                        filter=Condition(lambda: bool(self._status_lines)),
+                    ),
                     ConditionalContainer(
                         status_window,
                         filter=Condition(lambda: bool(self._status_lines)),
@@ -684,6 +698,10 @@ class PromptToolkitInput(InputProviderABC):
                     ),
                     ConditionalContainer(
                         queue_window,
+                        filter=Condition(lambda: bool(self._pending_messages)),
+                    ),
+                    ConditionalContainer(
+                        queue_spacer,
                         filter=Condition(lambda: bool(self._pending_messages)),
                     ),
                     root,
