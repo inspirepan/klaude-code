@@ -68,7 +68,7 @@ def test_task_file_change_summary_caps_visible_rows() -> None:
     console = Console(width=100, record=True, force_terminal=False, theme=get_theme().app_theme)
     console.print(render_task_file_change_summary(event))
     output = console.export_text(styles=False)
-    visible_rows = [line for line in output.splitlines() if line.strip().startswith(('+', '-', '~', '…'))]
+    visible_rows = [line for line in output.splitlines() if line.strip().startswith(("+", "-", "~", "…"))]
 
     assert len(visible_rows) == MAX_TASK_FILE_CHANGE_ROWS
     assert "FILE CHANGES · 25 files" in output

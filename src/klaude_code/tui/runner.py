@@ -592,6 +592,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     exit_hint_printed = False
     pending_web_mode_request: WebModeRequest | None = None
+
     async def _finish_active_wait(wait_id: str, *, session_id: str) -> None:
         interrupted = await _wait_for_with_interrupt(wait_id, session_id=session_id)
         # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
@@ -697,8 +698,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
                 sid = _get_active_session_id()
                 if sid is not None:
-                    can_split_queue_edit = user_input.queued_edit and not user_input.images and not user_input.pasted_files
-                    follow_up_texts = split_queued_message_edit_text(user_input.text) if can_split_queue_edit else (user_input.text,)
+                    can_split_queue_edit = (
+                        user_input.queued_edit and not user_input.images and not user_input.pasted_files
+                    )
+                    follow_up_texts = (
+                        split_queued_message_edit_text(user_input.text) if can_split_queue_edit else (user_input.text,)
+                    )
                     for text in follow_up_texts:
                         follow_up_input = user_input if len(follow_up_texts) == 1 else UserInputPayload(text=text)
                         await components.runtime.submit_and_wait(

@@ -21,7 +21,9 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
         invalidations.count += 1
 
     prompt_input._prompt_text = USER_MESSAGE_MARK
-    prompt_input._session = SimpleNamespace(default_buffer=SimpleNamespace(text=text), app=SimpleNamespace(invalidate=invalidate))
+    prompt_input._session = SimpleNamespace(
+        default_buffer=SimpleNamespace(text=text), app=SimpleNamespace(invalidate=invalidate)
+    )
     prompt_input._clipboard_has_image = False
     prompt_input._refresh_status = None
     prompt_input._request_interrupt = None
@@ -87,7 +89,9 @@ def test_running_prompt_uses_cyan_style() -> None:
 def test_status_lines_render_above_prompt() -> None:
     prompt_input = _build_input("")
 
-    prompt_input.set_status_lines((_status("Loading..."), _metadata("in 10")), separator_text="1m51s · esc to interrupt")
+    prompt_input.set_status_lines(
+        (_status("Loading..."), _metadata("in 10")), separator_text="1m51s · esc to interrupt"
+    )
     bar = prompt_input._bottom_bar
 
     assert bar._status_lines == (_status("Loading..."), _metadata("in 10"))
@@ -103,7 +107,9 @@ def test_status_lines_render_above_prompt() -> None:
 def test_status_window_height_stays_stable_until_status_clears() -> None:
     prompt_input = _build_input("")
 
-    prompt_input.set_status_lines((_status("Loading..."), _metadata("in 10")), separator_text="1m51s · esc to interrupt")
+    prompt_input.set_status_lines(
+        (_status("Loading..."), _metadata("in 10")), separator_text="1m51s · esc to interrupt"
+    )
     prompt_input.set_status_lines((_status("Loading..."),))
 
     assert prompt_input._bottom_bar._status_window_height() == 2

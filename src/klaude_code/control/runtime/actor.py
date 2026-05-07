@@ -509,7 +509,10 @@ def _is_root_operation(operation: op.Operation) -> bool:
 def _is_control_operation(operation: op.Operation) -> bool:
     return isinstance(
         operation,
-        op.FollowUpAgentOperation | op.InterruptOperation | op.UserInteractionRespondOperation | op.CloseSessionOperation,
+        op.FollowUpAgentOperation
+        | op.InterruptOperation
+        | op.UserInteractionRespondOperation
+        | op.CloseSessionOperation,
     )
 
 
