@@ -64,6 +64,9 @@ class Agent:
     def follow_up_count(self) -> int:
         return len(self._follow_up_queue)
 
+    def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+        return tuple(self._follow_up_queue)
+
     def on_interrupt(self) -> Iterable[events.Event]:
         """Handle an interrupt by emitting best-effort cleanup events.
 

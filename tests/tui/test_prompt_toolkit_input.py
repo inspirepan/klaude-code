@@ -13,6 +13,7 @@ def _build_input(text: str) -> PromptToolkitInput:
     prompt_input._clipboard_has_image = False
     prompt_input._prompt_suggestion = None
     prompt_input._status_lines = ()
+    prompt_input._pending_messages = ()
     return prompt_input  # type: ignore[return-value]
 
 
@@ -46,6 +47,21 @@ def test_status_lines_render_above_prompt() -> None:
         ("class:meta", "Loading..."),
         ("", "\n"),
         ("class:meta", "in 10 · esc to interrupt"),
+    ]
+
+
+def test_pending_messages_render_above_prompt() -> None:
+    prompt_input = _build_input("")
+
+    prompt_input.set_pending_messages(("first queued", "second\nqueued"))
+
+    assert prompt_input._pending_messages == ("first queued", "second\nqueued")
+    assert prompt_input._get_pending_message_fragments() == [
+        ("class:meta", "Queued messages:"),
+        ("", "\n"),
+        ("class:meta", "  1. first queued"),
+        ("", "\n"),
+        ("class:meta", "  2. second queued"),
     ]
 
 

@@ -545,6 +545,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if interrupted and components.runtime.current_agent is not None:
             input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
 
+    def _refresh_pending_messages() -> int:
+        agent = components.runtime.current_agent
+        messages = agent.follow_up_snapshot() if agent is not None else ()
+        input_provider.set_pending_messages(tuple(message.text for message in messages))
+        return len(messages)
+
     def _active_agent_running() -> bool:
         nonlocal active_wait_task
         if active_wait_task is None:
@@ -599,10 +605,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     await components.runtime.submit_and_wait(
                         op.FollowUpAgentOperation(session_id=sid, input=user_input)
                     )
-                    follow_up_count = 0
-                    agent = components.runtime.current_agent
-                    if agent is not None:
-                        follow_up_count = agent.follow_up_count()
+                    follow_up_count = _refresh_pending_messages()
                     await components.runtime.emit_event(
                         events.NoticeEvent(
                             session_id=sid,

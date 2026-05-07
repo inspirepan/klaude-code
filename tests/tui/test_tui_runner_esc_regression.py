@@ -64,6 +64,7 @@ class _FakeDisplay:
 class _FakePromptToolkitInput:
     payloads: ClassVar[list[UserInputPayload]] = []
     prefills: ClassVar[list[str | None]] = []
+    pending_messages: ClassVar[list[tuple[str, ...]]] = []
 
     def __init__(self, **_: Any) -> None:
         pass
@@ -84,6 +85,9 @@ class _FakePromptToolkitInput:
     def set_status_lines(self, lines: tuple[str, ...]) -> None:
         del lines
         return None
+
+    def set_pending_messages(self, messages: tuple[str, ...]) -> None:
+        self.pending_messages.append(messages)
 
 
 def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayload:
@@ -107,6 +111,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     import klaude_code.tui.runner as runner
 
     _FakePromptToolkitInput.prefills = []
+    _FakePromptToolkitInput.pending_messages = []
 
     def _load_config() -> SimpleNamespace:
         return SimpleNamespace(theme="dark")
@@ -217,6 +222,9 @@ def test_busy_input_queues_follow_up_without_submitting_second_task(monkeypatch:
         def follow_up_count(self) -> int:
             return len(self.follow_up_inputs)
 
+        def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            return tuple(self.follow_up_inputs)
+
     class _FakeRuntime:
         def __init__(self) -> None:
             self.notices: list[events.NoticeEvent] = []
@@ -271,6 +279,7 @@ def test_busy_input_queues_follow_up_without_submitting_second_task(monkeypatch:
 
     assert [payload.text for payload in submissions] == ["first"]
     assert [payload.text for payload in runtime.current_agent.follow_up_inputs] == ["second while busy"]
+    assert _FakePromptToolkitInput.pending_messages == [("second while busy",)]
     assert len(runtime.notices) == 1
     assert runtime.notices[0].content == "Queued follow-up message (1 pending)."
 

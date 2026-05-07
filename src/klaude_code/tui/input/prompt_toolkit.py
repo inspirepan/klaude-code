@@ -390,6 +390,7 @@ class PromptToolkitInput(InputProviderABC):
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
         self._prompt_suggestion: str | None = None
         self._status_lines: tuple[str, ...] = ()
+        self._pending_messages: tuple[str, ...] = ()
 
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
@@ -409,6 +410,11 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_status_lines(self, lines: tuple[str, ...]) -> None:
         self._status_lines = tuple(line for line in lines if line.strip())
+        with contextlib.suppress(Exception):
+            self._session.app.invalidate()
+
+    def set_pending_messages(self, messages: tuple[str, ...]) -> None:
+        self._pending_messages = tuple(message for message in messages if message.strip())
         with contextlib.suppress(Exception):
             self._session.app.invalidate()
 
@@ -633,9 +639,9 @@ class PromptToolkitInput(InputProviderABC):
         # Ensure completion menu has default selection
         self._session.default_buffer.on_completions_changed += self._select_first_completion_on_open  # pyright: ignore[reportUnknownMemberType]
 
-        self._install_status_window()
+        self._install_bottom_windows()
 
-    def _install_status_window(self) -> None:
+    def _install_bottom_windows(self) -> None:
         with contextlib.suppress(Exception):
             root = self._session.app.layout.container
             status_window = Window(
@@ -643,11 +649,20 @@ class PromptToolkitInput(InputProviderABC):
                 height=lambda: len(self._status_lines),
                 dont_extend_height=True,
             )
+            queue_window = Window(
+                content=FormattedTextControl(self._get_pending_message_fragments),
+                height=lambda: len(self._pending_messages) + 1,
+                dont_extend_height=True,
+            )
             self._session.app.layout.container = HSplit(
                 [
                     ConditionalContainer(
                         status_window,
                         filter=Condition(lambda: bool(self._status_lines)),
+                    ),
+                    ConditionalContainer(
+                        queue_window,
+                        filter=Condition(lambda: bool(self._pending_messages)),
                     ),
                     root,
                 ]
@@ -659,6 +674,14 @@ class PromptToolkitInput(InputProviderABC):
             if index:
                 fragments.append(("", "\n"))
             fragments.append(("class:meta", line))
+        return fragments
+
+    def _get_pending_message_fragments(self) -> StyleAndTextTuples:
+        fragments: StyleAndTextTuples = [("class:meta", "Queued messages:")]
+        for index, message in enumerate(self._pending_messages, start=1):
+            preview = " ".join(message.split())
+            fragments.append(("", "\n"))
+            fragments.append(("class:meta", f"  {index}. {preview}"))
         return fragments
 
     def _patch_prompt_height_for_overlays(self) -> None:
