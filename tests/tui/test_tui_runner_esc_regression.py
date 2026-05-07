@@ -92,6 +92,9 @@ class _FakePromptToolkitInput:
     def set_pop_pending_message(self, pop_pending_message: Callable[[], str | None] | None) -> None:
         del pop_pending_message
 
+    def set_interrupt_handler(self, request_interrupt: Callable[[], None] | None) -> None:
+        del request_interrupt
+
 
 def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayload:
     return user_interaction.AskUserQuestionRequestPayload(
@@ -295,10 +298,7 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
         (),
         (),
     ]
-    assert [notice.content for notice in runtime.notices] == [
-        "Queued follow-up message (1 pending).",
-        "Queued follow-up message (2 pending).",
-    ]
+    assert runtime.notices == []
 
 
 def test_waiting_sigint_restores_prefill_when_no_visible_output(monkeypatch: pytest.MonkeyPatch) -> None:

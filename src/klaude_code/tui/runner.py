@@ -515,11 +515,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 loop.call_soon_threadsafe(_start_interrupt_once)
 
         restore_sigint = install_sigint_interrupt(_request_interrupt_once)
+        input_provider.set_interrupt_handler(_request_interrupt_once)
         _start_prevent_sleep_if_needed()
 
         try:
             await wait_task
         finally:
+            input_provider.set_interrupt_handler(None)
             _stop_prevent_sleep_if_needed()
             with contextlib.suppress(Exception):
                 restore_sigint()
@@ -640,14 +642,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     await components.runtime.submit_and_wait(
                         op.FollowUpAgentOperation(session_id=sid, input=user_input)
                     )
-                    follow_up_count = _refresh_pending_messages()
-                    await components.runtime.emit_event(
-                        events.NoticeEvent(
-                            session_id=sid,
-                            content=f"Queued follow-up message ({follow_up_count} pending).",
-                            style="dim",
-                        )
-                    )
+                    _refresh_pending_messages()
                     await components.wait_for_display_idle()
                 continue
 

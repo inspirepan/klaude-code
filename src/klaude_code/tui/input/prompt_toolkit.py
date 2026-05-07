@@ -373,6 +373,7 @@ class PromptToolkitInput(InputProviderABC):
         get_current_llm_config: Callable[[], llm_param.LLMConfigParameter | None] | None = None,
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
         pop_pending_message: Callable[[], str | None] | None = None,
+        request_interrupt: Callable[[], None] | None = None,
     ):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
@@ -386,6 +387,7 @@ class PromptToolkitInput(InputProviderABC):
         self._get_current_llm_config = get_current_llm_config
         self._command_info_provider = command_info_provider
         self._pop_pending_message = pop_pending_message
+        self._request_interrupt = request_interrupt
         self._next_prefill_text: str | None = None
         self._session_dir: Path | None = None
         self._clipboard_has_image: bool = False
@@ -422,6 +424,9 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_pop_pending_message(self, pop_pending_message: Callable[[], str | None] | None) -> None:
         self._pop_pending_message = pop_pending_message
+
+    def set_interrupt_handler(self, request_interrupt: Callable[[], None] | None) -> None:
+        self._request_interrupt = request_interrupt
 
     @override
     def set_prompt_suggestion(self, text: str | None) -> None:
@@ -469,6 +474,8 @@ class PromptToolkitInput(InputProviderABC):
             get_prompt_suggestion=self._get_prompt_suggestion,
             consume_prompt_suggestion=self._consume_prompt_suggestion,
             pop_pending_message=lambda: self._pop_pending_message() if self._pop_pending_message is not None else None,
+            request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
+            is_interrupt_available=lambda: self._request_interrupt is not None,
         )
 
         return PromptSession(
@@ -692,7 +699,8 @@ class PromptToolkitInput(InputProviderABC):
         return fragments
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
-        fragments: StyleAndTextTuples = [("class:meta", "Queued messages:")]
+        count = len(self._pending_messages)
+        fragments: StyleAndTextTuples = [("class:meta", f"Queued follow-up message ({count} pending).")]
         for index, message in enumerate(self._pending_messages, start=1):
             preview = " ".join(message.split())
             fragments.append(("", "\n"))

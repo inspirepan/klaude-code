@@ -57,7 +57,7 @@ def test_pending_messages_render_above_prompt() -> None:
 
     assert prompt_input._pending_messages == ("first queued", "second\nqueued")
     assert prompt_input._get_pending_message_fragments() == [
-        ("class:meta", "Queued messages:"),
+        ("class:meta", "Queued follow-up message (2 pending)."),
         ("", "\n"),
         ("class:meta", "  1. first queued"),
         ("", "\n"),

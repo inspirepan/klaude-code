@@ -64,6 +64,8 @@ def create_key_bindings(
     get_prompt_suggestion: Callable[[], str | None] | None = None,
     consume_prompt_suggestion: Callable[[], str | None] | None = None,
     pop_pending_message: Callable[[], str | None] | None = None,
+    request_interrupt: Callable[[], None] | None = None,
+    is_interrupt_available: Callable[[], bool] | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
 
@@ -76,6 +78,8 @@ def create_key_bindings(
         consume_prompt_suggestion: Returns and clears the suggestion in one step
             (used when the user accepts it, so it can't be accepted twice).
         pop_pending_message: Returns and removes the last queued message, if any.
+        request_interrupt: Requests interruption of the currently running agent task.
+        is_interrupt_available: Returns True while Escape can interrupt a task.
 
     Returns:
         KeyBindings instance with all REPL handlers configured
@@ -789,5 +793,18 @@ def create_key_bindings(
     def _(event: KeyPressEvent) -> None:
         """Option+Down switches to next history entry."""
         _history_forward_cursor_to_end(event.current_buffer)
+
+    @kb.add(
+        "escape",
+        filter=enabled
+        & ~has_completions
+        & Condition(lambda: request_interrupt is not None)
+        & Condition(lambda: is_interrupt_available is None or is_interrupt_available()),
+    )
+    def _(event: KeyPressEvent) -> None:
+        """Escape interrupts the currently running agent task."""
+        del event
+        if request_interrupt is not None:
+            request_interrupt()
 
     return kb
