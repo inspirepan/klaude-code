@@ -165,6 +165,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     tui_display = TUIDisplay(
         theme=theme,
         on_prompt_suggestion=lambda text: input_provider.set_prompt_suggestion(text),
+        on_status_update=lambda lines: input_provider.set_status_lines(lines),
     )
     display: DisplayABC = tui_display
     prevent_sleep_active = False

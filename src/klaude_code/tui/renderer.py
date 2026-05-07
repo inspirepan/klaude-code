@@ -163,7 +163,12 @@ class TUICommandRenderer:
     This is the only component that performs actual terminal rendering.
     """
 
-    def __init__(self, theme: str | None = None, notifier: TerminalNotifier | None = None) -> None:
+    def __init__(
+        self,
+        theme: str | None = None,
+        notifier: TerminalNotifier | None = None,
+        status_sink: Callable[[tuple[str, ...]], None] | None = None,
+    ) -> None:
         self.themes = get_theme(theme)
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
@@ -191,6 +196,7 @@ class TUICommandRenderer:
         )
 
         self._notifier = notifier
+        self._status_sink = status_sink
         self._assistant_stream = _StreamState()
         self._thinking_stream = _StreamState()
 
@@ -338,6 +344,8 @@ class TUICommandRenderer:
 
     def spinner_start(self) -> None:
         if self._progress_ui_suspended:
+            self._spinner_visible = True
+            self._emit_prompt_status()
             return
         self._spinner_visible = True
         self._ensure_bottom_live_started()
@@ -345,6 +353,7 @@ class TUICommandRenderer:
 
     def spinner_stop(self) -> None:
         self._spinner_visible = False
+        self._emit_prompt_status()
         self._refresh_bottom_live()
 
     def spinner_update(
@@ -379,16 +388,32 @@ class TUICommandRenderer:
         )
         self._status_spinner.update(text=self._status_text, style=ThemeKey.STATUS_SPINNER)
         if self._progress_ui_suspended:
+            self._emit_prompt_status()
             return
         self._refresh_bottom_live()
 
     def set_progress_ui_suspended(self, suspended: bool) -> None:
         self._progress_ui_suspended = suspended
         if not suspended:
+            self._emit_prompt_status(())
             return
-        self._spinner_visible = False
         self.set_stream_renderable(None)
         self.stop_bottom_live()
+        self._emit_prompt_status()
+
+    def _emit_prompt_status(self, lines: tuple[str, ...] | None = None) -> None:
+        if self._status_sink is None:
+            return
+        if lines is None:
+            lines = self._prompt_status_lines()
+        self._status_sink(lines)
+
+    def _prompt_status_lines(self) -> tuple[str, ...]:
+        if not (self._progress_ui_suspended and self._spinner_visible):
+            return ()
+        rendered = self.console.render_lines(self._status_text, self.console.options, pad=False)
+        lines = tuple("".join(segment.text for segment in line if not segment.control).rstrip() for line in rendered)
+        return tuple(line for line in lines if line)
 
     def _render_status_line(self, line: SpinnerStatusLine) -> RenderableType:
         text = line.text

@@ -45,7 +45,8 @@ def test_bottom_height_shrink_padding_not_applied_with_live_stream(monkeypatch: 
 def test_progress_ui_suspension_prevents_bottom_live_restart() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
-    renderer = TUICommandRenderer()
+    status_updates: list[tuple[str, ...]] = []
+    renderer = TUICommandRenderer(status_sink=status_updates.append)
     output = io.StringIO()
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)
@@ -56,7 +57,8 @@ def test_progress_ui_suspension_prevents_bottom_live_restart() -> None:
 
     assert renderer._bottom_live is None
     assert renderer._stream_renderable is None
-    assert renderer._spinner_visible is False
+    assert renderer._spinner_visible is True
+    assert status_updates[-1]
 
 
 def test_display_image_prints_caption_then_image(monkeypatch: pytest.MonkeyPatch) -> None:

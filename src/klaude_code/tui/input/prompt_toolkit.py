@@ -19,8 +19,8 @@ from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, fra
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import merge_key_bindings
 from prompt_toolkit.layout import Float
-from prompt_toolkit.layout.containers import Container, FloatContainer, Window
-from prompt_toolkit.layout.controls import BufferControl, UIContent
+from prompt_toolkit.layout.containers import ConditionalContainer, Container, FloatContainer, HSplit, Window
+from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl, UIContent
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
 from prompt_toolkit.layout.utils import explode_text_fragments
@@ -389,6 +389,7 @@ class PromptToolkitInput(InputProviderABC):
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
         self._prompt_suggestion: str | None = None
+        self._status_lines: tuple[str, ...] = ()
 
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
@@ -405,6 +406,11 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_session_dir(self, session_dir: Path | None) -> None:
         self._session_dir = session_dir
+
+    def set_status_lines(self, lines: tuple[str, ...]) -> None:
+        self._status_lines = tuple(line for line in lines if line.strip())
+        with contextlib.suppress(Exception):
+            self._session.app.invalidate()
 
     @override
     def set_prompt_suggestion(self, text: str | None) -> None:
@@ -626,6 +632,34 @@ class PromptToolkitInput(InputProviderABC):
 
         # Ensure completion menu has default selection
         self._session.default_buffer.on_completions_changed += self._select_first_completion_on_open  # pyright: ignore[reportUnknownMemberType]
+
+        self._install_status_window()
+
+    def _install_status_window(self) -> None:
+        with contextlib.suppress(Exception):
+            root = self._session.app.layout.container
+            status_window = Window(
+                content=FormattedTextControl(self._get_status_fragments),
+                height=lambda: len(self._status_lines),
+                dont_extend_height=True,
+            )
+            self._session.app.layout.container = HSplit(
+                [
+                    ConditionalContainer(
+                        status_window,
+                        filter=Condition(lambda: bool(self._status_lines)),
+                    ),
+                    root,
+                ]
+            )
+
+    def _get_status_fragments(self) -> StyleAndTextTuples:
+        fragments: StyleAndTextTuples = []
+        for index, line in enumerate(self._status_lines):
+            if index:
+                fragments.append(("", "\n"))
+            fragments.append(("class:meta", line))
+        return fragments
 
     def _patch_prompt_height_for_overlays(self) -> None:
         with contextlib.suppress(Exception):

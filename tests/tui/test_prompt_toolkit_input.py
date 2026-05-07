@@ -9,9 +9,10 @@ from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, _PasteAware
 def _build_input(text: str) -> PromptToolkitInput:
     prompt_input: Any = object.__new__(PromptToolkitInput)
     prompt_input._prompt_text = USER_MESSAGE_MARK
-    prompt_input._session = SimpleNamespace(default_buffer=SimpleNamespace(text=text))
+    prompt_input._session = SimpleNamespace(default_buffer=SimpleNamespace(text=text), app=SimpleNamespace(invalidate=lambda: None))
     prompt_input._clipboard_has_image = False
     prompt_input._prompt_suggestion = None
+    prompt_input._status_lines = ()
     return prompt_input  # type: ignore[return-value]
 
 
@@ -33,6 +34,19 @@ def test_placeholder_shows_paste_image_hint_with_prompt_suggestion() -> None:
 
     assert ("class:prompt-suggestion", "run tests") in placeholder
     assert any("ctrl+v to paste image" in text and "\n" not in text for _style, text, *_ in placeholder)
+
+
+def test_status_lines_render_above_prompt() -> None:
+    prompt_input = _build_input("")
+
+    prompt_input.set_status_lines(("Loading...", "in 10 · esc to interrupt"))
+
+    assert prompt_input._status_lines == ("Loading...", "in 10 · esc to interrupt")
+    assert prompt_input._get_status_fragments() == [
+        ("class:meta", "Loading..."),
+        ("", "\n"),
+        ("class:meta", "in 10 · esc to interrupt"),
+    ]
 
 
 def test_paste_aware_history_stores_expanded_paste(tmp_path) -> None:

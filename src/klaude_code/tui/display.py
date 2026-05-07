@@ -24,10 +24,11 @@ class TUIDisplay(DisplayABC):
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
         on_prompt_suggestion: Callable[[str | None], None] | None = None,
+        on_status_update: Callable[[tuple[str, ...]], None] | None = None,
     ):
         self._notifier = notifier or TerminalNotifier()
         self._machine = DisplayStateMachine()
-        self._renderer = TUICommandRenderer(theme=theme, notifier=self._notifier)
+        self._renderer = TUICommandRenderer(theme=theme, notifier=self._notifier, status_sink=on_status_update)
         self._on_prompt_suggestion = on_prompt_suggestion
         self._interrupt_prompt_suggestion_session_id: str | None = None
 
