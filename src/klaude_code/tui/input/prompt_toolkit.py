@@ -59,6 +59,7 @@ from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_m
 # Style class tokens used by the REPL prompt. The concrete colors live in
 # ``pt_theme.py`` so that hex values follow the resolved light/dark palette.
 INPUT_PROMPT_STYLE = "class:prompt"
+INPUT_PROMPT_RUNNING_STYLE = "class:prompt.running"
 INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
 COMPLETION_TRUNCATION_SYMBOL = "…"
 _STATUS_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
@@ -414,6 +415,7 @@ class PromptToolkitInput(InputProviderABC):
         self._prompt_suggestion: str | None = None
         self._stream_lines: tuple[str, ...] = ()
         self._status_lines: tuple[str, ...] = ()
+        self._status_reserved_line_count: int = 0
         self._pending_messages: tuple[str, ...] = ()
         self._queued_edit_active = False
         self._prompt_active = False
@@ -439,21 +441,38 @@ class PromptToolkitInput(InputProviderABC):
         self._session_dir = session_dir
 
     def set_stream_lines(self, lines: tuple[str, ...]) -> None:
-        self._stream_lines = tuple(line for line in lines if line.strip())
-        with contextlib.suppress(Exception):
-            self._session.app.invalidate()
+        stream_lines = tuple(line for line in lines if line.strip())
+        if stream_lines == self._stream_lines:
+            return
+        self._stream_lines = stream_lines
+        self._invalidate_app()
 
     def set_status_lines(self, lines: tuple[str, ...]) -> None:
-        self._status_lines = tuple(line for line in lines if line.strip())
+        status_lines = tuple(line for line in lines if line.strip())
+        if status_lines == self._status_lines:
+            if status_lines:
+                self._ensure_status_spinner()
+            else:
+                self._cancel_status_spinner()
+            return
+
+        self._status_lines = status_lines
         if self._status_lines:
+            self._status_reserved_line_count = max(self._status_reserved_line_count, len(self._status_lines))
             self._ensure_status_spinner()
         else:
+            self._status_reserved_line_count = 0
             self._cancel_status_spinner()
-        with contextlib.suppress(Exception):
-            self._session.app.invalidate()
+        self._invalidate_app()
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
-        self._pending_messages = tuple(message for message in messages if message.strip())
+        pending_messages = tuple(message for message in messages if message.strip())
+        if pending_messages == self._pending_messages:
+            return
+        self._pending_messages = pending_messages
+        self._invalidate_app()
+
+    def _invalidate_app(self) -> None:
         with contextlib.suppress(Exception):
             self._session.app.invalidate()
 
@@ -461,7 +480,10 @@ class PromptToolkitInput(InputProviderABC):
         self._dequeue_pending_messages = dequeue_pending_messages
 
     def set_interrupt_handler(self, request_interrupt: Callable[[], None] | None) -> None:
+        if request_interrupt is self._request_interrupt:
+            return
         self._request_interrupt = request_interrupt
+        self._invalidate_app()
 
     async def pause_for_external_input(self) -> Callable[[], None]:
         """Pause the active REPL prompt so a modal selector can read stdin exclusively."""
@@ -580,6 +602,12 @@ class PromptToolkitInput(InputProviderABC):
         When an image is detected on the system clipboard, also show a ctrl+v
         paste reminder.
         """
+        if self._is_agent_running():
+            text = "   add follow up"
+            if self._clipboard_has_image:
+                text = f"{text} · ctrl+v to paste image"
+            return FormattedText([("class:placeholder", text)])
+
         if self._prompt_suggestion:
             hint = "[enter send · tab edit]"
             if self._clipboard_has_image:
@@ -640,8 +668,12 @@ class PromptToolkitInput(InputProviderABC):
         except Exception:
             return False
 
+    def _is_agent_running(self) -> bool:
+        return self._request_interrupt is not None
+
     def _get_prompt_message(self) -> FormattedText:
-        return FormattedText([(INPUT_PROMPT_STYLE, self._prompt_text)])
+        style = INPUT_PROMPT_RUNNING_STYLE if self._is_agent_running() else INPUT_PROMPT_STYLE
+        return FormattedText([(style, self._prompt_text)])
 
     def _get_rprompt_message(self) -> FormattedText:
         if not self._is_bash_mode_active():
@@ -741,7 +773,7 @@ class PromptToolkitInput(InputProviderABC):
             )
             status_window = Window(
                 content=FormattedTextControl(self._get_status_fragments),
-                height=lambda: len(self._status_lines),
+                height=self._status_window_height,
                 dont_extend_height=True,
             )
             status_top_spacer = Window(
@@ -761,6 +793,11 @@ class PromptToolkitInput(InputProviderABC):
             )
             queue_spacer = Window(
                 content=FormattedTextControl(""),
+                height=1,
+                dont_extend_height=True,
+            )
+            running_separator_window = Window(
+                content=FormattedTextControl(self._get_running_separator_fragments),
                 height=1,
                 dont_extend_height=True,
             )
@@ -787,6 +824,10 @@ class PromptToolkitInput(InputProviderABC):
                         filter=Condition(lambda: bool(self._status_lines)),
                     ),
                     ConditionalContainer(
+                        running_separator_window,
+                        filter=Condition(lambda: self._request_interrupt is not None),
+                    ),
+                    ConditionalContainer(
                         queue_window,
                         filter=Condition(lambda: bool(self._pending_messages)),
                     ),
@@ -806,6 +847,9 @@ class PromptToolkitInput(InputProviderABC):
             fragments.append(("class:meta", line))
         return fragments
 
+    def _status_window_height(self) -> int:
+        return max(len(self._status_lines), self._status_reserved_line_count)
+
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []
         spinner = _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
@@ -816,6 +860,13 @@ class PromptToolkitInput(InputProviderABC):
                 fragments.append(("class:meta", f"{spinner} "))
             fragments.append(("class:meta", line))
         return fragments
+
+    def _get_running_separator_fragments(self) -> StyleAndTextTuples:
+        try:
+            columns = get_app().output.get_size().columns
+        except Exception:
+            columns = 80
+        return [("class:meta", "╸" * max(1, columns))]
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
         count = len(self._pending_messages)

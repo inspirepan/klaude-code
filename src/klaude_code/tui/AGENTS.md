@@ -65,6 +65,32 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 - Status, queue, and input should be independent blocks; queue updates must not
   clear or replace running status.
 
+## TODO: Unified Interactive Renderer
+
+The remaining bottom-layout jitter comes from split ownership of the terminal:
+Rich appends stable scrollback above the prompt while prompt-toolkit redraws the
+running status, queue, and input editor at the bottom. When Rich output scrolls
+the terminal, the prompt-toolkit bottom block can move for a frame before the
+next invalidate redraws it.
+
+The long-term fix is to move toward one renderer owning the visible interactive
+viewport:
+
+- Treat chat/messages, live output, status, queued follow-ups, input editor, and
+  footer-like metadata as one vertical layout tree.
+- Render the full logical screen to lines, track the previous visible viewport,
+  and diff against the previous frame.
+- Use synchronized terminal output (`\x1b[?2026h` ... `\x1b[?2026l`) for atomic
+  updates.
+- Full-redraw on width changes, changes above the visible viewport, or content
+  shrink that could leave stale bottom rows.
+- Keep prompt-toolkit as the only stdin reader if it remains the editor layer;
+  do not add background stdin readers or reintroduce Rich bottom Live.
+
+The `badlogic-pi-mono` TUI is the reference shape for this direction: it keeps
+chat/status/editor/footer in a single render tree and stabilizes the viewport via
+line diffing plus clear-on-shrink behavior.
+
 ## Legacy / Cleanup Notes
 
 These paths are reduced or legacy in the current interactive model:

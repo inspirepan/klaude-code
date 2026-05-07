@@ -8,17 +8,24 @@ from klaude_code.tui.input.paste import expand_paste_markers, store_paste
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, _PasteAwareFileHistory
 
 
-def _build_input(text: str) -> PromptToolkitInput:
+def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> PromptToolkitInput:
     prompt_input: Any = object.__new__(PromptToolkitInput)
+    invalidations = invalidations or SimpleNamespace(count=0)
+
+    def invalidate() -> None:
+        invalidations.count += 1
+
     prompt_input._prompt_text = USER_MESSAGE_MARK
-    prompt_input._session = SimpleNamespace(default_buffer=SimpleNamespace(text=text), app=SimpleNamespace(invalidate=lambda: None))
+    prompt_input._session = SimpleNamespace(default_buffer=SimpleNamespace(text=text), app=SimpleNamespace(invalidate=invalidate))
     prompt_input._clipboard_has_image = False
     prompt_input._status_spinner_task = None
     prompt_input._status_spinner_frame = 0
     prompt_input._refresh_status = None
+    prompt_input._request_interrupt = None
     prompt_input._prompt_suggestion = None
     prompt_input._stream_lines = ()
     prompt_input._status_lines = ()
+    prompt_input._status_reserved_line_count = 0
     prompt_input._pending_messages = ()
     prompt_input._queued_edit_active = False
     prompt_input._prompt_active = False
@@ -49,6 +56,26 @@ def test_placeholder_shows_paste_image_hint_with_prompt_suggestion() -> None:
     assert any("ctrl+v to paste image" in text and "\n" not in text for _style, text, *_ in placeholder)
 
 
+def test_running_placeholder_prompts_for_follow_up() -> None:
+    prompt_input = _build_input("")
+    prompt_input._request_interrupt = lambda: None
+    prompt_input._prompt_suggestion = "run tests"
+
+    placeholder = prompt_input._build_placeholder()
+
+    assert placeholder == [("class:placeholder", "   add follow up")]
+
+
+def test_running_prompt_uses_cyan_style() -> None:
+    prompt_input = _build_input("")
+
+    assert prompt_input._get_prompt_message() == [("class:prompt", USER_MESSAGE_MARK)]
+
+    prompt_input._request_interrupt = lambda: None
+
+    assert prompt_input._get_prompt_message() == [("class:prompt.running", USER_MESSAGE_MARK)]
+
+
 def test_status_lines_render_above_prompt() -> None:
     prompt_input = _build_input("")
 
@@ -61,6 +88,50 @@ def test_status_lines_render_above_prompt() -> None:
         ("", "\n"),
         ("class:meta", "in 10 · esc to interrupt"),
     ]
+
+
+def test_status_window_height_stays_stable_until_status_clears() -> None:
+    prompt_input = _build_input("")
+
+    prompt_input.set_status_lines(("Loading...", "in 10 · esc to interrupt"))
+    prompt_input.set_status_lines(("Loading...",))
+
+    assert prompt_input._status_window_height() == 2
+
+    prompt_input.set_status_lines(())
+
+    assert prompt_input._status_window_height() == 0
+
+
+def test_bottom_line_updates_skip_unchanged_invalidations() -> None:
+    invalidations = SimpleNamespace(count=0)
+    prompt_input = _build_input("", invalidations=invalidations)
+
+    prompt_input.set_stream_lines(("tail",))
+    prompt_input.set_stream_lines(("tail",))
+    prompt_input.set_status_lines(("Loading...",))
+    prompt_input.set_status_lines(("Loading...",))
+    prompt_input.set_pending_messages(("queued",))
+    prompt_input.set_pending_messages(("queued",))
+
+    assert invalidations.count == 3
+
+
+def test_running_separator_uses_prompt_width_fallback() -> None:
+    prompt_input = _build_input("")
+
+    assert prompt_input._get_running_separator_fragments() == [("class:meta", "╸" * 80)]
+
+
+def test_interrupt_handler_invalidates_running_separator() -> None:
+    invalidations = SimpleNamespace(count=0)
+    prompt_input: Any = _build_input("", invalidations=invalidations)
+
+    prompt_input.set_interrupt_handler(lambda: None)
+    prompt_input.set_interrupt_handler(prompt_input._request_interrupt)
+    prompt_input.set_interrupt_handler(None)
+
+    assert invalidations.count == 2
 
 
 def test_stream_lines_render_above_status() -> None:
