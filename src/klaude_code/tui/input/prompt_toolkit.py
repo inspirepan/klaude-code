@@ -603,7 +603,7 @@ class PromptToolkitInput(InputProviderABC):
         paste reminder.
         """
         if self._is_agent_running():
-            text = "   add follow up"
+            text = "   Queue a follow-up"
             if self._clipboard_has_image:
                 text = f"{text} · ctrl+v to paste image"
             return FormattedText([("class:placeholder", text)])
@@ -801,6 +801,11 @@ class PromptToolkitInput(InputProviderABC):
                 height=1,
                 dont_extend_height=True,
             )
+            running_separator_spacer = Window(
+                content=FormattedTextControl(""),
+                height=1,
+                dont_extend_height=True,
+            )
             self._session.app.layout.container = HSplit(
                 [
                     ConditionalContainer(
@@ -825,6 +830,10 @@ class PromptToolkitInput(InputProviderABC):
                     ),
                     ConditionalContainer(
                         running_separator_window,
+                        filter=Condition(lambda: self._request_interrupt is not None),
+                    ),
+                    ConditionalContainer(
+                        running_separator_spacer,
                         filter=Condition(lambda: self._request_interrupt is not None),
                     ),
                     ConditionalContainer(
