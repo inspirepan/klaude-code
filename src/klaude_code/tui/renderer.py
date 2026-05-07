@@ -413,10 +413,13 @@ class TUICommandRenderer:
             return ()
         rendered = self.console.render_lines(self._status_text, self.console.options, pad=False)
         lines = tuple("".join(segment.text for segment in line if not segment.control).rstrip() for line in rendered)
-        nonempty_lines = tuple(line for line in lines if line)
-        if self._status_metadata_text is None or not nonempty_lines:
-            return tuple(PromptStatusLine(line, "status") for line in nonempty_lines)
-        return (*tuple(PromptStatusLine(line, "status") for line in nonempty_lines[:-1]), PromptStatusLine(nonempty_lines[-1], "metadata"))
+        nonempty_lines = [line for line in lines if line]
+        if not nonempty_lines:
+            return ()
+        result = [PromptStatusLine(line, "status") for line in nonempty_lines]
+        if self._status_metadata_text is not None:
+            result[-1] = PromptStatusLine(result[-1].text, "metadata")
+        return tuple(result)
 
     def _emit_prompt_stream(self, lines: tuple[str, ...] | None = None) -> None:
         if self._stream_sink is None:
@@ -462,8 +465,7 @@ class TUICommandRenderer:
         # Fall back to a unique key so we never skip updates for dynamic renderables.
         return ("other", object())
 
-    def set_stream_renderable(self, renderable: RenderableType | None, *, preserve_height: bool = True) -> None:
-        del preserve_height
+    def set_stream_renderable(self, renderable: RenderableType | None) -> None:
         if renderable is None:
             self._stream_renderable = None
             self._emit_prompt_stream(())
@@ -615,7 +617,7 @@ class TUICommandRenderer:
                 rendered.append("\n")
 
         rendered.append("\n".join(lines))
-        self.set_stream_renderable(c_tools.indent_bash_output(rendered), preserve_height=False)
+        self.set_stream_renderable(c_tools.indent_bash_output(rendered))
 
     def display_bash_command_delta(self, e: events.BashCommandOutputDeltaEvent) -> None:
         if not self._bash_stream_active:

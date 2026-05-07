@@ -8,6 +8,7 @@ from klaude_code.tui.commands import DynamicSeparatorText, PromptStatusLine, Spi
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.key_bindings import merge_dequeued_messages, split_queued_message_edit_text
 from klaude_code.tui.input.paste import expand_paste_markers, store_paste
+from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, _PasteAwareFileHistory
 from klaude_code.tui.renderer import TUICommandRenderer
 
@@ -22,16 +23,10 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._prompt_text = USER_MESSAGE_MARK
     prompt_input._session = SimpleNamespace(default_buffer=SimpleNamespace(text=text), app=SimpleNamespace(invalidate=invalidate))
     prompt_input._clipboard_has_image = False
-    prompt_input._status_spinner_task = None
-    prompt_input._status_spinner_frame = 0
     prompt_input._refresh_status = None
     prompt_input._request_interrupt = None
     prompt_input._prompt_suggestion = None
-    prompt_input._stream_lines = ()
-    prompt_input._status_lines = ()
-    prompt_input._status_reserved_line_count = 0
-    prompt_input._running_separator_label = None
-    prompt_input._pending_messages = ()
+    prompt_input._bottom_bar = PromptBottomBar(invalidate=invalidate)
     prompt_input._queued_edit_active = False
     prompt_input._prompt_active = False
     prompt_input._prompt_pause_waiter = None
@@ -93,10 +88,11 @@ def test_status_lines_render_above_prompt() -> None:
     prompt_input = _build_input("")
 
     prompt_input.set_status_lines((_status("Loading..."), _metadata("in 10")), separator_text="1m51s · esc to interrupt")
+    bar = prompt_input._bottom_bar
 
-    assert prompt_input._status_lines == (_status("Loading..."), _metadata("in 10"))
-    assert prompt_input._running_separator_label == "1m51s · esc to interrupt"
-    assert prompt_input._get_status_fragments() == [
+    assert bar._status_lines == (_status("Loading..."), _metadata("in 10"))
+    assert bar._running_separator_label == "1m51s · esc to interrupt"
+    assert bar._get_status_fragments() == [
         ("class:meta", "⠋ "),
         ("class:meta", "Loading..."),
         ("", "\n"),
@@ -110,11 +106,11 @@ def test_status_window_height_stays_stable_until_status_clears() -> None:
     prompt_input.set_status_lines((_status("Loading..."), _metadata("in 10")), separator_text="1m51s · esc to interrupt")
     prompt_input.set_status_lines((_status("Loading..."),))
 
-    assert prompt_input._status_window_height() == 2
+    assert prompt_input._bottom_bar._status_window_height() == 2
 
     prompt_input.set_status_lines(())
 
-    assert prompt_input._status_window_height() == 0
+    assert prompt_input._bottom_bar._status_window_height() == 0
 
 
 def test_bottom_line_updates_skip_unchanged_invalidations() -> None:
@@ -134,14 +130,14 @@ def test_bottom_line_updates_skip_unchanged_invalidations() -> None:
 def test_running_separator_uses_prompt_width_fallback() -> None:
     prompt_input = _build_input("")
 
-    assert prompt_input._get_running_separator_fragments() == [("class:user.input.rule", "╸" * 80)]
+    assert prompt_input._bottom_bar._get_running_separator_fragments() == [("class:user.input.rule", "╸" * 80)]
 
 
 def test_running_separator_includes_interrupt_hint() -> None:
     prompt_input = _build_input("")
-    prompt_input._running_separator_label = "1m51s · esc to interrupt"
+    prompt_input._bottom_bar._running_separator_label = "1m51s · esc to interrupt"
 
-    assert prompt_input._get_running_separator_fragments() == [
+    assert prompt_input._bottom_bar._get_running_separator_fragments() == [
         ("class:user.input.rule", f"{'╸' * 55} 1m51s · esc to interrupt")
     ]
 
@@ -185,8 +181,9 @@ def test_stream_lines_render_above_status() -> None:
 
     prompt_input.set_stream_lines(("  line one", "  line two"))
 
-    assert prompt_input._stream_lines == ("  line one", "  line two")
-    assert prompt_input._get_stream_fragments() == [
+    bar = prompt_input._bottom_bar
+    assert bar._stream_lines == ("  line one", "  line two")
+    assert bar._get_stream_fragments() == [
         ("class:meta", "  line one"),
         ("", "\n"),
         ("class:meta", "  line two"),
@@ -195,7 +192,7 @@ def test_stream_lines_render_above_status() -> None:
 
 def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
     prompt_input = _build_input("")
-    prompt_input._status_spinner_frame = 1
+    prompt_input._bottom_bar._status_spinner_frame = 1
 
     prompt_input.set_status_lines(
         (
@@ -207,7 +204,8 @@ def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
         separator_text="0s · esc to interrupt",
     )
 
-    assert prompt_input._get_status_fragments() == [
+    bar = prompt_input._bottom_bar
+    assert bar._get_status_fragments() == [
         ("class:meta", "⠙ "),
         ("class:meta", "Finding: session"),
         ("", "\n"),
@@ -218,12 +216,12 @@ def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
         ("", "\n"),
         ("class:meta", "↑104.8k ◎390.1k ↓5.5k ∵404 · 77.7k/272k (28.6%) · $0.8975"),
     ]
-    assert prompt_input._running_separator_label == "0s · esc to interrupt"
+    assert bar._running_separator_label == "0s · esc to interrupt"
 
 
 def test_status_spinner_does_not_prefix_wrapped_token_metadata() -> None:
     prompt_input = _build_input("")
-    prompt_input._status_spinner_frame = 4
+    prompt_input._bottom_bar._status_spinner_frame = 4
 
     prompt_input.set_status_lines(
         (
@@ -232,7 +230,7 @@ def test_status_spinner_does_not_prefix_wrapped_token_metadata() -> None:
         )
     )
 
-    assert prompt_input._get_status_fragments() == [
+    assert prompt_input._bottom_bar._get_status_fragments() == [
         ("class:meta", "⠼ "),
         ("class:meta", "Loading…"),
         ("", "\n"),
@@ -242,11 +240,11 @@ def test_status_spinner_does_not_prefix_wrapped_token_metadata() -> None:
 
 def test_status_metadata_kind_controls_spinner_prefix() -> None:
     prompt_input = _build_input("")
-    prompt_input._status_spinner_frame = 2
+    prompt_input._bottom_bar._status_spinner_frame = 2
 
     prompt_input.set_status_lines((_status("Loading…"), _metadata("not token-shaped metadata")))
 
-    assert prompt_input._get_status_fragments() == [
+    assert prompt_input._bottom_bar._get_status_fragments() == [
         ("class:meta", "⠹ "),
         ("class:meta", "Loading…"),
         ("", "\n"),
@@ -259,8 +257,9 @@ def test_pending_messages_render_above_prompt() -> None:
 
     prompt_input.set_pending_messages(("first queued", "second\nqueued"))
 
-    assert prompt_input._pending_messages == ("first queued", "second\nqueued")
-    assert prompt_input._get_pending_message_fragments() == [
+    bar = prompt_input._bottom_bar
+    assert bar._pending_messages == ("first queued", "second\nqueued")
+    assert bar._get_pending_message_fragments() == [
         ("class:meta", "Queued follow-up message (2 pending) · ↑ to edit."),
         ("", "\n"),
         ("class:meta", "  1. "),
