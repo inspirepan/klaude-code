@@ -544,6 +544,31 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         away_summary_coordinator.notify_task_finished()
         if interrupted and components.runtime.current_agent is not None:
             input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
+        if interrupted:
+            return
+
+        while True:
+            agent = components.runtime.current_agent
+            follow_up = agent.pop_next_follow_up() if agent is not None else None
+            if follow_up is None:
+                _refresh_pending_messages()
+                return
+            _refresh_pending_messages()
+            submission = await submit_user_input_payload(
+                runtime=components.runtime,
+                wait_for_display_idle=components.wait_for_display_idle,
+                user_input=follow_up,
+                session_id=session_id,
+            )
+            if submission.wait_id is None:
+                continue
+            interrupted = await _wait_for_with_interrupt(submission.wait_id, session_id=session_id)
+            await components.wait_for_display_idle()
+            away_summary_coordinator.notify_task_finished()
+            if interrupted:
+                if components.runtime.current_agent is not None:
+                    input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
+                return
 
     def _refresh_pending_messages() -> int:
         agent = components.runtime.current_agent

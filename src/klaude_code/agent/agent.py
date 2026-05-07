@@ -72,6 +72,11 @@ class Agent:
             return None
         return self._follow_up_queue.pop()
 
+    def pop_next_follow_up(self) -> UserInputPayload | None:
+        if not self._follow_up_queue:
+            return None
+        return self._follow_up_queue.pop(0)
+
     def on_interrupt(self) -> Iterable[events.Event]:
         """Handle an interrupt by emitting best-effort cleanup events.
 

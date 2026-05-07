@@ -215,7 +215,7 @@ def test_waiting_sigint_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatc
     assert runtime.interrupts[0].session_id == "s1"
 
 
-def test_busy_input_queues_follow_up_without_submitting_second_task(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 
     class _FakeAgent:
@@ -227,6 +227,11 @@ def test_busy_input_queues_follow_up_without_submitting_second_task(monkeypatch:
 
         def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
             return tuple(self.follow_up_inputs)
+
+        def pop_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs.pop(0)
 
     class _FakeRuntime:
         def __init__(self) -> None:
@@ -268,23 +273,32 @@ def test_busy_input_queues_follow_up_without_submitting_second_task(monkeypatch:
 
     async def _submit_user_input_payload(**kwargs: Any) -> Any:
         submissions.append(kwargs["user_input"])
-        return runner.SubmitUserInputResult(wait_id="wait-1")
+        return runner.SubmitUserInputResult(wait_id=f"wait-{len(submissions)}")
 
     monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
 
     _FakePromptToolkitInput.payloads = [
         UserInputPayload(text="first"),
         UserInputPayload(text="second while busy"),
+        UserInputPayload(text="third while busy"),
         UserInputPayload(text="exit"),
     ]
 
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
-    assert [payload.text for payload in submissions] == ["first"]
-    assert [payload.text for payload in runtime.current_agent.follow_up_inputs] == ["second while busy"]
-    assert _FakePromptToolkitInput.pending_messages == [("second while busy",)]
-    assert len(runtime.notices) == 1
-    assert runtime.notices[0].content == "Queued follow-up message (1 pending)."
+    assert [payload.text for payload in submissions] == ["first", "second while busy", "third while busy"]
+    assert runtime.current_agent.follow_up_inputs == []
+    assert _FakePromptToolkitInput.pending_messages == [
+        ("second while busy",),
+        ("second while busy", "third while busy"),
+        ("third while busy",),
+        (),
+        (),
+    ]
+    assert [notice.content for notice in runtime.notices] == [
+        "Queued follow-up message (1 pending).",
+        "Queued follow-up message (2 pending).",
+    ]
 
 
 def test_waiting_sigint_restores_prefill_when_no_visible_output(monkeypatch: pytest.MonkeyPatch) -> None:
