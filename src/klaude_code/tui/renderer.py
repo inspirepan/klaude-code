@@ -9,11 +9,10 @@ from dataclasses import dataclass
 from typing import Any, cast
 
 from rich import box
-from rich.console import Console, Group, RenderableType
+from rich.console import Console, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
-from rich.spinner import Spinner
 from rich.style import Style, StyleType
 from rich.text import Text
 
@@ -21,9 +20,7 @@ from klaude_code.config.formatters import format_number
 from klaude_code.const import (
     MARKDOWN_LEFT_MARGIN,
     MARKDOWN_RIGHT_MARGIN,
-    MARKDOWN_STREAM_LIVE_REPAINT_ENABLED,
     STATUS_DEFAULT_TEXT,
-    STREAM_MAX_HEIGHT_SHRINK_RESET_LINES,
 )
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
@@ -82,11 +79,9 @@ from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.common import format_more_lines_indicator, truncate_head
-from klaude_code.tui.components.rich import status as r_status
-from klaude_code.tui.components.rich.live import CropAboveLive
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
-from klaude_code.tui.components.rich.status import BreathingSpinner, StackedStatusText
+from klaude_code.tui.components.rich.status import StackedStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.status_runtime import clear_task_start, set_task_start
 from klaude_code.tui.terminal.image import print_kitty_image
@@ -174,28 +169,16 @@ class TUICommandRenderer:
         self.console: Console = Console(theme=self.themes.app_theme)
         self.console.push_theme(self.themes.markdown_theme)
 
-        self._bottom_live: CropAboveLive | None = None
         self._stream_renderable: RenderableType | None = None
-        self._stream_preserve_height: bool = True
-        self._stream_max_height: int = 0
-        self._stream_last_height: int = 0
-        self._stream_last_width: int = 0
         self._spinner_visible: bool = False
         self._progress_ui_suspended: bool = False
         self._spinner_last_update_key: tuple[object, object, object, object, object] | None = None
-        self._bottom_last_height: int = 0
         self._status_top_blank_line: bool = False
 
         self._status_text: StackedStatusText = StackedStatusText(
             None,
             (Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT),),
         )
-        self._status_spinner: Spinner = BreathingSpinner(
-            r_status.spinner_name(),
-            text=self._status_text,
-            style=ThemeKey.STATUS_SPINNER,
-        )
-
         self._notifier = notifier
         self._status_sink = status_sink
         self._stream_sink = stream_sink
@@ -345,18 +328,12 @@ class TUICommandRenderer:
                 self._flush_open_blocks()
 
     def spinner_start(self) -> None:
-        if self._progress_ui_suspended:
-            self._spinner_visible = True
-            self._emit_prompt_status()
-            return
         self._spinner_visible = True
-        self._ensure_bottom_live_started()
-        self._refresh_bottom_live()
+        self._emit_prompt_status()
 
     def spinner_stop(self) -> None:
         self._spinner_visible = False
         self._emit_prompt_status()
-        self._refresh_bottom_live()
 
     def spinner_update(
         self,
@@ -366,9 +343,6 @@ class TUICommandRenderer:
         leading_blank_line: bool = False,
         top_blank_line: bool = False,
     ) -> None:
-        if reset_bottom_height:
-            self._bottom_last_height = 0
-
         new_key = (
             self._spinner_right_text_key(metadata_text),
             tuple((line.session_id, self._spinner_text_key(line.text)) for line in status_lines),
@@ -388,11 +362,7 @@ class TUICommandRenderer:
             status_lines=rendered_status_lines,
             leading_blank_line=leading_blank_line,
         )
-        self._status_spinner.update(text=self._status_text, style=ThemeKey.STATUS_SPINNER)
-        if self._progress_ui_suspended:
-            self._emit_prompt_status()
-            return
-        self._refresh_bottom_live()
+        self._emit_prompt_status()
 
     def set_progress_ui_suspended(self, suspended: bool) -> None:
         self._progress_ui_suspended = suspended
@@ -400,8 +370,6 @@ class TUICommandRenderer:
             self._emit_prompt_status(())
             self._emit_prompt_stream(())
             return
-        self.set_stream_renderable(None)
-        self.stop_bottom_live()
         self._emit_prompt_status()
 
     def _emit_prompt_status(self, lines: tuple[str, ...] | None = None) -> None:
@@ -467,110 +435,14 @@ class TUICommandRenderer:
         return ("other", object())
 
     def set_stream_renderable(self, renderable: RenderableType | None, *, preserve_height: bool = True) -> None:
+        del preserve_height
         if renderable is None:
             self._stream_renderable = None
-            self._stream_preserve_height = True
-            self._stream_max_height = 0
-            self._stream_last_height = 0
-            self._stream_last_width = 0
-            self._bottom_last_height = 0
             self._emit_prompt_stream(())
-            self._refresh_bottom_live()
             return
 
-        if self._progress_ui_suspended:
-            self._emit_prompt_stream(self._prompt_stream_lines(renderable))
-            return
-
-        self._ensure_bottom_live_started()
         self._stream_renderable = renderable
-        self._stream_preserve_height = preserve_height
-
-        height = len(self.console.render_lines(renderable, self.console.options, pad=False))
-        self._stream_last_height = height
-        self._stream_last_width = self.console.size.width
-
-        if (not self._stream_preserve_height) or (
-            self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES
-        ):
-            self._stream_max_height = height
-        else:
-            self._stream_max_height = max(self._stream_max_height, height)
-        self._refresh_bottom_live()
-
-    def _ensure_bottom_live_started(self) -> None:
-        if self._bottom_live is not None:
-            return
-        self._bottom_live = CropAboveLive(
-            Text(""),
-            console=self.console,
-            refresh_per_second=30,
-            transient=True,
-            redirect_stdout=False,
-            redirect_stderr=False,
-        )
-        self._bottom_live.start()
-
-    def _bottom_renderable(self) -> RenderableType:
-        top_gap_part: RenderableType = Group()
-        stream_part: RenderableType = Group()
-        has_stream_renderable = MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._stream_renderable is not None
-        if self._spinner_visible and self._status_top_blank_line and not has_stream_renderable:
-            top_gap_part = Text(" ")
-
-        # Keep a visible separation between the bottom status line (spinner)
-        # and the main terminal output.
-        gap_part: RenderableType = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
-
-        if MARKDOWN_STREAM_LIVE_REPAINT_ENABLED:
-            stream = self._stream_renderable
-            if stream is not None:
-                current_width = self.console.size.width
-                if self._stream_last_width != current_width:
-                    height = len(self.console.render_lines(stream, self.console.options, pad=False))
-                    self._stream_last_height = height
-                    self._stream_last_width = current_width
-
-                    if (not self._stream_preserve_height) or (
-                        self._stream_max_height - height > STREAM_MAX_HEIGHT_SHRINK_RESET_LINES
-                    ):
-                        self._stream_max_height = height
-                    else:
-                        self._stream_max_height = max(self._stream_max_height, height)
-                else:
-                    height = self._stream_last_height
-
-                pad_lines = max(self._stream_max_height - height, 0)
-                if pad_lines:
-                    stream = Padding(stream, (0, 0, pad_lines, 0))
-                stream_part = stream
-                gap_part = Text(" ") if (self._spinner_visible and self._bash_stream_active) else Group()
-
-        status_part: RenderableType = self._status_spinner if self._spinner_visible else Group()
-        renderable = Group(top_gap_part, stream_part, gap_part, status_part)
-        height = len(self.console.render_lines(renderable, self.console.options, pad=False))
-        if height <= 0:
-            self._bottom_last_height = 0
-            return renderable
-        if not has_stream_renderable and height < self._bottom_last_height:
-            return Padding(renderable, (self._bottom_last_height - height, 0, 0, 0))
-        self._bottom_last_height = height
-        return renderable
-
-    def _refresh_bottom_live(self) -> None:
-        if self._bottom_live is None:
-            return
-        self._bottom_live.update(self._bottom_renderable(), refresh=True)
-
-    def stop_bottom_live(self) -> None:
-        if self._bottom_live is None:
-            return
-        with contextlib.suppress(Exception):
-            # Avoid cursor restore when stopping right before prompt_toolkit.
-            self._bottom_live.transient = False
-            self._bottom_live.stop()
-        self._bottom_live = None
-        self._bottom_last_height = 0
+        self._emit_prompt_stream(self._prompt_stream_lines(renderable))
 
     # ---------------------------------------------------------------------
     # Stream helpers (MarkdownStream)
@@ -681,8 +553,6 @@ class TUICommandRenderer:
         self._bash_live_tail_lines.clear()
         self._bash_live_partial_line = ""
         self._bash_live_hidden_lines = 0
-        if self._spinner_visible:
-            self._refresh_bottom_live()
 
     def _append_bash_live_tail(self, content: str) -> None:
         merged = self._bash_live_partial_line + content
@@ -766,33 +636,14 @@ class TUICommandRenderer:
         del event
 
     def display_image(self, file_path: str, caption: str | None = None) -> None:
-        # Suspend the Live status bar while emitting raw terminal output.
-        had_live = self._bottom_live is not None
-        was_spinner_visible = self._spinner_visible
-        has_stream = MARKDOWN_STREAM_LIVE_REPAINT_ENABLED and self._stream_renderable is not None
-        resume_live = had_live and (was_spinner_visible or has_stream)
-
-        if self._bottom_live is not None:
-            with contextlib.suppress(Exception):
-                self._bottom_live.stop()
-            self._bottom_live = None
-
-        try:
-            if caption:
-                caption_style = self.console.get_style("markdown.image.placeholder", default="dim")
-                caption_text = caption_style.render(
-                    f"\n↓ {caption}",
-                    color_system=cast(Any, self.console.color_system),
-                )
-                print(caption_text, file=self.console.file, flush=True)
-            print_kitty_image(file_path, file=self.console.file)
-        finally:
-            if resume_live:
-                if was_spinner_visible:
-                    self.spinner_start()
-                else:
-                    self._ensure_bottom_live_started()
-                    self._refresh_bottom_live()
+        if caption:
+            caption_style = self.console.get_style("markdown.image.placeholder", default="dim")
+            caption_text = caption_style.render(
+                f"\n↓ {caption}",
+                color_system=cast(Any, self.console.color_system),
+            )
+            print(caption_text, file=self.console.file, flush=True)
+        print_kitty_image(file_path, file=self.console.file)
 
     def display_task_metadata(self, event: events.TaskMetadataEvent) -> None:
         if self.is_sub_agent_session(event.session_id):

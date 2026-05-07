@@ -67,8 +67,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 
 ## Legacy / Cleanup Notes
 
-These paths are reduced or legacy in the current interactive model, but not all
-of them are removable yet:
+These paths are reduced or legacy in the current interactive model:
 
 - `src/klaude_code/tui/components/rich/status.py`
   - Still used. `StackedStatusText`, `ResponsiveDynamicText`, metadata
@@ -77,33 +76,18 @@ of them are removable yet:
   - The old Rich breathing spinner/shimmer is no longer what the user sees in
     the interactive bottom layout while prompt-toolkit owns status, but the file
     still owns important formatting logic.
-- `src/klaude_code/tui/components/rich/live.py`
-  - `CropAboveLive` is no longer the normal running-task bottom UI owner during
-    interactive prompts. Bash live-tail output now flows through prompt-toolkit
-    via `stream_sink`.
-  - It is still referenced by `TUICommandRenderer` for non-suspended bottom Live
-    fallback paths and tests, so do not delete it without first removing or
-    replacing those renderer paths.
-  - `SingleLine` currently has no production references; it is only covered by
-    tests and is a cleanup candidate.
 - `MarkdownStream.live_sink` / `TUICommandRenderer.set_stream_renderable()`
   - Assistant Markdown still passes `set_stream_renderable` as a live sink, but
     normal interactive Markdown live repaint is disabled by
-    `MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = False`, and prompt-toolkit
-    suspension forwards stream renderables to prompt-toolkit instead of starting
-    Rich bottom Live.
-  - This is a cleanup candidate, but remove it only after auditing replay,
-    bash live-tail, image rendering, and renderer spacing tests.
-- `TUICommandRenderer._bottom_live`, `_bottom_renderable()`, and related bottom
-  Live height bookkeeping
-  - Not the normal owner of running status/input anymore.
-  - Still supports non-suspended renderer behavior and existing tests. Treat as
-    legacy-but-live code until replaced deliberately.
+    `MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = False`; stream renderables are
+    snapshots for prompt-toolkit `stream_sink`, not Rich bottom Live updates.
+  - This is still useful for bash live-tail and any future prompt-owned live
+    output, but should not start terminal Live rendering.
 
-When deleting any of the above, update the tests that intentionally exercise the
-old Rich Live behavior and run a real tmux smoke test. The absence of the normal
-interactive path using a component is not enough proof that no non-interactive,
-replay, or fallback path still needs it.
+Do not reintroduce `src/klaude_code/tui/components/rich/live.py`,
+`CropAboveLive`, `_bottom_live`, `_bottom_renderable()`, or related bottom Live
+height bookkeeping. The previous Rich bottom Live fallback has been removed;
+new running output belongs in the prompt-toolkit bottom layout.
 
 Interactive TUI output is sensitive to Rich version differences and terminal Live behavior. When changing spacing or streaming output, verify both the project environment and the globally installed `klaude` tool environment.
 
@@ -117,14 +101,14 @@ When printing pre-rendered Markdown chunks, keep trailing newlines out of the `T
 
 ## Markdown Stream Spacing
 
-`MarkdownStream` splits output into stable scrollback and a bottom Live region. Spacing bugs often appear only while streaming, not during replay, because replay renders the full Markdown in one pass.
+`MarkdownStream` splits output into stable scrollback and a live suffix snapshot. Spacing bugs often appear only while streaming, not during replay, because replay renders the full Markdown in one pass.
 
 Keep these invariants:
 
 - Markdown block spacing should produce one visible blank line between Markdown blocks, not two.
 - The live suffix should not preserve standalone leading blank lines when the stable prefix already ended at a Markdown block boundary.
 - Assistant/thinking message boundaries should still leave one visible blank line before the next rendered block, such as a tool call or metadata line.
-- Bottom Live should not add an extra gap between Markdown live content and the spinner; keep that separation only for bash live-tail output.
+- Prompt live output should not add an extra gap between Markdown live content and the status block; keep that separation only for bash live-tail output.
 
 ## Verification
 

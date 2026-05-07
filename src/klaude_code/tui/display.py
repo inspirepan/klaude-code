@@ -50,9 +50,8 @@ class TUIDisplay(DisplayABC):
     async def consume_envelope(self, envelope: events.EventEnvelope) -> None:
         event = envelope.event
         if isinstance(event, events.ReplayHistoryEvent):
-            # Replay does not need streaming UI; disable bottom Live rendering to avoid
-            # repaint overhead and flicker while reconstructing history.
-            self._renderer.stop_bottom_live()
+            # Replay does not need streaming UI; disable prompt live rendering
+            # while reconstructing stable scrollback history.
             self._renderer.set_stream_renderable(None)
             self._renderer.set_replay_mode(True)
             try:
@@ -157,9 +156,6 @@ class TUIDisplay(DisplayABC):
 
         await self._renderer.stop()
 
-        with contextlib.suppress(Exception):
-            self._renderer.stop_bottom_live()
-
     def show_sigint_exit_toast(self, *, window_seconds: float = 2.0) -> None:
         """Show a transient Ctrl+C hint in the TUI status line."""
 
@@ -187,8 +183,6 @@ class TUIDisplay(DisplayABC):
 
         with contextlib.suppress(Exception):
             self._renderer.spinner_stop()
-        with contextlib.suppress(Exception):
-            self._renderer.stop_bottom_live()
         with contextlib.suppress(Exception):
             self._renderer.flush_open_blocks(scoped=False)
 

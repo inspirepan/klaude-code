@@ -10,7 +10,6 @@ from rich.console import Console
 from rich.text import Text
 from rich.theme import Theme
 
-from klaude_code.tui.components.rich.live import SingleLine
 from klaude_code.tui.components.rich.markdown import MarkdownStream
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
@@ -46,13 +45,6 @@ def test_split_source_stabilizes_only_before_last_block() -> None:
     assert stable_source
     assert live_source
     assert stable_source + live_source == text
-
-
-def test_single_line_wrapper_renders_first_line_only() -> None:
-    console = Console(file=io.StringIO(), force_terminal=True, width=20)
-    wrapped = SingleLine(Text("line1\nline2\nline3"))
-    lines = console.render_lines(wrapped, console.options, pad=False)
-    assert len(lines) == 1
 
 
 def test_update_does_not_write_synchronized_output_sequences_when_not_tty(monkeypatch: pytest.MonkeyPatch) -> None:

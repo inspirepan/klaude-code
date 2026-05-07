@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import contextlib
 import math
 from collections.abc import Callable
 
-import rich.status as rich_status
 from rich.cells import cell_len
 from rich.color import Color
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.measure import Measurement
-from rich.spinner import Spinner as RichSpinner
 from rich.style import Style
 from rich.text import Text
 
@@ -23,9 +20,6 @@ from klaude_code.const import (
 )
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.status_runtime import elapsed_since_process_start
-
-# Use an existing Rich spinner name; BreathingSpinner overrides its rendering
-BREATHING_SPINNER_NAME = "dots"
 
 
 def current_hint_text(*, min_time_width: int = 0) -> str:
@@ -354,48 +348,3 @@ class _StatusShimmerLine:
 
         yield truncate_status(main_text, max(1, max_width), console=console)
 
-
-def spinner_name() -> str:
-    return BREATHING_SPINNER_NAME
-
-
-class BreathingSpinner(RichSpinner):
-    """Custom spinner that animates color instead of glyphs.
-
-    The spinner always renders a single "⏺" glyph whose foreground color
-    smoothly interpolates between the terminal background and the spinner
-    style color, producing a breathing effect.
-    """
-
-    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:  # type: ignore[override]
-        if self.name != BREATHING_SPINNER_NAME:
-            # Fallback to Rich's default behavior for other spinners.
-            yield from super().__rich_console__(console, options)
-            return
-
-        yield self._render_breathing(console)
-
-    def _resolve_base_style(self, console: Console) -> Style:
-        style = self.style
-        if isinstance(style, Style):
-            return style
-        if style is None:
-            return Style()
-        style_name = str(style).strip()
-        if not style_name:
-            return Style()
-        return console.get_style(style_name)
-
-    def _render_breathing(self, console: Console) -> RenderableType:
-        if not self.text:
-            return Text()
-        if isinstance(self.text, (str, Text)):
-            return self.text if isinstance(self.text, Text) else Text(self.text)
-        return self.text
-
-
-# Monkey-patch Rich's Status module to use the breathing spinner implementation
-# for the configured spinner name, while preserving default behavior elsewhere.
-# Best-effort patch; if it fails we silently fall back to default spinner.
-with contextlib.suppress(Exception):
-    rich_status.Spinner = BreathingSpinner  # ty: ignore[invalid-assignment]
