@@ -2,6 +2,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
+from klaude_code.tui.input.key_bindings import merge_dequeued_messages
 from klaude_code.tui.input.paste import expand_paste_markers, store_paste
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, _PasteAwareFileHistory
 
@@ -85,6 +86,11 @@ def test_pending_messages_render_above_prompt() -> None:
         ("", "\n"),
         ("class:meta", "  2. second queued"),
     ]
+
+
+def test_merge_dequeued_messages_keeps_queue_before_current_editor_text() -> None:
+    assert merge_dequeued_messages(("first", "second"), "current") == "first\n\nsecond\n\ncurrent"
+    assert merge_dequeued_messages(("first", ""), "") == "first"
 
 
 def test_paste_aware_history_stores_expanded_paste(tmp_path) -> None:

@@ -89,8 +89,8 @@ class _FakePromptToolkitInput:
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
         self.pending_messages.append(messages)
 
-    def set_pop_pending_message(self, pop_pending_message: Callable[[], str | None] | None) -> None:
-        del pop_pending_message
+    def set_dequeue_pending_messages(self, dequeue_pending_messages: Callable[[], tuple[str, ...]] | None) -> None:
+        del dequeue_pending_messages
 
     def set_interrupt_handler(self, request_interrupt: Callable[[], None] | None) -> None:
         del request_interrupt

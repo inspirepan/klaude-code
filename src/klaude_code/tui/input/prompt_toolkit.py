@@ -379,7 +379,7 @@ class PromptToolkitInput(InputProviderABC):
         on_change_thinking: Callable[[llm_param.Thinking], Awaitable[None]] | None = None,
         get_current_llm_config: Callable[[], llm_param.LLMConfigParameter | None] | None = None,
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
-        pop_pending_message: Callable[[], str | None] | None = None,
+        dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
         request_interrupt: Callable[[], None] | None = None,
     ):
         self._prompt_text = prompt
@@ -393,7 +393,7 @@ class PromptToolkitInput(InputProviderABC):
         self._on_change_thinking = on_change_thinking
         self._get_current_llm_config = get_current_llm_config
         self._command_info_provider = command_info_provider
-        self._pop_pending_message = pop_pending_message
+        self._dequeue_pending_messages = dequeue_pending_messages
         self._request_interrupt = request_interrupt
         self._next_prefill_text: str | None = None
         self._session_dir: Path | None = None
@@ -435,8 +435,8 @@ class PromptToolkitInput(InputProviderABC):
         with contextlib.suppress(Exception):
             self._session.app.invalidate()
 
-    def set_pop_pending_message(self, pop_pending_message: Callable[[], str | None] | None) -> None:
-        self._pop_pending_message = pop_pending_message
+    def set_dequeue_pending_messages(self, dequeue_pending_messages: Callable[[], tuple[str, ...]] | None) -> None:
+        self._dequeue_pending_messages = dequeue_pending_messages
 
     def set_interrupt_handler(self, request_interrupt: Callable[[], None] | None) -> None:
         self._request_interrupt = request_interrupt
@@ -486,7 +486,9 @@ class PromptToolkitInput(InputProviderABC):
             open_thinking_picker=self._open_thinking_picker,
             get_prompt_suggestion=self._get_prompt_suggestion,
             consume_prompt_suggestion=self._consume_prompt_suggestion,
-            pop_pending_message=lambda: self._pop_pending_message() if self._pop_pending_message is not None else None,
+            dequeue_pending_messages=lambda: (
+                self._dequeue_pending_messages() if self._dequeue_pending_messages is not None else ()
+            ),
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
         )

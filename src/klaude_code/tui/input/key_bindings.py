@@ -63,7 +63,7 @@ def create_key_bindings(
     open_thinking_picker: Callable[[], None] | None = None,
     get_prompt_suggestion: Callable[[], str | None] | None = None,
     consume_prompt_suggestion: Callable[[], str | None] | None = None,
-    pop_pending_message: Callable[[], str | None] | None = None,
+    dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
     request_interrupt: Callable[[], None] | None = None,
     is_interrupt_available: Callable[[], bool] | None = None,
 ) -> KeyBindings:
@@ -77,7 +77,7 @@ def create_key_bindings(
             or None when there is nothing to suggest.
         consume_prompt_suggestion: Returns and clears the suggestion in one step
             (used when the user accepts it, so it can't be accepted twice).
-        pop_pending_message: Returns and removes the last queued message, if any.
+        dequeue_pending_messages: Returns and clears all queued messages, if any.
         request_interrupt: Requests interruption of the currently running agent task.
         is_interrupt_available: Returns True while Escape can interrupt a task.
 
@@ -88,7 +88,6 @@ def create_key_bindings(
     enabled = input_enabled if input_enabled is not None else Always()
 
     has_text = Condition(lambda: bool(get_app().current_buffer.text))
-    has_no_text = Condition(lambda: not bool(get_app().current_buffer.text))
 
     term_program = os.environ.get("TERM_PROGRAM", "").lower()
     swallow_next_control_j = False
@@ -621,28 +620,6 @@ def create_key_bindings(
         filter=enabled
         & ~has_completions
         & ~is_searching
-        & has_no_text
-        & Condition(lambda: pop_pending_message is not None),
-        eager=True,
-    )
-    def _(event: KeyPressEvent) -> None:
-        """Empty input + queued messages: restore the last queued message for editing."""
-        text = pop_pending_message() if pop_pending_message is not None else None
-        if text is None:
-            _history_backward_cursor_to_start(event.current_buffer)
-            return
-        with contextlib.suppress(Exception):
-            event.current_buffer.text = text  # type: ignore[reportUnknownMemberType]
-            event.current_buffer.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
-        with contextlib.suppress(Exception):
-            event.app.invalidate()  # type: ignore[reportUnknownMemberType]
-
-    @kb.add(
-        "up",
-        filter=enabled
-        & ~has_completions
-        & ~is_searching
-        & (has_text | Condition(lambda: pop_pending_message is None))
         & Condition(lambda: not _can_move_cursor_visually_within_wrapped_line(delta_visible_y=-1))
         & Condition(lambda: _current_cursor_row() == 0),
         eager=True,
@@ -786,7 +763,16 @@ def create_key_bindings(
 
     @kb.add("escape", "up", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:
-        """Option+Up switches to previous history entry."""
+        """Option+Up restores all queued messages for editing, or falls back to history."""
+        messages = dequeue_pending_messages() if dequeue_pending_messages is not None else ()
+        if messages:
+            text = merge_dequeued_messages(messages, event.current_buffer.text)
+            with contextlib.suppress(Exception):
+                event.current_buffer.text = text  # type: ignore[reportUnknownMemberType]
+                event.current_buffer.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
+            with contextlib.suppress(Exception):
+                event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+            return
         _history_backward_cursor_to_start(event.current_buffer)
 
     @kb.add("escape", "down", filter=enabled & ~has_completions)
@@ -808,3 +794,10 @@ def create_key_bindings(
             request_interrupt()
 
     return kb
+
+
+def merge_dequeued_messages(messages: tuple[str, ...], current_text: str) -> str:
+    parts = [message for message in messages if message]
+    if current_text:
+        parts.append(current_text)
+    return "\n\n".join(parts)

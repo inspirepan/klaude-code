@@ -67,10 +67,10 @@ class Agent:
     def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
         return tuple(self._follow_up_queue)
 
-    def pop_last_follow_up(self) -> UserInputPayload | None:
-        if not self._follow_up_queue:
-            return None
-        return self._follow_up_queue.pop()
+    def pop_all_follow_up(self) -> tuple[UserInputPayload, ...]:
+        messages = tuple(self._follow_up_queue)
+        self._follow_up_queue.clear()
+        return messages
 
     def pop_next_follow_up(self) -> UserInputPayload | None:
         if not self._follow_up_queue:
