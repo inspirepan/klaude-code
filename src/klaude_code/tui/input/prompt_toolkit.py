@@ -655,6 +655,11 @@ class PromptToolkitInput(InputProviderABC):
                 height=lambda: len(self._status_lines),
                 dont_extend_height=True,
             )
+            status_spacer = Window(
+                content=FormattedTextControl(""),
+                height=1,
+                dont_extend_height=True,
+            )
             queue_window = Window(
                 content=FormattedTextControl(self._get_pending_message_fragments),
                 height=lambda: len(self._pending_messages) + 1,
@@ -664,6 +669,10 @@ class PromptToolkitInput(InputProviderABC):
                 [
                     ConditionalContainer(
                         status_window,
+                        filter=Condition(lambda: bool(self._status_lines)),
+                    ),
+                    ConditionalContainer(
+                        status_spacer,
                         filter=Condition(lambda: bool(self._status_lines)),
                     ),
                     ConditionalContainer(
