@@ -26,6 +26,7 @@ class OperationType(Enum):
     """Enumeration of supported operation types."""
 
     RUN_AGENT = "run_agent"
+    FOLLOW_UP_AGENT = "follow_up_agent"
     RUN_BASH = "run_bash"
     CONTINUE_AGENT = "continue_agent"
     COMPACT_SESSION = "compact_session"
@@ -66,6 +67,17 @@ class RunAgentOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_agent(self)
+
+
+class FollowUpAgentOperation(Operation):
+    """Operation for queueing a follow-up message while an agent task is running."""
+
+    type: OperationType = OperationType.FOLLOW_UP_AGENT
+    session_id: str
+    input: UserInputPayload
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_follow_up_agent(self)
 
 
 class RunBashOperation(Operation):

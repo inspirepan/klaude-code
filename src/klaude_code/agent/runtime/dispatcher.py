@@ -215,6 +215,9 @@ class OperationDispatcher:
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._agent_runner.run_agent(operation)
 
+    async def handle_follow_up_agent(self, operation: op.FollowUpAgentOperation) -> None:
+        await self._agent_runner.follow_up_agent(operation)
+
     async def handle_run_bash(self, operation: op.RunBashOperation) -> None:
         await self._bash_runner.run_bash(operation)
 

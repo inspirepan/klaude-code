@@ -561,6 +561,10 @@ class AgentOperationHandler:
             session_id=operation.session_id,
         )
 
+    async def follow_up_agent(self, operation: op.FollowUpAgentOperation) -> None:
+        agent = await self.ensure_agent(operation.session_id)
+        agent.follow_up(operation.input)
+
     async def run_bash(self, operation: op.RunBashOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
 
@@ -1030,6 +1034,9 @@ class AgentRunner:
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._operation_handler.run_agent(operation)
+
+    async def follow_up_agent(self, operation: op.FollowUpAgentOperation) -> None:
+        await self._operation_handler.follow_up_agent(operation)
 
     async def continue_agent(self, operation: op.ContinueAgentOperation) -> None:
         await self._operation_handler.continue_agent(operation)

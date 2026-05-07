@@ -38,6 +38,7 @@ class Agent:
         self.profile: AgentProfile = profile
         self.compact_llm_client: LLMClientABC | None = compact_llm_client
         self._current_task: TaskExecutor | None = None
+        self._follow_up_queue: list[UserInputPayload] = []
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text: str | None = None
         self.request_user_interaction = request_user_interaction
@@ -53,6 +54,15 @@ class Agent:
         text = self._last_interrupt_prefill_text
         self._last_interrupt_prefill_text = None
         return text
+
+    def follow_up(self, user_input: UserInputPayload) -> int:
+        """Queue a user message to run after the active task completes."""
+
+        self._follow_up_queue.append(user_input)
+        return len(self._follow_up_queue)
+
+    def follow_up_count(self) -> int:
+        return len(self._follow_up_queue)
 
     def on_interrupt(self) -> Iterable[events.Event]:
         """Handle an interrupt by emitting best-effort cleanup events.

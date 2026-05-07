@@ -596,10 +596,17 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
                 sid = _get_active_session_id()
                 if sid is not None:
+                    await components.runtime.submit_and_wait(
+                        op.FollowUpAgentOperation(session_id=sid, input=user_input)
+                    )
+                    follow_up_count = 0
+                    agent = components.runtime.current_agent
+                    if agent is not None:
+                        follow_up_count = agent.follow_up_count()
                     await components.runtime.emit_event(
                         events.NoticeEvent(
                             session_id=sid,
-                            content="Agent is busy; this message was captured but queueing is not enabled yet.",
+                            content=f"Queued follow-up message ({follow_up_count} pending).",
                             style="dim",
                         )
                     )

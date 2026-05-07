@@ -18,6 +18,7 @@ if TYPE_CHECKING:
         CloseSessionOperation,
         CompactSessionOperation,
         ContinueAgentOperation,
+        FollowUpAgentOperation,
         ForkAndSwitchSessionOperation,
         GenerateAwaySummaryOperation,
         GetSessionStatsOperation,
@@ -37,6 +38,10 @@ class OperationHandler(Protocol):
 
     async def handle_run_agent(self, operation: RunAgentOperation) -> None:
         """Handle a run agent operation."""
+        ...
+
+    async def handle_follow_up_agent(self, operation: FollowUpAgentOperation) -> None:
+        """Handle a follow-up agent operation."""
         ...
 
     async def handle_run_bash(self, operation: RunBashOperation) -> None:

@@ -207,24 +207,34 @@ def test_waiting_sigint_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatc
     assert runtime.interrupts[0].session_id == "s1"
 
 
-def test_busy_input_emits_notice_without_submitting_second_task(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_busy_input_queues_follow_up_without_submitting_second_task(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeAgent:
+        def __init__(self) -> None:
+            self.follow_up_inputs: list[UserInputPayload] = []
+
+        def follow_up_count(self) -> int:
+            return len(self.follow_up_inputs)
 
     class _FakeRuntime:
         def __init__(self) -> None:
             self.notices: list[events.NoticeEvent] = []
+            self._agent = _FakeAgent()
 
         def current_session_id(self) -> str | None:
             return "s1"
 
         @property
-        def current_agent(self) -> None:
-            return None
+        def current_agent(self) -> _FakeAgent:
+            return self._agent
 
         async def wait_for(self, _wait_id: str) -> None:
             await asyncio.sleep(0.01)
 
-        async def submit_and_wait(self, _operation: op.Operation) -> None:
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            if isinstance(operation, op.FollowUpAgentOperation):
+                self._agent.follow_up_inputs.append(operation.input)
             return None
 
         async def emit_event(self, event: events.Event) -> None:
@@ -260,8 +270,9 @@ def test_busy_input_emits_notice_without_submitting_second_task(monkeypatch: pyt
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert [payload.text for payload in submissions] == ["first"]
+    assert [payload.text for payload in runtime.current_agent.follow_up_inputs] == ["second while busy"]
     assert len(runtime.notices) == 1
-    assert "queueing is not enabled yet" in runtime.notices[0].content
+    assert runtime.notices[0].content == "Queued follow-up message (1 pending)."
 
 
 def test_waiting_sigint_restores_prefill_when_no_visible_output(monkeypatch: pytest.MonkeyPatch) -> None:
