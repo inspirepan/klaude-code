@@ -551,6 +551,16 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         input_provider.set_pending_messages(tuple(message.text for message in messages))
         return len(messages)
 
+    def _pop_pending_message() -> str | None:
+        agent = components.runtime.current_agent
+        if agent is None:
+            return None
+        message = agent.pop_last_follow_up()
+        _refresh_pending_messages()
+        return message.text if message is not None else None
+
+    input_provider.set_pop_pending_message(_pop_pending_message)
+
     def _active_agent_running() -> bool:
         nonlocal active_wait_task
         if active_wait_task is None:

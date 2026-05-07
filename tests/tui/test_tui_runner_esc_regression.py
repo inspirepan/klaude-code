@@ -89,6 +89,9 @@ class _FakePromptToolkitInput:
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
         self.pending_messages.append(messages)
 
+    def set_pop_pending_message(self, pop_pending_message: Callable[[], str | None] | None) -> None:
+        del pop_pending_message
+
 
 def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayload:
     return user_interaction.AskUserQuestionRequestPayload(

@@ -372,6 +372,7 @@ class PromptToolkitInput(InputProviderABC):
         on_change_thinking: Callable[[llm_param.Thinking], Awaitable[None]] | None = None,
         get_current_llm_config: Callable[[], llm_param.LLMConfigParameter | None] | None = None,
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
+        pop_pending_message: Callable[[], str | None] | None = None,
     ):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
@@ -384,6 +385,7 @@ class PromptToolkitInput(InputProviderABC):
         self._on_change_thinking = on_change_thinking
         self._get_current_llm_config = get_current_llm_config
         self._command_info_provider = command_info_provider
+        self._pop_pending_message = pop_pending_message
         self._next_prefill_text: str | None = None
         self._session_dir: Path | None = None
         self._clipboard_has_image: bool = False
@@ -417,6 +419,9 @@ class PromptToolkitInput(InputProviderABC):
         self._pending_messages = tuple(message for message in messages if message.strip())
         with contextlib.suppress(Exception):
             self._session.app.invalidate()
+
+    def set_pop_pending_message(self, pop_pending_message: Callable[[], str | None] | None) -> None:
+        self._pop_pending_message = pop_pending_message
 
     @override
     def set_prompt_suggestion(self, text: str | None) -> None:
@@ -463,6 +468,7 @@ class PromptToolkitInput(InputProviderABC):
             open_thinking_picker=self._open_thinking_picker,
             get_prompt_suggestion=self._get_prompt_suggestion,
             consume_prompt_suggestion=self._consume_prompt_suggestion,
+            pop_pending_message=lambda: self._pop_pending_message() if self._pop_pending_message is not None else None,
         )
 
         return PromptSession(
