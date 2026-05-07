@@ -4,9 +4,11 @@ from rich.text import Text
 
 from klaude_code.protocol import events
 from klaude_code.protocol.models import TaskFileChange
-from klaude_code.tui.components.common import create_grid
+from klaude_code.tui.components.common import create_grid, format_more_lines_indicator
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import render_path
+
+MAX_TASK_FILE_CHANGE_ROWS = 20
 
 
 def _plural(count: int, singular: str, plural: str | None = None) -> str:
@@ -36,6 +38,11 @@ def _render_state_symbol(change: TaskFileChange) -> Text:
 
 def render_task_file_change_summary(e: events.TaskFileChangeSummaryEvent) -> RenderableType:
     files = e.summary.files
+    visible_files = files
+    hidden_count = 0
+    if len(files) > MAX_TASK_FILE_CHANGE_ROWS:
+        visible_files = files[: MAX_TASK_FILE_CHANGE_ROWS - 1]
+        hidden_count = len(files) - len(visible_files)
 
     title = Text.assemble(
         ("FILE CHANGES", ThemeKey.METADATA),
@@ -45,7 +52,7 @@ def render_task_file_change_summary(e: events.TaskFileChangeSummaryEvent) -> Ren
     title.stylize("bold", 0, len("FILE CHANGES"))
 
     grid = create_grid()
-    for change in files:
+    for change in visible_files:
         grid.add_row(
             _render_state_symbol(change),
             Text.assemble(
@@ -54,5 +61,7 @@ def render_task_file_change_summary(e: events.TaskFileChangeSummaryEvent) -> Ren
                 _render_stats(change),
             ),
         )
+    if hidden_count:
+        grid.add_row(Text(" "), Text(format_more_lines_indicator(hidden_count), style=ThemeKey.TOOL_RESULT_TRUNCATED))
 
     return Padding(Group(title, grid), (1, 1, 1, 2), style=ThemeKey.DIFF_FILE_CHANGES_BACKGROUND, expand=False)
