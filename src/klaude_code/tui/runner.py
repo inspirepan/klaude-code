@@ -30,6 +30,7 @@ from klaude_code.tui.command import (
     get_command_info_list,
 )
 from klaude_code.tui.command.command_abc import WebModeRequest
+from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.key_bindings import split_queued_message_edit_text
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
@@ -169,9 +170,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if input_provider is not None:
             input_provider.set_prompt_suggestion(text)
 
-    def _set_status_lines(lines: tuple[str, ...]) -> None:
+    def _set_status_lines(lines: tuple[PromptStatusLine, ...], separator_text: str | None = None) -> None:
         if input_provider is not None:
-            input_provider.set_status_lines(lines)
+            input_provider.set_status_lines(lines, separator_text=separator_text)
 
     def _set_stream_lines(lines: tuple[str, ...]) -> None:
         if input_provider is not None:

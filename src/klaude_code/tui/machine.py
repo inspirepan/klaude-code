@@ -14,6 +14,7 @@ from klaude_code.const import (
     STATUS_COMPOSING_TEXT,
     STATUS_DEFAULT_TEXT,
     STATUS_HANDOFF_TEXT,
+    STATUS_HINT_TEXT,
     STATUS_RECAPPING_TEXT,
     STATUS_RUNNING_TEXT,
     STATUS_SHOW_BUFFER_LENGTH,
@@ -27,6 +28,7 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
+    DynamicSeparatorText,
     EndAssistantStream,
     EndThinkingStream,
     FlushOpenBlocks,
@@ -53,6 +55,7 @@ from klaude_code.tui.commands import (
     RenderToolResult,
     RenderUserMessage,
     RenderWelcome,
+    SeparatorText,
     SpinnerStart,
     SpinnerStatusLine,
     SpinnerStop,
@@ -367,7 +370,7 @@ class SpinnerStatusState:
             case SpinnerPhase.COMPOSING:
                 text = Text(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
                 if STATUS_SHOW_BUFFER_LENGTH and self._composing_buffer_length > 0:
-                    text.append(f" ({self._composing_buffer_length:,})", style=ThemeKey.STATUS_TEXT)
+                    text.append(f" ({self._composing_buffer_length:,} chars)", style=ThemeKey.STATUS_TEXT)
                 return text
             case SpinnerPhase.COMPACTING:
                 return Text(STATUS_COMPACTING_TEXT, style=ThemeKey.STATUS_TEXT)
@@ -469,18 +472,27 @@ class SpinnerStatusState:
         return Text("".join(parts), style=ThemeKey.METADATA_DIM)
 
     def get_right_text(self) -> r_status.ResponsiveDynamicText | None:
-        metadata_text = self._build_metadata_text(compact=False, include_elapsed=True)
+        metadata_text = self._build_metadata_text(compact=False, include_elapsed=False)
         if metadata_text is None:
             return None
 
         def _render(*, compact: bool) -> Text:
-            built = self._build_metadata_text(compact=compact, include_elapsed=True)
+            built = self._build_metadata_text(compact=compact, include_elapsed=False)
             return built if built is not None else Text("")
 
         return r_status.ResponsiveDynamicText(
             lambda: _render(compact=False),
             lambda: _render(compact=True),
         )
+
+    def get_separator_text(self) -> SeparatorText:
+        return DynamicSeparatorText(self._build_separator_text)
+
+    def _build_separator_text(self) -> str:
+        elapsed = current_elapsed_text()
+        if elapsed is None:
+            return STATUS_HINT_TEXT
+        return f"{elapsed} · {STATUS_HINT_TEXT}"
 
 
 @dataclass
@@ -672,6 +684,7 @@ class DisplayStateMachine:
             SpinnerUpdate(
                 right_text=self._spinner.get_right_text(),
                 status_lines=status_lines,
+                separator_text=self._spinner.get_separator_text(),
                 reset_bottom_height=reset_bottom_height,
                 leading_blank_line=bool(sub_agent_lines),
                 top_blank_line=top_blank_line,

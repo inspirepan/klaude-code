@@ -1,11 +1,31 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Literal
 
 from rich.console import RenderableType
 from rich.text import Text
 
 from klaude_code.protocol import events
+
+
+@dataclass(frozen=True, slots=True)
+class DynamicSeparatorText:
+    factory: Callable[[], str | None]
+
+    def render(self) -> str | None:
+        return self.factory()
+
+
+SeparatorText = str | DynamicSeparatorText
+PromptStatusLineKind = Literal["status", "metadata"]
+
+
+@dataclass(frozen=True, slots=True)
+class PromptStatusLine:
+    text: str
+    kind: PromptStatusLineKind = "status"
 
 
 @dataclass(frozen=True, slots=True)
@@ -156,6 +176,7 @@ class SpinnerStatusLine:
 class SpinnerUpdate(RenderCommand):
     right_text: RenderableType | None
     status_lines: tuple[SpinnerStatusLine, ...] = ()
+    separator_text: SeparatorText | None = None
     reset_bottom_height: bool = False
     leading_blank_line: bool = False
     top_blank_line: bool = False

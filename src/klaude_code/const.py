@@ -203,7 +203,7 @@ STATUS_SHIMMER_ENABLED = True  # Enable shimmer effect on status text
 STATUS_SHIMMER_PADDING = 10  # Horizontal padding for shimmer band position
 STATUS_SHIMMER_BAND_HALF_WIDTH = 5.0  # Half-width of shimmer band in characters
 STATUS_SHIMMER_ALPHA_SCALE = 0.7  # Scale factor for shimmer intensity
-STATUS_SHOW_BUFFER_LENGTH = False  # Show character count (e.g., "(213)") during text generation
+STATUS_SHOW_BUFFER_LENGTH = True  # Show character count (e.g., "(213 chars)") during text generation
 
 # =============================================================================
 # UI - Completion System

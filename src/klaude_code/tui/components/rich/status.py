@@ -232,10 +232,12 @@ class StackedStatusText:
         metadata_text: RenderableType | None = None,
         status_lines: tuple[RenderableType, ...] = (),
         leading_blank_line: bool = False,
+        show_hint: bool = True,
     ) -> None:
         self._metadata_line = StatusMetadataLine(metadata_text, hint_style=ThemeKey.STATUS_HINT)
         self._status_lines = status_lines
         self._leading_blank_line = leading_blank_line
+        self._show_hint = show_hint
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         max_width = max(1, getattr(options, "max_width", options.size.width))
@@ -256,7 +258,12 @@ class StackedStatusText:
             if line.plain:
                 rendered_status_lines.append(line)
 
-        metadata_line = self._metadata_line.render(console=console, line_options=line_options, max_width=max_width)
+        metadata_line = self._metadata_line.render(
+            console=console,
+            line_options=line_options,
+            max_width=max_width,
+            show_hint=self._show_hint,
+        )
 
         lines: list[Text] = []
         if self._leading_blank_line and rendered_status_lines:
@@ -303,16 +310,28 @@ class StatusMetadataLine:
         self._metadata_text = metadata_text
         self._hint_style = hint_style
 
-    def render(self, *, console: Console, line_options: ConsoleOptions, max_width: int) -> Text:
+    def render(self, *, console: Console, line_options: ConsoleOptions, max_width: int, show_hint: bool = True) -> Text:
         hint_text = Text(current_hint_text().strip(), style=console.get_style(str(self._hint_style)))
         if self._metadata_text is None:
-            return truncate_right(hint_text, max(1, max_width), console=console)
+            return truncate_right(hint_text, max(1, max_width), console=console) if show_hint else Text("")
 
         full_metadata_text = _render_right_text(
             self._metadata_text, console=console, options=line_options, compact=False
         )
         if cell_len(full_metadata_text.plain) == 0:
+            if not show_hint:
+                return Text("")
             return truncate_right(hint_text, max(1, max_width), console=console)
+
+        if not show_hint:
+            if cell_len(full_metadata_text.plain) <= max_width:
+                return full_metadata_text
+            compact_metadata_text = _render_right_text(
+                self._metadata_text, console=console, options=line_options, compact=True
+            )
+            if cell_len(compact_metadata_text.plain) <= max_width:
+                return compact_metadata_text
+            return truncate_right(compact_metadata_text, max(1, max_width), console=console)
 
         separator = Text(" · ", style=ThemeKey.STATUS_HINT)
         full_with_hint = Text.assemble(full_metadata_text, separator, hint_text)

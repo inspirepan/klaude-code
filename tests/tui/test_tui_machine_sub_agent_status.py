@@ -10,6 +10,7 @@ from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, TodoIte
 from klaude_code.tui import machine as machine_module
 from klaude_code.tui.commands import (
     AppendBashCommandOutput,
+    DynamicSeparatorText,
     PrintBlankLine,
     RenderBashCommandEnd,
     RenderCommand,
@@ -40,6 +41,11 @@ def _right_plain(update: SpinnerUpdate) -> str:
     right = update.right_text
     if right is None:
         return ""
+    render = getattr(right, "render", None)
+    if callable(render):
+        rendered = render(compact=False)
+        if isinstance(rendered, Text):
+            return rendered.plain
     plain = getattr(right, "plain", None)
     if isinstance(plain, str):
         return plain
@@ -690,3 +696,34 @@ def test_main_session_tokens_accumulate_across_task_boundaries() -> None:
     assert second_update.right_text is not None
     assert "in 20k · cache 21k · out 15k · thought 4k" in _right_plain(second_update)
     assert "cost $0.0046" in _right_plain(second_update)
+
+
+def test_spinner_update_separates_elapsed_interrupt_hint(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(machine_module, "current_elapsed_text", lambda: "1m51s")
+
+    machine = DisplayStateMachine()
+    session_id = "main"
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+    cmds = machine.transition(
+        events.UsageEvent(
+            session_id=session_id,
+            usage=Usage(
+                input_tokens=30_000,
+                cached_tokens=20_000,
+                output_tokens=12_000,
+                reasoning_tokens=2_000,
+                input_cost=0.001,
+                output_cost=0.002,
+                cache_read_cost=0.0005,
+            ),
+        )
+    )
+
+    update = _last_spinner_update(cmds)
+    metadata = _right_plain(update)
+
+    assert "in 10k · cache 20k · out 10k · thought 2k" in metadata
+    assert "1m51s" not in metadata
+    assert "esc to interrupt" not in metadata
+    assert isinstance(update.separator_text, DynamicSeparatorText)
+    assert update.separator_text.render() == "1m51s · esc to interrupt"

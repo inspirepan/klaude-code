@@ -81,6 +81,30 @@ def test_composing_status_is_shown() -> None:
     assert status.plain.startswith("Typing…")
 
 
+def test_composing_status_shows_streamed_character_count() -> None:
+    state = SpinnerStatusState()
+    state.set_composing(True)
+    state.set_buffer_length(34)
+
+    status = state.get_status()
+
+    assert status.plain.startswith("Typing… (34 chars)")
+
+
+def test_assistant_delta_updates_typing_character_count() -> None:
+    machine = DisplayStateMachine()
+    session_id = "s1"
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+    machine.transition(events.AssistantTextStartEvent(session_id=session_id, response_id="r1"))
+
+    cmds = machine.transition(events.AssistantTextDeltaEvent(session_id=session_id, response_id="r1", content="hello"))
+
+    update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
+    status_text = update.status_lines[0].text
+    plain = status_text.plain if isinstance(status_text, Text) else status_text
+    assert plain.startswith("Typing… (5 chars)")
+
+
 def test_short_reasoning_status_keeps_min_loading_width() -> None:
     state = SpinnerStatusState()
     state.set_reasoning_status("Typing")

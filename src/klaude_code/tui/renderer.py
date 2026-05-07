@@ -29,11 +29,13 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
+    DynamicSeparatorText,
     EndAssistantStream,
     EndThinkingStream,
     FlushOpenBlocks,
     PrintBlankLine,
     PrintRuleLine,
+    PromptStatusLine,
     RenderAwaySummary,
     RenderBashCommandEnd,
     RenderBashCommandStart,
@@ -55,6 +57,7 @@ from klaude_code.tui.commands import (
     RenderToolResult,
     RenderUserMessage,
     RenderWelcome,
+    SeparatorText,
     SpinnerStart,
     SpinnerStatusLine,
     SpinnerStop,
@@ -162,7 +165,7 @@ class TUICommandRenderer:
         self,
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
-        status_sink: Callable[[tuple[str, ...]], None] | None = None,
+        status_sink: Callable[[tuple[PromptStatusLine, ...], str | None], None] | None = None,
         stream_sink: Callable[[tuple[str, ...]], None] | None = None,
     ) -> None:
         self.themes = get_theme(theme)
@@ -172,12 +175,15 @@ class TUICommandRenderer:
         self._stream_renderable: RenderableType | None = None
         self._spinner_visible: bool = False
         self._progress_ui_suspended: bool = False
-        self._spinner_last_update_key: tuple[object, object, object, object, object] | None = None
+        self._spinner_last_update_key: tuple[object, object, object, object, object, object] | None = None
         self._status_top_blank_line: bool = False
+        self._status_metadata_text: RenderableType | None = None
+        self._status_separator_text: SeparatorText | None = None
 
         self._status_text: StackedStatusText = StackedStatusText(
             None,
             (Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT),),
+            show_hint=False,
         )
         self._notifier = notifier
         self._status_sink = status_sink
@@ -339,6 +345,7 @@ class TUICommandRenderer:
         self,
         metadata_text: RenderableType | None = None,
         status_lines: tuple[SpinnerStatusLine, ...] = (),
+        separator_text: SeparatorText | None = None,
         reset_bottom_height: bool = False,
         leading_blank_line: bool = False,
         top_blank_line: bool = False,
@@ -346,6 +353,7 @@ class TUICommandRenderer:
         new_key = (
             self._spinner_right_text_key(metadata_text),
             tuple((line.session_id, self._spinner_text_key(line.text)) for line in status_lines),
+            separator_text,
             reset_bottom_height,
             leading_blank_line,
             top_blank_line,
@@ -354,6 +362,8 @@ class TUICommandRenderer:
             return
         self._spinner_last_update_key = new_key
         self._status_top_blank_line = top_blank_line
+        self._status_metadata_text = metadata_text
+        self._status_separator_text = separator_text
 
         rendered_status_lines = tuple(self._render_status_line(line) for line in status_lines)
 
@@ -361,34 +371,52 @@ class TUICommandRenderer:
             metadata_text=metadata_text,
             status_lines=rendered_status_lines,
             leading_blank_line=leading_blank_line,
+            show_hint=False,
         )
         self._emit_prompt_status()
 
     def set_progress_ui_suspended(self, suspended: bool) -> None:
         self._progress_ui_suspended = suspended
         if not suspended:
-            self._emit_prompt_status(())
+            self._emit_prompt_status((), None)
             self._emit_prompt_stream(())
             return
         self._emit_prompt_status()
 
-    def _emit_prompt_status(self, lines: tuple[str, ...] | None = None) -> None:
+    def _emit_prompt_status(
+        self,
+        lines: tuple[PromptStatusLine, ...] | None = None,
+        separator_text: SeparatorText | None = None,
+    ) -> None:
         if self._status_sink is None:
             return
         if lines is None:
             lines = self._prompt_status_lines()
-        self._status_sink(lines)
+            separator_text = self._status_separator_text
+        resolved_separator_text = self._resolve_separator_text(separator_text)
+        self._status_sink(lines, resolved_separator_text)
+
+    @staticmethod
+    def _resolve_separator_text(separator_text: SeparatorText | None) -> str | None:
+        if separator_text is None:
+            return None
+        if isinstance(separator_text, DynamicSeparatorText):
+            return separator_text.render()
+        return separator_text
 
     def refresh_prompt_status(self) -> None:
         if self._progress_ui_suspended:
             self._emit_prompt_status()
 
-    def _prompt_status_lines(self) -> tuple[str, ...]:
+    def _prompt_status_lines(self) -> tuple[PromptStatusLine, ...]:
         if not (self._progress_ui_suspended and self._spinner_visible):
             return ()
         rendered = self.console.render_lines(self._status_text, self.console.options, pad=False)
         lines = tuple("".join(segment.text for segment in line if not segment.control).rstrip() for line in rendered)
-        return tuple(line for line in lines if line)
+        nonempty_lines = tuple(line for line in lines if line)
+        if self._status_metadata_text is None or not nonempty_lines:
+            return tuple(PromptStatusLine(line, "status") for line in nonempty_lines)
+        return (*tuple(PromptStatusLine(line, "status") for line in nonempty_lines[:-1]), PromptStatusLine(nonempty_lines[-1], "metadata"))
 
     def _emit_prompt_stream(self, lines: tuple[str, ...] | None = None) -> None:
         if self._stream_sink is None:
@@ -1041,6 +1069,7 @@ class TUICommandRenderer:
                 case SpinnerUpdate(
                     right_text=metadata_text,
                     status_lines=status_lines,
+                    separator_text=separator_text,
                     reset_bottom_height=reset_bottom_height,
                     leading_blank_line=leading_blank_line,
                     top_blank_line=top_blank_line,
@@ -1048,6 +1077,7 @@ class TUICommandRenderer:
                     self.spinner_update(
                         metadata_text,
                         status_lines,
+                        separator_text,
                         reset_bottom_height,
                         leading_blank_line,
                         top_blank_line,
