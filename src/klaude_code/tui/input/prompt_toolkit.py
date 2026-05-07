@@ -63,6 +63,7 @@ INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
 COMPLETION_TRUNCATION_SYMBOL = "…"
 _STATUS_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
+_STATUS_METADATA_RE = re.compile(r"^(?:in\s+)?\d+(?:\.\d+)?[smh]?(?:\s*[·|].*)?$")
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
@@ -113,6 +114,10 @@ def _get_git_info() -> tuple[str | None, str | None]:
             pass
         return None, None
     return None, None
+
+
+def _is_status_metadata_line(line: str) -> bool:
+    return bool(_STATUS_METADATA_RE.match(line.strip()))
 
 
 def _trim_formatted_text_with_ellipsis(
@@ -722,7 +727,7 @@ class PromptToolkitInput(InputProviderABC):
         for index, line in enumerate(self._status_lines):
             if index:
                 fragments.append(("", "\n"))
-            if not line.startswith("in "):
+            if not _is_status_metadata_line(line):
                 fragments.append(("class:meta", f"{spinner} "))
             fragments.append(("class:meta", line))
         return fragments

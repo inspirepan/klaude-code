@@ -57,7 +57,7 @@ def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
     prompt_input = _build_input("")
     prompt_input._status_spinner_frame = 1
 
-    prompt_input.set_status_lines(("Finding: session", "Thinking…", "in 12 · cache 3k"))
+    prompt_input.set_status_lines(("Finding: session", "Thinking…", "in 12 · cache 3k", "0s · esc to interrupt"))
 
     assert prompt_input._get_status_fragments() == [
         ("class:meta", "⠙ "),
@@ -67,6 +67,8 @@ def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
         ("class:meta", "Thinking…"),
         ("", "\n"),
         ("class:meta", "in 12 · cache 3k"),
+        ("", "\n"),
+        ("class:meta", "0s · esc to interrupt"),
     ]
 
 
