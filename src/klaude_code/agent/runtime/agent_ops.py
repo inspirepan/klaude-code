@@ -438,6 +438,12 @@ class AgentOperationHandler:
         # session is the only one that benefits from a suggestion.
         if agent.session.sub_agent_state is not None:
             return
+        if agent.follow_up_count() > 0:
+            log_debug(
+                f"[PromptSuggestion] skip session={session_id} reason=follow-up queue pending",
+                debug_type=DebugType.EXECUTION,
+            )
+            return
         suppress = should_suggest(agent.session)
         if suppress is not None:
             log_debug(

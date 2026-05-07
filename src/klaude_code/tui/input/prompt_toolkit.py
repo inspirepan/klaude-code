@@ -69,6 +69,10 @@ _STATUS_METADATA_PREFIXES = ("↑", "↓", "◎", "∵", "$")
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
 
+class _PromptPaused(Exception):
+    """Internal signal used to pause the REPL while another prompt_toolkit app owns stdin."""
+
+
 def _get_git_info() -> tuple[str | None, str | None]:
     """Return (repo_display, branch) by reading .git directly, no subprocess.
 
@@ -411,6 +415,11 @@ class PromptToolkitInput(InputProviderABC):
         self._stream_lines: tuple[str, ...] = ()
         self._status_lines: tuple[str, ...] = ()
         self._pending_messages: tuple[str, ...] = ()
+        self._prompt_active = False
+        self._prompt_pause_waiter: asyncio.Future[None] | None = None
+        self._external_input_pause_count = 0
+        self._external_input_resume_event = asyncio.Event()
+        self._external_input_resume_event.set()
 
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
@@ -452,6 +461,39 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_interrupt_handler(self, request_interrupt: Callable[[], None] | None) -> None:
         self._request_interrupt = request_interrupt
+
+    async def pause_for_external_input(self) -> Callable[[], None]:
+        """Pause the active REPL prompt so a modal selector can read stdin exclusively."""
+
+        self._external_input_pause_count += 1
+        self._external_input_resume_event.clear()
+
+        def _resume() -> None:
+            self._external_input_pause_count = max(0, self._external_input_pause_count - 1)
+            if self._external_input_pause_count == 0:
+                self._external_input_resume_event.set()
+
+        if not self._prompt_active:
+            return _resume
+        if self._prompt_pause_waiter is not None:
+            await self._prompt_pause_waiter
+            return _resume
+
+        loop = asyncio.get_running_loop()
+        waiter: asyncio.Future[None] = loop.create_future()
+        self._prompt_pause_waiter = waiter
+        with contextlib.suppress(Exception):
+            text = self._session.default_buffer.text
+            self._next_prefill_text = text or None
+        try:
+            self._session.app.exit(exception=_PromptPaused())
+        except Exception:
+            self._prompt_pause_waiter = None
+            if not waiter.done():
+                waiter.set_result(None)
+            return _resume
+        await waiter
+        return _resume
 
     @override
     def set_prompt_suggestion(self, text: str | None) -> None:
@@ -1045,6 +1087,7 @@ class PromptToolkitInput(InputProviderABC):
     @override
     async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
         while True:
+            await self._external_input_resume_event.wait()
             if self._pre_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._pre_prompt()
@@ -1055,7 +1098,10 @@ class PromptToolkitInput(InputProviderABC):
             if self._on_prompt_start is not None:
                 with contextlib.suppress(Exception):
                     self._on_prompt_start()
+            prompt_paused = False
+            line = ""
             try:
+                self._prompt_active = True
                 with patch_stdout(raw=True):
                     default_text = self._next_prefill_text
                     self._next_prefill_text = None
@@ -1063,14 +1109,24 @@ class PromptToolkitInput(InputProviderABC):
                         line = await self._session.prompt_async(message=self._get_prompt_message)
                     else:
                         line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
+            except _PromptPaused:
+                prompt_paused = True
             finally:
+                self._prompt_active = False
+                pause_waiter = self._prompt_pause_waiter
+                self._prompt_pause_waiter = None
+                if pause_waiter is not None and not pause_waiter.done():
+                    pause_waiter.set_result(None)
                 # A submission (Enter on non-empty buffer, suggestion acceptance,
                 # or anything else) invalidates the pending suggestion. Runtime
                 # will push a fresh one after the next task finishes.
-                self._prompt_suggestion = None
+                if not prompt_paused:
+                    self._prompt_suggestion = None
                 if self._on_prompt_end is not None:
                     with contextlib.suppress(Exception):
                         self._on_prompt_end()
+            if prompt_paused:
+                continue
             if self._post_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._post_prompt()

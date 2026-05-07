@@ -274,7 +274,7 @@ tmux capture-pane -pt klaude-phase4 -S -120
 - queue panel 仍适配终端宽度。
 - input 和 status 仍可见。
 
-## 阶段 5：Up 键取回最后一条 queued message
+## 阶段 5：Up 键取回全部 queued messages
 
 ### 实现目标
 
@@ -282,13 +282,13 @@ tmux capture-pane -pt klaude-phase4 -S -120
 
 - 只在 input buffer 为空时生效。
 - 只在 completion/search overlay 未激活时生效。
-- 从 follow-up queue 弹出最后一条消息。
-- 把该消息填回 input buffer，供用户编辑。
+- 从 follow-up queue 弹出全部消息。
+- 把这些消息用空行分隔后填回 input buffer，供用户编辑。
 - queue 为空时，Up 保持现有 history 行为。
 
 ### 可见成果
 
-当队列非空且输入框为空时，按 Up 会把最后一条 queued message 从队列中移除，并恢复到编辑器里。
+当队列非空且输入框为空时，按 Up 会把全部 queued messages 从队列中移除，并用空行分隔后恢复到编辑器里。
 
 ### tmux 验证
 
@@ -315,9 +315,8 @@ tmux capture-pane -pt klaude-phase5 -S -120
 
 通过标准：
 
-- `queued two to edit` 出现在 input buffer 中。
-- `queued two to edit` 从 queue panel 中消失。
-- `queued one` 仍留在队列中。
+- `queued one` 和 `queued two to edit` 都出现在 input buffer 中，并用空行分隔。
+- queue panel 清空。
 
 编辑后重新提交：
 
@@ -329,7 +328,6 @@ tmux capture-pane -pt klaude-phase5 -S -120
 通过标准：
 
 - edited message 重新进入队列。
-- 当前队列顺序为 `queued one`，然后是 edited message。
 
 history fallback 检查：
 

@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from typing import Any
 
@@ -19,6 +20,11 @@ def _build_input(text: str) -> PromptToolkitInput:
     prompt_input._stream_lines = ()
     prompt_input._status_lines = ()
     prompt_input._pending_messages = ()
+    prompt_input._prompt_active = False
+    prompt_input._prompt_pause_waiter = None
+    prompt_input._external_input_pause_count = 0
+    prompt_input._external_input_resume_event = asyncio.Event()
+    prompt_input._external_input_resume_event.set()
     return prompt_input  # type: ignore[return-value]
 
 
@@ -116,6 +122,23 @@ def test_pending_messages_render_above_prompt() -> None:
 def test_merge_dequeued_messages_keeps_queue_before_current_editor_text() -> None:
     assert merge_dequeued_messages(("first", "second"), "current") == "first\n\nsecond\n\ncurrent"
     assert merge_dequeued_messages(("first", ""), "") == "first"
+
+
+def test_external_input_pause_waits_until_resume() -> None:
+    async def _run() -> None:
+        prompt_input = _build_input("")
+
+        resume = await prompt_input.pause_for_external_input()
+
+        assert prompt_input._external_input_pause_count == 1
+        assert not prompt_input._external_input_resume_event.is_set()
+
+        resume()
+
+        assert prompt_input._external_input_pause_count == 0
+        assert prompt_input._external_input_resume_event.is_set()
+
+    asyncio.run(_run())
 
 
 def test_paste_aware_history_stores_expanded_paste(tmp_path) -> None:

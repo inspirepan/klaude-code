@@ -70,6 +70,7 @@ class _FakePromptToolkitInput:
     payloads: ClassVar[list[UserInputPayload]] = []
     prefills: ClassVar[list[str | None]] = []
     pending_messages: ClassVar[list[tuple[str, ...]]] = []
+    pause_calls: ClassVar[int] = 0
 
     def __init__(self, **_: Any) -> None:
         pass
@@ -104,6 +105,10 @@ class _FakePromptToolkitInput:
     def set_interrupt_handler(self, request_interrupt: Callable[[], None] | None) -> None:
         del request_interrupt
 
+    async def pause_for_external_input(self) -> Callable[[], None]:
+        type(self).pause_calls += 1
+        return lambda: None
+
 
 def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayload:
     return user_interaction.AskUserQuestionRequestPayload(
@@ -127,6 +132,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
 
     _FakePromptToolkitInput.prefills = []
     _FakePromptToolkitInput.pending_messages = []
+    _FakePromptToolkitInput.pause_calls = 0
 
     def _load_config() -> SimpleNamespace:
         return SimpleNamespace(theme="dark")
@@ -449,6 +455,7 @@ def test_interaction_collection_runs_without_esc_monitor(monkeypatch: pytest.Mon
     response = state["response"]
     assert response is not None
     assert response.status == "submitted"
+    assert _FakePromptToolkitInput.pause_calls == 1
 
 
 def test_interaction_collection_pauses_prevent_sleep(monkeypatch: pytest.MonkeyPatch) -> None:

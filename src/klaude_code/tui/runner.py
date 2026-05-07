@@ -162,11 +162,25 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     # and the REPL input share hex colors with the rich-rendered UI.
     configure_pt_theme(theme)
 
+    input_provider: PromptToolkitInput | None = None
+
+    def _set_prompt_suggestion(text: str | None) -> None:
+        if input_provider is not None:
+            input_provider.set_prompt_suggestion(text)
+
+    def _set_status_lines(lines: tuple[str, ...]) -> None:
+        if input_provider is not None:
+            input_provider.set_status_lines(lines)
+
+    def _set_stream_lines(lines: tuple[str, ...]) -> None:
+        if input_provider is not None:
+            input_provider.set_stream_lines(lines)
+
     tui_display = TUIDisplay(
         theme=theme,
-        on_prompt_suggestion=lambda text: input_provider.set_prompt_suggestion(text),
-        on_status_update=lambda lines: input_provider.set_status_lines(lines),
-        on_stream_update=lambda lines: input_provider.set_stream_lines(lines),
+        on_prompt_suggestion=_set_prompt_suggestion,
+        on_status_update=_set_status_lines,
+        on_stream_update=_set_stream_lines,
     )
     display: DisplayABC = tui_display
     prevent_sleep_active = False
@@ -295,11 +309,17 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             ),
         )
 
+    async def _pause_repl_for_external_input() -> Callable[[], None]:
+        if input_provider is not None:
+            return await input_provider.pause_for_external_input()
+        return lambda: None
+
     async def _collect_interaction_response(
         request_event: events.UserInteractionRequestEvent,
     ) -> user_interaction.UserInteractionResponse:
         payload = request_event.payload
         if isinstance(payload, user_interaction.OperationSelectRequestPayload):
+            resume_repl = await _pause_repl_for_external_input()
             tui_display.hide_progress_ui()
             was_preventing_sleep = _stop_prevent_sleep_if_needed()
 
@@ -309,6 +329,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 else:
                     selected = await asyncio.to_thread(_pick_option_with_selector_style, payload)
             finally:
+                resume_repl()
                 if was_preventing_sleep:
                     _start_prevent_sleep_if_needed()
 
@@ -326,6 +347,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 question_count=len(payload.questions),
                 headers=[q.header for q in payload.questions],
             )
+        resume_repl = await _pause_repl_for_external_input()
         tui_display.hide_progress_ui()
         was_preventing_sleep = _stop_prevent_sleep_if_needed()
 
@@ -352,6 +374,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 )
             )
         finally:
+            resume_repl()
             if was_preventing_sleep:
                 _start_prevent_sleep_if_needed()
 

@@ -804,6 +804,19 @@ def create_key_bindings(
         _history_forward_cursor_to_end(event.current_buffer)
 
     @kb.add(
+        "c-c",
+        filter=enabled
+        & Condition(lambda: request_interrupt is not None)
+        & Condition(lambda: is_interrupt_available is None or is_interrupt_available()),
+        eager=True,
+    )
+    def _(event: KeyPressEvent) -> None:
+        """Ctrl+C interrupts the currently running agent task while prompt_toolkit owns stdin."""
+        del event
+        if request_interrupt is not None:
+            request_interrupt()
+
+    @kb.add(
         "escape",
         filter=enabled
         & ~has_completions
