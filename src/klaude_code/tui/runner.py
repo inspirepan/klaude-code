@@ -416,6 +416,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     )
 
     def _stop_rich_bottom_ui() -> None:
+        if _has_active_wait_running():
+            return
         active_display = components.display
         if isinstance(active_display, TUIDisplay):
             active_display.hide_progress_ui()

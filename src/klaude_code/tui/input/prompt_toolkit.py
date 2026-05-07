@@ -61,6 +61,8 @@ from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_m
 INPUT_PROMPT_STYLE = "class:prompt"
 INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
 COMPLETION_TRUNCATION_SYMBOL = "…"
+_STATUS_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+_STATUS_SPINNER_INTERVAL_SECONDS = 0.12
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
@@ -392,6 +394,8 @@ class PromptToolkitInput(InputProviderABC):
         self._session_dir: Path | None = None
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
+        self._status_spinner_task: asyncio.Task[None] | None = None
+        self._status_spinner_frame: int = 0
         self._prompt_suggestion: str | None = None
         self._status_lines: tuple[str, ...] = ()
         self._pending_messages: tuple[str, ...] = ()
@@ -414,6 +418,10 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_status_lines(self, lines: tuple[str, ...]) -> None:
         self._status_lines = tuple(line for line in lines if line.strip())
+        if self._status_lines:
+            self._ensure_status_spinner()
+        else:
+            self._cancel_status_spinner()
         with contextlib.suppress(Exception):
             self._session.app.invalidate()
 
@@ -710,9 +718,12 @@ class PromptToolkitInput(InputProviderABC):
 
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []
+        spinner = _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
         for index, line in enumerate(self._status_lines):
             if index:
                 fragments.append(("", "\n"))
+            if not line.startswith("in "):
+                fragments.append(("class:meta", f"{spinner} "))
             fragments.append(("class:meta", line))
         return fragments
 
@@ -945,6 +956,32 @@ class PromptToolkitInput(InputProviderABC):
         if not task.done():
             task.cancel()
 
+    async def _spin_status(self) -> None:
+        while True:
+            await asyncio.sleep(_STATUS_SPINNER_INTERVAL_SECONDS)
+            if not self._status_lines:
+                return
+            self._status_spinner_frame = (self._status_spinner_frame + 1) % len(_STATUS_SPINNER_FRAMES)
+            with contextlib.suppress(Exception):
+                self._session.app.invalidate()
+
+    def _ensure_status_spinner(self) -> None:
+        if self._status_spinner_task is not None and not self._status_spinner_task.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._status_spinner_task = loop.create_task(self._spin_status())
+
+    def _cancel_status_spinner(self) -> None:
+        task = self._status_spinner_task
+        if task is None:
+            return
+        self._status_spinner_task = None
+        if not task.done():
+            task.cancel()
+
     # -------------------------------------------------------------------------
     # InputProviderABC implementation
     # -------------------------------------------------------------------------
@@ -954,6 +991,7 @@ class PromptToolkitInput(InputProviderABC):
 
     async def stop(self) -> None:
         self._cancel_clipboard_watcher()
+        self._cancel_status_spinner()
 
     @override
     async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:

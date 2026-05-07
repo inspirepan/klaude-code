@@ -11,6 +11,8 @@ def _build_input(text: str) -> PromptToolkitInput:
     prompt_input._prompt_text = USER_MESSAGE_MARK
     prompt_input._session = SimpleNamespace(default_buffer=SimpleNamespace(text=text), app=SimpleNamespace(invalidate=lambda: None))
     prompt_input._clipboard_has_image = False
+    prompt_input._status_spinner_task = None
+    prompt_input._status_spinner_frame = 0
     prompt_input._prompt_suggestion = None
     prompt_input._status_lines = ()
     prompt_input._pending_messages = ()
@@ -44,9 +46,27 @@ def test_status_lines_render_above_prompt() -> None:
 
     assert prompt_input._status_lines == ("Loading...", "in 10 · esc to interrupt")
     assert prompt_input._get_status_fragments() == [
+        ("class:meta", "⠋ "),
         ("class:meta", "Loading..."),
         ("", "\n"),
         ("class:meta", "in 10 · esc to interrupt"),
+    ]
+
+
+def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
+    prompt_input = _build_input("")
+    prompt_input._status_spinner_frame = 1
+
+    prompt_input.set_status_lines(("Finding: session", "Thinking…", "in 12 · cache 3k"))
+
+    assert prompt_input._get_status_fragments() == [
+        ("class:meta", "⠙ "),
+        ("class:meta", "Finding: session"),
+        ("", "\n"),
+        ("class:meta", "⠙ "),
+        ("class:meta", "Thinking…"),
+        ("", "\n"),
+        ("class:meta", "in 12 · cache 3k"),
     ]
 
 
