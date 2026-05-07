@@ -19,8 +19,8 @@ from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, fra
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import merge_key_bindings
 from prompt_toolkit.layout import Float
-from prompt_toolkit.layout.containers import ConditionalContainer, Container, FloatContainer, HSplit, Window
-from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl, UIContent
+from prompt_toolkit.layout.containers import Container, FloatContainer, HSplit, Window
+from prompt_toolkit.layout.controls import BufferControl, UIContent
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
 from prompt_toolkit.layout.utils import explode_text_fragments
@@ -54,7 +54,8 @@ from klaude_code.tui.input.paste import (
     expand_paste_markers_for_history,
     expand_paste_markers_with_file_save,
 )
-from klaude_code.tui.input.pt_theme import CLASS_META, CLASS_USER_INPUT, CLASS_USER_INPUT_RULE, get_base_style
+from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
+from klaude_code.tui.input.pt_theme import get_base_style
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
 # Style class tokens used by the REPL prompt. The concrete colors live in
@@ -63,8 +64,6 @@ INPUT_PROMPT_STYLE = "class:prompt"
 INPUT_PROMPT_RUNNING_STYLE = "class:prompt.running"
 INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
 COMPLETION_TRUNCATION_SYMBOL = "…"
-_STATUS_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
-_STATUS_SPINNER_INTERVAL_SECONDS = 0.12
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
@@ -402,20 +401,18 @@ class PromptToolkitInput(InputProviderABC):
         self._session_dir: Path | None = None
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
-        self._status_spinner_task: asyncio.Task[None] | None = None
-        self._status_spinner_frame: int = 0
         self._prompt_suggestion: str | None = None
-        self._stream_lines: tuple[str, ...] = ()
-        self._status_lines: tuple[PromptStatusLine, ...] = ()
-        self._status_reserved_line_count: int = 0
-        self._running_separator_label: str | None = None
-        self._pending_messages: tuple[str, ...] = ()
         self._queued_edit_active = False
         self._prompt_active = False
         self._prompt_pause_waiter: asyncio.Future[None] | None = None
         self._external_input_pause_count = 0
         self._external_input_resume_event = asyncio.Event()
         self._external_input_resume_event.set()
+
+        self._bottom_bar = PromptBottomBar(
+            invalidate=self._invalidate_app,
+            refresh_status=refresh_status,
+        )
 
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
@@ -434,37 +431,13 @@ class PromptToolkitInput(InputProviderABC):
         self._session_dir = session_dir
 
     def set_stream_lines(self, lines: tuple[str, ...]) -> None:
-        stream_lines = tuple(line for line in lines if line.strip())
-        if stream_lines == self._stream_lines:
-            return
-        self._stream_lines = stream_lines
-        self._invalidate_app()
+        self._bottom_bar.set_stream_lines(lines)
 
     def set_status_lines(self, lines: tuple[PromptStatusLine, ...], *, separator_text: str | None = None) -> None:
-        status_lines = tuple(line for line in lines if line.text.strip())
-        if status_lines == self._status_lines and separator_text == self._running_separator_label:
-            if status_lines:
-                self._ensure_status_spinner()
-            else:
-                self._cancel_status_spinner()
-            return
-
-        self._status_lines = status_lines
-        self._running_separator_label = separator_text
-        if self._status_lines:
-            self._status_reserved_line_count = max(self._status_reserved_line_count, len(self._status_lines))
-            self._ensure_status_spinner()
-        else:
-            self._status_reserved_line_count = 0
-            self._cancel_status_spinner()
-        self._invalidate_app()
+        self._bottom_bar.set_status_lines(lines, separator_text=separator_text)
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
-        pending_messages = tuple(message for message in messages if message.strip())
-        if pending_messages == self._pending_messages:
-            return
-        self._pending_messages = pending_messages
-        self._invalidate_app()
+        self._bottom_bar.set_pending_messages(messages)
 
     def _invalidate_app(self) -> None:
         with contextlib.suppress(Exception):
@@ -561,7 +534,7 @@ class PromptToolkitInput(InputProviderABC):
                 self._dequeue_pending_messages() if self._dequeue_pending_messages is not None else ()
             ),
             mark_dequeued_messages_for_edit=self._mark_queued_edit_active,
-            has_pending_messages=lambda: bool(self._pending_messages),
+            has_pending_messages=lambda: self._bottom_bar.has_pending_messages,
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
         )
@@ -755,138 +728,8 @@ class PromptToolkitInput(InputProviderABC):
     def _install_bottom_windows(self) -> None:
         with contextlib.suppress(Exception):
             root = self._session.app.layout.container
-            stream_window = Window(
-                content=FormattedTextControl(self._get_stream_fragments),
-                height=lambda: len(self._stream_lines),
-                dont_extend_height=True,
-            )
-            stream_spacer = Window(
-                content=FormattedTextControl(""),
-                height=1,
-                dont_extend_height=True,
-            )
-            status_window = Window(
-                content=FormattedTextControl(self._get_status_fragments),
-                height=self._status_window_height,
-                dont_extend_height=True,
-            )
-            status_top_spacer = Window(
-                content=FormattedTextControl(""),
-                height=1,
-                dont_extend_height=True,
-            )
-            status_spacer = Window(
-                content=FormattedTextControl(""),
-                height=1,
-                dont_extend_height=True,
-            )
-            queue_window = Window(
-                content=FormattedTextControl(self._get_pending_message_fragments),
-                height=lambda: len(self._pending_messages) + 1,
-                dont_extend_height=True,
-            )
-            queue_spacer = Window(
-                content=FormattedTextControl(""),
-                height=1,
-                dont_extend_height=True,
-            )
-            running_separator_window = Window(
-                content=FormattedTextControl(self._get_running_separator_fragments),
-                height=1,
-                dont_extend_height=True,
-            )
-            running_separator_spacer = Window(
-                content=FormattedTextControl(""),
-                height=1,
-                dont_extend_height=True,
-            )
-            self._session.app.layout.container = HSplit(
-                [
-                    ConditionalContainer(
-                        stream_window,
-                        filter=Condition(lambda: bool(self._stream_lines)),
-                    ),
-                    ConditionalContainer(
-                        stream_spacer,
-                        filter=Condition(lambda: bool(self._stream_lines)),
-                    ),
-                    ConditionalContainer(
-                        status_top_spacer,
-                        filter=Condition(lambda: bool(self._status_lines) and not bool(self._stream_lines)),
-                    ),
-                    ConditionalContainer(
-                        status_window,
-                        filter=Condition(lambda: bool(self._status_lines)),
-                    ),
-                    ConditionalContainer(
-                        status_spacer,
-                        filter=Condition(lambda: bool(self._status_lines)),
-                    ),
-                    ConditionalContainer(
-                        running_separator_window,
-                        filter=Condition(lambda: self._request_interrupt is not None),
-                    ),
-                    ConditionalContainer(
-                        running_separator_spacer,
-                        filter=Condition(lambda: self._request_interrupt is not None),
-                    ),
-                    ConditionalContainer(
-                        queue_window,
-                        filter=Condition(lambda: bool(self._pending_messages)),
-                    ),
-                    ConditionalContainer(
-                        queue_spacer,
-                        filter=Condition(lambda: bool(self._pending_messages)),
-                    ),
-                    root,
-                ]
-            )
-
-    def _get_stream_fragments(self) -> StyleAndTextTuples:
-        fragments: StyleAndTextTuples = []
-        for index, line in enumerate(self._stream_lines):
-            if index:
-                fragments.append(("", "\n"))
-            fragments.append(("class:meta", line))
-        return fragments
-
-    def _status_window_height(self) -> int:
-        return max(len(self._status_lines), self._status_reserved_line_count)
-
-    def _get_status_fragments(self) -> StyleAndTextTuples:
-        fragments: StyleAndTextTuples = []
-        spinner = _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
-        for index, line in enumerate(self._status_lines):
-            if index:
-                fragments.append(("", "\n"))
-            if line.kind != "metadata":
-                fragments.append(("class:meta", f"{spinner} "))
-            fragments.append(("class:meta", line.text))
-        return fragments
-
-    def _get_running_separator_fragments(self) -> StyleAndTextTuples:
-        try:
-            columns = get_app().output.get_size().columns
-        except Exception:
-            columns = 80
-        label = self._running_separator_label
-        if not label:
-            return [(CLASS_USER_INPUT_RULE, "╸" * max(1, columns))]
-
-        label_width = get_cwidth(label)
-        if label_width + 1 >= columns:
-            return [(CLASS_USER_INPUT_RULE, label)]
-        return [(CLASS_USER_INPUT_RULE, f"{'╸' * max(1, columns - label_width - 1)} {label}")]
-
-    def _get_pending_message_fragments(self) -> StyleAndTextTuples:
-        count = len(self._pending_messages)
-        fragments: StyleAndTextTuples = [(CLASS_META, f"Queued follow-up message ({count} pending) · ↑ to edit.")]
-        for index, message in enumerate(self._pending_messages, start=1):
-            preview = " ".join(message.split())
-            fragments.append(("", "\n"))
-            fragments.append((CLASS_META, f"  {index}. "))
-            fragments.append((CLASS_USER_INPUT, preview))
-        return fragments
+            bar_containers = self._bottom_bar.build_containers(is_agent_running=self._is_agent_running)
+            self._session.app.layout.container = HSplit([*bar_containers, root])
 
     def _patch_prompt_height_for_overlays(self) -> None:
         with contextlib.suppress(Exception):
@@ -1111,35 +954,6 @@ class PromptToolkitInput(InputProviderABC):
         if not task.done():
             task.cancel()
 
-    async def _spin_status(self) -> None:
-        while True:
-            await asyncio.sleep(_STATUS_SPINNER_INTERVAL_SECONDS)
-            if not self._status_lines:
-                return
-            self._status_spinner_frame = (self._status_spinner_frame + 1) % len(_STATUS_SPINNER_FRAMES)
-            if self._refresh_status is not None:
-                with contextlib.suppress(Exception):
-                    self._refresh_status()
-            with contextlib.suppress(Exception):
-                self._session.app.invalidate()
-
-    def _ensure_status_spinner(self) -> None:
-        if self._status_spinner_task is not None and not self._status_spinner_task.done():
-            return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        self._status_spinner_task = loop.create_task(self._spin_status())
-
-    def _cancel_status_spinner(self) -> None:
-        task = self._status_spinner_task
-        if task is None:
-            return
-        self._status_spinner_task = None
-        if not task.done():
-            task.cancel()
-
     # -------------------------------------------------------------------------
     # InputProviderABC implementation
     # -------------------------------------------------------------------------
@@ -1149,7 +963,7 @@ class PromptToolkitInput(InputProviderABC):
 
     async def stop(self) -> None:
         self._cancel_clipboard_watcher()
-        self._cancel_status_spinner()
+        self._bottom_bar.stop()
 
     @override
     async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
