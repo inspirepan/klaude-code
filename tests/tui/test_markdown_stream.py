@@ -189,22 +189,8 @@ def test_update_preserves_loose_nested_top_level_list_titles_when_streaming() ->
             "markdown.hr": "dim",
         }
     )
-    apple = (
-        "- 苹果\n"
-        "  - 原产地：中亚地区\n"
-        "  - 主要品种\n"
-        "    - 红富士\n"
-        "      - 口感：脆甜多汁\n"
-        "\n"
-    )
-    banana = (
-        "- 香蕉\n"
-        "  - 原产地：东南亚\n"
-        "  - 主要品种\n"
-        "    - 卡文迪什\n"
-        "      - 口感：甜糯绵软\n"
-        "\n"
-    )
+    apple = "- 苹果\n  - 原产地：中亚地区\n  - 主要品种\n    - 红富士\n      - 口感：脆甜多汁\n\n"
+    banana = "- 香蕉\n  - 原产地：东南亚\n  - 主要品种\n    - 卡文迪什\n      - 口感：甜糯绵软\n\n"
     orange = "- 橙子\n  - 原产地：中国\n"
     text = apple + banana + orange
 

@@ -366,4 +366,3 @@ class _StatusShimmerLine:
             main_text.append(ch, style=style)
 
         yield truncate_status(main_text, max(1, max_width), console=console)
-

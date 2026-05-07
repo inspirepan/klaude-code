@@ -259,9 +259,7 @@ class TestSessionPersistence:
 
         arun(_test())
 
-    def test_follow_up_queue_clear_wins_over_stale_history_flush(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
+    def test_follow_up_queue_clear_wins_over_stale_history_flush(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
