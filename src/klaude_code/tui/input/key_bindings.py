@@ -64,6 +64,7 @@ def create_key_bindings(
     get_prompt_suggestion: Callable[[], str | None] | None = None,
     consume_prompt_suggestion: Callable[[], str | None] | None = None,
     dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
+    has_pending_messages: Callable[[], bool] | None = None,
     request_interrupt: Callable[[], None] | None = None,
     is_interrupt_available: Callable[[], bool] | None = None,
 ) -> KeyBindings:
@@ -78,6 +79,7 @@ def create_key_bindings(
         consume_prompt_suggestion: Returns and clears the suggestion in one step
             (used when the user accepts it, so it can't be accepted twice).
         dequeue_pending_messages: Returns and clears all queued messages, if any.
+        has_pending_messages: Returns True while queued messages are available.
         request_interrupt: Requests interruption of the currently running agent task.
         is_interrupt_available: Returns True while Escape can interrupt a task.
 
@@ -88,6 +90,7 @@ def create_key_bindings(
     enabled = input_enabled if input_enabled is not None else Always()
 
     has_text = Condition(lambda: bool(get_app().current_buffer.text))
+    has_no_text = Condition(lambda: not bool(get_app().current_buffer.text))
 
     term_program = os.environ.get("TERM_PROGRAM", "").lower()
     swallow_next_control_j = False
@@ -145,6 +148,18 @@ def create_key_bindings(
         with contextlib.suppress(Exception):
             text = buf.text  # type: ignore[reportUnknownMemberType]
             buf.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
+
+    def _dequeue_pending_to_buffer(event: KeyPressEvent) -> bool:
+        messages = dequeue_pending_messages() if dequeue_pending_messages is not None else ()
+        if not messages:
+            return False
+        text = merge_dequeued_messages(messages, event.current_buffer.text)
+        with contextlib.suppress(Exception):
+            event.current_buffer.text = text  # type: ignore[reportUnknownMemberType]
+            event.current_buffer.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
+        with contextlib.suppress(Exception):
+            event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+        return True
 
     def _is_bash_mode_text(text: str) -> bool:
         return text.startswith(("!", "！"))
@@ -620,6 +635,21 @@ def create_key_bindings(
         filter=enabled
         & ~has_completions
         & ~is_searching
+        & has_no_text
+        & Condition(lambda: has_pending_messages is not None and has_pending_messages()),
+        eager=True,
+    )
+    def _(event: KeyPressEvent) -> None:
+        """Empty input + queued messages: restore the whole queue for editing."""
+        if not _dequeue_pending_to_buffer(event):
+            _history_backward_cursor_to_start(event.current_buffer)
+
+    @kb.add(
+        "up",
+        filter=enabled
+        & ~has_completions
+        & ~is_searching
+        & (has_text | Condition(lambda: has_pending_messages is None or not has_pending_messages()))
         & Condition(lambda: not _can_move_cursor_visually_within_wrapped_line(delta_visible_y=-1))
         & Condition(lambda: _current_cursor_row() == 0),
         eager=True,
@@ -764,14 +794,7 @@ def create_key_bindings(
     @kb.add("escape", "up", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:
         """Option+Up restores all queued messages for editing, or falls back to history."""
-        messages = dequeue_pending_messages() if dequeue_pending_messages is not None else ()
-        if messages:
-            text = merge_dequeued_messages(messages, event.current_buffer.text)
-            with contextlib.suppress(Exception):
-                event.current_buffer.text = text  # type: ignore[reportUnknownMemberType]
-                event.current_buffer.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
-            with contextlib.suppress(Exception):
-                event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+        if _dequeue_pending_to_buffer(event):
             return
         _history_backward_cursor_to_start(event.current_buffer)
 
@@ -786,6 +809,7 @@ def create_key_bindings(
         & ~has_completions
         & Condition(lambda: request_interrupt is not None)
         & Condition(lambda: is_interrupt_available is None or is_interrupt_available()),
+        eager=True,
     )
     def _(event: KeyPressEvent) -> None:
         """Escape interrupts the currently running agent task."""

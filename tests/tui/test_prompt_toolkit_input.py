@@ -14,7 +14,9 @@ def _build_input(text: str) -> PromptToolkitInput:
     prompt_input._clipboard_has_image = False
     prompt_input._status_spinner_task = None
     prompt_input._status_spinner_frame = 0
+    prompt_input._refresh_status = None
     prompt_input._prompt_suggestion = None
+    prompt_input._stream_lines = ()
     prompt_input._status_lines = ()
     prompt_input._pending_messages = ()
     return prompt_input  # type: ignore[return-value]
@@ -54,11 +56,32 @@ def test_status_lines_render_above_prompt() -> None:
     ]
 
 
+def test_stream_lines_render_above_status() -> None:
+    prompt_input = _build_input("")
+
+    prompt_input.set_stream_lines(("  line one", "  line two"))
+
+    assert prompt_input._stream_lines == ("  line one", "  line two")
+    assert prompt_input._get_stream_fragments() == [
+        ("class:meta", "  line one"),
+        ("", "\n"),
+        ("class:meta", "  line two"),
+    ]
+
+
 def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
     prompt_input = _build_input("")
     prompt_input._status_spinner_frame = 1
 
-    prompt_input.set_status_lines(("Finding: session", "Thinking…", "in 12 · cache 3k", "0s · esc to interrupt"))
+    prompt_input.set_status_lines(
+        (
+            "Finding: session",
+            "Thinking…",
+            "in 12 · cache 3k",
+            "0s · esc to interrupt",
+            "↑104.8k ◎390.1k ↓5.5k ∵404 · 77.7k/272k (28.6%) · $0.8975 · 0s · esc to interrupt",
+        )
+    )
 
     assert prompt_input._get_status_fragments() == [
         ("class:meta", "⠙ "),
@@ -70,6 +93,8 @@ def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
         ("class:meta", "in 12 · cache 3k"),
         ("", "\n"),
         ("class:meta", "0s · esc to interrupt"),
+        ("", "\n"),
+        ("class:meta", "↑104.8k ◎390.1k ↓5.5k ∵404 · 77.7k/272k (28.6%) · $0.8975 · 0s · esc to interrupt"),
     ]
 
 

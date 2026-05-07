@@ -6,8 +6,8 @@ During interactive `run_interactive()` sessions, prompt-toolkit owns the bottom
 dynamic UI while an agent task is running:
 
 - Rich prints stable scrollback content above the prompt.
-- prompt-toolkit renders the running status block, queued follow-up block, and
-  input editor in one bottom layout.
+- prompt-toolkit renders live output, running status, queued follow-up block,
+  and input editor in one bottom layout.
 - `MARKDOWN_STREAM_LIVE_REPAINT_ENABLED` is expected to stay `False` for this
   model; do not re-enable Markdown bottom Live to fix spacing or repaint bugs.
 - prompt-toolkit must be the only runtime stdin reader. Do not add background
@@ -26,6 +26,9 @@ The status data still originates in the existing renderer/status pipeline:
    `PromptToolkitInput.set_status_lines()`.
 4. `PromptToolkitInput` displays those lines in a prompt-toolkit window and
    adds the lightweight prompt-toolkit spinner prefix.
+5. `PromptToolkitInput` periodically asks the renderer to refresh the status
+   snapshot so elapsed-time metadata keeps updating while only the spinner is
+   animating.
 
 Do not bypass this pipeline with direct prompt-toolkit status strings unless you
 also preserve sub-agent coloring/truncation semantics and metadata formatting.
@@ -40,9 +43,18 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   queued-message `NoticeEvent`s for the queue panel.
 - Current task completion drains queued follow-ups FIFO. Each queued message is
   rendered as a normal user turn only when it actually begins execution.
-- `Alt+Up` / `Esc Up` dequeues all queued messages at once, clears the queue,
-  and writes them back into the editor separated by blank lines. Plain `Up`
-  remains history navigation.
+- Plain `Up` on an empty editor with queued messages dequeues all queued
+  messages at once, clears the queue, and writes them back into the editor
+  separated by blank lines. `Alt+Up` / `Esc Up` keeps the same dequeue behavior
+  as a fallback. Plain `Up` remains history navigation when the queue is empty.
+
+### Live output flow
+
+- Renderer live output, such as bash-mode live tail, should use
+  `TUICommandRenderer(stream_sink=...)` while prompt-toolkit owns the bottom UI.
+- `PromptToolkitInput.set_stream_lines()` renders the live-output block above
+  status, queue, and input.
+- Do not reintroduce `CropAboveLive` for running prompt-owned live output.
 
 ### Spacing invariants for the prompt bottom layout
 
@@ -67,17 +79,19 @@ of them are removable yet:
     still owns important formatting logic.
 - `src/klaude_code/tui/components/rich/live.py`
   - `CropAboveLive` is no longer the normal running-task bottom UI owner during
-    interactive prompts.
+    interactive prompts. Bash live-tail output now flows through prompt-toolkit
+    via `stream_sink`.
   - It is still referenced by `TUICommandRenderer` for non-suspended bottom Live
-    paths and bash live-tail/status behavior, so do not delete it without first
-    removing or replacing those renderer paths and tests.
+    fallback paths and tests, so do not delete it without first removing or
+    replacing those renderer paths.
   - `SingleLine` currently has no production references; it is only covered by
     tests and is a cleanup candidate.
 - `MarkdownStream.live_sink` / `TUICommandRenderer.set_stream_renderable()`
   - Assistant Markdown still passes `set_stream_renderable` as a live sink, but
     normal interactive Markdown live repaint is disabled by
     `MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = False`, and prompt-toolkit
-    suspension ignores stream renderables while the prompt owns the bottom UI.
+    suspension forwards stream renderables to prompt-toolkit instead of starting
+    Rich bottom Live.
   - This is a cleanup candidate, but remove it only after auditing replay,
     bash live-tail, image rendering, and renderer spacing tests.
 - `TUICommandRenderer._bottom_live`, `_bottom_renderable()`, and related bottom

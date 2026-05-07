@@ -166,6 +166,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         theme=theme,
         on_prompt_suggestion=lambda text: input_provider.set_prompt_suggestion(text),
         on_status_update=lambda lines: input_provider.set_status_lines(lines),
+        on_stream_update=lambda lines: input_provider.set_stream_lines(lines),
     )
     display: DisplayABC = tui_display
     prevent_sleep_active = False
@@ -491,6 +492,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         on_prompt_start=_on_prompt_start,
         on_prompt_end=_on_prompt_end,
         on_user_activity=away_summary_coordinator.notify_user_activity,
+        refresh_status=tui_display.refresh_prompt_status,
         get_current_model_config_name=lambda: (
             components.runtime.current_agent.session.model_config_name
             if components.runtime.current_agent is not None

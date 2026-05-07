@@ -39,10 +39,12 @@ class _FakeDisplay:
         theme: str | None = None,
         on_prompt_suggestion: Any = None,
         on_status_update: Any = None,
+        on_stream_update: Any = None,
     ) -> None:
         self.theme = theme
         self.on_prompt_suggestion = on_prompt_suggestion
         self.on_status_update = on_status_update
+        self.on_stream_update = on_stream_update
 
     def notify_ask_user_question(self, *, question_count: int, headers: list[str] | None = None) -> None:
         del question_count, headers
@@ -59,6 +61,9 @@ class _FakeDisplay:
 
     def set_model_name(self, model_name: str) -> None:
         del model_name
+
+    def refresh_prompt_status(self) -> None:
+        return None
 
 
 class _FakePromptToolkitInput:
@@ -81,6 +86,10 @@ class _FakePromptToolkitInput:
 
     def set_session_dir(self, session_dir: Any) -> None:
         pass
+
+    def set_stream_lines(self, lines: tuple[str, ...]) -> None:
+        del lines
+        return None
 
     def set_status_lines(self, lines: tuple[str, ...]) -> None:
         del lines

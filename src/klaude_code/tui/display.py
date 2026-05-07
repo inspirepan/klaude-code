@@ -25,10 +25,16 @@ class TUIDisplay(DisplayABC):
         notifier: TerminalNotifier | None = None,
         on_prompt_suggestion: Callable[[str | None], None] | None = None,
         on_status_update: Callable[[tuple[str, ...]], None] | None = None,
+        on_stream_update: Callable[[tuple[str, ...]], None] | None = None,
     ):
         self._notifier = notifier or TerminalNotifier()
         self._machine = DisplayStateMachine()
-        self._renderer = TUICommandRenderer(theme=theme, notifier=self._notifier, status_sink=on_status_update)
+        self._renderer = TUICommandRenderer(
+            theme=theme,
+            notifier=self._notifier,
+            status_sink=on_status_update,
+            stream_sink=on_stream_update,
+        )
         self._on_prompt_suggestion = on_prompt_suggestion
         self._interrupt_prompt_suggestion_session_id: str | None = None
 
@@ -197,6 +203,12 @@ class TUIDisplay(DisplayABC):
 
         with contextlib.suppress(Exception):
             self._renderer.set_progress_ui_suspended(suspended)
+
+    def refresh_prompt_status(self) -> None:
+        """Refresh the prompt-toolkit status snapshot from the current Rich status state."""
+
+        with contextlib.suppress(Exception):
+            self._renderer.refresh_prompt_status()
 
     def set_model_name(self, model_name: str | None) -> None:
         """Set model name for terminal title updates."""

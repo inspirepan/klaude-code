@@ -64,6 +64,7 @@ COMPLETION_TRUNCATION_SYMBOL = "…"
 _STATUS_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
 _STATUS_METADATA_RE = re.compile(r"^(?:in\s+)?\d+(?:\.\d+)?[smh]?(?:\s*[·|].*)?$")
+_STATUS_METADATA_PREFIXES = ("↑", "↓", "◎", "∵", "$")
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
@@ -117,7 +118,10 @@ def _get_git_info() -> tuple[str | None, str | None]:
 
 
 def _is_status_metadata_line(line: str) -> bool:
-    return bool(_STATUS_METADATA_RE.match(line.strip()))
+    stripped = line.strip()
+    return bool(_STATUS_METADATA_RE.match(stripped)) or "esc to interrupt" in stripped or stripped.startswith(
+        _STATUS_METADATA_PREFIXES
+    )
 
 
 def _trim_formatted_text_with_ellipsis(
@@ -381,6 +385,7 @@ class PromptToolkitInput(InputProviderABC):
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
         dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
         request_interrupt: Callable[[], None] | None = None,
+        refresh_status: Callable[[], None] | None = None,
     ):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
@@ -395,6 +400,7 @@ class PromptToolkitInput(InputProviderABC):
         self._command_info_provider = command_info_provider
         self._dequeue_pending_messages = dequeue_pending_messages
         self._request_interrupt = request_interrupt
+        self._refresh_status = refresh_status
         self._next_prefill_text: str | None = None
         self._session_dir: Path | None = None
         self._clipboard_has_image: bool = False
@@ -402,6 +408,7 @@ class PromptToolkitInput(InputProviderABC):
         self._status_spinner_task: asyncio.Task[None] | None = None
         self._status_spinner_frame: int = 0
         self._prompt_suggestion: str | None = None
+        self._stream_lines: tuple[str, ...] = ()
         self._status_lines: tuple[str, ...] = ()
         self._pending_messages: tuple[str, ...] = ()
 
@@ -420,6 +427,11 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_session_dir(self, session_dir: Path | None) -> None:
         self._session_dir = session_dir
+
+    def set_stream_lines(self, lines: tuple[str, ...]) -> None:
+        self._stream_lines = tuple(line for line in lines if line.strip())
+        with contextlib.suppress(Exception):
+            self._session.app.invalidate()
 
     def set_status_lines(self, lines: tuple[str, ...]) -> None:
         self._status_lines = tuple(line for line in lines if line.strip())
@@ -489,6 +501,7 @@ class PromptToolkitInput(InputProviderABC):
             dequeue_pending_messages=lambda: (
                 self._dequeue_pending_messages() if self._dequeue_pending_messages is not None else ()
             ),
+            has_pending_messages=lambda: bool(self._pending_messages),
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
         )
@@ -672,6 +685,16 @@ class PromptToolkitInput(InputProviderABC):
     def _install_bottom_windows(self) -> None:
         with contextlib.suppress(Exception):
             root = self._session.app.layout.container
+            stream_window = Window(
+                content=FormattedTextControl(self._get_stream_fragments),
+                height=lambda: len(self._stream_lines),
+                dont_extend_height=True,
+            )
+            stream_spacer = Window(
+                content=FormattedTextControl(""),
+                height=1,
+                dont_extend_height=True,
+            )
             status_window = Window(
                 content=FormattedTextControl(self._get_status_fragments),
                 height=lambda: len(self._status_lines),
@@ -700,8 +723,16 @@ class PromptToolkitInput(InputProviderABC):
             self._session.app.layout.container = HSplit(
                 [
                     ConditionalContainer(
+                        stream_window,
+                        filter=Condition(lambda: bool(self._stream_lines)),
+                    ),
+                    ConditionalContainer(
+                        stream_spacer,
+                        filter=Condition(lambda: bool(self._stream_lines)),
+                    ),
+                    ConditionalContainer(
                         status_top_spacer,
-                        filter=Condition(lambda: bool(self._status_lines)),
+                        filter=Condition(lambda: bool(self._status_lines) and not bool(self._stream_lines)),
                     ),
                     ConditionalContainer(
                         status_window,
@@ -722,6 +753,14 @@ class PromptToolkitInput(InputProviderABC):
                     root,
                 ]
             )
+
+    def _get_stream_fragments(self) -> StyleAndTextTuples:
+        fragments: StyleAndTextTuples = []
+        for index, line in enumerate(self._stream_lines):
+            if index:
+                fragments.append(("", "\n"))
+            fragments.append(("class:meta", line))
+        return fragments
 
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []
@@ -969,6 +1008,9 @@ class PromptToolkitInput(InputProviderABC):
             if not self._status_lines:
                 return
             self._status_spinner_frame = (self._status_spinner_frame + 1) % len(_STATUS_SPINNER_FRAMES)
+            if self._refresh_status is not None:
+                with contextlib.suppress(Exception):
+                    self._refresh_status()
             with contextlib.suppress(Exception):
                 self._session.app.invalidate()
 
