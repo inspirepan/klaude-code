@@ -39,6 +39,7 @@ from klaude_code.config.thinking import (
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.command.types import CommandInfo
+from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, SKILL_TOKEN_PATTERN, create_repl_completer
 from klaude_code.tui.input.drag_drop import convert_dropped_text
@@ -53,7 +54,7 @@ from klaude_code.tui.input.paste import (
     expand_paste_markers_for_history,
     expand_paste_markers_with_file_save,
 )
-from klaude_code.tui.input.pt_theme import get_base_style
+from klaude_code.tui.input.pt_theme import CLASS_META, CLASS_USER_INPUT, CLASS_USER_INPUT_RULE, get_base_style
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
 # Style class tokens used by the REPL prompt. The concrete colors live in
@@ -64,10 +65,6 @@ INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
 COMPLETION_TRUNCATION_SYMBOL = "…"
 _STATUS_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
-_STATUS_METADATA_RE = re.compile(
-    r"^(?:(?:in|cache|cache\+|out|thought|cost)\s+)?(?:[$]?\d|[$]?\d+(?:\.\d+)?[kKmM]?).*(?:[·|].*)?$"
-)
-_STATUS_METADATA_PREFIXES = ("↑", "↓", "◎", "∵", "$")
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
@@ -122,13 +119,6 @@ def _get_git_info() -> tuple[str | None, str | None]:
             pass
         return None, None
     return None, None
-
-
-def _is_status_metadata_line(line: str) -> bool:
-    stripped = line.strip()
-    return bool(_STATUS_METADATA_RE.match(stripped)) or "esc to interrupt" in stripped or stripped.startswith(
-        _STATUS_METADATA_PREFIXES
-    )
 
 
 def _trim_formatted_text_with_ellipsis(
@@ -416,8 +406,9 @@ class PromptToolkitInput(InputProviderABC):
         self._status_spinner_frame: int = 0
         self._prompt_suggestion: str | None = None
         self._stream_lines: tuple[str, ...] = ()
-        self._status_lines: tuple[str, ...] = ()
+        self._status_lines: tuple[PromptStatusLine, ...] = ()
         self._status_reserved_line_count: int = 0
+        self._running_separator_label: str | None = None
         self._pending_messages: tuple[str, ...] = ()
         self._queued_edit_active = False
         self._prompt_active = False
@@ -449,9 +440,9 @@ class PromptToolkitInput(InputProviderABC):
         self._stream_lines = stream_lines
         self._invalidate_app()
 
-    def set_status_lines(self, lines: tuple[str, ...]) -> None:
-        status_lines = tuple(line for line in lines if line.strip())
-        if status_lines == self._status_lines:
+    def set_status_lines(self, lines: tuple[PromptStatusLine, ...], *, separator_text: str | None = None) -> None:
+        status_lines = tuple(line for line in lines if line.text.strip())
+        if status_lines == self._status_lines and separator_text == self._running_separator_label:
             if status_lines:
                 self._ensure_status_spinner()
             else:
@@ -459,6 +450,7 @@ class PromptToolkitInput(InputProviderABC):
             return
 
         self._status_lines = status_lines
+        self._running_separator_label = separator_text
         if self._status_lines:
             self._status_reserved_line_count = max(self._status_reserved_line_count, len(self._status_lines))
             self._ensure_status_spinner()
@@ -867,9 +859,9 @@ class PromptToolkitInput(InputProviderABC):
         for index, line in enumerate(self._status_lines):
             if index:
                 fragments.append(("", "\n"))
-            if not _is_status_metadata_line(line):
+            if line.kind != "metadata":
                 fragments.append(("class:meta", f"{spinner} "))
-            fragments.append(("class:meta", line))
+            fragments.append(("class:meta", line.text))
         return fragments
 
     def _get_running_separator_fragments(self) -> StyleAndTextTuples:
@@ -877,15 +869,23 @@ class PromptToolkitInput(InputProviderABC):
             columns = get_app().output.get_size().columns
         except Exception:
             columns = 80
-        return [("class:meta", "╸" * max(1, columns))]
+        label = self._running_separator_label
+        if not label:
+            return [(CLASS_USER_INPUT_RULE, "╸" * max(1, columns))]
+
+        label_width = get_cwidth(label)
+        if label_width + 1 >= columns:
+            return [(CLASS_USER_INPUT_RULE, label)]
+        return [(CLASS_USER_INPUT_RULE, f"{'╸' * max(1, columns - label_width - 1)} {label}")]
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
         count = len(self._pending_messages)
-        fragments: StyleAndTextTuples = [("class:meta", f"Queued follow-up message ({count} pending) · ↑ to edit.")]
+        fragments: StyleAndTextTuples = [(CLASS_META, f"Queued follow-up message ({count} pending) · ↑ to edit.")]
         for index, message in enumerate(self._pending_messages, start=1):
             preview = " ".join(message.split())
             fragments.append(("", "\n"))
-            fragments.append(("class:meta", f"  {index}. {preview}"))
+            fragments.append((CLASS_META, f"  {index}. "))
+            fragments.append((CLASS_USER_INPUT, preview))
         return fragments
 
     def _patch_prompt_height_for_overlays(self) -> None:

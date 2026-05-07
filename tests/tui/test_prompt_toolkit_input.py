@@ -2,10 +2,14 @@ import asyncio
 from types import SimpleNamespace
 from typing import Any
 
+from rich.text import Text
+
+from klaude_code.tui.commands import DynamicSeparatorText, PromptStatusLine, SpinnerStatusLine
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.key_bindings import merge_dequeued_messages, split_queued_message_edit_text
 from klaude_code.tui.input.paste import expand_paste_markers, store_paste
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, _PasteAwareFileHistory
+from klaude_code.tui.renderer import TUICommandRenderer
 
 
 def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> PromptToolkitInput:
@@ -26,6 +30,7 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._stream_lines = ()
     prompt_input._status_lines = ()
     prompt_input._status_reserved_line_count = 0
+    prompt_input._running_separator_label = None
     prompt_input._pending_messages = ()
     prompt_input._queued_edit_active = False
     prompt_input._prompt_active = False
@@ -34,6 +39,14 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._external_input_resume_event = asyncio.Event()
     prompt_input._external_input_resume_event.set()
     return prompt_input  # type: ignore[return-value]
+
+
+def _status(text: str) -> PromptStatusLine:
+    return PromptStatusLine(text, "status")
+
+
+def _metadata(text: str) -> PromptStatusLine:
+    return PromptStatusLine(text, "metadata")
 
 
 def test_set_next_prefill_stores_text() -> None:
@@ -79,22 +92,23 @@ def test_running_prompt_uses_cyan_style() -> None:
 def test_status_lines_render_above_prompt() -> None:
     prompt_input = _build_input("")
 
-    prompt_input.set_status_lines(("Loading...", "in 10 · esc to interrupt"))
+    prompt_input.set_status_lines((_status("Loading..."), _metadata("in 10")), separator_text="1m51s · esc to interrupt")
 
-    assert prompt_input._status_lines == ("Loading...", "in 10 · esc to interrupt")
+    assert prompt_input._status_lines == (_status("Loading..."), _metadata("in 10"))
+    assert prompt_input._running_separator_label == "1m51s · esc to interrupt"
     assert prompt_input._get_status_fragments() == [
         ("class:meta", "⠋ "),
         ("class:meta", "Loading..."),
         ("", "\n"),
-        ("class:meta", "in 10 · esc to interrupt"),
+        ("class:meta", "in 10"),
     ]
 
 
 def test_status_window_height_stays_stable_until_status_clears() -> None:
     prompt_input = _build_input("")
 
-    prompt_input.set_status_lines(("Loading...", "in 10 · esc to interrupt"))
-    prompt_input.set_status_lines(("Loading...",))
+    prompt_input.set_status_lines((_status("Loading..."), _metadata("in 10")), separator_text="1m51s · esc to interrupt")
+    prompt_input.set_status_lines((_status("Loading..."),))
 
     assert prompt_input._status_window_height() == 2
 
@@ -109,8 +123,8 @@ def test_bottom_line_updates_skip_unchanged_invalidations() -> None:
 
     prompt_input.set_stream_lines(("tail",))
     prompt_input.set_stream_lines(("tail",))
-    prompt_input.set_status_lines(("Loading...",))
-    prompt_input.set_status_lines(("Loading...",))
+    prompt_input.set_status_lines((_status("Loading..."),))
+    prompt_input.set_status_lines((_status("Loading..."),))
     prompt_input.set_pending_messages(("queued",))
     prompt_input.set_pending_messages(("queued",))
 
@@ -120,7 +134,39 @@ def test_bottom_line_updates_skip_unchanged_invalidations() -> None:
 def test_running_separator_uses_prompt_width_fallback() -> None:
     prompt_input = _build_input("")
 
-    assert prompt_input._get_running_separator_fragments() == [("class:meta", "╸" * 80)]
+    assert prompt_input._get_running_separator_fragments() == [("class:user.input.rule", "╸" * 80)]
+
+
+def test_running_separator_includes_interrupt_hint() -> None:
+    prompt_input = _build_input("")
+    prompt_input._running_separator_label = "1m51s · esc to interrupt"
+
+    assert prompt_input._get_running_separator_fragments() == [
+        ("class:user.input.rule", f"{'╸' * 55} 1m51s · esc to interrupt")
+    ]
+
+
+def test_renderer_status_sink_separates_interrupt_hint() -> None:
+    updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
+    renderer = TUICommandRenderer(status_sink=lambda lines, separator_text: updates.append((lines, separator_text)))
+    elapsed = SimpleNamespace(text="1m51s")
+
+    renderer.set_progress_ui_suspended(True)
+    renderer.spinner_start()
+    renderer.spinner_update(
+        Text("in 12 · cache 3k"),
+        (SpinnerStatusLine(text=Text("Loading…")),),
+        separator_text=DynamicSeparatorText(lambda: f"{elapsed.text} · esc to interrupt"),
+    )
+
+    lines, separator_text = updates[-1]
+    assert lines == (_status("Loading…"), _metadata("in 12 · cache 3k"))
+    assert all("esc to interrupt" not in line.text for line in lines)
+    assert separator_text == "1m51s · esc to interrupt"
+
+    elapsed.text = "1m52s"
+    renderer.refresh_prompt_status()
+    assert updates[-1][1] == "1m52s · esc to interrupt"
 
 
 def test_interrupt_handler_invalidates_running_separator() -> None:
@@ -153,12 +199,12 @@ def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
 
     prompt_input.set_status_lines(
         (
-            "Finding: session",
-            "Thinking…",
-            "in 12 · cache 3k",
-            "0s · esc to interrupt",
-            "↑104.8k ◎390.1k ↓5.5k ∵404 · 77.7k/272k (28.6%) · $0.8975 · 0s · esc to interrupt",
-        )
+            _status("Finding: session"),
+            _status("Thinking…"),
+            _metadata("in 12 · cache 3k"),
+            _metadata("↑104.8k ◎390.1k ↓5.5k ∵404 · 77.7k/272k (28.6%) · $0.8975"),
+        ),
+        separator_text="0s · esc to interrupt",
     )
 
     assert prompt_input._get_status_fragments() == [
@@ -170,10 +216,9 @@ def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
         ("", "\n"),
         ("class:meta", "in 12 · cache 3k"),
         ("", "\n"),
-        ("class:meta", "0s · esc to interrupt"),
-        ("", "\n"),
-        ("class:meta", "↑104.8k ◎390.1k ↓5.5k ∵404 · 77.7k/272k (28.6%) · $0.8975 · 0s · esc to interrupt"),
+        ("class:meta", "↑104.8k ◎390.1k ↓5.5k ∵404 · 77.7k/272k (28.6%) · $0.8975"),
     ]
+    assert prompt_input._running_separator_label == "0s · esc to interrupt"
 
 
 def test_status_spinner_does_not_prefix_wrapped_token_metadata() -> None:
@@ -182,8 +227,8 @@ def test_status_spinner_does_not_prefix_wrapped_token_metadata() -> None:
 
     prompt_input.set_status_lines(
         (
-            "Loading…",
-            "in 18.2k · cache 33.8k · out 1.1k · thought 89 · 26.7k/272k (9.8%) · cost $0.1430 · 7",
+            _status("Loading…"),
+            _metadata("in 18.2k · cache 33.8k · out 1.1k · thought 89 · 26.7k/272k (9.8%) · cost $0.1430 · 7"),
         )
     )
 
@@ -192,6 +237,20 @@ def test_status_spinner_does_not_prefix_wrapped_token_metadata() -> None:
         ("class:meta", "Loading…"),
         ("", "\n"),
         ("class:meta", "in 18.2k · cache 33.8k · out 1.1k · thought 89 · 26.7k/272k (9.8%) · cost $0.1430 · 7"),
+    ]
+
+
+def test_status_metadata_kind_controls_spinner_prefix() -> None:
+    prompt_input = _build_input("")
+    prompt_input._status_spinner_frame = 2
+
+    prompt_input.set_status_lines((_status("Loading…"), _metadata("not token-shaped metadata")))
+
+    assert prompt_input._get_status_fragments() == [
+        ("class:meta", "⠹ "),
+        ("class:meta", "Loading…"),
+        ("", "\n"),
+        ("class:meta", "not token-shaped metadata"),
     ]
 
 
@@ -204,9 +263,11 @@ def test_pending_messages_render_above_prompt() -> None:
     assert prompt_input._get_pending_message_fragments() == [
         ("class:meta", "Queued follow-up message (2 pending) · ↑ to edit."),
         ("", "\n"),
-        ("class:meta", "  1. first queued"),
+        ("class:meta", "  1. "),
+        ("class:user.input", "first queued"),
         ("", "\n"),
-        ("class:meta", "  2. second queued"),
+        ("class:meta", "  2. "),
+        ("class:user.input", "second queued"),
     ]
 
 

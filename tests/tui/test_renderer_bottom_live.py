@@ -46,6 +46,21 @@ def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
     assert stream_updates[-1] == ()
 
 
+def test_prompt_separator_text_does_not_depend_on_status_lines() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    status_updates: list[tuple[tuple[object, ...], str | None]] = []
+
+    def _record_status(lines: tuple[object, ...], separator_text: str | None) -> None:
+        status_updates.append((lines, separator_text))
+
+    renderer = TUICommandRenderer(status_sink=_record_status)
+
+    renderer._emit_prompt_status((), "12s · esc to interrupt")
+
+    assert status_updates[-1] == ((), "12s · esc to interrupt")
+
+
 def test_display_image_prints_caption_then_image(monkeypatch) -> None:
     from klaude_code.tui import renderer as renderer_module
     from klaude_code.tui.renderer import TUICommandRenderer

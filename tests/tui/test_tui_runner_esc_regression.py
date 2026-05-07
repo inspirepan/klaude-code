@@ -12,6 +12,7 @@ import pytest
 from klaude_code.protocol import events, message, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
+from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.terminal.selector import QuestionSelectResult
 
 T = TypeVar("T")
@@ -92,8 +93,9 @@ class _FakePromptToolkitInput:
         del lines
         return None
 
-    def set_status_lines(self, lines: tuple[str, ...]) -> None:
+    def set_status_lines(self, lines: tuple[PromptStatusLine, ...], *, separator_text: str | None = None) -> None:
         del lines
+        del separator_text
         return None
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:

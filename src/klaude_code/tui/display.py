@@ -8,6 +8,7 @@ from typing import Any, override
 from klaude_code.app.ports import DisplayABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
+from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.machine import DisplayStateMachine, is_cancelled_task_result
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
@@ -24,7 +25,7 @@ class TUIDisplay(DisplayABC):
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
         on_prompt_suggestion: Callable[[str | None], None] | None = None,
-        on_status_update: Callable[[tuple[str, ...]], None] | None = None,
+        on_status_update: Callable[[tuple[PromptStatusLine, ...], str | None], None] | None = None,
         on_stream_update: Callable[[tuple[str, ...]], None] | None = None,
     ):
         self._notifier = notifier or TerminalNotifier()
