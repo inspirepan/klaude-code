@@ -80,10 +80,15 @@ viewport:
   footer-like metadata as one vertical layout tree.
 - Render the full logical screen to lines, track the previous visible viewport,
   and diff against the previous frame.
+- Do not use the terminal alternate screen (`\x1b[?1049h` / `\x1b[?1049l`).
+  The interactive TUI must stay in the main screen buffer so normal terminal
+  scrollback remains available.
 - Use synchronized terminal output (`\x1b[?2026h` ... `\x1b[?2026l`) for atomic
-  updates.
+  updates; this is not alternate screen mode.
 - Full-redraw on width changes, changes above the visible viewport, or content
-  shrink that could leave stale bottom rows.
+  shrink that could leave stale bottom rows. Prefer clearing/repainting the
+  visible screen only; do not clear scrollback (`\x1b[3J`) as part of routine
+  interactive redraws.
 - Keep prompt-toolkit as the only stdin reader if it remains the editor layer;
   do not add background stdin readers or reintroduce Rich bottom Live.
 
