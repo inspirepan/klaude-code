@@ -422,11 +422,18 @@ class MarkdownStream:
             return 0
 
         top_level: list[Token] = [token for token in tokens if token.level == 0 and token.map is not None]
-        if len(top_level) < 2:
+        if not top_level:
             return 0
 
         last = top_level[-1]
         assert last.map is not None
+
+        list_item_stable_line = self._compute_list_item_stable_line(tokens, last)
+        if list_item_stable_line > 0:
+            return list_item_stable_line
+
+        if len(top_level) < 2:
+            return 0
 
         # When the buffer ends mid-line, markdown-it-py can temporarily classify
         # some lines as a thematic break (hr). For example, a trailing "- --"
@@ -465,6 +472,26 @@ class MarkdownStream:
 
         start_line = last.map[0]
         return max(start_line, 0)
+
+    def _compute_list_item_stable_line(self, tokens: list[Token], list_token: Token) -> int:
+        if list_token.type not in {"bullet_list_open", "ordered_list_open"} or list_token.map is None:
+            return 0
+
+        list_start, list_end = list_token.map
+        top_level_items = [
+            token
+            for token in tokens
+            if token.type == "list_item_open"
+            and token.level == list_token.level + 1
+            and token.map is not None
+            and list_start <= token.map[0] < list_end
+        ]
+        if len(top_level_items) < 2:
+            return 0
+
+        last_item = top_level_items[-1]
+        assert last_item.map is not None
+        return max(last_item.map[0], 0)
 
     def split_blocks(self, text: str, *, min_stable_line: int = 0, final: bool = False) -> tuple[str, str, int]:
         """Split full markdown into stable and live sources.
@@ -507,11 +534,33 @@ class MarkdownStream:
             return "", []
 
         render_source = stable_source
-        if not final and has_live_suffix:
+        if not final and has_live_suffix and not self._stable_prefix_ends_inside_list(stable_source):
             render_source = self._append_nonfinal_sentinel(stable_source)
 
         lines, images = self._render_markdown_to_lines(render_source, apply_mark=True)
         return "".join(lines), images
+
+    def _stable_prefix_ends_inside_list(self, stable_source: str) -> bool:
+        stable_line = len(stable_source.splitlines(keepends=True))
+        if stable_line == 0:
+            return False
+
+        try:
+            tokens = self._parser.parse(stable_source)
+        except Exception:
+            return False
+
+        list_tokens = [
+            token
+            for token in tokens
+            if token.type in {"bullet_list_open", "ordered_list_open"} and token.level == 0 and token.map is not None
+        ]
+        if not list_tokens:
+            return False
+
+        last_list = list_tokens[-1]
+        assert last_list.map is not None
+        return last_list.map[1] == stable_line
 
     def _append_nonfinal_sentinel(self, stable_source: str) -> str:
         """Make Rich render stable content as if it isn't the last block.
