@@ -179,6 +179,56 @@ def test_update_matches_direct_render_when_ordered_items_stabilize_incrementally
     assert "3 third" in streamed_plain
 
 
+def test_update_preserves_loose_nested_top_level_list_titles_when_streaming() -> None:
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    apple = (
+        "- 苹果\n"
+        "  - 原产地：中亚地区\n"
+        "  - 主要品种\n"
+        "    - 红富士\n"
+        "      - 口感：脆甜多汁\n"
+        "\n"
+    )
+    banana = (
+        "- 香蕉\n"
+        "  - 原产地：东南亚\n"
+        "  - 主要品种\n"
+        "    - 卡文迪什\n"
+        "      - 口感：甜糯绵软\n"
+        "\n"
+    )
+    orange = "- 橙子\n  - 原产地：中国\n"
+    text = apple + banana + orange
+
+    streamed_out = io.StringIO()
+    streamed_console = Console(file=streamed_out, force_terminal=True, width=100, theme=theme)
+    streamed = MarkdownStream(console=streamed_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    streamed.min_delay = 0
+    streamed.update(apple + "- 香蕉", final=False)
+    streamed.update(text, final=True)
+
+    direct_out = io.StringIO()
+    direct_console = Console(file=direct_out, force_terminal=True, width=100, theme=theme)
+    direct = MarkdownStream(console=direct_console, theme=theme, left_margin=0, live_sink=lambda _: None)
+    direct.min_delay = 0
+    direct.update(text, final=True)
+
+    streamed_plain = _ANSI_ESCAPE_RE.sub("", streamed_out.getvalue())
+    direct_plain = _ANSI_ESCAPE_RE.sub("", direct_out.getvalue())
+    assert streamed_plain == direct_plain
+    assert "• 苹果" in streamed_plain
+    assert "• 香蕉" in streamed_plain
+    assert "• 橙子" in streamed_plain
+
+
 def test_update_does_not_write_synchronized_output_sequences_when_not_tty(monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.tui.components.rich import markdown as markdown_module
 
