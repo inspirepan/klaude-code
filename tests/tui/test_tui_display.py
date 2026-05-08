@@ -103,6 +103,16 @@ def test_interrupt_cancelled_task_suggests_continue() -> None:
     assert suggestions == ["/continue"]
 
 
+def test_interrupt_without_visible_output_does_not_suggest_continue() -> None:
+    suggestions: list[str | None] = []
+    display = TUIDisplay(notifier=Mock(spec=TerminalNotifier), on_prompt_suggestion=suggestions.append)
+
+    display._handle_prompt_suggestion_event(events.InterruptEvent(session_id="main", show_notice=False))
+    display._handle_prompt_suggestion_event(events.TaskFinishEvent(session_id="main", task_result="task cancelled"))
+
+    assert suggestions == []
+
+
 def test_replay_interrupt_cancelled_task_restores_continue_suggestion() -> None:
     suggestions: list[str | None] = []
     display = TUIDisplay(notifier=Mock(spec=TerminalNotifier), on_prompt_suggestion=suggestions.append)
@@ -115,3 +125,17 @@ def test_replay_interrupt_cancelled_task_restores_continue_suggestion() -> None:
     )
 
     assert suggestions == ["/continue"]
+
+
+def test_replay_interrupt_without_visible_output_does_not_restore_continue_suggestion() -> None:
+    suggestions: list[str | None] = []
+    display = TUIDisplay(notifier=Mock(spec=TerminalNotifier), on_prompt_suggestion=suggestions.append)
+
+    display._restore_prompt_suggestion_from_replay(
+        [
+            events.InterruptEvent(session_id="main", show_notice=False),
+            events.TaskFinishEvent(session_id="main", task_result="task cancelled"),
+        ]
+    )
+
+    assert suggestions == []

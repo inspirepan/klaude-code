@@ -19,13 +19,12 @@ from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, fra
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import merge_key_bindings
 from prompt_toolkit.layout import Float
-from prompt_toolkit.layout.containers import Container, FloatContainer, Window
+from prompt_toolkit.layout.containers import Container, FloatContainer, HSplit, Window
 from prompt_toolkit.layout.controls import BufferControl, UIContent
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
 from prompt_toolkit.layout.utils import explode_text_fragments
 from prompt_toolkit.output.color_depth import ColorDepth
-from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.app.ports import InputProviderABC
@@ -39,9 +38,11 @@ from klaude_code.config.thinking import (
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.command.types import CommandInfo
+from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, SKILL_TOKEN_PATTERN, create_repl_completer
 from klaude_code.tui.input.drag_drop import convert_dropped_text
+from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout
 from klaude_code.tui.input.images import (
     capture_clipboard_tag,
     extract_images_from_text,
@@ -53,16 +54,22 @@ from klaude_code.tui.input.paste import (
     expand_paste_markers_for_history,
     expand_paste_markers_with_file_save,
 )
+from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
 from klaude_code.tui.input.pt_theme import get_base_style
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
 # Style class tokens used by the REPL prompt. The concrete colors live in
 # ``pt_theme.py`` so that hex values follow the resolved light/dark palette.
 INPUT_PROMPT_STYLE = "class:prompt"
+INPUT_PROMPT_RUNNING_STYLE = "class:prompt.running"
 INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
 COMPLETION_TRUNCATION_SYMBOL = "…"
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
+
+
+class _PromptPaused(Exception):
+    """Internal signal used to pause the REPL while another prompt_toolkit app owns stdin."""
 
 
 def _get_git_info() -> tuple[str | None, str | None]:
@@ -372,6 +379,9 @@ class PromptToolkitInput(InputProviderABC):
         on_change_thinking: Callable[[llm_param.Thinking], Awaitable[None]] | None = None,
         get_current_llm_config: Callable[[], llm_param.LLMConfigParameter | None] | None = None,
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
+        dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
+        request_interrupt: Callable[[], None] | None = None,
+        refresh_status: Callable[[], None] | None = None,
     ):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
@@ -384,11 +394,26 @@ class PromptToolkitInput(InputProviderABC):
         self._on_change_thinking = on_change_thinking
         self._get_current_llm_config = get_current_llm_config
         self._command_info_provider = command_info_provider
+        self._dequeue_pending_messages = dequeue_pending_messages
+        self._request_interrupt = request_interrupt
+        self._refresh_status = refresh_status
         self._next_prefill_text: str | None = None
         self._session_dir: Path | None = None
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
         self._prompt_suggestion: str | None = None
+        self._queued_edit_active = False
+        self._agent_running = False
+        self._prompt_active = False
+        self._prompt_pause_waiter: asyncio.Future[None] | None = None
+        self._external_input_pause_count = 0
+        self._external_input_resume_event = asyncio.Event()
+        self._external_input_resume_event.set()
+
+        self._bottom_bar = PromptBottomBar(
+            invalidate=self._invalidate_app,
+            refresh_status=refresh_status,
+        )
 
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
@@ -402,9 +427,77 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_next_prefill(self, text: str | None) -> None:
         self._next_prefill_text = text
+        if not text or not self._prompt_active or self._is_agent_running():
+            return
+        with contextlib.suppress(Exception):
+            if self._session.default_buffer.text:
+                return
+        with contextlib.suppress(Exception):
+            self._session.app.exit(exception=_PromptPaused())
 
     def set_session_dir(self, session_dir: Path | None) -> None:
         self._session_dir = session_dir
+
+    def set_stream_lines(self, lines: tuple[str, ...], *, end_of_stream: bool = False) -> None:
+        self._bottom_bar.set_stream_lines(lines, end_of_stream=end_of_stream)
+
+    def set_status_lines(self, lines: tuple[PromptStatusLine, ...], *, separator_text: str | None = None) -> None:
+        self._bottom_bar.set_status_lines(lines, separator_text=separator_text)
+
+    def set_pending_messages(self, messages: tuple[str, ...]) -> None:
+        self._bottom_bar.set_pending_messages(messages)
+
+    def set_agent_running(self, running: bool) -> None:
+        if self._agent_running == running:
+            return
+        self._agent_running = running
+        self._invalidate_app()
+
+    def _invalidate_app(self) -> None:
+        with contextlib.suppress(Exception):
+            self._session.app.invalidate()
+
+    def set_dequeue_pending_messages(self, dequeue_pending_messages: Callable[[], tuple[str, ...]] | None) -> None:
+        self._dequeue_pending_messages = dequeue_pending_messages
+
+    def set_interrupt_handler(self, request_interrupt: Callable[[], None] | None) -> None:
+        if request_interrupt is self._request_interrupt:
+            return
+        self._request_interrupt = request_interrupt
+        self._invalidate_app()
+
+    async def pause_for_external_input(self) -> Callable[[], None]:
+        """Pause the active REPL prompt so a modal selector can read stdin exclusively."""
+
+        self._external_input_pause_count += 1
+        self._external_input_resume_event.clear()
+
+        def _resume() -> None:
+            self._external_input_pause_count = max(0, self._external_input_pause_count - 1)
+            if self._external_input_pause_count == 0:
+                self._external_input_resume_event.set()
+
+        if not self._prompt_active:
+            return _resume
+        if self._prompt_pause_waiter is not None:
+            await self._prompt_pause_waiter
+            return _resume
+
+        loop = asyncio.get_running_loop()
+        waiter: asyncio.Future[None] = loop.create_future()
+        self._prompt_pause_waiter = waiter
+        with contextlib.suppress(Exception):
+            text = self._session.default_buffer.text
+            self._next_prefill_text = text or None
+        try:
+            self._session.app.exit(exception=_PromptPaused())
+        except Exception:
+            self._prompt_pause_waiter = None
+            if not waiter.done():
+                waiter.set_result(None)
+            return _resume
+        await waiter
+        return _resume
 
     @override
     def set_prompt_suggestion(self, text: str | None) -> None:
@@ -451,6 +544,13 @@ class PromptToolkitInput(InputProviderABC):
             open_thinking_picker=self._open_thinking_picker,
             get_prompt_suggestion=self._get_prompt_suggestion,
             consume_prompt_suggestion=self._consume_prompt_suggestion,
+            dequeue_pending_messages=lambda: (
+                self._dequeue_pending_messages() if self._dequeue_pending_messages is not None else ()
+            ),
+            mark_dequeued_messages_for_edit=self._mark_queued_edit_active,
+            has_pending_messages=lambda: self._bottom_bar.has_pending_messages,
+            request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
+            is_interrupt_available=lambda: self._request_interrupt is not None,
         )
 
         return PromptSession(
@@ -483,6 +583,12 @@ class PromptToolkitInput(InputProviderABC):
         When an image is detected on the system clipboard, also show a ctrl+v
         paste reminder.
         """
+        if self._is_agent_running():
+            text = "   Queue a follow-up"
+            if self._clipboard_has_image:
+                text = f"{text} · ctrl+v to paste image"
+            return FormattedText([("class:placeholder", text)])
+
         if self._prompt_suggestion:
             hint = "[enter send · tab edit]"
             if self._clipboard_has_image:
@@ -543,8 +649,19 @@ class PromptToolkitInput(InputProviderABC):
         except Exception:
             return False
 
+    def _is_agent_running(self) -> bool:
+        return self._agent_running
+
+    def _take_next_prefill_text(self) -> str | None:
+        if self._is_agent_running():
+            return None
+        text = self._next_prefill_text
+        self._next_prefill_text = None
+        return text
+
     def _get_prompt_message(self) -> FormattedText:
-        return FormattedText([(INPUT_PROMPT_STYLE, self._prompt_text)])
+        style = INPUT_PROMPT_RUNNING_STYLE if self._is_agent_running() else INPUT_PROMPT_STYLE
+        return FormattedText([(style, self._prompt_text)])
 
     def _get_rprompt_message(self) -> FormattedText:
         if not self._is_bash_mode_active():
@@ -627,6 +744,14 @@ class PromptToolkitInput(InputProviderABC):
         # Ensure completion menu has default selection
         self._session.default_buffer.on_completions_changed += self._select_first_completion_on_open  # pyright: ignore[reportUnknownMemberType]
 
+        self._install_bottom_windows()
+
+    def _install_bottom_windows(self) -> None:
+        with contextlib.suppress(Exception):
+            root = self._session.app.layout.container
+            bar_containers = self._bottom_bar.build_containers(is_agent_running=self._is_agent_running)
+            self._session.app.layout.container = HSplit([*bar_containers, root])
+
     def _patch_prompt_height_for_overlays(self) -> None:
         with contextlib.suppress(Exception):
             root = self._session.app.layout.container
@@ -699,6 +824,9 @@ class PromptToolkitInput(InputProviderABC):
                     self._session.app.invalidate()
         except Exception:
             return
+
+    def _mark_queued_edit_active(self, _text: str) -> None:
+        self._queued_edit_active = True
 
     # -------------------------------------------------------------------------
     # Model picker
@@ -856,10 +984,23 @@ class PromptToolkitInput(InputProviderABC):
 
     async def stop(self) -> None:
         self._cancel_clipboard_watcher()
+        self._bottom_bar.stop()
 
     @override
     async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
+        # Keep one StdoutProxy alive for the entire input session instead of
+        # rebuilding it on every prompt_async iteration. The proxy's close()
+        # joins its background flush thread, which can block up to
+        # ``sleep_between_writes`` seconds waiting for the throttle sleep to
+        # finish — that delay was visible as an empty input area between a
+        # follow-up submission and the next prompt being rendered.
+        with flicker_safe_patch_stdout():
+            async for payload in self._iter_inputs_inner():
+                yield payload
+
+    async def _iter_inputs_inner(self) -> AsyncIterator[UserInputPayload]:
         while True:
+            await self._external_input_resume_event.wait()
             if self._pre_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._pre_prompt()
@@ -870,22 +1011,36 @@ class PromptToolkitInput(InputProviderABC):
             if self._on_prompt_start is not None:
                 with contextlib.suppress(Exception):
                     self._on_prompt_start()
+            prompt_paused = False
+            line = ""
+            queued_edit = False
             try:
-                with patch_stdout(raw=True):
-                    default_text = self._next_prefill_text
-                    self._next_prefill_text = None
-                    if default_text is None:
-                        line = await self._session.prompt_async(message=self._get_prompt_message)
-                    else:
-                        line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
+                self._prompt_active = True
+                default_text = self._take_next_prefill_text()
+                if default_text is None:
+                    line = await self._session.prompt_async(message=self._get_prompt_message)
+                else:
+                    line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
+                queued_edit = self._queued_edit_active
+            except _PromptPaused:
+                prompt_paused = True
             finally:
+                self._prompt_active = False
+                pause_waiter = self._prompt_pause_waiter
+                self._prompt_pause_waiter = None
+                if pause_waiter is not None and not pause_waiter.done():
+                    pause_waiter.set_result(None)
                 # A submission (Enter on non-empty buffer, suggestion acceptance,
                 # or anything else) invalidates the pending suggestion. Runtime
                 # will push a fresh one after the next task finishes.
-                self._prompt_suggestion = None
+                if not prompt_paused:
+                    self._prompt_suggestion = None
+                    self._queued_edit_active = False
                 if self._on_prompt_end is not None:
                     with contextlib.suppress(Exception):
                         self._on_prompt_end()
+            if prompt_paused:
+                continue
             if self._post_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._post_prompt()
@@ -905,7 +1060,12 @@ class PromptToolkitInput(InputProviderABC):
             # Extract images referenced in the input text
             images = extract_images_from_text(line)
 
-            yield UserInputPayload(text=line, images=images if images else None, pasted_files=pasted_files)
+            yield UserInputPayload(
+                text=line,
+                images=images if images else None,
+                pasted_files=pasted_files,
+                queued_edit=queued_edit,
+            )
 
     # Note: Mouse support is intentionally disabled at the PromptSession
     # level so that terminals retain their native scrollback behavior.

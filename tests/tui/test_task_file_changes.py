@@ -4,7 +4,7 @@ from klaude_code.protocol import events, message
 from klaude_code.protocol.models import TaskFileChange
 from klaude_code.tui.commands import RenderTaskFileChangeSummary
 from klaude_code.tui.components.rich.theme import get_theme
-from klaude_code.tui.components.task_file_changes import render_task_file_change_summary
+from klaude_code.tui.components.task_file_changes import MAX_TASK_FILE_CHANGE_ROWS, render_task_file_change_summary
 from klaude_code.tui.machine import DisplayStateMachine
 
 
@@ -56,3 +56,22 @@ def test_task_file_change_summary_render_includes_diff_stat() -> None:
     assert "src/removed.py" in output
     assert "- ./src/removed.py" in output
     assert "-3" in output
+
+
+def test_task_file_change_summary_caps_visible_rows() -> None:
+    files = [TaskFileChange(path=f"src/file_{index:02}.py", added=1, removed=0, created=True) for index in range(25)]
+    event = events.TaskFileChangeSummaryEvent(
+        session_id="s1",
+        summary=message.TaskFileChangeSummaryEntry(files=files),
+    )
+
+    console = Console(width=100, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_task_file_change_summary(event))
+    output = console.export_text(styles=False)
+    visible_rows = [line for line in output.splitlines() if line.strip().startswith(("+", "-", "~", "…"))]
+
+    assert len(visible_rows) == MAX_TASK_FILE_CHANGE_ROWS
+    assert "FILE CHANGES · 25 files" in output
+    assert "./src/file_18.py" in output
+    assert "./src/file_19.py" not in output
+    assert "… (more 6 lines)" in output

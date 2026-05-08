@@ -1,5 +1,8 @@
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from klaude_code.agent.prompt_suggestion.prompt_suggestion import (
     _MAX_PARENT_UNCACHED_TOKENS,  # pyright: ignore[reportPrivateUsage]
@@ -8,10 +11,28 @@ from klaude_code.agent.prompt_suggestion.prompt_suggestion import (
     _normalize,  # pyright: ignore[reportPrivateUsage]
     should_suggest,
 )
+from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
 from klaude_code.protocol import message
 from klaude_code.protocol.models import Usage
 from klaude_code.protocol.models.common import StopReason
 from klaude_code.session.session import Session
+
+
+def test_runtime_skips_prompt_suggestion_when_follow_up_queue_pending(monkeypatch: pytest.MonkeyPatch) -> None:
+    handler = object.__new__(AgentOperationHandler)
+    handler._prompt_suggestion_tasks = {}  # pyright: ignore[reportPrivateUsage]
+
+    def _fail_create_task(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("prompt suggestion should not be scheduled while queued follow-ups are pending")
+
+    monkeypatch.setattr("klaude_code.agent.runtime.agent_ops.asyncio.create_task", _fail_create_task)
+
+    agent = SimpleNamespace(
+        session=SimpleNamespace(id="s1", sub_agent_state=None),
+        follow_up_count=lambda: 1,
+    )
+
+    handler._schedule_prompt_suggestion(agent)  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType]
 
 
 def _assistant(*, stop_reason: StopReason = "stop", usage: Usage | None = None) -> message.AssistantMessage:

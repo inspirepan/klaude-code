@@ -27,6 +27,9 @@ from prompt_toolkit.keys import Keys
 from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.paste import store_paste
 
+QUEUED_MESSAGE_EDIT_SEPARATOR = "\n---\n"
+_QUEUED_MESSAGE_SEPARATOR_RE = re.compile(r"(?m)^---$")
+
 
 def copy_to_clipboard(text: str) -> None:
     """Copy text to system clipboard using platform-specific commands."""
@@ -63,6 +66,11 @@ def create_key_bindings(
     open_thinking_picker: Callable[[], None] | None = None,
     get_prompt_suggestion: Callable[[], str | None] | None = None,
     consume_prompt_suggestion: Callable[[], str | None] | None = None,
+    dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
+    mark_dequeued_messages_for_edit: Callable[[str], None] | None = None,
+    has_pending_messages: Callable[[], bool] | None = None,
+    request_interrupt: Callable[[], None] | None = None,
+    is_interrupt_available: Callable[[], bool] | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
 
@@ -74,6 +82,10 @@ def create_key_bindings(
             or None when there is nothing to suggest.
         consume_prompt_suggestion: Returns and clears the suggestion in one step
             (used when the user accepts it, so it can't be accepted twice).
+        dequeue_pending_messages: Returns and clears all queued messages, if any.
+        has_pending_messages: Returns True while queued messages are available.
+        request_interrupt: Requests interruption of the currently running agent task.
+        is_interrupt_available: Returns True while Escape can interrupt a task.
 
     Returns:
         KeyBindings instance with all REPL handlers configured
@@ -82,6 +94,7 @@ def create_key_bindings(
     enabled = input_enabled if input_enabled is not None else Always()
 
     has_text = Condition(lambda: bool(get_app().current_buffer.text))
+    has_no_text = Condition(lambda: not bool(get_app().current_buffer.text))
 
     term_program = os.environ.get("TERM_PROGRAM", "").lower()
     swallow_next_control_j = False
@@ -139,6 +152,20 @@ def create_key_bindings(
         with contextlib.suppress(Exception):
             text = buf.text  # type: ignore[reportUnknownMemberType]
             buf.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
+
+    def _dequeue_pending_to_buffer(event: KeyPressEvent) -> bool:
+        messages = dequeue_pending_messages() if dequeue_pending_messages is not None else ()
+        if not messages:
+            return False
+        text = merge_dequeued_messages(messages, event.current_buffer.text)
+        with contextlib.suppress(Exception):
+            event.current_buffer.text = text  # type: ignore[reportUnknownMemberType]
+            event.current_buffer.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
+        if mark_dequeued_messages_for_edit is not None:
+            mark_dequeued_messages_for_edit(text)
+        with contextlib.suppress(Exception):
+            event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+        return True
 
     def _is_bash_mode_text(text: str) -> bool:
         return text.startswith(("!", "！"))
@@ -614,6 +641,21 @@ def create_key_bindings(
         filter=enabled
         & ~has_completions
         & ~is_searching
+        & has_no_text
+        & Condition(lambda: has_pending_messages is not None and has_pending_messages()),
+        eager=True,
+    )
+    def _(event: KeyPressEvent) -> None:
+        """Empty input + queued messages: restore the whole queue for editing."""
+        if not _dequeue_pending_to_buffer(event):
+            _history_backward_cursor_to_start(event.current_buffer)
+
+    @kb.add(
+        "up",
+        filter=enabled
+        & ~has_completions
+        & ~is_searching
+        & (has_text | Condition(lambda: has_pending_messages is None or not has_pending_messages()))
         & Condition(lambda: not _can_move_cursor_visually_within_wrapped_line(delta_visible_y=-1))
         & Condition(lambda: _current_cursor_row() == 0),
         eager=True,
@@ -757,7 +799,9 @@ def create_key_bindings(
 
     @kb.add("escape", "up", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:
-        """Option+Up switches to previous history entry."""
+        """Option+Up restores all queued messages for editing, or falls back to history."""
+        if _dequeue_pending_to_buffer(event):
+            return
         _history_backward_cursor_to_start(event.current_buffer)
 
     @kb.add("escape", "down", filter=enabled & ~has_completions)
@@ -765,4 +809,44 @@ def create_key_bindings(
         """Option+Down switches to next history entry."""
         _history_forward_cursor_to_end(event.current_buffer)
 
+    @kb.add(
+        "c-c",
+        filter=enabled
+        & Condition(lambda: request_interrupt is not None)
+        & Condition(lambda: is_interrupt_available is None or is_interrupt_available()),
+        eager=True,
+    )
+    def _(event: KeyPressEvent) -> None:
+        """Ctrl+C interrupts the currently running agent task while prompt_toolkit owns stdin."""
+        del event
+        if request_interrupt is not None:
+            request_interrupt()
+
+    @kb.add(
+        "escape",
+        filter=enabled
+        & ~has_completions
+        & Condition(lambda: request_interrupt is not None)
+        & Condition(lambda: is_interrupt_available is None or is_interrupt_available()),
+        eager=True,
+    )
+    def _(event: KeyPressEvent) -> None:
+        """Escape interrupts the currently running agent task."""
+        del event
+        if request_interrupt is not None:
+            request_interrupt()
+
     return kb
+
+
+def merge_dequeued_messages(messages: tuple[str, ...], current_text: str) -> str:
+    parts = [message for message in messages if message]
+    if current_text:
+        parts.append(current_text)
+    return QUEUED_MESSAGE_EDIT_SEPARATOR.join(parts)
+
+
+def split_queued_message_edit_text(text: str) -> tuple[str, ...]:
+    if not _QUEUED_MESSAGE_SEPARATOR_RE.search(text):
+        return (text,)
+    return tuple(part.strip("\n") for part in _QUEUED_MESSAGE_SEPARATOR_RE.split(text) if part.strip())

@@ -8,7 +8,7 @@ from typing import Any, cast
 
 from pydantic import ValidationError
 
-from klaude_code.protocol import llm_param
+from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
@@ -37,6 +37,7 @@ class LoadedSessionMeta:
     model_config_name: str | None
     model_thinking: llm_param.Thinking | None
     next_checkpoint_id: int
+    follow_up_queue: list[message.UserInputPayload]
 
 
 def read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -84,6 +85,20 @@ def _parse_todos(raw: object) -> list[TodoItem]:
         except ValidationError:
             continue
     return todos
+
+
+def _parse_follow_up_queue(raw: object) -> list[message.UserInputPayload]:
+    inputs: list[message.UserInputPayload] = []
+    if not isinstance(raw, list):
+        return inputs
+    for item in cast(list[object], raw):
+        if not isinstance(item, dict):
+            continue
+        try:
+            inputs.append(message.UserInputPayload.model_validate(item))
+        except ValidationError:
+            continue
+    return inputs
 
 
 def parse_session_state(raw: object) -> SessionRuntimeState | None:
@@ -138,6 +153,7 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         model_config_name=raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None,
         model_thinking=model_thinking,
         next_checkpoint_id=int(raw.get("next_checkpoint_id", 0)),
+        follow_up_queue=_parse_follow_up_queue(raw.get("follow_up_queue")),
     )
 
 

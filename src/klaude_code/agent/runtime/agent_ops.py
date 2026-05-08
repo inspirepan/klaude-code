@@ -438,6 +438,12 @@ class AgentOperationHandler:
         # session is the only one that benefits from a suggestion.
         if agent.session.sub_agent_state is not None:
             return
+        if agent.follow_up_count() > 0:
+            log_debug(
+                f"[PromptSuggestion] skip session={session_id} reason=follow-up queue pending",
+                debug_type=DebugType.EXECUTION,
+            )
+            return
         suppress = should_suggest(agent.session)
         if suppress is not None:
             log_debug(
@@ -560,6 +566,10 @@ class AgentOperationHandler:
             task=task,
             session_id=operation.session_id,
         )
+
+    async def follow_up_agent(self, operation: op.FollowUpAgentOperation) -> None:
+        agent = await self.ensure_agent(operation.session_id)
+        agent.follow_up(operation.input)
 
     async def run_bash(self, operation: op.RunBashOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
@@ -1030,6 +1040,9 @@ class AgentRunner:
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._operation_handler.run_agent(operation)
+
+    async def follow_up_agent(self, operation: op.FollowUpAgentOperation) -> None:
+        await self._operation_handler.follow_up_agent(operation)
 
     async def continue_agent(self, operation: op.ContinueAgentOperation) -> None:
         await self._operation_handler.continue_agent(operation)

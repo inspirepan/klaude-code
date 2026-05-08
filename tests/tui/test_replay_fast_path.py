@@ -6,11 +6,16 @@ import io
 from rich.console import Console
 
 
-def test_replay_mode_does_not_start_bottom_live_for_assistant_stream() -> None:
+def test_replay_mode_defers_assistant_stream_until_end() -> None:
     from klaude_code.tui.commands import AppendAssistant, EndAssistantStream, StartAssistantStream
     from klaude_code.tui.renderer import TUICommandRenderer
 
-    renderer = TUICommandRenderer()
+    stream_updates: list[tuple[str, ...]] = []
+
+    def _sink(lines: tuple[str, ...], _end_of_stream: bool) -> None:
+        stream_updates.append(lines)
+
+    renderer = TUICommandRenderer(stream_sink=_sink)
 
     output = io.StringIO()
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
@@ -21,19 +26,18 @@ def test_replay_mode_does_not_start_bottom_live_for_assistant_stream() -> None:
     session_id = "replay-session"
 
     asyncio.run(renderer.execute([StartAssistantStream(session_id=session_id)]))
-    assert renderer._bottom_live is None
     assert output.getvalue() == ""
+    assert stream_updates == []
 
     asyncio.run(renderer.execute([AppendAssistant(session_id=session_id, content="First paragraph.\n\n")]))
-    assert renderer._bottom_live is None
     assert output.getvalue() == ""
+    assert stream_updates == []
 
     asyncio.run(renderer.execute([AppendAssistant(session_id=session_id, content="Second paragraph.\n")]))
-    assert renderer._bottom_live is None
     assert output.getvalue() == ""
+    assert stream_updates == []
 
     asyncio.run(renderer.execute([EndAssistantStream(session_id=session_id)]))
-    assert renderer._bottom_live is None
 
     rendered = output.getvalue()
     assert "First paragraph." in rendered

@@ -42,6 +42,7 @@ class Session(BaseModel):
     file_tracker: dict[str, FileStatus] = Field(default_factory=dict)
     file_change_summary: FileChangeSummary = Field(default_factory=FileChangeSummary)
     todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    follow_up_queue: list[message.UserInputPayload] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
     session_state: SessionRuntimeState | None = None
     runtime_owner: SessionOwner | None = None
@@ -151,6 +152,7 @@ class Session(BaseModel):
             model_config_name=meta.model_config_name,
             model_thinking=meta.model_thinking,
             next_checkpoint_id=meta.next_checkpoint_id,
+            follow_up_queue=meta.follow_up_queue,
         )
 
     @classmethod
@@ -229,8 +231,15 @@ class Session(BaseModel):
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
             next_checkpoint_id=self.next_checkpoint_id,
+            follow_up_queue=self.follow_up_queue,
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
+
+    def set_follow_up_queue(self, items: Sequence[message.UserInputPayload]) -> None:
+        self.follow_up_queue = [item.model_copy(deep=True) for item in items]
+        payload = [item.model_dump(mode="json", exclude_none=True) for item in self.follow_up_queue]
+        if not self._store.update_meta(self.id, {"follow_up_queue": payload or None}) and payload:
+            self.ensure_meta_exists()
 
     def update_title(self, title: str | None) -> bool:
         normalized = title.strip() if isinstance(title, str) else None
@@ -263,6 +272,7 @@ class Session(BaseModel):
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
             next_checkpoint_id=self.next_checkpoint_id,
+            follow_up_queue=self.follow_up_queue,
         )
         self._store.create_meta_if_missing(self.id, meta)
 

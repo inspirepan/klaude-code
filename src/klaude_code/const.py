@@ -175,10 +175,8 @@ NOTIFY_COMPACT_LIMIT = 160  # Maximum length for notification body text
 # =============================================================================
 
 UI_REFRESH_RATE_FPS = 10  # UI refresh rate (frames per second)
-CROP_ABOVE_LIVE_REFRESH_PER_SECOND = 4.0  # CropAboveLive default refresh rate
-MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = True  # Enable live area for streaming markdown
+MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = False  # Enable live area for streaming markdown
 MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED = True  # Use terminal "Synchronized Output" to reduce flicker
-STREAM_MAX_HEIGHT_SHRINK_RESET_LINES = 5  # Reset stream height ceiling after this shrinkage
 MARKDOWN_LEFT_MARGIN = 2  # Left margin (columns) for markdown rendering
 MARKDOWN_RIGHT_MARGIN = 0  # Right margin (columns) for markdown rendering
 
@@ -205,7 +203,7 @@ STATUS_SHIMMER_ENABLED = True  # Enable shimmer effect on status text
 STATUS_SHIMMER_PADDING = 10  # Horizontal padding for shimmer band position
 STATUS_SHIMMER_BAND_HALF_WIDTH = 5.0  # Half-width of shimmer band in characters
 STATUS_SHIMMER_ALPHA_SCALE = 0.7  # Scale factor for shimmer intensity
-STATUS_SHOW_BUFFER_LENGTH = False  # Show character count (e.g., "(213)") during text generation
+STATUS_SHOW_BUFFER_LENGTH = True  # Show character count (e.g., "(213 chars)") during text generation
 
 # =============================================================================
 # UI - Completion System

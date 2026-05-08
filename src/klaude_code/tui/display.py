@@ -8,6 +8,7 @@ from typing import Any, override
 from klaude_code.app.ports import DisplayABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
+from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.machine import DisplayStateMachine, is_cancelled_task_result
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
@@ -24,10 +25,17 @@ class TUIDisplay(DisplayABC):
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
         on_prompt_suggestion: Callable[[str | None], None] | None = None,
+        on_status_update: Callable[[tuple[PromptStatusLine, ...], str | None], None] | None = None,
+        on_stream_update: Callable[[tuple[str, ...], bool], None] | None = None,
     ):
         self._notifier = notifier or TerminalNotifier()
         self._machine = DisplayStateMachine()
-        self._renderer = TUICommandRenderer(theme=theme, notifier=self._notifier)
+        self._renderer = TUICommandRenderer(
+            theme=theme,
+            notifier=self._notifier,
+            status_sink=on_status_update,
+            stream_sink=on_stream_update,
+        )
         self._on_prompt_suggestion = on_prompt_suggestion
         self._interrupt_prompt_suggestion_session_id: str | None = None
 
@@ -43,9 +51,8 @@ class TUIDisplay(DisplayABC):
     async def consume_envelope(self, envelope: events.EventEnvelope) -> None:
         event = envelope.event
         if isinstance(event, events.ReplayHistoryEvent):
-            # Replay does not need streaming UI; disable bottom Live rendering to avoid
-            # repaint overhead and flicker while reconstructing history.
-            self._renderer.stop_bottom_live()
+            # Replay does not need streaming UI; disable prompt live rendering
+            # while reconstructing stable scrollback history.
             self._renderer.set_stream_renderable(None)
             self._renderer.set_replay_mode(True)
             try:
@@ -91,7 +98,7 @@ class TUIDisplay(DisplayABC):
                 self._interrupt_prompt_suggestion_session_id = None
                 self._set_prompt_suggestion(None)
             case events.InterruptEvent() as e:
-                self._interrupt_prompt_suggestion_session_id = e.session_id
+                self._interrupt_prompt_suggestion_session_id = e.session_id if e.show_notice else None
             case events.TaskFinishEvent() as e:
                 if self._interrupt_prompt_suggestion_session_id != e.session_id:
                     return
@@ -109,7 +116,8 @@ class TUIDisplay(DisplayABC):
         A suggestion is invalidated by any later UserMessageEvent in the same
         replay stream (mirrors the live ``PromptSuggestionClearedEvent`` that
         fires on a new turn but is not persisted). Interrupted cancelled tasks
-        synthesize the same ``/continue`` fallback used by live display events.
+        synthesize the same ``/continue`` fallback used by live display events
+        when the task had already produced visible output.
         """
         if self._on_prompt_suggestion is None:
             return
@@ -124,7 +132,7 @@ class TUIDisplay(DisplayABC):
                 interrupt_session_id = None
             elif isinstance(item, events.InterruptEvent):
                 suggestion = None
-                interrupt_session_id = item.session_id
+                interrupt_session_id = item.session_id if item.show_notice else None
             elif isinstance(item, events.TaskFinishEvent) and interrupt_session_id == item.session_id:
                 suggestion = self._CONTINUE_PROMPT_SUGGESTION if is_cancelled_task_result(item.task_result) else None
                 interrupt_session_id = None
@@ -149,9 +157,6 @@ class TUIDisplay(DisplayABC):
         self._bg_tasks.clear()
 
         await self._renderer.stop()
-
-        with contextlib.suppress(Exception):
-            self._renderer.stop_bottom_live()
 
     def show_sigint_exit_toast(self, *, window_seconds: float = 2.0) -> None:
         """Show a transient Ctrl+C hint in the TUI status line."""
@@ -181,8 +186,6 @@ class TUIDisplay(DisplayABC):
         with contextlib.suppress(Exception):
             self._renderer.spinner_stop()
         with contextlib.suppress(Exception):
-            self._renderer.stop_bottom_live()
-        with contextlib.suppress(Exception):
             self._renderer.flush_open_blocks(scoped=False)
 
     def show_progress_ui(self) -> None:
@@ -190,6 +193,18 @@ class TUIDisplay(DisplayABC):
 
         with contextlib.suppress(Exception):
             self._renderer.spinner_start()
+
+    def set_progress_ui_suspended(self, suspended: bool) -> None:
+        """Prevent Rich Live progress UI from repainting while prompt-toolkit owns input."""
+
+        with contextlib.suppress(Exception):
+            self._renderer.set_progress_ui_suspended(suspended)
+
+    def refresh_prompt_status(self) -> None:
+        """Refresh the prompt-toolkit status snapshot from the current Rich status state."""
+
+        with contextlib.suppress(Exception):
+            self._renderer.refresh_prompt_status()
 
     def set_model_name(self, model_name: str | None) -> None:
         """Set model name for terminal title updates."""

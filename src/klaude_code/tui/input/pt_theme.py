@@ -21,6 +21,8 @@ from klaude_code.tui.components.rich.theme import DARK_PALETTE, LIGHT_PALETTE, P
 CLASS_PROMPT = "class:prompt"
 CLASS_PROMPT_BASH = "class:prompt.bash"
 CLASS_META = "class:meta"
+CLASS_USER_INPUT = "class:user.input"
+CLASS_USER_INPUT_RULE = "class:user.input.rule"
 CLASS_MSG = "class:msg"
 CLASS_TEXT = "class:text"
 CLASS_SEPARATOR = "class:separator"
@@ -133,7 +135,10 @@ def _build_style_rules(palette: Palette) -> list[tuple[str, str]]:
         ("prompt-suggestion", f"fg:{palette.grey1}"),
         ("placeholder-hint", f"fg:{palette.grey2}"),
         ("prompt", f"bold fg:{palette.magenta}"),
+        ("prompt.running", f"bold fg:{palette.cyan}"),
         ("prompt.bash", f"fg:{palette.green}"),
+        ("user.input", f"fg:{palette.magenta}"),
+        ("user.input.rule", f"fg:{palette.grey2} bg:{palette.blue_sub_background}"),
         # --- Completion menu --------------------------------------------
         ("completion-menu", "bg:default"),
         ("completion-menu.border", "bg:default"),
