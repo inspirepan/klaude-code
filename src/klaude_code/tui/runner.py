@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
-from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout
-
 from klaude_code.agent.compaction import should_compact_threshold
 from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
@@ -34,6 +32,7 @@ from klaude_code.tui.command import (
 from klaude_code.tui.command.command_abc import WebModeRequest
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.display import TUIDisplay
+from klaude_code.tui.input.flicker_safe_stdout import settle_flicker_safe_stdout
 from klaude_code.tui.input.key_bindings import split_queued_message_edit_text
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
 from klaude_code.tui.input.pt_theme import configure_pt_theme
@@ -58,15 +57,20 @@ async def submit_user_input_payload(
     user_input: UserInputPayload,
     session_id: str | None,
 ) -> SubmitUserInputResult:
-    """Submit TUI input while routing immediate Rich output through prompt-toolkit."""
+    """Submit TUI input while routing immediate Rich output through prompt-toolkit.
 
-    with flicker_safe_patch_stdout():
-        return await _submit_user_input_payload_inner(
-            runtime=runtime,
-            wait_for_display_idle=wait_for_display_idle,
-            user_input=user_input,
-            session_id=session_id,
-        )
+    The ``flicker_safe_patch_stdout`` context wrapping iter_inputs in
+    PromptToolkitInput already covers this path, so we no longer enter a
+    nested proxy here — re-entering would build a second StdoutProxy with
+    its own background thread for no benefit.
+    """
+
+    return await _submit_user_input_payload_inner(
+        runtime=runtime,
+        wait_for_display_idle=wait_for_display_idle,
+        user_input=user_input,
+        session_id=session_id,
+    )
 
 
 async def _submit_user_input_payload_inner(
@@ -596,8 +600,15 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     async def _finish_active_wait(wait_id: str, *, session_id: str) -> None:
         interrupted = await _wait_for_with_interrupt(wait_id, session_id=session_id)
         # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
-        # before treating the agent as idle again.
+        # before treating the agent as idle again. ``wait_for_display_idle`` waits
+        # for the event-bus subscription to drain (consume_envelope returned), but
+        # Rich writes from those handlers are still queued in the StdoutProxy and
+        # dispatched asynchronously via ``synchronized_in_terminal``. We must
+        # also drain that pipeline, otherwise a follow-up ``UserMessageEvent``
+        # (emitted below) can land on the wire — and on screen — before the
+        # previous task's TaskFinish separator has been painted.
         await components.wait_for_display_idle()
+        await settle_flicker_safe_stdout()
         away_summary_coordinator.notify_task_finished()
         if interrupted and components.runtime.current_agent is not None:
             input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
@@ -624,6 +635,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 continue
             interrupted = await _wait_for_with_interrupt(submission.wait_id, session_id=session_id)
             await components.wait_for_display_idle()
+            await settle_flicker_safe_stdout()
             away_summary_coordinator.notify_task_finished()
             if interrupted:
                 if components.runtime.current_agent is not None:

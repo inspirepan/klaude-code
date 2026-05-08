@@ -26,6 +26,14 @@ from klaude_code.tui.input.pt_theme import CLASS_META, CLASS_USER_INPUT, CLASS_U
 _STATUS_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
 
+# How long to hold the stream area's reserved height after an end-of-stream
+# signal before truly collapsing it. Adjacent post-stream events
+# (TaskMetadata, TaskFinish) typically arrive within a few milliseconds;
+# keeping the reservation while their scrollback writes drain through the
+# StdoutProxy queue prevents prompt-toolkit from briefly painting the
+# input field right under the last assistant message.
+_STREAM_RESERVATION_HOLD_SECONDS = 0.6
+
 
 class PromptBottomBar:
     def __init__(
@@ -39,6 +47,7 @@ class PromptBottomBar:
 
         self._stream_lines: tuple[str, ...] = ()
         self._stream_reserved_line_count: int = 0
+        self._stream_collapse_handle: asyncio.TimerHandle | None = None
         self._status_lines: tuple[PromptStatusLine, ...] = ()
         self._status_reserved_line_count: int = 0
         self._running_separator_label: str | None = None
@@ -52,13 +61,23 @@ class PromptBottomBar:
     def set_stream_lines(self, lines: tuple[str, ...], *, end_of_stream: bool = False) -> None:
         stream_lines = tuple(line for line in lines if line.strip())
 
-        # End-of-stream: collapse the reserved area entirely.
+        # Any new state cancels a pending delayed collapse — either we're
+        # going to collapse anyway, or we have new content that resets the
+        # debounce.
+        self._cancel_pending_stream_collapse()
+
+        # End-of-stream: clear the visible content immediately but defer the
+        # height collapse so adjacent post-stream events (TaskMetadata,
+        # TaskFinish) can land in scrollback first. Without the delay,
+        # prompt-toolkit's spinner-driven redraw fires between events and
+        # paints the input field right under the last assistant message
+        # before metadata/finish render.
         if end_of_stream:
             if not self._stream_lines and self._stream_reserved_line_count == 0:
                 return
             self._stream_lines = ()
-            self._stream_reserved_line_count = 0
             self._invalidate()
+            self._schedule_stream_collapse()
             return
 
         # Otherwise hold a high-water reservation so transient frame-to-frame
@@ -70,6 +89,36 @@ class PromptBottomBar:
             return
         self._stream_lines = stream_lines
         self._stream_reserved_line_count = new_reserved
+        self._invalidate()
+
+    def _cancel_pending_stream_collapse(self) -> None:
+        handle = self._stream_collapse_handle
+        if handle is None:
+            return
+        self._stream_collapse_handle = None
+        with contextlib.suppress(Exception):
+            handle.cancel()
+
+    def _schedule_stream_collapse(self) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop (non-interactive paths e.g. replay tests):
+            # collapse immediately so behavior matches the synchronous
+            # contract.
+            self._stream_reserved_line_count = 0
+            self._invalidate()
+            return
+        self._stream_collapse_handle = loop.call_later(
+            _STREAM_RESERVATION_HOLD_SECONDS,
+            self._do_stream_collapse,
+        )
+
+    def _do_stream_collapse(self) -> None:
+        self._stream_collapse_handle = None
+        if self._stream_reserved_line_count == 0:
+            return
+        self._stream_reserved_line_count = 0
         self._invalidate()
 
     def set_status_lines(
@@ -151,6 +200,7 @@ class PromptBottomBar:
 
     def stop(self) -> None:
         self._cancel_status_spinner()
+        self._cancel_pending_stream_collapse()
 
     # ---- fragment generators --------------------------------------------
 

@@ -25,7 +25,6 @@ from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
 from prompt_toolkit.layout.utils import explode_text_fragments
 from prompt_toolkit.output.color_depth import ColorDepth
-from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout
 from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.app.ports import InputProviderABC
@@ -43,6 +42,7 @@ from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, SKILL_TOKEN_PATTERN, create_repl_completer
 from klaude_code.tui.input.drag_drop import convert_dropped_text
+from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout
 from klaude_code.tui.input.images import (
     capture_clipboard_tag,
     extract_images_from_text,
@@ -967,6 +967,17 @@ class PromptToolkitInput(InputProviderABC):
 
     @override
     async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
+        # Keep one StdoutProxy alive for the entire input session instead of
+        # rebuilding it on every prompt_async iteration. The proxy's close()
+        # joins its background flush thread, which can block up to
+        # ``sleep_between_writes`` seconds waiting for the throttle sleep to
+        # finish — that delay was visible as an empty input area between a
+        # follow-up submission and the next prompt being rendered.
+        with flicker_safe_patch_stdout():
+            async for payload in self._iter_inputs_inner():
+                yield payload
+
+    async def _iter_inputs_inner(self) -> AsyncIterator[UserInputPayload]:
         while True:
             await self._external_input_resume_event.wait()
             if self._pre_prompt is not None:
@@ -984,14 +995,13 @@ class PromptToolkitInput(InputProviderABC):
             queued_edit = False
             try:
                 self._prompt_active = True
-                with flicker_safe_patch_stdout():
-                    default_text = self._next_prefill_text
-                    self._next_prefill_text = None
-                    if default_text is None:
-                        line = await self._session.prompt_async(message=self._get_prompt_message)
-                    else:
-                        line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
-                    queued_edit = self._queued_edit_active
+                default_text = self._next_prefill_text
+                self._next_prefill_text = None
+                if default_text is None:
+                    line = await self._session.prompt_async(message=self._get_prompt_message)
+                else:
+                    line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
+                queued_edit = self._queued_edit_active
             except _PromptPaused:
                 prompt_paused = True
             finally:

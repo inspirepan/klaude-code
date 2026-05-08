@@ -232,9 +232,42 @@ def test_stream_lines_end_of_stream_collapses_reserved() -> None:
     prompt_input.set_stream_lines(("a", "b", "c"))
     assert bar._stream_reserved_line_count == 3
 
+    # No running loop in this synchronous test path → fallback collapses
+    # immediately so non-interactive callers keep deterministic behavior.
     prompt_input.set_stream_lines((), end_of_stream=True)
     assert bar._stream_reserved_line_count == 0
     assert bar._stream_lines == ()
+
+
+def test_stream_lines_end_of_stream_defers_height_collapse_under_loop() -> None:
+    """Under a running asyncio loop, end_of_stream clears visible content
+    but holds the reserved height for a brief debounce window. This stops
+    prompt-toolkit from briefly painting the input field right under the
+    last assistant message before the adjacent task-end events render to
+    scrollback."""
+    import asyncio
+
+    async def _scenario() -> None:
+        prompt_input = _build_input("")
+        bar = prompt_input._bottom_bar
+
+        prompt_input.set_stream_lines(("a", "b", "c"))
+        assert bar._stream_reserved_line_count == 3
+
+        prompt_input.set_stream_lines((), end_of_stream=True)
+        # Lines cleared immediately…
+        assert bar._stream_lines == ()
+        # …but reserved height is held pending the debounce timer.
+        assert bar._stream_reserved_line_count == 3
+        assert bar._stream_collapse_handle is not None
+
+        # A new chunk before the timer fires cancels the collapse.
+        prompt_input.set_stream_lines(("d",))
+        assert bar._stream_collapse_handle is None
+        assert bar._stream_reserved_line_count == 3
+        assert bar._stream_lines == ("d",)
+
+    asyncio.run(_scenario())
 
 
 def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
