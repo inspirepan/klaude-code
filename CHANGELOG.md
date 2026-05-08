@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.29.0] - 2026-05-08
+
+### Added
+
+- support queued follow-up input ([#319](https://github.com/inspirepan/klaude-code/pull/319) by [@inspirepan](https://github.com/inspirepan))
+- support CJK inline @-file syntax and git file change tracking ([#316](https://github.com/inspirepan/klaude-code/pull/316) by [@inspirepan](https://github.com/inspirepan))
+
+### Fixed
+
+- SOCKS proxy support, lower gpt-5.5 reasoning effort, exclude dep dirs from file tracking ([#317](https://github.com/inspirepan/klaude-code/pull/317) by [@inspirepan](https://github.com/inspirepan))
+- enable eager input streaming for Opus 4.7 ([#315](https://github.com/inspirepan/klaude-code/pull/315))
+- improve diff rendering and SOCKS proxy installs ([#314](https://github.com/inspirepan/klaude-code/pull/314))
+
 ## [2.28.0] - 2026-04-30
 
 ### Added
@@ -2308,7 +2321,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.28.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.29.0...HEAD
+[2.29.0]: https://github.com/inspirepan/klaude-code/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/inspirepan/klaude-code/compare/v2.27.0...v2.28.0
 [2.27.0]: https://github.com/inspirepan/klaude-code/compare/v2.26.0...v2.27.0
 [2.26.0]: https://github.com/inspirepan/klaude-code/compare/v2.25.0...v2.26.0
