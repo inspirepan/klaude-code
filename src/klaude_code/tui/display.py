@@ -26,7 +26,7 @@ class TUIDisplay(DisplayABC):
         notifier: TerminalNotifier | None = None,
         on_prompt_suggestion: Callable[[str | None], None] | None = None,
         on_status_update: Callable[[tuple[PromptStatusLine, ...], str | None], None] | None = None,
-        on_stream_update: Callable[[tuple[str, ...]], None] | None = None,
+        on_stream_update: Callable[[tuple[str, ...], bool], None] | None = None,
     ):
         self._notifier = notifier or TerminalNotifier()
         self._machine = DisplayStateMachine()

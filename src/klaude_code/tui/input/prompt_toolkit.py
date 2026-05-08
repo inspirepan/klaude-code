@@ -25,7 +25,7 @@ from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.menus import CompletionsMenu, MultiColumnCompletionsMenu
 from prompt_toolkit.layout.utils import explode_text_fragments
 from prompt_toolkit.output.color_depth import ColorDepth
-from prompt_toolkit.patch_stdout import patch_stdout
+from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout
 from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.app.ports import InputProviderABC
@@ -430,8 +430,8 @@ class PromptToolkitInput(InputProviderABC):
     def set_session_dir(self, session_dir: Path | None) -> None:
         self._session_dir = session_dir
 
-    def set_stream_lines(self, lines: tuple[str, ...]) -> None:
-        self._bottom_bar.set_stream_lines(lines)
+    def set_stream_lines(self, lines: tuple[str, ...], *, end_of_stream: bool = False) -> None:
+        self._bottom_bar.set_stream_lines(lines, end_of_stream=end_of_stream)
 
     def set_status_lines(self, lines: tuple[PromptStatusLine, ...], *, separator_text: str | None = None) -> None:
         self._bottom_bar.set_status_lines(lines, separator_text=separator_text)
@@ -984,7 +984,7 @@ class PromptToolkitInput(InputProviderABC):
             queued_edit = False
             try:
                 self._prompt_active = True
-                with patch_stdout(raw=True):
+                with flicker_safe_patch_stdout():
                     default_text = self._next_prefill_text
                     self._next_prefill_text = None
                     if default_text is None:

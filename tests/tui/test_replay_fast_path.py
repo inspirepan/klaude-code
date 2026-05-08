@@ -11,7 +11,11 @@ def test_replay_mode_defers_assistant_stream_until_end() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     stream_updates: list[tuple[str, ...]] = []
-    renderer = TUICommandRenderer(stream_sink=stream_updates.append)
+
+    def _sink(lines: tuple[str, ...], _end_of_stream: bool) -> None:
+        stream_updates.append(lines)
+
+    renderer = TUICommandRenderer(stream_sink=_sink)
 
     output = io.StringIO()
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)

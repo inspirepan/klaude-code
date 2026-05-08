@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from uuid import uuid4
 
-from prompt_toolkit.patch_stdout import patch_stdout
+from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout
 
 from klaude_code.agent.compaction import should_compact_threshold
 from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
@@ -60,7 +60,7 @@ async def submit_user_input_payload(
 ) -> SubmitUserInputResult:
     """Submit TUI input while routing immediate Rich output through prompt-toolkit."""
 
-    with patch_stdout(raw=True):
+    with flicker_safe_patch_stdout():
         return await _submit_user_input_payload_inner(
             runtime=runtime,
             wait_for_display_idle=wait_for_display_idle,
@@ -194,9 +194,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if input_provider is not None:
             input_provider.set_status_lines(lines, separator_text=separator_text)
 
-    def _set_stream_lines(lines: tuple[str, ...]) -> None:
+    def _set_stream_lines(lines: tuple[str, ...], end_of_stream: bool = False) -> None:
         if input_provider is not None:
-            input_provider.set_stream_lines(lines)
+            input_provider.set_stream_lines(lines, end_of_stream=end_of_stream)
 
     tui_display = TUIDisplay(
         theme=theme,

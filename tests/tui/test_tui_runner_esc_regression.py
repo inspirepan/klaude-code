@@ -89,8 +89,9 @@ class _FakePromptToolkitInput:
     def set_session_dir(self, session_dir: Any) -> None:
         pass
 
-    def set_stream_lines(self, lines: tuple[str, ...]) -> None:
+    def set_stream_lines(self, lines: tuple[str, ...], *, end_of_stream: bool = False) -> None:
         del lines
+        del end_of_stream
         return None
 
     def set_status_lines(self, lines: tuple[PromptStatusLine, ...], *, separator_text: str | None = None) -> None:

@@ -196,6 +196,47 @@ def test_stream_lines_render_above_status() -> None:
     ]
 
 
+def test_stream_lines_height_high_water_holds_during_session() -> None:
+    """Stream height must not shrink mid-stream — that's the source of flicker."""
+    invalidations = SimpleNamespace(count=0)
+    prompt_input = _build_input("", invalidations=invalidations)
+    bar = prompt_input._bottom_bar
+
+    prompt_input.set_stream_lines(("a", "b", "c"))
+    assert bar._stream_reserved_line_count == 3
+    base_invalidations = invalidations.count
+
+    # Frame-to-frame shrink: content drops to one line but reservation must hold.
+    prompt_input.set_stream_lines(("x",))
+    assert bar._stream_reserved_line_count == 3
+    assert bar._stream_lines == ("x",)
+
+    # Transient empty content (e.g. MarkdownStream consuming all live into stable)
+    # does not collapse the area — reserved height stays.
+    prompt_input.set_stream_lines(())
+    assert bar._stream_reserved_line_count == 3
+    assert bar._stream_lines == ()
+
+    # Subsequent grow above the high-water raises it.
+    prompt_input.set_stream_lines(("a", "b", "c", "d", "e"))
+    assert bar._stream_reserved_line_count == 5
+
+    # Each of the four state changes above invalidated once.
+    assert invalidations.count - base_invalidations == 3
+
+
+def test_stream_lines_end_of_stream_collapses_reserved() -> None:
+    prompt_input = _build_input("")
+    bar = prompt_input._bottom_bar
+
+    prompt_input.set_stream_lines(("a", "b", "c"))
+    assert bar._stream_reserved_line_count == 3
+
+    prompt_input.set_stream_lines((), end_of_stream=True)
+    assert bar._stream_reserved_line_count == 0
+    assert bar._stream_lines == ()
+
+
 def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
     prompt_input = _build_input("")
     prompt_input._bottom_bar._status_spinner_frame = 1

@@ -166,7 +166,7 @@ class TUICommandRenderer:
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
         status_sink: Callable[[tuple[PromptStatusLine, ...], str | None], None] | None = None,
-        stream_sink: Callable[[tuple[str, ...]], None] | None = None,
+        stream_sink: Callable[[tuple[str, ...], bool], None] | None = None,
     ) -> None:
         self.themes = get_theme(theme)
         self.console: Console = Console(theme=self.themes.app_theme)
@@ -379,7 +379,7 @@ class TUICommandRenderer:
         self._progress_ui_suspended = suspended
         if not suspended:
             self._emit_prompt_status((), None)
-            self._emit_prompt_stream(())
+            self._emit_prompt_stream((), end_of_stream=True)
             return
         self._emit_prompt_status()
 
@@ -421,10 +421,15 @@ class TUICommandRenderer:
             result[-1] = PromptStatusLine(result[-1].text, "metadata")
         return tuple(result)
 
-    def _emit_prompt_stream(self, lines: tuple[str, ...] | None = None) -> None:
+    def _emit_prompt_stream(
+        self,
+        lines: tuple[str, ...] | None = None,
+        *,
+        end_of_stream: bool = False,
+    ) -> None:
         if self._stream_sink is None:
             return
-        self._stream_sink(lines or ())
+        self._stream_sink(lines or (), end_of_stream)
 
     def _prompt_stream_lines(self, renderable: RenderableType) -> tuple[str, ...]:
         rendered = self.console.render_lines(renderable, self.console.options, pad=False)
@@ -468,7 +473,7 @@ class TUICommandRenderer:
     def set_stream_renderable(self, renderable: RenderableType | None) -> None:
         if renderable is None:
             self._stream_renderable = None
-            self._emit_prompt_stream(())
+            self._emit_prompt_stream((), end_of_stream=True)
             return
 
         self._stream_renderable = renderable

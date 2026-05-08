@@ -38,6 +38,7 @@ class PromptBottomBar:
         self._refresh_status = refresh_status
 
         self._stream_lines: tuple[str, ...] = ()
+        self._stream_reserved_line_count: int = 0
         self._status_lines: tuple[PromptStatusLine, ...] = ()
         self._status_reserved_line_count: int = 0
         self._running_separator_label: str | None = None
@@ -48,11 +49,27 @@ class PromptBottomBar:
 
     # ---- public mutators -------------------------------------------------
 
-    def set_stream_lines(self, lines: tuple[str, ...]) -> None:
+    def set_stream_lines(self, lines: tuple[str, ...], *, end_of_stream: bool = False) -> None:
         stream_lines = tuple(line for line in lines if line.strip())
-        if stream_lines == self._stream_lines:
+
+        # End-of-stream: collapse the reserved area entirely.
+        if end_of_stream:
+            if not self._stream_lines and self._stream_reserved_line_count == 0:
+                return
+            self._stream_lines = ()
+            self._stream_reserved_line_count = 0
+            self._invalidate()
+            return
+
+        # Otherwise hold a high-water reservation so transient frame-to-frame
+        # height shrinking (e.g. MarkdownStream stable/live re-balancing) does
+        # not flicker the layout. prompt-toolkit pads the difference with
+        # blanks for free since the Window has a fixed height.
+        new_reserved = max(self._stream_reserved_line_count, len(stream_lines))
+        if stream_lines == self._stream_lines and new_reserved == self._stream_reserved_line_count:
             return
         self._stream_lines = stream_lines
+        self._stream_reserved_line_count = new_reserved
         self._invalidate()
 
     def set_status_lines(
@@ -95,7 +112,7 @@ class PromptBottomBar:
     def build_containers(self, *, is_agent_running: Callable[[], bool]) -> list[Container]:
         stream_window = Window(
             content=FormattedTextControl(self._get_stream_fragments),
-            height=lambda: len(self._stream_lines),
+            height=lambda: self._stream_reserved_line_count,
             dont_extend_height=True,
         )
         status_window = Window(
@@ -114,12 +131,13 @@ class PromptBottomBar:
             dont_extend_height=True,
         )
 
+        stream_visible = Condition(lambda: self._stream_reserved_line_count > 0)
         return [
-            ConditionalContainer(stream_window, filter=Condition(lambda: bool(self._stream_lines))),
-            ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._stream_lines))),
+            ConditionalContainer(stream_window, filter=stream_visible),
+            ConditionalContainer(_spacer(), filter=stream_visible),
             ConditionalContainer(
                 _spacer(),
-                filter=Condition(lambda: bool(self._status_lines) and not bool(self._stream_lines)),
+                filter=Condition(lambda: bool(self._status_lines) and self._stream_reserved_line_count == 0),
             ),
             ConditionalContainer(status_window, filter=Condition(lambda: bool(self._status_lines))),
             ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._status_lines))),

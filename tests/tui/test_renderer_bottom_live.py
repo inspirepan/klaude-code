@@ -19,24 +19,36 @@ def _renderer_console(renderer: object) -> Console:
     return console
 
 
+def _make_stream_recorder():
+    lines_only: list[tuple[str, ...]] = []
+    full: list[tuple[tuple[str, ...], bool]] = []
+
+    def _sink(lines: tuple[str, ...], end_of_stream: bool) -> None:
+        lines_only.append(lines)
+        full.append((lines, end_of_stream))
+
+    return lines_only, full, _sink
+
+
 def test_stream_renderable_updates_prompt_stream_sink() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
-    stream_updates: list[tuple[str, ...]] = []
-    renderer = TUICommandRenderer(stream_sink=stream_updates.append)
+    stream_updates, full_updates, sink = _make_stream_recorder()
+    renderer = TUICommandRenderer(stream_sink=sink)
     _renderer_console(renderer)
 
     renderer.set_stream_renderable(Text("live stream"))
 
     assert renderer._stream_renderable is not None
     assert stream_updates[-1] == ("live stream",)
+    assert full_updates[-1] == (("live stream",), False)
 
 
 def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
-    stream_updates: list[tuple[str, ...]] = []
-    renderer = TUICommandRenderer(stream_sink=stream_updates.append)
+    stream_updates, full_updates, sink = _make_stream_recorder()
+    renderer = TUICommandRenderer(stream_sink=sink)
     _renderer_console(renderer)
 
     renderer.set_stream_renderable(Text("live stream"))
@@ -44,6 +56,7 @@ def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
 
     assert renderer._stream_renderable is None
     assert stream_updates[-1] == ()
+    assert full_updates[-1] == ((), True)
 
 
 def test_prompt_separator_text_does_not_depend_on_status_lines() -> None:
@@ -91,8 +104,8 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
     from klaude_code.tui.renderer import BASH_LIVE_TAIL_MAX_LINES, TUICommandRenderer
 
-    stream_updates: list[tuple[str, ...]] = []
-    renderer = TUICommandRenderer(stream_sink=stream_updates.append)
+    stream_updates, _full_updates, _sink = _make_stream_recorder()
+    renderer = TUICommandRenderer(stream_sink=_sink)
     console = _renderer_console(renderer)
 
     renderer.display_bash_command_delta(
@@ -116,8 +129,8 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
 def test_display_bash_command_end_clears_live_tail() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
-    stream_updates: list[tuple[str, ...]] = []
-    renderer = TUICommandRenderer(stream_sink=stream_updates.append)
+    stream_updates, _full_updates, _sink = _make_stream_recorder()
+    renderer = TUICommandRenderer(stream_sink=_sink)
     _renderer_console(renderer)
 
     renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content="hello"))
@@ -134,8 +147,8 @@ def test_bash_mode_delta_uses_live_tail_renderable() -> None:
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
     from klaude_code.tui.renderer import TUICommandRenderer
 
-    stream_updates: list[tuple[str, ...]] = []
-    renderer = TUICommandRenderer(stream_sink=stream_updates.append)
+    stream_updates, _full_updates, _sink = _make_stream_recorder()
+    renderer = TUICommandRenderer(stream_sink=_sink)
     console = _renderer_console(renderer)
 
     renderer.display_bash_command_start(events.BashCommandStartEvent(session_id="s", command="echo hi"))
