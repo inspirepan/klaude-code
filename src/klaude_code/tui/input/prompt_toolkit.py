@@ -403,6 +403,7 @@ class PromptToolkitInput(InputProviderABC):
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
         self._prompt_suggestion: str | None = None
         self._queued_edit_active = False
+        self._agent_running = False
         self._prompt_active = False
         self._prompt_pause_waiter: asyncio.Future[None] | None = None
         self._external_input_pause_count = 0
@@ -426,6 +427,13 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_next_prefill(self, text: str | None) -> None:
         self._next_prefill_text = text
+        if not text or not self._prompt_active or self._is_agent_running():
+            return
+        with contextlib.suppress(Exception):
+            if self._session.default_buffer.text:
+                return
+        with contextlib.suppress(Exception):
+            self._session.app.exit(exception=_PromptPaused())
 
     def set_session_dir(self, session_dir: Path | None) -> None:
         self._session_dir = session_dir
@@ -438,6 +446,12 @@ class PromptToolkitInput(InputProviderABC):
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
         self._bottom_bar.set_pending_messages(messages)
+
+    def set_agent_running(self, running: bool) -> None:
+        if self._agent_running == running:
+            return
+        self._agent_running = running
+        self._invalidate_app()
 
     def _invalidate_app(self) -> None:
         with contextlib.suppress(Exception):
@@ -636,7 +650,14 @@ class PromptToolkitInput(InputProviderABC):
             return False
 
     def _is_agent_running(self) -> bool:
-        return self._request_interrupt is not None
+        return self._agent_running
+
+    def _take_next_prefill_text(self) -> str | None:
+        if self._is_agent_running():
+            return None
+        text = self._next_prefill_text
+        self._next_prefill_text = None
+        return text
 
     def _get_prompt_message(self) -> FormattedText:
         style = INPUT_PROMPT_RUNNING_STYLE if self._is_agent_running() else INPUT_PROMPT_STYLE
@@ -995,8 +1016,7 @@ class PromptToolkitInput(InputProviderABC):
             queued_edit = False
             try:
                 self._prompt_active = True
-                default_text = self._next_prefill_text
-                self._next_prefill_text = None
+                default_text = self._take_next_prefill_text()
                 if default_text is None:
                     line = await self._session.prompt_async(message=self._get_prompt_message)
                 else:

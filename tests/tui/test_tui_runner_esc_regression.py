@@ -71,6 +71,7 @@ class _FakePromptToolkitInput:
     payloads: ClassVar[list[UserInputPayload]] = []
     prefills: ClassVar[list[str | None]] = []
     pending_messages: ClassVar[list[tuple[str, ...]]] = []
+    agent_running_changes: ClassVar[list[bool]] = []
     pause_calls: ClassVar[int] = 0
 
     def __init__(self, **_: Any) -> None:
@@ -101,6 +102,9 @@ class _FakePromptToolkitInput:
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
         self.pending_messages.append(messages)
+
+    def set_agent_running(self, running: bool) -> None:
+        self.agent_running_changes.append(running)
 
     def set_dequeue_pending_messages(self, dequeue_pending_messages: Callable[[], tuple[str, ...]] | None) -> None:
         del dequeue_pending_messages
@@ -135,6 +139,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
 
     _FakePromptToolkitInput.prefills = []
     _FakePromptToolkitInput.pending_messages = []
+    _FakePromptToolkitInput.agent_running_changes = []
     _FakePromptToolkitInput.pause_calls = 0
 
     def _load_config() -> SimpleNamespace:
@@ -402,6 +407,7 @@ def test_waiting_sigint_restores_prefill_when_no_visible_output(monkeypatch: pyt
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert _FakePromptToolkitInput.prefills == ["hello"]
+    assert _FakePromptToolkitInput.agent_running_changes == [True, False]
 
 
 def test_interaction_collection_runs_without_esc_monitor(monkeypatch: pytest.MonkeyPatch) -> None:

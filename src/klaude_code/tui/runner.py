@@ -599,49 +599,68 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     pending_web_mode_request: WebModeRequest | None = None
 
     async def _finish_active_wait(wait_id: str, *, session_id: str) -> None:
-        interrupted = await _wait_for_with_interrupt(wait_id, session_id=session_id)
-        # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
-        # before treating the agent as idle again. ``wait_for_display_idle`` waits
-        # for the event-bus subscription to drain (consume_envelope returned), but
-        # Rich writes from those handlers are still queued in the StdoutProxy and
-        # dispatched asynchronously via ``synchronized_in_terminal``. We must
-        # also drain that pipeline, otherwise a follow-up ``UserMessageEvent``
-        # (emitted below) can land on the wire — and on screen — before the
-        # previous task's TaskFinish separator has been painted.
-        await components.wait_for_display_idle()
-        await settle_flicker_safe_stdout()
-        away_summary_coordinator.notify_task_finished()
-        if interrupted and components.runtime.current_agent is not None:
-            input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
-        if interrupted:
-            return
+        marked_idle = False
 
-        while True:
-            agent = components.runtime.current_agent
-            follow_up = agent.peek_next_follow_up() if agent is not None else None
-            if follow_up is None:
-                _refresh_pending_messages()
+        def _mark_agent_idle() -> None:
+            nonlocal marked_idle
+            if marked_idle:
                 return
-            submission = await submit_user_input_payload(
-                runtime=components.runtime,
-                wait_for_display_idle=components.wait_for_display_idle,
-                user_input=follow_up,
-                session_id=session_id,
-            )
-            if agent is not None:
-                await agent.session.wait_for_flush()
-                agent.pop_next_follow_up()
-            _refresh_pending_messages()
-            if submission.wait_id is None:
-                continue
-            interrupted = await _wait_for_with_interrupt(submission.wait_id, session_id=session_id)
+            marked_idle = True
+            input_provider.set_agent_running(False)
+
+        try:
+            interrupted = await _wait_for_with_interrupt(wait_id, session_id=session_id)
+            # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
+            # before treating the agent as idle again. ``wait_for_display_idle`` waits
+            # for the event-bus subscription to drain (consume_envelope returned), but
+            # Rich writes from those handlers are still queued in the StdoutProxy and
+            # dispatched asynchronously via ``synchronized_in_terminal``. We must
+            # also drain that pipeline, otherwise a follow-up ``UserMessageEvent``
+            # (emitted below) can land on the wire — and on screen — before the
+            # previous task's TaskFinish separator has been painted.
             await components.wait_for_display_idle()
             await settle_flicker_safe_stdout()
             away_summary_coordinator.notify_task_finished()
             if interrupted:
+                prefill_text = None
                 if components.runtime.current_agent is not None:
-                    input_provider.set_next_prefill(components.runtime.current_agent.consume_interrupt_prefill_text())
+                    prefill_text = components.runtime.current_agent.consume_interrupt_prefill_text()
+                _mark_agent_idle()
+                input_provider.set_next_prefill(prefill_text)
                 return
+
+            while True:
+                agent = components.runtime.current_agent
+                follow_up = agent.peek_next_follow_up() if agent is not None else None
+                if follow_up is None:
+                    _refresh_pending_messages()
+                    _mark_agent_idle()
+                    return
+                submission = await submit_user_input_payload(
+                    runtime=components.runtime,
+                    wait_for_display_idle=components.wait_for_display_idle,
+                    user_input=follow_up,
+                    session_id=session_id,
+                )
+                if agent is not None:
+                    await agent.session.wait_for_flush()
+                    agent.pop_next_follow_up()
+                _refresh_pending_messages()
+                if submission.wait_id is None:
+                    continue
+                interrupted = await _wait_for_with_interrupt(submission.wait_id, session_id=session_id)
+                await components.wait_for_display_idle()
+                await settle_flicker_safe_stdout()
+                away_summary_coordinator.notify_task_finished()
+                if interrupted:
+                    prefill_text = None
+                    if components.runtime.current_agent is not None:
+                        prefill_text = components.runtime.current_agent.consume_interrupt_prefill_text()
+                    _mark_agent_idle()
+                    input_provider.set_next_prefill(prefill_text)
+                    return
+        finally:
+            _mark_agent_idle()
 
     def _refresh_pending_messages() -> int:
         agent = components.runtime.current_agent
@@ -754,6 +773,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 if active_session_id is None:
                     continue
 
+                input_provider.set_agent_running(True)
                 active_wait_task = asyncio.create_task(_finish_active_wait(wait_id, session_id=active_session_id))
                 active_wait_task.add_done_callback(_consume_active_wait_result)
 

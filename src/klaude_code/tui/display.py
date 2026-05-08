@@ -98,7 +98,7 @@ class TUIDisplay(DisplayABC):
                 self._interrupt_prompt_suggestion_session_id = None
                 self._set_prompt_suggestion(None)
             case events.InterruptEvent() as e:
-                self._interrupt_prompt_suggestion_session_id = e.session_id
+                self._interrupt_prompt_suggestion_session_id = e.session_id if e.show_notice else None
             case events.TaskFinishEvent() as e:
                 if self._interrupt_prompt_suggestion_session_id != e.session_id:
                     return
@@ -116,7 +116,8 @@ class TUIDisplay(DisplayABC):
         A suggestion is invalidated by any later UserMessageEvent in the same
         replay stream (mirrors the live ``PromptSuggestionClearedEvent`` that
         fires on a new turn but is not persisted). Interrupted cancelled tasks
-        synthesize the same ``/continue`` fallback used by live display events.
+        synthesize the same ``/continue`` fallback used by live display events
+        when the task had already produced visible output.
         """
         if self._on_prompt_suggestion is None:
             return
@@ -131,7 +132,7 @@ class TUIDisplay(DisplayABC):
                 interrupt_session_id = None
             elif isinstance(item, events.InterruptEvent):
                 suggestion = None
-                interrupt_session_id = item.session_id
+                interrupt_session_id = item.session_id if item.show_notice else None
             elif isinstance(item, events.TaskFinishEvent) and interrupt_session_id == item.session_id:
                 suggestion = self._CONTINUE_PROMPT_SUGGESTION if is_cancelled_task_result(item.task_result) else None
                 interrupt_session_id = None

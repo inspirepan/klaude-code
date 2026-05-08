@@ -27,9 +27,11 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._clipboard_has_image = False
     prompt_input._refresh_status = None
     prompt_input._request_interrupt = None
+    prompt_input._next_prefill_text = None
     prompt_input._prompt_suggestion = None
     prompt_input._bottom_bar = PromptBottomBar(invalidate=invalidate)
     prompt_input._queued_edit_active = False
+    prompt_input._agent_running = False
     prompt_input._prompt_active = False
     prompt_input._prompt_pause_waiter = None
     prompt_input._external_input_pause_count = 0
@@ -55,6 +57,20 @@ def test_set_next_prefill_stores_text() -> None:
     assert prompt_input._next_prefill_text == "retry me"
 
 
+def test_next_prefill_waits_until_idle_prompt() -> None:
+    prompt_input: Any = _build_input("")
+    prompt_input._agent_running = True
+    prompt_input.set_next_prefill("retry me")
+
+    assert prompt_input._take_next_prefill_text() is None
+    assert prompt_input._next_prefill_text == "retry me"
+
+    prompt_input._agent_running = False
+
+    assert prompt_input._take_next_prefill_text() == "retry me"
+    assert prompt_input._next_prefill_text is None
+
+
 def test_placeholder_shows_paste_image_hint_with_prompt_suggestion() -> None:
     prompt_input = _build_input("")
     prompt_input._prompt_suggestion = "run tests"
@@ -68,7 +84,7 @@ def test_placeholder_shows_paste_image_hint_with_prompt_suggestion() -> None:
 
 def test_running_placeholder_prompts_for_follow_up() -> None:
     prompt_input = _build_input("")
-    prompt_input._request_interrupt = lambda: None
+    prompt_input._agent_running = True
     prompt_input._prompt_suggestion = "run tests"
 
     placeholder = prompt_input._build_placeholder()
@@ -81,7 +97,7 @@ def test_running_prompt_uses_cyan_style() -> None:
 
     assert prompt_input._get_prompt_message() == [("class:prompt", USER_MESSAGE_MARK)]
 
-    prompt_input._request_interrupt = lambda: None
+    prompt_input._agent_running = True
 
     assert prompt_input._get_prompt_message() == [("class:prompt.running", USER_MESSAGE_MARK)]
 
