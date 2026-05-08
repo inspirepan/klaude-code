@@ -93,16 +93,72 @@ def test_wait_for_pending_writes_drains_in_flight_futures() -> None:
     async def _scenario() -> None:
         loop = asyncio.get_event_loop()
         future: asyncio.Future[None] = loop.create_future()
-        proxy._pending_in_terminal.add(future)
+        with proxy._pending_lock:
+            proxy._pending_in_terminal.add(future)
 
         async def _resolve_after_yield() -> None:
             await asyncio.sleep(0)
             if not future.done():
                 future.set_result(None)
 
-        loop.create_task(_resolve_after_yield())
+        resolve_task = loop.create_task(_resolve_after_yield())
         await proxy.wait_for_pending_writes(timeout=1.0)
+        await resolve_task
         assert future.done()
+
+    try:
+        asyncio.run(_scenario())
+    finally:
+        proxy.close()
+
+
+def test_wait_for_pending_writes_timeout_does_not_cancel_in_flight_future() -> None:
+    """Timeout stops waiting but leaves the real terminal write task alive."""
+    from klaude_code.tui.input.flicker_safe_stdout import FlickerSafeStdoutProxy
+
+    proxy = FlickerSafeStdoutProxy(sleep_between_writes=0.5, raw=True)
+
+    async def _scenario() -> None:
+        loop = asyncio.get_event_loop()
+        future: asyncio.Future[None] = loop.create_future()
+        with proxy._pending_lock:
+            proxy._pending_in_terminal.add(future)
+
+        await proxy.wait_for_pending_writes(timeout=0.01)
+
+        assert not future.done()
+        assert not future.cancelled()
+        future.set_result(None)
+
+    try:
+        asyncio.run(_scenario())
+    finally:
+        proxy.close()
+
+
+def test_wait_for_pending_writes_waits_for_thread_handoff() -> None:
+    """A flush item can be off the queue before its future is registered;
+    settle must still wait for that handoff to finish."""
+    from klaude_code.tui.input.flicker_safe_stdout import FlickerSafeStdoutProxy
+
+    proxy = FlickerSafeStdoutProxy(sleep_between_writes=0.5, raw=True)
+
+    async def _scenario() -> None:
+        loop = asyncio.get_event_loop()
+        with proxy._pending_lock:
+            proxy._active_write_handoffs += 1
+
+        async def _finish_handoff() -> None:
+            await asyncio.sleep(0.02)
+            with proxy._pending_lock:
+                proxy._active_write_handoffs -= 1
+
+        start = loop.time()
+        handoff_task = loop.create_task(_finish_handoff())
+        await proxy.wait_for_pending_writes(timeout=1.0)
+        await handoff_task
+
+        assert loop.time() - start >= 0.02
 
     try:
         asyncio.run(_scenario())

@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import sys
+import threading
 from collections.abc import AsyncGenerator, Generator
 from typing import TextIO, cast
 
@@ -118,9 +119,11 @@ class FlickerSafeStdoutProxy(StdoutProxy):
     :meth:`wait_for_pending_writes`).
     """
 
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+    def __init__(self, sleep_between_writes: float = 0.2, raw: bool = False) -> None:
+        super().__init__(sleep_between_writes=sleep_between_writes, raw=raw)
         self._pending_in_terminal: set[asyncio.Future[None]] = set()
+        self._pending_lock = threading.Lock()
+        self._active_write_handoffs = 0
 
     def _write_and_flush(self, loop: asyncio.AbstractEventLoop | None, text: str) -> None:
         def write_and_flush() -> None:
@@ -139,12 +142,36 @@ class FlickerSafeStdoutProxy(StdoutProxy):
             write_and_flush()
             return
 
-        def schedule() -> None:
-            future = asyncio.ensure_future(run())
-            self._pending_in_terminal.add(future)
-            future.add_done_callback(self._pending_in_terminal.discard)
+        with self._pending_lock:
+            self._active_write_handoffs += 1
 
-        loop.call_soon_threadsafe(schedule)
+        def schedule() -> None:
+            try:
+                future = asyncio.ensure_future(run())
+                with self._pending_lock:
+                    self._pending_in_terminal.add(future)
+                    self._active_write_handoffs -= 1
+                future.add_done_callback(self._discard_pending_future)
+            except Exception:
+                with self._pending_lock:
+                    self._active_write_handoffs -= 1
+                raise
+
+        try:
+            loop.call_soon_threadsafe(schedule)
+        except Exception:
+            with self._pending_lock:
+                self._active_write_handoffs -= 1
+            raise
+
+    def _discard_pending_future(self, future: asyncio.Future[None]) -> None:
+        with self._pending_lock:
+            self._pending_in_terminal.discard(future)
+
+    def _pending_snapshot(self) -> tuple[int, list[asyncio.Future[None]]]:
+        with self._pending_lock:
+            self._pending_in_terminal = {future for future in self._pending_in_terminal if not future.done()}
+            return self._active_write_handoffs, list(self._pending_in_terminal)
 
     async def wait_for_pending_writes(self, *, timeout: float = 2.0) -> None:
         """Block until every queued Rich write has been dispatched and
@@ -174,17 +201,13 @@ class FlickerSafeStdoutProxy(StdoutProxy):
             self.flush()
         while True:
             queue_empty = self._flush_queue.empty()
-            futures_pending = list(self._pending_in_terminal)
-            if queue_empty and not futures_pending:
+            active_handoffs, futures_pending = self._pending_snapshot()
+            if queue_empty and active_handoffs == 0 and not futures_pending:
                 return
             if loop.time() >= deadline:
                 return
             if futures_pending:
-                with contextlib.suppress(Exception):
-                    await asyncio.wait_for(
-                        asyncio.gather(*futures_pending, return_exceptions=True),
-                        timeout=max(0.01, deadline - loop.time()),
-                    )
+                await asyncio.wait(futures_pending, timeout=max(0.01, deadline - loop.time()))
             # Yield so the flush thread's `call_soon_threadsafe` schedule
             # callback can land on the loop and create a new future, or
             # so a still-buffered partial line gets flushed.

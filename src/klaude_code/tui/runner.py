@@ -3,9 +3,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import shutil
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 from klaude_code.agent.compaction import should_compact_threshold
@@ -698,59 +699,63 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         _refresh_pending_messages()
 
         await input_provider.start()
-        async for user_input in input_provider.iter_inputs():
-            is_exit_input = user_input.text.strip().lower() in {"exit", ":q", "quit"}
-            if _active_agent_running():
+        inputs_iter = cast(AsyncGenerator[UserInputPayload], input_provider.iter_inputs())
+        async with contextlib.aclosing(inputs_iter) as inputs:
+            async for user_input in inputs:
+                is_exit_input = user_input.text.strip().lower() in {"exit", ":q", "quit"}
+                if _active_agent_running():
+                    if is_exit_input:
+                        if active_wait_task is not None:
+                            with contextlib.suppress(Exception, asyncio.CancelledError):
+                                await active_wait_task
+                            active_wait_task = None
+                        break
+
+                    sid = _get_active_session_id()
+                    if sid is not None:
+                        can_split_queue_edit = (
+                            user_input.queued_edit and not user_input.images and not user_input.pasted_files
+                        )
+                        follow_up_texts = (
+                            split_queued_message_edit_text(user_input.text)
+                            if can_split_queue_edit
+                            else (user_input.text,)
+                        )
+                        for text in follow_up_texts:
+                            follow_up_input = user_input if len(follow_up_texts) == 1 else UserInputPayload(text=text)
+                            await components.runtime.submit_and_wait(
+                                op.FollowUpAgentOperation(session_id=sid, input=follow_up_input)
+                            )
+                        _refresh_pending_messages()
+                        await components.wait_for_display_idle()
+                    continue
+
                 if is_exit_input:
-                    if active_wait_task is not None:
-                        with contextlib.suppress(Exception, asyncio.CancelledError):
-                            await active_wait_task
-                        active_wait_task = None
+                    break
+                if user_input.text.strip() == "":
+                    continue
+
+                active_session_id = _get_active_session_id()
+                submission = await submit_user_input_payload(
+                    runtime=components.runtime,
+                    wait_for_display_idle=components.wait_for_display_idle,
+                    user_input=user_input,
+                    session_id=active_session_id,
+                )
+
+                wait_id = submission.wait_id
+                if submission.web_mode_request is not None:
+                    pending_web_mode_request = submission.web_mode_request
                     break
 
-                sid = _get_active_session_id()
-                if sid is not None:
-                    can_split_queue_edit = (
-                        user_input.queued_edit and not user_input.images and not user_input.pasted_files
-                    )
-                    follow_up_texts = (
-                        split_queued_message_edit_text(user_input.text) if can_split_queue_edit else (user_input.text,)
-                    )
-                    for text in follow_up_texts:
-                        follow_up_input = user_input if len(follow_up_texts) == 1 else UserInputPayload(text=text)
-                        await components.runtime.submit_and_wait(
-                            op.FollowUpAgentOperation(session_id=sid, input=follow_up_input)
-                        )
-                    _refresh_pending_messages()
-                    await components.wait_for_display_idle()
-                continue
+                if wait_id is None:
+                    continue
 
-            if is_exit_input:
-                break
-            if user_input.text.strip() == "":
-                continue
+                if active_session_id is None:
+                    continue
 
-            active_session_id = _get_active_session_id()
-            submission = await submit_user_input_payload(
-                runtime=components.runtime,
-                wait_for_display_idle=components.wait_for_display_idle,
-                user_input=user_input,
-                session_id=active_session_id,
-            )
-
-            wait_id = submission.wait_id
-            if submission.web_mode_request is not None:
-                pending_web_mode_request = submission.web_mode_request
-                break
-
-            if wait_id is None:
-                continue
-
-            if active_session_id is None:
-                continue
-
-            active_wait_task = asyncio.create_task(_finish_active_wait(wait_id, session_id=active_session_id))
-            active_wait_task.add_done_callback(_consume_active_wait_result)
+                active_wait_task = asyncio.create_task(_finish_active_wait(wait_id, session_id=active_session_id))
+                active_wait_task.add_done_callback(_consume_active_wait_result)
 
     except KeyboardInterrupt:
         await handle_keyboard_interrupt(components.runtime)
