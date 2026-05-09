@@ -20,7 +20,7 @@ def test_exit_signal_handler_does_not_acquire_prevent_sleep_lock(monkeypatch: py
     monkeypatch.setattr(prevent_sleep, "_caffeinate_process", process)
     monkeypatch.setattr(prevent_sleep.os, "getpid", lambda: 123)
     monkeypatch.setattr(prevent_sleep.os, "kill", lambda pid, signum: sent_signals.append((pid, signum)))
-    monkeypatch.setattr(prevent_sleep.signal, "signal", lambda signum, handler: None)
+    monkeypatch.setattr(prevent_sleep.signal, "signal", lambda signum, _handler: None)
 
     with prevent_sleep._lock:
         prevent_sleep._handle_exit_signal(15, None)
@@ -36,7 +36,7 @@ def test_exit_signal_handler_ignores_missing_caffeinate(monkeypatch: pytest.Monk
     monkeypatch.setattr(prevent_sleep, "_caffeinate_process", None)
     monkeypatch.setattr(prevent_sleep.os, "getpid", lambda: 123)
     monkeypatch.setattr(prevent_sleep.os, "kill", lambda pid, signum: sent_signals.append((pid, signum)))
-    monkeypatch.setattr(prevent_sleep.signal, "signal", lambda signum, handler: None)
+    monkeypatch.setattr(prevent_sleep.signal, "signal", lambda signum, _handler: None)
 
     prevent_sleep._handle_exit_signal(15, None)
 

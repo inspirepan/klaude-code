@@ -980,9 +980,6 @@ class TUICommandRenderer:
                     if self._thinking_stream.is_active:
                         self._thinking_stream.append(content)
                         if not self._replay_mode:
-                            first_delta = self._thinking_stream.buffer == ""
-                            if first_delta:
-                                self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                             self._flush_thinking()
                 case EndThinkingStream(session_id=_):
                     had_content = bool(self._thinking_stream.buffer.strip())
@@ -996,9 +993,6 @@ class TUICommandRenderer:
                     if self._assistant_stream.is_active:
                         self._assistant_stream.append(content)
                         if not self._replay_mode:
-                            first_delta = self._assistant_stream.buffer == ""
-                            if first_delta:
-                                self._assistant_stream.render()
                             self._flush_assistant()
                 case EndAssistantStream(session_id=_):
                     had_content = bool(self._assistant_stream.buffer.strip())
