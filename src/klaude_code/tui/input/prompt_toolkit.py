@@ -643,21 +643,19 @@ class PromptToolkitInput(InputProviderABC):
                     original_min = int(original_height_value)
 
                 try:
-                    buffer_line_count = int(self._session.default_buffer.document.line_count)
+                    size = get_app().output.get_size()
+                    rows = size.rows
+                    columns = size.columns
                 except Exception:
-                    buffer_line_count = 1
+                    rows = 0
+                    columns = 80
 
-                # Grow with content (based on newline count), but keep a sensible minimum.
-                content_rows = max(1, buffer_line_count)
+                # Grow with content, counting both explicit newlines and soft wraps.
+                content_rows = self._estimate_input_visual_rows(columns)
                 target_rows = max(base_rows, content_rows)
 
                 # Cap to the current terminal size.
                 # Leave a small buffer to avoid triggering "Window too small".
-                try:
-                    rows = get_app().output.get_size().rows
-                except Exception:
-                    rows = 0
-
                 desired = max(original_min, target_rows)
                 if rows > 0:
                     desired = max(1, min(desired, rows - 4))
@@ -665,6 +663,20 @@ class PromptToolkitInput(InputProviderABC):
                 return Dimension(min=desired, preferred=desired, max=desired)
 
             input_window.height = _height
+
+    def _estimate_input_visual_rows(self, columns: int) -> int:
+        try:
+            text = self._session.default_buffer.text
+        except Exception:
+            text = ""
+
+        prompt_width = max(get_cwidth(self._prompt_text), get_cwidth("  "))
+        available = max(1, columns - prompt_width)
+        rows = 0
+        for line in text.split("\n"):
+            width = get_cwidth(line)
+            rows += max(1, (width + available - 1) // available)
+        return max(1, rows)
 
     def _select_first_completion_on_open(self, buf) -> None:  # type: ignore[no-untyped-def]
         """Default to selecting the first completion without inserting it."""
