@@ -59,7 +59,7 @@ def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
     assert full_updates[-1] == ((), True)
 
 
-def test_prompt_separator_text_does_not_depend_on_status_lines() -> None:
+def test_prompt_separator_text_can_be_sent_without_status_lines() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     status_updates: list[tuple[tuple[object, ...], str | None]] = []
@@ -72,6 +72,46 @@ def test_prompt_separator_text_does_not_depend_on_status_lines() -> None:
     renderer._emit_prompt_status((), "12s · esc to interrupt")
 
     assert status_updates[-1] == ((), "12s · esc to interrupt")
+
+
+def test_spinner_stop_clears_prompt_separator_text() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    status_updates: list[tuple[tuple[object, ...], str | None]] = []
+
+    def _record_status(lines: tuple[object, ...], separator_text: str | None) -> None:
+        status_updates.append((lines, separator_text))
+
+    renderer = TUICommandRenderer(status_sink=_record_status)
+
+    renderer.spinner_update(separator_text="12s · esc to interrupt")
+    renderer.spinner_stop()
+
+    assert status_updates[-1] == ((), None)
+
+
+def test_spinner_stop_keeps_prompt_metadata_footer() -> None:
+    from rich.text import Text
+
+    from klaude_code.tui.commands import PromptStatusLine
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
+
+    def _record_status(lines: tuple[PromptStatusLine, ...], separator_text: str | None) -> None:
+        status_updates.append((lines, separator_text))
+
+    renderer = TUICommandRenderer(status_sink=_record_status)
+    _renderer_console(renderer)
+
+    renderer.spinner_update(metadata_text=Text("in 82.3k · cache 633.3k (99%) · cost $0.7971"))
+    renderer.spinner_stop()
+
+    lines, separator_text = status_updates[-1]
+    assert [(line.text, line.kind) for line in lines] == [
+        ("in 82.3k · cache 633.3k (99%) · cost $0.7971", "metadata")
+    ]
+    assert separator_text is None
 
 
 def test_display_image_prints_caption_then_image(monkeypatch) -> None:

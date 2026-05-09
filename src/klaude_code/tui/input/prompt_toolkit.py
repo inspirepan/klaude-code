@@ -16,9 +16,8 @@ from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import merge_key_bindings
-from prompt_toolkit.layout import Float
-from prompt_toolkit.layout.containers import Container, FloatContainer, HSplit, Window
-from prompt_toolkit.layout.controls import BufferControl
+from prompt_toolkit.layout.containers import ConditionalContainer, Container, HSplit, Window
+from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.output.color_depth import ColorDepth
 from prompt_toolkit.utils import get_cwidth
@@ -37,7 +36,11 @@ from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, SKILL_TOKEN_PATTERN, create_repl_completer
-from klaude_code.tui.input.completion_menu import customize_completion_menus
+from klaude_code.tui.input.completion_menu import (
+    build_completion_panel_fragments,
+    customize_completion_menus,
+    remove_completion_menu_floats,
+)
 from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout
 from klaude_code.tui.input.images import (
@@ -52,7 +55,7 @@ from klaude_code.tui.input.paste import (
     expand_paste_markers_with_file_save,
 )
 from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
-from klaude_code.tui.input.pt_theme import get_base_style
+from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_METADATA_FOOTER, get_base_style
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
 # Style class tokens used by the REPL prompt. The concrete colors live in
@@ -398,6 +401,11 @@ class PromptToolkitInput(InputProviderABC):
         if self._clipboard_has_image:
             return FormattedText([("class:placeholder", "   ctrl+v to paste image")])
 
+        return FormattedText([])
+
+    def _build_prompt_context_fragments(self, *, prefix: str = "") -> StyleAndTextTuples:
+        """Build the idle prompt context shown below the input frame."""
+
         repo_display, branch = _get_git_info()
         cwd_name = Path.cwd().name or str(Path.cwd())
         dir_name = repo_display or cwd_name
@@ -419,15 +427,17 @@ class PromptToolkitInput(InputProviderABC):
         if branch:
             parts.append(f"({branch})")
 
-        text = " ".join(parts)
+        suffix = ""
+        if len(parts) > 1:
+            suffix = " " + " ".join(parts[1:])
         if not model_name:
-            return FormattedText([("class:placeholder", f"   {text}")])
-        return FormattedText(
-            [
-                ("class:placeholder", f"   {text} > "),
-                ("class:accent.blue", model_name),
-            ]
-        )
+            return [("class:placeholder", prefix), ("class:accent.blue", dir_name), ("class:placeholder", suffix)]
+        return [
+            ("class:placeholder", prefix),
+            ("class:accent.blue", dir_name),
+            ("class:placeholder", f"{suffix} > "),
+            ("class:accent.blue", model_name),
+        ]
 
     def _is_bash_mode_active(self) -> bool:
         try:
@@ -472,18 +482,6 @@ class PromptToolkitInput(InputProviderABC):
             merged_kb = merge_key_bindings([existing_kb, model_picker.key_bindings])
             self._session.key_bindings = merged_kb
 
-        # Attach overlay as a float above the prompt
-        with contextlib.suppress(Exception):
-            root = self._session.app.layout.container
-            overlay_float = Float(content=model_picker.container, bottom=1, left=0)
-
-            # Always attach this overlay at the top level so it is not clipped by
-            # small nested FloatContainers (e.g. the completion-menu container).
-            if isinstance(root, FloatContainer):
-                root.floats.append(overlay_float)
-            else:
-                self._session.app.layout.container = FloatContainer(content=root, floats=[overlay_float])
-
     def _setup_thinking_picker(self) -> None:
         """Initialize the thinking picker overlay and attach it to the layout."""
         thinking_picker = SelectOverlay[str](
@@ -500,16 +498,6 @@ class PromptToolkitInput(InputProviderABC):
             merged_kb = merge_key_bindings([existing_kb, thinking_picker.key_bindings])
             self._session.key_bindings = merged_kb
 
-        # Attach overlay as a float above the prompt
-        with contextlib.suppress(Exception):
-            root = self._session.app.layout.container
-            overlay_float = Float(content=thinking_picker.container, bottom=1, left=0)
-
-            if isinstance(root, FloatContainer):
-                root.floats.append(overlay_float)
-            else:
-                self._session.app.layout.container = FloatContainer(content=root, floats=[overlay_float])
-
     def _apply_layout_customizations(self) -> None:
         """Apply layout customizations after session is created."""
         # Make the Escape key feel responsive
@@ -519,6 +507,7 @@ class PromptToolkitInput(InputProviderABC):
         # Keep completion popups left-aligned and customize completion rendering.
         with contextlib.suppress(Exception):
             customize_completion_menus(self._session.app.layout.container)
+            remove_completion_menu_floats(self._session.app.layout.container)
 
         # Reserve more vertical space while overlays (selector, completion menu) are open.
         # prompt_toolkit's default multiline prompt caps out at ~9 lines.
@@ -532,8 +521,102 @@ class PromptToolkitInput(InputProviderABC):
     def _install_bottom_windows(self) -> None:
         with contextlib.suppress(Exception):
             root = self._session.app.layout.container
-            bar_containers = self._bottom_bar.build_containers(is_agent_running=self._is_agent_running)
-            self._session.app.layout.container = HSplit([*bar_containers, root])
+            bar_containers = self._bottom_bar.build_containers()
+            input_top_rule = Window(
+                content=FormattedTextControl(self._get_input_top_rule_fragments),
+                height=1,
+                dont_extend_height=True,
+            )
+            input_bottom_rule = Window(
+                content=FormattedTextControl(self._get_input_bottom_rule_fragments),
+                height=1,
+                dont_extend_height=True,
+            )
+            completion_panel = Window(
+                content=FormattedTextControl(self._get_completion_panel_fragments),
+                height=self._get_completion_panel_height,
+                dont_extend_height=True,
+            )
+            input_footer = Window(
+                content=FormattedTextControl(self._get_input_footer_fragments),
+                height=self._get_input_footer_height,
+                dont_extend_height=True,
+            )
+            dynamic_panels: list[Container] = [
+                ConditionalContainer(completion_panel, filter=Condition(self._is_completion_panel_visible))
+            ]
+            if self._model_picker is not None:
+                dynamic_panels.append(self._model_picker.container)
+            if self._thinking_picker is not None:
+                dynamic_panels.append(self._thinking_picker.container)
+            self._session.app.layout.container = HSplit(
+                [*bar_containers, input_top_rule, root, input_bottom_rule, *dynamic_panels, input_footer]
+            )
+
+    def _get_input_top_rule_fragments(self) -> StyleAndTextTuples:
+        return self._get_input_bottom_rule_fragments()
+
+    def _get_input_bottom_rule_fragments(self) -> StyleAndTextTuples:
+        try:
+            columns = get_app().output.get_size().columns
+        except Exception:
+            columns = 80
+        return [(CLASS_LINES, "─" * max(1, columns))]
+
+    def _get_input_footer_fragments(self) -> StyleAndTextTuples:
+        if self._is_completion_panel_visible() or self._is_picker_open():
+            return []
+        fragments = self._build_prompt_context_fragments(prefix="  ")
+        status_hint = self._bottom_bar.running_separator_label
+        if status_hint:
+            fragments.extend([(CLASS_META, " · "), (CLASS_META, status_hint)])
+        for line in self._bottom_bar.metadata_footer_lines:
+            fragments.extend([("", "\n"), (CLASS_METADATA_FOOTER, f"  {line}")])
+        return fragments
+
+    def _get_input_footer_height(self) -> int:
+        if self._is_completion_panel_visible() or self._is_picker_open():
+            return 1
+        return 1 + len(self._bottom_bar.metadata_footer_lines)
+
+    def _is_picker_open(self) -> bool:
+        return (self._model_picker is not None and self._model_picker.is_open) or (
+            self._thinking_picker is not None and self._thinking_picker.is_open
+        )
+
+    def _is_completion_panel_visible(self) -> bool:
+        try:
+            state = self._session.default_buffer.complete_state
+        except Exception:
+            return False
+        return state is not None and bool(state.completions)
+
+    def _get_completion_panel_height(self) -> int:
+        try:
+            state = self._session.default_buffer.complete_state
+        except Exception:
+            return 0
+        if state is None or not state.completions:
+            return 0
+        return min(10, len(state.completions))
+
+    def _get_completion_panel_fragments(self) -> StyleAndTextTuples:
+        try:
+            state = self._session.default_buffer.complete_state
+        except Exception:
+            return []
+        if state is None or not state.completions:
+            return []
+        try:
+            columns = get_app().output.get_size().columns
+        except Exception:
+            columns = 80
+        return build_completion_panel_fragments(
+            state.completions,
+            selected_index=state.complete_index,
+            width=columns,
+            max_height=10,
+        )
 
     def _patch_prompt_height_for_overlays(self) -> None:
         with contextlib.suppress(Exception):
@@ -544,17 +627,11 @@ class PromptToolkitInput(InputProviderABC):
 
             original_height = input_window.height
 
-            # Keep a comfortable multiline editing area even when no completion
-            # space is reserved.
-            # Also allow the input area to grow with content so that large multi-line
-            # inputs expand the prompt instead of scrolling within a fixed-height window.
-            base_rows = 10
+            # Keep the idle prompt compact. Grow only with multiline input;
+            # completions and selectors render below the input frame.
+            base_rows = 1
 
             def _height():  # type: ignore[no-untyped-def]
-                picker_open = (self._model_picker is not None and self._model_picker.is_open) or (
-                    self._thinking_picker is not None and self._thinking_picker.is_open
-                )
-
                 try:
                     original_height_value = original_height() if callable(original_height) else original_height  # ty: ignore[call-top-callable]
                 except Exception:
@@ -574,10 +651,6 @@ class PromptToolkitInput(InputProviderABC):
                 content_rows = max(1, buffer_line_count)
                 target_rows = max(base_rows, content_rows)
 
-                # When a picker overlay is open, keep enough height for it to be usable.
-                if picker_open:
-                    target_rows = max(target_rows, 24)
-
                 # Cap to the current terminal size.
                 # Leave a small buffer to avoid triggering "Window too small".
                 try:
@@ -587,9 +660,9 @@ class PromptToolkitInput(InputProviderABC):
 
                 desired = max(original_min, target_rows)
                 if rows > 0:
-                    desired = max(3, min(desired, rows - 2))
+                    desired = max(1, min(desired, rows - 4))
 
-                return Dimension(min=desired, preferred=desired)
+                return Dimension(min=desired, preferred=desired, max=desired)
 
             input_window.height = _height
 

@@ -12,6 +12,7 @@ from prompt_toolkit.layout.utils import explode_text_fragments
 from prompt_toolkit.utils import get_cwidth
 
 COMPLETION_TRUNCATION_SYMBOL = "…"
+_MENU_PREFIX_WIDTH = 2
 
 
 def customize_completion_menus(container: Container) -> None:
@@ -19,6 +20,22 @@ def customize_completion_menus(container: Container) -> None:
 
     _left_align_completion_menus(container)
     _patch_completion_menu_controls(container)
+
+
+def remove_completion_menu_floats(container: Container) -> None:
+    """Remove prompt_toolkit's built-in completion floats.
+
+    The REPL renders completions in its own bottom panel so the menu can live
+    below the input frame instead of inside the prompt window.
+    """
+
+    if isinstance(container, FloatContainer):
+        container.floats = [
+            flt for flt in container.floats if not isinstance(flt.content, (CompletionsMenu, MultiColumnCompletionsMenu))
+        ]
+
+    for child in container.get_children():
+        remove_completion_menu_floats(child)
 
 
 def _trim_formatted_text_with_ellipsis(
@@ -101,6 +118,62 @@ def _strip_dim_fg(fragments: StyleAndTextTuples) -> StyleAndTextTuples:
         else:
             result.append((style, item[1]))
     return result
+
+
+def build_completion_panel_fragments(
+    completions: list[Completion],
+    *,
+    selected_index: int | None,
+    width: int,
+    max_height: int,
+) -> StyleAndTextTuples:
+    """Render completions for the REPL bottom panel."""
+
+    if not completions or max_height <= 0:
+        return []
+
+    selected = selected_index or 0
+    selected = max(0, min(selected, len(completions) - 1))
+    height = min(max_height, len(completions))
+
+    start = 0
+    if selected >= height:
+        start = min(selected - height + 1, len(completions) - height)
+    visible = completions[start : start + height]
+
+    display_width = min(
+        max(20, max(fragment_list_width(completion.display) for completion in visible) + _MENU_PREFIX_WIDTH + 1),
+        max(1, width),
+    )
+    meta_width = max(0, width - display_width)
+
+    fragments: StyleAndTextTuples = []
+    for offset, completion in enumerate(visible):
+        if offset:
+            fragments.append(("", "\n"))
+
+        index = start + offset
+        is_current = index == selected
+        item_style = f"class:completion-menu.completion.current {completion.style} {completion.selected_style}"
+        meta_style = "class:completion-menu.meta.completion.current"
+        prefix = "→ "
+        if not is_current:
+            item_style = "class:completion-menu.completion " + completion.style
+            meta_style = "class:completion-menu.meta.completion"
+            prefix = "  "
+
+        text, text_width = _trim_formatted_text_with_ellipsis(completion.display, display_width - _MENU_PREFIX_WIDTH)
+        if is_current:
+            text = _strip_dim_fg(text)
+        padding = " " * max(0, display_width - _MENU_PREFIX_WIDTH - text_width)
+        fragments.extend(to_formatted_text([("", prefix), *text, ("", padding)], style=item_style))
+
+        if meta_width > 1 and fragment_list_width(completion.display_meta) > 0:
+            meta, meta_text_width = _trim_formatted_text_with_ellipsis(completion.display_meta, meta_width - 1)
+            meta_padding = " " * max(0, meta_width - 1 - meta_text_width)
+            fragments.extend(to_formatted_text([("", " "), *meta, ("", meta_padding)], style=meta_style))
+
+    return fragments
 
 
 class _KlaudeCompletionsMenuControl(pt_menus.CompletionsMenuControl):

@@ -920,6 +920,14 @@ class SelectOverlay[T]:
                 return
             self._close_and_invoke_cancel(event)
 
+        @kb.add(Keys.Backspace, filter=is_open_filter, eager=True)
+        def _(event: KeyPressEvent) -> None:
+            if self._use_search_filter and self._search_buffer is not None and self._search_buffer.text:
+                self._search_buffer.delete_before_cursor()
+                event.app.invalidate()
+                return
+            self._close_and_invoke_cancel(event)
+
         @kb.add(Keys.ControlL, filter=is_open_filter, eager=True)
         def _(event: KeyPressEvent) -> None:
             self.close()

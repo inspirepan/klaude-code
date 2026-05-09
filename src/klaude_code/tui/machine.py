@@ -23,7 +23,6 @@ from klaude_code.const import (
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.model_id import is_gemini_model_any, is_grok_model
 from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, Usage
-from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
@@ -68,7 +67,7 @@ from klaude_code.tui.commands import (
     TaskClockStart,
     UpdateTerminalTitlePrefix,
 )
-from klaude_code.tui.components.common import format_more_lines_indicator
+from klaude_code.tui.components.common import format_more_lines_indicator, format_pascal_case
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
@@ -550,14 +549,7 @@ class _SessionState:
     def status_title(self) -> str:
         if self.sub_agent_state is None:
             return "Tasking"
-        try:
-            profile = get_sub_agent_profile(self.sub_agent_state.sub_agent_type)
-            active_form = profile.active_form.strip()
-            if active_form:
-                return active_form
-        except KeyError:
-            pass
-        return self.sub_agent_state.sub_agent_type
+        return format_pascal_case(self.sub_agent_state.sub_agent_type)
 
     def status_description(self) -> str:
         if self.sub_agent_state is None:
@@ -594,6 +586,8 @@ class DisplayStateMachine:
         self._live_bash_tool_call_ids: set[str] = set()
         self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
         self._bash_mode_output_chunks_by_session: dict[str, list[str]] = {}
+        self._has_rendered_user_message = False
+        self._skip_next_user_message_rule = False
 
     def set_model_name(self, model_name: str | None) -> None:
         self._model_name = model_name
@@ -618,6 +612,8 @@ class DisplayStateMachine:
         self._live_bash_tool_call_ids = set()
         self._pending_bash_tool_outputs = {}
         self._bash_mode_output_chunks_by_session = {}
+        self._has_rendered_user_message = False
+        self._skip_next_user_message_rule = False
 
     def _session(self, session_id: str) -> _SessionState:
         existing = self._sessions.get(session_id)
@@ -786,7 +782,12 @@ class DisplayStateMachine:
             case events.UserMessageEvent() as e:
                 if s.is_sub_agent:
                     return []
+                if self._has_rendered_user_message and not self._skip_next_user_message_rule:
+                    cmds.append(PrintRuleLine())
+                    cmds.append(PrintBlankLine())
                 cmds.append(RenderUserMessage(e))
+                self._has_rendered_user_message = True
+                self._skip_next_user_message_rule = False
                 return cmds
 
             case events.BashCommandStartEvent() as e:
@@ -1307,7 +1308,6 @@ class DisplayStateMachine:
                 return []
 
             case events.TaskFinishEvent() as e:
-                was_active = s.task_active
                 s.task_active = False
                 s.clear_status_activity()
                 cmds.append(RenderTaskFinish(e))
@@ -1353,9 +1353,6 @@ class DisplayStateMachine:
                     )
                 elif not is_replay:
                     cmds.extend(self._spinner_update_commands())
-                if not s.is_sub_agent and was_active:
-                    cmds.append(PrintRuleLine())
-                    cmds.append(PrintBlankLine())
                 return cmds
 
             case events.InterruptEvent() as e:
@@ -1382,6 +1379,8 @@ class DisplayStateMachine:
                         )
                 if e.show_notice:
                     cmds.append(RenderInterrupt())
+                if not s.is_sub_agent:
+                    self._skip_next_user_message_rule = True
                 return cmds
 
             case events.ErrorEvent() as e:
