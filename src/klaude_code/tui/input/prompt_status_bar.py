@@ -233,12 +233,12 @@ class PromptBottomBar:
             columns = 80
         label = self._running_separator_label
         if not label:
-            return [(CLASS_USER_INPUT_RULE, "╸" * max(1, columns))]
+            return [(CLASS_USER_INPUT_RULE, "─" * max(1, columns))]
 
         label_width = get_cwidth(label)
         if label_width + 1 >= columns:
             return [(CLASS_USER_INPUT_RULE, label)]
-        return [(CLASS_USER_INPUT_RULE, f"{'╸' * max(1, columns - label_width - 1)} {label}")]
+        return [(CLASS_USER_INPUT_RULE, f"{'─' * max(1, columns - label_width - 1)} {label}")]
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
         count = len(self._pending_messages)

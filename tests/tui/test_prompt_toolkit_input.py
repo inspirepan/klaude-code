@@ -152,7 +152,7 @@ def test_bottom_line_updates_skip_unchanged_invalidations() -> None:
 def test_running_separator_uses_prompt_width_fallback() -> None:
     prompt_input = _build_input("")
 
-    assert prompt_input._bottom_bar._get_running_separator_fragments() == [("class:user.input.rule", "╸" * 80)]
+    assert prompt_input._bottom_bar._get_running_separator_fragments() == [("class:user.input.rule", "─" * 80)]
 
 
 def test_running_separator_includes_interrupt_hint() -> None:
@@ -160,7 +160,7 @@ def test_running_separator_includes_interrupt_hint() -> None:
     prompt_input._bottom_bar._running_separator_label = "1m51s · esc to interrupt"
 
     assert prompt_input._bottom_bar._get_running_separator_fragments() == [
-        ("class:user.input.rule", f"{'╸' * 55} 1m51s · esc to interrupt")
+        ("class:user.input.rule", f"{'─' * 55} 1m51s · esc to interrupt")
     ]
 
 
