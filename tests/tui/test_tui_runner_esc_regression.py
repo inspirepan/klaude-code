@@ -334,6 +334,137 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
     assert runtime.notices == []
 
 
+def test_busy_input_splits_explicit_separator_without_queue_edit_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeAgent:
+        def __init__(self) -> None:
+            self.follow_up_inputs: list[UserInputPayload] = []
+            self.session = self
+            self.id = "s1"
+            self.work_dir = Path.cwd()
+
+        async def wait_for_flush(self) -> None:
+            return None
+
+        def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            return tuple(self.follow_up_inputs)
+
+        def pop_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs.pop(0)
+
+        def peek_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs[0]
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self._agent = _FakeAgent()
+
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> _FakeAgent:
+            return self._agent
+
+        async def wait_for(self, _wait_id: str) -> None:
+            await asyncio.sleep(0.01)
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            if isinstance(operation, op.FollowUpAgentOperation):
+                self._agent.follow_up_inputs.append(operation.input)
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    submissions: list[UserInputPayload] = []
+
+    async def _submit_user_input_payload(**kwargs: Any) -> Any:
+        submissions.append(kwargs["user_input"])
+        return runner.SubmitUserInputResult(wait_id=f"wait-{len(submissions)}")
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    _FakePromptToolkitInput.payloads = [
+        UserInputPayload(text="first"),
+        UserInputPayload(text="second while busy\n--- split ---\nthird while busy"),
+        UserInputPayload(text="exit"),
+    ]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert [payload.text for payload in submissions] == ["first", "second while busy", "third while busy"]
+
+
+def test_idle_queue_edit_submission_splits_separator_messages(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeAgent:
+        def __init__(self) -> None:
+            self.session = self
+            self.id = "s1"
+            self.work_dir = Path.cwd()
+
+        async def wait_for_flush(self) -> None:
+            return None
+
+        def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            return ()
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self._agent = _FakeAgent()
+
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> _FakeAgent:
+            return self._agent
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    submissions: list[UserInputPayload] = []
+
+    async def _submit_user_input_payload(**kwargs: Any) -> Any:
+        submissions.append(kwargs["user_input"])
+        return runner.SubmitUserInputResult(wait_id=None)
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    _FakePromptToolkitInput.payloads = [
+        UserInputPayload(text="first edited\n---\nsecond edited", queued_edit=True),
+        UserInputPayload(text="exit"),
+    ]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert [payload.text for payload in submissions] == ["first edited", "second edited"]
+
+
 def test_waiting_sigint_restores_prefill_when_no_visible_output(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 

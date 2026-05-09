@@ -27,8 +27,9 @@ from prompt_toolkit.keys import Keys
 from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.paste import store_paste
 
-QUEUED_MESSAGE_EDIT_SEPARATOR = "\n---\n"
-_QUEUED_MESSAGE_SEPARATOR_RE = re.compile(r"(?m)^---$")
+QUEUED_MESSAGE_EDIT_SEPARATOR = "\n--- split ---\n"
+_QUEUED_MESSAGE_SEPARATOR_RE = re.compile(r"(?im)^\s*---(?:\s+split)?\s*---\s*$|^\s*---\s*$")
+_EXPLICIT_QUEUED_MESSAGE_SEPARATOR_RE = re.compile(r"(?im)^\s*---\s+split\s*---\s*$")
 
 
 def copy_to_clipboard(text: str) -> None:
@@ -850,3 +851,7 @@ def split_queued_message_edit_text(text: str) -> tuple[str, ...]:
     if not _QUEUED_MESSAGE_SEPARATOR_RE.search(text):
         return (text,)
     return tuple(part.strip("\n") for part in _QUEUED_MESSAGE_SEPARATOR_RE.split(text) if part.strip())
+
+
+def has_explicit_queued_message_separator(text: str) -> bool:
+    return bool(_EXPLICIT_QUEUED_MESSAGE_SEPARATOR_RE.search(text))

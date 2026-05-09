@@ -34,7 +34,7 @@ from klaude_code.tui.command.command_abc import WebModeRequest
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.flicker_safe_stdout import settle_flicker_safe_stdout
-from klaude_code.tui.input.key_bindings import split_queued_message_edit_text
+from klaude_code.tui.input.key_bindings import has_explicit_queued_message_separator, split_queued_message_edit_text
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
 from klaude_code.tui.input.pt_theme import configure_pt_theme
 from klaude_code.tui.terminal.color import is_light_terminal_background
@@ -159,6 +159,18 @@ async def _submit_user_input_payload_inner(
     if run_ops:
         return SubmitUserInputResult(wait_id=run_ops[0].id)
     return SubmitUserInputResult(wait_id=submitted_ids[-1])
+
+
+def _split_queue_edit_payload(user_input: UserInputPayload) -> tuple[UserInputPayload, ...]:
+    if user_input.images or user_input.pasted_files:
+        return (user_input,)
+    should_split = user_input.queued_edit or has_explicit_queued_message_separator(user_input.text)
+    if not should_split:
+        return (user_input,)
+    parts = split_queued_message_edit_text(user_input.text)
+    if len(parts) == 1:
+        return (user_input,)
+    return tuple(UserInputPayload(text=text) for text in parts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -732,16 +744,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
                     sid = _get_active_session_id()
                     if sid is not None:
-                        can_split_queue_edit = (
-                            user_input.queued_edit and not user_input.images and not user_input.pasted_files
-                        )
-                        follow_up_texts = (
-                            split_queued_message_edit_text(user_input.text)
-                            if can_split_queue_edit
-                            else (user_input.text,)
-                        )
-                        for text in follow_up_texts:
-                            follow_up_input = user_input if len(follow_up_texts) == 1 else UserInputPayload(text=text)
+                        follow_up_inputs = _split_queue_edit_payload(user_input)
+                        for follow_up_input in follow_up_inputs:
                             await components.runtime.submit_and_wait(
                                 op.FollowUpAgentOperation(session_id=sid, input=follow_up_input)
                             )
@@ -755,16 +759,21 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     continue
 
                 active_session_id = _get_active_session_id()
-                submission = await submit_user_input_payload(
-                    runtime=components.runtime,
-                    wait_for_display_idle=components.wait_for_display_idle,
-                    user_input=user_input,
-                    session_id=active_session_id,
-                )
+                wait_id: str | None = None
+                for payload in _split_queue_edit_payload(user_input):
+                    submission = await submit_user_input_payload(
+                        runtime=components.runtime,
+                        wait_for_display_idle=components.wait_for_display_idle,
+                        user_input=payload,
+                        session_id=active_session_id,
+                    )
 
-                wait_id = submission.wait_id
-                if submission.web_mode_request is not None:
-                    pending_web_mode_request = submission.web_mode_request
+                    wait_id = submission.wait_id
+                    if submission.web_mode_request is not None:
+                        pending_web_mode_request = submission.web_mode_request
+                        break
+
+                if pending_web_mode_request is not None:
                     break
 
                 if wait_id is None:
