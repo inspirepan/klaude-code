@@ -416,17 +416,6 @@ def text_to_patch(text: str, orig: dict[str, str]) -> tuple[Patch, int]:
     return parser.patch, parser.fuzz
 
 
-def identify_files_needed(text: str) -> list[str]:
-    lines = text.strip().split("\n")
-    result: set[str] = set()
-    for line in lines:
-        if line.startswith("*** Update File: "):
-            result.add(line[len("*** Update File: ") :])
-        if line.startswith("*** Delete File: "):
-            result.add(line[len("*** Delete File: ") :])
-    return list(result)
-
-
 def _get_updated_file(text: str, action: PatchAction, path: str) -> str:
     assert action.type == ActionType.UPDATE
     orig_lines = text.split("\n")

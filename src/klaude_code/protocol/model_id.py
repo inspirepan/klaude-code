@@ -94,14 +94,6 @@ def is_gpt5_model(model_name: str | None) -> bool:
     return "gpt-5" in model_name.lower()
 
 
-def support_gpt_phase(model_name: str | None) -> bool:
-    """Check if the model should receive OpenAI phase channel guidance."""
-    if not model_name:
-        return False
-    model_lower = model_name.lower()
-    return "gpt-5.4" in model_lower or "gpt-5.3-codex" in model_lower
-
-
 def supports_extended_prompt_cache(model_name: str | None) -> bool:
     """Check if the OpenAI model supports prompt_cache_retention="24h".
 
@@ -134,11 +126,6 @@ def supports_extended_prompt_cache(model_name: str | None) -> bool:
 
 
 # -- Google --------------------------------------------------------------------
-
-
-def is_gemini_model(model_name: str | None) -> bool:
-    """Return True if the model name represents a Google Gemini model (OpenRouter prefix)."""
-    return model_name is not None and model_name.startswith("google/gemini")
 
 
 def is_gemini_model_any(model_name: str | None) -> bool:
