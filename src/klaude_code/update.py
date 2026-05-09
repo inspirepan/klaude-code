@@ -560,5 +560,3 @@ def perform_auto_upgrade_if_needed() -> AutoUpgradeResult:
         _invalidate_persisted_update_info()
         return AutoUpgradeResult(True, persisted.latest, f"Auto-upgraded klaude-code to {persisted.latest}.", "info")
     return result
-
-
