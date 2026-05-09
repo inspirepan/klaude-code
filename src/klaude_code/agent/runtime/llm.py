@@ -44,6 +44,7 @@ class FallbackLLMClient(LLMClientABC):
     @classmethod
     @override
     def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        del cls
         del config
         raise NotImplementedError("FallbackLLMClient must be constructed with candidates")
 
@@ -116,14 +117,6 @@ class LLMClients:
     sub_clients: dict[SubAgentType, LLMClientABC] = dataclass_field(default_factory=_default_sub_clients)
     fast: LLMClientABC | None = None
     compact: LLMClientABC | None = None
-
-    def get_client(self, sub_agent_type: SubAgentType | None = None) -> LLMClientABC:
-        if sub_agent_type is None:
-            return self.main
-        client = self.sub_clients.get(sub_agent_type)
-        if client is not None:
-            return client
-        return self.main
 
     def get_compact_client(self) -> LLMClientABC:
         return self.compact or self.main

@@ -11,7 +11,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import threading
 import time
 import urllib.request
@@ -561,14 +560,3 @@ def perform_auto_upgrade_if_needed() -> AutoUpgradeResult:
         _invalidate_persisted_update_info()
         return AutoUpgradeResult(True, persisted.latest, f"Auto-upgraded klaude-code to {persisted.latest}.", "info")
     return result
-
-
-def reexec_after_auto_upgrade() -> None:
-    """Replace the current process with a fresh invocation using the upgraded install.
-
-    Sets ``KLAUDE_AUTO_UPGRADE_DONE=1`` so the new process does not attempt another upgrade.
-    """
-
-    os.environ[AUTO_UPGRADE_DONE_ENV] = "1"
-    executable = shutil.which("klaude") or sys.argv[0]
-    os.execvp(executable, [executable, *sys.argv[1:]])

@@ -29,9 +29,6 @@ class RewindManager:
     def register_checkpoint(self, checkpoint_id: int, user_message: str) -> None:
         self._checkpoint_user_messages[checkpoint_id] = user_message
 
-    def get_checkpoint_user_message(self, checkpoint_id: int) -> str | None:
-        return self._checkpoint_user_messages.get(checkpoint_id)
-
     def send_rewind(self, checkpoint_id: int, note: str, rationale: str) -> str:
         if self._pending is not None:
             raise ValueError("Only one rewind can be pending at a time")

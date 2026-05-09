@@ -193,6 +193,20 @@ def test_input_footer_context_name_uses_blue_not_placeholder() -> None:
     assert fragments[1][0] == "class:accent.blue"
 
 
+def test_input_height_estimate_counts_soft_wrapped_lines() -> None:
+    prompt_input = _build_input("x" * 20)
+    prompt_input._prompt_text = "❯ "
+
+    assert prompt_input._estimate_input_visual_rows(columns=8) == 4
+
+
+def test_input_height_estimate_counts_newlines_and_soft_wraps() -> None:
+    prompt_input = _build_input("short\n" + "x" * 13)
+    prompt_input._prompt_text = "❯ "
+
+    assert prompt_input._estimate_input_visual_rows(columns=8) == 4
+
+
 def test_input_footer_renders_metadata_below_context_line() -> None:
     prompt_input: Any = _build_input("")
     prompt_input._bottom_bar._running_separator_label = "11s · esc to interrupt"

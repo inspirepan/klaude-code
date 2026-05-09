@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterable
 
 from klaude_code.protocol.message import UserInputPayload
 
@@ -16,9 +16,8 @@ class InputProviderABC(ABC):
         pass
 
     @abstractmethod
-    async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
+    def iter_inputs(self) -> AsyncIterable[UserInputPayload]:
         raise NotImplementedError
-        yield UserInputPayload(text="")
 
     def set_prompt_suggestion(self, text: str | None) -> None:
         """Push a predicted-next-prompt into the input layer.

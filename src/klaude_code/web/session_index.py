@@ -185,36 +185,6 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
     )
 
 
-def group_sessions(summaries: list[SessionSummary]) -> list[dict[str, Any]]:
-    groups_by_work_dir: dict[str, list[SessionSummary]] = {}
-    ordered = sorted(summaries, key=lambda item: item.updated_at, reverse=True)
-    for item in ordered:
-        groups_by_work_dir.setdefault(item.work_dir, []).append(item)
-    return [
-        {
-            "work_dir": work_dir,
-            "sessions": [
-                {
-                    "id": session.id,
-                    "created_at": session.created_at,
-                    "updated_at": session.updated_at,
-                    "work_dir": session.work_dir,
-                    "title": session.title,
-                    "user_messages": session.user_messages,
-                    "messages_count": session.messages_count,
-                    "model_name": session.model_name,
-                    "session_state": session.session_state,
-                    "archived": session.archived,
-                    "todos": session.todos,
-                    "file_change_summary": session.file_change_summary,
-                }
-                for session in sessions
-            ],
-        }
-        for work_dir, sessions in groups_by_work_dir.items()
-    ]
-
-
 class SessionIndex:
     def __init__(self, *, home: Path) -> None:
         self._home = home
