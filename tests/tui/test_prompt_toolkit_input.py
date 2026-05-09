@@ -113,7 +113,7 @@ def test_status_lines_render_above_prompt() -> None:
     assert bar._status_lines == (_status("Loading..."), _metadata("in 10"))
     assert bar._running_separator_label == "1m51s · esc to interrupt"
     assert bar._get_status_fragments() == [
-        ("class:meta", "⠋ "),
+        ("class:meta", "·   "),
         ("class:meta", "Loading..."),
         ("", "\n"),
         ("class:meta", "in 10"),
@@ -302,10 +302,10 @@ def test_status_spinner_prefixes_each_status_line_but_not_metadata() -> None:
 
     bar = prompt_input._bottom_bar
     assert bar._get_status_fragments() == [
-        ("class:meta", "⠙ "),
+        ("class:meta", "··  "),
         ("class:meta", "Finding: session"),
         ("", "\n"),
-        ("class:meta", "⠙ "),
+        ("class:meta", "··  "),
         ("class:meta", "Thinking…"),
         ("", "\n"),
         ("class:meta", "in 12 · cache 3k"),
@@ -327,7 +327,7 @@ def test_status_spinner_does_not_prefix_wrapped_token_metadata() -> None:
     )
 
     assert prompt_input._bottom_bar._get_status_fragments() == [
-        ("class:meta", "⠼ "),
+        ("class:meta", "  · "),
         ("class:meta", "Loading…"),
         ("", "\n"),
         ("class:meta", "in 18.2k · cache 33.8k · out 1.1k · thought 89 · 26.7k/272k (9.8%) · cost $0.1430 · 7"),
@@ -341,7 +341,7 @@ def test_status_metadata_kind_controls_spinner_prefix() -> None:
     prompt_input.set_status_lines((_status("Loading…"), _metadata("not token-shaped metadata")))
 
     assert prompt_input._bottom_bar._get_status_fragments() == [
-        ("class:meta", "⠹ "),
+        ("class:meta", "··· "),
         ("class:meta", "Loading…"),
         ("", "\n"),
         ("class:meta", "not token-shaped metadata"),

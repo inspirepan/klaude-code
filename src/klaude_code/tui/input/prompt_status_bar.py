@@ -23,7 +23,7 @@ from prompt_toolkit.utils import get_cwidth
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.input.pt_theme import CLASS_META, CLASS_USER_INPUT, CLASS_USER_INPUT_RULE
 
-_STATUS_SPINNER_FRAMES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
+_STATUS_SPINNER_FRAMES = ("·  ", "·· ", "···", " ··", "  ·", "   ")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
 
 # How long to hold the stream area's reserved height after an end-of-stream
