@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 
-from klaude_code.tui.input.prompt_toolkit import (
+from klaude_code.tui.input.completion_menu import (
     _trim_formatted_text_with_ellipsis,  # pyright: ignore[reportPrivateUsage]
 )
 

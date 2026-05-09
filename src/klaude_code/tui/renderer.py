@@ -339,7 +339,8 @@ class TUICommandRenderer:
 
     def spinner_stop(self) -> None:
         self._spinner_visible = False
-        self._emit_prompt_status()
+        self._status_separator_text = None
+        self._emit_prompt_status(self._prompt_metadata_lines(), None)
 
     def spinner_update(
         self,
@@ -420,6 +421,13 @@ class TUICommandRenderer:
         if self._status_metadata_text is not None:
             result[-1] = PromptStatusLine(result[-1].text, "metadata")
         return tuple(result)
+
+    def _prompt_metadata_lines(self) -> tuple[PromptStatusLine, ...]:
+        if self._status_metadata_text is None:
+            return ()
+        rendered = self.console.render_lines(self._status_metadata_text, self.console.options, pad=False)
+        lines = tuple("".join(segment.text for segment in line if not segment.control).rstrip() for line in rendered)
+        return tuple(PromptStatusLine(line, "metadata") for line in lines if line)
 
     def _emit_prompt_stream(
         self,
@@ -980,9 +988,6 @@ class TUICommandRenderer:
                     if self._thinking_stream.is_active:
                         self._thinking_stream.append(content)
                         if not self._replay_mode:
-                            first_delta = self._thinking_stream.buffer == ""
-                            if first_delta:
-                                self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                             self._flush_thinking()
                 case EndThinkingStream(session_id=_):
                     had_content = bool(self._thinking_stream.buffer.strip())
@@ -996,9 +1001,6 @@ class TUICommandRenderer:
                     if self._assistant_stream.is_active:
                         self._assistant_stream.append(content)
                         if not self._replay_mode:
-                            first_delta = self._assistant_stream.buffer == ""
-                            if first_delta:
-                                self._assistant_stream.render()
                             self._flush_assistant()
                 case EndAssistantStream(session_id=_):
                     had_content = bool(self._assistant_stream.buffer.strip())

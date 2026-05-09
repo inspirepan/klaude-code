@@ -18,10 +18,9 @@ from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.layout.containers import ConditionalContainer, Container, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
-from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.tui.commands import PromptStatusLine
-from klaude_code.tui.input.pt_theme import CLASS_META, CLASS_USER_INPUT, CLASS_USER_INPUT_RULE
+from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_USER_INPUT
 
 _STATUS_SPINNER_FRAMES = ("·  ", "·· ", "···", " ··", "  ·", "   ")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
@@ -137,8 +136,9 @@ class PromptBottomBar:
 
         self._status_lines = status_lines
         self._running_separator_label = separator_text
-        if self._status_lines:
-            self._status_reserved_line_count = max(self._status_reserved_line_count, len(self._status_lines))
+        visible_status_lines = self._visible_status_lines()
+        if visible_status_lines:
+            self._status_reserved_line_count = max(self._status_reserved_line_count, len(visible_status_lines))
             self._ensure_status_spinner()
         else:
             self._status_reserved_line_count = 0
@@ -156,9 +156,17 @@ class PromptBottomBar:
     def has_pending_messages(self) -> bool:
         return bool(self._pending_messages)
 
+    @property
+    def running_separator_label(self) -> str | None:
+        return self._running_separator_label
+
+    @property
+    def metadata_footer_lines(self) -> tuple[str, ...]:
+        return tuple(line.text for line in self._status_lines if line.kind == "metadata")
+
     # ---- layout integration ---------------------------------------------
 
-    def build_containers(self, *, is_agent_running: Callable[[], bool]) -> list[Container]:
+    def build_containers(self) -> list[Container]:
         stream_window = Window(
             content=FormattedTextControl(self._get_stream_fragments),
             height=lambda: self._stream_reserved_line_count,
@@ -167,11 +175,6 @@ class PromptBottomBar:
         status_window = Window(
             content=FormattedTextControl(self._get_status_fragments),
             height=self._status_window_height,
-            dont_extend_height=True,
-        )
-        running_separator_window = Window(
-            content=FormattedTextControl(self._get_running_separator_fragments),
-            height=1,
             dont_extend_height=True,
         )
         queue_window = Window(
@@ -186,12 +189,9 @@ class PromptBottomBar:
             ConditionalContainer(_spacer(), filter=stream_visible),
             ConditionalContainer(
                 _spacer(),
-                filter=Condition(lambda: bool(self._status_lines) and self._stream_reserved_line_count == 0),
+                filter=Condition(lambda: bool(self._visible_status_lines()) and self._stream_reserved_line_count == 0),
             ),
-            ConditionalContainer(status_window, filter=Condition(lambda: bool(self._status_lines))),
-            ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._status_lines))),
-            ConditionalContainer(running_separator_window, filter=Condition(is_agent_running)),
-            ConditionalContainer(_spacer(), filter=Condition(is_agent_running)),
+            ConditionalContainer(status_window, filter=Condition(lambda: bool(self._visible_status_lines()))),
             ConditionalContainer(queue_window, filter=Condition(lambda: bool(self._pending_messages))),
             ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._pending_messages))),
         ]
@@ -213,16 +213,18 @@ class PromptBottomBar:
         return fragments
 
     def _status_window_height(self) -> int:
-        return max(len(self._status_lines), self._status_reserved_line_count)
+        return max(len(self._visible_status_lines()), self._status_reserved_line_count)
+
+    def _visible_status_lines(self) -> tuple[PromptStatusLine, ...]:
+        return tuple(line for line in self._status_lines if line.kind != "metadata")
 
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []
         spinner = _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
-        for index, line in enumerate(self._status_lines):
+        for index, line in enumerate(self._visible_status_lines()):
             if index:
                 fragments.append(("", "\n"))
-            if line.kind != "metadata":
-                fragments.append((CLASS_META, f"{spinner} "))
+            fragments.append((CLASS_META, f"{spinner} "))
             fragments.append((CLASS_META, line.text))
         return fragments
 
@@ -231,14 +233,7 @@ class PromptBottomBar:
             columns = get_app().output.get_size().columns
         except Exception:
             columns = 80
-        label = self._running_separator_label
-        if not label:
-            return [(CLASS_USER_INPUT_RULE, "─" * max(1, columns))]
-
-        label_width = get_cwidth(label)
-        if label_width + 1 >= columns:
-            return [(CLASS_USER_INPUT_RULE, label)]
-        return [(CLASS_USER_INPUT_RULE, f"{'─' * max(1, columns - label_width - 1)} {label}")]
+        return [(CLASS_LINES, "─" * max(1, columns))]
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
         count = len(self._pending_messages)
