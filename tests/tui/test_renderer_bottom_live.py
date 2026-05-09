@@ -108,9 +108,7 @@ def test_spinner_stop_keeps_prompt_metadata_footer() -> None:
     renderer.spinner_stop()
 
     lines, separator_text = status_updates[-1]
-    assert [(line.text, line.kind) for line in lines] == [
-        ("in 82.3k · cache 633.3k (99%) · cost $0.7971", "metadata")
-    ]
+    assert [(line.text, line.kind) for line in lines] == [("in 82.3k · cache 633.3k (99%) · cost $0.7971", "metadata")]
     assert separator_text is None
 
 

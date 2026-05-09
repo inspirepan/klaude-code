@@ -31,7 +31,9 @@ def remove_completion_menu_floats(container: Container) -> None:
 
     if isinstance(container, FloatContainer):
         container.floats = [
-            flt for flt in container.floats if not isinstance(flt.content, (CompletionsMenu, MultiColumnCompletionsMenu))
+            flt
+            for flt in container.floats
+            if not isinstance(flt.content, (CompletionsMenu, MultiColumnCompletionsMenu))
         ]
 
     for child in container.get_children():
