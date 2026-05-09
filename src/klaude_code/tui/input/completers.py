@@ -763,7 +763,7 @@ class _AtFilesCompleter(Completer):
             or self._git_file_list_cwd != cwd
             or now - self._git_file_list_time > git_cache_ttl
         ):
-            cmd = ["git", "ls-files", "-co", "--exclude-standard"]
+            cmd = ["git", "-c", "core.quotePath=false", "ls-files", "-co", "--exclude-standard"]
             r = self._run_cmd(cmd, cwd=repo_root, timeout_sec=self._cmd_timeout_sec)
             if not r.ok:
                 self._git_file_list = []
@@ -771,17 +771,19 @@ class _AtFilesCompleter(Completer):
                 self._git_file_list_time = now
                 self._git_file_list_cwd = cwd
             else:
-                all_lines = r.lines
+                all_lines = [self._decode_git_path_line(line) for line in r.lines]
                 # Supplement with submodule contents: git ls-files -co doesn't
                 # recurse into submodules (they appear as single gitlink entries).
                 r_sub = self._run_cmd(
-                    ["git", "ls-files", "--recurse-submodules"],
+                    ["git", "-c", "core.quotePath=false", "ls-files", "--recurse-submodules"],
                     cwd=repo_root,
                     timeout_sec=self._cmd_timeout_sec,
                 )
                 if r_sub.ok:
                     main_set = set(all_lines)
-                    all_lines.extend(rel for rel in r_sub.lines if rel not in main_set)
+                    all_lines.extend(
+                        rel for line in r_sub.lines if (rel := self._decode_git_path_line(line)) not in main_set
+                    )
 
                 cwd_resolved = cwd.resolve()
                 root_resolved = repo_root.resolve()
@@ -870,6 +872,61 @@ class _AtFilesCompleter(Completer):
 
         candidates = dir_list + matching_files
         return candidates, scan_truncated
+
+    def _decode_git_path_line(self, line: str) -> str:
+        """Decode git's C-style quoted path output when core.quotePath is enabled."""
+
+        if len(line) < 2 or not line.startswith('"') or not line.endswith('"'):
+            return line
+
+        inner = line[1:-1]
+        out = bytearray()
+        escapes = {
+            "a": b"\a",
+            "b": b"\b",
+            "f": b"\f",
+            "n": b"\n",
+            "r": b"\r",
+            "t": b"\t",
+            "v": b"\v",
+            "\\": b"\\",
+            '"': b'"',
+        }
+
+        i = 0
+        while i < len(inner):
+            ch = inner[i]
+            if ch != "\\":
+                out.extend(ch.encode())
+                i += 1
+                continue
+
+            i += 1
+            if i >= len(inner):
+                out.extend(b"\\")
+                break
+
+            esc = inner[i]
+            if esc in escapes:
+                out.extend(escapes[esc])
+                i += 1
+                continue
+
+            if "0" <= esc <= "7":
+                end = i + 1
+                while end < min(i + 3, len(inner)) and "0" <= inner[end] <= "7":
+                    end += 1
+                out.append(int(inner[i:end], 8))
+                i = end
+                continue
+
+            out.extend(esc.encode())
+            i += 1
+
+        try:
+            return out.decode()
+        except UnicodeDecodeError:
+            return line
 
     def _get_git_repo_root(self, cwd: Path) -> Path | None:
         if not self._has_cmd("git"):

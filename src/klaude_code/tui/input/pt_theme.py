@@ -138,7 +138,7 @@ def _build_style_rules(palette: Palette) -> list[tuple[str, str]]:
         ("prompt.running", f"bold fg:{palette.cyan}"),
         ("prompt.bash", f"fg:{palette.green}"),
         ("user.input", f"fg:{palette.magenta}"),
-        ("user.input.rule", f"fg:{palette.grey2} bg:{palette.blue_sub_background}"),
+        ("user.input.rule", f"fg:{palette.grey2}"),
         # --- Completion menu --------------------------------------------
         ("completion-menu", "bg:default"),
         ("completion-menu.border", "bg:default"),

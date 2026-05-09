@@ -178,7 +178,7 @@ def test_git_paths_for_keyword_includes_all_tools_dirs_even_when_many_files_matc
     ]
 
     def fake_run_cmd(cmd: list[str], cwd: Path | None = None, *, timeout_sec: float) -> _CmdResult:
-        assert cmd[:2] == ["git", "ls-files"]
+        assert cmd[:4] == ["git", "-c", "core.quotePath=false", "ls-files"]
         return _CmdResult(True, git_lines)
 
     monkeypatch.setattr(completer, "_run_cmd", fake_run_cmd)
@@ -208,7 +208,7 @@ def test_complete_paths_refines_past_incomplete_git_results(monkeypatch: pytest.
     git_lines = [f"src/tooling/tool_{i}.py" for i in range(20)] + ["web/src/components/messages/ToolBlock.tsx"]
 
     def fake_run_cmd(cmd: list[str], cwd: Path | None = None, *, timeout_sec: float) -> _CmdResult:
-        assert cmd[:2] == ["git", "ls-files"]
+        assert cmd[:4] == ["git", "-c", "core.quotePath=false", "ls-files"]
         return _CmdResult(True, git_lines)
 
     monkeypatch.setattr(completer, "_run_cmd", fake_run_cmd)
@@ -218,3 +218,29 @@ def test_complete_paths_refines_past_incomplete_git_results(monkeypatch: pytest.
 
     assert "web/src/components/messages/ToolBlock.tsx" not in broad
     assert refined == ["web/src/components/messages/ToolBlock.tsx"]
+
+
+def test_git_paths_for_keyword_decodes_git_quoted_cjk_paths(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    completer = _AtFilesCompleter()  # pyright: ignore[reportPrivateUsage]
+    monkeypatch.setattr(completer, "_get_git_repo_root", lambda _cwd: tmp_path)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
+
+    git_lines = [
+        '"cases/wechat-longform/case-1-\\345\\206\\234\\350\\241\\214/source.txt"',
+        '"cases/wechat-longform/case-3-\\351\\253\\230\\345\\216\\237/source.txt"',
+    ]
+
+    def fake_run_cmd(cmd: list[str], cwd: Path | None = None, *, timeout_sec: float) -> _CmdResult:
+        assert cmd[:4] == ["git", "-c", "core.quotePath=false", "ls-files"]
+        return _CmdResult(True, git_lines)
+
+    monkeypatch.setattr(completer, "_run_cmd", fake_run_cmd)
+
+    candidates, truncated = completer._git_paths_for_keyword(tmp_path, "case", max_results=10)  # pyright: ignore[reportPrivateUsage]
+
+    assert not truncated
+    assert "cases/wechat-longform/case-1-农行/source.txt" in candidates
+    assert "cases/wechat-longform/case-3-高原/source.txt" in candidates

@@ -306,7 +306,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.INTERRUPT.value: palette.yellow,
                 # USER_INPUT
                 ThemeKey.USER_INPUT.value: f"{palette.magenta} on {palette.user_message_background}",
-                ThemeKey.USER_INPUT_RULE.value: f"bold {palette.grey2} on {palette.blue_sub_background}",
+                ThemeKey.USER_INPUT_RULE.value: f"bold {palette.grey2}",
                 ThemeKey.USER_INPUT_AT_PATTERN.value: f"italic {palette.purple} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.purple} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.purple} on {palette.user_message_background}",
