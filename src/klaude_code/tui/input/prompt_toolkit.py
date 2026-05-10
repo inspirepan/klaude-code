@@ -577,7 +577,7 @@ class PromptToolkitInput(InputProviderABC):
     def _get_input_footer_height(self) -> int:
         if self._is_completion_panel_visible() or self._is_picker_open():
             return 1
-        return 1 + len(self._bottom_bar.metadata_footer_lines)
+        return 1 + max(1, len(self._bottom_bar.metadata_footer_lines))
 
     def _is_picker_open(self) -> bool:
         return (self._model_picker is not None and self._model_picker.is_open) or (
