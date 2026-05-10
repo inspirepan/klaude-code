@@ -21,6 +21,7 @@ from klaude_code.agent.cache_safe import CacheSafeParams, build_cache_safe_messa
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.prompt_suggestion import PROMPT_SUGGESTION_PROMPT
 from klaude_code.protocol import llm_param, message
+from klaude_code.protocol.models import Usage
 from klaude_code.session.session import Session
 
 # Reasoning models (for example gpt-5.4) may spend most of a tiny budget on
@@ -39,6 +40,11 @@ class PromptSuggestionResult:
     suggestion: str | None
     raw: str
     drop_reason: str | None = None
+
+
+def _normalized_total_input_tokens(usage: Usage) -> int:
+    # Providers disagree on whether input_tokens includes cached/write tokens.
+    return max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
 
 
 def should_suggest(session: Session) -> str | None:
@@ -69,16 +75,7 @@ def should_suggest(session: Session) -> str | None:
         # Cache-cold budget, matching claude-code's getParentCacheSuppressReason:
         # skip when the parent turn had to do a lot of fresh (un-cached) work,
         # because the fork inherits similar cost.
-        #
-        # Providers disagree on ``Usage.input_tokens`` semantics (most paths =
-        # total including cached+write; Anthropic-Bedrock = un-cached only).
-        # Use the same robust normalization as CacheTracker: ``max(input_tokens,
-        # cached + cache_write)`` approximates the total prompt size across
-        # providers. See AGENTS.md "Usage Model Semantics".
-        total_input = max(
-            usage.input_tokens,
-            usage.cached_tokens + usage.cache_write_tokens,
-        )
+        total_input = _normalized_total_input_tokens(usage)
         uncached = max(0, total_input - usage.cached_tokens) + usage.output_tokens
         if uncached > _MAX_PARENT_UNCACHED_TOKENS:
             return f"cache_cold(uncached={uncached})"
@@ -148,7 +145,7 @@ async def run_prompt_suggestion(
     raw = message.join_text_parts(final_message.parts) if final_message else "".join(accumulated)
     usage = final_message.usage if final_message else None
     if usage is not None:
-        total = max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
+        total = _normalized_total_input_tokens(usage)
         hit = (usage.cached_tokens / total) if total > 0 else 0.0
         log_debug(
             f"[PromptSuggestion] usage cache_hit={hit:.2%} "

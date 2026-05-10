@@ -32,6 +32,7 @@ _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
 # StdoutProxy queue prevents prompt-toolkit from briefly painting the
 # input field right under the last assistant message.
 _STREAM_RESERVATION_HOLD_SECONDS = 0.6
+_STATUS_RESERVATION_HOLD_SECONDS = 0.6
 
 
 class PromptBottomBar:
@@ -48,7 +49,9 @@ class PromptBottomBar:
         self._stream_reserved_line_count: int = 0
         self._stream_collapse_handle: asyncio.TimerHandle | None = None
         self._status_lines: tuple[PromptStatusLine, ...] = ()
+        self._metadata_footer_lines: tuple[str, ...] = ()
         self._status_reserved_line_count: int = 0
+        self._status_collapse_handle: asyncio.TimerHandle | None = None
         self._running_separator_label: str | None = None
         self._pending_messages: tuple[str, ...] = ()
 
@@ -127,22 +130,55 @@ class PromptBottomBar:
         separator_text: str | None = None,
     ) -> None:
         status_lines = tuple(line for line in lines if line.text.strip())
+        visible_status_lines = tuple(line for line in status_lines if line.kind != "metadata")
+        metadata_footer_lines = tuple(line.text for line in status_lines if line.kind == "metadata")
         if status_lines == self._status_lines and separator_text == self._running_separator_label:
-            if status_lines:
+            if metadata_footer_lines:
+                self._metadata_footer_lines = metadata_footer_lines
+            if visible_status_lines:
                 self._ensure_status_spinner()
             else:
                 self._cancel_status_spinner()
             return
 
+        self._cancel_pending_status_collapse()
         self._status_lines = status_lines
+        if metadata_footer_lines:
+            self._metadata_footer_lines = metadata_footer_lines
         self._running_separator_label = separator_text
-        visible_status_lines = self._visible_status_lines()
         if visible_status_lines:
             self._status_reserved_line_count = max(self._status_reserved_line_count, len(visible_status_lines))
             self._ensure_status_spinner()
         else:
-            self._status_reserved_line_count = 0
             self._cancel_status_spinner()
+            if self._status_reserved_line_count > 0:
+                self._schedule_status_collapse()
+        self._invalidate()
+
+    def _cancel_pending_status_collapse(self) -> None:
+        handle = self._status_collapse_handle
+        if handle is None:
+            return
+        self._status_collapse_handle = None
+        with contextlib.suppress(Exception):
+            handle.cancel()
+
+    def _schedule_status_collapse(self) -> None:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._status_reserved_line_count = 0
+            return
+        self._status_collapse_handle = loop.call_later(
+            _STATUS_RESERVATION_HOLD_SECONDS,
+            self._do_status_collapse,
+        )
+
+    def _do_status_collapse(self) -> None:
+        self._status_collapse_handle = None
+        if self._status_reserved_line_count == 0:
+            return
+        self._status_reserved_line_count = 0
         self._invalidate()
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
@@ -162,7 +198,7 @@ class PromptBottomBar:
 
     @property
     def metadata_footer_lines(self) -> tuple[str, ...]:
-        return tuple(line.text for line in self._status_lines if line.kind == "metadata")
+        return self._metadata_footer_lines
 
     # ---- layout integration ---------------------------------------------
 
@@ -187,11 +223,8 @@ class PromptBottomBar:
         return [
             ConditionalContainer(stream_window, filter=stream_visible),
             ConditionalContainer(_spacer(), filter=stream_visible),
-            ConditionalContainer(
-                _spacer(),
-                filter=Condition(lambda: bool(self._visible_status_lines()) and self._stream_reserved_line_count == 0),
-            ),
-            ConditionalContainer(status_window, filter=Condition(lambda: bool(self._visible_status_lines()))),
+            ConditionalContainer(_spacer(), filter=Condition(lambda: self._stream_reserved_line_count == 0)),
+            status_window,
             ConditionalContainer(queue_window, filter=Condition(lambda: bool(self._pending_messages))),
             ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._pending_messages))),
         ]
@@ -201,6 +234,7 @@ class PromptBottomBar:
     def stop(self) -> None:
         self._cancel_status_spinner()
         self._cancel_pending_stream_collapse()
+        self._cancel_pending_status_collapse()
 
     # ---- fragment generators --------------------------------------------
 
@@ -213,7 +247,7 @@ class PromptBottomBar:
         return fragments
 
     def _status_window_height(self) -> int:
-        return max(len(self._visible_status_lines()), self._status_reserved_line_count)
+        return max(1, len(self._visible_status_lines()), self._status_reserved_line_count)
 
     def _visible_status_lines(self) -> tuple[PromptStatusLine, ...]:
         return tuple(line for line in self._status_lines if line.kind != "metadata")

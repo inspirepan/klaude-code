@@ -50,6 +50,21 @@ def _notify_session_meta_observers(session_id: str, meta: dict[str, Any]) -> Non
         observer(session_id, dict(meta))
 
 
+def _read_json_dict(path: Path) -> dict[str, Any] | None:
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return cast(dict[str, Any], raw) if isinstance(raw, dict) else None
+
+
+def _write_json_dict_atomic(path: Path, data: dict[str, Any], suffix: str) -> None:
+    # Use a per-write temp name to avoid concurrent replace races.
+    tmp_path = path.with_name(f"{path.stem}.{uuid.uuid4().hex}.{suffix}.tmp")
+    tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.replace(path)
+
+
 class _WriterClosedError(RuntimeError):
     pass
 
@@ -122,16 +137,10 @@ class JsonlSessionWriter:
 
         meta_path = self._paths.meta_file(batch.session_id)
         with self._meta_lock:
-            # Use a per-write temp name to avoid concurrent replace races.
-            tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.w.tmp")
             meta = dict(batch.meta)
             if meta_path.exists():
-                try:
-                    raw = json.loads(meta_path.read_text(encoding="utf-8"))
-                except (json.JSONDecodeError, OSError):
-                    raw = None
-                if isinstance(raw, dict):
-                    current_meta = cast(dict[str, Any], raw)
+                current_meta = _read_json_dict(meta_path)
+                if current_meta is not None:
                     for key in _RUNTIME_META_KEYS:
                         if key in current_meta:
                             meta[key] = current_meta[key]
@@ -139,8 +148,7 @@ class JsonlSessionWriter:
                             meta.pop(key, None)
             meta = {k: v for k, v in meta.items() if v is not None}
 
-            tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-            tmp_path.replace(meta_path)
+            _write_json_dict_atomic(meta_path, meta, "w")
 
         _notify_session_meta_observers(batch.session_id, meta)
 
@@ -163,33 +171,21 @@ class JsonlSessionStore:
         meta_path = self._paths.meta_file(session_id)
         if not meta_path.exists():
             return None
-        try:
-            raw = json.loads(meta_path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
-            return None
-        return cast(dict[str, Any], raw) if isinstance(raw, dict) else None
+        return _read_json_dict(meta_path)
 
     def update_meta(self, session_id: str, updates: dict[str, Any]) -> bool:
         meta_path = self._paths.meta_file(session_id)
         with self._meta_lock:
             if not meta_path.exists():
                 return False
-            try:
-                raw = json.loads(meta_path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
+            data = _read_json_dict(meta_path)
+            if data is None:
                 return False
-            if not isinstance(raw, dict):
-                return False
-
-            data = cast(dict[str, Any], raw)
             data.update(updates)
             data = {k: v for k, v in data.items() if v is not None}
 
             try:
-                # Use a per-write temp name to avoid concurrent replace races.
-                tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.u.tmp")
-                tmp_path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-                tmp_path.replace(meta_path)
+                _write_json_dict_atomic(meta_path, data, "u")
             except OSError:
                 return False
             _notify_session_meta_observers(session_id, data)
@@ -202,9 +198,7 @@ class JsonlSessionStore:
                 return False
             try:
                 meta_path.parent.mkdir(parents=True, exist_ok=True)
-                tmp_path = meta_path.with_name(f"{meta_path.stem}.{uuid.uuid4().hex}.c.tmp")
-                tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-                tmp_path.replace(meta_path)
+                _write_json_dict_atomic(meta_path, meta, "c")
             except OSError:
                 return False
             _notify_session_meta_observers(session_id, meta)
