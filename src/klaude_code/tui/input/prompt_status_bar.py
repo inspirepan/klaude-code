@@ -49,6 +49,7 @@ class PromptBottomBar:
         self._stream_reserved_line_count: int = 0
         self._stream_collapse_handle: asyncio.TimerHandle | None = None
         self._status_lines: tuple[PromptStatusLine, ...] = ()
+        self._metadata_footer_lines: tuple[str, ...] = ()
         self._status_reserved_line_count: int = 0
         self._status_collapse_handle: asyncio.TimerHandle | None = None
         self._running_separator_label: str | None = None
@@ -130,7 +131,10 @@ class PromptBottomBar:
     ) -> None:
         status_lines = tuple(line for line in lines if line.text.strip())
         visible_status_lines = tuple(line for line in status_lines if line.kind != "metadata")
+        metadata_footer_lines = tuple(line.text for line in status_lines if line.kind == "metadata")
         if status_lines == self._status_lines and separator_text == self._running_separator_label:
+            if metadata_footer_lines:
+                self._metadata_footer_lines = metadata_footer_lines
             if visible_status_lines:
                 self._ensure_status_spinner()
             else:
@@ -139,6 +143,8 @@ class PromptBottomBar:
 
         self._cancel_pending_status_collapse()
         self._status_lines = status_lines
+        if metadata_footer_lines:
+            self._metadata_footer_lines = metadata_footer_lines
         self._running_separator_label = separator_text
         if visible_status_lines:
             self._status_reserved_line_count = max(self._status_reserved_line_count, len(visible_status_lines))
@@ -192,7 +198,7 @@ class PromptBottomBar:
 
     @property
     def metadata_footer_lines(self) -> tuple[str, ...]:
-        return tuple(line.text for line in self._status_lines if line.kind == "metadata")
+        return self._metadata_footer_lines
 
     # ---- layout integration ---------------------------------------------
 

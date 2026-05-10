@@ -161,6 +161,20 @@ def test_status_clear_defers_height_collapse_under_loop() -> None:
     asyncio.run(_scenario())
 
 
+def test_metadata_footer_survives_status_only_and_clear_updates() -> None:
+    prompt_input = _build_input("")
+    bar = prompt_input._bottom_bar
+
+    prompt_input.set_status_lines((_status("Typing…"), _metadata("in 10 · out 2")))
+    prompt_input.set_status_lines((_status("Typing…"),))
+
+    assert bar.metadata_footer_lines == ("in 10 · out 2",)
+
+    prompt_input.set_status_lines(())
+
+    assert bar.metadata_footer_lines == ("in 10 · out 2",)
+
+
 def test_running_separator_follows_status_sink_snapshot() -> None:
     prompt_input = _build_input("")
 
@@ -240,8 +254,10 @@ def test_input_height_estimate_counts_newlines_and_soft_wraps() -> None:
 
 def test_input_footer_renders_metadata_below_context_line() -> None:
     prompt_input: Any = _build_input("")
-    prompt_input._bottom_bar._running_separator_label = "11s · esc to interrupt"
-    prompt_input._bottom_bar._status_lines = (_status("Loading…"), _metadata("in 15.3k · cache 28.2k"))
+    prompt_input.set_status_lines(
+        (_status("Loading…"), _metadata("in 15.3k · cache 28.2k")),
+        separator_text="11s · esc to interrupt",
+    )
 
     assert prompt_input._get_input_footer_height() == 2
     assert prompt_input._get_input_footer_fragments()[-4:] == [
