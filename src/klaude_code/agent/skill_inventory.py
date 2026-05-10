@@ -1,5 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TypeVar
+
+_T = TypeVar("_T")
+
+
+def _safe_skill_call(fn: Callable[[], _T], default: _T) -> _T:
+    try:
+        return fn()
+    except Exception:
+        return default
+
 
 def get_skill_names_by_location() -> dict[str, list[str]]:
     """Return available skill names grouped by location.
@@ -15,8 +27,8 @@ def get_skill_names_by_location() -> dict[str, list[str]]:
     except Exception:
         return {}
 
-    result: dict[str, list[str]] = {"user": [], "project": [], "system": []}
-    try:
+    def _collect() -> dict[str, list[str]]:
+        result: dict[str, list[str]] = {"user": [], "project": [], "system": []}
         for name, _desc, location in get_available_skills():
             if location == "user":
                 result["user"].append(name)
@@ -24,16 +36,16 @@ def get_skill_names_by_location() -> dict[str, list[str]]:
                 result["project"].append(name)
             elif location == "system":
                 result["system"].append(name)
-    except Exception:
-        return {}
 
-    if not result["user"] and not result["project"] and not result["system"]:
-        return {}
+        if not result["user"] and not result["project"] and not result["system"]:
+            return {}
 
-    result["user"].sort()
-    result["project"].sort()
-    result["system"].sort()
-    return result
+        result["user"].sort()
+        result["project"].sort()
+        result["system"].sort()
+        return result
+
+    return _safe_skill_call(_collect, {})
 
 
 def get_skill_warnings_by_location() -> dict[str, list[str]]:
@@ -44,7 +56,4 @@ def get_skill_warnings_by_location() -> dict[str, list[str]]:
     except Exception:
         return {}
 
-    try:
-        return get_skill_warnings_by_location()
-    except Exception:
-        return {}
+    return _safe_skill_call(get_skill_warnings_by_location, {})
