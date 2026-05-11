@@ -169,15 +169,17 @@ def build_llm_clients(
         fast_client = create_llm_client(fast_llm_config)
 
     compact_client: LLMClientABC | None = None
-    selected_compact_model = config.get_first_available_model(config.compact_model)
-    if selected_compact_model is not None:
-        compact_llm_config = config.get_model_config(selected_compact_model)
+    compact_candidates = config.iter_model_config_candidates(config.compact_model)
+    if compact_candidates:
+        compact_llm_config = compact_candidates[0].llm_config
         log_debug(
             "Compact LLM config",
             compact_llm_config.model_dump_json(exclude_none=True),
             debug_type=DebugType.LLM_CONFIG,
         )
-        compact_client = create_llm_client(compact_llm_config)
+        compact_client = create_llm_client_for_candidates(compact_candidates)
+    elif config.compact_model is not None:
+        _ = config.get_first_available_model(config.compact_model)
 
     if skip_sub_agents:
         return LLMClients(main=main_client, main_model_alias=model_name, fast=fast_client, compact=compact_client)

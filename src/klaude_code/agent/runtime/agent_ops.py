@@ -16,6 +16,7 @@ from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, run_compaction
+from klaude_code.agent.model_fallback import build_fallback_model_config_warn, fallback_llm_client
 from klaude_code.agent.prompt_suggestion import run_prompt_suggestion, should_suggest
 from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients, create_llm_client_for_candidates
 from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
@@ -957,16 +958,37 @@ class AgentOperationHandler:
         try:
             await self._emit_event(events.CompactionStartEvent(session_id=session_id, reason=reason))
             log_debug(f"[Compact:{reason}] start", debug_type=DebugType.RESPONSE)
-            compact_client = self.get_session_llm_clients(session_id).get_compact_client()
-            result = await run_compaction(
-                session=agent.session,
-                reason=CompactionReason(reason),
-                focus=operation.focus,
-                llm_client=compact_client,
-                llm_config=compact_client.get_llm_config(),
-                cancel=cancel_event,
-                main_profile=agent.profile,
-            )
+            session_clients = self.get_session_llm_clients(session_id)
+            while True:
+                compact_client = session_clients.get_compact_client()
+                try:
+                    result = await run_compaction(
+                        session=agent.session,
+                        reason=CompactionReason(reason),
+                        focus=operation.focus,
+                        llm_client=compact_client,
+                        llm_config=compact_client.get_llm_config(),
+                        cancel=cancel_event,
+                        main_profile=agent.profile,
+                    )
+                    break
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:
+                    fallback = fallback_llm_client(compact_client, str(exc))
+                    if fallback is None:
+                        raise
+                    entry, fallback_event = build_fallback_model_config_warn(
+                        session_id=session_id,
+                        fallback=fallback,
+                        error_message=str(exc),
+                    )
+                    agent.session.append_history([entry])
+                    if session_clients.compact is None and compact_client is session_clients.main:
+                        agent.set_model_profile(
+                            self._model_profile_provider.build_profile(compact_client, work_dir=agent.session.work_dir)
+                        )
+                    await self._emit_event(fallback_event)
             log_debug(f"[Compact:{reason}] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
             reset_attachment_loaded_flags(agent.session.file_tracker)
             agent.session.append_history([result.to_entry()])

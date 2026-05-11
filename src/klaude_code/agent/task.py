@@ -17,8 +17,12 @@ from klaude_code.agent.compaction import (
     should_compact_threshold,
 )
 from klaude_code.agent.handoff import HandoffManager, run_handoff
+from klaude_code.agent.model_fallback import (
+    build_fallback_model_config_warn,
+    fallback_llm_client,
+    is_fallbackable_llm_error,
+)
 from klaude_code.agent.rewind import RewindManager
-from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.const import (
     INITIAL_RETRY_DELAY_S,
@@ -338,12 +342,7 @@ class TaskExecutor:
     def _fallback_model(self, error_message: str) -> tuple[AgentProfile, events.FallbackModelConfigWarnEvent] | None:
         ctx = self._context
         client = ctx.profile.llm_client
-        if not isinstance(client, FallbackLLMClient):
-            return None
-        if not _is_fallbackable_llm_error(error_message):
-            return None
-
-        fallback = client.fallback_to_next()
+        fallback = fallback_llm_client(client, error_message)
         if fallback is None:
             return None
 
@@ -360,25 +359,47 @@ class TaskExecutor:
         ctx.tool_registry = _build_tool_registry(new_profile.tools)
 
         sub_agent_type = ctx.sub_agent_state.sub_agent_type if ctx.sub_agent_state is not None else None
-        reason = _fallback_reason(error_message)
-        entry = message.FallbackModelConfigWarnEntry(
+        entry, event = build_fallback_model_config_warn(
+            session_id=ctx.session_ctx.session_id,
             sub_agent_type=sub_agent_type,
-            from_model=fallback.from_candidate.model_name,
-            from_provider=fallback.from_candidate.provider,
-            to_model=fallback.to_candidate.model_name,
-            to_provider=fallback.to_candidate.provider,
-            reason=reason,
+            fallback=fallback,
+            error_message=error_message,
         )
         ctx.session_ctx.append_history([entry])
-        event = events.FallbackModelConfigWarnEvent(
+        return new_profile, event
+
+    def _fallback_compact_model(
+        self, error_message: str
+    ) -> tuple[AgentProfile, events.FallbackModelConfigWarnEvent] | None:
+        ctx = self._context
+        client = ctx.compact_llm_client or ctx.profile.llm_client
+        fallback = fallback_llm_client(client, error_message)
+        if fallback is None:
+            return None
+
+        if ctx.compact_llm_client is None and client is ctx.profile.llm_client:
+            if ctx.apply_llm_client_change is not None:
+                new_profile = ctx.apply_llm_client_change(client)
+            else:
+                new_profile = AgentProfile(
+                    llm_client=client,
+                    system_prompt=ctx.profile.system_prompt,
+                    tools=ctx.profile.tools,
+                    attachments=ctx.profile.attachments,
+                )
+            ctx.profile = new_profile
+            ctx.tool_registry = _build_tool_registry(new_profile.tools)
+        else:
+            new_profile = ctx.profile
+
+        sub_agent_type = ctx.sub_agent_state.sub_agent_type if ctx.sub_agent_state is not None else None
+        entry, event = build_fallback_model_config_warn(
             session_id=ctx.session_ctx.session_id,
-            sub_agent_type=entry.sub_agent_type,
-            from_model=entry.from_model,
-            from_provider=entry.from_provider,
-            to_model=entry.to_model,
-            to_provider=entry.to_provider,
-            reason=entry.reason,
+            sub_agent_type=sub_agent_type,
+            fallback=fallback,
+            error_message=error_message,
         )
+        ctx.session_ctx.append_history([entry])
         return new_profile, event
 
     def on_interrupt(self) -> list[events.Event]:
@@ -486,71 +507,81 @@ class TaskExecutor:
                     session_id=session_ctx.session_id,
                     reason=CompactionReason.THRESHOLD.value,
                 )
-                try:
-                    compact_client = ctx.compact_llm_client or profile.llm_client
-                    result = await run_compaction(
-                        session=ctx.session,
-                        reason=CompactionReason.THRESHOLD,
-                        focus=None,
-                        llm_client=compact_client,
-                        llm_config=compact_client.get_llm_config(),
-                        main_profile=profile,
-                    )
-                    log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
-
-                    _reset_attachment_loaded_flags(ctx.session.file_tracker)
-                    session_ctx.append_history([result.to_entry()])
-                    if self._rewind_manager is not None:
-                        self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                        self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
-                    metadata_accumulator.cache.notify_compaction()
-                    yield events.CompactionEndEvent(
-                        session_id=session_ctx.session_id,
-                        reason=CompactionReason.THRESHOLD.value,
-                        aborted=False,
-                        will_retry=False,
-                        tokens_before=result.tokens_before,
-                        kept_from_index=result.first_kept_index,
-                        summary=result.summary,
-                        kept_items_brief=result.kept_items_brief,
-                    )
-                    if result.fork_event is not None:
-                        yield result.fork_event
-                except asyncio.CancelledError:
-                    yield events.CompactionEndEvent(
-                        session_id=session_ctx.session_id,
-                        reason=CompactionReason.THRESHOLD.value,
-                        aborted=True,
-                        will_retry=False,
-                    )
-                    raise
-                except Exception as e:
-                    import traceback
-
-                    nothing_to_compact = isinstance(e, ValueError) and str(e).startswith("Nothing to compact")
-                    if not nothing_to_compact:
-                        skip_threshold_compaction = True
-
-                    # For threshold compaction, failure should not take down the task.
-                    log_debug(
-                        "[Compact] error",
-                        str(e.__class__.__name__),
-                        str(e),
-                        traceback.format_exc(),
-                        debug_type=DebugType.RESPONSE,
-                    )
-                    yield events.CompactionEndEvent(
-                        session_id=session_ctx.session_id,
-                        reason=CompactionReason.THRESHOLD.value,
-                        aborted=True,
-                        will_retry=False,
-                    )
-                    if not nothing_to_compact:
-                        yield events.ErrorEvent(
-                            error_message=f"Compaction failed, continuing without compaction: {e}",
-                            can_retry=True,
-                            session_id=session_ctx.session_id,
+                while True:
+                    try:
+                        compact_client = ctx.compact_llm_client or profile.llm_client
+                        result = await run_compaction(
+                            session=ctx.session,
+                            reason=CompactionReason.THRESHOLD,
+                            focus=None,
+                            llm_client=compact_client,
+                            llm_config=compact_client.get_llm_config(),
+                            main_profile=profile,
                         )
+                        log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+
+                        _reset_attachment_loaded_flags(ctx.session.file_tracker)
+                        session_ctx.append_history([result.to_entry()])
+                        if self._rewind_manager is not None:
+                            self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                            self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                        metadata_accumulator.cache.notify_compaction()
+                        yield events.CompactionEndEvent(
+                            session_id=session_ctx.session_id,
+                            reason=CompactionReason.THRESHOLD.value,
+                            aborted=False,
+                            will_retry=False,
+                            tokens_before=result.tokens_before,
+                            kept_from_index=result.first_kept_index,
+                            summary=result.summary,
+                            kept_items_brief=result.kept_items_brief,
+                        )
+                        if result.fork_event is not None:
+                            yield result.fork_event
+                        break
+                    except asyncio.CancelledError:
+                        yield events.CompactionEndEvent(
+                            session_id=session_ctx.session_id,
+                            reason=CompactionReason.THRESHOLD.value,
+                            aborted=True,
+                            will_retry=False,
+                        )
+                        raise
+                    except Exception as e:
+                        fallback_result = self._fallback_compact_model(str(e))
+                        if fallback_result is not None:
+                            profile, fallback_event = fallback_result
+                            metadata_accumulator.cache.notify_compaction()
+                            yield fallback_event
+                            continue
+
+                        import traceback
+
+                        nothing_to_compact = isinstance(e, ValueError) and str(e).startswith("Nothing to compact")
+                        if not nothing_to_compact:
+                            skip_threshold_compaction = True
+
+                        # For threshold compaction, failure should not take down the task.
+                        log_debug(
+                            "[Compact] error",
+                            str(e.__class__.__name__),
+                            str(e),
+                            traceback.format_exc(),
+                            debug_type=DebugType.RESPONSE,
+                        )
+                        yield events.CompactionEndEvent(
+                            session_id=session_ctx.session_id,
+                            reason=CompactionReason.THRESHOLD.value,
+                            aborted=True,
+                            will_retry=False,
+                        )
+                        if not nothing_to_compact:
+                            yield events.ErrorEvent(
+                                error_message=f"Compaction failed, continuing without compaction: {e}",
+                                can_retry=True,
+                                session_id=session_ctx.session_id,
+                            )
+                        break
 
             # Process attachments in parallel with error isolation after compaction
             # resets transient loaded flags.
@@ -641,77 +672,86 @@ class TaskExecutor:
                             session_id=session_ctx.session_id,
                             reason=CompactionReason.OVERFLOW.value,
                         )
-                        try:
-                            log_debug("[Compact:Overflow] start", debug_type=DebugType.RESPONSE)
-                            compact_client = ctx.compact_llm_client or profile.llm_client
-                            result = await run_compaction(
-                                session=ctx.session,
-                                reason=CompactionReason.OVERFLOW,
-                                focus=None,
-                                llm_client=compact_client,
-                                llm_config=compact_client.get_llm_config(),
-                                main_profile=profile,
-                            )
-                            log_debug(
-                                "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
-                            )
-                            _reset_attachment_loaded_flags(ctx.session.file_tracker)
-                            session_ctx.append_history([result.to_entry()])
-                            if self._rewind_manager is not None:
-                                self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                                self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
-                            metadata_accumulator.cache.notify_compaction()
-                            yield events.CompactionEndEvent(
-                                session_id=session_ctx.session_id,
-                                reason=CompactionReason.OVERFLOW.value,
-                                aborted=False,
-                                will_retry=True,
-                                tokens_before=result.tokens_before,
-                                kept_from_index=result.first_kept_index,
-                                summary=result.summary,
-                                kept_items_brief=result.kept_items_brief,
-                            )
-                            if result.fork_event is not None:
-                                yield result.fork_event
-                            for event in await self._collect_and_append_attachments(skip_existing=True):
-                                yield event
-                            failed_attempts += 1
-                            continue
-                        except asyncio.CancelledError:
-                            yield events.CompactionEndEvent(
-                                session_id=session_ctx.session_id,
-                                reason=CompactionReason.OVERFLOW.value,
-                                aborted=True,
-                                will_retry=True,
-                            )
-                            raise
-                        except Exception as exc:
-                            import traceback
+                        while True:
+                            try:
+                                log_debug("[Compact:Overflow] start", debug_type=DebugType.RESPONSE)
+                                compact_client = ctx.compact_llm_client or profile.llm_client
+                                result = await run_compaction(
+                                    session=ctx.session,
+                                    reason=CompactionReason.OVERFLOW,
+                                    focus=None,
+                                    llm_client=compact_client,
+                                    llm_config=compact_client.get_llm_config(),
+                                    main_profile=profile,
+                                )
+                                log_debug(
+                                    "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
+                                )
+                                _reset_attachment_loaded_flags(ctx.session.file_tracker)
+                                session_ctx.append_history([result.to_entry()])
+                                if self._rewind_manager is not None:
+                                    self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                                    self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                                metadata_accumulator.cache.notify_compaction()
+                                yield events.CompactionEndEvent(
+                                    session_id=session_ctx.session_id,
+                                    reason=CompactionReason.OVERFLOW.value,
+                                    aborted=False,
+                                    will_retry=True,
+                                    tokens_before=result.tokens_before,
+                                    kept_from_index=result.first_kept_index,
+                                    summary=result.summary,
+                                    kept_items_brief=result.kept_items_brief,
+                                )
+                                if result.fork_event is not None:
+                                    yield result.fork_event
+                                for event in await self._collect_and_append_attachments(skip_existing=True):
+                                    yield event
+                                failed_attempts += 1
+                                break
+                            except asyncio.CancelledError:
+                                yield events.CompactionEndEvent(
+                                    session_id=session_ctx.session_id,
+                                    reason=CompactionReason.OVERFLOW.value,
+                                    aborted=True,
+                                    will_retry=True,
+                                )
+                                raise
+                            except Exception as exc:
+                                fallback_result = self._fallback_compact_model(str(exc))
+                                if fallback_result is not None:
+                                    profile, fallback_event = fallback_result
+                                    metadata_accumulator.cache.notify_compaction()
+                                    yield fallback_event
+                                    continue
 
-                            log_debug(
-                                "[Compact:Overflow] error",
-                                str(exc.__class__.__name__),
-                                str(exc),
-                                traceback.format_exc(),
-                                debug_type=DebugType.RESPONSE,
-                            )
-                            yield events.CompactionEndEvent(
-                                session_id=session_ctx.session_id,
-                                reason=CompactionReason.OVERFLOW.value,
-                                aborted=True,
-                                will_retry=False,
-                            )
-                            error_message = (
-                                f"{last_error_message}\nCompaction failed while recovering from context overflow: {exc}"
-                            )
-                            yield events.ErrorEvent(
-                                error_message=error_message,
-                                can_retry=False,
-                                session_id=session_ctx.session_id,
-                            )
-                            if ctx.sub_agent_state is not None:
-                                raise RuntimeError(error_message) from exc
-                            return
+                                import traceback
+
+                                log_debug(
+                                    "[Compact:Overflow] error",
+                                    str(exc.__class__.__name__),
+                                    str(exc),
+                                    traceback.format_exc(),
+                                    debug_type=DebugType.RESPONSE,
+                                )
+                                yield events.CompactionEndEvent(
+                                    session_id=session_ctx.session_id,
+                                    reason=CompactionReason.OVERFLOW.value,
+                                    aborted=True,
+                                    will_retry=False,
+                                )
+                                error_message = (
+                                    f"{last_error_message}\nCompaction failed while recovering from context overflow: {exc}"
+                                )
+                                yield events.ErrorEvent(
+                                    error_message=error_message,
+                                    can_retry=False,
+                                    session_id=session_ctx.session_id,
+                                )
+                                if ctx.sub_agent_state is not None:
+                                    raise RuntimeError(error_message) from exc
+                                return
+                        continue
 
                     fallback_result = self._fallback_model(last_error_message)
                     if fallback_result is not None:
@@ -720,7 +760,7 @@ class TaskExecutor:
                         failed_attempts = 0
                         yield fallback_event
                         continue
-                    if _is_fallbackable_llm_error(last_error_message):
+                    if is_fallbackable_llm_error(last_error_message):
                         break
 
                     if failed_attempts < MAX_FAILED_TURN_RETRIES:
@@ -746,7 +786,7 @@ class TaskExecutor:
                 )
                 final_error = (
                     "Turn failed after model fallback candidates were exhausted."
-                    if last_error_message and _is_fallbackable_llm_error(last_error_message)
+                    if last_error_message and is_fallbackable_llm_error(last_error_message)
                     else f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
                 )
                 if last_error_message:
@@ -922,31 +962,3 @@ def _retry_delay_seconds(attempt: int) -> float:
     return min(delay, MAX_RETRY_DELAY_S)
 
 
-def _fallback_reason(error_message: str) -> str:
-    first_line = error_message.strip().splitlines()[0] if error_message.strip() else "LLM request failed"
-    return first_line[:500]
-
-
-def _is_fallbackable_llm_error(error_message: str) -> bool:
-    text = error_message.casefold()
-    if is_context_overflow(error_message):
-        return False
-    fallbackable_markers = (
-        "insufficient_quota",
-        "exceeded your current quota",
-        "quota exceeded",
-        "quota_exceeded",
-        "billing",
-        "credit balance",
-        "credits exhausted",
-        "insufficient credits",
-        "payment required",
-        "model_not_found",
-        "model_not_available",
-        "does not have access to model",
-        "not authorized to access",
-        "permission_denied",
-        "permission denied",
-        "usage_limit_reached",
-    )
-    return any(marker in text for marker in fallbackable_markers)

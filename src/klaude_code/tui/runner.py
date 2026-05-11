@@ -139,12 +139,16 @@ async def _submit_user_input_payload_inner(
         config=None,
         llm_config=agent.profile.llm_client.get_llm_config(),
     ):
-        await runtime.submit_and_wait(
+        compact_id = await runtime.submit(
             op.CompactSessionOperation(
                 session_id=agent.session.id,
                 reason="threshold",
                 will_retry=False,
             )
+        )
+        return SubmitUserInputResult(
+            wait_id=compact_id,
+            deferred_operations=tuple(operations),
         )
 
     submitted_ids: list[str] = []
@@ -177,6 +181,7 @@ def _split_queue_edit_payload(user_input: UserInputPayload) -> tuple[UserInputPa
 class SubmitUserInputResult:
     wait_id: str | None
     web_mode_request: WebModeRequest | None = None
+    deferred_operations: tuple[op.Operation, ...] = ()
 
 
 async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> WebModeRequest | None:
@@ -610,7 +615,20 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     exit_hint_printed = False
     pending_web_mode_request: WebModeRequest | None = None
 
-    async def _finish_active_wait(wait_id: str, *, session_id: str) -> None:
+    async def _wait_for_submission(submission: SubmitUserInputResult, *, session_id: str) -> bool:
+        if submission.wait_id is not None:
+            interrupted = await _wait_for_with_interrupt(submission.wait_id, session_id=session_id)
+            if interrupted:
+                return True
+
+        for operation_item in submission.deferred_operations:
+            operation_id = await components.runtime.submit(operation_item)
+            interrupted = await _wait_for_with_interrupt(operation_id, session_id=session_id)
+            if interrupted:
+                return True
+        return False
+
+    async def _finish_active_wait(submission: SubmitUserInputResult, *, session_id: str) -> None:
         marked_idle = False
 
         def _mark_agent_idle() -> None:
@@ -621,7 +639,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             input_provider.set_agent_running(False)
 
         try:
-            interrupted = await _wait_for_with_interrupt(wait_id, session_id=session_id)
+            interrupted = await _wait_for_submission(submission, session_id=session_id)
             # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
             # before treating the agent as idle again. ``wait_for_display_idle`` waits
             # for the event-bus subscription to drain (consume_envelope returned), but
@@ -658,9 +676,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     await agent.session.wait_for_flush()
                     agent.pop_next_follow_up()
                 _refresh_pending_messages()
-                if submission.wait_id is None:
+                if submission.wait_id is None and not submission.deferred_operations:
                     continue
-                interrupted = await _wait_for_with_interrupt(submission.wait_id, session_id=session_id)
+                interrupted = await _wait_for_submission(submission, session_id=session_id)
                 await components.wait_for_display_idle()
                 await settle_flicker_safe_stdout()
                 away_summary_coordinator.notify_task_finished()
@@ -759,32 +777,43 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     continue
 
                 active_session_id = _get_active_session_id()
-                wait_id: str | None = None
-                for payload in _split_queue_edit_payload(user_input):
-                    submission = await submit_user_input_payload(
-                        runtime=components.runtime,
-                        wait_for_display_idle=components.wait_for_display_idle,
-                        user_input=payload,
-                        session_id=active_session_id,
-                    )
-
-                    wait_id = submission.wait_id
-                    if submission.web_mode_request is not None:
-                        pending_web_mode_request = submission.web_mode_request
-                        break
-
-                if pending_web_mode_request is not None:
-                    break
-
-                if wait_id is None:
-                    continue
-
                 if active_session_id is None:
                     continue
 
                 input_provider.set_agent_running(True)
-                active_wait_task = asyncio.create_task(_finish_active_wait(wait_id, session_id=active_session_id))
-                active_wait_task.add_done_callback(_consume_active_wait_result)
+                final_submission: SubmitUserInputResult | None = None
+                try:
+                    for payload in _split_queue_edit_payload(user_input):
+                        submission = await submit_user_input_payload(
+                            runtime=components.runtime,
+                            wait_for_display_idle=components.wait_for_display_idle,
+                            user_input=payload,
+                            session_id=active_session_id,
+                        )
+
+                        final_submission = submission
+                        if submission.web_mode_request is not None:
+                            pending_web_mode_request = submission.web_mode_request
+                            break
+
+                    if pending_web_mode_request is not None:
+                        input_provider.set_agent_running(False)
+                        break
+
+                    if (
+                        final_submission is None
+                        or (final_submission.wait_id is None and not final_submission.deferred_operations)
+                    ):
+                        input_provider.set_agent_running(False)
+                        continue
+
+                    active_wait_task = asyncio.create_task(
+                        _finish_active_wait(final_submission, session_id=active_session_id)
+                    )
+                    active_wait_task.add_done_callback(_consume_active_wait_result)
+                except Exception:
+                    input_provider.set_agent_running(False)
+                    raise
 
     except KeyboardInterrupt:
         await handle_keyboard_interrupt(components.runtime)

@@ -211,6 +211,48 @@ def test_build_llm_clients_uses_main_model_fallback_candidates(monkeypatch: pyte
     assert clients.main_model_alias == "gpt-5.4 > sonnet"
 
 
+def test_build_llm_clients_uses_compact_model_fallback_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    providers = [
+        ProviderConfig(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="openai-key",
+            model_list=[ModelConfig(model_name="compact", model_id="openai/compact")],
+        ),
+        ProviderConfig(
+            provider_name="openrouter",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="openrouter-key",
+            model_list=[
+                ModelConfig(model_name="compact", model_id="openrouter/compact"),
+                ModelConfig(model_name="cheap", model_id="openrouter/cheap"),
+            ],
+        ),
+    ]
+    config = Config(
+        provider_list=providers,
+        main_model="compact@openai",
+        compact_model=["compact", "cheap"],
+    )
+
+    def _create_client(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return _FakeLLMClient([], config=llm_config)
+
+    monkeypatch.setattr(
+        "klaude_code.agent.runtime.llm.create_llm_client",
+        _create_client,
+    )
+
+    clients = build_llm_clients(config, skip_sub_agents=True)
+
+    assert isinstance(clients.compact, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.compact.candidates] == [
+        "compact@openai",
+        "compact@openrouter",
+        "cheap@openrouter",
+    ]
+
+
 def test_build_llm_clients_model_override_keeps_main_fallback_suffix(monkeypatch: pytest.MonkeyPatch) -> None:
     providers = [
         ProviderConfig(
