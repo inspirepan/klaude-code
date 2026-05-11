@@ -201,7 +201,7 @@ def build_sub_agent_env_info(work_dir: Path) -> str:
     ]
 
     if available_commands:
-        env_lines.append("Available bash commands:")
+        env_lines.append("These are efficient bash commands installed in the current environment:")
         for cmd in available_commands:
             env_lines.append(f"- {cmd}")
 
@@ -240,7 +240,7 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     ]
 
     if available_commands:
-        env_lines.append("Available bash commands (use with `Bash` tool):")
+        env_lines.append("These are efficient bash commands installed in the current environment (use with `Bash` tool):")
         for command in available_commands:
             env_lines.append(f"- {command}")
 
