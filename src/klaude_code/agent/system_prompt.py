@@ -201,7 +201,7 @@ def build_sub_agent_env_info(work_dir: Path) -> str:
     ]
 
     if available_commands:
-        env_lines.append("Available bash commands:")
+        env_lines.append("These are efficient bash commands installed in the current environment:")
         for cmd in available_commands:
             env_lines.append(f"- {cmd}")
 
@@ -240,7 +240,9 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     ]
 
     if available_commands:
-        env_lines.append("Available bash commands (use with `Bash` tool):")
+        env_lines.append(
+            "These are efficient bash commands installed in the current environment (use with `Bash` tool):"
+        )
         for command in available_commands:
             env_lines.append(f"- {command}")
 
@@ -281,8 +283,8 @@ def load_system_prompt(
         if model_id.supports_adaptive_thinking(model_name)
         else ""
     )
-    auto_memory_prompt = _build_auto_memory_prompt(work_dir)
-    dynamic_prompt = auto_memory_prompt + _build_env_info(model_name, work_dir)
+    # auto_memory_prompt = _build_auto_memory_prompt(work_dir)
+    dynamic_prompt = _build_env_info(model_name, work_dir)
 
     return (
         base_prompt

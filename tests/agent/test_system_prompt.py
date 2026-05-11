@@ -57,13 +57,14 @@ def test_load_system_prompt_includes_conventions_for_main_agent(tmp_path: Path) 
     assert "NEVER assume a given library is available" in prompt
 
 
-def test_load_system_prompt_inserts_dynamic_boundary_before_auto_memory(tmp_path: Path) -> None:
+def test_load_system_prompt_inserts_dynamic_boundary_before_env_info(tmp_path: Path) -> None:
     prompt = load_system_prompt("claude-opus-4.7", available_tools=[], work_dir=tmp_path)
     static_prompt, dynamic_prompt = split_system_prompt_for_cache(prompt)
 
     assert SYSTEM_PROMPT_DYNAMIC_BOUNDARY in prompt
     assert static_prompt is not None and "# auto memory" not in static_prompt
-    assert dynamic_prompt is not None and dynamic_prompt.startswith("# auto memory")
+    assert dynamic_prompt is not None and dynamic_prompt.startswith("# Enviroment")
+    assert "# auto memory" not in dynamic_prompt
 
 
 def test_strip_system_prompt_boundary_restores_plain_prompt_text() -> None:

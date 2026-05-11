@@ -12,6 +12,7 @@ import pytest
 import klaude_code.agent.runtime.llm as runtime_llm
 import klaude_code.agent.task as task_module
 from klaude_code.agent.agent_profile import AgentProfile
+from klaude_code.agent.compaction import CompactionResult
 from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.config.config import ModelConfigCandidate
@@ -560,6 +561,368 @@ def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, mon
         await session.wait_for_flush()
         replayed = list(Session.load(session.id, work_dir=project_dir).get_history_item())
         assert any(isinstance(event, events.FallbackModelConfigWarnEvent) for event in replayed)
+
+    arun(_test())
+
+
+def test_threshold_compaction_uses_compact_model_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    def _always_compact(*, session: Session, config: Any, llm_config: Any) -> bool:
+        del session, config, llm_config
+        return True
+
+    monkeypatch.setattr(task_module, "should_compact_threshold", _always_compact)
+
+    compaction_model_ids: list[str] = []
+
+    async def _run_compaction(**kwargs: Any) -> CompactionResult:
+        llm_config = kwargs["llm_config"]
+        assert isinstance(llm_config, llm_param.LLMConfigParameter)
+        compaction_model_ids.append(llm_config.model_id)
+        if len(compaction_model_ids) == 1:
+            raise RuntimeError("model_not_available: compact provider is unavailable")
+        return CompactionResult(
+            summary="compacted summary",
+            first_kept_index=1,
+            tokens_before=123,
+            details=None,
+            kept_items_brief=[],
+        )
+
+    monkeypatch.setattr(task_module, "run_compaction", _run_compaction)
+
+    async def _test() -> None:
+        main_config = llm_param.LLMConfigParameter(
+            provider_name="main",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="main-model",
+        )
+        first_compact_config = llm_param.LLMConfigParameter(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="compact-first",
+        )
+        second_compact_config = llm_param.LLMConfigParameter(
+            provider_name="openrouter",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="compact-second",
+        )
+        main_client = ConfiguredScriptedClient(
+            main_config,
+            [[message.AssistantTextDelta(content="done"), _text_assistant_message("done")]],
+        )
+        compact_client = FallbackLLMClient(
+            [
+                ModelConfigCandidate(
+                    selector="compact@openai",
+                    model_name="compact",
+                    provider="openai",
+                    llm_config=first_compact_config,
+                ),
+                ModelConfigCandidate(
+                    selector="compact@openrouter",
+                    model_name="compact",
+                    provider="openrouter",
+                    llm_config=second_compact_config,
+                ),
+            ]
+        )
+
+        session = Session.create(work_dir=project_dir)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("needs compaction"))])
+        session_ctx = SessionContext(
+            session_id=session.id,
+            work_dir=project_dir,
+            get_conversation_history=session.get_llm_history,
+            append_history=session.append_history,
+            file_tracker=session.file_tracker,
+            file_change_summary=session.file_change_summary,
+            todo_context=build_todo_context(session),
+            run_subtask=None,
+            request_user_interaction=None,
+        )
+        profile = AgentProfile(
+            llm_client=main_client,
+            system_prompt="main prompt",
+            tools=[],
+            attachments=[],
+        )
+        executor = TaskExecutor(
+            TaskExecutionContext(
+                session=session,
+                session_ctx=session_ctx,
+                profile=profile,
+                tool_registry={},
+                sub_agent_state=None,
+                compact_llm_client=compact_client,
+            )
+        )
+
+        collected: list[events.Event] = []
+        async for event in executor.run(message.UserInputPayload(text="needs compaction")):
+            collected.append(event)
+
+        assert compaction_model_ids == ["compact-first", "compact-second"]
+        fallback_events = [e for e in collected if isinstance(e, events.FallbackModelConfigWarnEvent)]
+        assert len(fallback_events) == 1
+        assert fallback_events[0].from_provider == "openai"
+        assert fallback_events[0].to_provider == "openrouter"
+        assert any(isinstance(item, message.CompactionEntry) for item in session.conversation_history)
+        assert any(isinstance(item, message.FallbackModelConfigWarnEntry) for item in session.conversation_history)
+        assert "done" in [e.task_result for e in collected if isinstance(e, events.TaskFinishEvent)]
+
+    arun(_test())
+
+
+def test_fork_compaction_falls_back_inherited_main_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    def _always_compact(*, session: Session, config: Any, llm_config: Any) -> bool:
+        del session, config, llm_config
+        return True
+
+    monkeypatch.setattr(task_module, "should_compact_threshold", _always_compact)
+
+    async def _test() -> None:
+        first_config = llm_param.LLMConfigParameter(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="gpt-5.5",
+            context_limit=20_000,
+        )
+        second_config = llm_param.LLMConfigParameter(
+            provider_name="openrouter",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="gpt-5.4",
+            context_limit=20_000,
+        )
+        first_client = ConfiguredScriptedClient(
+            first_config,
+            [
+                error_stream_items(
+                    MetadataTracker(llm_param.Cost()),
+                    error="model_not_available: active fork compact model is unavailable",
+                )
+            ],
+        )
+        second_client = ConfiguredScriptedClient(
+            second_config,
+            [
+                [message.AssistantTextDelta(content="fork summary"), _text_assistant_message("fork summary")],
+                [
+                    message.AssistantTextDelta(content="done after fork compact"),
+                    _text_assistant_message("done after fork compact"),
+                ],
+            ],
+        )
+
+        def _create_llm_client(config: llm_param.LLMConfigParameter) -> LLMClientABC:
+            return first_client if config.provider_name == "openai" else second_client
+
+        monkeypatch.setattr(runtime_llm, "create_llm_client", _create_llm_client)
+
+        fallback_client = FallbackLLMClient(
+            [
+                ModelConfigCandidate(
+                    selector="gpt-5.5@openai",
+                    model_name="gpt-5.5",
+                    provider="openai",
+                    llm_config=first_config,
+                ),
+                ModelConfigCandidate(
+                    selector="gpt-5.4@openrouter",
+                    model_name="gpt-5.4",
+                    provider="openrouter",
+                    llm_config=second_config,
+                ),
+            ]
+        )
+
+        session = Session.create(work_dir=project_dir)
+        session.append_history(
+            [
+                message.UserMessage(parts=message.text_parts_from_str("old request")),
+                _text_assistant_message("old answer"),
+                message.UserMessage(parts=message.text_parts_from_str("recent context " + ("x" * 32_000))),
+            ]
+        )
+        session_ctx = SessionContext(
+            session_id=session.id,
+            work_dir=project_dir,
+            get_conversation_history=session.get_llm_history,
+            append_history=session.append_history,
+            file_tracker=session.file_tracker,
+            file_change_summary=session.file_change_summary,
+            todo_context=build_todo_context(session),
+            run_subtask=None,
+            request_user_interaction=None,
+        )
+        profile = AgentProfile(
+            llm_client=fallback_client,
+            system_prompt="main prompt",
+            tools=[],
+            attachments=[],
+        )
+        executor = TaskExecutor(
+            TaskExecutionContext(
+                session=session,
+                session_ctx=session_ctx,
+                profile=profile,
+                tool_registry={},
+                sub_agent_state=None,
+            )
+        )
+
+        collected: list[events.Event] = []
+        async for event in executor.run(message.UserInputPayload(text="recent context")):
+            collected.append(event)
+
+        assert len(first_client.calls) == 1
+        assert len(second_client.calls) == 2
+        assert second_client.calls[0].system == "main prompt"
+        assert second_client.calls[0].tools == []
+        fallback_events = [e for e in collected if isinstance(e, events.FallbackModelConfigWarnEvent)]
+        assert len(fallback_events) == 1
+        assert fallback_events[0].from_provider == "openai"
+        assert fallback_events[0].to_provider == "openrouter"
+        compaction_events = [e for e in collected if isinstance(e, events.CompactionEndEvent) and not e.aborted]
+        assert len(compaction_events) == 1
+        assert any(isinstance(item, message.CompactionEntry) for item in session.conversation_history)
+        assert "done after fork compact" in [e.task_result for e in collected if isinstance(e, events.TaskFinishEvent)]
+
+    arun(_test())
+
+
+def test_fork_compaction_uses_explicit_compact_client_for_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    def _always_compact(*, session: Session, config: Any, llm_config: Any) -> bool:
+        del session, config, llm_config
+        return True
+
+    monkeypatch.setattr(task_module, "should_compact_threshold", _always_compact)
+
+    async def _test() -> None:
+        main_config = llm_param.LLMConfigParameter(
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="gpt-5.5",
+            context_limit=20_000,
+        )
+        fallback_config = llm_param.LLMConfigParameter(
+            provider_name="openrouter",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="gpt-5.4",
+            context_limit=20_000,
+        )
+        main_client = ConfiguredScriptedClient(
+            main_config,
+            [
+                [
+                    message.AssistantTextDelta(content="done after explicit compact"),
+                    _text_assistant_message("done after explicit compact"),
+                ]
+            ],
+        )
+        first_compact_client = ConfiguredScriptedClient(
+            main_config,
+            [
+                error_stream_items(
+                    MetadataTracker(llm_param.Cost()),
+                    error="model_not_available: explicit compact fork model is unavailable",
+                )
+            ],
+        )
+        second_compact_client = ConfiguredScriptedClient(
+            fallback_config,
+            [
+                [
+                    message.AssistantTextDelta(content="fallback compact summary"),
+                    _text_assistant_message("fallback compact summary"),
+                ]
+            ],
+        )
+
+        def _create_llm_client(config: llm_param.LLMConfigParameter) -> LLMClientABC:
+            return first_compact_client if config.provider_name == "openai" else second_compact_client
+
+        monkeypatch.setattr(runtime_llm, "create_llm_client", _create_llm_client)
+
+        compact_client = FallbackLLMClient(
+            [
+                ModelConfigCandidate(
+                    selector="gpt-5.5@openai",
+                    model_name="gpt-5.5",
+                    provider="openai",
+                    llm_config=main_config,
+                ),
+                ModelConfigCandidate(
+                    selector="gpt-5.4@openrouter",
+                    model_name="gpt-5.4",
+                    provider="openrouter",
+                    llm_config=fallback_config,
+                ),
+            ]
+        )
+
+        session = Session.create(work_dir=project_dir)
+        session.append_history(
+            [
+                message.UserMessage(parts=message.text_parts_from_str("old request")),
+                _text_assistant_message("old answer"),
+                message.UserMessage(parts=message.text_parts_from_str("recent context " + ("x" * 32_000))),
+            ]
+        )
+        session_ctx = SessionContext(
+            session_id=session.id,
+            work_dir=project_dir,
+            get_conversation_history=session.get_llm_history,
+            append_history=session.append_history,
+            file_tracker=session.file_tracker,
+            file_change_summary=session.file_change_summary,
+            todo_context=build_todo_context(session),
+            run_subtask=None,
+            request_user_interaction=None,
+        )
+        profile = AgentProfile(
+            llm_client=main_client,
+            system_prompt="main prompt",
+            tools=[],
+            attachments=[],
+        )
+        executor = TaskExecutor(
+            TaskExecutionContext(
+                session=session,
+                session_ctx=session_ctx,
+                profile=profile,
+                tool_registry={},
+                sub_agent_state=None,
+                compact_llm_client=compact_client,
+            )
+        )
+
+        collected: list[events.Event] = []
+        async for event in executor.run(message.UserInputPayload(text="recent context")):
+            collected.append(event)
+
+        assert len(first_compact_client.calls) == 1
+        assert len(second_compact_client.calls) == 1
+        assert len(main_client.calls) == 1
+        assert first_compact_client.calls[0].system == "main prompt"
+        assert first_compact_client.calls[0].tools == []
+        fallback_events = [e for e in collected if isinstance(e, events.FallbackModelConfigWarnEvent)]
+        assert len(fallback_events) == 1
+        assert fallback_events[0].from_provider == "openai"
+        assert fallback_events[0].to_provider == "openrouter"
+        assert "done after explicit compact" in [
+            e.task_result for e in collected if isinstance(e, events.TaskFinishEvent)
+        ]
 
     arun(_test())
 

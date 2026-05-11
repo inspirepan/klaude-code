@@ -214,6 +214,7 @@ async def run_compaction(
         summary, fork_usage = await _build_summary_fork(
             session=session,
             cut_index=cut_index,
+            llm_client=llm_client,
             main_profile=main_profile,
             focus=focus,
             has_previous_summary=previous_summary is not None,
@@ -285,6 +286,7 @@ async def _build_summary_fork(
     *,
     session: Session,
     cut_index: int,
+    llm_client: LLMClientABC,
     main_profile: AgentProfile,
     focus: str | None,
     has_previous_summary: bool,
@@ -321,7 +323,7 @@ async def _build_summary_fork(
     call_param.tools = main_profile.tools  # Must match parent; tools=[] would break cache.
     call_param.max_tokens = max_summary_tokens
 
-    stream = await main_profile.llm_client.call(call_param)
+    stream = await llm_client.call(call_param)
     accumulated: list[str] = []
     final_message: message.AssistantMessage | None = None
     async for item in stream:

@@ -217,8 +217,11 @@ class ConfigHandler:
             agent.compact_llm_client = None
             display_model = "(inherit from main agent)"
         else:
-            llm_config = config.get_model_config(model_name)
-            new_client = create_llm_client(llm_config)
+            candidates = config.iter_model_config_candidates_with_preference_fallback(model_name, config.compact_model)
+            if not candidates:
+                _ = config.get_model_config(model_name)
+                raise ValueError(f"Unknown model: {model_name}")
+            new_client = create_llm_client_for_candidates(candidates)
             session_clients.compact = new_client
             agent.compact_llm_client = new_client
             display_model = new_client.model_name

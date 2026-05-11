@@ -9,7 +9,7 @@ from typing import Any, ClassVar, TypeVar, cast
 
 import pytest
 
-from klaude_code.protocol import events, message, op, user_interaction
+from klaude_code.protocol import events, llm_param, message, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
 from klaude_code.tui.commands import PromptStatusLine
@@ -117,6 +117,15 @@ class _FakePromptToolkitInput:
         return lambda: None
 
 
+class _FakeLLMClient:
+    def get_llm_config(self) -> llm_param.LLMConfigParameter:
+        return llm_param.LLMConfigParameter(
+            provider_name="test",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="fake-model",
+        )
+
+
 def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayload:
     return user_interaction.AskUserQuestionRequestPayload(
         questions=[
@@ -176,6 +185,102 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(runner, "force_stop_prevent_sleep", _noop_prevent_sleep)
 
     return runner
+
+
+def test_threshold_compaction_submission_defers_run_until_after_compact(monkeypatch: pytest.MonkeyPatch) -> None:
+    import klaude_code.tui.runner as runner
+
+    submitted: list[op.Operation] = []
+    emitted: list[events.Event] = []
+
+    class _FakeRuntime:
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> Any:
+            return SimpleNamespace(
+                session=SimpleNamespace(id="s1"),
+                profile=SimpleNamespace(llm_client=_FakeLLMClient()),
+            )
+
+        async def emit_event(self, event: events.Event) -> None:
+            emitted.append(event)
+
+        async def submit(self, operation: op.Operation) -> str:
+            submitted.append(operation)
+            return operation.id
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            raise AssertionError(f"submit_and_wait should not be used for {operation.type.value}")
+
+    def _should_compact_threshold(**_: Any) -> bool:
+        return True
+
+    monkeypatch.setattr(runner, "should_compact_threshold", _should_compact_threshold)
+
+    result = arun(
+        runner.submit_user_input_payload(
+            runtime=cast(Any, _FakeRuntime()),
+            wait_for_display_idle=lambda: asyncio.sleep(0),
+            user_input=UserInputPayload(text="hello"),
+            session_id="s1",
+        )
+    )
+
+    assert len(submitted) == 1
+    assert isinstance(submitted[0], op.CompactSessionOperation)
+    assert result.wait_id == submitted[0].id
+    assert len(result.deferred_operations) == 1
+    assert isinstance(result.deferred_operations[0], op.RunAgentOperation)
+    assert any(isinstance(event, events.UserMessageEvent) for event in emitted)
+
+
+def test_run_interactive_marks_input_running_before_submission_returns(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeAgent:
+        def __init__(self) -> None:
+            self.session = SimpleNamespace(id="s1", work_dir=Path.cwd(), model_config_name=None)
+            self.profile = SimpleNamespace(llm_client=_FakeLLMClient())
+
+        def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            return ()
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self._agent = _FakeAgent()
+
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> _FakeAgent:
+            return self._agent
+
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=_FakeRuntime(),
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        assert _FakePromptToolkitInput.agent_running_changes[-1] is True
+        await asyncio.sleep(0)
+        return runner.SubmitUserInputResult(wait_id=None)
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert _FakePromptToolkitInput.agent_running_changes[:2] == [True, False]
 
 
 def test_waiting_sigint_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) -> None:
