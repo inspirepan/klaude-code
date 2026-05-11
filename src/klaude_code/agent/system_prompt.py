@@ -281,8 +281,8 @@ def load_system_prompt(
         if model_id.supports_adaptive_thinking(model_name)
         else ""
     )
-    auto_memory_prompt = _build_auto_memory_prompt(work_dir)
-    dynamic_prompt = auto_memory_prompt + _build_env_info(model_name, work_dir)
+    # auto_memory_prompt = _build_auto_memory_prompt(work_dir)
+    dynamic_prompt = _build_env_info(model_name, work_dir)
 
     return (
         base_prompt
