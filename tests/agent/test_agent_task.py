@@ -565,9 +565,7 @@ def test_fallback_model_rebuilds_profile_and_replays_warning(tmp_path: Path, mon
     arun(_test())
 
 
-def test_threshold_compaction_uses_compact_model_fallback(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_threshold_compaction_uses_compact_model_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "project"
     project_dir.mkdir()
 
@@ -678,9 +676,7 @@ def test_threshold_compaction_uses_compact_model_fallback(
     arun(_test())
 
 
-def test_fork_compaction_falls_back_inherited_main_model(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_fork_compaction_falls_back_inherited_main_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "project"
     project_dir.mkdir()
 
@@ -716,7 +712,10 @@ def test_fork_compaction_falls_back_inherited_main_model(
             second_config,
             [
                 [message.AssistantTextDelta(content="fork summary"), _text_assistant_message("fork summary")],
-                [message.AssistantTextDelta(content="done after fork compact"), _text_assistant_message("done after fork compact")],
+                [
+                    message.AssistantTextDelta(content="done after fork compact"),
+                    _text_assistant_message("done after fork compact"),
+                ],
             ],
         )
 
@@ -824,7 +823,12 @@ def test_fork_compaction_uses_explicit_compact_client_for_fallback(
         )
         main_client = ConfiguredScriptedClient(
             main_config,
-            [[message.AssistantTextDelta(content="done after explicit compact"), _text_assistant_message("done after explicit compact")]],
+            [
+                [
+                    message.AssistantTextDelta(content="done after explicit compact"),
+                    _text_assistant_message("done after explicit compact"),
+                ]
+            ],
         )
         first_compact_client = ConfiguredScriptedClient(
             main_config,
@@ -837,7 +841,12 @@ def test_fork_compaction_uses_explicit_compact_client_for_fallback(
         )
         second_compact_client = ConfiguredScriptedClient(
             fallback_config,
-            [[message.AssistantTextDelta(content="fallback compact summary"), _text_assistant_message("fallback compact summary")]],
+            [
+                [
+                    message.AssistantTextDelta(content="fallback compact summary"),
+                    _text_assistant_message("fallback compact summary"),
+                ]
+            ],
         )
 
         def _create_llm_client(config: llm_param.LLMConfigParameter) -> LLMClientABC:
@@ -911,7 +920,9 @@ def test_fork_compaction_uses_explicit_compact_client_for_fallback(
         assert len(fallback_events) == 1
         assert fallback_events[0].from_provider == "openai"
         assert fallback_events[0].to_provider == "openrouter"
-        assert "done after explicit compact" in [e.task_result for e in collected if isinstance(e, events.TaskFinishEvent)]
+        assert "done after explicit compact" in [
+            e.task_result for e in collected if isinstance(e, events.TaskFinishEvent)
+        ]
 
     arun(_test())
 

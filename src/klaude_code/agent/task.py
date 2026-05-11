@@ -740,9 +740,7 @@ class TaskExecutor:
                                     aborted=True,
                                     will_retry=False,
                                 )
-                                error_message = (
-                                    f"{last_error_message}\nCompaction failed while recovering from context overflow: {exc}"
-                                )
+                                error_message = f"{last_error_message}\nCompaction failed while recovering from context overflow: {exc}"
                                 yield events.ErrorEvent(
                                     error_message=error_message,
                                     can_retry=False,
@@ -960,5 +958,3 @@ def _retry_delay_seconds(attempt: int) -> float:
     capped_attempt = max(1, attempt)
     delay = INITIAL_RETRY_DELAY_S * (2 ** (capped_attempt - 1))
     return min(delay, MAX_RETRY_DELAY_S)
-
-

@@ -800,9 +800,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                         input_provider.set_agent_running(False)
                         break
 
-                    if (
-                        final_submission is None
-                        or (final_submission.wait_id is None and not final_submission.deferred_operations)
+                    if final_submission is None or (
+                        final_submission.wait_id is None and not final_submission.deferred_operations
                     ):
                         input_provider.set_agent_running(False)
                         continue
