@@ -471,12 +471,15 @@ def test_pending_messages_render_above_prompt() -> None:
 
 
 def test_merge_dequeued_messages_keeps_queue_before_current_editor_text() -> None:
-    assert merge_dequeued_messages(("first", "second"), "current") == "first\n---\nsecond\n---\ncurrent"
+    assert merge_dequeued_messages(("first", "second"), "current") == (
+        "first\n--- split ---\nsecond\n--- split ---\ncurrent"
+    )
     assert merge_dequeued_messages(("first", ""), "") == "first"
 
 
 def test_split_queued_message_edit_text_uses_separator_lines() -> None:
     assert split_queued_message_edit_text("first\n---\nsecond edited") == ("first", "second edited")
+    assert split_queued_message_edit_text("first\n --- split --- \nsecond edited") == ("first", "second edited")
     assert split_queued_message_edit_text("ordinary --- text") == ("ordinary --- text",)
 
 
