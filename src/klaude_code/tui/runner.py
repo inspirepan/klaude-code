@@ -29,6 +29,7 @@ from klaude_code.session.session import Session
 from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,
+    has_interactive_command,
 )
 from klaude_code.tui.command.command_abc import WebModeRequest
 from klaude_code.tui.commands import PromptStatusLine
@@ -364,6 +365,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         payload = request_event.payload
         if isinstance(payload, user_interaction.OperationSelectRequestPayload):
             resume_repl = await _pause_repl_for_external_input()
+            restore_progress_ui = _has_active_wait_running()
             tui_display.hide_progress_ui()
             was_preventing_sleep = _stop_prevent_sleep_if_needed()
 
@@ -379,7 +381,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
             if selected is None:
                 return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
-            tui_display.show_progress_ui()
+            if restore_progress_ui:
+                tui_display.show_progress_ui()
             return _submitted_single_choice_response(selected_option_id=selected)
 
         if not isinstance(payload, user_interaction.AskUserQuestionRequestPayload):
@@ -780,10 +783,14 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 if active_session_id is None:
                     continue
 
-                input_provider.set_agent_running(True)
+                submission_payloads = _split_queue_edit_payload(user_input)
+                run_in_foreground = len(submission_payloads) == 1 and has_interactive_command(submission_payloads[0].text)
+                mark_agent_running = not run_in_foreground
+                if mark_agent_running:
+                    input_provider.set_agent_running(True)
                 final_submission: SubmitUserInputResult | None = None
                 try:
-                    for payload in _split_queue_edit_payload(user_input):
+                    for payload in submission_payloads:
                         submission = await submit_user_input_payload(
                             runtime=components.runtime,
                             wait_for_display_idle=components.wait_for_display_idle,
@@ -797,13 +804,27 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                             break
 
                     if pending_web_mode_request is not None:
-                        input_provider.set_agent_running(False)
+                        if mark_agent_running:
+                            input_provider.set_agent_running(False)
                         break
 
                     if final_submission is None or (
                         final_submission.wait_id is None and not final_submission.deferred_operations
                     ):
-                        input_provider.set_agent_running(False)
+                        if mark_agent_running:
+                            input_provider.set_agent_running(False)
+                        continue
+
+                    if run_in_foreground:
+                        interrupted = await _wait_for_submission(final_submission, session_id=active_session_id)
+                        await components.wait_for_display_idle()
+                        await settle_flicker_safe_stdout()
+                        away_summary_coordinator.notify_task_finished()
+                        if interrupted:
+                            prefill_text = None
+                            if components.runtime.current_agent is not None:
+                                prefill_text = components.runtime.current_agent.consume_interrupt_prefill_text()
+                            input_provider.set_next_prefill(prefill_text)
                         continue
 
                     active_wait_task = asyncio.create_task(
@@ -811,7 +832,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     )
                     active_wait_task.add_done_callback(_consume_active_wait_result)
                 except Exception:
-                    input_provider.set_agent_running(False)
+                    if mark_agent_running:
+                        input_provider.set_agent_running(False)
                     raise
 
     except KeyboardInterrupt:

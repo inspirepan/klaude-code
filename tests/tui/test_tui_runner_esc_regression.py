@@ -283,6 +283,63 @@ def test_run_interactive_marks_input_running_before_submission_returns(monkeypat
     assert _FakePromptToolkitInput.agent_running_changes[:2] == [True, False]
 
 
+def test_run_interactive_waits_interactive_command_without_agent_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeAgent:
+        def __init__(self) -> None:
+            self.session = SimpleNamespace(id="s1", work_dir=Path.cwd(), model_config_name=None)
+            self.profile = SimpleNamespace(llm_client=_FakeLLMClient())
+
+        def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            return ()
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self._agent = _FakeAgent()
+            self.waited: list[str] = []
+
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> _FakeAgent:
+            return self._agent
+
+        async def wait_for(self, wait_id: str) -> None:
+            self.waited.append(wait_id)
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            raise AssertionError(f"unexpected operation: {operation.type.value}")
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+    monkeypatch.setattr(runner, "has_interactive_command", lambda raw: raw == "/model")
+
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        assert _FakePromptToolkitInput.agent_running_changes == []
+        await asyncio.sleep(0)
+        return runner.SubmitUserInputResult(wait_id="model-op")
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="/model"), UserInputPayload(text="exit")]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert runtime.waited == ["model-op"]
+    assert _FakePromptToolkitInput.agent_running_changes == []
+
+
 def test_waiting_sigint_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 
