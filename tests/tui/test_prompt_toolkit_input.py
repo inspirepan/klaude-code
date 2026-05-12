@@ -2,6 +2,8 @@ import asyncio
 from types import SimpleNamespace
 from typing import Any
 
+from prompt_toolkit.completion import Completion
+from prompt_toolkit.document import Document
 from rich.text import Text
 
 from klaude_code.tui.commands import DynamicSeparatorText, PromptStatusLine, SpinnerStatusLine
@@ -20,9 +22,12 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     def invalidate() -> None:
         invalidations.count += 1
 
+    document = Document(text=text, cursor_position=len(text))
+
     prompt_input._prompt_text = USER_MESSAGE_MARK
     prompt_input._session = SimpleNamespace(
-        default_buffer=SimpleNamespace(text=text), app=SimpleNamespace(invalidate=invalidate)
+        default_buffer=SimpleNamespace(text=text, document=document, complete_state=None),
+        app=SimpleNamespace(invalidate=invalidate),
     )
     prompt_input._clipboard_has_image = False
     prompt_input._refresh_status = None
@@ -30,6 +35,9 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._get_current_model_config_name = lambda: "test-model"
     prompt_input._next_prefill_text = None
     prompt_input._prompt_suggestion = None
+    prompt_input._last_completion_panel_completions = ()
+    prompt_input._last_completion_panel_selected_index = None
+    prompt_input._last_completion_panel_context_key = None
     prompt_input._bottom_bar = PromptBottomBar(invalidate=invalidate)
     prompt_input._queued_edit_active = False
     prompt_input._agent_running = False
@@ -236,6 +244,56 @@ def test_input_footer_reserves_idle_metadata_row() -> None:
 
     assert prompt_input._get_input_footer_height() == 2
     assert "\n" not in [text for _style, text, *_ in prompt_input._get_input_footer_fragments()]
+
+
+def test_input_footer_stays_hidden_while_completion_is_loading() -> None:
+    prompt_input: Any = _build_input("@use")
+    buffer: Any = prompt_input._session.default_buffer
+    buffer.complete_state = SimpleNamespace(completions=[])  # ty: ignore[invalid-assignment]
+
+    assert prompt_input._get_input_footer_height() == 1
+    assert prompt_input._get_input_footer_fragments() == []
+
+
+def test_input_footer_stays_visible_for_non_completion_text_loading_state() -> None:
+    prompt_input: Any = _build_input("hello")
+    buffer: Any = prompt_input._session.default_buffer
+    buffer.complete_state = SimpleNamespace(completions=[])  # ty: ignore[invalid-assignment]
+
+    rendered = "".join(text for _style, text, *_ in prompt_input._get_input_footer_fragments())
+
+    assert prompt_input._get_input_footer_height() == 2
+    assert "test-model" in rendered
+
+
+def test_completion_panel_uses_cached_items_while_next_results_are_loading() -> None:
+    prompt_input: Any = _build_input("@useAg")
+    prompt_input._last_completion_panel_completions = (
+        Completion(text="@src/hooks/useApiKey.ts ", display="src/hooks/useApiKey.ts"),
+        Completion(text="@src/agent/useAgentSkills.ts ", display="src/agent/useAgentSkills.ts"),
+    )
+    prompt_input._last_completion_panel_context_key = "at"
+    buffer: Any = prompt_input._session.default_buffer
+    buffer.complete_state = SimpleNamespace(completions=[], complete_index=None)  # ty: ignore[invalid-assignment]
+
+    rendered = "".join(text for _style, text, *_ in prompt_input._get_completion_panel_fragments())
+
+    assert prompt_input._get_completion_panel_height() == 1
+    assert "src/agent/useAgentSkills.ts" in rendered
+    assert "src/hooks/useApiKey.ts" not in rendered
+
+
+def test_completion_panel_does_not_reuse_cache_across_completion_contexts() -> None:
+    prompt_input: Any = _build_input("/use")
+    prompt_input._last_completion_panel_completions = (
+        Completion(text="@src/agent/useAgentSkills.ts ", display="src/agent/useAgentSkills.ts"),
+    )
+    prompt_input._last_completion_panel_context_key = "at"
+    buffer: Any = prompt_input._session.default_buffer
+    buffer.complete_state = SimpleNamespace(completions=[], complete_index=None)  # ty: ignore[invalid-assignment]
+
+    assert prompt_input._get_completion_panel_height() == 0
+    assert prompt_input._get_completion_panel_fragments() == []
 
 
 def test_input_height_estimate_counts_soft_wrapped_lines() -> None:

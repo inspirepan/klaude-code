@@ -10,10 +10,10 @@ from typing import override
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application.current import get_app
 from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.completion import ThreadedCompleter
+from prompt_toolkit.completion import Completion, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import CursorShape
 from prompt_toolkit.filters import Condition
-from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples
+from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, to_plain_text
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import merge_key_bindings
 from prompt_toolkit.layout.containers import ConditionalContainer, Container, HSplit, Window
@@ -192,6 +192,9 @@ class PromptToolkitInput(InputProviderABC):
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
         self._prompt_suggestion: str | None = None
+        self._last_completion_panel_completions: tuple[Completion, ...] = ()
+        self._last_completion_panel_selected_index: int | None = None
+        self._last_completion_panel_context_key: str | None = None
         self._queued_edit_active = False
         self._agent_running = False
         self._prompt_active = False
@@ -564,7 +567,7 @@ class PromptToolkitInput(InputProviderABC):
         return [(CLASS_LINES, "─" * max(1, columns))]
 
     def _get_input_footer_fragments(self) -> StyleAndTextTuples:
-        if self._is_completion_panel_visible() or self._is_picker_open():
+        if self._is_completion_active() or self._is_completion_panel_visible() or self._is_picker_open():
             return []
         fragments = self._build_prompt_context_fragments(prefix="  ")
         status_hint = self._bottom_bar.running_separator_label
@@ -575,7 +578,7 @@ class PromptToolkitInput(InputProviderABC):
         return fragments
 
     def _get_input_footer_height(self) -> int:
-        if self._is_completion_panel_visible() or self._is_picker_open():
+        if self._is_completion_active() or self._is_completion_panel_visible() or self._is_picker_open():
             return 1
         return 1 + max(1, len(self._bottom_bar.metadata_footer_lines))
 
@@ -584,36 +587,114 @@ class PromptToolkitInput(InputProviderABC):
             self._thinking_picker is not None and self._thinking_picker.is_open
         )
 
-    def _is_completion_panel_visible(self) -> bool:
+    def _is_completion_active(self) -> bool:
         try:
-            state = self._session.default_buffer.complete_state
+            return self._session.default_buffer.complete_state is not None and self._current_completion_context() is not None
         except Exception:
             return False
-        return state is not None and bool(state.completions)
+
+    def _is_completion_panel_visible(self) -> bool:
+        completions, _selected_index = self._get_completion_panel_snapshot()
+        return bool(completions)
+
+    def _get_completion_panel_snapshot(self) -> tuple[list[Completion], int | None]:
+        try:
+            state = self._session.default_buffer.complete_state
+        except Exception:
+            return [], None
+        if state is None:
+            return [], None
+        if state.completions:
+            completions = list(state.completions)
+            context = self._current_completion_context()
+            if context is not None:
+                self._last_completion_panel_completions = tuple(completions)
+                self._last_completion_panel_selected_index = state.complete_index
+                self._last_completion_panel_context_key = context[0]
+            return completions, state.complete_index
+
+        cached = self._filter_cached_completion_panel()
+        if not cached:
+            return [], None
+        selected_index = self._last_completion_panel_selected_index
+        if selected_index is not None:
+            selected_index = max(0, min(selected_index, len(cached) - 1))
+        return cached, selected_index
+
+    def _filter_cached_completion_panel(self) -> list[Completion]:
+        cached = list(self._last_completion_panel_completions)
+        if not cached:
+            return []
+
+        context = self._current_completion_context()
+        if context is None:
+            return []
+        context_key, fragment = context
+        if context_key != self._last_completion_panel_context_key:
+            return []
+        if not fragment:
+            return cached
+
+        result: list[Completion] = []
+        for completion in cached:
+            display_text = to_plain_text(completion.display)
+            meta_text = to_plain_text(completion.display_meta)
+            haystack = f"{completion.text} {display_text} {meta_text}".lower()
+            if fragment in haystack:
+                result.append(completion)
+        return result
+
+    def _current_completion_context(self) -> tuple[str, str] | None:
+        try:
+            document = self._session.default_buffer.document
+            text_before = document.text_before_cursor
+            line_before = document.current_line_before_cursor
+        except Exception:
+            return None
+
+        slash_match = re.search(r"^\s*(?P<prefix>//|/)(?P<frag>[^\s/]*)$", line_before)
+        if slash_match and self._is_current_line_at_effective_start(text_before):
+            prefix = slash_match.group("prefix")
+            return f"slash:{prefix}", slash_match.group("frag").lower()
+
+        skill_match = SKILL_TOKEN_PATTERN.search(line_before)
+        if skill_match:
+            prefix = skill_match.group("prefix")
+            return f"skill:{prefix}", skill_match.group("frag").lower()
+
+        at_match = AT_TOKEN_PATTERN.search(text_before)
+        if at_match:
+            frag = at_match.group("frag")
+            if frag.startswith('"'):
+                frag = frag[1:]
+                if frag.endswith('"'):
+                    frag = frag[:-1]
+            return "at", frag.lower()
+
+        return None
+
+    def _is_current_line_at_effective_start(self, text_before: str) -> bool:
+        last_newline = text_before.rfind("\n")
+        preceding = "" if last_newline < 0 else text_before[: last_newline + 1]
+        return preceding.strip() == ""
 
     def _get_completion_panel_height(self) -> int:
-        try:
-            state = self._session.default_buffer.complete_state
-        except Exception:
+        completions, _selected_index = self._get_completion_panel_snapshot()
+        if not completions:
             return 0
-        if state is None or not state.completions:
-            return 0
-        return min(10, len(state.completions))
+        return min(10, len(completions))
 
     def _get_completion_panel_fragments(self) -> StyleAndTextTuples:
-        try:
-            state = self._session.default_buffer.complete_state
-        except Exception:
-            return []
-        if state is None or not state.completions:
+        completions, selected_index = self._get_completion_panel_snapshot()
+        if not completions:
             return []
         try:
             columns = get_app().output.get_size().columns
         except Exception:
             columns = 80
         return build_completion_panel_fragments(
-            state.completions,
-            selected_index=state.complete_index,
+            completions,
+            selected_index=selected_index,
             width=columns,
             max_height=10,
         )
