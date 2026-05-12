@@ -72,7 +72,7 @@ def format_current_thinking(config: llm_param.LLMConfigParameter) -> str:
             return f"reasoning_effort={thinking.reasoning_effort}"
         return "not set"
 
-    if protocol == llm_param.LLMClientProtocol.ANTHROPIC:
+    if protocol in (llm_param.LLMClientProtocol.ANTHROPIC, llm_param.LLMClientProtocol.BEDROCK):
         if thinking.type == "disabled":
             return "off"
         if thinking.type == "adaptive":

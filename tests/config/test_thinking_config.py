@@ -38,6 +38,16 @@ def test_format_current_thinking_for_github_copilot_claude_budget() -> None:
     assert format_current_thinking(config) == "enabled (budget_tokens=2048)"
 
 
+def test_format_current_thinking_for_bedrock_adaptive() -> None:
+    config = llm_param.LLMConfigParameter(
+        protocol=llm_param.LLMClientProtocol.BEDROCK,
+        model_id="global.anthropic.claude-sonnet-4-6",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    assert format_current_thinking(config) == "adaptive"
+
+
 def test_opus_47_picker_only_shows_adaptive_options() -> None:
     config = llm_param.LLMConfigParameter(
         protocol=llm_param.LLMClientProtocol.ANTHROPIC,
