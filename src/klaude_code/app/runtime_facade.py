@@ -339,6 +339,9 @@ class RuntimeFacade:
     def has_running_tasks(self) -> bool:
         return any(not active.task.done() for active in self._operation_dispatcher.list_active_tasks())
 
+    def cancel_auto_away_summary(self, session_id: str) -> None:
+        self._operation_dispatcher.cancel_auto_away_summary(session_id)
+
     async def close_session(self, session_id: str, force: bool = False) -> bool:
         cancelled_requests: list[PendingUserInteractionRequest] = []
         work_dir: Path | None = None

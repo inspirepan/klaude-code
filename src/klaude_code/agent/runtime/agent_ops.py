@@ -99,6 +99,7 @@ class AgentOperationHandler:
         self._primary_session_id: str | None = None
         self._title_refresh_tasks: dict[str, asyncio.Task[None]] = {}
         self._prompt_suggestion_tasks: dict[str, asyncio.Task[None]] = {}
+        self._auto_away_summary_tasks: dict[str, asyncio.Task[None]] = {}
 
     async def _request_user_interaction(
         self,
@@ -426,6 +427,19 @@ class AgentOperationHandler:
             )
             task.cancel()
 
+    def _cancel_auto_away_summary(self, session_id: str) -> None:
+        task = self._auto_away_summary_tasks.pop(session_id, None)
+        if task is None or task.done():
+            return
+        log_debug(
+            f"[AwaySummary] cancel stale auto task session={session_id}",
+            debug_type=DebugType.EXECUTION,
+        )
+        task.cancel()
+
+    def cancel_auto_away_summary(self, session_id: str) -> None:
+        self._cancel_auto_away_summary(session_id)
+
     def _schedule_prompt_suggestion(self, agent: Agent) -> None:
         """Fire-and-forget a cache-shared fork to predict the user's next prompt.
 
@@ -531,6 +545,7 @@ class AgentOperationHandler:
         agent = await self.ensure_agent(operation.session_id)
         # New user turn invalidates any pending suggestion for this session.
         self._cancel_prompt_suggestion(operation.session_id)
+        self._cancel_auto_away_summary(operation.session_id)
         await self._emit_event(events.PromptSuggestionClearedEvent(session_id=operation.session_id))
         frozen_input = self._freeze_user_input_for_history(
             operation.input,
@@ -573,6 +588,7 @@ class AgentOperationHandler:
         agent.follow_up(operation.input)
 
     async def run_bash(self, operation: op.RunBashOperation) -> None:
+        self._cancel_auto_away_summary(operation.session_id)
         agent = await self.ensure_agent(operation.session_id)
 
         existing_active = self.get_active_task(operation.id)
@@ -630,6 +646,7 @@ class AgentOperationHandler:
 
     async def continue_agent(self, operation: op.ContinueAgentOperation) -> None:
         """Continue agent execution without adding a new user message."""
+        self._cancel_auto_away_summary(operation.session_id)
         agent = await self.ensure_agent(operation.session_id)
 
         existing_active = self.get_active_task(operation.id)
@@ -653,6 +670,7 @@ class AgentOperationHandler:
         )
 
     async def compact_session(self, operation: op.CompactSessionOperation) -> None:
+        self._cancel_auto_away_summary(operation.session_id)
         agent = await self.ensure_agent(operation.session_id)
 
         if self._cancel_tasks_for_sessions({operation.session_id}):
@@ -695,6 +713,35 @@ class AgentOperationHandler:
             )
             return
 
+        user_messages_snapshot = tuple(agent.session.user_messages)
+
+        async def _runner() -> None:
+            await self._run_away_summary_task(operation, user_messages_snapshot=user_messages_snapshot)
+
+        await self.run_background_operation(
+            operation_id=operation.id,
+            session_id=operation.session_id,
+            runner=_runner,
+        )
+
+        if operation.source == "auto":
+            active = self.get_active_task(operation.id)
+            if active is not None:
+                self._auto_away_summary_tasks[operation.session_id] = active.task
+
+                def _cleanup(completed: asyncio.Task[None]) -> None:
+                    if self._auto_away_summary_tasks.get(operation.session_id) is completed:
+                        self._auto_away_summary_tasks.pop(operation.session_id, None)
+
+                active.task.add_done_callback(_cleanup)
+
+    async def _run_away_summary_task(
+        self,
+        operation: op.GenerateAwaySummaryOperation,
+        *,
+        user_messages_snapshot: tuple[str, ...],
+    ) -> None:
+        agent = await self.ensure_agent(operation.session_id)
         clients = self.get_session_llm_clients(operation.session_id)
         fast_client = clients.get_fast_client()
 
@@ -706,6 +753,19 @@ class AgentOperationHandler:
             if not text:
                 log_debug(
                     f"[AwaySummary] skip (empty result, source={operation.source})",
+                    debug_type=DebugType.EXECUTION,
+                )
+                return
+
+            if operation.source == "auto" and tuple(agent.session.user_messages) != user_messages_snapshot:
+                log_debug(
+                    f"[AwaySummary] skip (stale auto result, source={operation.source})",
+                    debug_type=DebugType.EXECUTION,
+                )
+                return
+            if _has_summary_since_last_user_turn(agent.session):
+                log_debug(
+                    f"[AwaySummary] skip (dedup after generation, source={operation.source})",
                     debug_type=DebugType.EXECUTION,
                 )
                 return
@@ -723,6 +783,7 @@ class AgentOperationHandler:
         agent = await self.ensure_agent(session_id)
         old_session_id = agent.session.id
         self._cancel_prompt_suggestion(old_session_id)
+        self._cancel_auto_away_summary(old_session_id)
         old_runtime = self._get_session_actor(old_session_id)
         if old_runtime is None:
             raise RuntimeError(f"Missing runtime for session {old_session_id}")
@@ -777,6 +838,7 @@ class AgentOperationHandler:
         """Switch the active session to an already-forked session and replay its history."""
         agent = await self.ensure_agent(session_id)
         old_session_id = agent.session.id
+        self._cancel_auto_away_summary(old_session_id)
         old_runtime = self._get_session_actor(old_session_id)
         if old_runtime is None:
             raise RuntimeError(f"Missing runtime for session {old_session_id}")
@@ -1074,6 +1136,9 @@ class AgentRunner:
 
     async def generate_away_summary(self, operation: op.GenerateAwaySummaryOperation) -> None:
         await self._operation_handler.generate_away_summary(operation)
+
+    def cancel_auto_away_summary(self, session_id: str) -> None:
+        self._operation_handler.cancel_auto_away_summary(session_id)
 
     async def clear_session(self, session_id: str) -> None:
         await self._operation_handler.clear_session(session_id)

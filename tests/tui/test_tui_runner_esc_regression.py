@@ -283,6 +283,56 @@ def test_run_interactive_marks_input_running_before_submission_returns(monkeypat
     assert _FakePromptToolkitInput.agent_running_changes[:2] == [True, False]
 
 
+def test_run_interactive_cancels_auto_recap_on_prompt_submission(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeAgent:
+        def __init__(self) -> None:
+            self.session = SimpleNamespace(id="s1", work_dir=Path.cwd(), model_config_name=None)
+            self.profile = SimpleNamespace(llm_client=_FakeLLMClient())
+
+        def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            return ()
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self._agent = _FakeAgent()
+            self.cancelled: list[str] = []
+
+        def current_session_id(self) -> str | None:
+            return "s1"
+
+        @property
+        def current_agent(self) -> _FakeAgent:
+            return self._agent
+
+        def cancel_auto_away_summary(self, session_id: str) -> None:
+            self.cancelled.append(session_id)
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    async def _submit_user_input_payload(**_: Any) -> Any:
+        assert runtime.cancelled == ["s1"]
+        return runner.SubmitUserInputResult(wait_id=None)
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    _FakePromptToolkitInput.payloads = [UserInputPayload(text="hello"), UserInputPayload(text="exit")]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert runtime.cancelled == ["s1"]
+
+
 def test_run_interactive_waits_interactive_command_without_agent_running(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 

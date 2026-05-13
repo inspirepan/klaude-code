@@ -97,6 +97,7 @@ class ConfigHandler:
         return "not set"
 
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
+        self._agent_runner.cancel_auto_away_summary(operation.session_id)
         agent = await self._agent_runner.ensure_agent(operation.session_id)
         llm_config, llm_client_name = await self._model_switcher.change_model(
             agent,
@@ -133,6 +134,7 @@ class ConfigHandler:
             )
 
     async def handle_change_thinking(self, operation: op.ChangeThinkingOperation) -> None:
+        self._agent_runner.cancel_auto_away_summary(operation.session_id)
         agent = await self._agent_runner.ensure_agent(operation.session_id)
 
         if operation.thinking is None:
@@ -163,6 +165,7 @@ class ConfigHandler:
             )
 
     async def handle_change_sub_agent_model(self, operation: op.ChangeSubAgentModelOperation) -> None:
+        self._agent_runner.cancel_auto_away_summary(operation.session_id)
         agent = await self._agent_runner.ensure_agent(operation.session_id)
         session_clients = self._agent_runner.get_session_llm_clients(agent.session.id)
         config = load_config()
@@ -207,6 +210,7 @@ class ConfigHandler:
         )
 
     async def handle_change_compact_model(self, operation: op.ChangeCompactModelOperation) -> None:
+        self._agent_runner.cancel_auto_away_summary(operation.session_id)
         agent = await self._agent_runner.ensure_agent(operation.session_id)
         session_clients = self._agent_runner.get_session_llm_clients(agent.session.id)
         config = load_config()
@@ -285,6 +289,8 @@ class ConfigHandler:
         return True
 
     async def handle_request_model(self, operation: op.RequestModelOperation) -> None:
+        self._agent_runner.cancel_auto_away_summary(operation.session_id)
+
         async def _runner() -> None:
             initial_search_text = operation.initial_search_text
             if initial_search_text is not None:
@@ -365,6 +371,8 @@ class ConfigHandler:
         )
 
     async def handle_request_thinking(self, operation: op.RequestThinkingOperation) -> None:
+        self._agent_runner.cancel_auto_away_summary(operation.session_id)
+
         async def _runner() -> None:
             agent = await self._agent_runner.ensure_agent(operation.session_id)
             llm_config = agent.profile.llm_client.get_llm_config()
@@ -429,6 +437,8 @@ class ConfigHandler:
         )
 
     async def handle_request_sub_agent_model(self, operation: op.RequestSubAgentModelOperation) -> None:
+        self._agent_runner.cancel_auto_away_summary(operation.session_id)
+
         async def _runner() -> None:
             agent = await self._agent_runner.ensure_agent(operation.session_id)
             session_clients = self._agent_runner.get_session_llm_clients(agent.session.id)
@@ -611,6 +621,7 @@ class ConfigHandler:
         )
 
     async def handle_get_session_stats(self, operation: op.GetSessionStatsOperation) -> None:
+        self._agent_runner.cancel_auto_away_summary(operation.session_id)
         agent = await self._agent_runner.ensure_agent(operation.session_id)
         await self._emit_event(
             events.SessionStatsEvent(

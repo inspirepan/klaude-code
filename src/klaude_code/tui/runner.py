@@ -521,6 +521,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         return components.runtime.current_session_id()
 
+    def _cancel_auto_away_summary(session_id: str) -> None:
+        cancel = getattr(components.runtime, "cancel_auto_away_summary", None)
+        if callable(cancel):
+            with contextlib.suppress(Exception):
+                cancel(session_id)
+
     async def _change_model_from_prompt(model_name: str) -> None:
         sid = _get_active_session_id()
         if not sid:
@@ -782,6 +788,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 active_session_id = _get_active_session_id()
                 if active_session_id is None:
                     continue
+                _cancel_auto_away_summary(active_session_id)
 
                 submission_payloads = _split_queue_edit_payload(user_input)
                 run_in_foreground = len(submission_payloads) == 1 and has_interactive_command(submission_payloads[0].text)
