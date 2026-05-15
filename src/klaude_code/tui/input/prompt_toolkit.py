@@ -63,6 +63,7 @@ from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_m
 INPUT_PROMPT_STYLE = "class:prompt"
 INPUT_PROMPT_RUNNING_STYLE = "class:prompt.running"
 INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
+_INPUT_HEIGHT_SAFETY_ROWS = 1
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
@@ -735,15 +736,31 @@ class PromptToolkitInput(InputProviderABC):
                 content_rows = self._estimate_input_visual_rows(columns)
                 target_rows = max(base_rows, content_rows)
 
-                # Cap to the current terminal size.
-                # Leave a small buffer to avoid triggering "Window too small".
+                # Cap to the space left after the bottom layout has reserved
+                # its dynamic rows. A recalled multi-line history entry can be
+                # much taller than the terminal; the input window should scroll
+                # instead of making the full HSplit impossible to fit.
                 desired = max(original_min, target_rows)
                 if rows > 0:
-                    desired = max(1, min(desired, rows - 4))
+                    desired = min(desired, self._get_max_input_window_rows(rows))
+                desired = max(1, desired)
 
-                return Dimension(min=desired, preferred=desired, max=desired)
+                return Dimension(min=1, preferred=desired, max=desired)
 
             input_window.height = _height
+
+    def _get_max_input_window_rows(self, terminal_rows: int) -> int:
+        reserved_rows = self._get_reserved_non_input_rows()
+        return max(1, terminal_rows - reserved_rows - _INPUT_HEIGHT_SAFETY_ROWS)
+
+    def _get_reserved_non_input_rows(self) -> int:
+        input_rule_rows = 2
+        return (
+            self._bottom_bar.reserved_layout_rows()
+            + input_rule_rows
+            + self._get_completion_panel_height()
+            + self._get_input_footer_height()
+        )
 
     def _estimate_input_visual_rows(self, columns: int) -> int:
         try:

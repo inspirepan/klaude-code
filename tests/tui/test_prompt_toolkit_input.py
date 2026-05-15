@@ -310,6 +310,24 @@ def test_input_height_estimate_counts_newlines_and_soft_wraps() -> None:
     assert prompt_input._estimate_input_visual_rows(columns=8) == 4
 
 
+def test_input_window_max_height_accounts_for_bottom_layout() -> None:
+    prompt_input = _build_input("\n".join(str(i) for i in range(50)))
+    prompt_input.set_stream_lines(("live 1", "live 2", "live 3"))
+    prompt_input.set_status_lines((_status("Loading…"), _metadata("in 12 · cache 3k")))
+    prompt_input.set_pending_messages(("first queued", "second queued"))
+
+    assert prompt_input._get_max_input_window_rows(24) == 10
+
+
+def test_input_window_max_height_keeps_minimum_row_on_tiny_terminal() -> None:
+    prompt_input = _build_input("\n".join(str(i) for i in range(50)))
+    prompt_input.set_stream_lines(("live 1", "live 2", "live 3"))
+    prompt_input.set_status_lines((_status("Loading…"), _metadata("in 12 · cache 3k")))
+    prompt_input.set_pending_messages(("first queued", "second queued"))
+
+    assert prompt_input._get_max_input_window_rows(8) == 1
+
+
 def test_input_footer_renders_metadata_below_context_line() -> None:
     prompt_input: Any = _build_input("")
     prompt_input.set_status_lines(
