@@ -590,7 +590,10 @@ class PromptToolkitInput(InputProviderABC):
 
     def _is_completion_active(self) -> bool:
         try:
-            return self._session.default_buffer.complete_state is not None and self._current_completion_context() is not None
+            return (
+                self._session.default_buffer.complete_state is not None
+                and self._current_completion_context() is not None
+            )
         except Exception:
             return False
 

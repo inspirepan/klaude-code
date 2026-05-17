@@ -791,7 +791,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 _cancel_auto_away_summary(active_session_id)
 
                 submission_payloads = _split_queue_edit_payload(user_input)
-                run_in_foreground = len(submission_payloads) == 1 and has_interactive_command(submission_payloads[0].text)
+                run_in_foreground = len(submission_payloads) == 1 and has_interactive_command(
+                    submission_payloads[0].text
+                )
                 mark_agent_running = not run_in_foreground
                 if mark_agent_running:
                     input_provider.set_agent_running(True)
