@@ -55,6 +55,9 @@ class _FakeAgentRunner:
         assert session_id == self._agent.session.id
         return self._llm_clients
 
+    def cancel_auto_away_summary(self, session_id: str) -> None:
+        assert session_id == self._agent.session.id
+
 
 def _build_handler(
     *,

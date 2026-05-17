@@ -66,7 +66,11 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
         await previous_f
 
     if app.output.responds_to_cpr:
-        await app.renderer.wait_for_cpr_responses()
+        with contextlib.suppress(Exception):
+            await asyncio.wait_for(
+                app.renderer.wait_for_cpr_responses(timeout=1),
+                timeout=_CPR_WAIT_TIMEOUT_S,
+            )
 
     output = app.output
 

@@ -1,6 +1,8 @@
 # pyright: reportPrivateUsage=false
 
 import asyncio
+import contextlib
+from types import SimpleNamespace
 
 
 def test_synchronized_in_terminal_no_app_yields_cleanly() -> None:
@@ -30,6 +32,62 @@ def test_flicker_safe_proxy_constructs_with_raw_default() -> None:
         assert proxy.sleep_between_writes == 0.5
     finally:
         proxy.close()
+
+
+def test_synchronized_in_terminal_times_out_stale_cpr(monkeypatch) -> None:
+    """A stale CPR wait must not block the first scrollback write after submit."""
+
+    import klaude_code.tui.input.flicker_safe_stdout as module
+
+    class _FakeRenderer:
+        async def wait_for_cpr_responses(self, timeout: int | None = None) -> None:
+            del timeout
+            await asyncio.Future()
+
+        def erase(self) -> None:
+            return None
+
+        def reset(self) -> None:
+            return None
+
+    class _FakeOutput:
+        responds_to_cpr = True
+
+        def write_raw(self, _text: str) -> None:
+            return None
+
+        def flush(self) -> None:
+            return None
+
+    class _FakeInput:
+        def detach(self):
+            return contextlib.nullcontext()
+
+        def cooked_mode(self):
+            return contextlib.nullcontext()
+
+    app = SimpleNamespace(
+        _is_running=True,
+        _running_in_terminal_f=None,
+        _running_in_terminal=False,
+        output=_FakeOutput(),
+        renderer=_FakeRenderer(),
+        input=_FakeInput(),
+        _request_absolute_cursor_position=lambda: None,
+        _redraw=lambda: None,
+    )
+    monkeypatch.setattr(module, "get_app_or_none", lambda: app)
+    monkeypatch.setattr(module, "_CPR_WAIT_TIMEOUT_S", 0.01)
+
+    entered = False
+
+    async def _run() -> None:
+        nonlocal entered
+        async with module.synchronized_in_terminal():
+            entered = True
+
+    asyncio.run(asyncio.wait_for(_run(), timeout=0.2))
+    assert entered is True
 
 
 def test_flicker_safe_patch_stdout_swaps_streams() -> None:

@@ -39,10 +39,27 @@ def test_manual_recap_emits_spinner_events_but_auto_does_not(
 
     async def _test() -> None:
         emitted: list[Any] = []
+        registered_tasks: list[asyncio.Task[None]] = []
         client = _FakeLLMClient()
 
         async def _emit(event: Any) -> None:
             emitted.append(event)
+
+        def _register_task(
+            _session_id: str,
+            _operation_id: str,
+            _task_id: str,
+            task: asyncio.Task[None],
+        ) -> None:
+            registered_tasks.append(task)
+
+        def _remove_task(_session_id: str, _task_id: str) -> None:
+            return None
+
+        async def _drain_registered_tasks() -> None:
+            while registered_tasks:
+                task = registered_tasks.pop(0)
+                await task
 
         handler = AgentOperationHandler(
             emit_event=_emit,
@@ -54,8 +71,8 @@ def test_manual_recap_emits_spinner_events_but_auto_does_not(
             get_session_actor=lambda _sid: None,
             get_session_actor_for_operation=lambda _op: None,
             list_session_actors=lambda: [],
-            register_task=_noop_register_task,
-            remove_task=_noop_remove_task,
+            register_task=_register_task,
+            remove_task=_remove_task,
             request_user_interaction=_noop_request_user_interaction,
         )
 
@@ -79,6 +96,8 @@ def test_manual_recap_emits_spinner_events_but_auto_does_not(
         )
 
         await handler.generate_away_summary(op.GenerateAwaySummaryOperation(session_id=session.id, source="manual"))
+        assert registered_tasks
+        await _drain_registered_tasks()
         assert len(emitted) == 3
         assert isinstance(emitted[0], events.AwaySummaryStartEvent)
         assert isinstance(emitted[1], events.AwaySummaryEvent)
@@ -89,6 +108,8 @@ def test_manual_recap_emits_spinner_events_but_auto_does_not(
         session.append_history([message.UserMessage(parts=message.text_parts_from_str("继续实现 recap"))])
 
         await handler.generate_away_summary(op.GenerateAwaySummaryOperation(session_id=session.id, source="auto"))
+        assert registered_tasks
+        await _drain_registered_tasks()
         assert len(emitted) == 1
         assert isinstance(emitted[0], events.AwaySummaryEvent)
 
@@ -105,14 +126,6 @@ def _noop_child_task_state_change(_session_id: str, _task_id: str, _active: bool
 
 def _unexpected_session_actor(_sid: str) -> Any:
     raise RuntimeError("should not be called")
-
-
-def _noop_register_task(_session_id: str, _operation_id: str, _task_id: str, _task: asyncio.Task[None]) -> None:
-    return None
-
-
-def _noop_remove_task(_session_id: str, _task_id: str) -> None:
-    return None
 
 
 def cast_any(value: object) -> Any:

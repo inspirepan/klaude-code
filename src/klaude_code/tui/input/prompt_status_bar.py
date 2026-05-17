@@ -200,6 +200,15 @@ class PromptBottomBar:
     def metadata_footer_lines(self) -> tuple[str, ...]:
         return self._metadata_footer_lines
 
+    def reserved_layout_rows(self) -> int:
+        """Return the current number of rows reserved by build_containers()."""
+
+        rows = max(0, self._stream_reserved_line_count) + 1
+        rows += self._status_window_height()
+        if self._pending_messages:
+            rows += len(self._pending_messages) + 2
+        return rows
+
     # ---- layout integration ---------------------------------------------
 
     def build_containers(self) -> list[Container]:

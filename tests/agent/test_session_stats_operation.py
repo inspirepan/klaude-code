@@ -32,6 +32,9 @@ class _FakeAgentRunner:
         assert session_id == self._agent.session.id
         return self._agent
 
+    def cancel_auto_away_summary(self, session_id: str) -> None:
+        assert session_id == self._agent.session.id
+
 
 def test_get_session_stats_operation_emits_status_event(tmp_path: Path) -> None:
     async def _test() -> None:
