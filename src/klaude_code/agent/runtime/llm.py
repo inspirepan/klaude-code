@@ -159,9 +159,7 @@ def build_llm_clients(
             _ = config.get_first_available_model(model_pref)
         except ValueError as exc:
             raise ModelResolutionError("main_model", model_pref, exc) from exc
-        raise ModelResolutionError(
-            "main_model", model_pref, ValueError("No available main_model candidates")
-        )
+        raise ModelResolutionError("main_model", model_pref, ValueError("No available main_model candidates"))
     llm_config = main_candidates[0].llm_config
     model_name = (
         format_model_preference([candidate.selector for candidate in main_candidates])
