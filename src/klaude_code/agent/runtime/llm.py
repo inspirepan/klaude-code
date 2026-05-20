@@ -22,6 +22,21 @@ def _default_sub_clients() -> dict[SubAgentType, LLMClientABC]:
     return {}
 
 
+class ModelResolutionError(ValueError):
+    """Raised when a configured model preference cannot be resolved.
+
+    Carries which role (main/fast/compact/sub-agent) failed so callers can
+    produce a precise error message instead of conflating roles.
+    """
+
+    def __init__(self, role: str, model_preference: ModelPreference, original: Exception) -> None:
+        self.role = role
+        self.model_preference = model_preference
+        self.original = original
+        pref_text = format_model_preference(model_preference) or "<unset>"
+        super().__init__(f"{role} '{pref_text}' could not be resolved: {original}")
+
+
 @dataclass(frozen=True)
 class ModelFallback:
     """A runtime switch from one concrete model candidate to another."""
@@ -140,8 +155,13 @@ def build_llm_clients(
         else config.iter_model_config_candidates(model_pref)
     )
     if not main_candidates:
-        _ = config.get_first_available_model(model_pref)
-        raise ValueError("No available main_model candidates")
+        try:
+            _ = config.get_first_available_model(model_pref)
+        except ValueError as exc:
+            raise ModelResolutionError("main_model", model_pref, exc) from exc
+        raise ModelResolutionError(
+            "main_model", model_pref, ValueError("No available main_model candidates")
+        )
     llm_config = main_candidates[0].llm_config
     model_name = (
         format_model_preference([candidate.selector for candidate in main_candidates])
@@ -158,7 +178,10 @@ def build_llm_clients(
     main_client = create_llm_client_for_candidates(main_candidates)
 
     fast_client: LLMClientABC | None = None
-    selected_fast_model = config.get_first_available_model(config.fast_model)
+    try:
+        selected_fast_model = config.get_first_available_model(config.fast_model)
+    except ValueError as exc:
+        raise ModelResolutionError("fast_model", config.fast_model, exc) from exc
     if selected_fast_model is not None:
         fast_llm_config = config.get_model_config(selected_fast_model)
         log_debug(
@@ -179,7 +202,10 @@ def build_llm_clients(
         )
         compact_client = create_llm_client_for_candidates(compact_candidates)
     elif config.compact_model is not None:
-        _ = config.get_first_available_model(config.compact_model)
+        try:
+            _ = config.get_first_available_model(config.compact_model)
+        except ValueError as exc:
+            raise ModelResolutionError("compact_model", config.compact_model, exc) from exc
 
     if skip_sub_agents:
         return LLMClients(main=main_client, main_model_alias=model_name, fast=fast_client, compact=compact_client)
@@ -187,19 +213,24 @@ def build_llm_clients(
     helper = SubAgentModelResolver(config)
     sub_agent_candidates = helper.build_sub_agent_client_candidates()
     user_sub_agent_models = config.get_user_sub_agent_models()
-    for model_pref in user_sub_agent_models.values():
-        if not config.iter_model_config_candidates(model_pref):
-            _ = config.get_first_available_model(model_pref)
+    for role_key, sub_pref in user_sub_agent_models.items():
+        if not config.iter_model_config_candidates(sub_pref):
+            try:
+                _ = config.get_first_available_model(sub_pref)
+            except ValueError as exc:
+                raise ModelResolutionError(f"sub_agent_models.{role_key}", sub_pref, exc) from exc
 
     sub_clients: dict[SubAgentType, LLMClientABC] = {}
     for sub_agent_type, candidates in sub_agent_candidates.items():
         try:
             sub_clients[sub_agent_type] = FallbackLLMClient(candidates)
-        except ValueError:
+        except ValueError as exc:
             profile = get_sub_agent_profile(sub_agent_type)
             role_key = profile.name
             if role_key in user_sub_agent_models:
-                raise
+                raise ModelResolutionError(
+                    f"sub_agent_models.{role_key}", user_sub_agent_models[role_key], exc
+                ) from exc
             log_debug(
                 f"Sub-agent '{sub_agent_type}' builtin models not available, falling back to main model",
                 debug_type=DebugType.LLM_CONFIG,
