@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.30.0] - 2026-05-20
+
+### Added
+
+- polish prompt bottom layout ([#321](https://github.com/inspirepan/klaude-code/pull/321) by [@inspirepan](https://github.com/inspirepan))
+
+### Fixed
+
+- improve model resolution and Gemini tool history ([#328](https://github.com/inspirepan/klaude-code/pull/328) by [@inspirepan](https://github.com/inspirepan))
+- stabilize interactive prompt behavior ([#326](https://github.com/inspirepan/klaude-code/pull/326) by [@inspirepan](https://github.com/inspirepan))
+- support model fallback with visible TUI status ([#325](https://github.com/inspirepan/klaude-code/pull/325) by [@inspirepan](https://github.com/inspirepan))
+- split queued follow-up edits explicitly ([#324](https://github.com/inspirepan/klaude-code/pull/324) by [@inspirepan](https://github.com/inspirepan))
+- stabilize prompt footer rendering ([#323](https://github.com/inspirepan/klaude-code/pull/323))
+- grow input for soft-wrapped lines ([#322](https://github.com/inspirepan/klaude-code/pull/322))
+- polish input status rendering ([#320](https://github.com/inspirepan/klaude-code/pull/320) by [@inspirepan](https://github.com/inspirepan))
+
+### Other
+
+- update gemini flash to 3.5 ([#327](https://github.com/inspirepan/klaude-code/pull/327) by [@inspirepan](https://github.com/inspirepan))
+
 ## [2.29.0] - 2026-05-08
 
 ### Added
@@ -2321,7 +2341,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.29.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.30.0...HEAD
+[2.30.0]: https://github.com/inspirepan/klaude-code/compare/v2.29.0...v2.30.0
 [2.29.0]: https://github.com/inspirepan/klaude-code/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/inspirepan/klaude-code/compare/v2.27.0...v2.28.0
 [2.27.0]: https://github.com/inspirepan/klaude-code/compare/v2.26.0...v2.27.0
