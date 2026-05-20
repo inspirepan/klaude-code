@@ -532,6 +532,44 @@ def test_developer_message_with_prepend_marker_prepends_tool_output_across_provi
     assert _ensure_dict(responses_tool_output[0])["text"] == "MEMORY\n\nTOOL"
 
 
+def test_google_tool_history_omits_function_ids() -> None:
+    history: list[message.Message] = [
+        message.AssistantMessage(
+            parts=[
+                message.ToolCallPart(
+                    call_id="call-1",
+                    tool_name="Read",
+                    arguments_json='{"file_path":"README.md"}',
+                )
+            ]
+        ),
+        message.ToolResultMessage(
+            call_id="call-1",
+            tool_name="Read",
+            status="success",
+            output_text="done",
+        ),
+    ]
+
+    contents = google_history(history, model_name="gemini-3.5-flash")
+
+    model_parts = contents[0].parts
+    assert model_parts is not None
+    model_part = model_parts[0]
+    function_call = model_part.function_call
+    assert function_call is not None
+    assert function_call.id is None
+    assert function_call.name == "Read"
+
+    user_parts = contents[1].parts
+    assert user_parts is not None
+    user_part = user_parts[0]
+    function_response = user_part.function_response
+    assert function_response is not None
+    assert function_response.id is None
+    assert function_response.name == "Read"
+
+
 def test_anthropic_tool_group_includes_developer_images():
     image_part = _make_image_part()
     history: list[message.Message] = [
