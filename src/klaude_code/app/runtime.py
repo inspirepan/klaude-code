@@ -14,7 +14,7 @@ from klaude_code.agent.agent_profile import (
     DefaultModelProfileProvider,
     VanillaModelProfileProvider,
 )
-from klaude_code.agent.runtime.llm import build_llm_clients
+from klaude_code.agent.runtime.llm import ModelResolutionError, build_llm_clients
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import Config, load_config
@@ -153,6 +153,23 @@ async def initialize_app_components(
             log(("Hint: to run without proxy, unset ALL_PROXY/HTTPS_PROXY/HTTP_PROXY.", "yellow"))
             raise typer.Exit(2) from None
         raise
+    except ModelResolutionError as exc:
+        if exc.role == "main_model":
+            if init_config.model:
+                log(
+                    (
+                        f"Error: model '{init_config.model}' is not defined in the config, {exc.original}",
+                        "red",
+                    )
+                )
+                log(("Hint: run `klaude list` to view available models", "yellow"))
+            else:
+                log((f"Error: failed to load the default model configuration: {exc.original}", "red"))
+                log(("Hint: run `klaude conf` to edit the config file", "yellow"))
+        else:
+            log((f"Error: failed to resolve {exc.role}: {exc.original}", "red"))
+            log(("Hint: run `klaude conf` to edit the config file", "yellow"))
+        raise typer.Exit(2) from None
     except ValueError as exc:
         if init_config.model:
             log(

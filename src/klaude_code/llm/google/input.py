@@ -109,7 +109,6 @@ def _tool_messages_to_contents(
         response_payload = {"error": response_value} if msg.status != "success" else {"output": response_value}
 
         function_response = types.FunctionResponse(
-            id=msg.call_id,
             name=msg.tool_name,
             response=response_payload,
             parts=function_response_parts if (has_images and supports_multimodal_function_response) else None,
@@ -185,7 +184,7 @@ def _assistant_message_to_content(msg: message.AssistantMessage, model_name: str
             args = cast(dict[str, Any], canonical) if isinstance(canonical, dict) else {"_value": canonical}
             parts.append(
                 types.Part(
-                    function_call=types.FunctionCall(id=part.call_id, name=part.tool_name, args=args),
+                    function_call=types.FunctionCall(name=part.tool_name, args=args),
                 )
             )
 
