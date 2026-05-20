@@ -279,19 +279,19 @@ provider_list:
     cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
-    model_id: gemini-3-flash-preview
+    model_id: gemini-3.5-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
-    cost: { input: 0.5, output: 3, cache_read: 0.05 }
+    cost: { input: 1.5, output: 9, cache_read: 0.15 }
 
   - &gemini_flash_minimal
     model_name: gemini-flash:minimal
-    model_id: gemini-3-flash-preview
+    model_id: gemini-3.5-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: minimal
-    cost: { input: 0.5, output: 3, cache_read: 0.05 }
+    cost: { input: 1.5, output: 9, cache_read: 0.15 }
 
   - &gemini_flash_lite
     model_name: gemini-flash-lite
@@ -317,11 +317,11 @@ provider_list:
     cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
-    model_id: gemini-3-flash-preview
+    model_id: gemini-3.5-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
-    cost: { input: 0.5, output: 3, cache_read: 0.05 }
+    cost: { input: 1.5, output: 9, cache_read: 0.15 }
 
   - *gemini_flash_minimal
 
@@ -670,18 +670,18 @@ provider_list:
     cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
-    model_id: google/gemini-3-flash-preview
+    model_id: google/gemini-3.5-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
-    cost: { input: 0.5, output: 3, cache_read: 0.05 }
+    cost: { input: 1.5, output: 9, cache_read: 0.15 }
 
   - model_name: gemini-flash:minimal
-    model_id: google/gemini-3-flash-preview
+    model_id: google/gemini-3.5-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: minimal
-    cost: { input: 0.5, output: 3, cache_read: 0.05 }
+    cost: { input: 1.5, output: 9, cache_read: 0.15 }
 
   - model_name: gemini-flash-lite
     model_id: google/gemini-3.1-flash-lite-preview
