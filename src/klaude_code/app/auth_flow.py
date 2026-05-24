@@ -380,7 +380,11 @@ def execute_list(provider: str | None = None) -> None:
             log("Codex accounts")
             for state in accounts:
                 marker = "*" if state.name == active else " "
-                status = "token expired (refresh on use)" if state.is_expired() else f"expires {_format_utc_timestamp(state.expires_at)}"
+                status = (
+                    "token expired (refresh on use)"
+                    if state.is_expired()
+                    else f"expires {_format_utc_timestamp(state.expires_at)}"
+                )
                 active_label = " active" if state.name == active else ""
                 log(f"{marker} {state.name}  {state.account_id[:8]}…{active_label}  {status}")
         case _:
