@@ -25,6 +25,7 @@ class _LazyProviderHelp:
 
 def login_command(
     provider: str | None = typer.Argument(None, help=cast(str, _LazyProviderHelp())),
+    name: str | None = typer.Option(None, "--name", "-n", help="Codex account name"),
 ) -> None:
     """Login to a provider or configure API keys."""
     from klaude_code.app.auth_flow import execute_login
@@ -35,11 +36,16 @@ def login_command(
         if provider is None:
             return
 
-    execute_login(provider)
+    if name is not None:
+        execute_login(provider, account_name=name)
+    else:
+        execute_login(provider)
 
 
 def logout_command(
     provider: str | None = typer.Argument(None, help=cast(str, _LazyProviderHelp())),
+    account: str | None = typer.Argument(None, help="Codex account name"),
+    all_accounts: bool = typer.Option(False, "--all", help="Logout all Codex accounts"),
 ) -> None:
     """Logout from a provider."""
     from klaude_code.app.auth_flow import execute_logout
@@ -50,7 +56,37 @@ def logout_command(
         if provider is None:
             return
 
-    execute_logout(provider)
+    if account is not None or all_accounts:
+        execute_logout(provider, account_name=account, all_accounts=all_accounts)
+    else:
+        execute_logout(provider)
+
+
+def list_command(
+    provider: str | None = typer.Argument(None, help="Provider name (default: codex)"),
+) -> None:
+    """List logged-in OAuth accounts."""
+    from klaude_code.app.auth_flow import execute_list
+
+    execute_list(provider)
+
+
+def switch_command(
+    provider_or_account: str | None = typer.Argument(None, help="Provider name or Codex account name"),
+    account: str | None = typer.Argument(None, help="Account name"),
+) -> None:
+    """Switch active OAuth account."""
+    from klaude_code.app.auth_flow import execute_switch
+
+    if provider_or_account is None:
+        execute_switch("codex")
+        return
+
+    if account is None and provider_or_account.lower() != "codex":
+        execute_switch("codex", account_name=provider_or_account)
+        return
+
+    execute_switch(provider_or_account, account_name=account)
 
 
 def register_auth_commands(app: typer.Typer) -> None:
@@ -65,4 +101,6 @@ def register_auth_commands(app: typer.Typer) -> None:
 
     auth_app.command("login")(login_command)
     auth_app.command("logout")(logout_command)
+    auth_app.command("list")(list_command)
+    auth_app.command("switch")(switch_command)
     app.add_typer(auth_app, name="auth")

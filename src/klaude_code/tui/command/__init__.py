@@ -43,6 +43,7 @@ def ensure_commands_loaded() -> None:
     from .refresh_cmd import RefreshTerminalCommand
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
+    from .switch_cmd import SwitchCommand
     from .thinking_cmd import ThinkingCommand
     from .web_cmd import WebCommand
 
@@ -60,6 +61,7 @@ def ensure_commands_loaded() -> None:
     register(StatusCommand())
     register(LoginCommand())
     register(LogoutCommand())
+    register(SwitchCommand())
     register(ContinueCommand())
     register(RecapCommand())
     register(DebugCommand())
@@ -82,6 +84,7 @@ def __getattr__(name: str) -> object:
         "RefreshTerminalCommand": "refresh_cmd",
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
+        "SwitchCommand": "switch_cmd",
         "ThinkingCommand": "thinking_cmd",
         "WebCommand": "web_cmd",
     }

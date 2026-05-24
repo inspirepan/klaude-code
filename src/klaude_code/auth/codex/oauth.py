@@ -102,7 +102,7 @@ class CodexOAuth:
     def __init__(self, token_manager: CodexTokenManager | None = None):
         self.token_manager = token_manager or CodexTokenManager()
 
-    def login(self) -> CodexAuthState:
+    def login(self, account_name: str | None = None, *, set_active: bool = True) -> CodexAuthState:
         """Run the complete OAuth login flow."""
         # Generate PKCE parameters
         verifier = generate_code_verifier()
@@ -142,7 +142,7 @@ class CodexOAuth:
         auth_state = self._exchange_code(OAuthCallbackHandler.code, verifier)
 
         # Save tokens
-        self.token_manager.save(auth_state)
+        self.token_manager.save(auth_state, account_name=account_name, set_active=set_active)
 
         return auth_state
 
@@ -205,11 +205,13 @@ class CodexOAuth:
 
             account_id = extract_account_id(access_token)
 
-            return CodexAuthState(
-                access_token=access_token,
-                refresh_token=refresh_token,
-                expires_at=int(time.time()) + expires_in,
-                account_id=account_id,
+            return current_state.model_copy(
+                update={
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "expires_at": int(time.time()) + expires_in,
+                    "account_id": account_id,
+                }
             )
 
         try:
