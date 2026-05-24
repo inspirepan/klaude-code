@@ -16,6 +16,7 @@ class CommandName(str, Enum):
     INIT = "init"
     LOGIN = "login"
     LOGOUT = "logout"
+    SWITCH = "switch"
     DEBUG = "debug"
     EXPORT_SESSION = "export-session"
     MODEL = "model"

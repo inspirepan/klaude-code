@@ -74,3 +74,37 @@ def test_logout_command_returns_cancelled_when_selector_returns_none(monkeypatch
     assert logout_calls == []
     assert result.events is not None
     assert result.events[0].content == "(cancelled)"
+
+
+def test_logout_command_passes_codex_account_name(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = Session.create(work_dir=Path.cwd())
+    logout_calls: list[tuple[str, str | None, bool]] = []
+
+    def _execute_logout(provider: str, account_name: str | None = None, *, all_accounts: bool = False) -> None:
+        logout_calls.append((provider, account_name, all_accounts))
+
+    monkeypatch.setattr(logout_cmd, "execute_logout", _execute_logout)
+
+    cmd = logout_cmd.LogoutCommand()
+    result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="codex work")))
+
+    assert logout_calls == [("codex", "work", False)]
+    assert result.events is not None
+    assert result.events[0].content == "Logout flow completed."
+
+
+def test_logout_command_passes_codex_all_accounts(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = Session.create(work_dir=Path.cwd())
+    logout_calls: list[tuple[str, str | None, bool]] = []
+
+    def _execute_logout(provider: str, account_name: str | None = None, *, all_accounts: bool = False) -> None:
+        logout_calls.append((provider, account_name, all_accounts))
+
+    monkeypatch.setattr(logout_cmd, "execute_logout", _execute_logout)
+
+    cmd = logout_cmd.LogoutCommand()
+    result = arun(cmd.run(_DummyAgent(session), message.UserInputPayload(text="codex --all")))
+
+    assert logout_calls == [("codex", None, True)]
+    assert result.events is not None
+    assert result.events[0].content == "Logout flow completed."
