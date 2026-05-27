@@ -1,9 +1,9 @@
-"""Prompt-suggestion generator (forked LLM query, cache-shared with main turn).
+"""Prompt-suggestion generator (forked LLM query, cache-shared with main step).
 
 After every task finishes, predict what the user might naturally type next.
-Mirrors claude-code's promptSuggestion service: short single-turn LLM call
+Mirrors claude-code's promptSuggestion service: short single-step LLM call
 with the main profile's system/tools/model/thinking, so the wire prefix
-equals the parent turn's wire prefix and cache read hits ~100%.
+equals the parent step's wire prefix and cache read hits ~100%.
 
 The model is instructed to reply with exactly ``[DONE]`` when it has nothing
 worth suggesting; we filter that plus a small set of low-quality patterns
@@ -73,7 +73,7 @@ def should_suggest(session: Session) -> str | None:
     usage = last_assistant.usage
     if usage is not None:
         # Cache-cold budget, matching claude-code's getParentCacheSuppressReason:
-        # skip when the parent turn had to do a lot of fresh (un-cached) work,
+        # skip when the parent step had to do a lot of fresh (un-cached) work,
         # because the fork inherits similar cost.
         total_input = _normalized_total_input_tokens(usage)
         uncached = max(0, total_input - usage.cached_tokens) + usage.output_tokens

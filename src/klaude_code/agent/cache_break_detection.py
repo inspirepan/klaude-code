@@ -1,9 +1,9 @@
 """Prompt-prefix cache tracking: hit rate computation and break detection.
 
-Consolidates all cache-related turn-over-turn tracking:
+Consolidates all cache-related step-over-step tracking:
 - Cache hit rate: ``cached_tokens[N] / input_tokens[N-1]``, fed to the spinner.
 - Cache break detection: alerts when cached tokens drop significantly between
-  turns, writes a report file with diagnosis.
+  steps, writes a report file with diagnosis.
 """
 
 from __future__ import annotations
@@ -79,7 +79,7 @@ class CacheBreakReport:
             "Prompt Cache Break Report",
             "========================",
             f"Time: {datetime.now().isoformat()}",
-            f"Turn: #{self.call_number}",
+            f"Step: #{self.call_number}",
             "",
             "## Summary",
             f"Reason: {self.reason}",
@@ -127,15 +127,15 @@ class CacheBreakReport:
 
 
 class CacheTracker:
-    """Tracks prompt-prefix cache across turns.
+    """Tracks prompt-prefix cache across steps.
 
-    Owned by ``MetadataAccumulator``; handles both the per-turn hit rate
+    Owned by ``MetadataAccumulator``; handles both the per-step hit rate
     (for the spinner) and cache-break detection (for the error alert).
     """
 
     def __init__(self) -> None:
         # --- hit rate state ---
-        self._prev_turn_input_tokens: int = 0
+        self._prev_step_input_tokens: int = 0
         self._hit_rate_sum: float = 0.0
         self._hit_rate_count: int = 0
         self.last_hit_rate: float | None = None
@@ -152,13 +152,13 @@ class CacheTracker:
     # -- public: called by MetadataAccumulator ---------------------
 
     @property
-    def prev_turn_input_tokens(self) -> int:
-        """Input token count from the most recent successful turn (for first-token timeout)."""
-        return self._prev_turn_input_tokens
+    def prev_step_input_tokens(self) -> int:
+        """Input token count from the most recent successful step (for first-token timeout)."""
+        return self._prev_step_input_tokens
 
     @property
     def avg_hit_rate(self) -> float | None:
-        """Average cache hit rate across all turns (for task metadata)."""
+        """Average cache hit rate across all steps (for task metadata)."""
         return self._hit_rate_sum / self._hit_rate_count if self._hit_rate_count > 0 else None
 
     def record_pre_call_state(
@@ -180,18 +180,18 @@ class CacheTracker:
         self._call_count += 1
 
     def update(self, usage: Usage) -> CacheBreakReport | None:
-        """Process a turn's usage: compute hit rate and check for cache break.
+        """Process a step's usage: compute hit rate and check for cache break.
 
         Returns a ``CacheBreakReport`` if a break is detected, ``None`` otherwise.
         """
         # --- hit rate ---
-        if self._prev_turn_input_tokens > 0:
-            hit_rate = usage.cached_tokens / self._prev_turn_input_tokens
+        if self._prev_step_input_tokens > 0:
+            hit_rate = usage.cached_tokens / self._prev_step_input_tokens
             self._hit_rate_sum += hit_rate
             self._hit_rate_count += 1
             self.last_hit_rate = hit_rate
             self.last_cached_tokens = usage.cached_tokens
-            self.last_prev_input_tokens = self._prev_turn_input_tokens
+            self.last_prev_input_tokens = self._prev_step_input_tokens
         else:
             self.last_hit_rate = None
             self.last_cached_tokens = 0
@@ -199,7 +199,7 @@ class CacheTracker:
 
         # Use the larger value as denominator baseline so cache hit rate remains
         # stable across providers with different usage field semantics.
-        self._prev_turn_input_tokens = max(
+        self._prev_step_input_tokens = max(
             usage.input_tokens,
             usage.cached_tokens + usage.cache_write_tokens,
         )

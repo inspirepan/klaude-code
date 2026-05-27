@@ -20,7 +20,7 @@ from klaude_code.session.session import Session
 _AWAY_SUMMARY_MAX_TOKENS = 512
 
 # Recap only needs recent context — truncate to avoid "prompt too long" on
-# large sessions. 30 turn messages is plenty for "where we left off."
+# large sessions. 30 recent messages is plenty for "where we left off."
 _RECENT_MESSAGE_WINDOW = 30
 
 
@@ -29,17 +29,17 @@ def _build_away_summary_user_message(transcript: str) -> message.UserMessage:
     return message.UserMessage(parts=[message.TextPart(text=body)])
 
 
-def _recent_turn_messages(session: Session, limit: int) -> list[message.Message]:
-    """Pull the last `limit` turn messages (user/assistant/tool_result)."""
+def _recent_recap_messages(session: Session, limit: int) -> list[message.Message]:
+    """Pull the last `limit` recap messages (user/assistant/tool_result)."""
 
-    turns: list[message.Message] = []
+    messages: list[message.Message] = []
     for item in reversed(session.conversation_history):
         if isinstance(item, (message.UserMessage, message.AssistantMessage, message.ToolResultMessage)):
-            turns.append(item)
-            if len(turns) >= limit:
+            messages.append(item)
+            if len(messages) >= limit:
                 break
-    turns.reverse()
-    return turns
+    messages.reverse()
+    return messages
 
 
 def _normalize_recap(raw: str) -> str | None:
@@ -59,11 +59,11 @@ async def generate_away_summary(
     """Generate a short away-summary text. Returns None on empty session,
     abort, or error — never raises."""
 
-    turns = _recent_turn_messages(session, _RECENT_MESSAGE_WINDOW)
-    if not turns:
+    messages = _recent_recap_messages(session, _RECENT_MESSAGE_WINDOW)
+    if not messages:
         return None
 
-    transcript = serialize_conversation(turns)
+    transcript = serialize_conversation(messages)
     if not transcript.strip():
         return None
 
@@ -75,7 +75,7 @@ async def generate_away_summary(
     call_param.max_tokens = _AWAY_SUMMARY_MAX_TOKENS
     call_param.tools = None
 
-    log_debug("[AwaySummary] request", f"turns={len(turns)}", debug_type=DebugType.RESPONSE)
+    log_debug("[AwaySummary] request", f"messages={len(messages)}", debug_type=DebugType.RESPONSE)
 
     if cancel is not None and cancel.is_set():
         return None

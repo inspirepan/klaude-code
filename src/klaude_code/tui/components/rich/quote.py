@@ -119,7 +119,7 @@ class TreeQuote:
     ) -> Self:
         """Create a tree quote for tool result display.
 
-        Uses "└ " for the last result in a turn, "│ " otherwise.
+        Uses "└ " for the last result in a step, "│ " otherwise.
         """
         return cls(content, prefix_last="└ " if is_last else "│ ", content_indent=content_indent, style=style)
 

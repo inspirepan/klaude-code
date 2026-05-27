@@ -1,3 +1,3 @@
-"""Execution-plane package (agent/task/turn/runtime)."""
+"""Execution-plane package (agent/task/step/runtime)."""
 
 __all__: list[str] = []

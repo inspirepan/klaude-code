@@ -23,11 +23,11 @@ from klaude_code.agent.model_fallback import (
     is_fallbackable_llm_error,
 )
 from klaude_code.agent.rewind import RewindManager
-from klaude_code.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
+from klaude_code.agent.step import StepError, StepExecutionContext, StepExecutor
 from klaude_code.const import (
     INITIAL_RETRY_DELAY_S,
     MAX_EMPTY_RESPONSE_RETRIES,
-    MAX_FAILED_TURN_RETRIES,
+    MAX_FAILED_STEP_RETRIES,
     MAX_RETRY_DELAY_S,
 )
 from klaude_code.llm import LLMClientABC
@@ -59,7 +59,7 @@ type RequestUserInteraction = Callable[
 
 
 class MetadataAccumulator:
-    """Accumulates response metadata across multiple turns.
+    """Accumulates response metadata across multiple steps.
 
     Tracks usage statistics including tokens, latency, and throughput,
     merging them into a single aggregated result.
@@ -72,35 +72,35 @@ class MetadataAccumulator:
         self._throughput_tracked_tokens: int = 0
         self._first_token_latency_sum: float = 0.0
         self._first_token_latency_count: int = 0
-        self._turn_count: int = 0
+        self._step_count: int = 0
         self.cache = CacheTracker()
 
     @property
-    def prev_turn_input_tokens(self) -> int:
-        """Input token count from the most recent successful turn."""
-        return self.cache.prev_turn_input_tokens
+    def prev_step_input_tokens(self) -> int:
+        """Input token count from the most recent successful step."""
+        return self.cache.prev_step_input_tokens
 
     # Convenience aliases so callers read through the same path.
     @property
-    def last_turn_cache_hit_rate(self) -> float | None:
+    def last_step_cache_hit_rate(self) -> float | None:
         return self.cache.last_hit_rate
 
     @property
-    def last_turn_cached_tokens(self) -> int:
+    def last_step_cached_tokens(self) -> int:
         return self.cache.last_cached_tokens
 
     @property
-    def last_turn_prev_input_tokens(self) -> int:
+    def last_step_prev_input_tokens(self) -> int:
         return self.cache.last_prev_input_tokens
 
-    def add(self, turn_usage: Usage) -> CacheBreakReport | None:
-        """Merge a turn's usage into the accumulated state.
+    def add(self, step_usage: Usage) -> CacheBreakReport | None:
+        """Merge a step's usage into the accumulated state.
 
         Returns a ``CacheBreakReport`` when a prompt-prefix cache break is
         detected, ``None`` otherwise.
         """
-        self._turn_count += 1
-        usage = turn_usage
+        self._step_count += 1
+        usage = step_usage
 
         if self._main_agent.usage is None:
             self._main_agent.usage = Usage()
@@ -166,7 +166,7 @@ class MetadataAccumulator:
             provider=self._main_agent.provider,
             usage=usage_copy,
             task_duration_s=task_duration_s,
-            turn_count=self._turn_count,
+            step_count=self._step_count,
         )
 
     def get_partial_item(self, task_duration_s: float) -> TaskMetadataItem | None:
@@ -201,15 +201,15 @@ class MetadataAccumulator:
             self._main_agent.usage.cache_hit_rate = self.cache.avg_hit_rate
 
         self._main_agent.task_duration_s = task_duration_s
-        self._main_agent.turn_count = self._turn_count
+        self._main_agent.step_count = self._step_count
         return TaskMetadataItem(main_agent=self._main_agent, sub_agent_task_metadata=self._sub_agent_metadata)
 
 
 @dataclass
 class SessionContext:
-    """Shared session-level context for task and turn execution.
+    """Shared session-level context for task and step execution.
 
-    Contains common fields that both TaskExecutionContext and TurnExecutionContext need.
+    Contains common fields that both TaskExecutionContext and StepExecutionContext need.
     """
 
     session_id: str
@@ -274,14 +274,14 @@ def _build_task_file_change_summary(
 
 
 class TaskExecutor:
-    """Executes a complete task (multiple turns until no more tool calls).
+    """Executes a complete task (multiple steps until no more tool calls).
 
     Manages task-level state like metadata accumulation and retry logic.
     """
 
     def __init__(self, context: TaskExecutionContext) -> None:
         self._context = context
-        self._current_turn: TurnExecutor | None = None
+        self._current_step: StepExecutor | None = None
         self._started_at: float = 0.0
         self._metadata_accumulator: MetadataAccumulator | None = None
         self._rewind_manager: RewindManager | None = None
@@ -403,7 +403,7 @@ class TaskExecutor:
         return new_profile, event
 
     def on_interrupt(self) -> list[events.Event]:
-        """Handle an interrupt by finalizing the current turn and emitting partial metadata.
+        """Handle an interrupt by finalizing the current step and emitting partial metadata.
 
         This method synthesizes best-effort UI/history events for an interrupted
         task, but it does not cancel the outer asyncio task.
@@ -412,9 +412,9 @@ class TaskExecutor:
         had_aborted_assistant_message = False
         history_len_before = len(self._context.session.conversation_history)
         show_notice = self._task_visible_output_started
-        if self._current_turn is not None:
-            show_notice = show_notice or getattr(self._current_turn, "should_show_interrupt_notice", True)
-            for evt in self._current_turn.on_interrupt():
+        if self._current_step is not None:
+            show_notice = show_notice or getattr(self._current_step, "should_show_interrupt_notice", True)
+            for evt in self._current_step.on_interrupt():
                 # Collect sub-agent task metadata from cancelled tool results
                 if (
                     isinstance(evt, events.ToolResultEvent)
@@ -423,7 +423,7 @@ class TaskExecutor:
                 ):
                     self._metadata_accumulator.add_sub_agent_metadata(evt.task_metadata)
                 ui_events.append(evt)
-            self._current_turn = None
+            self._current_step = None
 
             new_items = self._context.session.conversation_history[history_len_before:]
             had_aborted_assistant_message = any(
@@ -491,8 +491,8 @@ class TaskExecutor:
         empty_response_retries = 0
 
         while True:
-            # Threshold-based compaction before starting a new turn.
-            # This matters for multi-turn tool loops where no new user input occurs.
+            # Threshold-based compaction before starting a new step.
+            # This matters for multi-step tool loops where no new user input occurs.
             if (
                 ctx.sub_agent_state is None
                 and not skip_threshold_compaction
@@ -588,13 +588,13 @@ class TaskExecutor:
             for event in await self._collect_and_append_attachments():
                 yield event
 
-            turn: TurnExecutor | None = None
-            turn_succeeded = False
+            step: StepExecutor | None = None
+            step_succeeded = False
             last_error_message: str | None = None
             failed_attempts = 0
 
-            while failed_attempts <= MAX_FAILED_TURN_RETRIES:
-                turn_context = TurnExecutionContext(
+            while failed_attempts <= MAX_FAILED_STEP_RETRIES:
+                step_context = StepExecutionContext(
                     session_ctx=session_ctx,
                     llm_client=profile.llm_client,
                     system_prompt=profile.system_prompt,
@@ -603,17 +603,17 @@ class TaskExecutor:
                     sub_agent_state=ctx.sub_agent_state,
                     rewind_manager=self._rewind_manager,
                     handoff_manager=self._handoff_manager,
-                    prev_turn_input_tokens=metadata_accumulator.prev_turn_input_tokens,
+                    prev_step_input_tokens=metadata_accumulator.prev_step_input_tokens,
                 )
 
                 metadata_accumulator.cache.record_pre_call_state(
                     profile.system_prompt, profile.tools, profile.llm_client.model_name
                 )
-                turn = TurnExecutor(turn_context)
-                self._current_turn = turn
+                step = StepExecutor(step_context)
+                self._current_step = step
 
                 try:
-                    async for e in turn.run():
+                    async for e in step.run():
                         match e:
                             case events.AssistantTextDeltaEvent() if e.content:
                                 self._task_visible_output_started = True
@@ -631,18 +631,18 @@ class TaskExecutor:
                             case events.UsageEvent() as e:
                                 cache_break = metadata_accumulator.add(e.usage)
                                 yield e
-                                if metadata_accumulator.last_turn_cache_hit_rate is not None:
+                                if metadata_accumulator.last_step_cache_hit_rate is not None:
                                     cache_hit_entry = message.CacheHitRateEntry(
-                                        cache_hit_rate=metadata_accumulator.last_turn_cache_hit_rate,
-                                        cached_tokens=metadata_accumulator.last_turn_cached_tokens,
-                                        prev_turn_input_tokens=metadata_accumulator.last_turn_prev_input_tokens,
+                                        cache_hit_rate=metadata_accumulator.last_step_cache_hit_rate,
+                                        cached_tokens=metadata_accumulator.last_step_cached_tokens,
+                                        prev_step_input_tokens=metadata_accumulator.last_step_prev_input_tokens,
                                     )
                                     session_ctx.append_history([cache_hit_entry])
                                     yield events.CacheHitRateEvent(
                                         session_id=session_ctx.session_id,
-                                        cache_hit_rate=metadata_accumulator.last_turn_cache_hit_rate,
-                                        cached_tokens=metadata_accumulator.last_turn_cached_tokens,
-                                        prev_turn_input_tokens=metadata_accumulator.last_turn_prev_input_tokens,
+                                        cache_hit_rate=metadata_accumulator.last_step_cache_hit_rate,
+                                        cached_tokens=metadata_accumulator.last_step_cached_tokens,
+                                        prev_step_input_tokens=metadata_accumulator.last_step_prev_input_tokens,
                                     )
                                 if cache_break is not None:
                                     try:
@@ -663,9 +663,9 @@ class TaskExecutor:
                             case _:
                                 yield e
 
-                    turn_succeeded = True
+                    step_succeeded = True
                     break
-                except TurnError as e:
+                except StepError as e:
                     last_error_message = str(e)
                     if is_context_overflow(last_error_message):
                         yield events.CompactionStartEvent(
@@ -761,10 +761,10 @@ class TaskExecutor:
                     if is_fallbackable_llm_error(last_error_message):
                         break
 
-                    if failed_attempts < MAX_FAILED_TURN_RETRIES:
+                    if failed_attempts < MAX_FAILED_STEP_RETRIES:
                         retry_number = failed_attempts + 1
                         delay = _retry_delay_seconds(retry_number)
-                        error_msg = f"Retrying {retry_number}/{MAX_FAILED_TURN_RETRIES} in {delay:.1f}s"
+                        error_msg = f"Retrying {retry_number}/{MAX_FAILED_STEP_RETRIES} in {delay:.1f}s"
                         if last_error_message:
                             error_msg = f"{error_msg} - {last_error_message}"
                         yield events.ErrorEvent(
@@ -775,17 +775,17 @@ class TaskExecutor:
                         continue
                     break
                 finally:
-                    self._current_turn = None
+                    self._current_step = None
 
-            if not turn_succeeded:
+            if not step_succeeded:
                 log_debug(
-                    "Maximum consecutive failed turns reached, aborting task",
+                    "Maximum consecutive failed steps reached, aborting task",
                     debug_type=DebugType.EXECUTION,
                 )
                 final_error = (
-                    "Turn failed after model fallback candidates were exhausted."
+                    "Step failed after model fallback candidates were exhausted."
                     if last_error_message and is_fallbackable_llm_error(last_error_message)
-                    else f"Turn failed after {MAX_FAILED_TURN_RETRIES} retries."
+                    else f"Step failed after {MAX_FAILED_STEP_RETRIES} retries."
                 )
                 if last_error_message:
                     final_error = f"{last_error_message}\n{final_error}"
@@ -887,15 +887,15 @@ class TaskExecutor:
                         )
                         return
 
-            if turn is None or turn.task_finished:
+            if step is None or step.task_finished:
                 # Empty response (no text, no tool calls): often caused by transient
                 # provider issues returning an empty stream. Inject a continuation
                 # prompt so the model can resume or explicitly signal completion
                 # with a final response, rather than silently ending the task.
                 if (
-                    turn is not None
-                    and turn.continue_agent
-                    and not turn.task_result.strip()
+                    step is not None
+                    and step.continue_agent
+                    and not step.task_result.strip()
                     and empty_response_retries < MAX_EMPTY_RESPONSE_RETRIES
                 ):
                     empty_response_retries += 1
@@ -924,7 +924,7 @@ class TaskExecutor:
         task_duration_s = time.perf_counter() - self._started_at
         accumulated = metadata_accumulator.finalize(task_duration_s)
 
-        is_partial_metadata = turn is not None and not turn.continue_agent
+        is_partial_metadata = step is not None and not step.continue_agent
         accumulated.is_partial = is_partial_metadata
         yield events.TaskMetadataEvent(
             metadata=accumulated, session_id=session_ctx.session_id, is_partial=is_partial_metadata
@@ -935,8 +935,8 @@ class TaskExecutor:
             yield events.TaskFileChangeSummaryEvent(summary=file_change_summary, session_id=session_ctx.session_id)
             session_ctx.append_history([file_change_summary])
 
-        # Get task result from turn
-        task_result = turn.task_result if turn is not None else ""
+        # Get task result from the final step.
+        task_result = step.task_result if step is not None else ""
 
         yield events.TaskFinishEvent(
             session_id=session_ctx.session_id,

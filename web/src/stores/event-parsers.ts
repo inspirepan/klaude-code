@@ -69,7 +69,10 @@ export function parseTaskMetadataAgent(raw: Record<string, unknown>): TaskMetada
     subAgentName: typeof raw.sub_agent_name === "string" ? raw.sub_agent_name : null,
     usage: parseTaskMetadataUsage(raw.usage),
     durationSeconds: parseFiniteNumber(raw.task_duration_s),
-    turnCount: Math.max(0, Math.floor(parseFiniteNumber(raw.turn_count) ?? 0)),
+    stepCount: Math.max(
+      0,
+      Math.floor(parseFiniteNumber(raw.step_count) ?? parseFiniteNumber(raw.turn_count) ?? 0),
+    ),
   };
 }
 

@@ -22,7 +22,7 @@ from klaude_code.agent.compaction.compaction import (
 )
 from klaude_code.const import (
     INITIAL_RETRY_DELAY_S,
-    MAX_FAILED_TURN_RETRIES,
+    MAX_FAILED_STEP_RETRIES,
     MAX_RETRY_DELAY_S,
 )
 from klaude_code.llm import LLMClientABC
@@ -220,7 +220,7 @@ async def _call_extractor(
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
 
-    for attempt in range(MAX_FAILED_TURN_RETRIES + 1):
+    for attempt in range(MAX_FAILED_STEP_RETRIES + 1):
         try:
             return await _call_extractor_once(
                 input=input,
@@ -231,7 +231,7 @@ async def _call_extractor(
         except asyncio.CancelledError:
             raise
         except Exception:
-            if attempt >= MAX_FAILED_TURN_RETRIES:
+            if attempt >= MAX_FAILED_STEP_RETRIES:
                 raise
             delay = _retry_delay_seconds(attempt + 1)
             if cancel is None:

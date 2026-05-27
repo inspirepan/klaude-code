@@ -375,13 +375,13 @@ Klaude is designed to maximize prefix cache hit rates across LLM API calls. Cach
 **Append-only message history.** The conversation history is strictly append-only. New messages, tool results, and attachments are always appended to the end of the message array, never inserted or modified in the middle. Any mutation to the head of the messages array (compressing old tool results, replacing images, reordering tool definitions) would invalidate the prefix cache and force a full re-tokenization.
 
 Design choices that preserve prefix stability:
-- **Stable system prompt**: The system prompt is composed of a static base prompt + stable tool strategy block + environment info, avoiding per-turn variation.
+- **Stable system prompt**: The system prompt is composed of a static base prompt + stable tool strategy block + environment info, avoiding per-step variation.
 - **Stable JSON serialization**: Tool schemas and provider payloads use `canonicalize_json()` for deterministic key ordering across calls.
 - **Cache control markers**: For Anthropic and OpenRouter (Claude models), `cache_control: {"type": "ephemeral"}` is placed on the system prompt and the last message part to hint the provider's caching boundary.
 - **Compaction preserves prefix**: When context is compacted, the summary is prepended as a new first message while keeping the retained tail intact -- no existing message bytes are modified.
 - **Fork-context sub-agents**: Sub-agents with `fork_context=True` inherit the parent's full system prompt and tool list to maximize prefix cache sharing.
 
-The TUI displays cache hit rate per turn in the metadata line (e.g. `cache 12.5k (98%)`). Rates below 90% are highlighted as a warning.
+The TUI displays cache hit rate per step in the metadata line (e.g. `cache 12.5k (98%)`). Rates below 90% are highlighted as a warning.
 
 ### Context Management
 

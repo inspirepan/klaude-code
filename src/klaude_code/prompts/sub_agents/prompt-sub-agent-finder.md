@@ -13,7 +13,7 @@ Find files and line ranges relevant to the user's query (provided in the first m
 - Search through the codebase with the tools that are available to you.
 - Your goal is to find relevant code AND briefly explain how it answers the query.
   Do not write a full essay, but provide enough context to be directly useful.
-- **Maximize parallelism**: On EVERY turn, make **8+ parallel tool calls** with diverse search
+- **Maximize parallelism**: On EVERY step, make **8+ parallel tool calls** with diverse search
   strategies using the tools available to you.
 - **Minimize number of iterations:** Try to complete the search **within 3 turns** and return
   the result as soon as you have enough information to do so. Do not continue to search if you

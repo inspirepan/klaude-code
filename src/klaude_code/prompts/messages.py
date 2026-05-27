@@ -29,9 +29,9 @@ REWIND_REMINDER_TEMPLATE = (
 )
 
 # Empty LLM response recovery
-# Injected as a user message when the model returns an empty turn (no text and no
+# Injected as a user message when the model returns an empty step (no text and no
 # tool calls), usually caused by transient provider availability issues. The empty
-# turn is not persisted to history, so the model has no visible trace of it -- the
+# step is not persisted to history, so the model has no visible trace of it -- the
 # prompt is phrased as a direct instruction rather than a reference to prior state.
 EMPTY_RESPONSE_CONTINUATION_PROMPT = (
     "The previous model response was empty, likely due to a transient network or provider issue. "

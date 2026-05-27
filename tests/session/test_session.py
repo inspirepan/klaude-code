@@ -122,37 +122,37 @@ class TestSessionDirectories:
         assert sessions_dir.name == "sessions"
 
 
-class TestSessionNeedTurnStart:
-    """Tests for Session.need_turn_start method."""
+class TestSessionNeedStepStart:
+    """Tests for Session.need_step_start method."""
 
-    def test_turn_start_for_assistant_after_user(self, tmp_path: Path):
+    def test_step_start_for_assistant_after_user(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
         prev = message.UserMessage(parts=message.text_parts_from_str("Hi"))
         item = message.AssistantMessage(parts=message.text_parts_from_str("Hello"))
-        assert session.need_turn_start(prev, item) is True
+        assert session.need_step_start(prev, item) is True
 
-    def test_turn_start_for_assistant_after_tool_result(self, tmp_path: Path):
+    def test_step_start_for_assistant_after_tool_result(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
         prev = message.ToolResultMessage(call_id="1", tool_name="Read", status="success", output_text="done")
         item = message.AssistantMessage(parts=message.text_parts_from_str("Thinking..."))
-        assert session.need_turn_start(prev, item) is True
+        assert session.need_step_start(prev, item) is True
 
-    def test_no_turn_start_for_user_message(self, tmp_path: Path):
+    def test_no_step_start_for_user_message(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
         prev = message.AssistantMessage(parts=message.text_parts_from_str("Hello"))
         item = message.UserMessage(parts=message.text_parts_from_str("Hi"))
-        assert session.need_turn_start(prev, item) is False
+        assert session.need_step_start(prev, item) is False
 
-    def test_turn_start_when_prev_none(self, tmp_path: Path):
+    def test_step_start_when_prev_none(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
         item = message.AssistantMessage(parts=message.text_parts_from_str("Hello"))
-        assert session.need_turn_start(None, item) is True
+        assert session.need_step_start(None, item) is True
 
-    def test_no_turn_start_for_consecutive_assistant(self, tmp_path: Path):
+    def test_no_step_start_for_consecutive_assistant(self, tmp_path: Path):
         session = Session(work_dir=tmp_path)
         prev = message.AssistantMessage(parts=message.text_parts_from_str("Hello"))
         item = message.AssistantMessage(parts=message.text_parts_from_str("Follow-up"))
-        assert session.need_turn_start(prev, item) is False
+        assert session.need_step_start(prev, item) is False
 
 
 class TestSessionPersistence:
@@ -570,7 +570,7 @@ class TestSessionPersistence:
                 [
                     message.UserMessage(parts=message.text_parts_from_str("find foo")),
                     message.AssistantMessage(parts=message.text_parts_from_str("found it")),
-                    TaskMetadataItem(main_agent=TaskMetadata(model_name="test", turn_count=1, task_duration_s=2.0)),
+                    TaskMetadataItem(main_agent=TaskMetadata(model_name="test", step_count=1, task_duration_s=2.0)),
                 ]
             )
             await sub_session.wait_for_flush()
@@ -673,7 +673,7 @@ class TestSessionPersistence:
             sub_session.append_history(
                 [
                     message.AssistantMessage(parts=message.text_parts_from_str("done")),
-                    TaskMetadataItem(main_agent=TaskMetadata(model_name="test", turn_count=1, task_duration_s=1.0)),
+                    TaskMetadataItem(main_agent=TaskMetadata(model_name="test", step_count=1, task_duration_s=1.0)),
                 ]
             )
             await sub_session.wait_for_flush()

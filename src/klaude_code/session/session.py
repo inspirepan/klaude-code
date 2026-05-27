@@ -483,7 +483,7 @@ class Session(BaseModel):
                 latest_id = sid
         return latest_id
 
-    def need_turn_start(self, prev_item: message.HistoryEvent | None, item: message.HistoryEvent) -> bool:
+    def need_step_start(self, prev_item: message.HistoryEvent | None, item: message.HistoryEvent) -> bool:
         if not isinstance(item, message.AssistantMessage):
             return False
         if prev_item is None:
@@ -513,9 +513,9 @@ class Session(BaseModel):
         prev_item: message.HistoryEvent | None = None
         last_assistant_content: str = ""
         pending_tool_calls: dict[str, events.ToolCallEvent] = {}
-        had_any_turn = False
+        had_any_step = False
         task_finish_pending = False
-        prev_turn_interrupted = False
+        prev_step_interrupted = False
         history = self.conversation_history
         history_len = len(history)
         yield events.TaskStartEvent(
@@ -527,16 +527,16 @@ class Session(BaseModel):
         msg_ts: float = 0.0
 
         def _flush_task_finish(timestamp: float) -> Iterable[events.TaskFinishEvent]:
-            nonlocal prev_turn_interrupted, last_assistant_content, task_finish_pending
+            nonlocal prev_step_interrupted, last_assistant_content, task_finish_pending
             if not task_finish_pending:
                 return
-            if not prev_turn_interrupted:
+            if not prev_step_interrupted:
                 yield events.TaskFinishEvent(
                     session_id=self.id,
                     task_result=last_assistant_content or "",
                     timestamp=timestamp,
                 )
-            prev_turn_interrupted = False
+            prev_step_interrupted = False
             last_assistant_content = ""
             task_finish_pending = False
 
@@ -550,8 +550,8 @@ class Session(BaseModel):
                 yield from pending_tool_calls.values()
                 pending_tool_calls.clear()
 
-            # Emit task boundary before user message to produce inter-turn separators during replay
-            if isinstance(it, message.UserMessage) and had_any_turn:
+            # Emit task boundary before user message to produce inter-step separators during replay
+            if isinstance(it, message.UserMessage) and had_any_step:
                 yield from _flush_task_finish(msg_ts)
                 yield events.TaskStartEvent(
                     session_id=self.id,
@@ -560,11 +560,11 @@ class Session(BaseModel):
                     parent_session_id=parent_session_id,
                 )
 
-            if self.need_turn_start(prev_item, it):
-                yield events.TurnStartEvent(session_id=self.id, timestamp=msg_ts)
+            if self.need_step_start(prev_item, it):
+                yield events.StepStartEvent(session_id=self.id, timestamp=msg_ts)
             match it:
                 case message.AssistantMessage() as am:
-                    had_any_turn = True
+                    had_any_step = True
                     task_finish_pending = True
                     last_assistant_content = message.join_text_parts(am.parts)
 
@@ -643,7 +643,7 @@ class Session(BaseModel):
                             timestamp=msg_ts,
                         )
                     if am.stop_reason == "aborted":
-                        prev_turn_interrupted = True
+                        prev_step_interrupted = True
                         yield events.InterruptEvent(session_id=self.id, timestamp=msg_ts)
                     if am.usage is not None and am.stop_reason != "error":
                         yield events.UsageEvent(
@@ -656,9 +656,9 @@ class Session(BaseModel):
                     if tr.call_id in pending_tool_calls:
                         yield pending_tool_calls.pop(tr.call_id)
                     status = "success" if tr.status == "success" else "error"
-                    # Check if this is the last tool result in the current turn
+                    # Check if this is the last tool result in the current step
                     next_item = history[idx + 1] if idx + 1 < history_len else None
-                    is_last_in_turn = not isinstance(next_item, message.ToolResultMessage)
+                    is_last_in_step = not isinstance(next_item, message.ToolResultMessage)
                     yield events.ToolResultEvent(
                         tool_call_id=tr.call_id,
                         tool_name=str(tr.tool_name),
@@ -667,7 +667,7 @@ class Session(BaseModel):
                         session_id=self.id,
                         status=status,
                         task_metadata=tr.task_metadata,
-                        is_last_in_turn=is_last_in_turn,
+                        is_last_in_step=is_last_in_step,
                         timestamp=msg_ts,
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)
@@ -714,7 +714,7 @@ class Session(BaseModel):
                 case message.StreamErrorItem():
                     pass  # skip errors during replay
                 case message.InterruptEntry() as interrupt:
-                    prev_turn_interrupted = True
+                    prev_step_interrupted = True
                     yield events.InterruptEvent(
                         session_id=self.id,
                         show_notice=interrupt.show_notice,
@@ -748,7 +748,7 @@ class Session(BaseModel):
                         session_id=self.id,
                         cache_hit_rate=cr.cache_hit_rate,
                         cached_tokens=cr.cached_tokens,
-                        prev_turn_input_tokens=cr.prev_turn_input_tokens,
+                        prev_step_input_tokens=cr.prev_step_input_tokens,
                         timestamp=msg_ts,
                     )
                 case message.FallbackModelConfigWarnEntry() as fw:
@@ -763,7 +763,7 @@ class Session(BaseModel):
                         timestamp=msg_ts,
                     )
                 case message.AwaySummaryEntry() as aw:
-                    if had_any_turn:
+                    if had_any_step:
                         yield from _flush_task_finish(msg_ts)
                     yield events.AwaySummaryEvent(session_id=self.id, text=aw.text, timestamp=msg_ts)
                 case message.PromptSuggestionEntry() as ps:
@@ -779,7 +779,7 @@ class Session(BaseModel):
             yield from pending_tool_calls.values()
             pending_tool_calls.clear()
 
-        if emit_finish and had_any_turn and task_finish_pending:
+        if emit_finish and had_any_step and task_finish_pending:
             yield from _flush_task_finish(msg_ts)
 
     def _iter_sub_agent_history_by_id(

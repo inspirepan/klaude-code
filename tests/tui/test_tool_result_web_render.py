@@ -31,7 +31,7 @@ def test_render_web_search_tool_result_hides_external_wrapper() -> None:
         tool_name=tools.WEB_SEARCH,
         result=wrapped_result,
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     output = _render_event_to_text(event)
@@ -66,7 +66,7 @@ def test_render_web_fetch_tool_result_hides_warning_but_keeps_saved_path() -> No
         tool_name=tools.WEB_FETCH,
         result=wrapped_result,
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     output = _render_event_to_text(event)

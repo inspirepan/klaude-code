@@ -167,7 +167,7 @@ class ActivityState:
     def clear_tool_calls(self) -> None:
         self._tool_calls = {}
 
-    def clear_for_new_turn(self) -> None:
+    def clear_for_new_step(self) -> None:
         self._tool_calls = {}
 
     def reset(self) -> None:
@@ -314,8 +314,8 @@ class SpinnerStatusState:
     def finish_sub_agent_tool_call(self, tool_call_id: str, tool_name: str | None = None) -> None:
         self._activity.finish_sub_agent_tool_call(tool_call_id, tool_name)
 
-    def clear_for_new_turn(self) -> None:
-        self._activity.clear_for_new_turn()
+    def clear_for_new_step(self) -> None:
+        self._activity.clear_for_new_step()
         if self._phase is SpinnerPhase.COMPOSING:
             self.enter_waiting()
 
@@ -1012,13 +1012,13 @@ class DisplayStateMachine:
                 )
                 return cmds
 
-            case events.TurnStartEvent():
+            case events.StepStartEvent():
                 cmds.append(FlushOpenBlocks())
                 if not is_replay:
                     if s.is_sub_agent:
                         s.clear_status_activity()
                     else:
-                        self._spinner.clear_for_new_turn()
+                        self._spinner.clear_for_new_step()
                         self._spinner.enter_waiting()
                     cmds.extend(self._spinner_update_commands())
                 return cmds
@@ -1304,7 +1304,7 @@ class DisplayStateMachine:
                     cmds.extend(self._spinner_update_commands())
                 return cmds
 
-            case events.TurnEndEvent():
+            case events.StepEndEvent():
                 return []
 
             case events.TaskFinishEvent() as e:
@@ -1324,9 +1324,9 @@ class DisplayStateMachine:
                     s.assistant_stream_active = False
                     cmds.append(EndAssistantStream(session_id=e.session_id))
 
-                # Rare providers / edge cases may complete a turn without emitting any
+                # Rare providers / edge cases may complete a step without emitting any
                 # assistant deltas (or without the display consuming them). In that case,
-                # fall back to rendering the final task result to avoid a "blank" turn.
+                # fall back to rendering the final task result to avoid a "blank" step.
                 if (
                     not is_replay
                     and not s.is_sub_agent

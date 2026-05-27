@@ -62,7 +62,7 @@ class TestCompactionBoundaries(unittest.TestCase):
         if len(llm_history) > 1:
             self.assertFalse(isinstance(llm_history[1], message.ToolResultMessage))
 
-    def test_adjust_cut_index_does_not_split_tool_call_turn(self) -> None:
+    def test_adjust_cut_index_does_not_split_tool_call_step(self) -> None:
         """Cut must not land between an Assistant(tool_call) and its ToolResult,
         even when a DeveloperMessage sits in between. Otherwise compacted ends
         up with a dangling tool_call that gets replaced by a synthetic

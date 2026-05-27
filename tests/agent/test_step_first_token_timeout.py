@@ -8,8 +8,8 @@ from typing import Any, cast
 
 import pytest
 
+from klaude_code.agent.step import StepError, StepExecutionContext, StepExecutor
 from klaude_code.agent.task import SessionContext
-from klaude_code.agent.turn import TurnError, TurnExecutionContext, TurnExecutor
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import llm_param, message
 from klaude_code.tool.core.runner import ToolCallRequest, ToolExecutionResult
@@ -75,11 +75,11 @@ class FakeLLMClient(LLMClientABC):
         return self._stream
 
 
-def _build_turn_executor(
+def _build_step_executor(
     stream: LLMStreamABC,
     *,
     protocol: llm_param.LLMClientProtocol = llm_param.LLMClientProtocol.ANTHROPIC,
-) -> tuple[TurnExecutor, list[message.HistoryEvent]]:
+) -> tuple[StepExecutor, list[message.HistoryEvent]]:
     history: list[message.HistoryEvent] = []
 
     def append_history(items: Sequence[message.HistoryEvent]) -> None:
@@ -96,24 +96,24 @@ def _build_turn_executor(
         run_subtask=None,
         request_user_interaction=None,
     )
-    context = TurnExecutionContext(
+    context = StepExecutionContext(
         session_ctx=session_ctx,
         llm_client=FakeLLMClient(stream, protocol=protocol),
         system_prompt=None,
         tools=[],
         tool_registry={},
     )
-    return TurnExecutor(context), history
+    return StepExecutor(context), history
 
 
 def test_stream_error_retries_with_user_continuation_prompt_for_all_protocols() -> None:
-    executor, history = _build_turn_executor(
+    executor, history = _build_step_executor(
         ErrorWithPartialTextStream(),
         protocol=llm_param.LLMClientProtocol.OPENAI,
     )
 
     async def _run() -> None:
-        with pytest.raises(TurnError, match="network interrupted"):
+        with pytest.raises(StepError, match="network interrupted"):
             async for _ in executor.run():
                 pass
 
@@ -137,7 +137,7 @@ def test_stream_error_retries_with_user_continuation_prompt_for_all_protocols() 
 
 def test_interrupt_persists_user_continuation_prompt_instead_of_aborted_assistant() -> None:
     stream = InterruptWithPartialTextStream()
-    executor, history = _build_turn_executor(stream)
+    executor, history = _build_step_executor(stream)
     executor._llm_stream = stream  # pyright: ignore[reportPrivateUsage]
     # Simulate text that would have been accumulated from AssistantTextDelta events
     executor._accumulated_assistant_text = ["partial answer"]  # pyright: ignore[reportPrivateUsage]
@@ -161,7 +161,7 @@ def test_interrupt_persists_user_continuation_prompt_instead_of_aborted_assistan
 def test_interrupt_with_only_thinking_does_not_persist_continuation_prompt() -> None:
     """When only thinking content was produced, no continuation prompt should be generated."""
     stream = InterruptWithPartialTextStream()
-    executor, history = _build_turn_executor(stream)
+    executor, history = _build_step_executor(stream)
     executor._llm_stream = stream  # pyright: ignore[reportPrivateUsage]
     # No assistant text accumulated - only thinking was produced
 
@@ -174,7 +174,7 @@ def test_interrupt_with_only_thinking_does_not_persist_continuation_prompt() -> 
 
 def test_interrupt_writes_tool_result_before_continuation_prompt() -> None:
     stream = InterruptWithPartialTextStream()
-    executor, history = _build_turn_executor(stream)
+    executor, history = _build_step_executor(stream)
     tool_call_id = "toolu_123"
     history.append(
         message.AssistantMessage(
@@ -207,7 +207,7 @@ def test_interrupt_writes_tool_result_before_continuation_prompt() -> None:
                 status="aborted",
             )
             history.append(tool_result)
-            return [ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_turn=True)]
+            return [ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_step=True)]
 
     executor._tool_executor = cast(Any, _StubToolExecutor())  # pyright: ignore[reportPrivateUsage]
 

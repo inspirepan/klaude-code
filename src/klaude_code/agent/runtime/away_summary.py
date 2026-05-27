@@ -2,7 +2,7 @@
 
 The recap is auto-triggered only when all of the following are true:
 
-- A task/turn finished.
+- A task finished.
 - The TUI is back at the prompt.
 - The user has not pressed any keys since that task finished.
 - The prompt stayed idle for the configured delay.

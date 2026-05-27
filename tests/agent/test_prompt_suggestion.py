@@ -56,11 +56,11 @@ class TestShouldSuggest(unittest.TestCase):
         sess.conversation_history = items
         return sess
 
-    def test_early_conversation_with_one_assistant_turn(self) -> None:
+    def test_early_conversation_with_one_assistant_step(self) -> None:
         sess = self._session([_user(), _assistant()])
         self.assertEqual(should_suggest(sess), "early_conversation")
 
-    def test_allows_with_two_assistant_turns(self) -> None:
+    def test_allows_with_two_assistant_steps(self) -> None:
         sess = self._session(
             [_user(), _assistant(), _user("again"), _assistant(usage=Usage(input_tokens=100, output_tokens=50))]
         )
@@ -88,7 +88,7 @@ class TestShouldSuggest(unittest.TestCase):
         self.assertIsNone(should_suggest(sess))
 
     def test_cold_cache_skips(self) -> None:
-        """First turn with no cache: large fresh work → skip."""
+        """First step with no cache: large fresh work -> skip."""
         usage = Usage(
             input_tokens=30_000,
             cached_tokens=0,

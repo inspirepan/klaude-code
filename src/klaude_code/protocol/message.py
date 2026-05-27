@@ -6,9 +6,9 @@ Streaming-only items are emitted at runtime but never persisted.
 
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from klaude_code.protocol.models import (
     AssistantPhase,
@@ -95,14 +95,24 @@ class RewindEntry(BaseModel):
 class CacheHitRateEntry(BaseModel):
     cache_hit_rate: float
     cached_tokens: int
-    prev_turn_input_tokens: int
+    prev_step_input_tokens: int
     created_at: datetime = Field(default_factory=datetime.now)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_prev_turn_input_tokens(cls, data: object) -> object:
+        if isinstance(data, dict) and "prev_step_input_tokens" not in data and "prev_turn_input_tokens" in data:
+            raw = cast(dict[str, object], data)
+            migrated = dict(raw)
+            migrated["prev_step_input_tokens"] = raw.get("prev_turn_input_tokens")
+            return migrated
+        return data
 
 
 class AwaySummaryEntry(BaseModel):
     """Persistent 'while you were away' recap entry.
 
-    Not a Message (LLM-turn payload) — sits alongside UserMessage/etc. in
+    Not a Message (LLM-step payload) — sits alongside UserMessage/etc. in
     session.conversation_history as a sidecar event. LLM-input paths filter
     by Message types, so the recap never leaks into model context.
     """
@@ -269,8 +279,8 @@ class ToolResultMessage(MessageBase):
     tool_name: str = ""
     status: ToolStatus
     output_text: str
-    # Runtime control flag: when False, task execution should stop after this turn
-    # instead of continuing to the next model turn.
+    # Runtime control flag: when False, task execution should stop after this step
+    # instead of continuing to the next model step.
     continue_agent: bool = Field(default=True, exclude=True)
     parts: list[Part] = Field(default_factory=_empty_parts)
     ui_extra: ToolResultUIExtra | None = None

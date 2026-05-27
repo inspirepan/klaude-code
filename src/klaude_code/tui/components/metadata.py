@@ -77,12 +77,12 @@ class _MetadataContent:
         metadata: TaskMetadata,
         *,
         show_context_and_time: bool = True,
-        show_turn_count: bool = True,
+        show_step_count: bool = True,
         show_duration: bool = True,
     ) -> None:
         self.metadata = metadata
         self.show_context_and_time = show_context_and_time
-        self.show_turn_count = show_turn_count
+        self.show_step_count = show_step_count
         self.show_duration = show_duration
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
@@ -96,7 +96,7 @@ class _MetadataContent:
             self.metadata,
             identity=identity,
             show_context_and_time=self.show_context_and_time,
-            show_turn_count=self.show_turn_count,
+            show_step_count=self.show_step_count,
             show_duration=self.show_duration,
         )
         yield content
@@ -107,7 +107,7 @@ def _build_metadata_content(
     *,
     identity: Text,
     show_context_and_time: bool = True,
-    show_turn_count: bool = True,
+    show_step_count: bool = True,
     show_duration: bool = True,
 ) -> RenderableType:
     """Build the content renderable for a single metadata block."""
@@ -197,11 +197,11 @@ def _build_metadata_content(
             )
         )
 
-    if show_turn_count and show_context_and_time and metadata.turn_count > 0:
-        suffix = " step" if metadata.turn_count == 1 else " steps"
+    if show_step_count and show_context_and_time and metadata.step_count > 0:
+        suffix = " step" if metadata.step_count == 1 else " steps"
         parts.append(
             Text.assemble(
-                (str(metadata.turn_count), ThemeKey.METADATA_DIM),
+                (str(metadata.step_count), ThemeKey.METADATA_DIM),
                 (suffix, ThemeKey.METADATA_DIM),
             )
         )
@@ -217,13 +217,13 @@ def _build_metadata_content_renderable(
     metadata: TaskMetadata,
     *,
     show_context_and_time: bool = True,
-    show_turn_count: bool = True,
+    show_step_count: bool = True,
     show_duration: bool = True,
 ) -> RenderableType:
     return _MetadataContent(
         metadata,
         show_context_and_time=show_context_and_time,
-        show_turn_count=show_turn_count,
+        show_step_count=show_step_count,
         show_duration=show_duration,
     )
 
@@ -237,7 +237,7 @@ def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
     main_content = _build_metadata_content_renderable(
         main,
         show_context_and_time=True,
-        show_turn_count=True,
+        show_step_count=True,
         show_duration=True,
     )
 

@@ -73,9 +73,9 @@ class ToolExecutionResult:
 
     tool_call: ToolCallRequest
     tool_result: message.ToolResultMessage
-    # Whether this is the last ToolExecutionResult emitted in the current turn.
+    # Whether this is the last ToolExecutionResult emitted in the current step.
     # Used by UI to decide whether to close the tree prefix.
-    is_last_in_turn: bool = False
+    is_last_in_step: bool = False
 
 
 @dataclass
@@ -97,7 +97,7 @@ ToolExecutorEvent = ToolExecutionCallStarted | ToolExecutionResult | ToolExecuti
 
 
 class ToolExecutor:
-    """Execute and coordinate a batch of tool calls for a single turn.
+    """Execute and coordinate a batch of tool calls for a single step.
 
     The executor is responsible for:
     - Partitioning tool calls into sequential and concurrent tools
@@ -137,12 +137,12 @@ class ToolExecutor:
 
         sequential_tool_calls, concurrent_tool_calls = self._partition_tool_calls(tool_calls)
 
-        def _mark_last_in_turn(events_to_mark: list[ToolExecutorEvent], *, is_last_in_turn: bool) -> None:
+        def _mark_last_in_step(events_to_mark: list[ToolExecutorEvent], *, is_last_in_step: bool) -> None:
             if not events_to_mark:
                 return
             first = events_to_mark[0]
             if isinstance(first, ToolExecutionResult):
-                first.is_last_in_turn = is_last_in_turn
+                first.is_last_in_step = is_last_in_step
 
         # Run sequential tools one by one.
         for idx, tool_call in enumerate(sequential_tool_calls):
@@ -151,10 +151,10 @@ class ToolExecutor:
             yield tool_call_event
 
             try:
-                is_last_in_turn = idx == len(sequential_tool_calls) - 1 and not concurrent_tool_calls
+                is_last_in_step = idx == len(sequential_tool_calls) - 1 and not concurrent_tool_calls
                 async for exec_event in self._run_single_tool_call(tool_call):
                     if isinstance(exec_event, ToolExecutionResult):
-                        exec_event.is_last_in_turn = is_last_in_turn
+                        exec_event.is_last_in_step = is_last_in_step
                     yield exec_event
             except asyncio.CancelledError:
                 # Propagate cooperative cancellation so the agent task can be stopped.
@@ -185,7 +185,7 @@ class ToolExecutor:
                 result_events = await task
 
                 remaining -= 1
-                _mark_last_in_turn(result_events, is_last_in_turn=remaining == 0)
+                _mark_last_in_step(result_events, is_last_in_step=remaining == 0)
 
                 for exec_event in result_events:
                     yield exec_event
@@ -195,7 +195,7 @@ class ToolExecutor:
 
         - Cancels any running concurrent tool tasks so they stop emitting events.
         - For each unfinished tool call, yields a ToolExecutionCallStarted (if not
-          already emitted for this turn) followed by a ToolExecutionResult with
+          already emitted for this step) followed by a ToolExecutionResult with
           error status and a standard cancellation output. The corresponding
           ToolResultMessage is appended to history via `append_history`.
         """
@@ -243,7 +243,7 @@ class ToolExecutor:
                 ToolExecutionResult(
                     tool_call=tool_call,
                     tool_result=cancel_result,
-                    is_last_in_turn=idx == len(unfinished) - 1,
+                    is_last_in_step=idx == len(unfinished) - 1,
                 )
             )
 

@@ -144,7 +144,7 @@ def test_skill_attachment_truncates_oversized_skill_content(tmp_path: Path, monk
     assert str(skill_path) in text
     assert "Read tool" in text
 
-    # Raw sha256 is preserved so skill isn't falsely detected as "changed" next turn.
+    # Raw sha256 is preserved so skill isn't falsely detected as "changed" next step.
     tracked = session.file_tracker[str(skill_path)]
     assert tracked.content_sha256 == hash_text_sha256(skill_content)
 

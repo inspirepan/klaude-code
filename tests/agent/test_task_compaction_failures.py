@@ -11,8 +11,8 @@ import pytest
 import klaude_code.agent.task as task_module
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.compaction.compaction import CompactionResult
+from klaude_code.agent.step import StepError
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
-from klaude_code.agent.turn import TurnError
 from klaude_code.protocol import events, message
 from klaude_code.protocol.models import FileStatus, SubAgentState
 from klaude_code.session.session import Session
@@ -93,7 +93,7 @@ def test_threshold_compaction_failure_emits_error_once_per_task(
 
         monkeypatch.setattr(task_module, "run_compaction", _failing_run_compaction)
 
-        class StubTurnExecutor:
+        class StubStepExecutor:
             created_count = 0
 
             def __init__(self, _: Any) -> None:
@@ -107,14 +107,14 @@ def test_threshold_compaction_failure_emits_error_once_per_task(
                 if False:
                     yield cast(events.Event, None)
 
-        monkeypatch.setattr(task_module, "TurnExecutor", StubTurnExecutor)
+        monkeypatch.setattr(task_module, "StepExecutor", StubStepExecutor)
 
         executor = _build_executor(session)
         collected = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
 
         error_events = [event for event in collected if isinstance(event, events.ErrorEvent)]
         assert compaction_calls == 1
-        assert StubTurnExecutor.created_count == 2
+        assert StubStepExecutor.created_count == 2
         assert len(error_events) == 1
         assert error_events[0].can_retry is True
         assert "Compaction failed, continuing without compaction: compact boom" in error_events[0].error_message
@@ -123,7 +123,7 @@ def test_threshold_compaction_failure_emits_error_once_per_task(
     arun(_test())
 
 
-def test_threshold_compaction_recollects_attachments_before_turn(
+def test_threshold_compaction_recollects_attachments_before_step(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project_dir = tmp_path / "test_project"
@@ -163,11 +163,11 @@ def test_threshold_compaction_recollects_attachments_before_turn(
                 attachment_position="prepend",
             )
 
-        histories_seen_by_turn: list[list[message.HistoryEvent]] = []
+        histories_seen_by_step: list[list[message.HistoryEvent]] = []
 
-        class StubTurnExecutor:
+        class StubStepExecutor:
             def __init__(self, context: Any) -> None:
-                histories_seen_by_turn.append(list(context.session_ctx.get_conversation_history()))
+                histories_seen_by_step.append(list(context.session_ctx.get_conversation_history()))
                 self.task_finished = True
                 self.continue_agent = False
                 self.task_result = "done"
@@ -176,7 +176,7 @@ def test_threshold_compaction_recollects_attachments_before_turn(
                 if False:
                     yield cast(events.Event, None)
 
-        monkeypatch.setattr(task_module, "TurnExecutor", StubTurnExecutor)
+        monkeypatch.setattr(task_module, "StepExecutor", StubStepExecutor)
 
         executor = _build_executor(session, attachments=[_available_skills_attachment])
         collected = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
@@ -187,10 +187,10 @@ def test_threshold_compaction_recollects_attachments_before_turn(
         assert message.join_text_parts(developer_events[0].item.parts) == (
             "<system-reminder>available skills</system-reminder>"
         )
-        assert histories_seen_by_turn
+        assert histories_seen_by_step
         assert any(
             isinstance(item, message.DeveloperMessage) and "available skills" in message.join_text_parts(item.parts)
-            for item in histories_seen_by_turn[0]
+            for item in histories_seen_by_step[0]
         )
         assert not any(status.is_skill_listing for status in session.file_tracker.values())
         await close_default_store()
@@ -220,7 +220,7 @@ def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
 
         monkeypatch.setattr(task_module, "run_compaction", _nothing_to_compact)
 
-        class StubTurnExecutor:
+        class StubStepExecutor:
             created_count = 0
 
             def __init__(self, _: Any) -> None:
@@ -234,20 +234,20 @@ def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
                 if False:
                     yield cast(events.Event, None)
 
-        monkeypatch.setattr(task_module, "TurnExecutor", StubTurnExecutor)
+        monkeypatch.setattr(task_module, "StepExecutor", StubStepExecutor)
 
         executor = _build_executor(session)
         collected = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
 
         assert compaction_calls == 2
-        assert StubTurnExecutor.created_count == 2
+        assert StubStepExecutor.created_count == 2
         assert not any(isinstance(event, events.ErrorEvent) for event in collected)
         await close_default_store()
 
     arun(_test())
 
 
-def test_overflow_compaction_failure_stops_without_turn_retries(
+def test_overflow_compaction_failure_stops_without_step_retries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project_dir = tmp_path / "test_project"
@@ -269,7 +269,7 @@ def test_overflow_compaction_failure_stops_without_turn_retries(
 
         monkeypatch.setattr(task_module, "run_compaction", _failing_run_compaction)
 
-        class StubTurnExecutor:
+        class StubStepExecutor:
             created_count = 0
 
             def __init__(self, _: Any) -> None:
@@ -281,16 +281,16 @@ def test_overflow_compaction_failure_stops_without_turn_retries(
             async def run(self) -> AsyncGenerator[events.Event]:
                 if False:
                     yield cast(events.Event, None)
-                raise TurnError("prompt is too long")
+                raise StepError("prompt is too long")
 
-        monkeypatch.setattr(task_module, "TurnExecutor", StubTurnExecutor)
+        monkeypatch.setattr(task_module, "StepExecutor", StubStepExecutor)
 
         executor = _build_executor(session)
         collected = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
 
         error_events = [event for event in collected if isinstance(event, events.ErrorEvent)]
         assert compaction_calls == 1
-        assert StubTurnExecutor.created_count == 1
+        assert StubStepExecutor.created_count == 1
         assert len(error_events) == 1
         assert error_events[0].can_retry is False
         assert "prompt is too long" in error_events[0].error_message
@@ -321,7 +321,7 @@ def test_overflow_compaction_failure_raises_for_sub_agents(tmp_path: Path, monke
 
         monkeypatch.setattr(task_module, "run_compaction", _failing_run_compaction)
 
-        class StubTurnExecutor:
+        class StubStepExecutor:
             created_count = 0
 
             def __init__(self, _: Any) -> None:
@@ -333,9 +333,9 @@ def test_overflow_compaction_failure_raises_for_sub_agents(tmp_path: Path, monke
             async def run(self) -> AsyncGenerator[events.Event]:
                 if False:
                     yield cast(events.Event, None)
-                raise TurnError("prompt is too long")
+                raise StepError("prompt is too long")
 
-        monkeypatch.setattr(task_module, "TurnExecutor", StubTurnExecutor)
+        monkeypatch.setattr(task_module, "StepExecutor", StubStepExecutor)
 
         executor = _build_executor(
             session,
@@ -356,7 +356,7 @@ def test_overflow_compaction_failure_raises_for_sub_agents(tmp_path: Path, monke
 
         error_events = [event for event in collected if isinstance(event, events.ErrorEvent)]
         assert compaction_calls == 1
-        assert StubTurnExecutor.created_count == 1
+        assert StubStepExecutor.created_count == 1
         assert len(error_events) == 1
         assert error_events[0].can_retry is False
         assert "prompt is too long" in error_events[0].error_message

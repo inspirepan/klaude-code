@@ -192,7 +192,7 @@ def render_tool_result(
     def wrap(content: RenderableType) -> TreeQuote:
         return TreeQuote.for_tool_result(
             content,
-            is_last=e.is_last_in_turn,
+            is_last=e.is_last_in_step,
             content_indent=_tool_result_content_indent(e.tool_name),
         )
 

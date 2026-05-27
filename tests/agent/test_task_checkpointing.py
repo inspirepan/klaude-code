@@ -53,7 +53,7 @@ def _build_executor(
 
     monkeypatch.setattr(task_module, "should_compact_threshold", _never_compact)
 
-    class StubTurnExecutor:
+    class StubStepExecutor:
         created_count = 0
 
         def __init__(self, _: Any) -> None:
@@ -70,7 +70,7 @@ def _build_executor(
             if False:
                 yield cast(events.Event, None)
 
-    monkeypatch.setattr(task_module, "TurnExecutor", StubTurnExecutor)
+    monkeypatch.setattr(task_module, "StepExecutor", StubStepExecutor)
 
     session_ctx = SessionContext(
         session_id=session.id,
@@ -92,7 +92,7 @@ def _build_executor(
             sub_agent_state=None,
         )
     )
-    return executor, StubTurnExecutor
+    return executor, StubStepExecutor
 
 
 def test_run_with_user_input_creates_single_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -113,7 +113,7 @@ def test_run_with_user_input_creates_single_checkpoint(tmp_path: Path, monkeypat
     arun(_test())
 
 
-def test_multi_turn_task_still_creates_one_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_multi_step_task_still_creates_one_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
     monkeypatch.chdir(project_dir)
@@ -121,11 +121,11 @@ def test_multi_turn_task_still_creates_one_checkpoint(tmp_path: Path, monkeypatc
     async def _test() -> None:
         session = Session.create(work_dir=project_dir)
         session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
-        executor, stub_turn = _build_executor(session, monkeypatch, [False, True], profile_tool_names=[tools.REWIND])
+        executor, stub_step = _build_executor(session, monkeypatch, [False, True], profile_tool_names=[tools.REWIND])
 
         _ = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
 
-        assert stub_turn.created_count == 2
+        assert stub_step.created_count == 2
         assert session.n_checkpoints == 1
         await close_default_store()
 

@@ -29,7 +29,7 @@ def test_render_ask_user_question_tool_result_does_not_truncate_middle() -> None
         tool_name=tools.ASK_USER_QUESTION,
         result=result,
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     output = _render_event_to_text(event)
@@ -46,7 +46,7 @@ def test_render_ask_user_question_tool_result_uses_structured_summary_ui_extra()
         tool_name=tools.ASK_USER_QUESTION,
         result="legacy text should not be rendered when ui_extra exists",
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
         ui_extra=AskUserQuestionSummaryUIExtra(
             items=[
                 AskUserQuestionSummaryItem(

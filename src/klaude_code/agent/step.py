@@ -31,15 +31,15 @@ from klaude_code.tool.core.runner import (
 )
 
 
-class TurnError(Exception):
-    """Raised when a turn fails and should be retried."""
+class StepError(Exception):
+    """Raised when a step fails and should be retried."""
 
     pass
 
 
 @dataclass
-class TurnExecutionContext:
-    """Execution context required to run a single turn."""
+class StepExecutionContext:
+    """Execution context required to run a single step."""
 
     session_ctx: SessionContext
     llm_client: LLMClientABC
@@ -49,12 +49,12 @@ class TurnExecutionContext:
     sub_agent_state: SubAgentState | None = None
     rewind_manager: RewindManager | None = None
     handoff_manager: HandoffManager | None = None
-    prev_turn_input_tokens: int = 0
+    prev_step_input_tokens: int = 0
 
 
 @dataclass
-class TurnResult:
-    """Aggregated state produced while executing a turn."""
+class StepResult:
+    """Aggregated state produced while executing a step."""
 
     assistant_message: message.AssistantMessage | None
     tool_calls: list[ToolCallRequest]
@@ -91,7 +91,7 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     arguments=tool_call.arguments_json,
                 )
             )
-        case ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_turn=is_last_in_turn):
+        case ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_step=is_last_in_step):
             ui_events.append(
                 events.ToolResultEvent(
                     session_id=session_id,
@@ -102,7 +102,7 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     ui_extra=tool_result.ui_extra,
                     status=tool_result.status,
                     task_metadata=tool_result.task_metadata,
-                    is_last_in_turn=is_last_in_turn,
+                    is_last_in_step=is_last_in_step,
                 )
             )
         case ToolExecutionOutputDelta(tool_call=tool_call, content=content):
@@ -126,17 +126,17 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
     return ui_events
 
 
-class TurnExecutor:
-    """Executes a single model turn including tool calls.
+class StepExecutor:
+    """Executes a single model step including tool calls.
 
     Manages the lifecycle of tool execution and tool context internally.
-    Raises TurnError on failure.
+    Raises StepError on failure.
     """
 
-    def __init__(self, context: TurnExecutionContext) -> None:
+    def __init__(self, context: StepExecutionContext) -> None:
         self._context = context
         self._tool_executor: ToolExecutor | None = None
-        self._turn_result: TurnResult | None = None
+        self._step_result: StepResult | None = None
         self._llm_stream: LLMStreamABC | None = None
         self._accumulated_assistant_text: list[str] = []
         self._visible_output_started = False
@@ -147,26 +147,26 @@ class TurnExecutor:
 
     @property
     def task_finished(self) -> bool:
-        """Check if this turn indicates the task should end."""
-        if self._turn_result is None:
+        """Check if this step indicates the task should end."""
+        if self._step_result is None:
             return True
-        if not self._turn_result.continue_agent:
+        if not self._step_result.continue_agent:
             return True
-        return not self._turn_result.tool_calls
+        return not self._step_result.tool_calls
 
     @property
     def task_result(self) -> str:
-        """Get the task result from this turn."""
-        if self._turn_result is not None and self._turn_result.assistant_message is not None:
-            assistant_message = self._turn_result.assistant_message
+        """Get the task result from this step."""
+        if self._step_result is not None and self._step_result.assistant_message is not None:
+            assistant_message = self._step_result.assistant_message
             return message.join_text_parts(assistant_message.parts)
         return ""
 
     @property
     def continue_agent(self) -> bool:
-        if self._turn_result is None:
+        if self._step_result is None:
             return True
-        return self._turn_result.continue_agent
+        return self._step_result.continue_agent
 
     def on_interrupt(self) -> list[events.Event]:
         """Handle an interrupt by persisting partial output and finalizing running tools.
@@ -184,28 +184,28 @@ class TurnExecutor:
         return ui_events
 
     async def run(self) -> AsyncGenerator[events.Event]:
-        """Execute the turn, yielding events as they occur.
+        """Execute the step, yielding events as they occur.
 
         Raises:
-            TurnError: If the turn fails (stream error or non-completed status).
+            StepError: If the step fails (stream error or non-completed status).
         """
         ctx = self._context
         session_ctx = ctx.session_ctx
 
-        yield events.TurnStartEvent(session_id=session_ctx.session_id)
+        yield events.StepStartEvent(session_id=session_ctx.session_id)
 
-        self._turn_result = TurnResult(
+        self._step_result = StepResult(
             assistant_message=None,
             tool_calls=[],
             stream_error=None,
         )
 
-        async for event in self._consume_llm_stream(self._turn_result):
+        async for event in self._consume_llm_stream(self._step_result):
             yield event
 
-        if self._turn_result.stream_error is not None:
+        if self._step_result.stream_error is not None:
             # Save stream error and partial output for retry continuation.
-            session_ctx.append_history([self._turn_result.stream_error])
+            session_ctx.append_history([self._step_result.stream_error])
             if RETRY_PRESERVE_PARTIAL_MESSAGE:
                 partial_text = "".join(self._accumulated_assistant_text).strip()
                 if partial_text:
@@ -213,19 +213,19 @@ class TurnExecutor:
                     session_ctx.append_history(
                         [message.UserMessage(parts=[message.TextPart(text=continuation_prompt)])]
                     )
-            yield events.TurnEndEvent(session_id=session_ctx.session_id)
-            raise TurnError(self._turn_result.stream_error.error)
+            yield events.StepEndEvent(session_id=session_ctx.session_id)
+            raise StepError(self._step_result.stream_error.error)
 
-        self._append_success_history(self._turn_result)
+        self._append_success_history(self._step_result)
 
-        if self._turn_result.tool_calls:
-            async for ui_event in self._run_tool_executor(self._turn_result.tool_calls):
+        if self._step_result.tool_calls:
+            async for ui_event in self._run_tool_executor(self._step_result.tool_calls):
                 yield ui_event
 
-        yield events.TurnEndEvent(session_id=session_ctx.session_id)
+        yield events.StepEndEvent(session_id=session_ctx.session_id)
 
-    async def _consume_llm_stream(self, turn_result: TurnResult) -> AsyncGenerator[events.Event]:
-        """Stream events from LLM and update turn_result in place."""
+    async def _consume_llm_stream(self, step_result: StepResult) -> AsyncGenerator[events.Event]:
+        """Stream events from LLM and update step_result in place."""
 
         ctx = self._context
         session_ctx = ctx.session_ctx
@@ -313,10 +313,10 @@ class TurnExecutor:
                                 response_id=msg.response_id,
                                 session_id=session_ctx.session_id,
                             )
-                        turn_result.assistant_message = msg
+                        step_result.assistant_message = msg
                         for part in msg.parts:
                             if isinstance(part, message.ToolCallPart):
-                                turn_result.tool_calls.append(
+                                step_result.tool_calls.append(
                                     ToolCallRequest(
                                         response_id=msg.response_id,
                                         call_id=part.call_id,
@@ -339,7 +339,7 @@ class TurnExecutor:
                                 session_id=session_ctx.session_id,
                                 show_notice=self.should_show_interrupt_notice,
                             )
-                        # Skip usage emission for error turns: the stream aborted before
+                        # Skip usage emission for error steps: the stream aborted before
                         # the provider sent final usage, so counts are often all-zero and
                         # would trigger a false prompt-cache-break alert (and skew hit rate).
                         if msg.usage and msg.stop_reason != "error":
@@ -356,7 +356,7 @@ class TurnExecutor:
                             )
                     case message.StreamErrorItem() as msg:
                         log_debug(msg.error, debug_type=DebugType.LLM_STREAM)
-                        turn_result.stream_error = msg
+                        step_result.stream_error = msg
                     case message.ToolCallStartDelta() as msg:
                         self._visible_output_started = True
                         if thinking_active:
@@ -382,14 +382,14 @@ class TurnExecutor:
         finally:
             self._llm_stream = None
 
-    def _append_success_history(self, turn_result: TurnResult) -> None:
-        """Persist successful turn artifacts to conversation history."""
+    def _append_success_history(self, step_result: StepResult) -> None:
+        """Persist successful step artifacts to conversation history."""
         session_ctx = self._context.session_ctx
-        if turn_result.assistant_message:
-            session_ctx.append_history([turn_result.assistant_message])
+        if step_result.assistant_message:
+            session_ctx.append_history([step_result.assistant_message])
 
     async def _run_tool_executor(self, tool_calls: list[ToolCallRequest]) -> AsyncGenerator[events.Event]:
-        """Run tools for the turn and translate executor events to UI events."""
+        """Run tools for the step and translate executor events to UI events."""
 
         ctx = self._context
         session_ctx = ctx.session_ctx
@@ -416,9 +416,9 @@ class TurnExecutor:
                 if (
                     isinstance(exec_event, ToolExecutionResult)
                     and not exec_event.tool_result.continue_agent
-                    and self._turn_result is not None
+                    and self._step_result is not None
                 ):
-                    self._turn_result.continue_agent = False
+                    self._step_result.continue_agent = False
                 for ui_event in build_events_from_tool_executor_event(session_ctx.session_id, exec_event):
                     yield ui_event
         finally:

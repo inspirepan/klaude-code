@@ -14,7 +14,7 @@ The cache lesson from Claude Code is: keep durable history stable and lightweigh
 
 Do not persist inline base64 image payloads in conversation history. History entries should store image references, preferably `ImageFilePart` objects pointing at session-scoped snapshots under `ProjectPaths.images_dir(session_id)`. Session snapshots should already be request-ready and marked frozen, so provider input conversion can hydrate them into base64 request blocks without recompressing old prompt prefixes differently on later turns.
 
-This keeps `events.jsonl` small, avoids replaying large blobs through every turn, and preserves prompt-cache stability better than dynamically rewriting old history.
+This keeps `events.jsonl` small, avoids replaying large blobs through every step, and preserves prompt-cache stability better than dynamically rewriting old history.
 
 ## Request-Time Hydration
 

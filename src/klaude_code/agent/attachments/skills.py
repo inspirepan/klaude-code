@@ -162,7 +162,7 @@ def _render_skill_inline_content(raw_content: str, skill: Skill) -> str:
 
     The raw content (not the rendered/truncated version) should still be used
     when computing the skill's file-tracker sha256; otherwise a truncated skill
-    would be re-classified as "changed" on every turn.
+    would be re-classified as "changed" on every step.
     """
     truncation = truncate_text_by_lines(raw_content, max_lines=ATTACHMENT_SKILL_MAX_LINES)
     if not truncation.truncated:

@@ -24,7 +24,7 @@ def test_web_search_truncation_indicator_uses_tool_name_indent() -> None:
         tool_name=tools.WEB_SEARCH,
         result=result,
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     output = _render_event_to_text(event)
@@ -40,7 +40,7 @@ def test_bash_truncation_indicator_keeps_existing_padding() -> None:
         tool_name=tools.BASH,
         result=result,
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     output = _render_event_to_text(event)
@@ -55,7 +55,7 @@ def test_edit_diff_result_uses_tool_name_indent_in_tree_wrap() -> None:
         tool_name=tools.EDIT,
         result="",
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
         ui_extra=DiffUIExtra(
             files=[
                 DiffFileDiff(
@@ -88,7 +88,7 @@ def test_edit_diff_result_shows_old_line_number_for_remove() -> None:
         tool_name=tools.EDIT,
         result="",
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
         ui_extra=DiffUIExtra(
             files=[
                 DiffFileDiff(
@@ -199,7 +199,7 @@ def test_web_search_indent_shrinks_on_narrow_width() -> None:
         tool_name=tools.WEB_SEARCH,
         result=result,
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     console = Console(width=14, record=True, force_terminal=False, theme=get_theme().app_theme)
