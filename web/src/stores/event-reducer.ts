@@ -39,8 +39,8 @@ export function createInitialState(): ReducerState {
 }
 
 const SKIP_EVENT_TYPES = new Set([
-  "turn.start",
-  "turn.end",
+  "step.start",
+  "step.end",
   "session.holder.acquired",
   "usage",
   "welcome",

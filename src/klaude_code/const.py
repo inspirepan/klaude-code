@@ -35,7 +35,7 @@ def get_system_temp() -> str:
 # Agent / LLM Configuration
 # =============================================================================
 
-MAX_FAILED_TURN_RETRIES = 10  # Maximum retry attempts for failed turns
+MAX_FAILED_STEP_RETRIES = 10  # Maximum retry attempts for failed steps
 MAX_EMPTY_RESPONSE_RETRIES = 3  # Maximum consecutive empty-response retries per task
 RETRY_PRESERVE_PARTIAL_MESSAGE = True  # Preserve partial message on stream error for retry continuation
 LLM_HTTP_TIMEOUT_TOTAL = 300.0  # HTTP timeout for LLM API requests (seconds)
@@ -57,7 +57,7 @@ CODEX_USER_AGENT = "pi"  # Codex user agent string
 
 LOW_CACHE_HIT_RATE_THRESHOLD = 0.9  # Cache hit rate below this triggers a warning
 THROUGHPUT_MIN_DURATION_SEC = 0.15  # Minimum duration (seconds) for throughput calculation
-INITIAL_RETRY_DELAY_S = 1.0  # Initial delay before retrying a failed turn (seconds)
+INITIAL_RETRY_DELAY_S = 1.0  # Initial delay before retrying a failed step (seconds)
 MAX_RETRY_DELAY_S = 30.0  # Maximum delay between retries (seconds)
 DEFAULT_MAX_TOKENS = 32000  # Default maximum tokens for LLM responses
 DEFAULT_TEMPERATURE = 1.0  # Default temperature for LLM requests

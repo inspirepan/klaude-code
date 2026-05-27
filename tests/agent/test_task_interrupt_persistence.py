@@ -137,7 +137,7 @@ def test_task_interrupt_does_not_duplicate_when_aborted_message_exists(
             )
         )
 
-        class _StubTurn:
+        class _StubStep:
             def on_interrupt(self) -> list[object]:
                 session.append_history(
                     [
@@ -149,7 +149,7 @@ def test_task_interrupt_does_not_duplicate_when_aborted_message_exists(
                 )
                 return []
 
-        executor._current_turn = cast(Any, _StubTurn())  # pyright: ignore[reportPrivateUsage]
+        executor._current_step = cast(Any, _StubStep())  # pyright: ignore[reportPrivateUsage]
 
         _ = executor.on_interrupt()
         await session.wait_for_flush()
@@ -199,7 +199,7 @@ def test_task_interrupt_without_visible_output_restores_input_and_hides_notice(
             )
         )
 
-        class _StubTurn:
+        class _StubStep:
             @property
             def should_show_interrupt_notice(self) -> bool:
                 return False
@@ -207,7 +207,7 @@ def test_task_interrupt_without_visible_output_restores_input_and_hides_notice(
             def on_interrupt(self) -> list[object]:
                 return []
 
-        executor._current_turn = cast(Any, _StubTurn())  # pyright: ignore[reportPrivateUsage]
+        executor._current_step = cast(Any, _StubStep())  # pyright: ignore[reportPrivateUsage]
         executor._current_user_input_text = "retry me"  # pyright: ignore[reportPrivateUsage]
 
         _ = executor.on_interrupt()
@@ -256,7 +256,7 @@ def test_task_interrupt_after_visible_output_keeps_notice_and_does_not_restore_i
             )
         )
 
-        class _StubTurn:
+        class _StubStep:
             @property
             def should_show_interrupt_notice(self) -> bool:
                 return False
@@ -264,7 +264,7 @@ def test_task_interrupt_after_visible_output_keeps_notice_and_does_not_restore_i
             def on_interrupt(self) -> list[object]:
                 return []
 
-        executor._current_turn = cast(Any, _StubTurn())  # pyright: ignore[reportPrivateUsage]
+        executor._current_step = cast(Any, _StubStep())  # pyright: ignore[reportPrivateUsage]
         executor._current_user_input_text = "retry me"  # pyright: ignore[reportPrivateUsage]
         executor._task_visible_output_started = True  # pyright: ignore[reportPrivateUsage]
 

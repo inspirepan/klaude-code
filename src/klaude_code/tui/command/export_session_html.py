@@ -1522,7 +1522,7 @@ def _meta_preview_and_title(item: message.HistoryEvent) -> tuple[str, str]:
     if isinstance(item, message.RewindEntry):
         return _text_preview(item.note, fallback=f"Checkpoint {item.checkpoint_id}"), "Rewind"
     if isinstance(item, message.InterruptEntry):
-        return "Turn interrupted", "Interrupt"
+        return "Step interrupted", "Interrupt"
     if isinstance(item, message.CacheHitRateEntry):
         return f"Cache hit rate {item.cache_hit_rate:.1%}", "Cache"
     if isinstance(item, message.SpawnSubAgentEntry):

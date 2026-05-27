@@ -191,7 +191,7 @@ def test_away_summary_entry_replays_as_event() -> None:
 
 
 def test_away_summary_filtered_from_llm_input() -> None:
-    """AwaySummaryEntry must not leak into LLM turn input — it's not a Message."""
+    """AwaySummaryEntry must not leak into LLM step input — it's not a Message."""
     session = _seed_session(
         [
             message.UserMessage(parts=message.text_parts_from_str("hi")),
@@ -199,7 +199,7 @@ def test_away_summary_filtered_from_llm_input() -> None:
             message.UserMessage(parts=message.text_parts_from_str("next")),
         ]
     )
-    # turn.py filters get_llm_history() to (UserMessage, AssistantMessage, ToolResultMessage).
+    # step.py filters get_llm_history() to (UserMessage, AssistantMessage, ToolResultMessage).
     message_types = (message.UserMessage, message.AssistantMessage, message.ToolResultMessage)
     filtered = [it for it in session.get_llm_history() if isinstance(it, message_types)]
     assert all(not isinstance(it, message.AwaySummaryEntry) for it in filtered)

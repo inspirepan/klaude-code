@@ -254,7 +254,7 @@ def _compute_diff_snippet(old_content: str, new_content: str, file_path: str) ->
 
     * If ``old_content + new_content`` already exceeds the source size limit,
       skip ``difflib`` entirely. Large HTML/minified blobs produce diffs that
-      approach ``2x`` the source, which in past sessions pushed the next turn
+      approach ``2x`` the source, which in past sessions pushed the next step
       past the 1M-token ceiling even after a successful compaction.
     * After the diff is built, keep only the first ``ATTACHMENT_DIFF_MAX_LINES``
       lines and append a Read-tool-style notice, mirroring how the Read tool

@@ -56,7 +56,7 @@ def test_render_todo_result_only_shows_todos() -> None:
                 new_completed=[],
             )
         ),
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     output = _render_tool_result_to_text(event)
@@ -75,7 +75,7 @@ def test_render_todo_error_result_keeps_update_todos_context() -> None:
         tool_name=tools.TODO_WRITE,
         result="invalid todos payload",
         status="error",
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     output = _render_tool_result_to_text(event)
@@ -92,7 +92,7 @@ def test_render_bash_tool_result_adds_left_padding() -> None:
         tool_name=tools.BASH,
         result="hi",
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     output = _render_tool_result_to_text(event)
@@ -107,7 +107,7 @@ def test_render_bash_tool_result_shows_no_content_for_empty_output() -> None:
         tool_name=tools.BASH,
         result="",
         status="success",
-        is_last_in_turn=True,
+        is_last_in_step=True,
     )
 
     output = _render_tool_result_to_text(event)

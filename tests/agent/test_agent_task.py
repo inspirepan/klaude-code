@@ -260,7 +260,7 @@ def test_basic_text_response(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_tool_call_then_followup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tool call turn -> follow-up text response."""
+    """Tool call step -> follow-up text response."""
     project_dir = tmp_path / "project"
     project_dir.mkdir()
 
@@ -271,11 +271,11 @@ def test_tool_call_then_followup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
             monkeypatch=monkeypatch,
         )
 
-        # Turn 1: tool call
+        # Step 1: tool call
         harness.fake_llm.enqueue(
             _tool_call_assistant_message([("echo", "call_1", '{"text":"hello"}')]),
         )
-        # Turn 2: text response
+        # Step 2: text response
         harness.fake_llm.enqueue(
             message.AssistantTextDelta(content="done"),
             _text_assistant_message("done"),
@@ -300,11 +300,11 @@ def test_tool_call_then_followup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
         assert len(tool_results) == 1
         assert "echo: hello" in tool_results[0].output_text
 
-        # Two TurnStartEvent and two TurnEndEvent
-        turn_starts = [e for e in collected if isinstance(e, events.TurnStartEvent)]
-        turn_ends = [e for e in collected if isinstance(e, events.TurnEndEvent)]
-        assert len(turn_starts) == 2
-        assert len(turn_ends) == 2
+        # Two StepStartEvent and two StepEndEvent
+        step_starts = [e for e in collected if isinstance(e, events.StepStartEvent)]
+        step_ends = [e for e in collected if isinstance(e, events.StepEndEvent)]
+        assert len(step_starts) == 2
+        assert len(step_ends) == 2
 
     arun(_test())
 
@@ -321,7 +321,7 @@ def test_multiple_tool_calls_in_one_response(tmp_path: Path, monkeypatch: pytest
             monkeypatch=monkeypatch,
         )
 
-        # Turn 1: two tool calls
+        # Step 1: two tool calls
         harness.fake_llm.enqueue(
             _tool_call_assistant_message(
                 [
@@ -330,7 +330,7 @@ def test_multiple_tool_calls_in_one_response(tmp_path: Path, monkeypatch: pytest
                 ]
             ),
         )
-        # Turn 2: text response
+        # Step 2: text response
         harness.fake_llm.enqueue(
             message.AssistantTextDelta(content="all done"),
             _text_assistant_message("all done"),
@@ -357,11 +357,11 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
     async def _test() -> None:
         harness = await create_harness(work_dir=project_dir, monkeypatch=monkeypatch)
 
-        # Turn 1: stream error
+        # Step 1: stream error
         harness.fake_llm.enqueue(
             message.StreamErrorItem(error="network error"),
         )
-        # Turn 2: recovered
+        # Step 2: recovered
         harness.fake_llm.enqueue(
             message.AssistantTextDelta(content="recovered"),
             _text_assistant_message("recovered"),
@@ -380,14 +380,14 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
     arun(_test())
 
 
-def test_stream_error_retry_includes_previous_tool_turn_history(
+def test_stream_error_retry_includes_previous_tool_step_history(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Retry after a stream error sees prior assistant tool call and tool result."""
     project_dir = tmp_path / "project"
     project_dir.mkdir()
 
-    def has_previous_tool_turn(items: list[message.HistoryEvent]) -> bool:
+    def has_previous_tool_step(items: list[message.HistoryEvent]) -> bool:
         has_assistant_tool_call = any(
             isinstance(item, message.AssistantMessage)
             and any(
@@ -413,7 +413,7 @@ def test_stream_error_retry_includes_previous_tool_turn_history(
         )
         captured_inputs: list[list[message.HistoryEvent]] = []
 
-        # Turn 1: successful tool call writes AssistantMessage + ToolResultMessage.
+        # Step 1: successful tool call writes AssistantMessage + ToolResultMessage.
         harness.fake_llm.enqueue(
             _tool_call_assistant_message([("echo", "call_1", '{"text":"hello"}')]),
         )
@@ -429,15 +429,15 @@ def test_stream_error_retry_includes_previous_tool_turn_history(
                 _text_assistant_message("recovered"),
             ]
 
-        # Turn 2 fails once, then the failed turn is retried.
+        # Step 2 fails once, then the failed step is retried.
         harness.fake_llm.enqueue_factory(stream_error)
         harness.fake_llm.enqueue_factory(recover)
 
         await harness.run_task("run echo then recover")
 
         assert len(captured_inputs) == 2
-        assert has_previous_tool_turn(captured_inputs[0])
-        assert has_previous_tool_turn(captured_inputs[1])
+        assert has_previous_tool_step(captured_inputs[0])
+        assert has_previous_tool_step(captured_inputs[1])
         assert "recovered" in harness.get_assistant_texts()
 
     arun(_test())
@@ -928,12 +928,12 @@ def test_fork_compaction_uses_explicit_compact_client_for_fallback(
 
 
 def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stream-error turns must not emit UsageEvent: empty usage would otherwise
+    """Stream-error steps must not emit UsageEvent: empty usage would otherwise
     show up as a false prompt-cache-break alert (cached tokens dropping to 0)."""
     project_dir = tmp_path / "project"
     project_dir.mkdir()
 
-    # Usage with a real cached-token baseline, mimicking a healthy cached turn.
+    # Usage with a real cached-token baseline, mimicking a healthy cached step.
     cached_usage = Usage(
         input_tokens=60_000,
         cached_tokens=52_000,
@@ -947,7 +947,7 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
     async def _test() -> None:
         harness = await create_harness(work_dir=project_dir, tools={"echo": MockEchoTool}, monkeypatch=monkeypatch)
 
-        # Turn 1: healthy response establishes cached-token baseline via tool call.
+        # Step 1: healthy response establishes cached-token baseline via tool call.
         harness.fake_llm.enqueue(
             message.AssistantMessage(
                 parts=[message.ToolCallPart(call_id="call-1", tool_name="echo", arguments_json='{"text": "hi"}')],
@@ -955,7 +955,7 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
                 usage=cached_usage,
             ),
         )
-        # Turn 2: LLM client signals a mid-stream network failure. Matches real
+        # Step 2: LLM client signals a mid-stream network failure. Matches real
         # client behavior: StreamErrorItem + AssistantMessage(stop_reason="error",
         # usage=<empty>). Retry attempt 1 emits the StreamErrorItem again, retry
         # attempt 2 recovers.
@@ -963,7 +963,7 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
             message.StreamErrorItem(error="RemoteProtocolError peer closed connection"),
             message.AssistantMessage(parts=[], stop_reason="error", usage=Usage()),
         )
-        # Turn 2 recovery: same prompt, cache still warm.
+        # Step 2 recovery: same prompt, cache still warm.
         recovered_usage = Usage(
             input_tokens=60_100,
             cached_tokens=52_000,
@@ -987,10 +987,10 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
         error_messages = [e.error_message for e in collected if isinstance(e, events.ErrorEvent)]
         # Retry happened.
         assert any("Retrying" in msg for msg in error_messages)
-        # But no false cache-break alert despite cached 52,000 -> 0 on the error turn.
+        # But no false cache-break alert despite cached 52,000 -> 0 on the error step.
         assert not any("cache break" in msg.lower() for msg in error_messages)
 
-        # Error turn's empty usage was not surfaced as a UsageEvent.
+        # Error step's empty usage was not surfaced as a UsageEvent.
         usage_events = [e for e in collected if isinstance(e, events.UsageEvent)]
         assert usage_events, "expected successful turns to still emit UsageEvent"
         for ue in usage_events:
@@ -1048,8 +1048,8 @@ def test_task_lifecycle_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
 
         event_types = {type(e) for e in collected}
         assert events.TaskStartEvent in event_types
-        assert events.TurnStartEvent in event_types
-        assert events.TurnEndEvent in event_types
+        assert events.StepStartEvent in event_types
+        assert events.StepEndEvent in event_types
         assert events.TaskMetadataEvent in event_types
         assert events.TaskFinishEvent in event_types
 
@@ -1247,7 +1247,7 @@ def test_llm_receives_correct_context(tmp_path: Path, monkeypatch: pytest.Monkey
     arun(_test())
 
 
-def test_multi_turn_tool_loop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_multi_step_tool_loop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Two consecutive tool calls before final text (3 turns total)."""
     project_dir = tmp_path / "project"
     project_dir.mkdir()
@@ -1259,15 +1259,15 @@ def test_multi_turn_tool_loop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
             monkeypatch=monkeypatch,
         )
 
-        # Turn 1: tool call
+        # Step 1: tool call
         harness.fake_llm.enqueue(
             _tool_call_assistant_message([("echo", "call_1", '{"text":"step1"}')]),
         )
-        # Turn 2: another tool call
+        # Step 2: another tool call
         harness.fake_llm.enqueue(
             _tool_call_assistant_message([("echo", "call_2", '{"text":"step2"}')]),
         )
-        # Turn 3: final text
+        # Step 3: final text
         harness.fake_llm.enqueue(
             message.AssistantTextDelta(content="finished"),
             _text_assistant_message("finished"),
@@ -1276,10 +1276,10 @@ def test_multi_turn_tool_loop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         collected = await harness.run_task("multi step")
 
         # 3 turns
-        turn_starts = [e for e in collected if isinstance(e, events.TurnStartEvent)]
-        turn_ends = [e for e in collected if isinstance(e, events.TurnEndEvent)]
-        assert len(turn_starts) == 3
-        assert len(turn_ends) == 3
+        step_starts = [e for e in collected if isinstance(e, events.StepStartEvent)]
+        step_ends = [e for e in collected if isinstance(e, events.StepEndEvent)]
+        assert len(step_starts) == 3
+        assert len(step_ends) == 3
 
         # Full history sequence
         history = harness.get_history_messages()

@@ -155,7 +155,7 @@ export interface TaskMetadataAgent {
   subAgentName: string | null;
   usage: TaskMetadataUsage | null;
   durationSeconds: number | null;
-  turnCount: number;
+  stepCount: number;
 }
 
 export interface TaskMetadataItem {

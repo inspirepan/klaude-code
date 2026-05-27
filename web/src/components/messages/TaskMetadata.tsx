@@ -89,10 +89,10 @@ function buildDetailRows(agent: TaskMetadataAgent, t: ReturnType<typeof useT>): 
       value: `${usage.throughputTps.toFixed(1)} tok/s`,
     });
   }
-  if (agent.turnCount > 0) {
+  if (agent.stepCount > 0) {
     rows.push({
       label: t("taskMeta.stepsLabel"),
-      value: t("taskMeta.stepsValue")(agent.turnCount),
+      value: t("taskMeta.stepsValue")(agent.stepCount),
     });
   }
 

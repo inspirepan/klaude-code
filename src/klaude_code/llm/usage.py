@@ -144,7 +144,7 @@ def convert_usage(
     """Convert OpenAI CompletionUsage to internal Usage
 
     context_token is set to total_tokens from the API response,
-    representing the actual context window usage for this turn.
+    representing the actual context window usage for this step.
     """
     completion_details = usage.completion_tokens_details
 

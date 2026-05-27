@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from klaude_code.protocol.models.usage import Usage
 
@@ -16,7 +17,14 @@ class TaskMetadata(BaseModel):
     sub_agent_name: str | None = None
     description: str | None = None
     task_duration_s: float | None = None
-    turn_count: int = 0
+    step_count: int = 0
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_turn_count(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "step_count" not in data and "turn_count" in data:
+            return {**data, "step_count": data["turn_count"]}
+        return data
 
     @staticmethod
     def merge_usage(dst: Usage, src: Usage) -> None:

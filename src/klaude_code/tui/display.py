@@ -115,7 +115,7 @@ class TUIDisplay(DisplayABC):
 
         A suggestion is invalidated by any later UserMessageEvent in the same
         replay stream (mirrors the live ``PromptSuggestionClearedEvent`` that
-        fires on a new turn but is not persisted). Interrupted cancelled tasks
+        fires on a new step but is not persisted). Interrupted cancelled tasks
         synthesize the same ``/continue`` fallback used by live display events
         when the task had already produced visible output.
         """

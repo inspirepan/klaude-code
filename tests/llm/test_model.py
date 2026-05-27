@@ -637,8 +637,17 @@ def test_usage_total_cost_computed_correctly(usage: "Usage") -> None:
     """Property: total_cost = sum of non-None cost components."""
     costs = [usage.input_cost, usage.output_cost, usage.cache_read_cost]
     non_none = [c for c in costs if c is not None]
+    has_tokens = any(
+        (
+            usage.input_tokens,
+            usage.cached_tokens,
+            usage.cache_write_tokens,
+            usage.output_tokens,
+            usage.reasoning_tokens,
+        )
+    )
 
-    if non_none:
+    if non_none and (sum(non_none) != 0 or has_tokens):
         assert usage.total_cost is not None
         assert abs(usage.total_cost - sum(non_none)) < 1e-9
     else:

@@ -11,7 +11,7 @@ from klaude_code.tui.commands import SpinnerUpdate
 from klaude_code.tui.machine import STATUS_LEFT_MIN_WIDTH_CELLS, DisplayStateMachine, SpinnerStatusState
 
 
-def test_sub_agent_tool_calls_persist_across_turn_start() -> None:
+def test_sub_agent_tool_calls_persist_across_step_start() -> None:
     state = SpinnerStatusState()
     state.add_sub_agent_tool_call("tc_1", "Tasking")
 
@@ -19,7 +19,7 @@ def test_sub_agent_tool_calls_persist_across_turn_start() -> None:
     assert activity is not None
     assert "Tasking" in activity.plain
 
-    state.clear_for_new_turn()
+    state.clear_for_new_step()
 
     activity = state.get_activity_text()
     assert activity is not None

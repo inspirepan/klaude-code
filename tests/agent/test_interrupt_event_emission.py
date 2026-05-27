@@ -1,6 +1,6 @@
 import unittest
 
-from klaude_code.agent.turn import ToolCallRequest, build_events_from_tool_executor_event
+from klaude_code.agent.step import ToolCallRequest, build_events_from_tool_executor_event
 from klaude_code.protocol import events, message
 from klaude_code.tool.core.runner import ToolExecutionResult
 
@@ -19,7 +19,7 @@ class TestInterruptEventEmission(unittest.TestCase):
             status="aborted",
             tool_name="bash",
         )
-        exec_event = ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_turn=True)
+        exec_event = ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_step=True)
 
         ui_events = build_events_from_tool_executor_event("s1", exec_event)
 

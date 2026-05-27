@@ -675,7 +675,7 @@ class TUICommandRenderer:
                 )
                 self.print()
 
-    def display_turn_start(self, event: events.TurnStartEvent) -> None:
+    def display_step_start(self, event: events.StepStartEvent) -> None:
         del event
 
     def display_image(self, file_path: str, caption: str | None = None) -> None:

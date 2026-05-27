@@ -38,7 +38,7 @@ def _renderer_and_output() -> tuple[TUICommandRenderer, io.StringIO]:
     return renderer, output
 
 
-def test_turn_start_does_not_add_extra_blank_line_before_retry_error() -> None:
+def test_step_start_does_not_add_extra_blank_line_before_retry_error() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"
 
@@ -105,7 +105,7 @@ def test_multiline_error_continuation_uses_single_grid_indent() -> None:
     assert not lines[2].startswith("    Report:")
 
 
-def test_developer_messages_stay_grouped_until_turn_boundary() -> None:
+def test_developer_messages_stay_grouped_until_step_boundary() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"
 
@@ -395,7 +395,7 @@ def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:
     assert "● hello\n\n\n± Patch" not in rendered
 
 
-def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
+def test_step_start_flushes_open_tool_block_before_spinner_updates() -> None:
     renderer, output = _renderer_and_output()
     machine = DisplayStateMachine()
     session_id = "main"
@@ -415,7 +415,7 @@ def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
         )
     )
 
-    commands = machine.transition(events.TurnStartEvent(session_id=session_id))
+    commands = machine.transition(events.StepStartEvent(session_id=session_id))
 
     assert any(isinstance(cmd, FlushOpenBlocks) for cmd in commands)
 
@@ -425,7 +425,7 @@ def test_turn_start_flushes_open_tool_block_before_spinner_updates() -> None:
     assert output.getvalue().endswith("\n\n")
 
 
-def test_replay_turn_start_flushes_open_tool_block() -> None:
+def test_replay_step_start_flushes_open_tool_block() -> None:
     renderer, output = _renderer_and_output()
     machine = DisplayStateMachine()
     session_id = "main"
@@ -446,11 +446,11 @@ def test_replay_turn_start_flushes_open_tool_block() -> None:
                 tool_name=tools.BASH,
                 result="one",
                 status="success",
-                is_last_in_turn=True,
+                is_last_in_step=True,
             ),
             is_sub_agent_session=False,
         ),
-        *machine.transition_replay(events.TurnStartEvent(session_id=session_id)),
+        *machine.transition_replay(events.StepStartEvent(session_id=session_id)),
         RenderToolCall(
             event=events.ToolCallEvent(
                 session_id=session_id,

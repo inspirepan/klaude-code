@@ -58,6 +58,8 @@ __all__ = [
     "SessionHolderReleasedEvent",
     "SessionStatsEvent",
     "SessionTitleChangedEvent",
+    "StepEndEvent",
+    "StepStartEvent",
     "SubAgentModelChangedEvent",
     "TaskFileChangeSummaryEvent",
     "TaskFinishEvent",
@@ -72,8 +74,6 @@ __all__ = [
     "ToolCallStartEvent",
     "ToolOutputDeltaEvent",
     "ToolResultEvent",
-    "TurnEndEvent",
-    "TurnStartEvent",
     "UsageEvent",
     "UserInteractionCancelledEvent",
     "UserInteractionRequestEvent",
@@ -197,7 +197,7 @@ class PromptSuggestionReadyEvent(Event):
 
 
 class PromptSuggestionClearedEvent(Event):
-    """Invalidate the currently displayed prompt suggestion (new turn
+    """Invalidate the currently displayed prompt suggestion (new step
     starting, user typed, or explicit reset). Ephemeral — UI only."""
 
     pass
@@ -323,11 +323,11 @@ class TaskFinishEvent(Event):
     task_result: str
 
 
-class TurnStartEvent(Event):
+class StepStartEvent(Event):
     pass
 
 
-class TurnEndEvent(Event):
+class StepEndEvent(Event):
     pass
 
 
@@ -338,7 +338,7 @@ class UsageEvent(ResponseEvent):
 class CacheHitRateEvent(Event):
     cache_hit_rate: float
     cached_tokens: int
-    prev_turn_input_tokens: int
+    prev_step_input_tokens: int
 
 
 class ForkCacheHitRateEvent(Event):
@@ -444,7 +444,7 @@ class EndEvent(Event):
 type ReplayEventUnion = (
     TaskStartEvent
     | TaskFinishEvent
-    | TurnStartEvent
+    | StepStartEvent
     | UsageEvent
     | ThinkingStartEvent
     | ThinkingDeltaEvent
@@ -498,7 +498,7 @@ class ToolResultEvent(ResponseEvent):
     ui_extra: ToolResultUIExtra | None = None
     status: Literal["success", "error", "aborted"]
     task_metadata: TaskMetadata | None = None
-    is_last_in_turn: bool = True
+    is_last_in_step: bool = True
 
     @property
     def is_error(self) -> bool:

@@ -91,7 +91,7 @@ def _resolve_compaction_config(
             keep_recent = min(keep_recent, max_keep)
     # Manual /compact expresses user intent to aggressively free context, not
     # just bring the session back under the auto threshold. Shrink keep_recent
-    # so roughly the last turn or two stays uncompacted. Guarded by min() so
+    # so roughly the last step or two stays uncompacted. Guarded by min() so
     # tiny sessions (where threshold keep is already small) don't inflate back.
     if reason == CompactionReason.MANUAL:
         keep_recent = min(keep_recent, max(2048, min(8192, keep_recent // 4)))
@@ -566,10 +566,10 @@ def _adjust_cut_index(history: list[message.HistoryEvent], cut_index: int, start
     # kept together. This protects get_llm_history's _strip_dangling_tool_calls from
     # fabricating synthetic "interrupted" messages (which also breaks cache prefix
     # match with the parent request).
-    return _avoid_splitting_tool_turn(history, cut_index, start_index)
+    return _avoid_splitting_tool_step(history, cut_index, start_index)
 
 
-def _avoid_splitting_tool_turn(history: list[message.HistoryEvent], cut_index: int, start_index: int) -> int:
+def _avoid_splitting_tool_step(history: list[message.HistoryEvent], cut_index: int, start_index: int) -> int:
     """Walk compacted backwards; if the most recent Assistant has dangling tool_calls,
     move cut_index to before that Assistant.
     """
@@ -604,7 +604,7 @@ def _find_anchor_index(history: list[message.HistoryEvent], start: int, *, forwa
     DeveloperMessage is skipped because this search is invoked precisely to escape
     a DeveloperMessage cut position.
 
-    The final ``_avoid_splitting_tool_turn`` pass catches the remaining unsafe
+    The final ``_avoid_splitting_tool_step`` pass catches the remaining unsafe
     case: cut landing immediately before an Assistant whose tool_calls have
     results in compacted (rare, only via backward anchor).
     """

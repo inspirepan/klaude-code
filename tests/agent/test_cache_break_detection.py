@@ -16,12 +16,12 @@ def _make_usage(cached: int = 0, input_tokens: int = 0, cache_write: int = 0) ->
 
 
 class TestCacheTrackerHitRate:
-    def test_first_turn_no_hit_rate(self) -> None:
+    def test_first_step_no_hit_rate(self) -> None:
         t = CacheTracker()
         t.update(_make_usage(cached=0, input_tokens=1000))
         assert t.last_hit_rate is None
 
-    def test_second_turn_hit_rate(self) -> None:
+    def test_second_step_hit_rate(self) -> None:
         t = CacheTracker()
         t.update(_make_usage(cached=0, input_tokens=10_000))
         t.update(_make_usage(cached=9_000, input_tokens=11_000))
@@ -36,11 +36,11 @@ class TestCacheTrackerHitRate:
         assert t.avg_hit_rate is not None
         assert abs(t.avg_hit_rate - 0.75) < 0.01
 
-    def test_prev_turn_input_tokens_uses_max(self) -> None:
+    def test_prev_step_input_tokens_uses_max(self) -> None:
         t = CacheTracker()
         # cached + cache_write > input_tokens
         t.update(_make_usage(cached=8_000, input_tokens=5_000, cache_write=4_000))
-        assert t.prev_turn_input_tokens == 12_000  # max(5000, 8000+4000)
+        assert t.prev_step_input_tokens == 12_000  # max(5000, 8000+4000)
 
 
 class TestCacheTrackerBreakDetection:
