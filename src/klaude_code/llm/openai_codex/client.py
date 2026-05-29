@@ -14,11 +14,9 @@ from klaude_code.auth.codex.token_manager import CodexTokenManager
 from klaude_code.const import (
     CODEX_BASE_URL,
     CODEX_USER_AGENT,
-    LLM_HTTP_TIMEOUT_CONNECT,
-    LLM_HTTP_TIMEOUT_READ,
-    LLM_HTTP_TIMEOUT_TOTAL,
 )
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.http import create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_responses.client import ResponsesLLMStream
 from klaude_code.llm.openai_responses.input import convert_history_to_input, convert_tool_schema
@@ -118,7 +116,7 @@ class CodexClient(LLMClientABC):
         return AsyncOpenAI(
             api_key=state.access_token,
             base_url=CODEX_BASE_URL,
-            timeout=httpx.Timeout(LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ),
+            timeout=create_http_timeout(),
             default_headers={
                 **CODEX_HEADERS,
                 "chatgpt-account-id": state.account_id,

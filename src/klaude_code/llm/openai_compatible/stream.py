@@ -33,7 +33,7 @@ from klaude_code.llm.stream_parts import (
     build_partial_parts,
 )
 from klaude_code.llm.usage import MetadataTracker, convert_usage
-from klaude_code.log import log_debug
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import StopReason
 
@@ -253,8 +253,8 @@ class DefaultReasoningHandler(ReasoningHandlerABC):
                                 model_id=self._param_model,
                             )
                         )
-                except Exception:
-                    pass
+                except pydantic.ValidationError as e:
+                    log_debug("reasoning_details parse error", str(e), debug_type=DebugType.LLM_STREAM)
             return ReasoningDeltaResult(
                 handled=True,
                 outputs=outputs,

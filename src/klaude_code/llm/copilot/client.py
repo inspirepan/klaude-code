@@ -18,9 +18,6 @@ from klaude_code.const import (
     DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
     DEFAULT_MAX_TOKENS,
     DEFAULT_TEMPERATURE,
-    LLM_HTTP_TIMEOUT_CONNECT,
-    LLM_HTTP_TIMEOUT_READ,
-    LLM_HTTP_TIMEOUT_TOTAL,
 )
 from klaude_code.llm.anthropic.client import AnthropicLLMStream
 from klaude_code.llm.anthropic.input import (
@@ -33,6 +30,7 @@ from klaude_code.llm.anthropic.input import (
     convert_tool_schema as convert_anthropic_tool_schema,
 )
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.http import create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_responses.client import ResponsesLLMStream
 from klaude_code.llm.openai_responses.input import (
@@ -187,7 +185,7 @@ class CopilotClient(LLMClientABC):
         return AsyncOpenAI(
             api_key=token,
             base_url=base_url,
-            timeout=httpx.Timeout(LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ),
+            timeout=create_http_timeout(),
             default_headers={
                 **COPILOT_STATIC_HEADERS,
                 "OpenAI-Beta": "responses=experimental",
@@ -198,7 +196,7 @@ class CopilotClient(LLMClientABC):
         return anthropic.AsyncAnthropic(
             auth_token=token,
             base_url=base_url,
-            timeout=httpx.Timeout(LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ),
+            timeout=create_http_timeout(),
             default_headers={
                 **COPILOT_STATIC_HEADERS,
             },

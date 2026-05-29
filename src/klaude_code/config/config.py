@@ -124,6 +124,41 @@ def _normalize_model_preference(value: Any) -> ModelPreference:
     return value
 
 
+def _normalize_provider_name_in_payload(data: Any) -> Any:
+    """Normalize ``provider_name`` alias in a model-validator payload (before mode)."""
+    if not isinstance(data, dict):
+        return data
+    payload = cast(dict[str, Any], data)
+    provider_name = payload.get("provider_name")
+    if isinstance(provider_name, str):
+        payload["provider_name"] = normalize_provider_name(provider_name)
+    return payload
+
+
+def _normalize_sub_agent_models_payload(data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize model preferences and sub_agent_models in a validator payload (before mode)."""
+    data["main_model"] = _normalize_model_preference(data.get("main_model"))
+    data["fast_model"] = _normalize_model_preference(data.get("fast_model"))
+    data["compact_model"] = _normalize_model_preference(data.get("compact_model"))
+    raw_val: Any = data.get("sub_agent_models") or {}
+    raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
+    normalized: dict[str, ModelPreference] = {}
+    key_map: dict[str, str] = {}
+    for profile in iter_sub_agent_profiles():
+        key_map[profile.name.lower()] = profile.name
+    for key, value in dict(raw_models).items():
+        normalized_key = str(key).strip().lower()
+        canonical = key_map.get(normalized_key)
+        if canonical is None:
+            continue
+        normalized_value = _normalize_model_preference(value)
+        if normalized_value is None:
+            continue
+        normalized[canonical] = normalized_value
+    data["sub_agent_models"] = normalized
+    return data
+
+
 def _iter_model_preference_values(value: ModelPreference) -> list[str]:
     if value is None:
         return []
@@ -197,13 +232,7 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
     @model_validator(mode="before")
     @classmethod
     def _normalize_provider_name_in_model(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        payload = cast(dict[str, Any], data)
-        provider_name = payload.get("provider_name")
-        if isinstance(provider_name, str):
-            payload["provider_name"] = normalize_provider_name(provider_name)
-        return payload
+        return _normalize_provider_name_in_payload(data)
 
     def get_resolved_api_key(self) -> str | None:
         """Get the resolved API key, expanding ${ENV_VAR} syntax if present."""
@@ -291,13 +320,7 @@ class UserProviderConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_provider_name_in_model(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        payload = cast(dict[str, Any], data)
-        provider_name = payload.get("provider_name")
-        if isinstance(provider_name, str):
-            payload["provider_name"] = normalize_provider_name(provider_name)
-        return payload
+        return _normalize_provider_name_in_payload(data)
 
 
 class ModelEntry(llm_param.LLMConfigModelParameter):
@@ -346,26 +369,7 @@ class UserConfig(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _normalize_sub_agent_models(cls, data: dict[str, Any]) -> dict[str, Any]:
-        data["main_model"] = _normalize_model_preference(data.get("main_model"))
-        data["fast_model"] = _normalize_model_preference(data.get("fast_model"))
-        data["compact_model"] = _normalize_model_preference(data.get("compact_model"))
-        raw_val: Any = data.get("sub_agent_models") or {}
-        raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
-        normalized: dict[str, ModelPreference] = {}
-        key_map: dict[str, str] = {}
-        for profile in iter_sub_agent_profiles():
-            key_map[profile.name.lower()] = profile.name
-        for key, value in dict(raw_models).items():
-            normalized_key = str(key).strip().lower()
-            canonical = key_map.get(normalized_key)
-            if canonical is None:
-                continue
-            normalized_value = _normalize_model_preference(value)
-            if normalized_value is None:
-                continue
-            normalized[canonical] = normalized_value
-        data["sub_agent_models"] = normalized
-        return data
+        return _normalize_sub_agent_models_payload(data)
 
 
 class Config(BaseModel):
@@ -381,34 +385,41 @@ class Config(BaseModel):
 
     # Internal: reference to original user config for saving
     _user_config: UserConfig | None = None
+    # Internal: lazily built case-insensitive provider index (casefold name -> providers)
+    _provider_index: dict[str, list[ProviderConfig]] | None = None
 
     @model_validator(mode="before")
     @classmethod
     def _normalize_sub_agent_models(cls, data: dict[str, Any]) -> dict[str, Any]:
-        data["main_model"] = _normalize_model_preference(data.get("main_model"))
-        data["fast_model"] = _normalize_model_preference(data.get("fast_model"))
-        data["compact_model"] = _normalize_model_preference(data.get("compact_model"))
-        raw_val: Any = data.get("sub_agent_models") or {}
-        raw_models: dict[str, Any] = cast(dict[str, Any], raw_val) if isinstance(raw_val, dict) else {}
-        normalized: dict[str, ModelPreference] = {}
-        key_map: dict[str, str] = {}
-        for profile in iter_sub_agent_profiles():
-            key_map[profile.name.lower()] = profile.name
-        for key, value in dict(raw_models).items():
-            normalized_key = str(key).strip().lower()
-            canonical = key_map.get(normalized_key)
-            if canonical is None:
-                continue
-            normalized_value = _normalize_model_preference(value)
-            if normalized_value is None:
-                continue
-            normalized[canonical] = normalized_value
-        data["sub_agent_models"] = normalized
-        return data
+        return _normalize_sub_agent_models_payload(data)
 
     def set_user_config(self, user_config: UserConfig | None) -> None:
         """Set the user config reference for saving."""
         object.__setattr__(self, "_user_config", user_config)
+
+    def _get_provider_index(self) -> dict[str, list[ProviderConfig]]:
+        """Return a cached case-insensitive index: casefold(provider_name) -> providers.
+
+        Providers preserve ``provider_list`` order; an entry may hold multiple
+        providers if names collide under casefold. Built lazily on first use.
+        """
+        index = self._provider_index
+        if index is None:
+            index = {}
+            for provider in self.provider_list:
+                index.setdefault(provider.provider_name.casefold(), []).append(provider)
+            object.__setattr__(self, "_provider_index", index)
+        return index
+
+    def _providers_for(self, requested_provider: str | None) -> list[ProviderConfig]:
+        """Resolve providers to scan for a (possibly None) requested provider.
+
+        Returns all providers in order when unqualified, or only the providers
+        matching ``requested_provider`` (case-insensitively) when qualified.
+        """
+        if requested_provider is None:
+            return self.provider_list
+        return self._get_provider_index().get(requested_provider.casefold(), [])
 
     def get_user_sub_agent_models(self) -> dict[str, ModelPreference]:
         """Return sub_agent_models from user config only (excludes builtin defaults)."""
@@ -460,9 +471,7 @@ class Config(BaseModel):
 
         model_name, provider_name = self._split_model_selector(model_selector)
         if provider_name is not None:
-            for provider in self.provider_list:
-                if provider.provider_name.casefold() != provider_name.casefold():
-                    continue
+            for provider in self._providers_for(provider_name):
                 return _find_model(provider, model_name) is not None
             return False
 
@@ -491,9 +500,7 @@ class Config(BaseModel):
         best_failure: ModelDiagnosis | None = None
         provider_matched = False
 
-        for provider in self.provider_list:
-            if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
-                continue
+        for provider in self._providers_for(requested_provider):
             provider_matched = True
             model = _find_model(provider, requested_model)
             model_present = model is not None
@@ -602,9 +609,7 @@ class Config(BaseModel):
 
         model_name, provider_name = self._split_model_selector(model_selector)
         if provider_name is not None:
-            for provider in self.provider_list:
-                if provider.provider_name.casefold() != provider_name.casefold():
-                    continue
+            for provider in self._providers_for(provider_name):
                 model = _find_model(provider, model_name)
                 if model is not None:
                     return model.model_name, provider.provider_name
@@ -624,10 +629,7 @@ class Config(BaseModel):
 
         requested_model, requested_provider = self._split_model_selector(model_selector)
 
-        for provider in self.provider_list:
-            if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
-                continue
-
+        for provider in self._providers_for(requested_provider):
             if provider.disabled or provider.is_api_key_missing():
                 continue
 
@@ -644,10 +646,7 @@ class Config(BaseModel):
             return candidates[0].llm_config
 
         requested_model, requested_provider = self._split_model_selector(model_name)
-        for provider in self.provider_list:
-            if requested_provider is not None and provider.provider_name.casefold() != requested_provider.casefold():
-                continue
-
+        for provider in self._providers_for(requested_provider):
             if provider.disabled:
                 if requested_provider is not None:
                     raise ValueError(f"Provider '{provider.provider_name}' is disabled for: {model_name}")
@@ -704,12 +703,7 @@ class Config(BaseModel):
             except ValueError:
                 continue
 
-            for provider in self.provider_list:
-                if (
-                    requested_provider is not None
-                    and provider.provider_name.casefold() != requested_provider.casefold()
-                ):
-                    continue
+            for provider in self._providers_for(requested_provider):
                 if provider.disabled or provider.is_api_key_missing():
                     continue
 

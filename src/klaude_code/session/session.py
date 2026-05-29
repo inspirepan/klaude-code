@@ -158,7 +158,7 @@ class Session(BaseModel):
     @classmethod
     def load(cls, id: str, work_dir: Path) -> Session:
         session = cls.load_meta(id, work_dir)
-        session.conversation_history = rebuild_loaded_history(session._store.iter_history(id))
+        session.conversation_history = rebuild_loaded_history(session._store.load_history(id))
         return session
 
     @classmethod
@@ -851,16 +851,13 @@ class Session(BaseModel):
                 pass
             return messages
 
-        def _maybe_backfill_user_messages(*, meta_path: Path, meta: dict[str, Any], user_messages: list[str]) -> None:
+        def _maybe_backfill_user_messages(*, session_id: str, meta: dict[str, Any], user_messages: list[str]) -> None:
             if isinstance(meta.get("user_messages"), list):
                 return
-            meta["user_messages"] = user_messages
-            try:
-                tmp_path = meta_path.with_suffix(".json.tmp")
-                tmp_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-                tmp_path.replace(meta_path)
-            except OSError:
-                return
+            # Persist through the store so the write is serialized under the
+            # store's meta lock (re-read + merge), avoiding a lost-update race
+            # with concurrent runtime-state writes during listing.
+            store.update_meta(session_id, {"user_messages": user_messages})
 
         items: list[Session.SessionMetaBrief] = []
         for meta_path in store.iter_meta_files():
@@ -883,7 +880,7 @@ class Session(BaseModel):
                 user_messages = cast(list[str], user_messages_raw)
             else:
                 user_messages = _get_user_messages(sid)
-                _maybe_backfill_user_messages(meta_path=meta_path, meta=data, user_messages=user_messages)
+                _maybe_backfill_user_messages(session_id=sid, meta=data, user_messages=user_messages)
             messages_count = int(data.get("messages_count", -1))
             model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
             session_state_raw = data.get("session_state")

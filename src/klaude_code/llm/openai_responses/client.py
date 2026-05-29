@@ -8,8 +8,8 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types import responses
 from openai.types.responses.response_create_params import ResponseCreateParamsBase
 
-from klaude_code.const import LLM_HTTP_TIMEOUT_CONNECT, LLM_HTTP_TIMEOUT_READ, LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.http import create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.registry import register
@@ -414,17 +414,13 @@ class ResponsesClient(LLMClientABC):
                 api_key=config.api_key,
                 azure_endpoint=str(config.base_url),
                 api_version=config.azure_api_version,
-                timeout=httpx.Timeout(
-                    LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
-                ),
+                timeout=create_http_timeout(),
             )
         else:
             client = AsyncOpenAI(
                 api_key=config.api_key,
                 base_url=config.base_url,
-                timeout=httpx.Timeout(
-                    LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ
-                ),
+                timeout=create_http_timeout(),
             )
         self.client: AsyncAzureOpenAI | AsyncOpenAI = client
 

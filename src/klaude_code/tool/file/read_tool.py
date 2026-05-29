@@ -1,41 +1,25 @@
 from __future__ import annotations
 
-import asyncio
-import contextlib
-import hashlib
-import json
 import os
-from dataclasses import dataclass
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from klaude_code.const import (
     BINARY_CHECK_SIZE,
     READ_CHAR_LIMIT_PER_LINE,
     READ_GLOBAL_LINE_CAP,
     READ_MAX_CHARS,
-    READ_MAX_IMAGE_BYTES,
-    READ_PARTIAL_PREVIEW_MAX_LINES,
-    ProjectPaths,
-    project_key_from_path,
 )
-from klaude_code.llm.image import detect_mime_type_from_bytes, freeze_image_to_file_for_history
+from klaude_code.log import log_debug
 from klaude_code.prompts.messages import FILE_UNCHANGED_STUB
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.protocol.models import FileStatus, ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
 from klaude_code.tool.core.abc import ToolABC, load_desc
-from klaude_code.tool.core.context import FileTracker, ToolContext
+from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
-from klaude_code.tool.file._utils import detect_encoding, file_exists, is_blocked_device_path, is_directory, read_text
-
-_IMAGE_MIME_TYPES: dict[str, str] = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif": "image/gif",
-    ".webp": "image/webp",
-}
+from klaude_code.tool.file import read_handlers
+from klaude_code.tool.file._read_core import _is_supported_image_file
+from klaude_code.tool.file._utils import file_exists, is_blocked_device_path, is_directory, read_text
 
 
 def _is_binary_file(file_path: str) -> bool:
@@ -52,133 +36,6 @@ def _is_binary_file(file_path: str) -> bool:
             return b"\x00" in chunk
     except OSError:
         return False
-
-
-def _format_numbered_line(line_no: int, content: str) -> str:
-    # 6-width right-aligned line number followed by a right arrow
-    return f"{line_no:>6}→{content}"
-
-
-@dataclass
-class ReadOptions:
-    file_path: str
-    offset: int
-    limit: int | None
-    char_limit_per_line: int | None = READ_CHAR_LIMIT_PER_LINE
-    global_line_cap: int | None = READ_GLOBAL_LINE_CAP
-    max_total_chars: int | None = READ_MAX_CHARS
-
-
-@dataclass
-class ReadSegmentResult:
-    total_lines: int
-    selected_lines: list[tuple[int, str]]
-    selected_chars_count: int
-    remaining_selected_beyond_cap: int
-    remaining_due_to_char_limit: int
-    content_sha256: str
-
-
-def _read_segment(options: ReadOptions) -> ReadSegmentResult:
-    total_lines = 0
-    selected_lines_count = 0
-    remaining_selected_beyond_cap = 0
-    remaining_due_to_char_limit = 0
-    selected_lines: list[tuple[int, str]] = []
-    selected_chars = 0
-    char_limit_reached = False
-    hasher = hashlib.sha256()
-
-    encoding = detect_encoding(options.file_path)
-    with open(options.file_path, encoding=encoding, errors="replace") as f:
-        for line_no, raw_line in enumerate(f, start=1):
-            total_lines = line_no
-            hasher.update(raw_line.encode("utf-8"))
-            within = line_no >= options.offset and (options.limit is None or selected_lines_count < options.limit)
-            if not within:
-                continue
-
-            if char_limit_reached:
-                remaining_due_to_char_limit += 1
-                continue
-
-            selected_lines_count += 1
-            content = raw_line.rstrip("\n")
-            original_len = len(content)
-            if options.char_limit_per_line is not None and original_len > options.char_limit_per_line:
-                truncated_chars = original_len - options.char_limit_per_line
-                content = (
-                    content[: options.char_limit_per_line]
-                    + f" … (more {truncated_chars} characters in this line are truncated)"
-                )
-            line_chars = len(content) + 1
-            selected_chars += line_chars
-
-            if options.max_total_chars is not None and selected_chars > options.max_total_chars:
-                char_limit_reached = True
-                selected_lines.append((line_no, content))
-                continue
-
-            if options.global_line_cap is None or len(selected_lines) < options.global_line_cap:
-                selected_lines.append((line_no, content))
-            else:
-                remaining_selected_beyond_cap += 1
-
-    return ReadSegmentResult(
-        total_lines=total_lines,
-        selected_lines=selected_lines,
-        selected_chars_count=selected_chars,
-        remaining_selected_beyond_cap=remaining_selected_beyond_cap,
-        remaining_due_to_char_limit=remaining_due_to_char_limit,
-        content_sha256=hasher.hexdigest(),
-    )
-
-
-def _track_file_access(
-    file_tracker: FileTracker | None,
-    file_path: str,
-    *,
-    content_sha256: str | None = None,
-    cached_content: str | None = None,
-    is_memory: bool = False,
-    is_skill: bool = False,
-    read_complete: bool = False,
-) -> None:
-    if file_tracker is None or not file_exists(file_path) or is_directory(file_path):
-        return
-    with contextlib.suppress(Exception):
-        existing = file_tracker.get(file_path)
-        is_mem = is_memory or (existing.is_memory if existing else False)
-        is_skill_file = is_skill or (existing.is_skill if existing else False)
-        is_dir = existing.is_directory if existing else False
-        file_tracker[file_path] = FileStatus(
-            mtime=Path(file_path).stat().st_mtime,
-            content_sha256=content_sha256,
-            cached_content=cached_content,
-            is_memory=is_mem,
-            is_skill=is_skill_file,
-            skill_attachment_source=None,
-            is_directory=is_dir,
-            read_complete=read_complete,
-        )
-
-
-def _is_supported_image_file(file_path: str) -> bool:
-    return Path(file_path).suffix.lower() in _IMAGE_MIME_TYPES
-
-
-def _image_mime_type(file_path: str) -> str:
-    suffix = Path(file_path).suffix.lower()
-    mime_type = _IMAGE_MIME_TYPES.get(suffix)
-    if mime_type is None:
-        raise ValueError(f"Unsupported image file extension: {suffix}")
-    return mime_type
-
-
-def _session_images_dir(context: ToolContext) -> Path:
-    images_dir = ProjectPaths(project_key=project_key_from_path(context.work_dir)).images_dir(context.session_id)
-    images_dir.mkdir(parents=True, exist_ok=True)
-    return images_dir
 
 
 def _missing_file_directory_candidate(file_path: str) -> str | None:
@@ -256,13 +113,6 @@ def _missing_file_error(file_path: str) -> str:
     return f"<tool_use_error>{'\n'.join(message_lines)}</tool_use_error>"
 
 
-def _truncate_content(content: str, max_chars: int | None) -> tuple[str, bool]:
-    """Truncate content to max_chars, returning (content, was_truncated)."""
-    if max_chars is None or len(content) <= max_chars:
-        return content, False
-    return content[:max_chars], True
-
-
 @register(tools.READ)
 class ReadTool(ToolABC):
     class ReadArguments(BaseModel):
@@ -308,7 +158,9 @@ class ReadTool(ToolABC):
     async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
             args = ReadTool.ReadArguments.model_validate_json(arguments)
-        except Exception as e:  # pragma: no cover - defensive
+        except (ValidationError, ValueError) as e:
+            # Pydantic raises ValidationError; malformed JSON surfaces as ValueError
+            log_debug(f"ReadTool: invalid arguments: {e}")
             return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
         return await cls.call_with_args(args, context)
 
@@ -348,11 +200,11 @@ class ReadTool(ToolABC):
 
         # --- PDF support ---
         if suffix == ".pdf":
-            return await cls._read_pdf(file_path, context)
+            return await read_handlers.read_pdf(file_path, context, max_chars)
 
         # --- Notebook (.ipynb) support ---
         if suffix == ".ipynb":
-            return await cls._read_notebook(file_path, context)
+            return await read_handlers.read_notebook(file_path, context, max_chars)
 
         is_image_file = _is_supported_image_file(file_path)
         # Check for binary files (skip for images which are handled separately)
@@ -371,7 +223,7 @@ class ReadTool(ToolABC):
             size_bytes = 0
 
         if is_image_file:
-            return await cls._read_image(file_path, size_bytes, context)
+            return await read_handlers.read_image(file_path, size_bytes, context)
 
         # --- Read dedup: avoid resending unchanged content ---
         offset = 1 if args.offset is None or args.offset < 1 else args.offset
@@ -395,215 +247,14 @@ class ReadTool(ToolABC):
             except OSError:
                 pass
 
-        try:
-            read_result = await asyncio.to_thread(
-                _read_segment,
-                ReadOptions(
-                    file_path=file_path,
-                    offset=offset,
-                    limit=limit,
-                    char_limit_per_line=char_per_line,
-                    global_line_cap=line_cap,
-                    max_total_chars=max_chars,
-                ),
-            )
-
-        except FileNotFoundError:
-            return message.ToolResultMessage(
-                status="error",
-                output_text=_missing_file_error(file_path),
-            )
-        except IsADirectoryError:
-            return message.ToolResultMessage(
-                status="error",
-                output_text="<tool_use_error>Illegal operation on a directory: read</tool_use_error>",
-            )
-
-        is_full_read = offset == 1 and limit is None
-        if offset > max(read_result.total_lines, 0):
-            warn = f"<system-reminder>Warning: the file exists but is shorter than the provided offset ({offset}). The file has {read_result.total_lines} lines.</system-reminder>"
-            _track_file_access(
-                context.file_tracker, file_path, content_sha256=read_result.content_sha256, read_complete=is_full_read
-            )
-            return message.ToolResultMessage(status="success", output_text=warn)
-
-        lines_out: list[str] = [_format_numbered_line(no, content) for no, content in read_result.selected_lines]
-
-        # Show truncation info with reason
-        if read_result.remaining_due_to_char_limit > 0:
-            lines_out.append(
-                f"… ({read_result.remaining_due_to_char_limit} more lines truncated due to {max_chars} char limit, "
-                f"file has {read_result.total_lines} lines total, use offset/limit to read other parts)"
-            )
-        elif read_result.remaining_selected_beyond_cap > 0:
-            lines_out.append(
-                f"… ({read_result.remaining_selected_beyond_cap} more lines truncated due to {line_cap} line limit, "
-                f"file has {read_result.total_lines} lines total, use offset/limit to read other parts)"
-            )
-
-        read_result_str = "\n".join(lines_out)
-        # Cache raw content for external-change diff (only complete, non-truncated reads)
-        cached_content = None
-        if (
-            is_full_read
-            and read_result.remaining_due_to_char_limit == 0
-            and read_result.remaining_selected_beyond_cap == 0
-        ):
-            with contextlib.suppress(OSError):
-                cached_content = read_text(file_path)
-        _track_file_access(
-            context.file_tracker,
+        return await read_handlers.read_text_file(
             file_path,
-            content_sha256=read_result.content_sha256,
-            cached_content=cached_content,
-            read_complete=is_full_read,
-        )
-
-        # When reading from the middle of a file, keep the UI preview compact.
-        ui_extra = None
-        if offset > 1:
-            preview_count = READ_PARTIAL_PREVIEW_MAX_LINES
-            preview_lines = [
-                ReadPreviewLine(line_no=line_no, content=content)
-                for line_no, content in read_result.selected_lines[:preview_count]
-            ]
-            remaining = len(read_result.selected_lines) - len(preview_lines)
-            ui_extra = ReadPreviewUIExtra(lines=preview_lines, remaining_lines=remaining)
-
-        return message.ToolResultMessage(status="success", output_text=read_result_str, ui_extra=ui_extra)
-
-    @classmethod
-    async def _read_image(cls, file_path: str, size_bytes: int, context: ToolContext) -> message.ToolResultMessage:
-        if size_bytes > READ_MAX_IMAGE_BYTES:
-            size_mb = size_bytes / (1024 * 1024)
-            limit_mb = READ_MAX_IMAGE_BYTES / (1024 * 1024)
-            return message.ToolResultMessage(
-                status="error",
-                output_text=(
-                    f"<tool_use_error>Image size ({size_mb:.2f}MB) exceeds maximum supported size ({limit_mb:.2f}MB) for inline transfer.</tool_use_error>"
-                ),
-            )
-        try:
-            mime_type = _image_mime_type(file_path)
-            with open(file_path, "rb") as image_file:
-                image_bytes = image_file.read()
-            # Correct MIME type if magic bytes disagree with extension
-            detected = detect_mime_type_from_bytes(image_bytes)
-            if detected:
-                mime_type = detected
-            image_part = freeze_image_to_file_for_history(
-                message.ImageFilePart(file_path=file_path, mime_type=mime_type),
-                images_dir=_session_images_dir(context),
-            )
-            if image_part is None:
-                raise OSError("failed to snapshot image for session history")
-        except Exception as exc:
-            return message.ToolResultMessage(
-                status="error",
-                output_text=f"<tool_use_error>Failed to read image file: {exc}</tool_use_error>",
-            )
-
-        _track_file_access(context.file_tracker, file_path, content_sha256=hashlib.sha256(image_bytes).hexdigest())
-        size_kb = size_bytes / 1024.0 if size_bytes else 0.0
-        output_text = f"[image] {Path(file_path).name} ({size_kb:.1f}KB)"
-        return message.ToolResultMessage(
-            status="success",
-            output_text=output_text,
-            parts=[image_part],
-            ui_extra=ImageUIExtra(file_path=file_path),
-        )
-
-    @classmethod
-    async def _read_pdf(cls, file_path: str, context: ToolContext) -> message.ToolResultMessage:
-        """Read PDF file using pdfplumber if available, otherwise return helpful error."""
-        try:
-            import pdfplumber  # type: ignore[import-untyped]  # ty: ignore[unresolved-import]  # optional dependency
-        except ImportError:
-            return message.ToolResultMessage(
-                status="error",
-                output_text=(
-                    "<tool_use_error>PDF files require pdfplumber. Install with: uv add pdfplumber\n"
-                    "Or use a Python script:\n\n"
-                    "```python\n"
-                    "# /// script\n"
-                    '# dependencies = ["pdfplumber"]\n'
-                    "# ///\n"
-                    "import pdfplumber\n\n"
-                    f"with pdfplumber.open('{file_path}') as pdf:\n"
-                    "    for page in pdf.pages:\n"
-                    "        print(page.extract_text())\n"
-                    "```\n"
-                    "</tool_use_error>"
-                ),
-            )
-
-        def _extract() -> str:
-            pages_text: list[str] = []
-            with pdfplumber.open(file_path) as pdf:  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-                for i, page in enumerate(pdf.pages, 1):  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType,reportUnknownArgumentType]
-                    text: str = page.extract_text() or ""  # pyright: ignore[reportUnknownMemberType,reportUnknownVariableType]
-                    pages_text.append(f"--- Page {i} ---\n{text}")
-            return "\n\n".join(pages_text)
-
-        try:
-            content = await asyncio.to_thread(_extract)
-        except Exception as exc:
-            return message.ToolResultMessage(
-                status="error",
-                output_text=f"<tool_use_error>Failed to read PDF: {exc}</tool_use_error>",
-            )
-
-        _, _, max_chars = cls._effective_limits()
-        content, truncated = _truncate_content(content, max_chars)
-
-        _track_file_access(context.file_tracker, file_path)
-        header = f"[PDF] {Path(file_path).name}"
-        suffix = "\n\n... (content truncated due to size limit)" if truncated else ""
-        return message.ToolResultMessage(
-            status="success",
-            output_text=f"{header}\n\n{content}{suffix}",
-        )
-
-    @classmethod
-    async def _read_notebook(cls, file_path: str, context: ToolContext) -> message.ToolResultMessage:
-        """Read Jupyter notebook (.ipynb) and return cells as structured text."""
-
-        def _parse() -> str:
-            with open(file_path, encoding="utf-8") as f:
-                nb = json.load(f)
-            cells = nb.get("cells", [])
-            parts: list[str] = []
-            for i, cell in enumerate(cells, 1):
-                cell_type = cell.get("cell_type", "unknown")
-                source = "".join(cell.get("source", []))
-                header = f"--- Cell {i} [{cell_type}] ---"
-                parts.append(f"{header}\n{source}")
-                # Include text outputs for code cells
-                outputs = cell.get("outputs", [])
-                for output in outputs:
-                    if "text" in output:
-                        text = "".join(output["text"])
-                        parts.append(f"[output]\n{text}")
-                    elif "data" in output and "text/plain" in output["data"]:
-                        text = "".join(output["data"]["text/plain"])
-                        parts.append(f"[output]\n{text}")
-            return "\n\n".join(parts)
-
-        try:
-            content = await asyncio.to_thread(_parse)
-        except Exception as exc:
-            return message.ToolResultMessage(
-                status="error",
-                output_text=f"<tool_use_error>Failed to read notebook: {exc}</tool_use_error>",
-            )
-
-        _, _, max_chars = cls._effective_limits()
-        content, truncated = _truncate_content(content, max_chars)
-
-        _track_file_access(context.file_tracker, file_path)
-        header = f"[Notebook] {Path(file_path).name}"
-        suffix = "\n\n... (content truncated due to size limit)" if truncated else ""
-        return message.ToolResultMessage(
-            status="success",
-            output_text=f"{header}\n\n{content}{suffix}",
+            context,
+            offset=offset,
+            limit=limit,
+            char_per_line=char_per_line,
+            line_cap=line_cap,
+            max_chars=max_chars,
+            read_text_full=read_text,
+            missing_file_error=_missing_file_error,
         )
