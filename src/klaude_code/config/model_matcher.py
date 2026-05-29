@@ -150,14 +150,14 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
         if len(exact_alias_matches) > 1:
             return ModelMatchResult(matched_model=None, filtered_models=exact_alias_matches, filter_hint=filter_hint)
 
-        preferred_lower = preferred.lower()
+        preferred_lower = preferred.casefold()
         # Case-insensitive exact match keeps canonical names ahead of aliases.
         exact_ci_matches = [
             m
             for m in models
-            if preferred_lower == m.selector.lower()
-            or preferred_lower == m.model_name.lower()
-            or preferred_lower == (m.model_id or "").lower()
+            if preferred_lower == m.selector.casefold()
+            or preferred_lower == m.model_name.casefold()
+            or preferred_lower == (m.model_id or "").casefold()
         ]
         if len(exact_ci_matches) == 1:
             return ModelMatchResult(
@@ -169,8 +169,8 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
         exact_alias_ci_matches = [
             m
             for m in models
-            if any(preferred_lower == selector.lower() for selector in _model_alias_selector_values(m))
-            or any(preferred_lower == alias.lower() for alias in m.model_alias)
+            if any(preferred_lower == selector.casefold() for selector in _model_alias_selector_values(m))
+            or any(preferred_lower == alias.casefold() for alias in m.model_alias)
         ]
         if len(exact_alias_ci_matches) == 1:
             return ModelMatchResult(
@@ -243,10 +243,10 @@ def match_model_from_config(preferred: str | None = None) -> ModelMatchResult:
         matches = normalized_matches or [
             m
             for m in models
-            if preferred_lower in m.selector.lower()
-            or preferred_lower in m.model_name.lower()
-            or preferred_lower in (m.model_id or "").lower()
-            or any(preferred_lower in alias.lower() for alias in m.model_alias)
+            if preferred_lower in m.selector.casefold()
+            or preferred_lower in m.model_name.casefold()
+            or preferred_lower in (m.model_id or "").casefold()
+            or any(preferred_lower in alias.casefold() for alias in m.model_alias)
         ]
         if len(matches) == 1:
             return ModelMatchResult(matched_model=matches[0].selector, filtered_models=models, filter_hint=None)

@@ -31,6 +31,7 @@ from klaude_code.llm.google.input import convert_history_to_contents, convert_to
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.json_stable import dumps_canonical_json
 from klaude_code.llm.registry import register
+from klaude_code.llm.stop_reason import map_stop_reason
 from klaude_code.llm.stream_parts import (
     append_text_part,
     append_thinking_text_part,
@@ -163,36 +164,35 @@ def _encode_thought_signature(sig: bytes | str | None) -> str | None:
     return sig
 
 
+_GOOGLE_STOP_REASON_OVERRIDES: dict[str, StopReason] = {
+    "stop": "stop",
+    "length": "length",
+    "safety": "error",
+    "recitation": "error",
+    "other": "error",
+    "content_filter": "error",
+    "blocked": "error",
+    "blocklist": "error",
+    "language": "error",
+    "prohibited_content": "error",
+    "spii": "error",
+    "malformed_function_call": "error",
+    "malformed_response": "error",
+    "unexpected_tool_call": "error",
+    "image_safety": "error",
+    "image_prohibited_content": "error",
+    "no_image": "error",
+    "image_recitation": "error",
+    "image_other": "error",
+    "cancelled": "aborted",
+    "canceled": "aborted",
+    "aborted": "aborted",
+}
+
+
 def _map_finish_reason(reason: str) -> StopReason | None:
     normalized = reason.strip().lower()
-    mapping: dict[str, StopReason] = {
-        "stop": "stop",
-        "end_turn": "stop",
-        "max_tokens": "length",
-        "length": "length",
-        "tool_use": "tool_use",
-        "safety": "error",
-        "recitation": "error",
-        "other": "error",
-        "content_filter": "error",
-        "blocked": "error",
-        "blocklist": "error",
-        "language": "error",
-        "prohibited_content": "error",
-        "spii": "error",
-        "malformed_function_call": "error",
-        "malformed_response": "error",
-        "unexpected_tool_call": "error",
-        "image_safety": "error",
-        "image_prohibited_content": "error",
-        "no_image": "error",
-        "image_recitation": "error",
-        "image_other": "error",
-        "cancelled": "aborted",
-        "canceled": "aborted",
-        "aborted": "aborted",
-    }
-    return mapping.get(normalized)
+    return map_stop_reason(normalized, _GOOGLE_STOP_REASON_OVERRIDES)
 
 
 async def _iter_google_stream_chunks(

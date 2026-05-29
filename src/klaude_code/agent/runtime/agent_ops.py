@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import traceback
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -974,8 +975,6 @@ class AgentOperationHandler:
             await self._emit_event(events.TaskFinishEvent(session_id=session_id, task_result="task cancelled"))
 
         except Exception as e:
-            import traceback
-
             log_debug(
                 f"Agent task {task_id} failed: {e!s}",
                 debug_type=DebugType.EXECUTION,
@@ -1080,8 +1079,6 @@ class AgentOperationHandler:
             )
             raise
         except Exception as exc:
-            import traceback
-
             log_debug(
                 f"[Compact:{reason}] error",
                 str(exc.__class__.__name__),

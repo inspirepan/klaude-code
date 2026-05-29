@@ -1,5 +1,7 @@
+import pydantic
+
 from klaude_code.llm.openai_compatible.stream import ReasoningDeltaResult, ReasoningDetail, ReasoningHandlerABC
-from klaude_code.log import log
+from klaude_code.log import DebugType, log, log_debug
 from klaude_code.protocol import message
 
 
@@ -43,8 +45,9 @@ class ReasoningStreamHandler(ReasoningHandlerABC):
                 if detail.format:
                     reasoning_format = detail.format
                 outputs.extend(self._on_detail(detail))
-            except Exception as e:
+            except pydantic.ValidationError as e:
                 log("reasoning_details error", str(e))
+                log_debug("reasoning_details parse error", str(e), debug_type=DebugType.LLM_STREAM)
 
         return ReasoningDeltaResult(handled=True, outputs=outputs, reasoning_format=reasoning_format)
 

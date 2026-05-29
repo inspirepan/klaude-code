@@ -1,6 +1,8 @@
 import os
 import shlex
 
+from klaude_code.log import log_debug
+
 
 class SafetyCheckResult:
     """Result of a safety check with detailed error information."""
@@ -162,9 +164,10 @@ def is_safe_command(command: str, *, work_dir: str) -> SafetyCheckResult:
     """
     try:
         argv = shlex.split(command, posix=True)
-    except ValueError:
+    except ValueError as e:
         # If we cannot reliably parse the command, treat it as safe here
         # and let the real shell surface any syntax errors
+        log_debug(f"command_safety: unparseable command treated as safe: {e}")
         return SafetyCheckResult(True)
 
     if not argv:

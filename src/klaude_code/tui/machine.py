@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import ClassVar
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -575,6 +577,10 @@ class DisplayStateMachine:
     boundaries (Start/Delta/End).
     """
 
+    # Event-type -> handler dispatch table, populated after the class body
+    # (see module-level assignment) so entries can reference the methods.
+    _EVENT_HANDLERS: ClassVar[dict[type[events.Event], Callable[..., list[RenderCommand]]]] = {}
+
     def __init__(self) -> None:
         self._sessions: dict[str, _SessionState] = {}
         self._primary_session_id: str | None = None
@@ -757,671 +763,832 @@ class DisplayStateMachine:
     def _transition(self, event: events.Event, *, is_replay: bool) -> list[RenderCommand]:
         session_id = getattr(event, "session_id", "__app__")
         s = self._session(session_id)
+        handler = self._EVENT_HANDLERS.get(type(event))
+        if handler is None:
+            return []
+        return handler(self, event, is_replay=is_replay, s=s)
+
+    def _handle_WelcomeEvent(self, e: events.WelcomeEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        # WelcomeEvent marks (or reaffirms) the current interactive session.
+        # If the session id changes (e.g., /new creates a new session), clear
+        # routing state so subsequent streamed events are not dropped.
+        if self._primary_session_id is not None and self._primary_session_id != e.session_id:
+            self._reset_sessions()
+            self._session(e.session_id)
+        self._primary_session_id = e.session_id
+        self._session_title = e.title
+        cmds.append(RenderWelcome(e))
+        cmds.append(
+            UpdateTerminalTitlePrefix(
+                prefix=self._terminal_title_prefix,
+                model_name=self._model_name,
+                session_title=self._session_title,
+            )
+        )
+        return cmds
 
-        match event:
-            case events.WelcomeEvent() as e:
-                # WelcomeEvent marks (or reaffirms) the current interactive session.
-                # If the session id changes (e.g., /new creates a new session), clear
-                # routing state so subsequent streamed events are not dropped.
-                if self._primary_session_id is not None and self._primary_session_id != e.session_id:
-                    self._reset_sessions()
-                    s = self._session(e.session_id)
+    def _handle_UserMessageEvent(
+        self, e: events.UserMessageEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return []
+        if self._has_rendered_user_message and not self._skip_next_user_message_rule:
+            cmds.append(PrintRuleLine())
+            cmds.append(PrintBlankLine())
+        cmds.append(RenderUserMessage(e))
+        self._has_rendered_user_message = True
+        self._skip_next_user_message_rule = False
+        return cmds
+
+    def _handle_BashCommandStartEvent(
+        self, e: events.BashCommandStartEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return []
+        self._bash_mode_output_chunks_by_session[e.session_id] = []
+        if not is_replay:
+            self._spinner.enter_running()
+            cmds.append(TaskClockStart())
+            cmds.append(SpinnerStart())
+            cmds.extend(self._spinner_update_commands())
+
+        cmds.append(RenderBashCommandStart(e))
+        return cmds
+
+    def _handle_BashCommandOutputDeltaEvent(
+        self, e: events.BashCommandOutputDeltaEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return []
+        chunks = self._bash_mode_output_chunks_by_session.get(e.session_id)
+        if chunks is not None and e.content:
+            chunks.append(e.content)
+        cmds.append(AppendBashCommandOutput(e))
+        return cmds
+
+    def _handle_BashCommandEndEvent(
+        self, e: events.BashCommandEndEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return []
+        cmds.append(RenderBashCommandEnd(e))
+
+        buffered_chunks = self._bash_mode_output_chunks_by_session.pop(e.session_id, [])
+        final_result = "".join(buffered_chunks).rstrip("\n")
+        if e.cancelled:
+            final_result = f"{final_result}\nCommand cancelled" if final_result else "Command cancelled"
+        elif e.exit_code not in (None, 0):
+            final_result = (
+                f"{final_result}\nCommand exited with code {e.exit_code}"
+                if final_result
+                else f"Command exited with code {e.exit_code}"
+            )
+
+        cmds.append(
+            RenderToolResult(
+                event=events.ToolResultEvent(
+                    session_id=e.session_id,
+                    tool_call_id=f"bash-mode:{e.session_id}:{e.timestamp}",
+                    tool_name=tools.BASH,
+                    result=final_result,
+                    status="aborted" if e.cancelled else "success",
+                ),
+                is_sub_agent_session=False,
+            )
+        )
+
+        if not is_replay:
+            self._spinner.enter_waiting()
+            cmds.append(TaskClockClear())
+            cmds.append(SpinnerStop())
+            cmds.extend(self._spinner_update_commands())
+
+        return cmds
+
+    def _handle_TaskStartEvent(
+        self, e: events.TaskStartEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        s.sub_agent_state = e.sub_agent_state
+        s.parent_session_id = e.parent_session_id
+        s.model_id = e.model_id
+        s.task_active = True
+        s.clear_status_activity()
+        if not s.is_sub_agent:
+            # Keep primary session tracking in sync even if the session id changes
+            # during the process lifetime (e.g., /new).
+            if is_replay:
+                self._set_primary_if_needed(e.session_id)
+            else:
                 self._primary_session_id = e.session_id
-                self._session_title = e.title
-                cmds.append(RenderWelcome(e))
+            if not is_replay:
+                cmds.append(TaskClockStart())
+                self._terminal_title_prefix = "⠋"
                 cmds.append(
-                    UpdateTerminalTitlePrefix(
-                        prefix=self._terminal_title_prefix,
+                    StartTitleBlink(
                         model_name=self._model_name,
                         session_title=self._session_title,
                     )
                 )
-                return cmds
 
-            case events.UserMessageEvent() as e:
-                if s.is_sub_agent:
-                    return []
-                if self._has_rendered_user_message and not self._skip_next_user_message_rule:
-                    cmds.append(PrintRuleLine())
-                    cmds.append(PrintBlankLine())
-                cmds.append(RenderUserMessage(e))
-                self._has_rendered_user_message = True
-                self._skip_next_user_message_rule = False
-                return cmds
+        if not is_replay:
+            cmds.append(SpinnerStart())
+        cmds.append(RenderTaskStart(e))
+        if not is_replay:
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-            case events.BashCommandStartEvent() as e:
-                if s.is_sub_agent:
-                    return []
-                self._bash_mode_output_chunks_by_session[e.session_id] = []
-                if not is_replay:
-                    self._spinner.enter_running()
-                    cmds.append(TaskClockStart())
-                    cmds.append(SpinnerStart())
-                    cmds.extend(self._spinner_update_commands())
+    def _handle_CompactionStartEvent(
+        self, e: events.CompactionStartEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if not is_replay:
+            if e.reason == "handoff":
+                self._spinner.clear_tool_calls()
+                self._spinner.set_reasoning_status(STATUS_HANDOFF_TEXT)
+            else:
+                self._spinner.enter_compacting()
+            if not s.task_active:
+                cmds.append(SpinnerStart())
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-                cmds.append(RenderBashCommandStart(e))
-                return cmds
+    def _handle_CompactionEndEvent(
+        self, e: events.CompactionEndEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if not is_replay:
+            self._spinner.enter_waiting()
+            if not s.task_active:
+                cmds.append(SpinnerStop())
+            cmds.extend(self._spinner_update_commands())
+        if e.summary and not e.aborted:
+            if e.reason == "handoff":
+                cmds.append(RenderHandoff(summary=e.summary))
+            else:
+                kept_brief = tuple((item.item_type, item.count, item.preview) for item in e.kept_items_brief)
+                cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
+        return cmds
 
-            case events.BashCommandOutputDeltaEvent() as e:
-                if s.is_sub_agent:
-                    return []
-                chunks = self._bash_mode_output_chunks_by_session.get(e.session_id)
-                if chunks is not None and e.content:
-                    chunks.append(e.content)
-                cmds.append(AppendBashCommandOutput(e))
-                return cmds
+    def _handle_ForkCacheHitRateEvent(
+        self, e: events.ForkCacheHitRateEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return []
+        if not self._is_primary(e.session_id):
+            return []
+        cmds.append(
+            RenderForkCacheHitRate(
+                fork_label=e.fork_label,
+                cache_read_tokens=e.cache_read_tokens,
+                cache_creation_tokens=e.cache_creation_tokens,
+                input_tokens=e.input_tokens,
+                cache_hit_rate=e.cache_hit_rate,
+                fallback_used=e.fallback_used,
+            )
+        )
+        return cmds
 
-            case events.BashCommandEndEvent() as e:
-                if s.is_sub_agent:
-                    return []
-                cmds.append(RenderBashCommandEnd(e))
+    def _handle_RewindEvent(self, e: events.RewindEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(
+            RenderRewind(
+                checkpoint_id=e.checkpoint_id,
+                note=e.note,
+                rationale=e.rationale,
+                original_user_message=e.original_user_message,
+                messages_discarded=e.messages_discarded,
+            )
+        )
+        return cmds
 
-                buffered_chunks = self._bash_mode_output_chunks_by_session.pop(e.session_id, [])
-                final_result = "".join(buffered_chunks).rstrip("\n")
-                if e.cancelled:
-                    final_result = f"{final_result}\nCommand cancelled" if final_result else "Command cancelled"
-                elif e.exit_code not in (None, 0):
-                    final_result = (
-                        f"{final_result}\nCommand exited with code {e.exit_code}"
-                        if final_result
-                        else f"Command exited with code {e.exit_code}"
-                    )
+    def _handle_DeveloperMessageEvent(
+        self, e: events.DeveloperMessageEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderDeveloperMessage(e))
+        return cmds
 
-                cmds.append(
-                    RenderToolResult(
-                        event=events.ToolResultEvent(
-                            session_id=e.session_id,
-                            tool_call_id=f"bash-mode:{e.session_id}:{e.timestamp}",
-                            tool_name=tools.BASH,
-                            result=final_result,
-                            status="aborted" if e.cancelled else "success",
-                        ),
-                        is_sub_agent_session=False,
-                    )
-                )
+    def _handle_SessionTitleChangedEvent(
+        self, e: events.SessionTitleChangedEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        self._session_title = e.title
+        cmds.append(
+            UpdateTerminalTitlePrefix(
+                prefix=self._terminal_title_prefix,
+                model_name=self._model_name,
+                session_title=self._session_title,
+            )
+        )
+        return cmds
 
-                if not is_replay:
-                    self._spinner.enter_waiting()
-                    cmds.append(TaskClockClear())
-                    cmds.append(SpinnerStop())
-                    cmds.extend(self._spinner_update_commands())
+    def _handle_NoticeEvent(self, e: events.NoticeEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderNotice(e))
+        return cmds
 
-                return cmds
+    def _handle_AwaySummaryEvent(
+        self, e: events.AwaySummaryEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderAwaySummary(e))
+        return cmds
 
-            case events.TaskStartEvent() as e:
-                s.sub_agent_state = e.sub_agent_state
-                s.parent_session_id = e.parent_session_id
-                s.model_id = e.model_id
-                s.task_active = True
+    def _handle_AwaySummaryStartEvent(
+        self, e: events.AwaySummaryStartEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if not is_replay:
+            self._spinner.enter_recapping()
+            if not s.task_active:
+                cmds.append(SpinnerStart())
+            cmds.extend(self._spinner_update_commands())
+        return cmds
+
+    def _handle_AwaySummaryEndEvent(
+        self, e: events.AwaySummaryEndEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if not is_replay:
+            self._spinner.enter_waiting()
+            if not s.task_active:
+                cmds.append(SpinnerStop())
+            cmds.extend(self._spinner_update_commands())
+        return cmds
+
+    def _handle_SessionStatsEvent(
+        self, e: events.SessionStatsEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderSessionStats(e))
+        return cmds
+
+    def _handle_ModelChangedEvent(
+        self, e: events.ModelChangedEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderNotice(self._notice_from_model_changed(e)))
+        return cmds
+
+    def _handle_ThinkingChangedEvent(
+        self, e: events.ThinkingChangedEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderNotice(self._notice_from_thinking_changed(e)))
+        return cmds
+
+    def _handle_SubAgentModelChangedEvent(
+        self, e: events.SubAgentModelChangedEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderNotice(self._notice_from_sub_agent_model_changed(e)))
+        return cmds
+
+    def _handle_CompactModelChangedEvent(
+        self, e: events.CompactModelChangedEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderNotice(self._notice_from_compact_model_changed(e)))
+        return cmds
+
+    def _handle_FallbackModelConfigWarnEvent(
+        self, e: events.FallbackModelConfigWarnEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderNotice(self._notice_from_fallback_model_config_warn(e)))
+        return cmds
+
+    def _handle_OperationRejectedEvent(
+        self, e: events.OperationRejectedEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(
+            RenderNotice(
+                events.NoticeEvent(
+                    session_id=e.session_id,
+                    content=(
+                        "Operation rejected: session busy "
+                        f"(operation={e.operation_type}, active_task_id={e.active_task_id or 'unknown'})"
+                    ),
+                    is_error=True,
+                ),
+            )
+        )
+        return cmds
+
+    def _handle_StepStartEvent(
+        self, e: events.StepStartEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(FlushOpenBlocks())
+        if not is_replay:
+            if s.is_sub_agent:
                 s.clear_status_activity()
-                if not s.is_sub_agent:
-                    # Keep primary session tracking in sync even if the session id changes
-                    # during the process lifetime (e.g., /new).
-                    if is_replay:
-                        self._set_primary_if_needed(e.session_id)
-                    else:
-                        self._primary_session_id = e.session_id
-                    if not is_replay:
-                        cmds.append(TaskClockStart())
-                        self._terminal_title_prefix = "⠋"
-                        cmds.append(
-                            StartTitleBlink(
-                                model_name=self._model_name,
-                                session_title=self._session_title,
-                            )
-                        )
+            else:
+                self._spinner.clear_for_new_step()
+                self._spinner.enter_waiting()
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-                if not is_replay:
-                    cmds.append(SpinnerStart())
-                cmds.append(RenderTaskStart(e))
-                if not is_replay:
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+    def _handle_ThinkingStartEvent(
+        self, e: events.ThinkingStartEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return []
+        if not self._is_primary(e.session_id):
+            return []
+        s.thinking_stream_active = True
+        # Ensure the status reflects that reasoning has started even
+        # before we receive any deltas.
+        if not is_replay:
+            self._spinner.enter_thinking()
+        cmds.append(StartThinkingStream(session_id=e.session_id))
+        if not is_replay:
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-            case events.CompactionStartEvent() as e:
-                if not is_replay:
-                    if e.reason == "handoff":
-                        self._spinner.clear_tool_calls()
-                        self._spinner.set_reasoning_status(STATUS_HANDOFF_TEXT)
-                    else:
-                        self._spinner.enter_compacting()
-                    if not s.task_active:
-                        cmds.append(SpinnerStart())
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+    def _handle_ThinkingDeltaEvent(
+        self, e: events.ThinkingDeltaEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return cmds
 
-            case events.CompactionEndEvent() as e:
-                if not is_replay:
-                    self._spinner.enter_waiting()
-                    if not s.task_active:
-                        cmds.append(SpinnerStop())
-                    cmds.extend(self._spinner_update_commands())
-                if e.summary and not e.aborted:
-                    if e.reason == "handoff":
-                        cmds.append(RenderHandoff(summary=e.summary))
-                    else:
-                        kept_brief = tuple((item.item_type, item.count, item.preview) for item in e.kept_items_brief)
-                        cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
-                return cmds
+        if not self._is_primary(e.session_id):
+            return []
+        cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
+        return cmds
 
-            case events.ForkCacheHitRateEvent() as e:
-                if s.is_sub_agent:
-                    return []
-                if not self._is_primary(e.session_id):
-                    return []
-                cmds.append(
-                    RenderForkCacheHitRate(
-                        fork_label=e.fork_label,
-                        cache_read_tokens=e.cache_read_tokens,
-                        cache_creation_tokens=e.cache_creation_tokens,
-                        input_tokens=e.input_tokens,
-                        cache_hit_rate=e.cache_hit_rate,
-                        fallback_used=e.fallback_used,
-                    )
-                )
-                return cmds
+    def _handle_ThinkingEndEvent(
+        self, e: events.ThinkingEndEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return []
+        if not self._is_primary(e.session_id):
+            return []
+        s.thinking_stream_active = False
+        if not is_replay:
+            self._spinner.clear_default_reasoning_status()
+        cmds.append(EndThinkingStream(session_id=e.session_id))
+        if not is_replay:
+            cmds.append(SpinnerStart())
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-            case events.RewindEvent() as e:
-                cmds.append(
-                    RenderRewind(
-                        checkpoint_id=e.checkpoint_id,
-                        note=e.note,
-                        rationale=e.rationale,
-                        original_user_message=e.original_user_message,
-                        messages_discarded=e.messages_discarded,
-                    )
-                )
-                return cmds
+    def _handle_AssistantTextStartEvent(
+        self, e: events.AssistantTextStartEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            if not is_replay:
+                s.status_composing = True
+                cmds.extend(self._spinner_update_commands())
+            return cmds
+        if not self._is_primary(e.session_id):
+            return []
 
-            case events.DeveloperMessageEvent() as e:
-                cmds.append(RenderDeveloperMessage(e))
-                return cmds
+        s.assistant_stream_active = True
+        s.assistant_char_count = 0
+        if not is_replay:
+            self._spinner.set_composing(True)
+            self._spinner.clear_tool_calls()
+        cmds.append(StartAssistantStream(session_id=e.session_id))
+        if not is_replay:
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-            case events.SessionTitleChangedEvent() as e:
-                self._session_title = e.title
-                cmds.append(
-                    UpdateTerminalTitlePrefix(
-                        prefix=self._terminal_title_prefix,
-                        model_name=self._model_name,
-                        session_title=self._session_title,
-                    )
-                )
-                return cmds
+    def _handle_AssistantTextDeltaEvent(
+        self, e: events.AssistantTextDeltaEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return []
+        if not self._is_primary(e.session_id):
+            return []
 
-            case events.NoticeEvent() as e:
-                cmds.append(RenderNotice(e))
-                return cmds
+        s.assistant_char_count += len(e.content)
+        if not is_replay:
+            self._spinner.set_buffer_length(s.assistant_char_count)
+        cmds.append(AppendAssistant(session_id=e.session_id, content=e.content))
+        if not is_replay:
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-            case events.AwaySummaryEvent() as e:
-                cmds.append(RenderAwaySummary(e))
-                return cmds
+    def _handle_AssistantTextEndEvent(
+        self, e: events.AssistantTextEndEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            if not is_replay:
+                s.status_composing = False
+                cmds.extend(self._spinner_update_commands())
+            return cmds
+        if not self._is_primary(e.session_id):
+            return []
 
-            case events.AwaySummaryStartEvent():
-                if not is_replay:
-                    self._spinner.enter_recapping()
-                    if not s.task_active:
-                        cmds.append(SpinnerStart())
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+        s.assistant_stream_active = False
+        if not is_replay:
+            self._spinner.set_composing(False)
+        cmds.append(EndAssistantStream(session_id=e.session_id))
+        if not is_replay:
+            cmds.append(SpinnerStart())
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-            case events.AwaySummaryEndEvent():
-                if not is_replay:
-                    self._spinner.enter_waiting()
-                    if not s.task_active:
-                        cmds.append(SpinnerStop())
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+    def _handle_ResponseCompleteEvent(
+        self, e: events.ResponseCompleteEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            if not is_replay:
+                s.status_composing = False
+                cmds.extend(self._spinner_update_commands())
+            return []
+        if not self._is_primary(e.session_id):
+            return []
 
-            case events.SessionStatsEvent() as e:
-                cmds.append(RenderSessionStats(e))
-                return cmds
-
-            case events.ModelChangedEvent() as e:
-                cmds.append(RenderNotice(self._notice_from_model_changed(e)))
-                return cmds
-
-            case events.ThinkingChangedEvent() as e:
-                cmds.append(RenderNotice(self._notice_from_thinking_changed(e)))
-                return cmds
-
-            case events.SubAgentModelChangedEvent() as e:
-                cmds.append(RenderNotice(self._notice_from_sub_agent_model_changed(e)))
-                return cmds
-
-            case events.CompactModelChangedEvent() as e:
-                cmds.append(RenderNotice(self._notice_from_compact_model_changed(e)))
-                return cmds
-
-            case events.FallbackModelConfigWarnEvent() as e:
-                cmds.append(RenderNotice(self._notice_from_fallback_model_config_warn(e)))
-                return cmds
-
-            case events.OperationRejectedEvent() as e:
-                cmds.append(
-                    RenderNotice(
-                        events.NoticeEvent(
-                            session_id=e.session_id,
-                            content=(
-                                "Operation rejected: session busy "
-                                f"(operation={e.operation_type}, active_task_id={e.active_task_id or 'unknown'})"
-                            ),
-                            is_error=True,
-                        ),
-                    )
-                )
-                return cmds
-
-            case events.StepStartEvent():
-                cmds.append(FlushOpenBlocks())
-                if not is_replay:
-                    if s.is_sub_agent:
-                        s.clear_status_activity()
-                    else:
-                        self._spinner.clear_for_new_step()
-                        self._spinner.enter_waiting()
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
-
-            case events.ThinkingStartEvent() as e:
-                if s.is_sub_agent:
-                    return []
-                if not self._is_primary(e.session_id):
-                    return []
-                s.thinking_stream_active = True
-                # Ensure the status reflects that reasoning has started even
-                # before we receive any deltas.
-                if not is_replay:
-                    self._spinner.enter_thinking()
-                cmds.append(StartThinkingStream(session_id=e.session_id))
-                if not is_replay:
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
-
-            case events.ThinkingDeltaEvent() as e:
-                if s.is_sub_agent:
-                    return cmds
-
-                if not self._is_primary(e.session_id):
-                    return []
-                cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
-                return cmds
-
-            case events.ThinkingEndEvent() as e:
-                if s.is_sub_agent:
-                    return []
-                if not self._is_primary(e.session_id):
-                    return []
-                s.thinking_stream_active = False
-                if not is_replay:
-                    self._spinner.clear_default_reasoning_status()
-                cmds.append(EndThinkingStream(session_id=e.session_id))
-                if not is_replay:
-                    cmds.append(SpinnerStart())
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
-
-            case events.AssistantTextStartEvent() as e:
-                if s.is_sub_agent:
-                    if not is_replay:
-                        s.status_composing = True
-                        cmds.extend(self._spinner_update_commands())
-                    return cmds
-                if not self._is_primary(e.session_id):
-                    return []
-
+        # Some providers/models may not emit fine-grained AssistantText* deltas.
+        # Render from the final snapshot when no streamed text was received.
+        content = e.content
+        if content.strip() and s.assistant_char_count == 0:
+            if not s.assistant_stream_active:
                 s.assistant_stream_active = True
-                s.assistant_char_count = 0
-                if not is_replay:
-                    self._spinner.set_composing(True)
-                    self._spinner.clear_tool_calls()
                 cmds.append(StartAssistantStream(session_id=e.session_id))
-                if not is_replay:
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+            cmds.append(AppendAssistant(session_id=e.session_id, content=content))
+            s.assistant_char_count += len(content)
 
-            case events.AssistantTextDeltaEvent() as e:
-                if s.is_sub_agent:
-                    return []
-                if not self._is_primary(e.session_id):
-                    return []
+        # Finalize any active assistant stream to flush pending markdown.
+        if s.assistant_stream_active:
+            s.assistant_stream_active = False
+            cmds.append(EndAssistantStream(session_id=e.session_id))
 
-                s.assistant_char_count += len(e.content)
-                if not is_replay:
-                    self._spinner.set_buffer_length(s.assistant_char_count)
-                cmds.append(AppendAssistant(session_id=e.session_id, content=e.content))
-                if not is_replay:
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+        if not is_replay:
+            self._spinner.set_composing(False)
+            cmds.append(SpinnerStart())
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-            case events.AssistantTextEndEvent() as e:
-                if s.is_sub_agent:
-                    if not is_replay:
-                        s.status_composing = False
-                        cmds.extend(self._spinner_update_commands())
-                    return cmds
-                if not self._is_primary(e.session_id):
-                    return []
+    def _handle_ToolCallStartEvent(
+        self, e: events.ToolCallStartEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        # Defensive: ensure any active main-session streams are finalized
+        # before tools start producing output.
+        if self._primary_session_id is not None:
+            primary = self._sessions.get(self._primary_session_id)
+            if primary is not None and primary.assistant_stream_active:
+                primary.assistant_stream_active = False
+                cmds.append(EndAssistantStream(session_id=primary.session_id))
+            if primary is not None and primary.thinking_stream_active:
+                primary.thinking_stream_active = False
+                cmds.append(EndThinkingStream(session_id=primary.session_id))
 
-                s.assistant_stream_active = False
-                if not is_replay:
-                    self._spinner.set_composing(False)
-                cmds.append(EndAssistantStream(session_id=e.session_id))
-                if not is_replay:
-                    cmds.append(SpinnerStart())
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+        if not is_replay:
+            if s.is_sub_agent:
+                s.status_composing = False
+            else:
+                self._spinner.set_composing(False)
 
-            case events.ResponseCompleteEvent() as e:
-                if s.is_sub_agent:
-                    if not is_replay:
-                        s.status_composing = False
-                        cmds.extend(self._spinner_update_commands())
-                    return []
-                if not self._is_primary(e.session_id):
-                    return []
+        # Skip activity state for fast tools on non-streaming models (e.g., Gemini)
+        # to avoid flash-and-disappear effect
+        if not is_replay and not s.should_skip_tool_activity(e.tool_name):
+            tool_active_form = get_tool_active_form(e.tool_name)
+            if s.is_sub_agent:
+                s.add_status_tool_call(e.tool_call_id, tool_active_form)
+            elif is_sub_agent_tool(e.tool_name):
+                self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+            else:
+                self._spinner.add_tool_call(tool_active_form)
 
-                # Some providers/models may not emit fine-grained AssistantText* deltas.
-                # Render from the final snapshot when no streamed text was received.
-                content = e.content
-                if content.strip() and s.assistant_char_count == 0:
-                    if not s.assistant_stream_active:
-                        s.assistant_stream_active = True
-                        cmds.append(StartAssistantStream(session_id=e.session_id))
-                    cmds.append(AppendAssistant(session_id=e.session_id, content=content))
-                    s.assistant_char_count += len(content)
+        if not is_replay:
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-                # Finalize any active assistant stream to flush pending markdown.
-                if s.assistant_stream_active:
-                    s.assistant_stream_active = False
-                    cmds.append(EndAssistantStream(session_id=e.session_id))
+    def _handle_ToolCallEvent(
+        self, e: events.ToolCallEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        # Same defensive behavior for tool calls that arrive without a
+        # preceding ToolCallStartEvent.
+        if self._primary_session_id is not None:
+            primary = self._sessions.get(self._primary_session_id)
+            if primary is not None and primary.assistant_stream_active:
+                primary.assistant_stream_active = False
+                cmds.append(EndAssistantStream(session_id=primary.session_id))
+            if primary is not None and primary.thinking_stream_active:
+                primary.thinking_stream_active = False
+                cmds.append(EndThinkingStream(session_id=primary.session_id))
 
-                if not is_replay:
-                    self._spinner.set_composing(False)
-                    cmds.append(SpinnerStart())
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+        if not is_replay and e.tool_name == tools.AGENT and not s.should_skip_tool_activity(e.tool_name):
+            tool_active_form = get_agent_active_form(e.arguments)
+            if s.is_sub_agent:
+                s.add_status_tool_call(e.tool_call_id, tool_active_form)
+            else:
+                self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+            cmds.extend(self._spinner_update_commands())
 
-            case events.ToolCallStartEvent() as e:
-                # Defensive: ensure any active main-session streams are finalized
-                # before tools start producing output.
-                if self._primary_session_id is not None:
-                    primary = self._sessions.get(self._primary_session_id)
-                    if primary is not None and primary.assistant_stream_active:
-                        primary.assistant_stream_active = False
-                        cmds.append(EndAssistantStream(session_id=primary.session_id))
-                    if primary is not None and primary.thinking_stream_active:
-                        primary.thinking_stream_active = False
-                        cmds.append(EndThinkingStream(session_id=primary.session_id))
+        if not s.is_sub_agent and e.tool_name == tools.BASH:
+            self._pending_bash_tool_outputs[e.tool_call_id] = _PendingBashToolOutput(started_at=e.timestamp)
 
-                if not is_replay:
-                    if s.is_sub_agent:
-                        s.status_composing = False
-                    else:
-                        self._spinner.set_composing(False)
+        cmds.append(RenderToolCall(e))
+        return cmds
 
-                # Skip activity state for fast tools on non-streaming models (e.g., Gemini)
-                # to avoid flash-and-disappear effect
-                if not is_replay and not s.should_skip_tool_activity(e.tool_name):
-                    tool_active_form = get_tool_active_form(e.tool_name)
-                    if s.is_sub_agent:
-                        s.add_status_tool_call(e.tool_call_id, tool_active_form)
-                    elif is_sub_agent_tool(e.tool_name):
-                        self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
-                    else:
-                        self._spinner.add_tool_call(tool_active_form)
+    def _handle_ToolOutputDeltaEvent(
+        self, e: events.ToolOutputDeltaEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent or e.tool_name != tools.BASH:
+            return []
+        pending = self._pending_bash_tool_outputs.get(e.tool_call_id)
+        if pending is None:
+            pending = _PendingBashToolOutput(started_at=e.timestamp)
+            self._pending_bash_tool_outputs[e.tool_call_id] = pending
 
-                if not is_replay:
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+        if not pending.streaming_started and e.timestamp - pending.started_at < BASH_STREAM_DELAY_SEC:
+            pending.chunks.append(e.content)
+            return []
 
-            case events.ToolCallEvent() as e:
-                # Same defensive behavior for tool calls that arrive without a
-                # preceding ToolCallStartEvent.
-                if self._primary_session_id is not None:
-                    primary = self._sessions.get(self._primary_session_id)
-                    if primary is not None and primary.assistant_stream_active:
-                        primary.assistant_stream_active = False
-                        cmds.append(EndAssistantStream(session_id=primary.session_id))
-                    if primary is not None and primary.thinking_stream_active:
-                        primary.thinking_stream_active = False
-                        cmds.append(EndThinkingStream(session_id=primary.session_id))
-
-                if not is_replay and e.tool_name == tools.AGENT and not s.should_skip_tool_activity(e.tool_name):
-                    tool_active_form = get_agent_active_form(e.arguments)
-                    if s.is_sub_agent:
-                        s.add_status_tool_call(e.tool_call_id, tool_active_form)
-                    else:
-                        self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
-                    cmds.extend(self._spinner_update_commands())
-
-                if not s.is_sub_agent and e.tool_name == tools.BASH:
-                    self._pending_bash_tool_outputs[e.tool_call_id] = _PendingBashToolOutput(started_at=e.timestamp)
-
-                cmds.append(RenderToolCall(e))
-                return cmds
-
-            case events.ToolOutputDeltaEvent() as e:
-                if s.is_sub_agent or e.tool_name != tools.BASH:
-                    return []
-                pending = self._pending_bash_tool_outputs.get(e.tool_call_id)
-                if pending is None:
-                    pending = _PendingBashToolOutput(started_at=e.timestamp)
-                    self._pending_bash_tool_outputs[e.tool_call_id] = pending
-
-                if not pending.streaming_started and e.timestamp - pending.started_at < BASH_STREAM_DELAY_SEC:
-                    pending.chunks.append(e.content)
-                    return []
-
-                if not pending.streaming_started:
-                    pending.streaming_started = True
-                    self._live_bash_tool_call_ids.add(e.tool_call_id)
-                    for chunk in pending.chunks:
-                        cmds.append(
-                            AppendBashCommandOutput(
-                                events.BashCommandOutputDeltaEvent(session_id=e.session_id, content=chunk)
-                            )
-                        )
-                    pending.chunks = []
-
+        if not pending.streaming_started:
+            pending.streaming_started = True
+            self._live_bash_tool_call_ids.add(e.tool_call_id)
+            for chunk in pending.chunks:
                 cmds.append(
-                    AppendBashCommandOutput(
-                        events.BashCommandOutputDeltaEvent(session_id=e.session_id, content=e.content)
+                    AppendBashCommandOutput(events.BashCommandOutputDeltaEvent(session_id=e.session_id, content=chunk))
+                )
+            pending.chunks = []
+
+        cmds.append(
+            AppendBashCommandOutput(events.BashCommandOutputDeltaEvent(session_id=e.session_id, content=e.content))
+        )
+        return cmds
+
+    def _handle_ToolResultEvent(
+        self, e: events.ToolResultEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if isinstance(e.ui_extra, SessionIdUIExtra):
+            self._session(e.ui_extra.session_id).parent_session_id = e.session_id
+        pending = self._pending_bash_tool_outputs.pop(e.tool_call_id, None)
+        if not is_replay and s.is_sub_agent:
+            s.finish_status_tool_call(e.tool_call_id)
+            cmds.extend(self._spinner_update_commands())
+        elif not is_replay and is_sub_agent_tool(e.tool_name):
+            self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
+            if e.is_error and isinstance(e.ui_extra, SessionIdUIExtra):
+                failed_sub_session = self._sessions.get(e.ui_extra.session_id)
+                if failed_sub_session is not None and failed_sub_session.is_sub_agent:
+                    failed_sub_session.task_active = False
+                    failed_sub_session.clear_status_activity()
+            cmds.extend(self._spinner_update_commands())
+
+        if e.tool_name == tools.BASH and e.tool_call_id in self._live_bash_tool_call_ids:
+            self._live_bash_tool_call_ids.discard(e.tool_call_id)
+            cmds.append(
+                RenderBashCommandEnd(
+                    events.BashCommandEndEvent(
+                        session_id=e.session_id,
+                        cancelled=e.status == "aborted",
                     )
                 )
-                return cmds
+            )
+        elif pending is not None:
+            self._live_bash_tool_call_ids.discard(e.tool_call_id)
 
-            case events.ToolResultEvent() as e:
-                if isinstance(e.ui_extra, SessionIdUIExtra):
-                    self._session(e.ui_extra.session_id).parent_session_id = e.session_id
-                pending = self._pending_bash_tool_outputs.pop(e.tool_call_id, None)
-                if not is_replay and s.is_sub_agent:
-                    s.finish_status_tool_call(e.tool_call_id)
-                    cmds.extend(self._spinner_update_commands())
-                elif not is_replay and is_sub_agent_tool(e.tool_name):
-                    self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
-                    if e.is_error and isinstance(e.ui_extra, SessionIdUIExtra):
-                        failed_sub_session = self._sessions.get(e.ui_extra.session_id)
-                        if failed_sub_session is not None and failed_sub_session.is_sub_agent:
-                            failed_sub_session.task_active = False
-                            failed_sub_session.clear_status_activity()
-                    cmds.extend(self._spinner_update_commands())
+        if (
+            s.is_sub_agent
+            and not e.is_error
+            and e.tool_name
+            not in (tools.EDIT, tools.WRITE, tools.APPLY_PATCH, tools.TODO_WRITE, tools.ASK_USER_QUESTION)
+        ):
+            return cmds
 
-                if e.tool_name == tools.BASH and e.tool_call_id in self._live_bash_tool_call_ids:
-                    self._live_bash_tool_call_ids.discard(e.tool_call_id)
-                    cmds.append(
-                        RenderBashCommandEnd(
-                            events.BashCommandEndEvent(
-                                session_id=e.session_id,
-                                cancelled=e.status == "aborted",
-                            )
-                        )
+        cmds.append(RenderToolResult(event=e, is_sub_agent_session=s.is_sub_agent))
+        return cmds
+
+    def _handle_TaskMetadataEvent(
+        self, e: events.TaskMetadataEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(EndThinkingStream(e.session_id))
+        cmds.append(EndAssistantStream(e.session_id))
+        cmds.append(RenderTaskMetadata(e))
+        return cmds
+
+    def _handle_TaskFileChangeSummaryEvent(
+        self, e: events.TaskFileChangeSummaryEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(EndThinkingStream(e.session_id))
+        cmds.append(EndAssistantStream(e.session_id))
+        cmds.append(RenderTaskFileChangeSummary(e))
+        return cmds
+
+    def _handle_UsageEvent(self, e: events.UsageEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        # UsageEvent is not rendered, but it drives context % display.
+        if s.is_sub_agent:
+            return []
+        if not self._is_primary(e.session_id):
+            return []
+        self._spinner.set_context_usage(e.usage)
+        if not is_replay:
+            cmds.extend(self._spinner_update_commands())
+        return cmds
+
+    def _handle_CacheHitRateEvent(
+        self, e: events.CacheHitRateEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            return []
+        if not self._is_primary(e.session_id):
+            return []
+        self._spinner.set_cache_hit_rate(e.cache_hit_rate)
+        if not is_replay:
+            cmds.extend(self._spinner_update_commands())
+        return cmds
+
+    def _handle_StepEndEvent(self, e: events.StepEndEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+        return []
+
+    def _handle_TaskFinishEvent(
+        self, e: events.TaskFinishEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        s.task_active = False
+        s.clear_status_activity()
+        cmds.append(RenderTaskFinish(e))
+        if s.is_sub_agent:
+            parent = self._sessions.get(s.parent_session_id or "")
+            parent_session_id = parent.session_id if parent is not None and parent.is_sub_agent else None
+            cmds.append(PrintBlankLine(session_id=parent_session_id))
+
+        # Defensive: finalize any open streams so buffered markdown is flushed.
+        if s.thinking_stream_active:
+            s.thinking_stream_active = False
+            cmds.append(EndThinkingStream(session_id=e.session_id))
+        if s.assistant_stream_active:
+            s.assistant_stream_active = False
+            cmds.append(EndAssistantStream(session_id=e.session_id))
+
+        # Rare providers / edge cases may complete a step without emitting any
+        # assistant deltas (or without the display consuming them). In that case,
+        # fall back to rendering the final task result to avoid a "blank" step.
+        if (
+            not is_replay
+            and not s.is_sub_agent
+            and s.assistant_char_count == 0
+            and e.task_result.strip()
+            and not is_cancelled_task_result(e.task_result)
+        ):
+            cmds.append(StartAssistantStream(session_id=e.session_id))
+            cmds.append(AppendAssistant(session_id=e.session_id, content=e.task_result))
+            cmds.append(EndAssistantStream(session_id=e.session_id))
+
+        if not s.is_sub_agent and not is_replay:
+            cmds.append(TaskClockClear())
+            self._spinner.clear_task_state()
+            cmds.append(SpinnerStop())
+            cmds.append(StopTitleBlink())
+            self._terminal_title_prefix = None if is_cancelled_task_result(e.task_result) else "✅"
+            cmds.append(
+                UpdateTerminalTitlePrefix(
+                    prefix=self._terminal_title_prefix,
+                    model_name=self._model_name,
+                    session_title=self._session_title,
+                )
+            )
+        elif not is_replay:
+            cmds.extend(self._spinner_update_commands())
+        return cmds
+
+    def _handle_InterruptEvent(
+        self, e: events.InterruptEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if not is_replay:
+            self._spinner.clear_task_state()
+            cmds.append(SpinnerStop())
+        s.task_active = False
+        s.clear_status_activity()
+        if not s.is_sub_agent:
+            self._terminal_title_prefix = None
+            self._clear_active_sub_agent_sessions()
+        cmds.append(EndThinkingStream(session_id=e.session_id))
+        cmds.append(EndAssistantStream(session_id=e.session_id))
+        if not is_replay:
+            cmds.append(TaskClockClear())
+            if not s.is_sub_agent:
+                cmds.append(StopTitleBlink())
+                cmds.append(
+                    UpdateTerminalTitlePrefix(
+                        prefix=self._terminal_title_prefix,
+                        model_name=self._model_name,
+                        session_title=self._session_title,
                     )
-                elif pending is not None:
-                    self._live_bash_tool_call_ids.discard(e.tool_call_id)
+                )
+        if e.show_notice:
+            cmds.append(RenderInterrupt())
+        if not s.is_sub_agent:
+            self._skip_next_user_message_rule = True
+        return cmds
 
-                if (
-                    s.is_sub_agent
-                    and not e.is_error
-                    and e.tool_name
-                    not in (tools.EDIT, tools.WRITE, tools.APPLY_PATCH, tools.TODO_WRITE, tools.ASK_USER_QUESTION)
-                ):
-                    return cmds
-
-                cmds.append(RenderToolResult(event=e, is_sub_agent_session=s.is_sub_agent))
-                return cmds
-
-            case events.TaskMetadataEvent() as e:
-                cmds.append(EndThinkingStream(e.session_id))
-                cmds.append(EndAssistantStream(e.session_id))
-                cmds.append(RenderTaskMetadata(e))
-                return cmds
-
-            case events.TaskFileChangeSummaryEvent() as e:
-                cmds.append(EndThinkingStream(e.session_id))
-                cmds.append(EndAssistantStream(e.session_id))
-                cmds.append(RenderTaskFileChangeSummary(e))
-                return cmds
-
-            case events.UsageEvent() as e:
-                # UsageEvent is not rendered, but it drives context % display.
-                if s.is_sub_agent:
-                    return []
-                if not self._is_primary(e.session_id):
-                    return []
-                self._spinner.set_context_usage(e.usage)
-                if not is_replay:
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
-
-            case events.CacheHitRateEvent() as e:
-                if s.is_sub_agent:
-                    return []
-                if not self._is_primary(e.session_id):
-                    return []
-                self._spinner.set_cache_hit_rate(e.cache_hit_rate)
-                if not is_replay:
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
-
-            case events.StepEndEvent():
-                return []
-
-            case events.TaskFinishEvent() as e:
-                s.task_active = False
-                s.clear_status_activity()
-                cmds.append(RenderTaskFinish(e))
-                if s.is_sub_agent:
-                    parent = self._sessions.get(s.parent_session_id or "")
-                    parent_session_id = parent.session_id if parent is not None and parent.is_sub_agent else None
-                    cmds.append(PrintBlankLine(session_id=parent_session_id))
-
-                # Defensive: finalize any open streams so buffered markdown is flushed.
-                if s.thinking_stream_active:
-                    s.thinking_stream_active = False
-                    cmds.append(EndThinkingStream(session_id=e.session_id))
-                if s.assistant_stream_active:
-                    s.assistant_stream_active = False
-                    cmds.append(EndAssistantStream(session_id=e.session_id))
-
-                # Rare providers / edge cases may complete a step without emitting any
-                # assistant deltas (or without the display consuming them). In that case,
-                # fall back to rendering the final task result to avoid a "blank" step.
-                if (
-                    not is_replay
-                    and not s.is_sub_agent
-                    and s.assistant_char_count == 0
-                    and e.task_result.strip()
-                    and not is_cancelled_task_result(e.task_result)
-                ):
-                    cmds.append(StartAssistantStream(session_id=e.session_id))
-                    cmds.append(AppendAssistant(session_id=e.session_id, content=e.task_result))
-                    cmds.append(EndAssistantStream(session_id=e.session_id))
-
-                if not s.is_sub_agent and not is_replay:
-                    cmds.append(TaskClockClear())
-                    self._spinner.clear_task_state()
-                    cmds.append(SpinnerStop())
-                    cmds.append(StopTitleBlink())
-                    self._terminal_title_prefix = None if is_cancelled_task_result(e.task_result) else "✅"
-                    cmds.append(
-                        UpdateTerminalTitlePrefix(
-                            prefix=self._terminal_title_prefix,
-                            model_name=self._model_name,
-                            session_title=self._session_title,
-                        )
+    def _handle_ErrorEvent(self, e: events.ErrorEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if not e.can_retry:
+            s.task_active = False
+            s.clear_status_activity()
+        cmds.append(RenderError(e))
+        if not is_replay and not e.can_retry:
+            self._spinner.clear_task_state()
+            cmds.append(SpinnerStop())
+            if not s.is_sub_agent:
+                cmds.append(TaskClockClear())
+                cmds.append(StopTitleBlink())
+                self._terminal_title_prefix = "❌"
+                cmds.append(
+                    UpdateTerminalTitlePrefix(
+                        prefix=self._terminal_title_prefix,
+                        model_name=self._model_name,
+                        session_title=self._session_title,
                     )
-                elif not is_replay:
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
+                )
+                self._clear_active_sub_agent_sessions()
+        if not is_replay:
+            cmds.extend(self._spinner_update_commands())
+        return cmds
 
-            case events.InterruptEvent() as e:
-                if not is_replay:
-                    self._spinner.clear_task_state()
-                    cmds.append(SpinnerStop())
-                s.task_active = False
-                s.clear_status_activity()
-                if not s.is_sub_agent:
-                    self._terminal_title_prefix = None
-                    self._clear_active_sub_agent_sessions()
-                cmds.append(EndThinkingStream(session_id=e.session_id))
-                cmds.append(EndAssistantStream(session_id=e.session_id))
-                if not is_replay:
-                    cmds.append(TaskClockClear())
-                    if not s.is_sub_agent:
-                        cmds.append(StopTitleBlink())
-                        cmds.append(
-                            UpdateTerminalTitlePrefix(
-                                prefix=self._terminal_title_prefix,
-                                model_name=self._model_name,
-                                session_title=self._session_title,
-                            )
-                        )
-                if e.show_notice:
-                    cmds.append(RenderInterrupt())
-                if not s.is_sub_agent:
-                    self._skip_next_user_message_rule = True
-                return cmds
+    def _handle_EndEvent(self, e: events.EndEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        if not is_replay:
+            self._spinner.reset()
+            cmds.append(SpinnerStop())
+            cmds.append(TaskClockClear())
+            cmds.append(StopTitleBlink())
+            self._terminal_title_prefix = None
+            cmds.append(
+                UpdateTerminalTitlePrefix(
+                    prefix=self._terminal_title_prefix,
+                    model_name=self._model_name,
+                    session_title=self._session_title,
+                )
+            )
+        return cmds
 
-            case events.ErrorEvent() as e:
-                if not e.can_retry:
-                    s.task_active = False
-                    s.clear_status_activity()
-                cmds.append(RenderError(e))
-                if not is_replay and not e.can_retry:
-                    self._spinner.clear_task_state()
-                    cmds.append(SpinnerStop())
-                    if not s.is_sub_agent:
-                        cmds.append(TaskClockClear())
-                        cmds.append(StopTitleBlink())
-                        self._terminal_title_prefix = "❌"
-                        cmds.append(
-                            UpdateTerminalTitlePrefix(
-                                prefix=self._terminal_title_prefix,
-                                model_name=self._model_name,
-                                session_title=self._session_title,
-                            )
-                        )
-                        self._clear_active_sub_agent_sessions()
-                if not is_replay:
-                    cmds.extend(self._spinner_update_commands())
-                return cmds
 
-            case events.EndEvent():
-                if not is_replay:
-                    self._spinner.reset()
-                    cmds.append(SpinnerStop())
-                    cmds.append(TaskClockClear())
-                    cmds.append(StopTitleBlink())
-                    self._terminal_title_prefix = None
-                    cmds.append(
-                        UpdateTerminalTitlePrefix(
-                            prefix=self._terminal_title_prefix,
-                            model_name=self._model_name,
-                            session_title=self._session_title,
-                        )
-                    )
-                return cmds
-
-            case _:
-                return []
+# Event-type -> handler dispatch table (built after class definition to reference methods).
+DisplayStateMachine._EVENT_HANDLERS = {
+    events.WelcomeEvent: DisplayStateMachine._handle_WelcomeEvent,
+    events.UserMessageEvent: DisplayStateMachine._handle_UserMessageEvent,
+    events.BashCommandStartEvent: DisplayStateMachine._handle_BashCommandStartEvent,
+    events.BashCommandOutputDeltaEvent: DisplayStateMachine._handle_BashCommandOutputDeltaEvent,
+    events.BashCommandEndEvent: DisplayStateMachine._handle_BashCommandEndEvent,
+    events.TaskStartEvent: DisplayStateMachine._handle_TaskStartEvent,
+    events.CompactionStartEvent: DisplayStateMachine._handle_CompactionStartEvent,
+    events.CompactionEndEvent: DisplayStateMachine._handle_CompactionEndEvent,
+    events.ForkCacheHitRateEvent: DisplayStateMachine._handle_ForkCacheHitRateEvent,
+    events.RewindEvent: DisplayStateMachine._handle_RewindEvent,
+    events.DeveloperMessageEvent: DisplayStateMachine._handle_DeveloperMessageEvent,
+    events.SessionTitleChangedEvent: DisplayStateMachine._handle_SessionTitleChangedEvent,
+    events.NoticeEvent: DisplayStateMachine._handle_NoticeEvent,
+    events.AwaySummaryEvent: DisplayStateMachine._handle_AwaySummaryEvent,
+    events.AwaySummaryStartEvent: DisplayStateMachine._handle_AwaySummaryStartEvent,
+    events.AwaySummaryEndEvent: DisplayStateMachine._handle_AwaySummaryEndEvent,
+    events.SessionStatsEvent: DisplayStateMachine._handle_SessionStatsEvent,
+    events.ModelChangedEvent: DisplayStateMachine._handle_ModelChangedEvent,
+    events.ThinkingChangedEvent: DisplayStateMachine._handle_ThinkingChangedEvent,
+    events.SubAgentModelChangedEvent: DisplayStateMachine._handle_SubAgentModelChangedEvent,
+    events.CompactModelChangedEvent: DisplayStateMachine._handle_CompactModelChangedEvent,
+    events.FallbackModelConfigWarnEvent: DisplayStateMachine._handle_FallbackModelConfigWarnEvent,
+    events.OperationRejectedEvent: DisplayStateMachine._handle_OperationRejectedEvent,
+    events.StepStartEvent: DisplayStateMachine._handle_StepStartEvent,
+    events.ThinkingStartEvent: DisplayStateMachine._handle_ThinkingStartEvent,
+    events.ThinkingDeltaEvent: DisplayStateMachine._handle_ThinkingDeltaEvent,
+    events.ThinkingEndEvent: DisplayStateMachine._handle_ThinkingEndEvent,
+    events.AssistantTextStartEvent: DisplayStateMachine._handle_AssistantTextStartEvent,
+    events.AssistantTextDeltaEvent: DisplayStateMachine._handle_AssistantTextDeltaEvent,
+    events.AssistantTextEndEvent: DisplayStateMachine._handle_AssistantTextEndEvent,
+    events.ResponseCompleteEvent: DisplayStateMachine._handle_ResponseCompleteEvent,
+    events.ToolCallStartEvent: DisplayStateMachine._handle_ToolCallStartEvent,
+    events.ToolCallEvent: DisplayStateMachine._handle_ToolCallEvent,
+    events.ToolOutputDeltaEvent: DisplayStateMachine._handle_ToolOutputDeltaEvent,
+    events.ToolResultEvent: DisplayStateMachine._handle_ToolResultEvent,
+    events.TaskMetadataEvent: DisplayStateMachine._handle_TaskMetadataEvent,
+    events.TaskFileChangeSummaryEvent: DisplayStateMachine._handle_TaskFileChangeSummaryEvent,
+    events.UsageEvent: DisplayStateMachine._handle_UsageEvent,
+    events.CacheHitRateEvent: DisplayStateMachine._handle_CacheHitRateEvent,
+    events.StepEndEvent: DisplayStateMachine._handle_StepEndEvent,
+    events.TaskFinishEvent: DisplayStateMachine._handle_TaskFinishEvent,
+    events.InterruptEvent: DisplayStateMachine._handle_InterruptEvent,
+    events.ErrorEvent: DisplayStateMachine._handle_ErrorEvent,
+    events.EndEvent: DisplayStateMachine._handle_EndEvent,
+}

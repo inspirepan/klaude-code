@@ -36,14 +36,15 @@ from klaude_code.const import (
     DEFAULT_TEMPERATURE,
     LLM_HTTP_TIMEOUT_CONNECT,
     LLM_HTTP_TIMEOUT_READ,
-    LLM_HTTP_TIMEOUT_TOTAL,
 )
 from klaude_code.llm.anthropic.client import AnthropicLLMStream, AnthropicStreamStateManager, build_payload
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.http import create_http_timeout, create_image_fetch_timeout
 from klaude_code.llm.image import detect_mime_type_from_bytes, parse_data_url
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
+from klaude_code.llm.stop_reason import map_stop_reason
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
@@ -93,19 +94,18 @@ def _inject_session_id_header(request: Any, **_: Any) -> None:
         request.headers["x-session-id"] = session_id
 
 
+_BEDROCK_STOP_REASON_OVERRIDES: dict[str, StopReason] = {
+    "stop_sequence": "stop",
+    "model_context_window_exceeded": "length",
+    "content_filtered": "error",
+    "guardrail_intervened": "error",
+    "malformed_model_output": "error",
+    "malformed_tool_use": "error",
+}
+
+
 def _map_bedrock_stop_reason(reason: str | None) -> StopReason | None:
-    mapping: dict[str, StopReason] = {
-        "end_turn": "stop",
-        "stop_sequence": "stop",
-        "max_tokens": "length",
-        "model_context_window_exceeded": "length",
-        "tool_use": "tool_use",
-        "content_filtered": "error",
-        "guardrail_intervened": "error",
-        "malformed_model_output": "error",
-        "malformed_tool_use": "error",
-    }
-    return mapping.get(reason or "")
+    return map_stop_reason(reason or "", _BEDROCK_STOP_REASON_OVERRIDES)
 
 
 def _is_govcloud_target(model_id: str, region: str | None) -> bool:
@@ -149,7 +149,7 @@ def _convert_image_source(source: dict[str, Any]) -> dict[str, Any]:
             response = httpx.get(
                 url,
                 follow_redirects=True,
-                timeout=httpx.Timeout(LLM_HTTP_TIMEOUT_READ, connect=LLM_HTTP_TIMEOUT_CONNECT),
+                timeout=create_image_fetch_timeout(),
             )
             response.raise_for_status()
             data = response.content
@@ -641,7 +641,7 @@ class BedrockClient(LLMClientABC):
             aws_session_token=config.aws_session_token,
             aws_region=config.aws_region,
             aws_profile=config.aws_profile,
-            timeout=httpx.Timeout(LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ),
+            timeout=create_http_timeout(),
         )
 
     @classmethod

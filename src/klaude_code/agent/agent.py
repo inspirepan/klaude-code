@@ -38,7 +38,7 @@ class Agent:
         self.profile: AgentProfile = profile
         self.compact_llm_client: LLMClientABC | None = compact_llm_client
         self._current_task: TaskExecutor | None = None
-        self._follow_up_queue: list[UserInputPayload] = [item.model_copy(deep=True) for item in session.follow_up_queue]
+        self._follow_up_queue: list[UserInputPayload] = list(session.follow_up_queue)
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text: str | None = None
         self.request_user_interaction = request_user_interaction

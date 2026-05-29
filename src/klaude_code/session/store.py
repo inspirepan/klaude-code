@@ -78,9 +78,16 @@ class _WriteBatch:
 
 
 class JsonlSessionWriter:
-    def __init__(self, paths: ProjectPaths, *, meta_lock: LockType) -> None:
+    def __init__(
+        self,
+        paths: ProjectPaths,
+        *,
+        meta_lock: LockType,
+        on_history_written: Callable[[str], None] | None = None,
+    ) -> None:
         self._paths = paths
         self._meta_lock = meta_lock
+        self._on_history_written = on_history_written
         self._queue: asyncio.Queue[_WriteBatch | None] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
         self._closed = False
@@ -134,6 +141,8 @@ class JsonlSessionWriter:
             for item in batch.items:
                 f.write(encode_jsonl_line(item))
             f.flush()
+        if self._on_history_written is not None:
+            self._on_history_written(batch.session_id)
 
         meta_path = self._paths.meta_file(batch.session_id)
         with self._meta_lock:
@@ -156,12 +165,26 @@ class JsonlSessionWriter:
             batch.done.set_result(None)
 
 
+@dataclass
+class _HistoryCacheEntry:
+    mtime_ns: int
+    size: int
+    items: list[message.HistoryEvent]
+
+
 class JsonlSessionStore:
     def __init__(self, *, project_key: str) -> None:
         self._paths = ProjectPaths(project_key=project_key)
         self._meta_lock = threading.Lock()
-        self._writer = JsonlSessionWriter(self._paths, meta_lock=self._meta_lock)
+        self._writer = JsonlSessionWriter(
+            self._paths, meta_lock=self._meta_lock, on_history_written=self._invalidate_history_cache
+        )
         self._last_flush: dict[str, asyncio.Future[None]] = {}
+        # In-memory cache of decoded history keyed by session_id. Invalidated
+        # when the events file's (mtime_ns, size) changes, so repeated loads of
+        # an unchanged session avoid re-deserializing the whole jsonl.
+        self._history_cache: dict[str, _HistoryCacheEntry] = {}
+        self._history_cache_lock = threading.Lock()
 
     @property
     def paths(self) -> ProjectPaths:
@@ -205,12 +228,39 @@ class JsonlSessionStore:
             return True
 
     def load_history(self, session_id: str) -> list[message.HistoryEvent]:
-        return list(self.iter_history(session_id))
+        """Return the decoded history, using an mtime/size-keyed cache.
+
+        The cache stores the decoded items for an unchanged events file so
+        repeated loads avoid re-reading and re-deserializing the jsonl. Items
+        are deep-copied on the way out so callers may mutate their own copies
+        without affecting the cache or other callers (matching the previous
+        per-call decode semantics).
+        """
+        events_path = self._paths.events_file(session_id)
+        try:
+            stat = events_path.stat()
+        except OSError:
+            self._invalidate_history_cache(session_id)
+            return []
+        mtime_ns, size = stat.st_mtime_ns, stat.st_size
+
+        with self._history_cache_lock:
+            entry = self._history_cache.get(session_id)
+            if entry is not None and entry.mtime_ns == mtime_ns and entry.size == size:
+                return [item.model_copy(deep=True) for item in entry.items]
+
+        items = list(self._decode_history(events_path))
+        with self._history_cache_lock:
+            self._history_cache[session_id] = _HistoryCacheEntry(mtime_ns=mtime_ns, size=size, items=items)
+        return [item.model_copy(deep=True) for item in items]
 
     def iter_history(self, session_id: str) -> Iterable[message.HistoryEvent]:
         events_path = self._paths.events_file(session_id)
         if not events_path.exists():
             return
+        yield from self._decode_history(events_path)
+
+    def _decode_history(self, events_path: Path) -> Iterable[message.HistoryEvent]:
         try:
             with events_path.open("r", encoding="utf-8") as f:
                 for line in f:
@@ -220,6 +270,10 @@ class JsonlSessionStore:
                     yield item
         except OSError:
             return
+
+    def _invalidate_history_cache(self, session_id: str) -> None:
+        with self._history_cache_lock:
+            self._history_cache.pop(session_id, None)
 
     def append_and_flush(self, *, session_id: str, items: Sequence[message.HistoryEvent], meta: dict[str, Any]) -> None:
         if not items:

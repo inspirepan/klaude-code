@@ -729,18 +729,23 @@ class TUICommandRenderer:
             self.print(c_errors.render_error(Text(event.error_message), can_retry=event.can_retry))
         self.print()
 
-    def display_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...] = ()) -> None:
-        stripped = summary.strip()
-        if not stripped:
-            return
-        stripped = (
-            stripped.replace("<summary>", "")
+    @staticmethod
+    def _strip_summary_tags(text: str) -> str:
+        """Remove XML-ish wrapper tags from compaction/handoff summaries."""
+        return (
+            text.replace("<summary>", "")
             .replace("</summary>", "")
             .replace("<read_files>", "")
             .replace("</read_files>", "")
             .replace("<modified-files>", "")
             .replace("</modified-files>", "")
         )
+
+    def display_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...] = ()) -> None:
+        stripped = summary.strip()
+        if not stripped:
+            return
+        stripped = self._strip_summary_tags(stripped)
         self.console.print(
             Rule(
                 Text("Context Compacted", style=ThemeKey.COMPACTION_SUMMARY),
@@ -821,15 +826,7 @@ class TUICommandRenderer:
         )
         self.print()
 
-        stripped = summary.strip()
-        stripped = (
-            stripped.replace("<summary>", "")
-            .replace("</summary>", "")
-            .replace("<read_files>", "")
-            .replace("</read_files>", "")
-            .replace("<modified-files>", "")
-            .replace("</modified-files>", "")
-        )
+        stripped = self._strip_summary_tags(summary.strip())
 
         terminal_width = shutil.get_terminal_size().columns
         panel_width = min(100, terminal_width) - 2

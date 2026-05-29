@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+import traceback
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -147,7 +148,7 @@ class MetadataAccumulator:
         if self._main_agent.usage is None:
             return None
 
-        usage_copy = self._main_agent.usage.model_copy(deep=True)
+        usage_copy = self._main_agent.usage.model_copy(deep=False)
 
         if self._throughput_tracked_tokens > 0:
             usage_copy.throughput_tps = self._throughput_weighted_sum / self._throughput_tracked_tokens
@@ -271,6 +272,25 @@ def _build_task_file_change_summary(
     if not files:
         return None
     return message.TaskFileChangeSummaryEntry(files=files)
+
+
+class _HandoffAborted(Exception):
+    """Internal signal: handoff failed and the task should return."""
+
+
+@dataclass
+class _CompactionRunResult:
+    """Mutable holder for the outcome of a threshold/overflow compaction run.
+
+    Communicates control-flow signals back to the caller of the shared
+    ``TaskExecutor._run_compaction_with_fallback`` generator, since async
+    generators cannot return a value.
+    """
+
+    succeeded: bool = False
+    error: Exception | None = None
+    nothing_to_compact: bool = False
+    profile: AgentProfile | None = None
 
 
 class TaskExecutor:
@@ -451,6 +471,168 @@ class TaskExecutor:
 
         return ui_events
 
+    async def _run_compaction_with_fallback(
+        self,
+        *,
+        reason: CompactionReason,
+        profile: AgentProfile,
+        metadata_accumulator: MetadataAccumulator,
+        will_retry: bool,
+        result: _CompactionRunResult,
+    ) -> AsyncGenerator[events.Event]:
+        """Run a single threshold/overflow compaction with model-fallback retries.
+
+        Shared loop for the THRESHOLD and OVERFLOW paths. On success applies the
+        compaction entry, syncs rewind checkpoints and yields ``CompactionEndEvent``.
+        On a non-fallbackable failure it yields the aborted ``CompactionEndEvent``
+        and records the error in ``result`` so the caller can emit the
+        reason-specific ``ErrorEvent`` and choose its control flow. ``result`` also
+        carries the possibly fallback-updated profile back to the caller.
+        """
+        ctx = self._context
+        session_ctx = ctx.session_ctx
+        result.profile = profile
+        while True:
+            try:
+                log_debug(f"[Compact:{reason.value}] start", debug_type=DebugType.RESPONSE)
+                compact_client = ctx.compact_llm_client or profile.llm_client
+                compaction = await run_compaction(
+                    session=ctx.session,
+                    reason=reason,
+                    focus=None,
+                    llm_client=compact_client,
+                    llm_config=compact_client.get_llm_config(),
+                    main_profile=profile,
+                )
+                log_debug(f"[Compact:{reason.value}] result", str(compaction.to_entry()), debug_type=DebugType.RESPONSE)
+                _reset_attachment_loaded_flags(ctx.session.file_tracker)
+                session_ctx.append_history([compaction.to_entry()])
+                if self._rewind_manager is not None:
+                    self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                    self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+                metadata_accumulator.cache.notify_compaction()
+                yield events.CompactionEndEvent(
+                    session_id=session_ctx.session_id,
+                    reason=reason.value,
+                    aborted=False,
+                    will_retry=will_retry,
+                    tokens_before=compaction.tokens_before,
+                    kept_from_index=compaction.first_kept_index,
+                    summary=compaction.summary,
+                    kept_items_brief=compaction.kept_items_brief,
+                )
+                if compaction.fork_event is not None:
+                    yield compaction.fork_event
+                result.succeeded = True
+                return
+            except asyncio.CancelledError:
+                yield events.CompactionEndEvent(
+                    session_id=session_ctx.session_id,
+                    reason=reason.value,
+                    aborted=True,
+                    will_retry=will_retry,
+                )
+                raise
+            except Exception as e:
+                fallback_result = self._fallback_compact_model(str(e))
+                if fallback_result is not None:
+                    profile, fallback_event = fallback_result
+                    result.profile = profile
+                    metadata_accumulator.cache.notify_compaction()
+                    yield fallback_event
+                    continue
+
+                result.error = e
+                result.nothing_to_compact = isinstance(e, ValueError) and str(e).startswith("Nothing to compact")
+                log_debug(
+                    f"[Compact:{reason.value}] error",
+                    str(e.__class__.__name__),
+                    str(e),
+                    traceback.format_exc(),
+                    debug_type=DebugType.RESPONSE,
+                )
+                yield events.CompactionEndEvent(
+                    session_id=session_ctx.session_id,
+                    reason=reason.value,
+                    aborted=True,
+                    will_retry=False,
+                )
+                return
+
+    async def _run_handoff(
+        self,
+        *,
+        goal: str,
+        profile: AgentProfile,
+        metadata_accumulator: MetadataAccumulator,
+    ) -> AsyncGenerator[events.Event]:
+        """Run a pending handoff, yielding compaction-style events.
+
+        Returns normally on success; the caller continues the task loop. On
+        failure it yields the aborted ``CompactionEndEvent`` plus an
+        ``ErrorEvent`` and raises ``_HandoffAborted`` so the caller can return.
+        ``asyncio.CancelledError`` propagates after emitting the aborted event.
+        """
+        ctx = self._context
+        session_ctx = ctx.session_ctx
+        try:
+            log_debug("[Handoff] start", debug_type=DebugType.RESPONSE)
+            compact_client = ctx.compact_llm_client or profile.llm_client
+            result = await run_handoff(
+                session=ctx.session,
+                goal=goal,
+                llm_client=compact_client,
+                llm_config=compact_client.get_llm_config(),
+                main_profile=profile,
+            )
+            log_debug("[Handoff] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+            _reset_attachment_loaded_flags(ctx.session.file_tracker)
+            session_ctx.append_history([result.to_entry()])
+            if self._rewind_manager is not None:
+                self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
+                self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
+            metadata_accumulator.cache.notify_compaction()
+            yield events.CompactionEndEvent(
+                session_id=session_ctx.session_id,
+                reason="handoff",
+                aborted=False,
+                will_retry=False,
+                tokens_before=result.tokens_before,
+                kept_from_index=result.first_kept_index,
+                summary=result.summary,
+                kept_items_brief=result.kept_items_brief,
+            )
+            if result.fork_event is not None:
+                yield result.fork_event
+        except asyncio.CancelledError:
+            yield events.CompactionEndEvent(
+                session_id=session_ctx.session_id,
+                reason="handoff",
+                aborted=True,
+                will_retry=False,
+            )
+            raise
+        except Exception as e:
+            log_debug(
+                "[Handoff] error",
+                str(e.__class__.__name__),
+                str(e),
+                traceback.format_exc(),
+                debug_type=DebugType.RESPONSE,
+            )
+            yield events.CompactionEndEvent(
+                session_id=session_ctx.session_id,
+                reason="handoff",
+                aborted=True,
+                will_retry=False,
+            )
+            yield events.ErrorEvent(
+                error_message=f"Handoff failed: {e}",
+                can_retry=False,
+                session_id=session_ctx.session_id,
+            )
+            raise _HandoffAborted from e
+
     async def run(self, user_input: message.UserInputPayload) -> AsyncGenerator[events.Event]:
         """Execute the task, yielding events as they occur."""
         ctx = self._context
@@ -507,81 +689,25 @@ class TaskExecutor:
                     session_id=session_ctx.session_id,
                     reason=CompactionReason.THRESHOLD.value,
                 )
-                while True:
-                    try:
-                        compact_client = ctx.compact_llm_client or profile.llm_client
-                        result = await run_compaction(
-                            session=ctx.session,
-                            reason=CompactionReason.THRESHOLD,
-                            focus=None,
-                            llm_client=compact_client,
-                            llm_config=compact_client.get_llm_config(),
-                            main_profile=profile,
-                        )
-                        log_debug("[Compact] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
-
-                        _reset_attachment_loaded_flags(ctx.session.file_tracker)
-                        session_ctx.append_history([result.to_entry()])
-                        if self._rewind_manager is not None:
-                            self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                            self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
-                        metadata_accumulator.cache.notify_compaction()
-                        yield events.CompactionEndEvent(
-                            session_id=session_ctx.session_id,
-                            reason=CompactionReason.THRESHOLD.value,
-                            aborted=False,
-                            will_retry=False,
-                            tokens_before=result.tokens_before,
-                            kept_from_index=result.first_kept_index,
-                            summary=result.summary,
-                            kept_items_brief=result.kept_items_brief,
-                        )
-                        if result.fork_event is not None:
-                            yield result.fork_event
-                        break
-                    except asyncio.CancelledError:
-                        yield events.CompactionEndEvent(
-                            session_id=session_ctx.session_id,
-                            reason=CompactionReason.THRESHOLD.value,
-                            aborted=True,
-                            will_retry=False,
-                        )
-                        raise
-                    except Exception as e:
-                        fallback_result = self._fallback_compact_model(str(e))
-                        if fallback_result is not None:
-                            profile, fallback_event = fallback_result
-                            metadata_accumulator.cache.notify_compaction()
-                            yield fallback_event
-                            continue
-
-                        import traceback
-
-                        nothing_to_compact = isinstance(e, ValueError) and str(e).startswith("Nothing to compact")
-                        if not nothing_to_compact:
-                            skip_threshold_compaction = True
-
-                        # For threshold compaction, failure should not take down the task.
-                        log_debug(
-                            "[Compact] error",
-                            str(e.__class__.__name__),
-                            str(e),
-                            traceback.format_exc(),
-                            debug_type=DebugType.RESPONSE,
-                        )
-                        yield events.CompactionEndEvent(
-                            session_id=session_ctx.session_id,
-                            reason=CompactionReason.THRESHOLD.value,
-                            aborted=True,
-                            will_retry=False,
-                        )
-                        if not nothing_to_compact:
-                            yield events.ErrorEvent(
-                                error_message=f"Compaction failed, continuing without compaction: {e}",
-                                can_retry=True,
-                                session_id=session_ctx.session_id,
-                            )
-                        break
+                threshold_result = _CompactionRunResult()
+                async for event in self._run_compaction_with_fallback(
+                    reason=CompactionReason.THRESHOLD,
+                    profile=profile,
+                    metadata_accumulator=metadata_accumulator,
+                    will_retry=False,
+                    result=threshold_result,
+                ):
+                    yield event
+                assert threshold_result.profile is not None
+                profile = threshold_result.profile
+                # For threshold compaction, failure should not take down the task.
+                if not threshold_result.succeeded and not threshold_result.nothing_to_compact:
+                    skip_threshold_compaction = True
+                    yield events.ErrorEvent(
+                        error_message=f"Compaction failed, continuing without compaction: {threshold_result.error}",
+                        can_retry=True,
+                        session_id=session_ctx.session_id,
+                    )
 
             # Process attachments in parallel with error isolation after compaction
             # resets transient loaded flags.
@@ -672,83 +798,30 @@ class TaskExecutor:
                             session_id=session_ctx.session_id,
                             reason=CompactionReason.OVERFLOW.value,
                         )
-                        while True:
-                            try:
-                                log_debug("[Compact:Overflow] start", debug_type=DebugType.RESPONSE)
-                                compact_client = ctx.compact_llm_client or profile.llm_client
-                                result = await run_compaction(
-                                    session=ctx.session,
-                                    reason=CompactionReason.OVERFLOW,
-                                    focus=None,
-                                    llm_client=compact_client,
-                                    llm_config=compact_client.get_llm_config(),
-                                    main_profile=profile,
-                                )
-                                log_debug(
-                                    "[Compact:Overflow] result", str(result.to_entry()), debug_type=DebugType.RESPONSE
-                                )
-                                _reset_attachment_loaded_flags(ctx.session.file_tracker)
-                                session_ctx.append_history([result.to_entry()])
-                                if self._rewind_manager is not None:
-                                    self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                                    self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
-                                metadata_accumulator.cache.notify_compaction()
-                                yield events.CompactionEndEvent(
-                                    session_id=session_ctx.session_id,
-                                    reason=CompactionReason.OVERFLOW.value,
-                                    aborted=False,
-                                    will_retry=True,
-                                    tokens_before=result.tokens_before,
-                                    kept_from_index=result.first_kept_index,
-                                    summary=result.summary,
-                                    kept_items_brief=result.kept_items_brief,
-                                )
-                                if result.fork_event is not None:
-                                    yield result.fork_event
-                                for event in await self._collect_and_append_attachments(skip_existing=True):
-                                    yield event
-                                failed_attempts += 1
-                                break
-                            except asyncio.CancelledError:
-                                yield events.CompactionEndEvent(
-                                    session_id=session_ctx.session_id,
-                                    reason=CompactionReason.OVERFLOW.value,
-                                    aborted=True,
-                                    will_retry=True,
-                                )
-                                raise
-                            except Exception as exc:
-                                fallback_result = self._fallback_compact_model(str(exc))
-                                if fallback_result is not None:
-                                    profile, fallback_event = fallback_result
-                                    metadata_accumulator.cache.notify_compaction()
-                                    yield fallback_event
-                                    continue
-
-                                import traceback
-
-                                log_debug(
-                                    "[Compact:Overflow] error",
-                                    str(exc.__class__.__name__),
-                                    str(exc),
-                                    traceback.format_exc(),
-                                    debug_type=DebugType.RESPONSE,
-                                )
-                                yield events.CompactionEndEvent(
-                                    session_id=session_ctx.session_id,
-                                    reason=CompactionReason.OVERFLOW.value,
-                                    aborted=True,
-                                    will_retry=False,
-                                )
-                                error_message = f"{last_error_message}\nCompaction failed while recovering from context overflow: {exc}"
-                                yield events.ErrorEvent(
-                                    error_message=error_message,
-                                    can_retry=False,
-                                    session_id=session_ctx.session_id,
-                                )
-                                if ctx.sub_agent_state is not None:
-                                    raise RuntimeError(error_message) from exc
-                                return
+                        overflow_result = _CompactionRunResult()
+                        async for event in self._run_compaction_with_fallback(
+                            reason=CompactionReason.OVERFLOW,
+                            profile=profile,
+                            metadata_accumulator=metadata_accumulator,
+                            will_retry=True,
+                            result=overflow_result,
+                        ):
+                            yield event
+                        assert overflow_result.profile is not None
+                        profile = overflow_result.profile
+                        if not overflow_result.succeeded:
+                            error_message = f"{last_error_message}\nCompaction failed while recovering from context overflow: {overflow_result.error}"
+                            yield events.ErrorEvent(
+                                error_message=error_message,
+                                can_retry=False,
+                                session_id=session_ctx.session_id,
+                            )
+                            if ctx.sub_agent_state is not None:
+                                raise RuntimeError(error_message) from overflow_result.error
+                            return
+                        for event in await self._collect_and_append_attachments(skip_existing=True):
+                            yield event
+                        failed_attempts += 1
                         continue
 
                     fallback_result = self._fallback_model(last_error_message)
@@ -827,65 +900,15 @@ class TaskExecutor:
                         reason="handoff",
                     )
                     try:
-                        log_debug("[Handoff] start", debug_type=DebugType.RESPONSE)
-                        compact_client = ctx.compact_llm_client or profile.llm_client
-                        result = await run_handoff(
-                            session=ctx.session,
+                        async for event in self._run_handoff(
                             goal=pending_handoff.goal,
-                            llm_client=compact_client,
-                            llm_config=compact_client.get_llm_config(),
-                            main_profile=profile,
-                        )
-                        log_debug("[Handoff] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
-                        _reset_attachment_loaded_flags(ctx.session.file_tracker)
-                        session_ctx.append_history([result.to_entry()])
-                        if self._rewind_manager is not None:
-                            self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                            self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
-                        metadata_accumulator.cache.notify_compaction()
-                        yield events.CompactionEndEvent(
-                            session_id=session_ctx.session_id,
-                            reason="handoff",
-                            aborted=False,
-                            will_retry=False,
-                            tokens_before=result.tokens_before,
-                            kept_from_index=result.first_kept_index,
-                            summary=result.summary,
-                            kept_items_brief=result.kept_items_brief,
-                        )
-                        if result.fork_event is not None:
-                            yield result.fork_event
-                        continue
-                    except asyncio.CancelledError:
-                        yield events.CompactionEndEvent(
-                            session_id=session_ctx.session_id,
-                            reason="handoff",
-                            aborted=True,
-                            will_retry=False,
-                        )
-                        raise
-                    except Exception as e:
-                        import traceback
-
-                        log_debug(
-                            "[Handoff] error",
-                            str(e.__class__.__name__),
-                            str(e),
-                            traceback.format_exc(),
-                            debug_type=DebugType.RESPONSE,
-                        )
-                        yield events.CompactionEndEvent(
-                            session_id=session_ctx.session_id,
-                            reason="handoff",
-                            aborted=True,
-                            will_retry=False,
-                        )
-                        yield events.ErrorEvent(
-                            error_message=f"Handoff failed: {e}",
-                            can_retry=False,
-                            session_id=session_ctx.session_id,
-                        )
+                            profile=profile,
+                            metadata_accumulator=metadata_accumulator,
+                        ):
+                            yield event
+                    except _HandoffAborted:
                         return
+                    continue
 
             if step is None or step.task_finished:
                 # Empty response (no text, no tool calls): often caused by transient
