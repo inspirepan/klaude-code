@@ -19,8 +19,18 @@ provider_list:
 
   - &opus
     model_name: opus
-    model_id: claude-opus-4-7
-    max_tokens: 64000
+    model_id: claude-opus-4-8
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - &opus_xhigh
+    model_name: opus:xhigh
+    model_id: claude-opus-4-8
+    max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
     thinking:
@@ -29,8 +39,8 @@ provider_list:
 
   - &opus_1h
     model_name: opus:1h
-    model_id: claude-opus-4-7
-    max_tokens: 64000
+    model_id: claude-opus-4-8
+    max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
     cache_retention: long
@@ -39,14 +49,14 @@ provider_list:
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 10 }
 
   - model_name: opus:fast
-    model_id: claude-opus-4-7
-    max_tokens: 64000
+    model_id: claude-opus-4-8
+    max_tokens: 128000
     context_limit: 1000000
     effort: high
     fast_mode: true
     thinking:
       type: adaptive
-    cost: { input: 30, output: 150, cache_read: 3, cache_write: 37.5 }
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
 
   - &haiku
     model_name: haiku
@@ -69,8 +79,17 @@ provider_list:
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
-    model_id: global.anthropic.claude-opus-4-7
-    max_tokens: 64000
+    model_id: global.anthropic.claude-opus-4-8
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: opus:xhigh
+    model_id: global.anthropic.claude-opus-4-8
+    max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
     thinking:
@@ -78,14 +97,23 @@ provider_list:
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: opus:1h
-    model_id: global.anthropic.claude-opus-4-7
-    max_tokens: 64000
+    model_id: global.anthropic.claude-opus-4-8
+    max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
     cache_retention: long
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 10 }
+
+  - model_name: opus-4-7
+    model_id: global.anthropic.claude-opus-4-7
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: xhigh
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: opus-4-6
     model_id: global.anthropic.claude-opus-4-6-v1
@@ -539,6 +567,7 @@ provider_list:
   - *sonnet
   - *haiku
   - *opus
+  - *opus_xhigh
 
 # ######################################## ark-coding-plan ########################################
 - provider_name: ark-coding-plan
@@ -654,8 +683,17 @@ provider_list:
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: opus
-    model_id: anthropic/claude-opus-4.7
-    max_tokens: 64000
+    model_id: anthropic/claude-opus-4.8
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: opus:xhigh
+    model_id: anthropic/claude-opus-4.8
+    max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
     thinking:
