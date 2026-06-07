@@ -13,6 +13,16 @@ provider_list:
     model_name: sonnet
     model_id: claude-sonnet-4-6
     context_limit: 1000000
+    effort: medium
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - &sonnet_low
+    model_name: sonnet:low
+    model_id: claude-sonnet-4-6
+    context_limit: 1000000
+    effort: low
     thinking:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
@@ -74,6 +84,15 @@ provider_list:
   - model_name: sonnet
     model_id: global.anthropic.claude-sonnet-4-6
     context_limit: 1000000
+    effort: medium
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet:low
+    model_id: global.anthropic.claude-sonnet-4-6
+    context_limit: 1000000
+    effort: low
     thinking:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
@@ -555,6 +574,7 @@ provider_list:
   - *gpt54_xhigh
 
   - *sonnet
+  - *sonnet_low
   - *haiku
   - *opus
   - *opus_xhigh
@@ -666,6 +686,17 @@ provider_list:
   - model_name: sonnet
     model_id: anthropic/claude-sonnet-4.6
     context_limit: 1000000
+    effort: medium
+    provider_routing:
+      sort: throughput
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet:low
+    model_id: anthropic/claude-sonnet-4.6
+    context_limit: 1000000
+    effort: low
     provider_routing:
       sort: throughput
     thinking:
