@@ -13,7 +13,6 @@ from klaude_code.agent.session_stats import build_session_stats_ui_extra
 from klaude_code.config import format_model_preference, load_config, prioritize_model_preference
 from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.config.sub_agent_model import SubAgentModelResolver
-from klaude_code.config.thinking import get_thinking_picker_data, parse_thinking_value
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.llm_param import LLMConfigParameter, Thinking
@@ -136,9 +135,6 @@ class ConfigHandler:
     async def handle_change_thinking(self, operation: op.ChangeThinkingOperation) -> None:
         self._agent_runner.cancel_auto_away_summary(operation.session_id)
         agent = await self._agent_runner.ensure_agent(operation.session_id)
-
-        if operation.thinking is None:
-            raise ValueError("thinking must be provided; interactive selection belongs to UI")
 
         previous = self._model_switcher.change_thinking(agent, thinking=operation.thinking)
         current = self._format_thinking_for_display(previous)
@@ -358,73 +354,6 @@ class ConfigHandler:
                     session_id=operation.session_id,
                     model_name=selected_model,
                     save_as_default=operation.save_as_default,
-                    defer_thinking_selection=operation.defer_thinking_selection,
-                    emit_welcome_event=operation.emit_welcome_event,
-                    emit_switch_message=operation.emit_switch_message,
-                )
-            )
-
-        await self._agent_runner.run_background_operation(
-            operation_id=operation.id,
-            session_id=operation.session_id,
-            runner=_runner,
-        )
-
-    async def handle_request_thinking(self, operation: op.RequestThinkingOperation) -> None:
-        self._agent_runner.cancel_auto_away_summary(operation.session_id)
-
-        async def _runner() -> None:
-            agent = await self._agent_runner.ensure_agent(operation.session_id)
-            llm_config = agent.profile.llm_client.get_llm_config()
-            picker_data = get_thinking_picker_data(llm_config)
-            if picker_data is None:
-                await self._emit_event(
-                    events.NoticeEvent(
-                        session_id=operation.session_id,
-                        content="Thinking configuration is not available for current model.",
-                        is_error=True,
-                    )
-                )
-                return
-
-            options = [
-                user_interaction.OperationSelectOption(
-                    id=option.value,
-                    label=option.label,
-                    description="",
-                )
-                for option in picker_data.options
-            ]
-            selected = await self._ask_single_choice(
-                session_id=operation.session_id,
-                source="operation_thinking",
-                header="Thinking",
-                question=picker_data.message,
-                options=options,
-            )
-            if selected is None:
-                await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
-                return
-
-            thinking = parse_thinking_value(selected)
-            if thinking is None:
-                await self._emit_event(
-                    events.NoticeEvent(
-                        session_id=operation.session_id,
-                        content="Invalid thinking option selected.",
-                        is_error=True,
-                    )
-                )
-                return
-
-            if llm_config.thinking == thinking:
-                await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
-                return
-
-            await self.handle_change_thinking(
-                op.ChangeThinkingOperation(
-                    session_id=operation.session_id,
-                    thinking=thinking,
                     emit_welcome_event=operation.emit_welcome_event,
                     emit_switch_message=operation.emit_switch_message,
                 )

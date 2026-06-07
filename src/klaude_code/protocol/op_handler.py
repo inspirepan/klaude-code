@@ -26,7 +26,6 @@ if TYPE_CHECKING:
         InterruptOperation,
         RequestModelOperation,
         RequestSubAgentModelOperation,
-        RequestThinkingOperation,
         RunAgentOperation,
         RunBashOperation,
         UserInteractionRespondOperation,
@@ -74,10 +73,6 @@ class OperationHandler(Protocol):
 
     async def handle_request_model(self, operation: RequestModelOperation) -> None:
         """Handle an interactive request model operation."""
-        ...
-
-    async def handle_request_thinking(self, operation: RequestThinkingOperation) -> None:
-        """Handle an interactive request thinking operation."""
         ...
 
     async def handle_request_sub_agent_model(self, operation: RequestSubAgentModelOperation) -> None:

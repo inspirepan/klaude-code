@@ -158,7 +158,6 @@ def test_render_welcome_shows_startup_update_and_shortcuts() -> None:
     assert "shortcuts" in output
     assert "├── @ files · / commands · // skills · ! shell" in output
     assert "change model (this chat)" in output
-    assert "change thinking level" in output
     assert "paste image" in output
     assert "├──" in output
 

@@ -23,7 +23,7 @@ from klaude_code.app.runtime import (
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import load_config
 from klaude_code.log import log
-from klaude_code.protocol import events, llm_param, op, user_interaction
+from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
 from klaude_code.tui.command import (
@@ -536,26 +536,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 session_id=sid,
                 model_name=model_name,
                 save_as_default=False,
-                defer_thinking_selection=True,
-                emit_welcome_event=True,
-                emit_switch_message=False,
-            )
-        )
-
-    def _get_current_llm_config() -> llm_param.LLMConfigParameter | None:
-        agent = components.runtime.current_agent
-        if agent is None:
-            return None
-        return agent.profile.llm_client.get_llm_config()
-
-    async def _change_thinking_from_prompt(thinking: llm_param.Thinking) -> None:
-        sid = _get_active_session_id()
-        if not sid:
-            return
-        await components.runtime.submit_and_wait(
-            op.ChangeThinkingOperation(
-                session_id=sid,
-                thinking=thinking,
                 emit_welcome_event=True,
                 emit_switch_message=False,
             )
@@ -575,8 +555,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             else None
         ),
         on_change_model=_change_model_from_prompt,
-        get_current_llm_config=_get_current_llm_config,
-        on_change_thinking=_change_thinking_from_prompt,
         command_info_provider=get_command_info_list,
     )
 

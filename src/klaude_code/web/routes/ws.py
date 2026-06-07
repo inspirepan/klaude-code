@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, llm_param, message, op, user_interaction
+from klaude_code.protocol import events, message, op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
 from klaude_code.protocol.models import TaskMetadataItem, Usage
 from klaude_code.session.session import Session
@@ -60,11 +60,6 @@ class RequestModelFrame(BaseModel):
     save_as_default: bool = False
 
 
-class ThinkingFrame(BaseModel):
-    type: Literal["thinking"]
-    thinking: llm_param.Thinking
-
-
 class CompactFrame(BaseModel):
     type: Literal["compact"]
     focus: str | None = None
@@ -77,7 +72,6 @@ type IncomingFrame = (
     | ContinueFrame
     | ModelFrame
     | RequestModelFrame
-    | ThinkingFrame
     | CompactFrame
 )
 
@@ -214,15 +208,6 @@ async def _handle_incoming_frame(
             )
             return
 
-        if isinstance(frame, ThinkingFrame):
-            await runtime.submit(
-                op.ChangeThinkingOperation(
-                    session_id=session_id,
-                    thinking=frame.thinking,
-                )
-            )
-            return
-
         await runtime.submit(
             op.CompactSessionOperation(
                 session_id=session_id,
@@ -254,8 +239,6 @@ def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> Incomi
         return ModelFrame.model_validate(payload)
     if frame_type == "model_request":
         return RequestModelFrame.model_validate(payload)
-    if frame_type == "thinking":
-        return ThinkingFrame.model_validate(payload)
     return CompactFrame.model_validate(payload)
 
 
@@ -458,7 +441,6 @@ async def _receive_commands(
             "continue",
             "model",
             "model_request",
-            "thinking",
             "compact",
         }:
             await _send_error_frame(websocket, code="unknown_type", message=f"Unknown message type: {frame_type}")

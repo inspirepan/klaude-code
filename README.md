@@ -320,7 +320,6 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 - `/new` - Start a new session (clears context).
 - `/model` - Switch the active LLM and update `main_model` in config while preserving fallback order (the selected model is moved/inserted to the front).
 - `/sub-agent-model` - Configure sub-agent models at runtime.
-- `/thinking` - Change thinking/reasoning level.
 - `/status` - Show session usage statistics (cost, tokens, model breakdown).
 - `/login` - Login to provider or configure API key.
 - `/logout` - Logout from provider.
@@ -336,7 +335,6 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 | `Shift+Enter`        | Insert newline (terminal-dependent)         |
 | `Ctrl+J`             | Insert newline                              |
 | `Ctrl+L`             | Open model picker overlay                   |
-| `Ctrl+T`             | Open thinking level picker overlay          |
 | `Ctrl+V`             | Paste image from clipboard                  |
 | `Left/Right`         | Move cursor (wraps across lines)            |
 | `Backspace`          | Delete character or selected text           |

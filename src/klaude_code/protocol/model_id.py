@@ -73,20 +73,6 @@ def model_supports_unsigned_thinking(model_name: str | None) -> bool:
 # -- OpenAI / Responses -------------------------------------------------------
 
 
-def is_gpt51_model(model_name: str | None) -> bool:
-    """Check if the model is GPT-5.1."""
-    if not model_name:
-        return False
-    return model_name.lower() in ["gpt-5.1", "openai/gpt-5.1", "gpt-5.1-codex-2025-11-13"]
-
-
-def is_gpt52_model(model_name: str | None) -> bool:
-    """Check if the model is GPT-5.2 or GPT-5.3 (same thinking levels)."""
-    if not model_name:
-        return False
-    return model_name.lower() in ["gpt-5.2", "openai/gpt-5.2", "gpt-5.3", "openai/gpt-5.3"]
-
-
 def is_gpt5_model(model_name: str | None) -> bool:
     """Check if the model is any GPT-5 variant."""
     if not model_name:
@@ -140,13 +126,6 @@ def is_gemini3_model(model_name: str | None) -> bool:
     return "gemini-3" in model_name.lower()
 
 
-def is_gemini_flash_model(model_name: str | None) -> bool:
-    """Check if the model is Gemini 3 Flash."""
-    if not model_name:
-        return False
-    return "gemini-3-flash" in model_name.lower()
-
-
 def supports_google_thinking(model_name: str | None) -> bool:
     """Check if the Google model supports thinking (Gemini 3 or Gemini 2.5 Pro)."""
     if not model_name:
@@ -178,12 +157,3 @@ def is_grok_model(model_name: str | None) -> bool:
     return model_name is not None and "grok" in model_name.lower()
 
 
-# -- OpenRouter composite checks -----------------------------------------------
-
-
-def is_openrouter_model_with_reasoning_effort(model_name: str | None) -> bool:
-    """Check if the model is GPT series, Grok or Gemini 3 (OpenRouter models with reasoning_effort support)."""
-    if not model_name:
-        return False
-    model_lower = model_name.lower()
-    return model_lower.startswith(("openai/gpt-", "x-ai/grok-", "google/gemini-3"))

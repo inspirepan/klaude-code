@@ -35,7 +35,6 @@ class OperationType(Enum):
     CHANGE_SUB_AGENT_MODEL = "change_sub_agent_model"
     CHANGE_THINKING = "change_thinking"
     REQUEST_MODEL = "request_model"
-    REQUEST_THINKING = "request_thinking"
     REQUEST_SUB_AGENT_MODEL = "request_sub_agent_model"
     GET_SESSION_STATS = "get_session_stats"
     CLEAR_SESSION = "clear_session"
@@ -124,10 +123,6 @@ class ChangeModelOperation(Operation):
     session_id: str
     model_name: str
     save_as_default: bool = False
-    # When True, the executor must not auto-trigger an interactive thinking selector.
-    # This is required for in-prompt model switching where the terminal is already
-    # controlled by a prompt_toolkit PromptSession.
-    defer_thinking_selection: bool = False
     # When False, do not emit WelcomeEvent (which renders a banner/panel).
     # This is useful for in-prompt model switching where extra output is noisy.
     emit_welcome_event: bool = True
@@ -157,7 +152,7 @@ class ChangeThinkingOperation(Operation):
 
     type: OperationType = OperationType.CHANGE_THINKING
     session_id: str
-    thinking: Thinking | None = None
+    thinking: Thinking
     emit_welcome_event: bool = True
     emit_switch_message: bool = True
 
@@ -187,24 +182,11 @@ class RequestModelOperation(Operation):
     session_id: str
     initial_search_text: str | None = None
     save_as_default: bool = True
-    defer_thinking_selection: bool = False
     emit_welcome_event: bool = True
     emit_switch_message: bool = True
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_request_model(self)
-
-
-class RequestThinkingOperation(Operation):
-    """Operation for interactively selecting and changing thinking configuration."""
-
-    type: OperationType = OperationType.REQUEST_THINKING
-    session_id: str
-    emit_welcome_event: bool = True
-    emit_switch_message: bool = True
-
-    async def execute(self, handler: OperationHandler) -> None:
-        await handler.handle_request_thinking(self)
 
 
 class RequestSubAgentModelOperation(Operation):

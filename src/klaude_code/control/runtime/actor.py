@@ -501,7 +501,6 @@ def _is_root_operation(operation: op.Operation) -> bool:
         | op.ContinueAgentOperation
         | op.CompactSessionOperation
         | op.RequestModelOperation
-        | op.RequestThinkingOperation
         | op.RequestSubAgentModelOperation,
     )
 
@@ -525,7 +524,7 @@ def _root_task_kind(operation: op.Operation) -> str:
         return "compact"
     if isinstance(
         operation,
-        op.RequestModelOperation | op.RequestThinkingOperation | op.RequestSubAgentModelOperation,
+        op.RequestModelOperation | op.RequestSubAgentModelOperation,
     ):
         return "config_request"
     raise RuntimeError(f"unsupported root operation kind: {operation.type.value}")

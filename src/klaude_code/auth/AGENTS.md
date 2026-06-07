@@ -305,25 +305,9 @@ Add provider and models:
 
 ## 8. Thinking Integration
 
-### `src/klaude_code/config/thinking.py`
-
-Many OAuth protocols share reasoning/thinking behavior with existing protocols.
-Add the new protocol to the correct branch so:
-
-- current thinking is displayed correctly,
-- picker options are generated correctly,
-- selected values can be parsed back into `llm_param.Thinking`.
-
-Example:
-
-```python
-if protocol in (
-    llm_param.LLMClientProtocol.RESPONSES,
-    llm_param.LLMClientProtocol.CODEX_OAUTH,
-    llm_param.LLMClientProtocol.<PROVIDER>,
-):
-    ...
-```
+If the provider supports static reasoning/thinking parameters, wire the fields
+through the provider's LLM client implementation and add model entries with the
+appropriate `thinking` values in `builtin_config.yaml`.
 
 ---
 
@@ -356,6 +340,6 @@ When adding a new OAuth provider, ensure you've completed:
 - [ ] Update `auth_cmd.py` - provider selection, login, logout
 - [ ] Update `list_model.py` - status display function and panel
 - [ ] Add provider/models to `builtin_config.yaml`
-- [ ] Update `thinking.py` protocol mapping if the provider supports reasoning/thinking
+- [ ] Add provider-specific reasoning/thinking handling when supported
 - [ ] Add/adjust tests (at least `tests/test_config.py`)
 - [ ] Run `make lint` to verify all changes

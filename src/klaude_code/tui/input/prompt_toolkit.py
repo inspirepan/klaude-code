@@ -25,12 +25,6 @@ from prompt_toolkit.utils import get_cwidth
 from klaude_code.app.ports import InputProviderABC
 from klaude_code.config import load_config
 from klaude_code.config.model_matcher import match_model_from_config
-from klaude_code.config.thinking import (
-    format_current_thinking,
-    get_thinking_picker_data,
-    parse_thinking_value,
-)
-from klaude_code.protocol import llm_param
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.commands import PromptStatusLine
@@ -167,8 +161,6 @@ class PromptToolkitInput(InputProviderABC):
         on_user_activity: Callable[[], None] | None = None,
         on_change_model: Callable[[str], Awaitable[None]] | None = None,
         get_current_model_config_name: Callable[[], str | None] | None = None,
-        on_change_thinking: Callable[[llm_param.Thinking], Awaitable[None]] | None = None,
-        get_current_llm_config: Callable[[], llm_param.LLMConfigParameter | None] | None = None,
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
         dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
         request_interrupt: Callable[[], None] | None = None,
@@ -182,8 +174,6 @@ class PromptToolkitInput(InputProviderABC):
         self._on_user_activity = on_user_activity
         self._on_change_model = on_change_model
         self._get_current_model_config_name = get_current_model_config_name
-        self._on_change_thinking = on_change_thinking
-        self._get_current_llm_config = get_current_llm_config
         self._command_info_provider = command_info_provider
         self._dequeue_pending_messages = dequeue_pending_messages
         self._request_interrupt = request_interrupt
@@ -212,7 +202,6 @@ class PromptToolkitInput(InputProviderABC):
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
         self._setup_model_picker()
-        self._setup_thinking_picker()
         self._apply_layout_customizations()
 
     def _handle_user_activity(self, _sender: object) -> None:
@@ -321,13 +310,9 @@ class PromptToolkitInput(InputProviderABC):
         history_path.parent.mkdir(parents=True, exist_ok=True)
         history_path.touch(exist_ok=True)
 
-        # Model and thinking pickers will be set up later; create placeholder condition
+        # The model picker will be set up later; create placeholder condition.
         self._model_picker: SelectOverlay[str] | None = None
-        self._thinking_picker: SelectOverlay[str] | None = None
-        input_enabled = Condition(
-            lambda: (self._model_picker is None or not self._model_picker.is_open)
-            and (self._thinking_picker is None or not self._thinking_picker.is_open)
-        )
+        input_enabled = Condition(lambda: self._model_picker is None or not self._model_picker.is_open)
 
         kb = create_key_bindings(
             capture_clipboard_tag=capture_clipboard_tag,
@@ -335,7 +320,6 @@ class PromptToolkitInput(InputProviderABC):
             skill_token_pattern=SKILL_TOKEN_PATTERN,
             input_enabled=input_enabled,
             open_model_picker=self._open_model_picker,
-            open_thinking_picker=self._open_thinking_picker,
             get_prompt_suggestion=self._get_prompt_suggestion,
             consume_prompt_suggestion=self._consume_prompt_suggestion,
             dequeue_pending_messages=lambda: (
@@ -486,22 +470,6 @@ class PromptToolkitInput(InputProviderABC):
             merged_kb = merge_key_bindings([existing_kb, model_picker.key_bindings])
             self._session.key_bindings = merged_kb
 
-    def _setup_thinking_picker(self) -> None:
-        """Initialize the thinking picker overlay and attach it to the layout."""
-        thinking_picker = SelectOverlay[str](
-            pointer="→",
-            use_search_filter=False,
-            list_height=6,
-            on_select=self._handle_thinking_selected,
-        )
-        self._thinking_picker = thinking_picker
-
-        # Merge overlay key bindings with existing session key bindings
-        existing_kb = self._session.key_bindings
-        if existing_kb is not None:
-            merged_kb = merge_key_bindings([existing_kb, thinking_picker.key_bindings])
-            self._session.key_bindings = merged_kb
-
     def _apply_layout_customizations(self) -> None:
         """Apply layout customizations after session is created."""
         # Make the Escape key feel responsive
@@ -551,8 +519,6 @@ class PromptToolkitInput(InputProviderABC):
             ]
             if self._model_picker is not None:
                 dynamic_panels.append(self._model_picker.container)
-            if self._thinking_picker is not None:
-                dynamic_panels.append(self._thinking_picker.container)
             self._session.app.layout.container = HSplit(
                 [*bar_containers, input_top_rule, root, input_bottom_rule, *dynamic_panels, input_footer]
             )
@@ -584,9 +550,7 @@ class PromptToolkitInput(InputProviderABC):
         return 1 + max(1, len(self._bottom_bar.metadata_footer_lines))
 
     def _is_picker_open(self) -> bool:
-        return (self._model_picker is not None and self._model_picker.is_open) or (
-            self._thinking_picker is not None and self._thinking_picker.is_open
-        )
+        return self._model_picker is not None and self._model_picker.is_open
 
     def _is_completion_active(self) -> bool:
         try:
@@ -847,49 +811,6 @@ class PromptToolkitInput(InputProviderABC):
         if self._on_change_model is None:
             return
         await self._on_change_model(model_name)
-
-    # -------------------------------------------------------------------------
-    # Thinking picker
-    # -------------------------------------------------------------------------
-
-    def _build_thinking_picker_items(
-        self, config: llm_param.LLMConfigParameter
-    ) -> tuple[list[SelectItem[str]], str | None]:
-        data = get_thinking_picker_data(config)
-        if data is None:
-            return [], None
-
-        items: list[SelectItem[str]] = [
-            SelectItem(title=[("class:msg", opt.label + "\n")], value=opt.value, search_text=opt.label)
-            for opt in data.options
-        ]
-        return items, data.current_value
-
-    def _open_thinking_picker(self) -> None:
-        if self._thinking_picker is None:
-            return
-        if self._get_current_llm_config is None:
-            return
-        config = self._get_current_llm_config()
-        if config is None:
-            return
-        items, initial = self._build_thinking_picker_items(config)
-        if not items:
-            return
-        current = format_current_thinking(config)
-        self._thinking_picker.set_content(
-            message=f"Select thinking level (current: {current}):", items=items, initial_value=initial
-        )
-        self._thinking_picker.open()
-
-    async def _handle_thinking_selected(self, value: str) -> None:
-        if self._on_change_thinking is None:
-            return
-
-        new_thinking = parse_thinking_value(value)
-        if new_thinking is None:
-            return
-        await self._on_change_thinking(new_thinking)
 
     # -------------------------------------------------------------------------
     # Clipboard image watcher

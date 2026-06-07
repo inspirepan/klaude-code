@@ -64,7 +64,6 @@ def create_key_bindings(
     *,
     input_enabled: Filter | None = None,
     open_model_picker: Callable[[], None] | None = None,
-    open_thinking_picker: Callable[[], None] | None = None,
     get_prompt_suggestion: Callable[[], str | None] | None = None,
     consume_prompt_suggestion: Callable[[], str | None] | None = None,
     dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
@@ -790,13 +789,6 @@ def create_key_bindings(
         if open_model_picker is not None:
             with contextlib.suppress(Exception):
                 open_model_picker()
-
-    @kb.add("c-t", filter=enabled, eager=True)
-    def _(event: KeyPressEvent) -> None:
-        del event
-        if open_thinking_picker is not None:
-            with contextlib.suppress(Exception):
-                open_thinking_picker()
 
     @kb.add("escape", "up", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:
