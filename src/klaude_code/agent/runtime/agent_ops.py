@@ -113,7 +113,6 @@ class AgentOperationHandler:
         allowed_sources: set[user_interaction.UserInteractionSource] = {
             "tool",
             "operation_model",
-            "operation_thinking",
             "operation_sub_agent_model",
         }
         if source not in allowed_sources:

@@ -2,7 +2,6 @@ export type UserInteractionSource =
   | "tool"
   | "approval"
   | "operation_model"
-  | "operation_thinking"
   | "operation_sub_agent_model";
 
 export interface AskUserQuestionOption {

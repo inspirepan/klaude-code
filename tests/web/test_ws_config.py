@@ -9,25 +9,6 @@ from klaude_code.config import load_config
 from .conftest import AppEnv, consume_ws_handshake, wait_for_event
 
 
-def test_change_thinking_via_ws(app_env: AppEnv) -> None:
-    session_id = app_env.create_session()
-    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
-        consume_ws_handshake(websocket)
-        websocket.send_json(
-            {
-                "type": "thinking",
-                "thinking": {
-                    "type": "enabled",
-                    "budget_tokens": 2048,
-                },
-            }
-        )
-        event = wait_for_event(websocket, "thinking.changed")
-
-    assert event["event_type"] == "thinking.changed"
-    assert "current" in event["event"]
-
-
 def test_change_model_via_ws(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
     cast(Any, load_config).cache_clear()

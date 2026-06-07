@@ -513,6 +513,5 @@ def _should_mark_running_on_accept(operation: op.Operation) -> bool:
         | op.ContinueAgentOperation
         | op.CompactSessionOperation
         | op.RequestModelOperation
-        | op.RequestThinkingOperation
         | op.RequestSubAgentModelOperation,
     )

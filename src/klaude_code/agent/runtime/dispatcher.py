@@ -248,9 +248,6 @@ class OperationDispatcher:
     async def handle_request_model(self, operation: op.RequestModelOperation) -> None:
         await self._config_handler.handle_request_model(operation)
 
-    async def handle_request_thinking(self, operation: op.RequestThinkingOperation) -> None:
-        await self._config_handler.handle_request_thinking(operation)
-
     async def handle_request_sub_agent_model(self, operation: op.RequestSubAgentModelOperation) -> None:
         await self._config_handler.handle_request_sub_agent_model(operation)
 

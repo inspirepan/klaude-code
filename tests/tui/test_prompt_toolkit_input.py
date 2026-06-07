@@ -47,7 +47,6 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._external_input_resume_event = asyncio.Event()
     prompt_input._external_input_resume_event.set()
     prompt_input._model_picker = None
-    prompt_input._thinking_picker = None
     return prompt_input  # type: ignore[return-value]
 
 

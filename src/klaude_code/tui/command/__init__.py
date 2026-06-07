@@ -44,7 +44,6 @@ def ensure_commands_loaded() -> None:
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
     from .switch_cmd import SwitchCommand
-    from .thinking_cmd import ThinkingCommand
     from .web_cmd import WebCommand
 
     # Register in desired display order
@@ -57,7 +56,6 @@ def ensure_commands_loaded() -> None:
     register(NewCommand())
     register(ModelCommand())
     register(SubAgentModelCommand())
-    register(ThinkingCommand())
     register(StatusCommand())
     register(LoginCommand())
     register(LogoutCommand())
@@ -85,7 +83,6 @@ def __getattr__(name: str) -> object:
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
         "SwitchCommand": "switch_cmd",
-        "ThinkingCommand": "thinking_cmd",
         "WebCommand": "web_cmd",
     }
     if name in _commands_map:
