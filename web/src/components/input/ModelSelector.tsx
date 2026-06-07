@@ -235,9 +235,7 @@ export function ModelSelector({
                               setQuery("");
                             }}
                           >
-                            <span className="min-w-0 flex-1 truncate">
-                              {model.model_id}
-                            </span>
+                            <span className="min-w-0 flex-1 truncate">{model.model_id}</span>
                             <span className="inline-flex shrink-0 items-center gap-1 text-xs text-neutral-500">
                               {model.is_default ? t("model.default") : null}
                               {selected ? <Check className="h-3 w-3" /> : null}

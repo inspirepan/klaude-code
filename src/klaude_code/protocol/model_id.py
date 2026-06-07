@@ -155,5 +155,3 @@ def is_xai_model(model_name: str | None) -> bool:
 def is_grok_model(model_name: str | None) -> bool:
     """Return True if the model name contains 'grok' (any provider/format)."""
     return model_name is not None and "grok" in model_name.lower()
-
-

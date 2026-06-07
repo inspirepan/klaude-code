@@ -66,13 +66,7 @@ class CompactFrame(BaseModel):
 
 
 type IncomingFrame = (
-    MessageFrame
-    | InterruptFrame
-    | RespondFrame
-    | ContinueFrame
-    | ModelFrame
-    | RequestModelFrame
-    | CompactFrame
+    MessageFrame | InterruptFrame | RespondFrame | ContinueFrame | ModelFrame | RequestModelFrame | CompactFrame
 )
 
 
