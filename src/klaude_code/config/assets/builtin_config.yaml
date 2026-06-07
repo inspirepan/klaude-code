@@ -368,7 +368,7 @@ provider_list:
     context_limit: 1000000
     thinking:
       type: disabled
-    cost: { input: 1, output: 2, cache_read: 0.2, currency: CNY }
+    cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
 
   - model_name: deepseek-flash:high
     model_alias: [ v4-flash:high ]
@@ -377,7 +377,7 @@ provider_list:
     effort: high
     thinking:
       type: enabled
-    cost: { input: 1, output: 2, cache_read: 0.2, currency: CNY }
+    cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
 
   - model_name: deepseek-flash:max
     model_alias: [ v4-flash:max ]
@@ -386,7 +386,7 @@ provider_list:
     effort: max
     thinking:
       type: enabled
-    cost: { input: 1, output: 2, cache_read: 0.2, currency: CNY }
+    cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
 
   - model_name: deepseek
     model_alias: [ deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high ]
@@ -395,7 +395,7 @@ provider_list:
     effort: high
     thinking:
       type: enabled
-    cost: { input: 12, output: 24, cache_read: 1, currency: CNY }
+    cost: { input: 3, output: 6, cache_read: 0.025, currency: CNY }
 
   - model_name: deepseek:max
     model_alias: [ deepseek-pro:max, v4-pro:max ]
@@ -404,7 +404,7 @@ provider_list:
     effort: max
     thinking:
       type: enabled
-    cost: { input: 12, output: 24, cache_read: 1, currency: CNY }
+    cost: { input: 3, output: 6, cache_read: 0.025, currency: CNY }
 
 # ######################################## moonshot-cn ########################################
 - provider_name: moonshot-cn
@@ -446,22 +446,12 @@ provider_list:
   model_list:
 
   - model_name: minimax
-    model_alias: [ m2.7, minimax-m2.7 ]
-    model_id: MiniMax-M2.7
-    context_limit: 204800
+    model_alias: [ m3, minimax-m3 ]
+    model_id: MiniMax-M3
+    context_limit: 1000000
     thinking:
-      type: enabled
-      budget_tokens: 8192
-    cost: { input: 0.3, output: 1.2, cache_read: 0.06, cache_write: 0.375 }
-
-  - model_name: minimax:highspeed
-    model_alias: [ m2.7:highspeed, minimax-m2.7-highspeed ]
-    model_id: MiniMax-M2.7-highspeed
-    context_limit: 204800
-    thinking:
-      type: enabled
-      budget_tokens: 8192
-    cost: { input: 0.6, output: 2.4, cache_read: 0.06, cache_write: 0.375 }
+      type: adaptive
+    cost: { input: 0.6, output: 2.4, cache_read: 0.12 }
 
 # ######################################## cerebras ########################################
 - provider_name: cerebras
@@ -740,13 +730,12 @@ provider_list:
     cost: { input: 0.95, output: 4, cache_read: 0.16 }
 
   - model_name: minimax
-    model_alias: [ m2.7, minimax-m2.7 ]
-    model_id: minimax/minimax-m2.7
-    context_limit: 204800
+    model_alias: [ m3, minimax-m3 ]
+    model_id: minimax/minimax-m3
+    context_limit: 1000000
     thinking:
-      type: enabled
-      budget_tokens: 8192
-    cost: { input: 0.3, output: 1.2, cache_read: 0.06 }
+      type: adaptive
+    cost: { input: 0.6, output: 2.4, cache_read: 0.12 }
 
   - model_name: glm
     model_alias: [ glm-5.1 ]
