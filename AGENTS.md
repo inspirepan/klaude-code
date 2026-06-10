@@ -4,7 +4,7 @@
 
 Python package with source code located in `src/klaude_code/`. Main modules include:
 - `src/klaude_code/app/`: Application entry point and server lifecycle
-- `src/klaude_code/auth/`: OAuth authentication providers (codex, github-copilot, etc.)
+- `src/klaude_code/auth/`: OAuth authentication providers (codex, etc.)
 - `src/klaude_code/cli/`: Command-line interface
 - `src/klaude_code/config/`: Configuration loading, model config, builtin defaults
 - `src/klaude_code/agent/`: Agent runtime (agent loop, attachments, memory, context management)

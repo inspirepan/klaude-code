@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, ClassVar
 
 import pytest
 
 from klaude_code.app import auth_flow
+from klaude_code.auth import base as auth_base
 from klaude_code.auth.codex.token_manager import CodexAuthState
 
 
@@ -98,3 +101,28 @@ def test_execute_codex_login_prompts_for_new_account_name(monkeypatch: pytest.Mo
 
     assert _FakeCodexTokenManager.created_names == [None, "new"]
     assert login_calls == ["new"]
+
+
+def test_execute_logout_github_copilot_cleans_legacy_auth_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    auth_file = tmp_path / "klaude-auth.json"
+    auth_file.write_text(
+        json.dumps(
+            {
+                "copilot": {"access_token": "legacy"},
+                "github-copilot": {"access_token": "current"},
+                "env": {"OPENAI_API_KEY": "sk-test"},
+            }
+        )
+    )
+    logs: list[Any] = []
+
+    monkeypatch.setattr(auth_base, "KLAUDE_AUTH_FILE", auth_file)
+    monkeypatch.setattr(auth_flow, "log", lambda message: logs.append(message))
+
+    auth_flow.execute_logout("github-copilot")
+
+    saved = json.loads(auth_file.read_text())
+    assert saved == {"env": {"OPENAI_API_KEY": "sk-test"}}
+    assert logs == [("Removed legacy GitHub Copilot auth state.", "green")]

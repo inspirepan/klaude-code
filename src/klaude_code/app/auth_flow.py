@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-import webbrowser
 
 import typer
 
@@ -173,51 +172,6 @@ def execute_login(provider: str, account_name: str | None = None) -> None:
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
-        case "github-copilot" | "copilot":
-            from klaude_code.auth.copilot.oauth import CopilotOAuth
-            from klaude_code.auth.copilot.token_manager import CopilotTokenManager
-
-            token_manager = CopilotTokenManager()
-
-            if token_manager.is_logged_in():
-                state = token_manager.get_state()
-                if state and not state.is_expired():
-                    log(("You are already logged in to GitHub Copilot.", "green"))
-                    domain = state.enterprise_domain or "github.com"
-                    expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
-                    log(f"  Domain: {domain}")
-                    log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-                    if not typer.confirm("Do you want to re-login?"):
-                        return
-
-            enterprise_input = typer.prompt(
-                "GitHub Enterprise URL/domain (leave empty for github.com)",
-                default="",
-                show_default=False,
-            )
-            log("Starting GitHub Copilot OAuth device flow…")
-
-            try:
-                oauth = CopilotOAuth(token_manager)
-
-                def _on_auth(url: str, code: str) -> None:
-                    log(f"Open this URL in your browser: {url}")
-                    log(f"Enter this code: {code}")
-                    webbrowser.open(url)
-
-                state = oauth.login(
-                    enterprise_input=enterprise_input,
-                    on_auth=_on_auth,
-                    on_progress=lambda msg: log(msg),
-                )
-                log(("Login successful!", "green"))
-                domain = state.enterprise_domain or "github.com"
-                expires_dt = datetime.datetime.fromtimestamp(state.expires_at, tz=datetime.UTC)
-                log(f"  Domain: {domain}")
-                log(f"  Expires: {expires_dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
-            except Exception as e:
-                log((f"Login failed: {e}", "red"))
-                raise typer.Exit(1) from None
         case "aws-bedrock" | "aws_bedrock" | "bedrock":
             _configure_aws_bedrock()
         case "google-vertex" | "google_vertex" | "vertex":
@@ -293,17 +247,12 @@ def execute_logout(provider: str, account_name: str | None = None, *, all_accoun
                 if active:
                     log(f"  Active account: {active}")
         case "github-copilot" | "copilot":
-            from klaude_code.auth.copilot.token_manager import CopilotTokenManager
+            from klaude_code.auth.removed_provider import delete_removed_github_copilot_auth_state
 
-            token_manager = CopilotTokenManager()
-
-            if not token_manager.is_logged_in():
-                log("You are not logged in to GitHub Copilot.")
-                return
-
-            if typer.confirm("Are you sure you want to logout from GitHub Copilot?"):
-                token_manager.delete()
-                log(("Logged out from GitHub Copilot.", "green"))
+            if delete_removed_github_copilot_auth_state():
+                log(("Removed legacy GitHub Copilot auth state.", "green"))
+            else:
+                log("No legacy GitHub Copilot auth state found.")
         case "aws-bedrock" | "aws_bedrock" | "bedrock":
             from klaude_code.auth.env import delete_auth_env, get_auth_env
 

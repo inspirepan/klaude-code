@@ -90,7 +90,7 @@ class <Provider>OAuth:
 
 Notes:
 
-- Not all providers use PKCE. Device-code flow providers (for example, Copilot-like flows) should implement polling logic in `oauth.py` instead.
+- Not all providers use PKCE. Device-code flow providers should implement polling logic in `oauth.py` instead.
 - OAuth state is persisted in `~/.klaude/klaude-auth.json` via `BaseTokenManager`; choose a unique `storage_key`.
 
 ### `src/klaude_code/auth/<provider>/__init__.py`

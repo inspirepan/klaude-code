@@ -9,10 +9,51 @@ provider_list:
   api_key: ${ANTHROPIC_API_KEY}
   model_list:
 
+  - &fable
+    model_name: fable
+    model_id: claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
+  - &fable_xhigh
+    model_name: fable:xhigh
+    model_id: claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: xhigh
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
+  - &fable_1h
+    model_name: fable:1h
+    model_id: claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: xhigh
+    cache_retention: long
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 20 }
+
   - &sonnet
     model_name: sonnet
     model_id: claude-sonnet-4-6
     context_limit: 1000000
+    effort: medium
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - &sonnet_low
+    model_name: sonnet:low
+    model_id: claude-sonnet-4-6
+    context_limit: 1000000
+    effort: low
     thinking:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
@@ -71,9 +112,46 @@ provider_list:
   aws_region: ${AWS_BEDROCK_REGION|AWS_REGION}
   model_list:
 
+  - model_name: fable
+    model_id: global.anthropic.claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
+  - model_name: fable:xhigh
+    model_id: global.anthropic.claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: xhigh
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
+  - model_name: fable:1h
+    model_id: global.anthropic.claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: xhigh
+    cache_retention: long
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 20 }
+
   - model_name: sonnet
     model_id: global.anthropic.claude-sonnet-4-6
     context_limit: 1000000
+    effort: medium
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet:low
+    model_id: global.anthropic.claude-sonnet-4-6
+    context_limit: 1000000
+    effort: low
     thinking:
       type: adaptive
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
@@ -540,25 +618,6 @@ provider_list:
   - *gpt54
   - *gpt54_xhigh
 
-# ######################################## github-copilot ########################################
-- provider_name: github-copilot
-  protocol: github_copilot_oauth
-  model_list:
-
-  - *gpt55
-  - *gpt55_xhigh
-  - *gpt53codex
-  - *gpt53codex_xhigh
-  - *gpt54nano
-  - *gpt54mini
-  - *gpt54
-  - *gpt54_xhigh
-
-  - *sonnet
-  - *haiku
-  - *opus
-  - *opus_xhigh
-
 # ######################################## ark-coding-plan ########################################
 - provider_name: ark-coding-plan
   protocol: anthropic
@@ -658,6 +717,24 @@ provider_list:
       reasoning_summary: detailed
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
+  - model_name: fable
+    model_id: anthropic/claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
+  - model_name: fable:xhigh
+    model_id: anthropic/claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: xhigh
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
   - model_name: haiku
     model_id: anthropic/claude-haiku-4.5
     context_limit: 200000
@@ -666,6 +743,17 @@ provider_list:
   - model_name: sonnet
     model_id: anthropic/claude-sonnet-4.6
     context_limit: 1000000
+    effort: medium
+    provider_routing:
+      sort: throughput
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet:low
+    model_id: anthropic/claude-sonnet-4.6
+    context_limit: 1000000
+    effort: low
     provider_routing:
       sort: throughput
     thinking:
