@@ -11,9 +11,7 @@ from klaude_code.tui.command import auth_selector
 from klaude_code.tui.terminal.selector import SelectItem
 
 
-def test_logout_selector_shows_removed_github_copilot_cleanup(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_logout_selector_shows_removed_github_copilot_cleanup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     auth_file = tmp_path / "klaude-auth.json"
     auth_file.write_text(json.dumps({"github-copilot": {"access_token": "old"}}))
     selected_items: list[SelectItem[str]] = []
