@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from pydantic.json_schema import JsonSchemaValue
 
 from klaude_code.protocol.message import Message
@@ -14,16 +14,8 @@ class LLMClientProtocol(Enum):
     ANTHROPIC = "anthropic"
     BEDROCK = "bedrock"
     CODEX_OAUTH = "codex_oauth"
-    GITHUB_COPILOT_OAUTH = "github_copilot_oauth"
-    COPILOT_OAUTH = GITHUB_COPILOT_OAUTH
     GOOGLE = "google"
     GOOGLE_VERTEX = "google_vertex"
-
-    @classmethod
-    def _missing_(cls, value: object) -> "LLMClientProtocol | None":
-        if value == "copilot_oauth":
-            return cls.GITHUB_COPILOT_OAUTH
-        return None
 
 
 class ToolSchema(BaseModel):
@@ -115,14 +107,6 @@ class LLMConfigProviderParameter(BaseModel):
     google_application_credentials: str | None = None
     google_cloud_project: str | None = None
     google_cloud_location: str | None = None
-
-    @field_validator("provider_name", mode="before")
-    @classmethod
-    def _normalize_legacy_provider_name(cls, value: object) -> object:
-        if isinstance(value, str) and value.casefold() == "copilot":
-            return "github-copilot"
-        return value
-
 
 class LLMConfigModelParameter(BaseModel):
     model_id: str | None = None

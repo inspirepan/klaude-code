@@ -125,7 +125,7 @@ compact_model:
   - haiku
 ```
 
-Klaude expands each entry into concrete provider candidates in `provider_list` order, then falls through to the next model in the list. For example, `gpt-5.4` will try available providers such as `gpt-5.4@openai`, `gpt-5.4@github-copilot`, and `gpt-5.4@openrouter` before moving to the next model. Runtime fallback is used for non-retryable provider/model failures such as quota, billing, permission, or model-unavailable errors. `fast_model` is used for session-title generation; `compact_model` is used for compact/helper tasks.
+Klaude expands each entry into concrete provider candidates in `provider_list` order, then falls through to the next model in the list. For example, `gpt-5.4` will try available providers such as `gpt-5.4@openai` and `gpt-5.4@openrouter` before moving to the next model. Runtime fallback is used for non-retryable provider/model failures such as quota, billing, permission, or model-unavailable errors. `fast_model` is used for session-title generation; `compact_model` is used for compact/helper tasks.
 
 When you switch models with `/model`, Klaude updates `main_model` without discarding the fallback chain: the selected model is moved to the front if it already exists, or inserted at the front otherwise.
 
@@ -144,7 +144,6 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 | cerebras         | `CEREBRAS_API_KEY`                                                           | glm                                                                                                      |
 | claude-max       | N/A (OAuth)                                             | sonnet, sonnet-no-thinking, opus, haiku                                                                 |
 | codex            | N/A (OAuth)                                                                  | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh   |
-| github-copilot   | N/A (OAuth)                                                                  | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh, sonnet, sonnet-4.5, haiku, opus       |
 | ark-api          | `ARK_API_KEY`                                                                | seed-pro, seed-code                                                                                      |
 | ark-coding-plan  | `ARK_API_KEY`                                                                | seed-code, kimi                                                                                          |
 
@@ -276,7 +275,6 @@ sub_agent_models:
 - `openai` - OpenAI Chat Completion API
 - `responses` - OpenAI Responses API (for o-series, GPT-5, Codex)
 - `codex_oauth` - OpenAI Codex CLI (OAuth-based, for ChatGPT Pro subscribers)
-- `github_copilot_oauth` - GitHub Copilot (OAuth-based)
 - `openrouter` - OpenRouter API (handling `reasoning_details` for interleaved thinking)
 - `google` - Google Gemini API
 - `google_vertex` - Google Vertex AI (uses GCP credentials)

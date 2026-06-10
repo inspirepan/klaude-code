@@ -20,13 +20,20 @@ type ModelPreference = str | list[str] | None
 
 # Pattern to match ${ENV_VAR} and ${PRIMARY|FALLBACK} syntax
 _ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*(?:\|[A-Za-z_][A-Za-z0-9_]*)*)\}$")
-_PROVIDER_NAME_ALIASES = {
-    "copilot": "github-copilot",
-}
+_REMOVED_PROVIDER_NAMES = {"copilot", "github-copilot"}
+
+
+class RemovedProviderError(ValueError):
+    """Raised when config references a provider that has been removed."""
 
 
 def normalize_provider_name(provider_name: str) -> str:
-    return _PROVIDER_NAME_ALIASES.get(provider_name.casefold(), provider_name)
+    if provider_name.casefold() in _REMOVED_PROVIDER_NAMES:
+        raise RemovedProviderError(
+            "GitHub Copilot provider support has been removed. "
+            "Remove 'copilot' and 'github-copilot' from your klaude config."
+        )
+    return provider_name
 
 
 _SUGGESTION_MIN_SCORE = 0.4
@@ -261,15 +268,6 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
             # Consider available if logged in. Token refresh happens on-demand.
             return state is None
 
-        if self.protocol == LLMClientProtocol.GITHUB_COPILOT_OAUTH:
-            # GitHub Copilot uses OAuth authentication, not API key
-            from klaude_code.auth.copilot.token_manager import CopilotTokenManager
-
-            token_manager = CopilotTokenManager()
-            state = token_manager.get_state()
-            # Consider available if logged in. Token refresh happens on-demand.
-            return state is None
-
         if self.protocol == LLMClientProtocol.BEDROCK:
             # Bedrock uses AWS credentials, not API key. Region is always required.
             _, resolved_profile = parse_env_var_syntax(self.aws_profile)
@@ -434,6 +432,8 @@ class Config(BaseModel):
             try:
                 _ = self.get_model_config(model_name)
                 return model_name
+            except RemovedProviderError:
+                raise
             except ValueError as exc:
                 last_error = exc
         if last_error is not None:
@@ -448,7 +448,7 @@ class Config(BaseModel):
         - ``sonnet``: unqualified; caller should pick the first matching provider.
         - ``sonnet@openrouter``: provider-qualified.
 
-        Note: the provider segment is normalized for backwards compatibility.
+        Note: the provider segment is checked for removed providers.
         """
 
         trimmed = model_selector.strip()
@@ -700,6 +700,8 @@ class Config(BaseModel):
         for model_selector in _iter_model_preference_values(model_preference):
             try:
                 requested_model, requested_provider = self._split_model_selector(model_selector)
+            except RemovedProviderError:
+                raise
             except ValueError:
                 continue
 

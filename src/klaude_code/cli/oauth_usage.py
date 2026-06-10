@@ -10,8 +10,6 @@ import httpx
 
 from klaude_code.auth.codex.oauth import CodexOAuth
 from klaude_code.auth.codex.token_manager import CodexTokenManager
-from klaude_code.auth.copilot.oauth import COPILOT_STATIC_HEADERS
-from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 from klaude_code.const import CODEX_USER_AGENT
 from klaude_code.protocol.llm_param import LLMClientProtocol
 
@@ -40,7 +38,6 @@ class _OAuthProviderAuth:
 
 _SUPPORTED_USAGE_PROTOCOLS = {
     LLMClientProtocol.CODEX_OAUTH,
-    LLMClientProtocol.GITHUB_COPILOT_OAUTH,
 }
 
 
@@ -118,20 +115,6 @@ def _resolve_provider_auths(protocols: set[LLMClientProtocol]) -> list[_OAuthPro
         except Exception:
             pass
 
-    if LLMClientProtocol.GITHUB_COPILOT_OAUTH in protocols:
-        try:
-            token_manager = CopilotTokenManager()
-            state = token_manager.get_state()
-            if state and state.refresh_token:
-                auths.append(
-                    _OAuthProviderAuth(
-                        protocol=LLMClientProtocol.GITHUB_COPILOT_OAUTH,
-                        token=state.refresh_token,
-                    )
-                )
-        except Exception:
-            pass
-
     return auths
 
 
@@ -143,8 +126,6 @@ def _fetch_usage_snapshot(*, auth: _OAuthProviderAuth, timeout_seconds: float) -
                 account_id=auth.account_id,
                 timeout_seconds=timeout_seconds,
             )
-        case LLMClientProtocol.GITHUB_COPILOT_OAUTH:
-            return _fetch_github_copilot_usage(token=auth.token, timeout_seconds=timeout_seconds)
         case _:
             return OAuthUsageSnapshot(protocol=auth.protocol, windows=[], error="Unsupported provider")
 
@@ -209,58 +190,6 @@ def _fetch_codex_usage(*, token: str, account_id: str | None, timeout_seconds: f
             protocol=LLMClientProtocol.CODEX_OAUTH,
             windows=windows,
             plan=plan,
-        )
-
-
-def _fetch_github_copilot_usage(*, token: str, timeout_seconds: float) -> OAuthUsageSnapshot:
-    with httpx.Client(timeout=timeout_seconds) as client:
-        res = client.get(
-            "https://api.github.com/copilot_internal/user",
-            headers={
-                "Authorization": f"token {token}",
-                "X-Github-Api-Version": "2025-04-01",
-                **COPILOT_STATIC_HEADERS,
-            },
-        )
-
-        if res.status_code != 200:
-            return OAuthUsageSnapshot(
-                protocol=LLMClientProtocol.GITHUB_COPILOT_OAUTH,
-                windows=[],
-                error=_build_http_error(status_code=res.status_code),
-            )
-
-        data = _as_dict(res.json())
-        windows: list[UsageWindowSnapshot] = []
-
-        quota = _as_dict(data.get("quota_snapshots")) if data else None
-        premium = _as_dict(quota.get("premium_interactions")) if quota else None
-        chat = _as_dict(quota.get("chat")) if quota else None
-
-        if premium:
-            remaining = _as_float(premium.get("percent_remaining"))
-            if remaining is not None:
-                windows.append(
-                    UsageWindowSnapshot(
-                        label="Premium",
-                        used_percent=_clamp_percent(100.0 - remaining),
-                    )
-                )
-
-        if chat:
-            remaining = _as_float(chat.get("percent_remaining"))
-            if remaining is not None:
-                windows.append(
-                    UsageWindowSnapshot(
-                        label="Chat",
-                        used_percent=_clamp_percent(100.0 - remaining),
-                    )
-                )
-
-        return OAuthUsageSnapshot(
-            protocol=LLMClientProtocol.GITHUB_COPILOT_OAUTH,
-            windows=windows,
-            plan=_as_str(data.get("copilot_plan")) if data else None,
         )
 
 

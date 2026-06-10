@@ -12,15 +12,6 @@ from klaude_code.auth.codex import (
     CodexTokenExpiredError,
     CodexTokenManager,
 )
-from klaude_code.auth.copilot import (
-    CopilotAuthError,
-    CopilotAuthState,
-    CopilotNotLoggedInError,
-    CopilotOAuth,
-    CopilotOAuthError,
-    CopilotTokenExpiredError,
-    CopilotTokenManager,
-)
 from klaude_code.auth.env import (
     delete_auth_env,
     get_auth_env,
@@ -36,13 +27,6 @@ __all__ = [
     "CodexOAuthError",
     "CodexTokenExpiredError",
     "CodexTokenManager",
-    "CopilotAuthError",
-    "CopilotAuthState",
-    "CopilotNotLoggedInError",
-    "CopilotOAuth",
-    "CopilotOAuthError",
-    "CopilotTokenExpiredError",
-    "CopilotTokenManager",
     "delete_auth_env",
     "get_auth_env",
     "list_auth_env",

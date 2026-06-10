@@ -618,28 +618,6 @@ provider_list:
   - *gpt54
   - *gpt54_xhigh
 
-# ######################################## github-copilot ########################################
-- provider_name: github-copilot
-  protocol: github_copilot_oauth
-  model_list:
-
-  - *gpt55
-  - *gpt55_xhigh
-  - *gpt53codex
-  - *gpt53codex_xhigh
-  - *gpt54nano
-  - *gpt54mini
-  - *gpt54
-  - *gpt54_xhigh
-
-  - *fable
-  - *fable_xhigh
-  - *sonnet
-  - *sonnet_low
-  - *haiku
-  - *opus
-  - *opus_xhigh
-
 # ######################################## ark-coding-plan ########################################
 - provider_name: ark-coding-plan
   protocol: anthropic

@@ -13,6 +13,7 @@ from klaude_code.config.config import (
     ModelAvailability,
     ModelConfig,
     ProviderConfig,
+    RemovedProviderError,
     UserConfig,
     UserProviderConfig,
     config_path,
@@ -477,61 +478,22 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.CODEX_OAUTH
         assert llm_config.api_key is None
 
-    def test_get_model_config_github_copilot_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """GITHUB_COPILOT protocol should not require api_key to resolve model config."""
-        from klaude_code.auth.copilot.token_manager import CopilotAuthState, CopilotTokenManager
+    @pytest.mark.parametrize("provider_name", ["github-copilot", "copilot"])
+    def test_removed_github_copilot_provider_name_is_rejected(self, provider_name: str) -> None:
+        with pytest.raises(ValueError, match="GitHub Copilot provider support has been removed"):
+            ProviderConfig.model_validate({"provider_name": provider_name, "protocol": "openai"})
 
-        def _mock_get_state(_self: CopilotTokenManager) -> CopilotAuthState:
-            return CopilotAuthState(
-                access_token="access",
-                refresh_token="refresh",
-                expires_at=4102444800,
-                enterprise_domain=None,
-                copilot_base_url="https://api.individual.githubcopilot.com",
-            )
-
-        monkeypatch.setattr(
-            CopilotTokenManager,
-            "get_state",
-            _mock_get_state,
-        )
-
+    def test_removed_github_copilot_selector_stops_fallback(self) -> None:
         provider = ProviderConfig(
-            provider_name="github-copilot",
-            protocol=llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH,
-            api_key=None,
-            model_list=[
-                ModelConfig(
-                    model_name="gpt-5.3-codex",
-                    model_id="gpt-5.3-codex",
-                )
-            ],
+            provider_name="openai",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-api-key",
+            model_list=[ModelConfig(model_name="gpt-5.4", model_id="gpt-5.4")],
         )
-        config = Config(provider_list=[provider], main_model="gpt-5.3-codex@github-copilot")
+        config = Config(provider_list=[provider])
 
-        llm_config = config.get_model_config("gpt-5.3-codex@github-copilot")
-        assert llm_config.protocol == llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH
-        assert llm_config.api_key is None
-
-        legacy_selector_config = config.get_model_config("gpt-5.3-codex@copilot")
-        assert legacy_selector_config.protocol == llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH
-
-    def test_legacy_copilot_protocol_and_provider_name_are_normalized(self) -> None:
-        provider = ProviderConfig.model_validate(
-            {
-                "provider_name": "copilot",
-                "protocol": "copilot_oauth",
-                "model_list": [
-                    {
-                        "model_name": "gpt-5.3-codex",
-                        "model_id": "gpt-5.3-codex",
-                    }
-                ],
-            }
-        )
-
-        assert provider.provider_name == "github-copilot"
-        assert provider.protocol == llm_param.LLMClientProtocol.GITHUB_COPILOT_OAUTH
+        with pytest.raises(RemovedProviderError, match="GitHub Copilot provider support has been removed"):
+            config.iter_model_config_candidates(["gpt-5.4@github-copilot", "gpt-5.4@openai"])
 
     def test_get_model_config_unknown_model(self, sample_config: Config) -> None:
         """Test getting config for unknown model raises error."""
@@ -1665,19 +1627,14 @@ class TestOutOfBoxExperience:
     def _disable_local_oauth_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Keep out-of-box tests independent from developer-local OAuth login state."""
         from klaude_code.auth.codex.token_manager import CodexTokenManager
-        from klaude_code.auth.copilot.token_manager import CopilotTokenManager
 
         def _no_codex_state(_self: CodexTokenManager) -> None:
-            return None
-
-        def _no_github_copilot_state(_self: CopilotTokenManager) -> None:
             return None
 
         def _no_auth_env(_key: str) -> None:
             return None
 
         monkeypatch.setattr(CodexTokenManager, "get_state", _no_codex_state)
-        monkeypatch.setattr(CopilotTokenManager, "get_state", _no_github_copilot_state)
         monkeypatch.setattr(_config_module, "get_auth_env", _no_auth_env)
 
     def test_first_run_no_config_no_api_keys(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -5,8 +5,7 @@ These lock in the CURRENT observable behavior of:
     ``UserConfig`` and ``Config``
   - the duplicated ``_normalize_provider_name_in_model`` validator on both
     ``ProviderConfig`` and ``UserProviderConfig``
-  - ``normalize_provider_name`` (casefold-based alias lookup that PRESERVES the
-    original casing for non-aliased names)
+  - ``normalize_provider_name`` preserving provider names when no alias applies
   - provider/model resolution helpers: ``resolve_model_location``,
     ``resolve_model_location_prefer_available``, ``get_model_config``,
     ``diagnose_model``, including case-insensitive (casefold) provider matching.
@@ -63,23 +62,16 @@ def _make_provider(
 
 
 # =============================================================================
-# normalize_provider_name (casefold alias lookup)
+# normalize_provider_name
 # =============================================================================
 
 
 class TestNormalizeProviderName:
-    def test_copilot_alias_maps_to_github_copilot(self) -> None:
-        assert normalize_provider_name("copilot") == "github-copilot"
-
-    def test_copilot_alias_is_casefold_insensitive(self) -> None:
-        assert normalize_provider_name("COPILOT") == "github-copilot"
-        assert normalize_provider_name("CoPilot") == "github-copilot"
-
-    def test_non_alias_name_is_returned_unchanged_preserving_case(self) -> None:
-        # Only aliases are remapped; the original casing is preserved otherwise.
+    def test_provider_name_is_returned_unchanged_preserving_case(self) -> None:
         assert normalize_provider_name("openai") == "openai"
         assert normalize_provider_name("OpenAI") == "OpenAI"
         assert normalize_provider_name("OpenRouter") == "OpenRouter"
+        assert normalize_provider_name("custom-provider") == "custom-provider"
 
 
 # =============================================================================
@@ -162,15 +154,15 @@ class TestNormalizeSubAgentModelsConfig:
 
 
 class TestNormalizeProviderNameInModel:
-    def test_user_provider_config_normalizes_copilot_alias(self, isolated_home: Path) -> None:
+    def test_user_provider_config_preserves_provider_name(self, isolated_home: Path) -> None:
         del isolated_home
-        upc = UserProviderConfig.model_validate({"provider_name": "Copilot"})
-        assert upc.provider_name == "github-copilot"
+        upc = UserProviderConfig.model_validate({"provider_name": "CustomProvider"})
+        assert upc.provider_name == "CustomProvider"
 
-    def test_provider_config_normalizes_copilot_alias_casefold(self, isolated_home: Path) -> None:
+    def test_provider_config_preserves_provider_name_case(self, isolated_home: Path) -> None:
         del isolated_home
-        pc = ProviderConfig.model_validate({"provider_name": "COPILOT", "protocol": "openai"})
-        assert pc.provider_name == "github-copilot"
+        pc = ProviderConfig.model_validate({"provider_name": "CUSTOM", "protocol": "openai"})
+        assert pc.provider_name == "CUSTOM"
 
     def test_provider_config_preserves_non_alias_name_case(self, isolated_home: Path) -> None:
         del isolated_home

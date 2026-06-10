@@ -17,10 +17,6 @@ def _get_oauth_auth_state(provider_name: str) -> tuple[bool, bool]:
                 from klaude_code.auth.codex.token_manager import CodexTokenManager
 
                 state = CodexTokenManager().get_state()
-            case "github-copilot" | "copilot":
-                from klaude_code.auth.copilot.token_manager import CopilotTokenManager
-
-                state = CopilotTokenManager().get_state()
             case _:
                 return False, False
         if state is None:
@@ -56,6 +52,15 @@ def _oauth_title(label: str, provider_name: str) -> list[tuple[str, str]]:
         title.append(("class:accent.yellow", " · token expired (refresh on use)"))
     title.append(("", "\n"))
     return title
+
+
+def _removed_oauth_title(label: str) -> list[tuple[str, str]]:
+    return [
+        ("", f"{label} "),
+        ("class:meta", "[removed]"),
+        ("class:accent.yellow", " · cleanup only"),
+        ("", "\n"),
+    ]
 
 
 def _api_key_title(label: str, env_var: str) -> list[tuple[str, str]]:
@@ -176,15 +181,17 @@ def select_provider(
                 search_text="codex",
             )
         )
-    if not configured_only or _get_oauth_auth_state("github-copilot")[0]:
-        items.append(
-            SelectItem(
-                title=_oauth_title("GitHub Copilot Subscription", "github-copilot"),
-                value="github-copilot",
-                search_text="github-copilot github copilot",
-            )
-        )
+    if configured_only:
+        from klaude_code.auth.removed_provider import has_removed_github_copilot_auth_state
 
+        if has_removed_github_copilot_auth_state():
+            items.append(
+                SelectItem(
+                    title=_removed_oauth_title("GitHub Copilot Subscription"),
+                    value="github-copilot",
+                    search_text="github-copilot github copilot removed cleanup",
+                )
+            )
     if include_api_keys:
         if not configured_only or _aws_bedrock_source() == "configured":
             items.append(
