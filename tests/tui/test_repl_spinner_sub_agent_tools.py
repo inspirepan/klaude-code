@@ -8,6 +8,7 @@ from klaude_code.protocol import events, tools
 from klaude_code.protocol.events import CompactionStartEvent
 from klaude_code.protocol.models import Usage
 from klaude_code.tui.commands import SpinnerUpdate
+from klaude_code.tui.components.rich.status import ResponsiveDynamicText
 from klaude_code.tui.machine import STATUS_LEFT_MIN_WIDTH_CELLS, DisplayStateMachine, SpinnerStatusState
 
 
@@ -175,8 +176,8 @@ def test_compaction_end_updates_status_metadata_count() -> None:
     cmds = machine.transition(events.CompactionEndEvent(session_id="s1", reason="manual", summary="summary"))
 
     update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
-    assert update.right_text is not None
-    assert "46k/200k (23.0%) · compact 1" in update.right_text.plain
+    assert isinstance(update.right_text, ResponsiveDynamicText)
+    assert "46k/200k (23.0%) · compact 1" in update.right_text.render(compact=False).plain
 
 
 def test_composing_status_keeps_min_loading_width() -> None:
