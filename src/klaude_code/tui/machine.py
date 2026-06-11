@@ -224,6 +224,7 @@ class SpinnerStatusState:
         self._context_size: int | None = None
         self._context_effective_limit: int | None = None
         self._context_percent: float | None = None
+        self._compaction_count: int = 0
         self._cost_total: float | None = None
         self._cost_currency: str = "USD"
 
@@ -240,6 +241,7 @@ class SpinnerStatusState:
         self._context_size = None
         self._context_effective_limit = None
         self._context_percent = None
+        self._compaction_count = 0
         self._cost_total = None
         self._cost_currency = "USD"
 
@@ -352,6 +354,9 @@ class SpinnerStatusState:
             self._cost_total = (self._cost_total or 0.0) + total_cost
             self._cost_currency = usage.currency
 
+    def notify_compaction(self) -> None:
+        self._compaction_count += 1
+
     def set_cache_hit_rate(self, cache_hit_rate: float) -> None:
         self._cache_hit_rate = cache_hit_rate
 
@@ -451,6 +456,8 @@ class SpinnerStatusState:
                 f"{format_number(self._context_size)}/{format_number(self._context_effective_limit)} "
                 f"({self._context_percent:.1f}%)"
             )
+            if self._compaction_count > 0:
+                parts.append(f" · compact {self._compaction_count}")
 
         if self._cost_total is not None:
             if parts:
@@ -922,6 +929,8 @@ class DisplayStateMachine:
         self, e: events.CompactionEndEvent, *, is_replay: bool, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        if e.reason != "handoff" and not e.aborted and not s.is_sub_agent and self._is_primary(e.session_id):
+            self._spinner.notify_compaction()
         if not is_replay:
             self._spinner.enter_waiting()
             if not s.task_active:

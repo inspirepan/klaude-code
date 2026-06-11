@@ -99,6 +99,11 @@ Be concise. Focus on what's needed to understand the kept suffix."""
 COMPACTION_SUMMARY_PREFIX = """The conversation history before this point was compacted into the following summary:
 """
 
+COMPACTION_CONTINUATION_INSTRUCTION = (
+    "Continue the task from the current conversation state. Do not stop because of this summary; "
+    "keep going with the user's latest request."
+)
+
 COMPACT_FORK_PROMPT = """Instead of continuing the work above, I need you to stop and produce a structured context summary of this entire conversation. Another LLM (or a fresh instance of yourself) will use this summary to continue the session.
 
 Do NOT call any tools. Do NOT continue the task. ONLY output the structured summary text in the exact format below.
