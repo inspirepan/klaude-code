@@ -10,6 +10,7 @@ from klaude_code.agent.compaction import CompactionReason, run_compaction
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.prompts.compaction import (
+    COMPACTION_CONTINUATION_INSTRUCTION,
     COMPACTION_SUMMARY_PREFIX,
     SUMMARIZATION_PROMPT,
     TASK_PREFIX_SUMMARIZATION_PROMPT,
@@ -195,6 +196,7 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
         assert "docs/a.md" in result.summary
         assert "<modified-files>" in result.summary
         assert "src/foo.py" in result.summary
+        assert result.summary.endswith(COMPACTION_CONTINUATION_INSTRUCTION)
 
         # The end-to-end chain: Session.get_llm_history injects the summary as a UserMessage.
         llm_history = session.get_llm_history()

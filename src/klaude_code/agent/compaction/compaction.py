@@ -22,6 +22,7 @@ from klaude_code.llm import LLMClientABC
 from klaude_code.prompts.compaction import (
     COMPACT_FORK_PROMPT,
     COMPACT_FORK_UPDATE_PROMPT,
+    COMPACTION_CONTINUATION_INSTRUCTION,
     COMPACTION_SUMMARY_PREFIX,
     SUMMARIZATION_PROMPT,
     SUMMARIZATION_SYSTEM_PROMPT,
@@ -202,7 +203,7 @@ async def run_compaction(
     if cut_index <= base_start_index:
         raise ValueError("Nothing to compact (session too small)")
 
-    previous_summary = last_compaction.summary if last_compaction else None
+    previous_summary = _strip_trailing_continuation_instruction(last_compaction.summary) if last_compaction else None
     tokens_before = get_last_context_tokens(session)
     if tokens_before is None:
         tokens_before = estimate_history_tokens(history)
@@ -262,6 +263,7 @@ async def run_compaction(
         previous_details=last_compaction.details if last_compaction else None,
     )
     summary += format_file_operations(file_ops.read_files, file_ops.modified_files)
+    summary = append_continuation_instruction(summary)
 
     kept_items_brief = collect_kept_items_brief(history, cut_index)
 
@@ -496,6 +498,18 @@ def format_file_operations(read_files: list[str], modified_files: list[str]) -> 
     if not sections:
         return ""
     return "\n\n" + "\n\n".join(sections)
+
+
+def append_continuation_instruction(summary: str) -> str:
+    base = _strip_trailing_continuation_instruction(summary).rstrip()
+    return f"{base}\n\n{COMPACTION_CONTINUATION_INSTRUCTION}"
+
+
+def _strip_trailing_continuation_instruction(summary: str) -> str:
+    stripped = summary.rstrip()
+    if stripped.endswith(COMPACTION_CONTINUATION_INSTRUCTION):
+        return stripped[: -len(COMPACTION_CONTINUATION_INSTRUCTION)].rstrip()
+    return summary
 
 
 def _find_last_compaction(
