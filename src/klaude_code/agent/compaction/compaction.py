@@ -37,6 +37,21 @@ _MAX_TOOL_OUTPUT_CHARS = 4000
 _MAX_TOOL_CALL_CHARS = 2000
 _DEFAULT_IMAGE_TOKENS = 1200
 _SYSTEM_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>", re.DOTALL)
+_CONSTRAINTS_SECTION_RE = re.compile(r"(?ms)^(## Constraints & Preferences\s*\n)(.*?)(?=^## |\Z)")
+_SUMMARY_INSTRUCTION_LEAK_MARKERS = (
+    "不要继续当前任务",
+    "不要继续对话",
+    "只输出结构化上下文摘要",
+    "只输出结构化摘要",
+    "只输出更新后的结构化摘要",
+    "do not continue the task",
+    "do not continue the conversation",
+    "only output the structured summary",
+    "only output the updated structured summary",
+    "tool/continuation/output-format rules",
+)
+_SUMMARY_TOOL_LEAK_MARKERS = ("不要调用任何工具", "不要使用工具", "do not call any tools")
+_SUMMARY_CONTEXT_MARKERS = ("摘要", "summary", "structured", "only output", "只输出")
 
 
 class CompactionReason(str, Enum):
@@ -203,7 +218,11 @@ async def run_compaction(
     if cut_index <= base_start_index:
         raise ValueError("Nothing to compact (session too small)")
 
-    previous_summary = _strip_trailing_continuation_instruction(last_compaction.summary) if last_compaction else None
+    previous_summary = (
+        sanitize_summary_instruction_leaks(_strip_trailing_continuation_instruction(last_compaction.summary))
+        if last_compaction
+        else None
+    )
     tokens_before = get_last_context_tokens(session)
     if tokens_before is None:
         tokens_before = estimate_history_tokens(history)
@@ -255,6 +274,8 @@ async def run_compaction(
             session_id=session.id,
         )
         fork_usage = None
+
+    summary = sanitize_summary_instruction_leaks(summary)
 
     file_ops = collect_file_operations(
         session=session,
@@ -498,6 +519,32 @@ def format_file_operations(read_files: list[str], modified_files: list[str]) -> 
     if not sections:
         return ""
     return "\n\n" + "\n\n".join(sections)
+
+
+def sanitize_summary_instruction_leaks(summary: str) -> str:
+    """Remove compaction meta-instructions leaked into summary constraints."""
+
+    def _replace(match: re.Match[str]) -> str:
+        header = match.group(1)
+        body = match.group(2)
+        kept_lines = [line for line in body.splitlines() if not _is_summary_instruction_leak(line)]
+        kept_body = "\n".join(kept_lines).strip()
+        if not kept_body:
+            kept_body = "- (none)"
+        return f"{header}{kept_body}\n\n"
+
+    return _CONSTRAINTS_SECTION_RE.sub(_replace, summary)
+
+
+def _is_summary_instruction_leak(line: str) -> bool:
+    normalized = line.strip().lower()
+    if not normalized.startswith(("-", "*")):
+        return False
+    if any(marker in normalized for marker in _SUMMARY_INSTRUCTION_LEAK_MARKERS):
+        return True
+    has_tool_marker = any(marker in normalized for marker in _SUMMARY_TOOL_LEAK_MARKERS)
+    has_summary_context = any(marker in normalized for marker in _SUMMARY_CONTEXT_MARKERS)
+    return has_tool_marker and has_summary_context
 
 
 def append_continuation_instruction(summary: str) -> str:
