@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 import klaude_code.agent.compaction.compaction as compaction_module
+from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.compaction import CompactionReason, run_compaction
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
@@ -100,6 +101,40 @@ class _FlakySummarizerClient(LLMClientABC):
         if self.calls <= self.failures_before_success:
             return _ErrorStream("transient network")
         return _StaticTextStream("RETRY_OK")
+
+
+class _PollutedForkSummaryClient(LLMClientABC):
+    def __init__(self, config: llm_param.LLMConfigParameter) -> None:
+        super().__init__(config)
+        self.calls: list[llm_param.LLMCallParameter] = []
+
+    @classmethod
+    def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return cls(config)
+
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
+        self.calls.append(param)
+        return _StaticTextStream(
+            "## Goal\n"
+            "继续撰写技术分析文章。\n\n"
+            "## Constraints & Preferences\n"
+            "- 不要继续当前任务；只输出结构化上下文摘要。\n"
+            "- 用户希望正文避免使用 Scoble 聚合推文，改用被 Scoble 引用或其他更权威人士的原始发言。\n"
+            "- Do NOT call any tools. ONLY output the structured summary text.\n\n"
+            "## Progress\n"
+            "### Done\n"
+            "- [x] 已整理文章素材。\n\n"
+            "### In Progress\n"
+            "- [ ] 继续扩展权威人士批评。\n\n"
+            "### Blocked\n"
+            "- (none)\n\n"
+            "## Key Decisions\n"
+            "- **使用原始发言**: 避免二手聚合。\n\n"
+            "## Next Steps\n"
+            "1. 继续补充引用。\n\n"
+            "## Critical Context\n"
+            "- Scoble 只作为线索来源。"
+        )
 
 
 def _text_user(text: str) -> message.UserMessage:
@@ -223,6 +258,54 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
 
         # With no previous compaction, we should not label the base prompt as <previous-summary>.
         assert all("<previous-summary>" not in p for p in prompts)
+
+        await close_default_store()
+
+    arun(_test())
+
+
+def test_fork_compaction_removes_own_summary_instructions_from_constraints(tmp_path: Path) -> None:
+    project_dir = tmp_path / "fork_project"
+    project_dir.mkdir()
+
+    async def _test() -> None:
+        session = Session.create(id="fork-compaction-pollution", work_dir=project_dir)
+        session.append_history(
+            [
+                _text_user("old task: write an AI article " + ("u" * 10_000)),
+                _text_assistant("old answer"),
+                _text_user("recent task: continue with stronger sources " + ("r" * 10_000)),
+                _text_assistant("tail"),
+            ]
+        )
+
+        llm_config = llm_param.LLMConfigParameter(
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            model_id="dummy",
+            context_limit=6000,
+        )
+        llm_client = _PollutedForkSummaryClient(llm_config)
+        main_profile = AgentProfile(
+            llm_client=llm_client,
+            system_prompt="main prompt",
+            tools=[],
+            attachments=[],
+        )
+
+        result = await run_compaction(
+            session=session,
+            reason=CompactionReason.MANUAL,
+            focus=None,
+            llm_client=llm_client,
+            llm_config=llm_config,
+            main_profile=main_profile,
+        )
+
+        assert len(llm_client.calls) == 1
+        assert "不要继续当前任务" not in result.summary
+        assert "Do NOT call any tools" not in result.summary
+        assert "用户希望正文避免使用 Scoble 聚合推文" in result.summary
+        assert result.summary.endswith(COMPACTION_CONTINUATION_INSTRUCTION)
 
         await close_default_store()
 

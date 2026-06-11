@@ -104,15 +104,16 @@ COMPACTION_CONTINUATION_INSTRUCTION = (
     "keep going with the user's latest request."
 )
 
-COMPACT_FORK_PROMPT = """Instead of continuing the work above, I need you to stop and produce a structured context summary of this entire conversation. Another LLM (or a fresh instance of yourself) will use this summary to continue the session.
+COMPACT_FORK_PROMPT = """This is a meta-instruction for context compaction, not part of the conversation to summarize. Produce a structured context summary of the conversation before this message. Another LLM (or a fresh instance of yourself) will use this summary to continue the session.
 
 Do NOT call any tools. Do NOT continue the task. ONLY output the structured summary text in the exact format below.
+Do NOT include this meta-instruction, these tool/continuation/output-format rules, or any wording from this message as user constraints, preferences, progress, decisions, next steps, or critical context.
 
 ## Goal
 [What is the user trying to accomplish? Can be multiple items if the session covers different tasks.]
 
 ## Constraints & Preferences
-- [Any constraints, preferences, or requirements mentioned by user]
+- [Any constraints, preferences, or requirements mentioned by user in the conversation before this message]
 - [Or "(none)" if none were mentioned]
 
 ## Progress
@@ -139,9 +140,10 @@ IMPORTANT: Do NOT include any content from <system-reminder> tags in your summar
 
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 
-COMPACT_FORK_UPDATE_PROMPT = """Instead of continuing the work above, I need you to stop and update the structured context summary. The first user message in this conversation is the PREVIOUS summary; all messages after it are NEW progress to incorporate. Produce a new summary that merges them.
+COMPACT_FORK_UPDATE_PROMPT = """This is a meta-instruction for context compaction, not part of the conversation to summarize. Update the structured context summary. The first user message in this conversation is the PREVIOUS summary; messages after it and before this message are NEW progress to incorporate. Produce a new summary that merges them.
 
 Do NOT call any tools. Do NOT continue the task. ONLY output the updated structured summary.
+Do NOT include this meta-instruction, these tool/continuation/output-format rules, or any wording from this message as user constraints, preferences, progress, decisions, next steps, or critical context.
 
 RULES:
 - PRESERVE all existing information from the previous summary
@@ -157,7 +159,7 @@ Use this EXACT format:
 [Preserve existing goals, add new ones if the task expanded]
 
 ## Constraints & Preferences
-- [Preserve existing, add new ones discovered]
+- [Preserve existing, add new ones discovered in messages before this message]
 
 ## Progress
 ### Done
