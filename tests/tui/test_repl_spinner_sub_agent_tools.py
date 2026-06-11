@@ -158,6 +158,27 @@ def test_handoff_compaction_clears_duplicate_tool_activity() -> None:
     assert " | Packing Context" not in plain
 
 
+def test_compaction_end_updates_status_metadata_count() -> None:
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="s1"))
+    machine.transition(
+        events.UsageEvent(
+            session_id="s1",
+            usage=Usage(
+                context_size=46_000,
+                context_limit=300_000,
+                max_tokens=100_000,
+            ),
+        )
+    )
+
+    cmds = machine.transition(events.CompactionEndEvent(session_id="s1", reason="manual", summary="summary"))
+
+    update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
+    assert update.right_text is not None
+    assert "46k/200k (23.0%) · compact 1" in update.right_text.plain
+
+
 def test_composing_status_keeps_min_loading_width() -> None:
     state = SpinnerStatusState()
     state.set_composing(True)
@@ -215,6 +236,23 @@ def test_right_text_shows_context_limit_format() -> None:
     right_text = state.get_right_text()
     assert right_text is not None
     assert right_text.plain.startswith("in 10k · cache 20k · out 10k · thought 2k · 46k/200k (23.0%)")
+
+
+def test_right_text_shows_compaction_count_after_context_limit() -> None:
+    state = SpinnerStatusState()
+    state.set_context_usage(
+        Usage(
+            context_size=46_000,
+            context_limit=300_000,
+            max_tokens=100_000,
+        )
+    )
+    state.notify_compaction()
+    state.notify_compaction()
+
+    right_text = state.get_right_text()
+    assert right_text is not None
+    assert "46k/200k (23.0%) · compact 2" in right_text.plain
 
 
 def test_right_text_shows_cache_hit_rate_next_to_cached_tokens() -> None:
