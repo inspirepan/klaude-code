@@ -499,6 +499,10 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             active_display.set_progress_ui_suspended(suspended)
 
     active_wait_task: asyncio.Task[None] | None = None
+    # Set when the user interrupts (Esc/Ctrl-C) the active turn. The wait task
+    # keeps running while the interrupt winds down, so a submission that lands
+    # in that window must start a fresh turn instead of being queued.
+    interrupt_in_flight = False
 
     def _has_active_wait_running() -> bool:
         return active_wait_task is not None and not active_wait_task.done()
@@ -569,10 +573,11 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             await components.runtime.submit_and_wait(op.InterruptOperation(session_id=target_session_id))
 
         def _start_interrupt_once() -> None:
-            nonlocal interrupt_requested, interrupt_task
+            nonlocal interrupt_requested, interrupt_task, interrupt_in_flight
             if interrupt_requested:
                 return
             interrupt_requested = True
+            interrupt_in_flight = True
             interrupt_task = asyncio.create_task(_submit_interrupt(session_id))
 
         def _request_interrupt_once() -> None:
@@ -739,6 +744,18 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         async with contextlib.aclosing(inputs_iter) as inputs:
             async for user_input in inputs:
                 is_exit_input = user_input.text.strip().lower() in {"exit", ":q", "quit"}
+                # The user interrupted the running turn and immediately submitted.
+                # Wait for the interrupted turn to settle so this submission starts
+                # a fresh turn instead of being queued as a follow-up.
+                if interrupt_in_flight and not is_exit_input and _has_active_wait_running():
+                    if active_wait_task is not None:
+                        with contextlib.suppress(Exception, asyncio.CancelledError):
+                            await active_wait_task
+                        active_wait_task = None
+                    interrupt_in_flight = False
+                    # The user already typed a fresh message, so drop the
+                    # interrupted turn's prefill that the wait task just queued.
+                    input_provider.set_next_prefill(None)
                 if _active_agent_running():
                     if is_exit_input:
                         if active_wait_task is not None:
@@ -773,6 +790,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     submission_payloads[0].text
                 )
                 mark_agent_running = not run_in_foreground
+                interrupt_in_flight = False
                 if mark_agent_running:
                     input_provider.set_agent_running(True)
                 final_submission: SubmitUserInputResult | None = None
