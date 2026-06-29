@@ -94,9 +94,37 @@ function todoCardIds(blocks: SectionBlock[]): string[] {
 
 function run(items: MessageItem[]): SectionBlock[] {
   const sections = buildSections(items, SESSION, SESSION);
-  const result = buildSectionBlocks(sections, SESSION, SESSION, {}, {}, {});
+  const result = buildSectionBlocks(sections, SESSION, SESSION, {}, {}, {}, {});
   return result[0];
 }
+
+describe("buildSectionBlocks sub-agent metadata", () => {
+  it("propagates explicit sub-agent model to group blocks", () => {
+    const subAgentItem = makeToolBlock("sub-tool", "Read");
+    subAgentItem.sessionId = "sub-sess-1";
+    const sections = buildSections([subAgentItem], SESSION, SESSION);
+    const result = buildSectionBlocks(
+      sections,
+      SESSION,
+      SESSION,
+      { "sub-sess-1": "Search code" },
+      { "sub-sess-1": "finder" },
+      { "sub-sess-1": "gpt-5.4-mini" },
+      {},
+    );
+
+    const firstBlock = result[0][0];
+    expect(firstBlock.type).toBe("collapse_group");
+    if (firstBlock.type !== "collapse_group") return;
+
+    expect(firstBlock.entries[0]).toMatchObject({
+      type: "sub_agent_group",
+      sourceSessionType: "finder",
+      sourceSessionDesc: "Search code",
+      sourceSessionModel: "gpt-5.4-mini",
+    });
+  });
+});
 
 describe("buildSectionBlocks todo cards", () => {
   const pending = (content: string): TodoItem => ({ content, status: "pending" });

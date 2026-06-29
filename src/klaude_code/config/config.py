@@ -360,6 +360,7 @@ class UserConfig(BaseModel):
     fast_model: ModelPreference = None
     compact_model: ModelPreference = None
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
+    sub_agent_model_decision_tree: str | None = None
     theme: str | None = None
     auto_upgrade: bool | None = None
     provider_list: list[UserProviderConfig] = Field(default_factory=lambda: [])
@@ -377,6 +378,7 @@ class Config(BaseModel):
     fast_model: ModelPreference = None
     compact_model: ModelPreference = None
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
+    sub_agent_model_decision_tree: str | None = None
     theme: str | None = None
     auto_upgrade: bool = True
     provider_list: list[ProviderConfig] = Field(default_factory=lambda: [])
@@ -792,6 +794,11 @@ class Config(BaseModel):
         user_config.main_model = self.main_model if self.main_model != builtin.main_model else None
         user_config.fast_model = self.fast_model if self.fast_model != builtin.fast_model else None
         user_config.compact_model = self.compact_model if self.compact_model != builtin.compact_model else None
+        user_config.sub_agent_model_decision_tree = (
+            self.sub_agent_model_decision_tree
+            if self.sub_agent_model_decision_tree != builtin.sub_agent_model_decision_tree
+            else None
+        )
         user_config.theme = self.theme if self.theme != builtin.theme else None
         user_config.auto_upgrade = self.auto_upgrade if self.auto_upgrade != builtin.auto_upgrade else None
 

@@ -8,6 +8,10 @@ Available agent types and the tools they have access to:
 
 ${types_section}
 
+Available model override options:
+
+${model_selection_guide}
+
 Execution model:
 - Each agent invocation creates a fresh, isolated session. Agents are stateless and one-shot: they run to completion and are then discarded.
 - There is no way to resume, continue, or send follow-up messages to a previously launched agent.

@@ -188,6 +188,29 @@ describe("reduceEvent — skipped events", () => {
   });
 });
 
+describe("reduceEvent — sub-agent metadata", () => {
+  it("stores the explicit sub-agent model from task.start", () => {
+    const state = reduceEvent(
+      createInitialState(),
+      "task.start",
+      makeEvent({
+        sub_agent_state: {
+          sub_agent_type: "finder",
+          sub_agent_desc: "Search code",
+          sub_agent_prompt: "Find something",
+          model: "gpt-5.4-mini",
+          fork_context: false,
+        },
+      }),
+      null,
+    );
+
+    expect(state.subAgentTypeBySessionId["sess-1"]).toBe("finder");
+    expect(state.subAgentDescBySessionId["sess-1"]).toBe("Search code");
+    expect(state.subAgentModelBySessionId["sess-1"]).toBe("gpt-5.4-mini");
+  });
+});
+
 describe("reduceEvent — developer message", () => {
   it("keeps messages that only contain discovered skills", () => {
     const state = reduceEvent(

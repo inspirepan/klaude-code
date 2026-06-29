@@ -157,6 +157,7 @@ class SpawnSubAgentEntry(BaseModel):
     session_id: str
     sub_agent_type: str
     sub_agent_desc: str
+    model: str | None = None
     fork_context: bool = False
     created_at: datetime = Field(default_factory=datetime.now)
 

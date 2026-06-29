@@ -11,6 +11,7 @@ interface SubAgentGroupCardProps {
   sourceSessionId: string;
   sourceSessionType: string | null;
   sourceSessionDesc: string | null;
+  sourceSessionModel: string | null;
   toolCount: number;
   onEnterSubAgent: (subAgentId: string) => void;
 }
@@ -20,6 +21,7 @@ export const SubAgentGroupCard = memo(function SubAgentGroupCard({
   sourceSessionId,
   sourceSessionType,
   sourceSessionDesc,
+  sourceSessionModel,
   toolCount,
   onEnterSubAgent,
 }: SubAgentGroupCardProps): React.JSX.Element {
@@ -86,6 +88,11 @@ export const SubAgentGroupCard = memo(function SubAgentGroupCard({
         <span className="min-w-0 truncate text-neutral-600">
           {sourceSessionDesc ?? t("subAgent.defaultDesc")(shortSessionId(sourceSessionId))}
         </span>
+        {sourceSessionModel ? (
+          <span className="shrink-0 rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[11px] leading-4 text-neutral-500">
+            {sourceSessionModel}
+          </span>
+        ) : null}
         <div className="ml-auto flex shrink-0 items-center gap-1.5 text-neutral-500">
           {toolCount > 0 ? <span>{t("subAgent.toolCall")(toolCount)}</span> : null}
           {toolCount > 0 && elapsedText ? <span className="text-neutral-300">&middot;</span> : null}

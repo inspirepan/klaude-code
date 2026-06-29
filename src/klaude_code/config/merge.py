@@ -84,6 +84,7 @@ def merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Con
             fast_model=builtin_config.fast_model,
             compact_model=builtin_config.compact_model,
             sub_agent_models=dict(builtin_config.sub_agent_models),
+            sub_agent_model_decision_tree=builtin_config.sub_agent_model_decision_tree,
             theme=builtin_config.theme,
             provider_list=revalidated_providers,
         )
@@ -123,6 +124,8 @@ def merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Con
         fast_model=user_config.fast_model or builtin_config.fast_model,
         compact_model=user_config.compact_model or builtin_config.compact_model,
         sub_agent_models=merged_sub_agent_models,
+        sub_agent_model_decision_tree=user_config.sub_agent_model_decision_tree
+        or builtin_config.sub_agent_model_decision_tree,
         theme=user_config.theme or builtin_config.theme,
         auto_upgrade=(
             user_config.auto_upgrade if user_config.auto_upgrade is not None else builtin_config.auto_upgrade

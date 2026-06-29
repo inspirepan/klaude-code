@@ -26,7 +26,9 @@ def _tool_context(*, run_subtask: RunSubtask | None = None) -> ToolContext:
     )
 
 
-def test_agent_tool_schema() -> None:
+def test_agent_tool_schema(isolated_home: Path) -> None:
+    del isolated_home
+
     schema = AgentTool.schema()
 
     assert schema.name == tools.AGENT
@@ -34,8 +36,10 @@ def test_agent_tool_schema() -> None:
     assert "description" in schema.parameters["required"]
     assert "prompt" in schema.parameters["required"]
     assert "type" in schema.parameters["properties"]
+    assert "model" in schema.parameters["properties"]
     assert "general-purpose" in schema.parameters["properties"]["type"]["enum"]
     assert "resume" not in schema.parameters["properties"]
+    assert "Available models (id and providers)" in schema.description
 
 
 def test_agent_tool_call_invalid_json() -> None:
@@ -59,6 +63,7 @@ def test_agent_tool_call_includes_session_id() -> None:
         state: Any, record_session_id: Any, register_metadata_getter: Any, register_progress_getter: Any
     ) -> Any:
         captured["sub_agent_type"] = state.sub_agent_type
+        captured["model"] = state.model
         if callable(record_session_id):
             record_session_id("abc123def456")
 
@@ -70,10 +75,11 @@ def test_agent_tool_call_includes_session_id() -> None:
 
         return _Result()
 
-    args = '{"type":"finder","description":"d","prompt":"p"}'
+    args = '{"type":"finder","description":"d","prompt":"p","model":"gpt-5.4-mini"}'
     result = arun(AgentTool.call(args, _tool_context(run_subtask=_runner)))
 
     assert captured["sub_agent_type"] == "finder"
+    assert captured["model"] == "gpt-5.4-mini"
     assert result.status == "success"
     assert result.output_text == "hello"
     assert result.ui_extra is not None
