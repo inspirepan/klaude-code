@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.31.0] - 2026-06-29
+
+### Added
+
+- add per-invocation model override for sub-agents ([#342](https://github.com/inspirepan/klaude-code/pull/342) by [@inspirepan](https://github.com/inspirepan))
+- add fast Kimi model ([#340](https://github.com/inspirepan/klaude-code/pull/340) by [@inspirepan](https://github.com/inspirepan))
+- upgrade kimi default to k2.7 code ([#338](https://github.com/inspirepan/klaude-code/pull/338) by [@inspirepan](https://github.com/inspirepan))
+- improve compaction continuation cues ([#336](https://github.com/inspirepan/klaude-code/pull/336) by [@inspirepan](https://github.com/inspirepan))
+- remove GitHub Copilot support ([#335](https://github.com/inspirepan/klaude-code/pull/335) by [@inspirepan](https://github.com/inspirepan))
+- add Claude Opus 4.8 builtin models ([#331](https://github.com/inspirepan/klaude-code/pull/331) by [@inspirepan](https://github.com/inspirepan))
+- support multiple Codex accounts ([#329](https://github.com/inspirepan/klaude-code/pull/329) by [@inspirepan](https://github.com/inspirepan))
+
+### Changed
+
+- align GPT system prompt tone ([#339](https://github.com/inspirepan/klaude-code/pull/339) by [@inspirepan](https://github.com/inspirepan))
+- remove interactive thinking switching ([#333](https://github.com/inspirepan/klaude-code/pull/333) by [@inspirepan](https://github.com/inspirepan))
+- dedup and decompose hot paths with characterization-test guard ([#332](https://github.com/inspirepan/klaude-code/pull/332) by [@inspirepan](https://github.com/inspirepan))
+- rename model turn execution to step ([#330](https://github.com/inspirepan/klaude-code/pull/330) by [@inspirepan](https://github.com/inspirepan))
+
+### Fixed
+
+- send fresh turn after Esc-interrupt instead of queueing ([#341](https://github.com/inspirepan/klaude-code/pull/341) by [@inspirepan](https://github.com/inspirepan))
+- ignore fork summary meta-instructions ([#337](https://github.com/inspirepan/klaude-code/pull/337) by [@inspirepan](https://github.com/inspirepan))
+
+### Other
+
+- update builtin model pricing ([#334](https://github.com/inspirepan/klaude-code/pull/334) by [@inspirepan](https://github.com/inspirepan))
+- sync lockfile for v2.30.0 (`b455aaeb2`)
+
 ## [2.30.0] - 2026-05-20
 
 ### Added
@@ -2341,7 +2370,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.30.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.31.0...HEAD
+[2.31.0]: https://github.com/inspirepan/klaude-code/compare/v2.30.0...v2.31.0
 [2.30.0]: https://github.com/inspirepan/klaude-code/compare/v2.29.0...v2.30.0
 [2.29.0]: https://github.com/inspirepan/klaude-code/compare/v2.28.0...v2.29.0
 [2.28.0]: https://github.com/inspirepan/klaude-code/compare/v2.27.0...v2.28.0
