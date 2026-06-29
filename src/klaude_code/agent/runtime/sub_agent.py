@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
+from dataclasses import replace
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
-from klaude_code.agent.runtime.llm import LLMClients, clone_llm_client
+from klaude_code.agent.runtime.llm import LLMClients, clone_llm_client, create_llm_client_for_candidates
 from klaude_code.agent.system_prompt import build_sub_agent_env_info, load_prompt_by_path
+from klaude_code.config import load_config
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT, FORK_CONTEXT_WITH_ROLE_PROMPT
 from klaude_code.protocol import events, message
@@ -44,6 +46,22 @@ class SubAgentExecutor:
         register_progress_getter: Callable[[Callable[[], str | None]], None] | None = None,
     ) -> SubAgentResult:
         parent_session = parent_agent.session
+        clients = llm_clients or self._llm_clients
+        model_override = state.model.strip() if state.model is not None else None
+        if not model_override:
+            model_override = None
+
+        override_client = None
+        if model_override is not None:
+            config = load_config()
+            candidates = config.iter_model_config_candidates(model_override)
+            if not candidates:
+                # get_model_config raises the precise reason (unknown model,
+                # disabled provider, or missing credentials) and never returns
+                # when there are no candidates; the raise below is a safety net.
+                config.get_model_config(model_override)
+                raise ValueError(f"Unknown model: {model_override}")
+            override_client = create_llm_client_for_candidates(candidates)
 
         if state.fork_context:
             # Exclude the trailing AssistantMessage that contains the in-flight Agent tool call
@@ -60,6 +78,9 @@ class SubAgentExecutor:
         else:
             child_session = Session(work_dir=parent_session.work_dir)
         child_session.sub_agent_state = state
+        if model_override is not None and override_client is not None:
+            child_session.model_name = override_client.model_name
+            child_session.model_config_name = model_override
 
         # Record the sub-agent session ID in the parent session's history so that
         # history replay can discover and inline the sub-agent's events even before
@@ -70,6 +91,7 @@ class SubAgentExecutor:
                     session_id=child_session.id,
                     sub_agent_type=state.sub_agent_type,
                     sub_agent_desc=state.sub_agent_desc,
+                    model=model_override,
                     fork_context=state.fork_context,
                 )
             ]
@@ -80,11 +102,16 @@ class SubAgentExecutor:
 
         if state.fork_context:
             # Fork mode: reuse the parent agent's profile (same system prompt and tools).
-            child_profile = parent_agent.profile
+            child_profile = (
+                replace(parent_agent.profile, llm_client=override_client)
+                if override_client is not None
+                else parent_agent.profile
+            )
         else:
-            clients = llm_clients or self._llm_clients
-            child_client = clients.sub_clients.get(state.sub_agent_type)
-            child_client = clone_llm_client(child_client) if child_client is not None else clients.main
+            child_client = override_client
+            if child_client is None:
+                child_client = clients.sub_clients.get(state.sub_agent_type)
+                child_client = clone_llm_client(child_client) if child_client is not None else clients.main
             child_profile = self._model_profile_provider.build_profile(
                 child_client,
                 state.sub_agent_type,

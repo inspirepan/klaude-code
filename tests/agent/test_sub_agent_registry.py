@@ -8,12 +8,18 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+import klaude_code.agent.runtime.sub_agent as sub_agent_runtime
 import klaude_code.tool as core_tool
-from klaude_code.agent.agent_profile import load_agent_tools
-from klaude_code.llm.client import LLMStreamABC
+from klaude_code.agent.agent import Agent
+from klaude_code.agent.agent_profile import AgentProfile, load_agent_tools
+from klaude_code.agent.runtime.llm import LLMClients
+from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
+from klaude_code.config.config import Config, ModelConfig, ProviderConfig
+from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.protocol.models import SessionIdUIExtra
+from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState
 from klaude_code.protocol.sub_agent import SubAgentResult, is_sub_agent_tool
+from klaude_code.session.session import Session
 from klaude_code.tool import ToolABC
 from klaude_code.tool.agent_tool import AgentTool
 from klaude_code.tool.core.abc import ToolConcurrencyPolicy, ToolMetadata
@@ -108,12 +114,203 @@ class _BlockingFakeStream(LLMStreamABC):
         return None
 
 
+class _SingleMessageStream(LLMStreamABC):
+    def __init__(self, text: str) -> None:
+        self._text = text
+
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        yield message.AssistantMessage(
+            parts=[message.TextPart(text=self._text)], response_id="resp", stop_reason="stop"
+        )
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        return None
+
+
+class _RecordingClient(LLMClientABC):
+    def __init__(self, model_id: str, response_text: str) -> None:
+        super().__init__(
+            llm_param.LLMConfigParameter(
+                provider_name="test-provider",
+                protocol=llm_param.LLMClientProtocol.OPENAI,
+                api_key="test-key",
+                model_id=model_id,
+            )
+        )
+        self.response_text = response_text
+        self.call_count = 0
+
+    @classmethod
+    def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return cls(config.model_id or "", "created")
+
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
+        del param
+        self.call_count += 1
+        return _SingleMessageStream(self.response_text)
+
+
+class _TestProfileProvider:
+    def __init__(self) -> None:
+        self.model_names: list[str] = []
+
+    def build_profile(
+        self,
+        llm_client: LLMClientABC,
+        sub_agent_type: tools.SubAgentType | None = None,
+        *,
+        work_dir: Path,
+    ) -> AgentProfile:
+        del sub_agent_type, work_dir
+        self.model_names.append(llm_client.model_name)
+        return AgentProfile(llm_client=llm_client, system_prompt=None, tools=[], attachments=[])
+
+
 def _consume_tool_executor(executor: ToolExecutor, tool_calls: list[ToolCallRequest]) -> asyncio.Task[None]:
     async def _runner() -> None:
         async for _ in executor.run_tools(tool_calls):
             pass
 
     return asyncio.create_task(_runner())
+
+
+def test_sub_agent_model_override_uses_explicit_client(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del isolated_home
+
+    async def _test() -> None:
+        parent_client = _RecordingClient("main-model", "main response")
+        override_client = _RecordingClient("override-model-id", "override response")
+        profile_provider = _TestProfileProvider()
+        parent_session = Session(work_dir=tmp_path)
+        parent_agent = Agent(
+            session=parent_session,
+            profile=AgentProfile(llm_client=parent_client, system_prompt=None, tools=[], attachments=[]),
+            model_profile_provider=profile_provider,
+        )
+        executor = SubAgentExecutor(
+            emit_event=lambda event: asyncio.sleep(0),
+            llm_clients=LLMClients(main=parent_client),
+            model_profile_provider=profile_provider,
+        )
+        config = Config(
+            main_model="main-model",
+            provider_list=[
+                ProviderConfig(
+                    provider_name="test-provider",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="test-key",
+                    model_list=[ModelConfig(model_name="override-model", model_id="override-model-id")],
+                )
+            ],
+        )
+        monkeypatch.setattr(sub_agent_runtime, "load_config", lambda: config)
+        monkeypatch.setattr(sub_agent_runtime, "create_llm_client_for_candidates", lambda candidates: override_client)
+
+        result = await executor.run_sub_agent(
+            parent_agent,
+            SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="override test",
+                sub_agent_prompt="hello",
+                model="override-model",
+            ),
+        )
+
+        spawn_entries = [
+            item for item in parent_session.conversation_history if isinstance(item, message.SpawnSubAgentEntry)
+        ]
+        assert result.task_result == "override response"
+        assert parent_client.call_count == 0
+        assert override_client.call_count == 1
+        assert profile_provider.model_names == ["override-model-id"]
+        assert spawn_entries[0].model == "override-model"
+
+    asyncio.run(_test())
+
+
+def test_fork_context_model_override_updates_child_session_metadata(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del isolated_home
+
+    async def _test() -> None:
+        parent_client = _RecordingClient("main-model", "main response")
+        override_client = _RecordingClient("override-model-id", "override response")
+        profile_provider = _TestProfileProvider()
+        parent_session = Session(work_dir=tmp_path)
+        parent_session.model_name = "main-model"
+        parent_agent = Agent(
+            session=parent_session,
+            profile=AgentProfile(llm_client=parent_client, system_prompt="parent prompt", tools=[], attachments=[]),
+            model_profile_provider=profile_provider,
+        )
+        executor = SubAgentExecutor(
+            emit_event=lambda event: asyncio.sleep(0),
+            llm_clients=LLMClients(main=parent_client),
+            model_profile_provider=profile_provider,
+        )
+        config = Config(
+            main_model="main-model",
+            provider_list=[
+                ProviderConfig(
+                    provider_name="test-provider",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="test-key",
+                    model_list=[ModelConfig(model_name="override-model", model_id="override-model-id")],
+                )
+            ],
+        )
+        monkeypatch.setattr(sub_agent_runtime, "load_config", lambda: config)
+        monkeypatch.setattr(sub_agent_runtime, "create_llm_client_for_candidates", lambda candidates: override_client)
+
+        result = await executor.run_sub_agent(
+            parent_agent,
+            SubAgentState(
+                sub_agent_type="general-purpose-fork-context",
+                sub_agent_desc="override test",
+                sub_agent_prompt="hello",
+                model="override-model",
+                fork_context=True,
+            ),
+        )
+
+        child_session = Session.load(result.session_id, work_dir=tmp_path)
+        assert child_session.model_name == "override-model-id"
+        assert child_session.model_config_name == "override-model"
+
+    asyncio.run(_test())
+
+
+def test_fork_context_llm_fallback_preserves_current_profile(tmp_path: Path, isolated_home: Path) -> None:
+    del isolated_home
+
+    parent_client = _RecordingClient("main-model", "main response")
+    replacement_client = _RecordingClient("fallback-model", "fallback response")
+    profile_provider = _TestProfileProvider()
+    session = Session(work_dir=tmp_path)
+    session.sub_agent_state = SubAgentState(
+        sub_agent_type="general-purpose-fork-context",
+        sub_agent_desc="fork",
+        sub_agent_prompt="prompt",
+        fork_context=True,
+    )
+    agent = Agent(
+        session=session,
+        profile=AgentProfile(llm_client=parent_client, system_prompt="fork prompt", tools=[], attachments=[]),
+        model_profile_provider=profile_provider,
+    )
+
+    profile = agent._apply_llm_client_change(replacement_client)  # pyright: ignore[reportPrivateUsage]
+
+    assert profile.llm_client is replacement_client
+    assert profile.system_prompt == "fork prompt"
+    assert profile.tools == []
+    assert profile_provider.model_names == []
 
 
 def test_sub_agent_tool_cancellation_propagates_cancelled_error() -> None:

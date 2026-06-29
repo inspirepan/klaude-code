@@ -6,6 +6,7 @@ export interface SessionStatusState {
   isSubAgent: boolean;
   subAgentType: string | null;
   subAgentDesc: string | null;
+  subAgentModel: string | null;
   taskActive: boolean;
   awaitingInput: boolean;
   thinkingActive: boolean;
@@ -33,6 +34,7 @@ function createInitialSessionStatus(sessionId: string): SessionStatusState {
     isSubAgent: false,
     subAgentType: null,
     subAgentDesc: null,
+    subAgentModel: null,
     taskActive: false,
     awaitingInput: false,
     thinkingActive: false,
@@ -86,6 +88,12 @@ function clearTaskScopedStatus(
       : status.taskElapsedSeconds;
   return {
     ...status,
+    // Clear the per-task sub-agent display fields so badges don't linger after
+    // the task ends. `isSubAgent` is intentionally preserved: the interrupt
+    // handler relies on it to decide whether to cascade to child sub-agents.
+    subAgentType: null,
+    subAgentDesc: null,
+    subAgentModel: null,
     taskActive: false,
     awaitingInput: false,
     thinkingActive: false,
@@ -127,6 +135,10 @@ export function reduceStatusEvent(
           subAgentDesc:
             subAgentState !== null && typeof subAgentState.sub_agent_desc === "string"
               ? subAgentState.sub_agent_desc
+              : null,
+          subAgentModel:
+            subAgentState !== null && typeof subAgentState.model === "string"
+              ? subAgentState.model
               : null,
           taskActive: true,
           awaitingInput: false,

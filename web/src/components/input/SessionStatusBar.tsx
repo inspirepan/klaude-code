@@ -70,6 +70,11 @@ export function SessionStatusBar({
             <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-neutral-300" />
           )}
           <span className="truncate font-sans text-sm">{statusLabel}</span>
+          {status?.subAgentModel ? (
+            <span className="shrink-0 rounded border border-neutral-200 bg-neutral-50 px-1.5 py-0.5 font-mono text-[11px] leading-4 text-neutral-500">
+              {status.subAgentModel}
+            </span>
+          ) : null}
         </>
       ) : null}
       {elapsed ? (

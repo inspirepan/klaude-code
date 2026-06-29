@@ -569,6 +569,30 @@ class TestConfig:
         config = Config.model_validate(data)
         assert config.sub_agent_models == {}
 
+    def test_sub_agent_model_decision_tree_config(self, sample_provider: ProviderConfig) -> None:
+        config = Config(
+            provider_list=[sample_provider],
+            main_model="test-model",
+            sub_agent_model_decision_tree="- Use small models for cheap work.",
+        )
+
+        assert config.sub_agent_model_decision_tree == "- Use small models for cheap work."
+
+    def test_sub_agent_model_decision_tree_merge_uses_builtin_when_user_absent(self) -> None:
+        builtin_config = Config(sub_agent_model_decision_tree="- Builtin decision tree.")
+
+        merged = merge_configs(None, builtin_config)
+
+        assert merged.sub_agent_model_decision_tree == "- Builtin decision tree."
+
+    def test_sub_agent_model_decision_tree_merge_user_overrides_builtin(self) -> None:
+        builtin_config = Config(sub_agent_model_decision_tree="- Builtin decision tree.")
+        user_config = UserConfig(sub_agent_model_decision_tree="- User decision tree.")
+
+        merged = merge_configs(user_config, builtin_config)
+
+        assert merged.sub_agent_model_decision_tree == "- User decision tree."
+
 
 class TestDiagnoseModel:
     """Tests for Config.diagnose_model()."""

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
+from klaude_code.config import format_model_preference, load_config
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState
 from klaude_code.protocol.sub_agent import (
@@ -16,6 +17,82 @@ from klaude_code.protocol.sub_agent import (
 from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
+
+_DEFAULT_MODEL_DECISION_TREE = """- Omit `model` unless overriding the configured default clearly helps.
+- If the user asks for a specific model or provider, pass that selector exactly.
+- For code review, subtle bugs, and security-sensitive analysis, prefer GPT models: `gpt-5.5:xhigh`, `gpt-5.5`, or `gpt-5.4`.
+- For image or other multimodal reading and analysis, prefer Gemini models: `gemini-pro` or `gemini-flash`.
+- For frontend tasks (UI, React, CSS, styling, design), prefer Claude models: `opus` or `sonnet`.
+- For Chinese-language writing and proofreading/review, prefer `deepseek` or `kimi`.
+- For general or simple coding subtasks, prefer Claude models: `sonnet`, or `haiku` for cheap parallel work.
+- For read-only search, repository exploration, summarization, or many parallel agents, prefer low-cost models: `gpt-5.4-mini`, `gemini-flash-lite`, or `haiku`.
+- Use provider-qualified selectors like `sonnet@openrouter` only when provider routing matters; otherwise use the unqualified model name."""
+
+
+# Single-slot cache keyed on the loaded Config object's identity. `load_config()`
+# is itself cached, so the same Config instance is returned until the config is
+# reloaded; holding the reference here keeps the identity stable (no id reuse).
+_GUIDE_CACHE: tuple[object, str] | None = None
+
+
+def _model_selection_guide() -> str:
+    global _GUIDE_CACHE
+    try:
+        config = load_config()
+    except Exception as exc:
+        return (
+            "Model override:\n"
+            "- Optional `model` may be any configured model selector, for example `gpt-5.4-mini` "
+            "or `sonnet@openrouter`.\n"
+            f"- Current model list unavailable while loading config: {exc}\n\n"
+            "Decision tree:\n"
+            f"{_DEFAULT_MODEL_DECISION_TREE}"
+        )
+
+    cached = _GUIDE_CACHE
+    if cached is not None and cached[0] is config:
+        return cached[1]
+
+    guide = _build_model_selection_guide(config)
+    _GUIDE_CACHE = (config, guide)
+    return guide
+
+
+def _build_model_selection_guide(config: Any) -> str:
+    entries = config.iter_model_entries(only_available=True, include_disabled=False)
+    providers_by_model: dict[str, set[str]] = {}
+    for entry in entries:
+        providers_by_model.setdefault(entry.model_name, set()).add(entry.provider)
+
+    model_lines = [
+        f"- `{model_name}` ({', '.join(sorted(providers_by_model[model_name]))})"
+        for model_name in sorted(providers_by_model)
+    ]
+    if not model_lines:
+        model_lines = ["- No currently available configured models were found."]
+
+    default_lines: list[str] = []
+    main_model = format_model_preference(config.main_model) or "the current main model"
+    for profile in iter_sub_agent_profiles():
+        model_pref = config.sub_agent_models.get(profile.name)
+        default = format_model_preference(model_pref) if model_pref is not None else f"inherits {main_model}"
+        default_lines.append(f"- `{profile.name}`: {default}")
+
+    decision_tree = (config.sub_agent_model_decision_tree or _DEFAULT_MODEL_DECISION_TREE).strip()
+
+    return (
+        "Model override:\n"
+        "- Optional `model` may be any configured model selector. Use an unqualified name such as "
+        "`sonnet`, or a provider-qualified selector such as `sonnet@openrouter` to force a provider.\n"
+        "- If omitted, the sub-agent uses the configured default below; if no default exists, it inherits "
+        "the main agent model.\n\n"
+        "Configured sub-agent defaults:\n"
+        f"{chr(10).join(default_lines)}\n\n"
+        "Available models (id and providers):\n"
+        f"{chr(10).join(model_lines)}\n\n"
+        "Decision tree:\n"
+        f"{decision_tree}"
+    )
 
 
 def _agent_description() -> str:
@@ -31,34 +108,42 @@ def _agent_description() -> str:
 
     types_section = "\n".join(type_lines) if type_lines else "- general-purpose"
 
-    return load_desc(Path(__file__).parent / "agent_tool.md", {"types_section": types_section})
+    return load_desc(
+        Path(__file__).parent / "agent_tool.md",
+        {"types_section": types_section, "model_selection_guide": _model_selection_guide()},
+    )
 
 
-AGENT_SCHEMA = llm_param.ToolSchema(
-    name=tools.AGENT,
-    type="function",
-    description=_agent_description(),
-    parameters={
-        "type": "object",
-        "properties": {
-            "type": {
-                "type": "string",
-                "enum": get_all_names(),
-                "description": "Sub-agent type selector.",
+def _agent_schema() -> llm_param.ToolSchema:
+    return llm_param.ToolSchema(
+        name=tools.AGENT,
+        type="function",
+        description=_agent_description(),
+        parameters={
+            "type": "object",
+            "properties": {
+                "type": {
+                    "type": "string",
+                    "enum": get_all_names(),
+                    "description": "Sub-agent type selector.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "A short (3-5 word) description of the task. Use the same language the user is using.",
+                },
+                "prompt": {
+                    "type": "string",
+                    "description": "The task for the agent to perform.",
+                },
+                "model": {
+                    "type": "string",
+                    "description": "Optional model selector for this sub-agent invocation, e.g. `gpt-5.4-mini` or `sonnet@openrouter`.",
+                },
             },
-            "description": {
-                "type": "string",
-                "description": "A short (3-5 word) description of the task. Use the same language the user is using.",
-            },
-            "prompt": {
-                "type": "string",
-                "description": "The task for the agent to perform.",
-            },
+            "required": ["description", "prompt"],
+            "additionalProperties": False,
         },
-        "required": ["description", "prompt"],
-        "additionalProperties": False,
-    },
-)
+    )
 
 
 @register(tools.AGENT)
@@ -71,7 +156,7 @@ class AgentTool(ToolABC):
 
     @classmethod
     def schema(cls) -> llm_param.ToolSchema:
-        return AGENT_SCHEMA
+        return _agent_schema()
 
     @classmethod
     async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
@@ -107,6 +192,8 @@ class AgentTool(ToolABC):
             )
 
         sub_agent_prompt = str(typed_args.get("prompt", ""))
+        model_raw = typed_args.get("model")
+        model = model_raw.strip() if isinstance(model_raw, str) else None
 
         try:
             result = await runner(
@@ -114,6 +201,7 @@ class AgentTool(ToolABC):
                     sub_agent_type=profile.name,
                     sub_agent_desc=description,
                     sub_agent_prompt=sub_agent_prompt,
+                    model=model or None,
                     fork_context=profile.fork_context,
                 ),
                 context.record_sub_agent_session_id,

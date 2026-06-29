@@ -13,6 +13,7 @@ export interface SectionSubAgentBlock {
   sourceSessionId: string;
   sourceSessionType: string | null;
   sourceSessionDesc: string | null;
+  sourceSessionModel: string | null;
   sourceSessionFork: boolean;
   toolCount: number;
 }
@@ -177,6 +178,7 @@ export function buildSectionBlocksForSection(
   effectiveSessionId: string,
   subAgentDescBySessionId: Record<string, string>,
   subAgentTypeBySessionId: Record<string, string>,
+  subAgentModelBySessionId: Record<string, string>,
   subAgentForkBySessionId: Record<string, boolean>,
 ): SectionBlock[] {
   // First pass: group sub-agent items
@@ -209,6 +211,7 @@ export function buildSectionBlocksForSection(
       sourceSessionId,
       sourceSessionType: subAgentTypeBySessionId[sourceSessionId] ?? null,
       sourceSessionDesc: subAgentDescBySessionId[sourceSessionId] ?? null,
+      sourceSessionModel: subAgentModelBySessionId[sourceSessionId] ?? null,
       sourceSessionFork: subAgentForkBySessionId[sourceSessionId],
       toolCount: isToolBlock(item) ? 1 : 0,
     });
@@ -225,6 +228,7 @@ export function buildSectionBlocks(
   effectiveSessionId: string,
   subAgentDescBySessionId: Record<string, string>,
   subAgentTypeBySessionId: Record<string, string>,
+  subAgentModelBySessionId: Record<string, string>,
   subAgentForkBySessionId: Record<string, boolean>,
 ): SectionBlock[][] {
   return sections.map((section) =>
@@ -234,6 +238,7 @@ export function buildSectionBlocks(
       effectiveSessionId,
       subAgentDescBySessionId,
       subAgentTypeBySessionId,
+      subAgentModelBySessionId,
       subAgentForkBySessionId,
     ),
   );

@@ -7,6 +7,7 @@ class SubAgentState(BaseModel):
     sub_agent_type: SubAgentType
     sub_agent_desc: str
     sub_agent_prompt: str
+    model: str | None = None
     fork_context: bool = False
 
 

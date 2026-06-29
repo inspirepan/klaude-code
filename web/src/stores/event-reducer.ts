@@ -18,6 +18,7 @@ export interface ReducerState {
   toolBlockByCallId: Map<string, number>;
   subAgentDescBySessionId: Record<string, string>;
   subAgentTypeBySessionId: Record<string, string>;
+  subAgentModelBySessionId: Record<string, string>;
   subAgentForkBySessionId: Record<string, boolean>;
   subAgentFinishedBySessionId: Record<string, boolean>;
   statusBySessionId: Partial<Record<string, SessionStatusState>>;
@@ -32,6 +33,7 @@ export function createInitialState(): ReducerState {
     toolBlockByCallId: new Map(),
     subAgentDescBySessionId: {},
     subAgentTypeBySessionId: {},
+    subAgentModelBySessionId: {},
     subAgentForkBySessionId: {},
     subAgentFinishedBySessionId: {},
     statusBySessionId: {},
@@ -199,6 +201,7 @@ export function reduceEvent(
       let changed = false;
       let nextDescBySessionId = currentState.subAgentDescBySessionId;
       let nextTypeBySessionId = currentState.subAgentTypeBySessionId;
+      let nextModelBySessionId = currentState.subAgentModelBySessionId;
       let nextForkBySessionId = currentState.subAgentForkBySessionId;
       let nextFinishedBySessionId = currentState.subAgentFinishedBySessionId;
 
@@ -238,6 +241,19 @@ export function reduceEvent(
           changed = true;
         }
 
+        const model = (subAgentState as Record<string, unknown>).model;
+        if (
+          typeof model === "string" &&
+          model.length > 0 &&
+          currentState.subAgentModelBySessionId[sessionId] !== model
+        ) {
+          nextModelBySessionId = {
+            ...currentState.subAgentModelBySessionId,
+            [sessionId]: model,
+          };
+          changed = true;
+        }
+
         const forkContext = (subAgentState as Record<string, unknown>).fork_context;
         if (
           typeof forkContext === "boolean" &&
@@ -256,6 +272,7 @@ export function reduceEvent(
         ...currentState,
         subAgentDescBySessionId: nextDescBySessionId,
         subAgentTypeBySessionId: nextTypeBySessionId,
+        subAgentModelBySessionId: nextModelBySessionId,
         subAgentForkBySessionId: nextForkBySessionId,
         subAgentFinishedBySessionId: nextFinishedBySessionId,
       };

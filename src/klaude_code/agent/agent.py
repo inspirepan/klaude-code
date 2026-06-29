@@ -163,7 +163,9 @@ class Agent:
         self.session.model_name = profile.llm_client.model_name
 
     def _apply_llm_client_change(self, llm_client: LLMClientABC) -> AgentProfile:
-        if self._model_profile_provider is None:
+        if self._model_profile_provider is None or (
+            self.session.sub_agent_state is not None and self.session.sub_agent_state.fork_context
+        ):
             profile = AgentProfile(
                 llm_client=llm_client,
                 system_prompt=self.profile.system_prompt,

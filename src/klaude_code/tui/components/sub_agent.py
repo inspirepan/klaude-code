@@ -25,6 +25,8 @@ def render_sub_agent_call(
     name = Text(f" {format_pascal_case(e.sub_agent_type)} ", style=name_style)
     desc = Text(f" {e.sub_agent_desc} ", style=desc_style)
     header = Text.assemble(name, " ", desc)
+    if e.model:
+        header.append(f" [model: {e.model}]", style=ThemeKey.STATUS_HINT)
     if e.fork_context:
         header.append(" [fork]", style=ThemeKey.STATUS_HINT)
 

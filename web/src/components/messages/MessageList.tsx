@@ -206,6 +206,7 @@ const SectionView = memo(function SectionView({
                     sourceSessionId={entry.sourceSessionId}
                     sourceSessionType={entry.sourceSessionType}
                     sourceSessionDesc={entry.sourceSessionDesc}
+                    sourceSessionModel={entry.sourceSessionModel}
                     toolCount={entry.toolCount}
                     onEnterSubAgent={onEnterSubAgent}
                   />
@@ -228,6 +229,7 @@ const SectionView = memo(function SectionView({
                 sourceSessionId={block.sourceSessionId}
                 sourceSessionType={block.sourceSessionType}
                 sourceSessionDesc={block.sourceSessionDesc}
+                sourceSessionModel={block.sourceSessionModel}
                 toolCount={block.toolCount}
                 onEnterSubAgent={onEnterSubAgent}
               />
@@ -265,6 +267,7 @@ const SectionView = memo(function SectionView({
 const EMPTY_ITEMS: MessageItemType[] = [];
 const EMPTY_SUB_AGENT_DESC_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_TYPE_MAP: Record<string, string> = {};
+const EMPTY_SUB_AGENT_MODEL_MAP: Record<string, string> = {};
 const EMPTY_SUB_AGENT_FORK_MAP: Record<string, boolean> = {};
 
 /** Index a record safely, returning undefined for absent keys at runtime. */
@@ -279,6 +282,7 @@ interface SectionBlocksReuseCacheEntry {
   sectionBlocks: SectionBlock[][];
   subAgentDescBySessionId: Record<string, string>;
   subAgentTypeBySessionId: Record<string, string>;
+  subAgentModelBySessionId: Record<string, string>;
   subAgentForkBySessionId: Record<string, boolean>;
 }
 
@@ -363,6 +367,10 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
   const subAgentTypeBySessionId = useMessageStore((state) => {
     const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
     return rs?.subAgentTypeBySessionId ?? EMPTY_SUB_AGENT_TYPE_MAP;
+  });
+  const subAgentModelBySessionId = useMessageStore((state) => {
+    const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
+    return rs?.subAgentModelBySessionId ?? EMPTY_SUB_AGENT_MODEL_MAP;
   });
   const subAgentForkBySessionId = useMessageStore((state) => {
     const rs: ReducerState | undefined = state.reducerStateBySessionId[sessionId];
@@ -780,6 +788,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
       prev !== undefined &&
       prev.subAgentDescBySessionId === subAgentDescBySessionId &&
       prev.subAgentTypeBySessionId === subAgentTypeBySessionId &&
+      prev.subAgentModelBySessionId === subAgentModelBySessionId &&
       prev.subAgentForkBySessionId === subAgentForkBySessionId;
 
     const nextSectionBlocks = sections.map((section, index) => {
@@ -792,6 +801,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
         effectiveSessionId,
         subAgentDescBySessionId,
         subAgentTypeBySessionId,
+        subAgentModelBySessionId,
         subAgentForkBySessionId,
       );
     });
@@ -801,6 +811,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
       sectionBlocks: nextSectionBlocks,
       subAgentDescBySessionId,
       subAgentTypeBySessionId,
+      subAgentModelBySessionId,
       subAgentForkBySessionId,
     });
     pruneCacheExcept(SECTION_BLOCK_REUSE_CACHE, sectionCacheKey);
@@ -813,6 +824,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
     effectiveSessionId,
     subAgentDescBySessionId,
     subAgentForkBySessionId,
+    subAgentModelBySessionId,
     subAgentTypeBySessionId,
   ]);
 
