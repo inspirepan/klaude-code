@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+import klaude_code.tool.core.runner as runner
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     SessionIdUIExtra,
@@ -25,6 +26,7 @@ from klaude_code.tool.core.context import TodoContext, ToolContext
 from klaude_code.tool.core.runner import (
     ToolCallRequest,
     ToolExecutionCallStarted,
+    ToolExecutionLongRunning,
     ToolExecutionOutputDelta,
     ToolExecutionResult,
     ToolExecutionTodoChange,
@@ -130,6 +132,30 @@ class MockConcurrentTool(ToolABC):
         del arguments
         del context
         return message.ToolResultMessage(status="success", output_text="Concurrent!")
+
+
+class MockSlowConcurrentTool(ToolABC):
+    """Mock concurrent tool that waits before returning."""
+
+    @classmethod
+    def metadata(cls) -> ToolMetadata:
+        return ToolMetadata(concurrency_policy=ToolConcurrencyPolicy.CONCURRENT, has_side_effects=False)
+
+    @classmethod
+    def schema(cls) -> llm_param.ToolSchema:
+        return llm_param.ToolSchema(
+            name="MockSlowConcurrent",
+            type="function",
+            description="Mock slow concurrent tool",
+            parameters={"type": "object", "properties": {}},
+        )
+
+    @classmethod
+    async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+        del arguments
+        del context
+        await asyncio.sleep(0.2)
+        return message.ToolResultMessage(status="success", output_text="Slow concurrent!")
 
 
 class MockStreamingTool(ToolABC):
@@ -239,6 +265,7 @@ class TestToolExecutor:
             "MockTodoChange": MockTodoChangeTool,
             "MockStreaming": MockStreamingTool,
             "MockSlowStreaming": MockSlowStreamingTool,
+            "MockSlowConcurrent": MockSlowConcurrentTool,
         }
 
     @pytest.fixture
@@ -326,6 +353,48 @@ class TestToolExecutor:
         assert isinstance(first_delta, ToolExecutionOutputDelta)
         assert first_delta.content == "first"
         assert isinstance(events[-1], ToolExecutionResult)
+
+    def test_run_tool_emits_long_running_event(
+        self, executor: ToolExecutor, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(runner, "LONG_RUNNING_TOOL_THRESHOLD_SECONDS", 0.01)
+        tool_call = ToolCallRequest(
+            response_id=None,
+            call_id="slow_stream_123",
+            tool_name="MockSlowStreaming",
+            arguments_json="{}",
+        )
+
+        async def collect_events() -> list[ToolExecutorEvent]:
+            return [event async for event in executor.run_tools([tool_call])]
+
+        events = arun(collect_events())
+
+        long_running_events = [e for e in events if isinstance(e, ToolExecutionLongRunning)]
+        assert len(long_running_events) == 1
+        assert long_running_events[0].tool_call is tool_call
+        assert long_running_events[0].elapsed_seconds >= 0.01
+        assert isinstance(events[-1], ToolExecutionResult)
+
+    def test_concurrent_tool_emits_long_running_event_before_result(
+        self, executor: ToolExecutor, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(runner, "LONG_RUNNING_TOOL_THRESHOLD_SECONDS", 0.01)
+        tool_call = ToolCallRequest(
+            response_id=None,
+            call_id="slow_concurrent_123",
+            tool_name="MockSlowConcurrent",
+            arguments_json="{}",
+        )
+
+        async def collect_events() -> list[ToolExecutorEvent]:
+            return [event async for event in executor.run_tools([tool_call])]
+
+        events = arun(collect_events())
+
+        long_running_index = next(i for i, event in enumerate(events) if isinstance(event, ToolExecutionLongRunning))
+        result_index = next(i for i, event in enumerate(events) if isinstance(event, ToolExecutionResult))
+        assert long_running_index < result_index
 
     def test_run_multiple_tools_sequentially(self, executor: ToolExecutor):
         """Test running multiple regular tools sequentially."""

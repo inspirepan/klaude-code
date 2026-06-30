@@ -23,6 +23,7 @@ from klaude_code.protocol import events, llm_param, message
 from klaude_code.tool.core.runner import (
     ToolCallRequest,
     ToolExecutionCallStarted,
+    ToolExecutionLongRunning,
     ToolExecutionOutputDelta,
     ToolExecutionResult,
     ToolExecutionTodoChange,
@@ -113,6 +114,17 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     tool_call_id=tool_call.call_id,
                     tool_name=tool_call.tool_name,
                     content=content,
+                )
+            )
+        case ToolExecutionLongRunning(tool_call=tool_call, elapsed_seconds=elapsed_seconds):
+            ui_events.append(
+                events.ToolLongRunningEvent(
+                    session_id=session_id,
+                    response_id=tool_call.response_id,
+                    tool_call_id=tool_call.call_id,
+                    tool_name=tool_call.tool_name,
+                    arguments=tool_call.arguments_json,
+                    elapsed_seconds=elapsed_seconds,
                 )
             )
         case ToolExecutionTodoChange(todos=todos):
