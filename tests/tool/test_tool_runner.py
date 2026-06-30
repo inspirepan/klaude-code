@@ -354,9 +354,7 @@ class TestToolExecutor:
         assert first_delta.content == "first"
         assert isinstance(events[-1], ToolExecutionResult)
 
-    def test_run_tool_emits_long_running_event(
-        self, executor: ToolExecutor, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_run_tool_emits_long_running_event(self, executor: ToolExecutor, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(runner, "LONG_RUNNING_TOOL_THRESHOLD_SECONDS", 0.01)
         tool_call = ToolCallRequest(
             response_id=None,
