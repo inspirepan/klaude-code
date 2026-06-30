@@ -1345,16 +1345,15 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         if is_replay or e.tool_name == tools.AGENT:
             return []
-        tool_active_form = get_tool_active_form(e.tool_name)
-        label = f"{tool_active_form} for {format_elapsed_compact(e.elapsed_seconds)}"
-
-        if s.is_sub_agent:
-            s.add_status_tool_call(e.tool_call_id, label)
-        elif is_sub_agent_tool(e.tool_name):
-            self._spinner.add_sub_agent_tool_call(e.tool_call_id, label)
-        else:
-            self._spinner.add_tool_call(label, e.tool_call_id)
-        return self._spinner_update_commands()
+        return [
+            RenderNotice(
+                events.NoticeEvent(
+                    session_id=e.session_id,
+                    content=f"Warning: {e.tool_name} has been running for {format_elapsed_compact(e.elapsed_seconds)}",
+                    style="warn",
+                )
+            )
+        ]
 
     def _handle_ToolOutputDeltaEvent(
         self, e: events.ToolOutputDeltaEvent, *, is_replay: bool, s: _SessionState

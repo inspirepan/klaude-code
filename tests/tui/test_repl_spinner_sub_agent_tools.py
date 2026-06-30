@@ -7,7 +7,7 @@ from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT, STATU
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.events import CompactionStartEvent
 from klaude_code.protocol.models import Usage
-from klaude_code.tui.commands import SpinnerUpdate
+from klaude_code.tui.commands import RenderNotice, SpinnerUpdate
 from klaude_code.tui.components.rich.status import ResponsiveDynamicText
 from klaude_code.tui.machine import STATUS_LEFT_MIN_WIDTH_CELLS, DisplayStateMachine, SpinnerStatusState
 
@@ -84,7 +84,7 @@ def test_activity_status_updates_tool_call_label_by_id() -> None:
     assert "Finding, Finding" not in status.plain
 
 
-def test_long_running_bash_status_is_shown_and_cleared() -> None:
+def test_long_running_bash_renders_warning_notice() -> None:
     machine = DisplayStateMachine()
     session_id = "s1"
     tool_call_id = "tc_1"
@@ -99,25 +99,11 @@ def test_long_running_bash_status_is_shown_and_cleared() -> None:
         )
     )
 
-    update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
-    status_text = update.status_lines[0].text
-    plain = status_text.plain if isinstance(status_text, Text) else status_text
-    assert "Bashing for 5m01s" in plain
-
-    cmds = machine.transition(
-        events.ToolResultEvent(
-            session_id=session_id,
-            tool_call_id=tool_call_id,
-            tool_name=tools.BASH,
-            result="done",
-            status="success",
-        )
-    )
-
-    update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
-    status_text = update.status_lines[0].text
-    plain = status_text.plain if isinstance(status_text, Text) else status_text
-    assert "Bashing" not in plain
+    assert len(cmds) == 1
+    notice = cmds[0]
+    assert isinstance(notice, RenderNotice)
+    assert notice.event.content == "Warning: Bash has been running for 5m01s"
+    assert notice.event.style == "warn"
 
 
 def test_composing_status_is_shown() -> None:
