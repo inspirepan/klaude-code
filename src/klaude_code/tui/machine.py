@@ -1343,12 +1343,9 @@ class DisplayStateMachine:
     def _handle_ToolLongRunningEvent(
         self, e: events.ToolLongRunningEvent, *, is_replay: bool, s: _SessionState
     ) -> list[RenderCommand]:
-        if is_replay:
+        if is_replay or e.tool_name == tools.AGENT:
             return []
-        if e.tool_name == tools.AGENT:
-            tool_active_form = get_agent_active_form(e.arguments)
-        else:
-            tool_active_form = get_tool_active_form(e.tool_name)
+        tool_active_form = get_tool_active_form(e.tool_name)
         label = f"{tool_active_form} for {format_elapsed_compact(e.elapsed_seconds)}"
 
         if s.is_sub_agent:

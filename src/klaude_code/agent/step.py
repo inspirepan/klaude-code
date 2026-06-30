@@ -123,7 +123,6 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     response_id=tool_call.response_id,
                     tool_call_id=tool_call.call_id,
                     tool_name=tool_call.tool_name,
-                    arguments=tool_call.arguments_json,
                     elapsed_seconds=elapsed_seconds,
                 )
             )

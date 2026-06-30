@@ -4,13 +4,14 @@ from collections.abc import AsyncGenerator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from klaude_code.prompts.messages import CANCEL_OUTPUT
-from klaude_code.protocol import message
+from klaude_code.protocol import message, tools
 from klaude_code.protocol.models import SessionIdUIExtra, TaskMetadata, TodoItem, TodoListUIExtra, ToolSideEffect
 from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.offload import offload_tool_output
 
 LONG_RUNNING_TOOL_THRESHOLD_SECONDS = 5 * 60
+LONG_RUNNING_TOOL_EXCLUDED_NAMES = frozenset({tools.AGENT})
 
 
 @dataclass(frozen=True)
@@ -353,7 +354,9 @@ class ToolExecutor:
             finally:
                 await event_queue.put(None)
 
-        long_running_task = asyncio.create_task(_emit_long_running_tool_event())
+        long_running_task: asyncio.Task[None] | None = None
+        if tool_call.tool_name not in LONG_RUNNING_TOOL_EXCLUDED_NAMES:
+            long_running_task = asyncio.create_task(_emit_long_running_tool_event())
         queue_task = asyncio.create_task(_finish_event_queue(tool_task))
         try:
             while True:
@@ -366,9 +369,12 @@ class ToolExecutor:
         finally:
             if not tool_task.done():
                 tool_task.cancel()
-            if not long_running_task.done():
+            if long_running_task is not None and not long_running_task.done():
                 long_running_task.cancel()
-            await asyncio.gather(queue_task, long_running_task, return_exceptions=True)
+            cleanup_tasks = [queue_task]
+            if long_running_task is not None:
+                cleanup_tasks.append(long_running_task)
+            await asyncio.gather(*cleanup_tasks, return_exceptions=True)
 
         self._append_history([tool_result])
 

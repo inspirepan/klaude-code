@@ -495,7 +495,6 @@ class ToolOutputDeltaEvent(ResponseEvent):
 class ToolLongRunningEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
-    arguments: str
     elapsed_seconds: float
 
 

@@ -95,7 +95,6 @@ def test_long_running_bash_status_is_shown_and_cleared() -> None:
             session_id=session_id,
             tool_call_id=tool_call_id,
             tool_name=tools.BASH,
-            arguments="{}",
             elapsed_seconds=301,
         )
     )
@@ -119,28 +118,6 @@ def test_long_running_bash_status_is_shown_and_cleared() -> None:
     status_text = update.status_lines[0].text
     plain = status_text.plain if isinstance(status_text, Text) else status_text
     assert "Bashing" not in plain
-
-
-def test_long_running_agent_preserves_active_form_from_arguments() -> None:
-    machine = DisplayStateMachine()
-    session_id = "s1"
-    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
-
-    cmds = machine.transition(
-        events.ToolLongRunningEvent(
-            session_id=session_id,
-            tool_call_id="tc_1",
-            tool_name=tools.AGENT,
-            arguments='{"type":"finder"}',
-            elapsed_seconds=300,
-        )
-    )
-
-    update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
-    status_text = update.status_lines[0].text
-    plain = status_text.plain if isinstance(status_text, Text) else status_text
-    assert "Finding for 5m00s" in plain
-    assert "Running Task" not in plain
 
 
 def test_composing_status_is_shown() -> None:

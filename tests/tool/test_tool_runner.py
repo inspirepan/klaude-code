@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 import klaude_code.tool.core.runner as runner
-from klaude_code.protocol import llm_param, message
+from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import (
     SessionIdUIExtra,
     TaskMetadata,
@@ -395,6 +395,29 @@ class TestToolExecutor:
         long_running_index = next(i for i, event in enumerate(events) if isinstance(event, ToolExecutionLongRunning))
         result_index = next(i for i, event in enumerate(events) if isinstance(event, ToolExecutionResult))
         assert long_running_index < result_index
+
+    def test_agent_tool_does_not_emit_long_running_event(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(runner, "LONG_RUNNING_TOOL_THRESHOLD_SECONDS", 0.01)
+        history: list[message.HistoryEvent] = []
+        executor = ToolExecutor(
+            context=_tool_context(),
+            registry={tools.AGENT: MockSlowConcurrentTool},
+            append_history=history.extend,
+        )
+        tool_call = ToolCallRequest(
+            response_id=None,
+            call_id="agent_123",
+            tool_name=tools.AGENT,
+            arguments_json="{}",
+        )
+
+        async def collect_events() -> list[ToolExecutorEvent]:
+            return [event async for event in executor.run_tools([tool_call])]
+
+        events = arun(collect_events())
+
+        assert not any(isinstance(event, ToolExecutionLongRunning) for event in events)
+        assert any(isinstance(event, ToolExecutionResult) for event in events)
 
     def test_run_multiple_tools_sequentially(self, executor: ToolExecutor):
         """Test running multiple regular tools sequentially."""
