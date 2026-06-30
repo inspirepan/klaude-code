@@ -7,7 +7,7 @@ from klaude_code.const import STATUS_COMPACTING_TEXT, STATUS_DEFAULT_TEXT, STATU
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.events import CompactionStartEvent
 from klaude_code.protocol.models import Usage
-from klaude_code.tui.commands import SpinnerUpdate
+from klaude_code.tui.commands import RenderNotice, SpinnerUpdate
 from klaude_code.tui.components.rich.status import ResponsiveDynamicText
 from klaude_code.tui.machine import STATUS_LEFT_MIN_WIDTH_CELLS, DisplayStateMachine, SpinnerStatusState
 
@@ -71,6 +71,39 @@ def test_activity_status_is_shown_when_present() -> None:
     status = state.get_status()
 
     assert status.plain.startswith("Finding")
+
+
+def test_activity_status_updates_tool_call_label_by_id() -> None:
+    state = SpinnerStatusState()
+    state.add_tool_call("Finding", "tc_1")
+    state.add_tool_call("Finding for 5m00s", "tc_1")
+
+    status = state.get_status()
+
+    assert status.plain.startswith("Finding for 5m00s")
+    assert "Finding, Finding" not in status.plain
+
+
+def test_long_running_bash_renders_warning_notice() -> None:
+    machine = DisplayStateMachine()
+    session_id = "s1"
+    tool_call_id = "tc_1"
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+
+    cmds = machine.transition(
+        events.ToolLongRunningEvent(
+            session_id=session_id,
+            tool_call_id=tool_call_id,
+            tool_name=tools.BASH,
+            elapsed_seconds=301,
+        )
+    )
+
+    assert len(cmds) == 1
+    notice = cmds[0]
+    assert isinstance(notice, RenderNotice)
+    assert notice.event.content == "Warning: Bash has been running for 5m01s"
+    assert notice.event.style == "warn"
 
 
 def test_composing_status_is_shown() -> None:

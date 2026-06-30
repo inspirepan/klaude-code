@@ -72,6 +72,7 @@ __all__ = [
     "TodoChangeEvent",
     "ToolCallEvent",
     "ToolCallStartEvent",
+    "ToolLongRunningEvent",
     "ToolOutputDeltaEvent",
     "ToolResultEvent",
     "UsageEvent",
@@ -489,6 +490,12 @@ class ToolOutputDeltaEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
     content: str
+
+
+class ToolLongRunningEvent(ResponseEvent):
+    tool_call_id: str
+    tool_name: str
+    elapsed_seconds: float
 
 
 class ToolResultEvent(ResponseEvent):

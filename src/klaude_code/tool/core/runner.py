@@ -1,13 +1,17 @@
 import asyncio
+import time
 from collections.abc import AsyncGenerator, Callable, Iterable, Sequence
 from dataclasses import dataclass
 
 from klaude_code.prompts.messages import CANCEL_OUTPUT
-from klaude_code.protocol import message
+from klaude_code.protocol import message, tools
 from klaude_code.protocol.models import SessionIdUIExtra, TaskMetadata, TodoItem, TodoListUIExtra, ToolSideEffect
 from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.offload import offload_tool_output
+
+LONG_RUNNING_TOOL_THRESHOLD_SECONDS = 5 * 60
+LONG_RUNNING_TOOL_EXCLUDED_NAMES = frozenset({tools.AGENT})
 
 
 @dataclass(frozen=True)
@@ -93,7 +97,21 @@ class ToolExecutionOutputDelta:
     content: str
 
 
-ToolExecutorEvent = ToolExecutionCallStarted | ToolExecutionResult | ToolExecutionTodoChange | ToolExecutionOutputDelta
+@dataclass
+class ToolExecutionLongRunning:
+    """Represents a tool call that has been running longer than the UI threshold."""
+
+    tool_call: ToolCallRequest
+    elapsed_seconds: float
+
+
+ToolExecutorEvent = (
+    ToolExecutionCallStarted
+    | ToolExecutionResult
+    | ToolExecutionTodoChange
+    | ToolExecutionOutputDelta
+    | ToolExecutionLongRunning
+)
 
 
 class ToolExecutor:
@@ -119,7 +137,7 @@ class ToolExecutor:
 
         self._unfinished_calls: dict[str, ToolCallRequest] = {}
         self._call_event_emitted: set[str] = set()
-        self._concurrent_tasks: set[asyncio.Task[list[ToolExecutorEvent]]] = set()
+        self._concurrent_tasks: set[asyncio.Task[None]] = set()
         self._sub_agent_session_ids: dict[str, str] = {}
         self._sub_agent_metadata_getters: dict[str, Callable[[], TaskMetadata | None]] = {}
         self._sub_agent_progress_getters: dict[str, Callable[[], str | None]] = {}
@@ -136,13 +154,6 @@ class ToolExecutor:
             self._unfinished_calls[tool_call.call_id] = tool_call
 
         sequential_tool_calls, concurrent_tool_calls = self._partition_tool_calls(tool_calls)
-
-        def _mark_last_in_step(events_to_mark: list[ToolExecutorEvent], *, is_last_in_step: bool) -> None:
-            if not events_to_mark:
-                return
-            first = events_to_mark[0]
-            if isinstance(first, ToolExecutionResult):
-                first.is_last_in_step = is_last_in_step
 
         # Run sequential tools one by one.
         for idx, tool_call in enumerate(sequential_tool_calls):
@@ -162,33 +173,39 @@ class ToolExecutor:
 
         # Run concurrent tools (sub-agents, web tools) in parallel.
         if concurrent_tool_calls:
-            execution_tasks: list[asyncio.Task[list[ToolExecutorEvent]]] = []
+            event_queue: asyncio.Queue[ToolExecutorEvent | BaseException | None] = asyncio.Queue()
+            execution_tasks: list[asyncio.Task[None]] = []
             for tool_call in concurrent_tool_calls:
                 tool_call_event = self._build_tool_call_started(tool_call)
                 self._call_event_emitted.add(tool_call.call_id)
                 yield tool_call_event
 
-                task = asyncio.create_task(self._collect_tool_call_events(tool_call))
+                task = asyncio.create_task(self._forward_tool_call_events(tool_call, event_queue))
                 self._register_concurrent_task(task)
                 execution_tasks.append(task)
 
-            remaining = len(execution_tasks)
-            for task in asyncio.as_completed(execution_tasks):
-                # Do not swallow asyncio.CancelledError here:
-                # - If the user interrupts the main agent, the executor cancels the
-                #   outer agent task, which should propagate cancellation up through
-                #   tool execution so the task can terminate and emit TaskFinishEvent.
-                # - Sub-agent tool tasks cancelled via ToolExecutor.on_interrupt() are
-                #   handled by synthesizing ToolExecutionResult events; any
-                #   CancelledError raised here should still bubble up so the
-                #   calling agent can stop cleanly, matching pre-refactor behavior.
-                result_events = await task
-
-                remaining -= 1
-                _mark_last_in_step(result_events, is_last_in_step=remaining == 0)
-
-                for exec_event in result_events:
+            completed_tasks = 0
+            remaining_results = len(execution_tasks)
+            try:
+                while completed_tasks < len(execution_tasks):
+                    # Do not swallow asyncio.CancelledError here. If the user interrupts
+                    # the main agent, cancellation should still bubble up so the task can
+                    # stop cleanly, matching the sequential path.
+                    exec_event = await event_queue.get()
+                    if exec_event is None:
+                        completed_tasks += 1
+                        continue
+                    if isinstance(exec_event, BaseException):
+                        raise exec_event
+                    if isinstance(exec_event, ToolExecutionResult):
+                        remaining_results -= 1
+                        exec_event.is_last_in_step = remaining_results == 0
                     yield exec_event
+            finally:
+                for task in execution_tasks:
+                    if not task.done():
+                        task.cancel()
+                await asyncio.gather(*execution_tasks, return_exceptions=True)
 
     def on_interrupt(self) -> Iterable[ToolExecutorEvent]:
         """Handle an interrupt by cancelling unfinished tool calls and synthesizing aborted results.
@@ -255,10 +272,10 @@ class ToolExecutor:
 
         return events_to_yield
 
-    def _register_concurrent_task(self, task: asyncio.Task[list[ToolExecutorEvent]]) -> None:
+    def _register_concurrent_task(self, task: asyncio.Task[None]) -> None:
         self._concurrent_tasks.add(task)
 
-        def _cleanup(completed: asyncio.Task[list[ToolExecutorEvent]]) -> None:
+        def _cleanup(completed: asyncio.Task[None]) -> None:
             self._concurrent_tasks.discard(completed)
 
         task.add_done_callback(_cleanup)
@@ -283,8 +300,19 @@ class ToolExecutor:
     def _build_tool_call_started(self, tool_call: ToolCallRequest) -> ToolExecutionCallStarted:
         return ToolExecutionCallStarted(tool_call=tool_call)
 
-    async def _collect_tool_call_events(self, tool_call: ToolCallRequest) -> list[ToolExecutorEvent]:
-        return [event async for event in self._run_single_tool_call(tool_call)]
+    async def _forward_tool_call_events(
+        self,
+        tool_call: ToolCallRequest,
+        event_queue: asyncio.Queue[ToolExecutorEvent | BaseException | None],
+    ) -> None:
+        try:
+            async for event in self._run_single_tool_call(tool_call):
+                await event_queue.put(event)
+        except BaseException as exc:
+            await event_queue.put(exc)
+            raise
+        finally:
+            await event_queue.put(None)
 
     async def _run_single_tool_call(self, tool_call: ToolCallRequest) -> AsyncGenerator[ToolExecutorEvent]:
         def _record_sub_agent_session_id(session_id: str) -> None:
@@ -297,37 +325,56 @@ class ToolExecutor:
         def _register_progress_getter(getter: Callable[[], str | None]) -> None:
             self._sub_agent_progress_getters[tool_call.call_id] = getter
 
-        delta_queue: asyncio.Queue[str | None] = asyncio.Queue()
+        event_queue: asyncio.Queue[ToolExecutionOutputDelta | ToolExecutionLongRunning | None] = asyncio.Queue()
 
         async def _emit_tool_output_delta(content: str) -> None:
             if content:
-                await delta_queue.put(content)
+                await event_queue.put(ToolExecutionOutputDelta(tool_call=tool_call, content=content))
 
         call_context = self._context.with_record_sub_agent_session_id(_record_sub_agent_session_id)
         call_context = call_context.with_register_sub_agent_metadata_getter(_register_metadata_getter)
         call_context = call_context.with_register_sub_agent_progress_getter(_register_progress_getter)
         call_context = call_context.with_emit_tool_output_delta(_emit_tool_output_delta)
+        started_at = time.monotonic()
         tool_task = asyncio.create_task(run_tool(tool_call, self._registry, call_context))
 
-        async def _finish_delta_queue(completed: asyncio.Task[message.ToolResultMessage]) -> None:
+        async def _emit_long_running_tool_event() -> None:
+            await asyncio.sleep(LONG_RUNNING_TOOL_THRESHOLD_SECONDS)
+            if not tool_task.done():
+                await event_queue.put(
+                    ToolExecutionLongRunning(
+                        tool_call=tool_call,
+                        elapsed_seconds=time.monotonic() - started_at,
+                    )
+                )
+
+        async def _finish_event_queue(completed: asyncio.Task[message.ToolResultMessage]) -> None:
             try:
                 await completed
             finally:
-                await delta_queue.put(None)
+                await event_queue.put(None)
 
-        queue_task = asyncio.create_task(_finish_delta_queue(tool_task))
+        long_running_task: asyncio.Task[None] | None = None
+        if tool_call.tool_name not in LONG_RUNNING_TOOL_EXCLUDED_NAMES:
+            long_running_task = asyncio.create_task(_emit_long_running_tool_event())
+        queue_task = asyncio.create_task(_finish_event_queue(tool_task))
         try:
             while True:
-                delta = await delta_queue.get()
-                if delta is None:
+                event = await event_queue.get()
+                if event is None:
                     break
-                yield ToolExecutionOutputDelta(tool_call=tool_call, content=delta)
+                yield event
 
             tool_result: message.ToolResultMessage = await tool_task
         finally:
             if not tool_task.done():
                 tool_task.cancel()
-            await asyncio.gather(queue_task, return_exceptions=True)
+            if long_running_task is not None and not long_running_task.done():
+                long_running_task.cancel()
+            cleanup_tasks = [queue_task]
+            if long_running_task is not None:
+                cleanup_tasks.append(long_running_task)
+            await asyncio.gather(*cleanup_tasks, return_exceptions=True)
 
         self._append_history([tool_result])
 

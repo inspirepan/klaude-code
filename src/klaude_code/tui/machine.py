@@ -69,7 +69,7 @@ from klaude_code.tui.commands import (
     TaskClockStart,
     UpdateTerminalTitlePrefix,
 )
-from klaude_code.tui.components.common import format_more_lines_indicator, format_pascal_case
+from klaude_code.tui.components.common import format_elapsed_compact, format_more_lines_indicator, format_pascal_case
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
@@ -139,11 +139,34 @@ class ActivityState:
 
     def __init__(self) -> None:
         self._tool_calls: dict[str, int] = {}
+        self._tool_calls_by_id: dict[str, str] = {}
         self._sub_agent_tool_calls: dict[str, int] = {}
         self._sub_agent_tool_calls_by_id: dict[str, str] = {}
 
-    def add_tool_call(self, tool_name: str) -> None:
+    def add_tool_call(self, tool_name: str, tool_call_id: str | None = None) -> None:
+        if tool_call_id is not None:
+            self._set_tool_call_label(tool_call_id, tool_name)
+            return
         self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
+
+    def _set_tool_call_label(self, tool_call_id: str, tool_name: str) -> None:
+        existing_tool_name = self._tool_calls_by_id.get(tool_call_id)
+        if existing_tool_name is not None:
+            self._decrement_tool_call(existing_tool_name)
+        self._tool_calls_by_id[tool_call_id] = tool_name
+        self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
+
+    def finish_tool_call(self, tool_call_id: str) -> None:
+        tool_name = self._tool_calls_by_id.pop(tool_call_id, None)
+        if tool_name is not None:
+            self._decrement_tool_call(tool_name)
+
+    def _decrement_tool_call(self, tool_name: str) -> None:
+        current = self._tool_calls.get(tool_name, 0)
+        if current <= 1:
+            self._tool_calls.pop(tool_name, None)
+        else:
+            self._tool_calls[tool_name] = current - 1
 
     def add_sub_agent_tool_call(self, tool_call_id: str, tool_name: str) -> None:
         if tool_call_id in self._sub_agent_tool_calls_by_id:
@@ -168,12 +191,15 @@ class ActivityState:
 
     def clear_tool_calls(self) -> None:
         self._tool_calls = {}
+        self._tool_calls_by_id = {}
 
     def clear_for_new_step(self) -> None:
         self._tool_calls = {}
+        self._tool_calls_by_id = {}
 
     def reset(self) -> None:
         self._tool_calls = {}
+        self._tool_calls_by_id = {}
         self._sub_agent_tool_calls = {}
         self._sub_agent_tool_calls_by_id = {}
 
@@ -203,7 +229,7 @@ class ActivityState:
         return None
 
     def has_activity_label(self, label: str) -> bool:
-        return label in self._tool_calls
+        return label in self._tool_calls or any(name.startswith(f"{label} ") for name in self._tool_calls)
 
 
 class SpinnerStatusState:
@@ -306,8 +332,11 @@ class SpinnerStatusState:
         if self._phase is SpinnerPhase.COMPOSING:
             self._composing_buffer_length = length
 
-    def add_tool_call(self, tool_name: str) -> None:
-        self._activity.add_tool_call(tool_name)
+    def add_tool_call(self, tool_name: str, tool_call_id: str | None = None) -> None:
+        self._activity.add_tool_call(tool_name, tool_call_id)
+
+    def finish_tool_call(self, tool_call_id: str) -> None:
+        self._activity.finish_tool_call(tool_call_id)
 
     def clear_tool_calls(self) -> None:
         self._activity.clear_tool_calls()
@@ -1276,7 +1305,7 @@ class DisplayStateMachine:
             elif is_sub_agent_tool(e.tool_name):
                 self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
             else:
-                self._spinner.add_tool_call(tool_active_form)
+                self._spinner.add_tool_call(tool_active_form, e.tool_call_id)
 
         if not is_replay:
             cmds.extend(self._spinner_update_commands())
@@ -1310,6 +1339,21 @@ class DisplayStateMachine:
 
         cmds.append(RenderToolCall(e))
         return cmds
+
+    def _handle_ToolLongRunningEvent(
+        self, e: events.ToolLongRunningEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        if is_replay or e.tool_name == tools.AGENT:
+            return []
+        return [
+            RenderNotice(
+                events.NoticeEvent(
+                    session_id=e.session_id,
+                    content=f"Warning: {e.tool_name} has been running for {format_elapsed_compact(e.elapsed_seconds)}",
+                    style="warn",
+                )
+            )
+        ]
 
     def _handle_ToolOutputDeltaEvent(
         self, e: events.ToolOutputDeltaEvent, *, is_replay: bool, s: _SessionState
@@ -1357,6 +1401,9 @@ class DisplayStateMachine:
                 if failed_sub_session is not None and failed_sub_session.is_sub_agent:
                     failed_sub_session.task_active = False
                     failed_sub_session.clear_status_activity()
+            cmds.extend(self._spinner_update_commands())
+        elif not is_replay:
+            self._spinner.finish_tool_call(e.tool_call_id)
             cmds.extend(self._spinner_update_commands())
 
         if e.tool_name == tools.BASH and e.tool_call_id in self._live_bash_tool_call_ids:
@@ -1589,6 +1636,7 @@ DisplayStateMachine._EVENT_HANDLERS = {
     events.ResponseCompleteEvent: DisplayStateMachine._handle_ResponseCompleteEvent,
     events.ToolCallStartEvent: DisplayStateMachine._handle_ToolCallStartEvent,
     events.ToolCallEvent: DisplayStateMachine._handle_ToolCallEvent,
+    events.ToolLongRunningEvent: DisplayStateMachine._handle_ToolLongRunningEvent,
     events.ToolOutputDeltaEvent: DisplayStateMachine._handle_ToolOutputDeltaEvent,
     events.ToolResultEvent: DisplayStateMachine._handle_ToolResultEvent,
     events.TaskMetadataEvent: DisplayStateMachine._handle_TaskMetadataEvent,
