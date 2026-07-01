@@ -42,7 +42,8 @@ provider_list:
 
   - &sonnet
     model_name: sonnet
-    model_id: claude-sonnet-4-6
+    model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
+    model_id: claude-sonnet-5
     context_limit: 1000000
     effort: medium
     thinking:
@@ -51,6 +52,25 @@ provider_list:
 
   - &sonnet_low
     model_name: sonnet:low
+    model_alias: [ sonnet-5:low, sonnet5:low, claude-sonnet-5:low ]
+    model_id: claude-sonnet-5
+    context_limit: 1000000
+    effort: low
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet-4-6
+    model_alias: [ sonnet-4.6, claude-sonnet-4-6 ]
+    model_id: claude-sonnet-4-6
+    context_limit: 1000000
+    effort: medium
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet-4-6:low
+    model_alias: [ sonnet-4.6:low, claude-sonnet-4-6:low ]
     model_id: claude-sonnet-4-6
     context_limit: 1000000
     effort: low
@@ -141,7 +161,8 @@ provider_list:
     cost: { input: 10, output: 50, cache_read: 1, cache_write: 20 }
 
   - model_name: sonnet
-    model_id: global.anthropic.claude-sonnet-4-6
+    model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
+    model_id: global.anthropic.claude-sonnet-5
     context_limit: 1000000
     effort: medium
     thinking:
@@ -149,6 +170,25 @@ provider_list:
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: sonnet:low
+    model_alias: [ sonnet-5:low, sonnet5:low, claude-sonnet-5:low ]
+    model_id: global.anthropic.claude-sonnet-5
+    context_limit: 1000000
+    effort: low
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet-4-6
+    model_alias: [ sonnet-4.6, claude-sonnet-4-6 ]
+    model_id: global.anthropic.claude-sonnet-4-6
+    context_limit: 1000000
+    effort: medium
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet-4-6:low
+    model_alias: [ sonnet-4.6:low, claude-sonnet-4-6:low ]
     model_id: global.anthropic.claude-sonnet-4-6
     context_limit: 1000000
     effort: low
@@ -759,7 +799,8 @@ provider_list:
     cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
 
   - model_name: sonnet
-    model_id: anthropic/claude-sonnet-4.6
+    model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
+    model_id: anthropic/claude-sonnet-5
     context_limit: 1000000
     effort: medium
     provider_routing:
@@ -769,6 +810,29 @@ provider_list:
     cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
 
   - model_name: sonnet:low
+    model_alias: [ sonnet-5:low, sonnet5:low, claude-sonnet-5:low ]
+    model_id: anthropic/claude-sonnet-5
+    context_limit: 1000000
+    effort: low
+    provider_routing:
+      sort: throughput
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet-4-6
+    model_alias: [ sonnet-4.6, claude-sonnet-4-6 ]
+    model_id: anthropic/claude-sonnet-4.6
+    context_limit: 1000000
+    effort: medium
+    provider_routing:
+      sort: throughput
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet-4-6:low
+    model_alias: [ sonnet-4.6:low, claude-sonnet-4-6:low ]
     model_id: anthropic/claude-sonnet-4.6
     context_limit: 1000000
     effort: low
