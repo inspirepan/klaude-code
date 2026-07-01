@@ -70,6 +70,18 @@ def test_build_payload_omits_interleaved_beta_for_adaptive_sonnet_46() -> None:
     assert ANTHROPIC_BETA_INTERLEAVED_THINKING not in payload.get("betas", [])
 
 
+def test_build_payload_omits_interleaved_beta_for_adaptive_sonnet_5() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-sonnet-5",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    payload = build_payload(param)
+
+    assert ANTHROPIC_BETA_INTERLEAVED_THINKING not in payload.get("betas", [])
+
+
 def test_build_payload_adds_context_management_beta_when_thinking_enabled() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
@@ -193,6 +205,19 @@ def test_build_payload_enables_eager_input_streaming_for_opus_47() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
         model_id="claude-opus-4-7",
+        tools=_dummy_tools(),
+    )
+
+    payload = build_payload(param)
+
+    tools = list(payload.get("tools", []))
+    assert tools[0]["eager_input_streaming"] is True  # type: ignore[typeddict-item]
+
+
+def test_build_payload_enables_eager_input_streaming_for_sonnet_5() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-sonnet-5",
         tools=_dummy_tools(),
     )
 

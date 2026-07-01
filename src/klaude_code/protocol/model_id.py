@@ -32,9 +32,22 @@ def is_sonnet_46_model(model_name: str | None) -> bool:
     return "sonnet-4-6" in model_lower or "sonnet-4.6" in model_lower
 
 
+def is_sonnet_5_model(model_name: str | None) -> bool:
+    """Check if the model is Claude Sonnet 5."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    return "sonnet-5" in model_lower
+
+
 def supports_adaptive_thinking(model_name: str | None) -> bool:
-    """Check if the model supports adaptive thinking (Opus 4.6+, Sonnet 4.6)."""
-    return is_opus_47_model(model_name) or is_opus_46_model(model_name) or is_sonnet_46_model(model_name)
+    """Check if the model supports adaptive thinking (Opus 4.6+, Sonnet 4.6+)."""
+    return (
+        is_opus_47_model(model_name)
+        or is_opus_46_model(model_name)
+        or is_sonnet_46_model(model_name)
+        or is_sonnet_5_model(model_name)
+    )
 
 
 def is_claude_model(model_name: str | None) -> bool:
@@ -50,9 +63,14 @@ def is_claude_model_any(model_name: str | None) -> bool:
 def model_supports_eager_input_streaming(model_name: str | None) -> bool:
     """Check if the model supports the eager_input_streaming tool parameter.
 
-    Opus 4.6, Opus 4.7, and Sonnet 4.6 accept this field.
+    Opus 4.6, Opus 4.7, and Sonnet 4.6+ accept this field.
     """
-    return is_opus_46_model(model_name) or is_sonnet_46_model(model_name) or is_opus_47_model(model_name)
+    return (
+        is_opus_46_model(model_name)
+        or is_sonnet_46_model(model_name)
+        or is_sonnet_5_model(model_name)
+        or is_opus_47_model(model_name)
+    )
 
 
 def is_deepseek_model(model_name: str | None) -> bool:
