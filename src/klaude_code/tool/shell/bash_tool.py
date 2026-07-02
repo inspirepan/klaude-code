@@ -6,6 +6,7 @@ import shlex
 import signal
 import subprocess
 import tempfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
@@ -45,6 +46,17 @@ _ANSI_ESCAPE_RE = re.compile(
 
 _STREAM_POLL_INTERVAL_SEC = 0.05
 _GIT_FILE_CHANGE_EXCLUDED_DIRS: Final = (".venv", "node_modules")
+
+
+def _build_interrupted_output(command: str, elapsed_seconds: float, stdout: str, stderr: str) -> str:
+    parts = [f"Interrupted by user after {elapsed_seconds:.2f} seconds running: {command}"]
+    stdout = stdout.rstrip("\n")
+    stderr = stderr.rstrip("\n")
+    if stdout:
+        parts.append(f"[stdout before interrupt]\n{stdout}")
+    if stderr:
+        parts.append(f"[stderr before interrupt]\n{stderr}")
+    return "\n".join(parts)
 
 
 @dataclass
@@ -541,11 +553,38 @@ class BashTool(ToolABC):
                     kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 
                 proc = await asyncio.create_subprocess_exec(*cmd, **kwargs)
+                started_at = time.monotonic()
                 deadline = asyncio.get_running_loop().time() + timeout_sec
                 stdout_offset = 0
                 stderr_offset = 0
                 stdout_chunks: list[str] = []
                 stderr_chunks: list[str] = []
+
+                def _append_available_output() -> None:
+                    nonlocal stdout_offset, stderr_offset
+
+                    stdout_chunk, stdout_offset = _read_available_text(stdout_tmp, offset=stdout_offset)
+                    stderr_chunk, stderr_offset = _read_available_text(stderr_tmp, offset=stderr_offset)
+                    if stdout_chunk:
+                        stdout_chunks.append(stdout_chunk)
+                    if stderr_chunk:
+                        stderr_chunks.append(stderr_chunk)
+
+                def _build_interrupt_result() -> message.ToolResultMessage:
+                    _append_available_output()
+                    return message.ToolResultMessage(
+                        status="aborted",
+                        output_text=_build_interrupted_output(
+                            args.command,
+                            time.monotonic() - started_at,
+                            "".join(stdout_chunks),
+                            "".join(stderr_chunks),
+                        ),
+                    )
+
+                if context.register_tool_interrupt_result_getter is not None:
+                    context.register_tool_interrupt_result_getter(_build_interrupt_result)
+
                 try:
                     while True:
                         remaining = deadline - asyncio.get_running_loop().time()
@@ -601,10 +640,20 @@ class BashTool(ToolABC):
                         output_text="\n".join(parts),
                     )
                 except asyncio.CancelledError:
-                    # Ensure subprocess is stopped and propagate cancellation.
-                    with contextlib.suppress(Exception):
+                    _append_available_output()
+                    with contextlib.suppress(asyncio.CancelledError, Exception):
                         await asyncio.shield(_terminate_process(proc))
-                    raise
+                    _append_available_output()
+                    await _record_git_file_changes()
+                    return message.ToolResultMessage(
+                        status="aborted",
+                        output_text=_build_interrupted_output(
+                            args.command,
+                            time.monotonic() - started_at,
+                            "".join(stdout_chunks),
+                            "".join(stderr_chunks),
+                        ),
+                    )
 
             stdout = "".join(stdout_chunks)
             stderr = "".join(stderr_chunks)

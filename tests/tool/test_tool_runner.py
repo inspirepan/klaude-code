@@ -498,6 +498,31 @@ class TestToolExecutor:
         assert isinstance(events[1].tool_result.ui_extra, SessionIdUIExtra)
         assert events[1].tool_result.ui_extra.session_id == "session_abc"
 
+    def test_cancel_uses_registered_interrupt_result(
+        self, executor: ToolExecutor, history: list[message.HistoryEvent]
+    ):
+        tool_call = ToolCallRequest(
+            response_id=None,
+            call_id="test_123",
+            tool_name=tools.BASH,
+            arguments_json="{}",
+        )
+        executor._unfinished_calls["test_123"] = tool_call
+        executor._tool_interrupt_result_getters["test_123"] = lambda: message.ToolResultMessage(
+            status="aborted",
+            output_text="Interrupted by user after 0.12 seconds running: sleep 10",
+        )
+
+        events = list(executor.on_interrupt())
+
+        assert len(events) == 2
+        assert isinstance(events[1], ToolExecutionResult)
+        assert events[1].tool_result.status == "aborted"
+        assert events[1].tool_result.call_id == "test_123"
+        assert events[1].tool_result.tool_name == tools.BASH
+        assert events[1].tool_result.output_text == "Interrupted by user after 0.12 seconds running: sleep 10"
+        assert history[-1] == events[1].tool_result
+
     def test_cancel_includes_task_metadata_when_available(self, executor: ToolExecutor):
         """Test cancelling includes sub-agent task metadata when getter is registered."""
         tool_call = ToolCallRequest(
@@ -701,17 +726,21 @@ class TestBuildToolSideEffectEvents:
 
 
 class TestBashToolCancellation:
-    def test_bash_tool_propagates_cancelled_error(self) -> None:
+    def test_bash_tool_cancel_returns_partial_output(self) -> None:
         if os.name != "posix" or shutil.which("bash") is None:
             pytest.skip("bash tool requires POSIX + bash")
 
         async def _run() -> None:
-            args = BashTool.BashArguments(command="sleep 10", timeout_ms=60_000)
+            args = BashTool.BashArguments(command="echo partial_before_interrupt; sleep 10", timeout_ms=60_000)
             task = asyncio.create_task(BashTool.call_with_args(args, _tool_context()))
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.2)
             task.cancel()
-            with pytest.raises(asyncio.CancelledError):
-                await task
+            result = await task
+            assert result.status == "aborted"
+            assert "Interrupted by user after " in result.output_text
+            assert " seconds running: echo partial_before_interrupt; sleep 10" in result.output_text
+            assert "[stdout before interrupt]" in result.output_text
+            assert "partial_before_interrupt" in result.output_text
 
         arun(_run())
 
