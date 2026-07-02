@@ -7,7 +7,7 @@ from klaude_code.prompts.messages import CANCEL_OUTPUT
 from klaude_code.protocol import message, tools
 from klaude_code.protocol.models import SessionIdUIExtra, TaskMetadata, TodoItem, TodoListUIExtra, ToolSideEffect
 from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy
-from klaude_code.tool.core.context import ToolContext
+from klaude_code.tool.core.context import GetInterruptResultFn, ToolContext
 from klaude_code.tool.core.offload import offload_tool_output
 
 LONG_RUNNING_TOOL_THRESHOLD_SECONDS = 5 * 60
@@ -141,6 +141,7 @@ class ToolExecutor:
         self._sub_agent_session_ids: dict[str, str] = {}
         self._sub_agent_metadata_getters: dict[str, Callable[[], TaskMetadata | None]] = {}
         self._sub_agent_progress_getters: dict[str, Callable[[], str | None]] = {}
+        self._tool_interrupt_result_getters: dict[str, GetInterruptResultFn] = {}
 
     async def run_tools(self, tool_calls: list[ToolCallRequest]) -> AsyncGenerator[ToolExecutorEvent]:
         """Run the given tool calls and yield execution events.
@@ -238,19 +239,30 @@ class ToolExecutor:
             # Get partial progress (tool calls made) from sub-agent if available
             progress_getter = self._sub_agent_progress_getters.get(call_id)
             progress = progress_getter() if progress_getter is not None else None
-            if progress:
-                cancel_output = f"Overview of sub-agent transcript:\n{progress}\n\n{CANCEL_OUTPUT}"
-            else:
-                cancel_output = CANCEL_OUTPUT
+            interrupt_result_getter = self._tool_interrupt_result_getters.get(call_id)
+            cancel_result: message.ToolResultMessage | None = None
+            if interrupt_result_getter is not None:
+                try:
+                    cancel_result = interrupt_result_getter()
+                except Exception:
+                    cancel_result = None
+            if cancel_result is None:
+                if progress:
+                    cancel_output = f"Overview of sub-agent transcript:\n{progress}\n\n{CANCEL_OUTPUT}"
+                else:
+                    cancel_output = CANCEL_OUTPUT
 
-            cancel_result = message.ToolResultMessage(
-                call_id=tool_call.call_id,
-                output_text=cancel_output,
-                status="aborted",
-                tool_name=tool_call.tool_name,
-                ui_extra=SessionIdUIExtra(session_id=session_id) if session_id else None,
-                task_metadata=task_metadata,
-            )
+                cancel_result = message.ToolResultMessage(
+                    output_text=cancel_output,
+                    status="aborted",
+                )
+
+            cancel_result.call_id = tool_call.call_id
+            cancel_result.tool_name = tool_call.tool_name
+            if session_id and cancel_result.ui_extra is None:
+                cancel_result.ui_extra = SessionIdUIExtra(session_id=session_id)
+            if task_metadata is not None and cancel_result.task_metadata is None:
+                cancel_result.task_metadata = task_metadata
 
             if call_id not in self._call_event_emitted:
                 events_to_yield.append(ToolExecutionCallStarted(tool_call=tool_call))
@@ -269,6 +281,7 @@ class ToolExecutor:
             self._sub_agent_session_ids.pop(call_id, None)
             self._sub_agent_metadata_getters.pop(call_id, None)
             self._sub_agent_progress_getters.pop(call_id, None)
+            self._tool_interrupt_result_getters.pop(call_id, None)
 
         return events_to_yield
 
@@ -325,6 +338,9 @@ class ToolExecutor:
         def _register_progress_getter(getter: Callable[[], str | None]) -> None:
             self._sub_agent_progress_getters[tool_call.call_id] = getter
 
+        def _register_interrupt_result_getter(getter: GetInterruptResultFn) -> None:
+            self._tool_interrupt_result_getters[tool_call.call_id] = getter
+
         event_queue: asyncio.Queue[ToolExecutionOutputDelta | ToolExecutionLongRunning | None] = asyncio.Queue()
 
         async def _emit_tool_output_delta(content: str) -> None:
@@ -334,6 +350,7 @@ class ToolExecutor:
         call_context = self._context.with_record_sub_agent_session_id(_record_sub_agent_session_id)
         call_context = call_context.with_register_sub_agent_metadata_getter(_register_metadata_getter)
         call_context = call_context.with_register_sub_agent_progress_getter(_register_progress_getter)
+        call_context = call_context.with_register_tool_interrupt_result_getter(_register_interrupt_result_getter)
         call_context = call_context.with_emit_tool_output_delta(_emit_tool_output_delta)
         started_at = time.monotonic()
         tool_task = asyncio.create_task(run_tool(tool_call, self._registry, call_context))
@@ -384,6 +401,7 @@ class ToolExecutor:
         self._sub_agent_session_ids.pop(tool_call.call_id, None)
         self._sub_agent_metadata_getters.pop(tool_call.call_id, None)
         self._sub_agent_progress_getters.pop(tool_call.call_id, None)
+        self._tool_interrupt_result_getters.pop(tool_call.call_id, None)
 
         extra_events = self._build_tool_side_effect_events(tool_result)
         yield result_event

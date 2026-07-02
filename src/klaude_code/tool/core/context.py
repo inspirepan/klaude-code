@@ -5,7 +5,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Protocol
 
-from klaude_code.protocol import user_interaction
+from klaude_code.protocol import message, user_interaction
 from klaude_code.protocol.models import FileChangeSummary, FileStatus, SubAgentState, TaskMetadata, TodoItem
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
@@ -14,6 +14,7 @@ type FileTracker = MutableMapping[str, FileStatus]
 
 GetMetadataFn = Callable[[], TaskMetadata | None]
 GetProgressFn = Callable[[], str | None]
+GetInterruptResultFn = Callable[[], message.ToolResultMessage | None]
 
 RunSubtask = Callable[
     [
@@ -95,6 +96,7 @@ class ToolContext:
     record_sub_agent_session_id: Callable[[str], None] | None = None
     register_sub_agent_metadata_getter: Callable[[GetMetadataFn], None] | None = None
     register_sub_agent_progress_getter: Callable[[GetProgressFn], None] | None = None
+    register_tool_interrupt_result_getter: Callable[[GetInterruptResultFn], None] | None = None
     rewind_manager: RewindManagerABC | None = None
     handoff_manager: HandoffManagerABC | None = None
     request_user_interaction: RequestUserInteraction | None = None
@@ -108,6 +110,11 @@ class ToolContext:
 
     def with_register_sub_agent_progress_getter(self, callback: Callable[[GetProgressFn], None] | None) -> ToolContext:
         return replace(self, register_sub_agent_progress_getter=callback)
+
+    def with_register_tool_interrupt_result_getter(
+        self, callback: Callable[[GetInterruptResultFn], None] | None
+    ) -> ToolContext:
+        return replace(self, register_tool_interrupt_result_getter=callback)
 
     def with_rewind_manager(self, manager: RewindManagerABC | None) -> ToolContext:
         return replace(self, rewind_manager=manager)

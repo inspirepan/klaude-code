@@ -172,7 +172,7 @@ def test_interrupt_with_only_thinking_does_not_persist_continuation_prompt() -> 
     assert executor.should_show_interrupt_notice is False
 
 
-def test_interrupt_writes_tool_result_before_continuation_prompt() -> None:
+def test_interrupt_during_tool_execution_does_not_persist_continuation_prompt() -> None:
     stream = InterruptWithPartialTextStream()
     executor, history = _build_step_executor(stream)
     tool_call_id = "toolu_123"
@@ -215,9 +215,5 @@ def test_interrupt_writes_tool_result_before_continuation_prompt() -> None:
 
     assert isinstance(history[0], message.AssistantMessage)
     assert isinstance(history[1], message.ToolResultMessage)
-    retry_user_message = history[2]
-    assert isinstance(retry_user_message, message.UserMessage)
-
-    retry_prompt = message.join_text_parts(retry_user_message.parts)
-    assert "<assistant>" in retry_prompt
-    assert "</assistant>" in retry_prompt
+    assert len(history) == 2
+    assert not any(isinstance(item, message.UserMessage) for item in history)
