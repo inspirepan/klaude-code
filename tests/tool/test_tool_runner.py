@@ -498,9 +498,7 @@ class TestToolExecutor:
         assert isinstance(events[1].tool_result.ui_extra, SessionIdUIExtra)
         assert events[1].tool_result.ui_extra.session_id == "session_abc"
 
-    def test_cancel_uses_registered_interrupt_result(
-        self, executor: ToolExecutor, history: list[message.HistoryEvent]
-    ):
+    def test_cancel_uses_registered_interrupt_result(self, executor: ToolExecutor, history: list[message.HistoryEvent]):
         tool_call = ToolCallRequest(
             response_id=None,
             call_id="test_123",
