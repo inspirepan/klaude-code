@@ -327,9 +327,7 @@ def test_fork_context_model_override_updates_child_session_metadata(
     asyncio.run(_test())
 
 
-def test_fork_context_file_change_summary_merges_child_delta_into_parent(
-    tmp_path: Path, isolated_home: Path
-) -> None:
+def test_fork_context_file_change_summary_merges_child_delta_into_parent(tmp_path: Path, isolated_home: Path) -> None:
     del isolated_home
 
     async def _test() -> None:
