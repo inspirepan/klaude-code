@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
@@ -16,11 +17,11 @@ from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol import events, llm_param, message, tools
 from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState
 from klaude_code.protocol.sub_agent import SubAgentResult, is_sub_agent_tool
 from klaude_code.session.session import Session
-from klaude_code.tool import ToolABC
+from klaude_code.tool import ToolABC, WriteTool
 from klaude_code.tool.agent_tool import AgentTool
 from klaude_code.tool.core.abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.tool.core.context import TodoContext, ToolContext
@@ -130,6 +131,21 @@ class _SingleMessageStream(LLMStreamABC):
         return None
 
 
+class _ItemsStream(LLMStreamABC):
+    def __init__(self, items: list[message.LLMStreamItem]) -> None:
+        self._items = items
+
+    def __aiter__(self) -> AsyncGenerator[message.LLMStreamItem]:
+        return self._iterate()
+
+    async def _iterate(self) -> AsyncGenerator[message.LLMStreamItem]:
+        for item in self._items:
+            yield item
+
+    def get_partial_message(self) -> message.AssistantMessage | None:
+        return None
+
+
 class _RecordingClient(LLMClientABC):
     def __init__(self, model_id: str, response_text: str) -> None:
         super().__init__(
@@ -151,6 +167,31 @@ class _RecordingClient(LLMClientABC):
         del param
         self.call_count += 1
         return _SingleMessageStream(self.response_text)
+
+
+class _ScriptedClient(LLMClientABC):
+    def __init__(self, model_id: str, responses: list[list[message.LLMStreamItem]]) -> None:
+        super().__init__(
+            llm_param.LLMConfigParameter(
+                provider_name="test-provider",
+                protocol=llm_param.LLMClientProtocol.OPENAI,
+                api_key="test-key",
+                model_id=model_id,
+            )
+        )
+        self._responses = list(responses)
+        self.call_count = 0
+
+    @classmethod
+    def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        return cls(config.model_id or "", [])
+
+    async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
+        del param
+        self.call_count += 1
+        if not self._responses:
+            raise RuntimeError("No scripted response available")
+        return _ItemsStream(self._responses.pop(0))
 
 
 class _TestProfileProvider:
@@ -282,6 +323,79 @@ def test_fork_context_model_override_updates_child_session_metadata(
         child_session = Session.load(result.session_id, work_dir=tmp_path)
         assert child_session.model_name == "override-model-id"
         assert child_session.model_config_name == "override-model"
+
+    asyncio.run(_test())
+
+
+def test_fork_context_file_change_summary_merges_child_delta_into_parent(tmp_path: Path, isolated_home: Path) -> None:
+    del isolated_home
+
+    async def _test() -> None:
+        parent_path = str(tmp_path / "parent.py")
+        child_path = str(tmp_path / "child.txt")
+        child_tool_call = message.AssistantMessage(
+            parts=[
+                message.ToolCallPart(
+                    call_id="write-child",
+                    tool_name=tools.WRITE,
+                    arguments_json=json.dumps({"file_path": child_path, "content": "hello\nworld\n"}),
+                )
+            ],
+            stop_reason="tool_use",
+        )
+        child_final = message.AssistantMessage(
+            parts=[message.TextPart(text="child done")],
+            stop_reason="stop",
+        )
+        parent_client = _ScriptedClient("main-model", [[child_tool_call], [child_final]])
+        profile_provider = _TestProfileProvider()
+        parent_session = Session(work_dir=tmp_path)
+        parent_session.file_change_summary.record_edited(parent_path)
+        parent_session.file_change_summary.add_diff(added=5, removed=1, path=parent_path)
+        parent_agent = Agent(
+            session=parent_session,
+            profile=AgentProfile(
+                llm_client=parent_client,
+                system_prompt="parent prompt",
+                tools=[WriteTool.schema()],
+                attachments=[],
+            ),
+            model_profile_provider=profile_provider,
+        )
+        emitted: list[events.Event] = []
+        executor = SubAgentExecutor(
+            emit_event=lambda event: emitted.append(event) or asyncio.sleep(0),
+            llm_clients=LLMClients(main=parent_client),
+            model_profile_provider=profile_provider,
+        )
+
+        result = await executor.run_sub_agent(
+            parent_agent,
+            SubAgentState(
+                sub_agent_type="general-purpose-fork-context",
+                sub_agent_desc="write child",
+                sub_agent_prompt="write child file",
+                fork_context=True,
+            ),
+        )
+
+        assert result.task_result == "child done"
+        assert parent_client.call_count == 2
+        assert Path(child_path).read_text(encoding="utf-8") == "hello\nworld\n"
+
+        summary = parent_session.file_change_summary
+        assert summary.file_diffs[parent_path].added == 5
+        assert summary.file_diffs[parent_path].removed == 1
+        assert summary.file_diffs[child_path].added == 2
+        assert summary.file_diffs[child_path].removed == 0
+        assert summary.diff_lines_added == 7
+        assert summary.diff_lines_removed == 1
+        assert summary.edited_files == [parent_path]
+        assert summary.created_files == [child_path]
+
+        child_summary_events = [event for event in emitted if isinstance(event, events.TaskFileChangeSummaryEvent)]
+        assert len(child_summary_events) == 1
+        assert child_summary_events[0].summary.files[0].path == child_path
 
     asyncio.run(_test())
 

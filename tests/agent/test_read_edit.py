@@ -3,7 +3,6 @@ import base64
 import hashlib
 import json
 import os
-import subprocess
 import tempfile
 import unittest
 from collections.abc import Coroutine
@@ -714,79 +713,28 @@ class TestWriteTool(BaseTempDirTest):
 
 
 class TestBashToolFileTracking(BaseTempDirTest):
-    def test_bash_records_git_diff_stats_for_single_command(self):
-        subprocess.run(["git", "init", "-q"], check=True)
-        subprocess.run(["git", "config", "user.email", "test@example.com"], check=True)
-        subprocess.run(["git", "config", "user.name", "Test User"], check=True)
-
-        tracked = Path("tracked.txt").resolve()
-        tracked.write_text("one\n", encoding="utf-8")
-        subprocess.run(["git", "add", "tracked.txt"], check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "init"], check=True)
-
-        preexisting = Path("preexisting.txt").resolve()
-        preexisting.write_text("already here\n", encoding="utf-8")
+    def test_bash_does_not_record_file_change_summary(self):
+        existing = Path("existing.txt").resolve()
+        existing.write_text("one\n", encoding="utf-8")
         created = Path("created.txt").resolve()
 
         res = arun(
             BashTool.call(
-                json.dumps({"command": "printf 'one\\ntwo\\n' > tracked.txt && printf 'created\\n' > created.txt"}),
+                json.dumps({"command": "printf 'one\\ntwo\\n' > existing.txt && printf 'created\\n' > created.txt"}),
                 self.tool_context,
             )
         )
         self.assertEqual(res.status, "success")
+        self.assertEqual(existing.read_text(encoding="utf-8"), "one\ntwo\n")
+        self.assertEqual(created.read_text(encoding="utf-8"), "created\n")
 
         summary = self.session.file_change_summary
-        self.assertEqual(summary.edited_files, [str(tracked)])
-        self.assertEqual(summary.created_files, [str(created)])
+        self.assertEqual(summary.edited_files, [])
+        self.assertEqual(summary.created_files, [])
         self.assertEqual(summary.deleted_files, [])
-        self.assertEqual(summary.file_diffs[str(tracked)].added, 1)
-        self.assertEqual(summary.file_diffs[str(tracked)].removed, 0)
-        self.assertEqual(summary.file_diffs[str(created)].added, 1)
-        self.assertEqual(summary.file_diffs[str(created)].removed, 0)
-        self.assertNotIn(str(preexisting), summary.file_diffs)
-
-    def test_bash_file_change_tracking_excludes_dependency_dirs(self):
-        subprocess.run(["git", "init", "-q"], check=True)
-        subprocess.run(["git", "config", "user.email", "test@example.com"], check=True)
-        subprocess.run(["git", "config", "user.name", "Test User"], check=True)
-
-        tracked = Path("tracked.txt").resolve()
-        tracked.write_text("one\n", encoding="utf-8")
-        subprocess.run(["git", "add", "tracked.txt"], check=True)
-        subprocess.run(["git", "commit", "-q", "-m", "init"], check=True)
-
-        kept = Path("src/kept.txt").resolve()
-        node_module_file = Path("node_modules/pkg/index.js").resolve()
-        nested_node_module_file = Path("web/node_modules/pkg/index.js").resolve()
-        venv_file = Path(".venv/lib/site-packages/pkg.py").resolve()
-
-        res = arun(
-            BashTool.call(
-                json.dumps(
-                    {
-                        "command": " && ".join(
-                            [
-                                "mkdir -p src node_modules/pkg web/node_modules/pkg .venv/lib/site-packages",
-                                "printf 'kept\\n' > src/kept.txt",
-                                "printf 'pkg\\n' > node_modules/pkg/index.js",
-                                "printf 'nested\\n' > web/node_modules/pkg/index.js",
-                                "printf 'venv\\n' > .venv/lib/site-packages/pkg.py",
-                            ]
-                        )
-                    }
-                ),
-                self.tool_context,
-            )
-        )
-        self.assertEqual(res.status, "success")
-
-        summary = self.session.file_change_summary
-        self.assertEqual(summary.created_files, [str(kept)])
-        self.assertIn(str(kept), summary.file_diffs)
-        self.assertNotIn(str(node_module_file), summary.file_diffs)
-        self.assertNotIn(str(nested_node_module_file), summary.file_diffs)
-        self.assertNotIn(str(venv_file), summary.file_diffs)
+        self.assertEqual(summary.file_diffs, {})
+        self.assertEqual(summary.diff_lines_added, 0)
+        self.assertEqual(summary.diff_lines_removed, 0)
 
     def test_bash_cat_counts_as_read_for_edit(self):
         p = os.path.abspath("cat_read.txt")
