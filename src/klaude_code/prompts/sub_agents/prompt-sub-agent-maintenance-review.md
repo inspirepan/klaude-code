@@ -41,6 +41,10 @@ Check that each change is implemented at the right depth. Special cases layered 
 
 Find governing instruction files that apply to changed files, including user/repo `CLAUDE.md`, `AGENTS.md`, and `CLAUDE.local.md` files in ancestor directories. Only flag a convention violation when you can quote the exact rule and cite the exact changed line that breaks it. Name the instruction file path and quote the rule in the finding.
 
+### Documentation Sync
+
+Check whether the diff changes architecture, directory structure, module responsibilities, or established conventions in a way that makes an existing `CLAUDE.md`, `AGENTS.md`, or `CLAUDE.local.md` description stale. Only flag when a specific documented statement now contradicts the changed code; quote the stale line, the instruction file path, and the changed line that contradicts it.
+
 ## Execution Strategy
 
 <tool_persistence_rules>
