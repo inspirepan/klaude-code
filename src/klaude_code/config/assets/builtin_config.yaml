@@ -938,6 +938,11 @@ sub_agent_models:
   - gpt-5.5
   - gpt-5.4:xhigh
   - opus
+  code-maintenance-reviewer:
+  - gpt-5.5:xhigh
+  - gpt-5.5
+  - gpt-5.4
+  - opus
 
 fast_model:
 - gpt-5.4-nano

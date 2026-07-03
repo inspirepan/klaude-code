@@ -944,6 +944,8 @@ class AgentOperationHandler:
                 register_metadata_getter: Callable[[Callable[[], TaskMetadata | None]], None] | None,
                 register_progress_getter: Callable[[Callable[[], str | None]], None] | None,
             ) -> SubAgentResult:
+                if agent.session.sub_agent_state is not None:
+                    raise RuntimeError("Sub-agents cannot spawn nested sub-agents")
                 session_clients = self.get_session_llm_clients(session_id)
                 child_task_id = uuid4().hex
                 self._on_child_task_state_change(session_id, child_task_id, True)

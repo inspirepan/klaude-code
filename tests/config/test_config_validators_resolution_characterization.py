@@ -101,12 +101,17 @@ class TestNormalizeSubAgentModelsUserConfig:
                 "sub_agent_models": {
                     "FINDER": "opus",
                     "  Code-Reviewer ": ["m1", "m2"],
+                    "Code-Maintenance-Reviewer": "sonnet",
                 },
             }
         )
         # Keys are matched case-insensitively against canonical profile names
         # (finder, code-reviewer, ...) and rewritten to the canonical lowercase form.
-        assert uc.sub_agent_models == {"finder": "opus", "code-reviewer": ["m1", "m2"]}
+        assert uc.sub_agent_models == {
+            "finder": "opus",
+            "code-reviewer": ["m1", "m2"],
+            "code-maintenance-reviewer": "sonnet",
+        }
 
     def test_unknown_sub_agent_keys_are_dropped(self, isolated_home: Path) -> None:
         del isolated_home
@@ -120,7 +125,7 @@ class TestNormalizeSubAgentModelsUserConfig:
 
     def test_empty_string_sub_agent_value_is_dropped(self, isolated_home: Path) -> None:
         del isolated_home
-        uc = UserConfig.model_validate({"sub_agent_models": {"code-simplifier": ""}})
+        uc = UserConfig.model_validate({"sub_agent_models": {"code-maintenance-reviewer": ""}})
         assert uc.sub_agent_models == {}
 
     def test_missing_sub_agent_models_defaults_to_empty_dict(self, isolated_home: Path) -> None:
@@ -138,7 +143,7 @@ class TestNormalizeSubAgentModelsConfig:
             {
                 "main_model": "",
                 "fast_model": "  fast ",
-                "sub_agent_models": {"Finder": "  haiku ", "CODE-SIMPLIFIER": ""},
+                "sub_agent_models": {"Finder": "  haiku ", "CODE-MAINTENANCE-REVIEWER": ""},
             }
         )
         # Empty main_model normalizes to None.

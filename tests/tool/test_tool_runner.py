@@ -729,9 +729,17 @@ class TestBashToolCancellation:
             pytest.skip("bash tool requires POSIX + bash")
 
         async def _run() -> None:
+            stdout_seen = asyncio.Event()
+
+            async def _emit(content: str) -> None:
+                if "partial_before_interrupt" in content:
+                    stdout_seen.set()
+
             args = BashTool.BashArguments(command="echo partial_before_interrupt; sleep 10", timeout_ms=60_000)
-            task = asyncio.create_task(BashTool.call_with_args(args, _tool_context()))
-            await asyncio.sleep(0.2)
+            task = asyncio.create_task(
+                BashTool.call_with_args(args, _tool_context().with_emit_tool_output_delta(_emit))
+            )
+            await asyncio.wait_for(stdout_seen.wait(), timeout=2.0)
             task.cancel()
             result = await task
             assert result.status == "aborted"

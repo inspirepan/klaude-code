@@ -24,7 +24,7 @@ class TestSubAgentModelResolver:
         assert result.description == "use default behavior: anthropic/test"
         assert result.resolved_model_name == "anthropic/test"
 
-    def test_available_sub_agents_only_task_and_finder(self) -> None:
+    def test_available_sub_agents(self) -> None:
         config = Config(provider_list=[])
         helper = SubAgentModelResolver(config)
 
@@ -35,7 +35,7 @@ class TestSubAgentModelResolver:
             "general-purpose-fork-context",
             "finder",
             "code-reviewer",
-            "code-simplifier",
+            "code-maintenance-reviewer",
         }
 
     def test_selectable_models_returns_all_available_models(self) -> None:
