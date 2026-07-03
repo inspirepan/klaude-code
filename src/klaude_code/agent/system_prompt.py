@@ -58,6 +58,11 @@ AGENT_FINDER_INST = (
     "doing all searches yourself."
 )
 AGENT_FINDER_PARALLEL_INST = """- Launch multiple finder sub-agents in parallel when tasks are independent."""
+AGENT_REVIEW_PARALLEL_INST = (
+    "- For non-trivial code review requests, launch `code-reviewer` and `code-maintenance-reviewer` "
+    "in parallel, then synthesize their findings yourself. Use additional review agents only when the user "
+    "explicitly asks for high-effort or multi-angle review."
+)
 
 TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
 TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
@@ -143,6 +148,7 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
             [
                 AGENT_FINDER_INST,
                 AGENT_FINDER_PARALLEL_INST,
+                AGENT_REVIEW_PARALLEL_INST,
             ]
         )
 

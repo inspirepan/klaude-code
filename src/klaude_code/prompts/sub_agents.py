@@ -39,13 +39,14 @@ FORK_CONTEXT_SUMMARY = (
 )
 
 REVIEW_SUMMARY = (
-    "Code review agent that identifies real bugs in proposed changes.\n"
-    "- Use for: Complex, multi-file changes with non-trivial logic that could harbor subtle bugs\n"
-    "- Don't use for: Small/simple changes (single-file edits, config tweaks, renames, typo fixes, "
-    "straightforward bug fixes), style/formatting checks, or general code exploration\n"
-    "- IMPORTANT: Only invoke review ONCE per task. After fixing issues found by a review, do NOT\n"
-    "  launch another review to verify the fixes -- apply your own judgement instead. A second\n"
-    "  review is only warranted if the user explicitly asks for one.\n"
+    "Correctness-focused code review agent that identifies real bugs in proposed changes.\n"
+    "- Use for: Complex, multi-file changes with non-trivial logic that could harbor subtle bugs,\n"
+    "  regressions, race conditions, security issues, data loss, or compatibility breaks\n"
+    "- Don't use for: Style-only cleanup, simplification-only review, formatting checks, documentation\n"
+    "  issues, or general code exploration\n"
+    "- For non-trivial review requests, launch this in parallel with `code-maintenance-reviewer` and\n"
+    "  synthesize the results yourself. For follow-up review after fixes, use only the reviewer whose\n"
+    "  prior finding is being checked unless the user asks for another full review.\n"
     "- The prompt must include:\n"
     "  1. Background: what the user asked for, the intent behind the changes, key decisions and tradeoffs made\n"
     "  2. Diff command: a shell command to view the changes (e.g. `git diff`, `git diff --cached`)\n"
@@ -59,18 +60,24 @@ REVIEW_SUMMARY = (
     "(Tools: Bash, Read)"
 )
 
-SIMPLIFIER_SUMMARY = (
-    "Code simplification agent that refines recently changed code for clarity and consistency.\n"
-    "- Use for: Cleaning up code after implementation -- reducing nesting, eliminating redundancy,\n"
-    "  improving naming, and aligning with project conventions\n"
-    "- Don't use for: Bug fixing, feature changes, architecture decisions, or style-only formatting\n"
+MAINTENANCE_REVIEW_SUMMARY = (
+    "Read-only code maintenance review agent that identifies cleanup, layering, efficiency, and\n"
+    "project-convention issues in proposed changes.\n"
+    "- Use for: Reuse opportunities, unnecessary complexity, redundant work, fragile altitude/layering,\n"
+    "  and clear violations of governing CLAUDE.md/AGENTS.md instructions\n"
+    "- Don't use for: Correctness/security regression hunting (use code-reviewer), direct edits,\n"
+    "  formatting-only nits, or broad refactors outside the diff\n"
+    "- For non-trivial review requests, launch this in parallel with `code-reviewer` and synthesize\n"
+    "  the results yourself. Correctness findings from `code-reviewer` should outrank maintenance\n"
+    "  findings when deciding what to report.\n"
     "- The prompt must include:\n"
-    "  1. Diff command: a shell command to view the recent changes (e.g. `git diff`, `git diff HEAD~1`)\n"
-    "  2. Scope (optional): specific files or areas to focus on\n"
-    "  3. Constraints (optional): project conventions or patterns to preserve\n"
-    "- The agent reads project conventions autonomously, applies targeted simplifications,\n"
-    "  and reports what was changed and why.\n"
-    "(Tools: Bash, Read, Edit)"
+    "  1. Background: what the user asked for and the intent behind the changes\n"
+    "  2. Diff command: a shell command to view the changes (e.g. `git diff`, `git diff --cached`)\n"
+    "  3. Key files: list the most important changed files and nearby helpers/modules\n"
+    "  4. Focus (optional): cleanup, layering, efficiency, or convention concerns to prioritize\n"
+    "- The agent reads surrounding context and governing instruction files autonomously and returns\n"
+    "  structured read-only findings with priority levels.\n"
+    "(Tools: Bash, Read)"
 )
 
 # ---------------------------------------------------------------------------
