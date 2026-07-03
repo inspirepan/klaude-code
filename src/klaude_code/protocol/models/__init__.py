@@ -27,6 +27,8 @@ from klaude_code.protocol.models.file_tracking import (
     FileDiffStats,
     FileStatus,
     TaskFileChange,
+    build_file_changes_since,
+    merge_file_changes,
 )
 from klaude_code.protocol.models.session_runtime import SessionOwner, SessionRuntimeState
 from klaude_code.protocol.models.sub_agent import SubAgentState
@@ -104,5 +106,7 @@ __all__ = [
     "ToolStatus",
     "Usage",
     "UserImagesUIItem",
+    "build_file_changes_since",
+    "merge_file_changes",
     "todo_list_str",
 ]

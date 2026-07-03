@@ -14,7 +14,7 @@ from klaude_code.config import load_config
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT, FORK_CONTEXT_WITH_ROLE_PROMPT
 from klaude_code.protocol import events, message
-from klaude_code.protocol.models import SubAgentState, TaskMetadata
+from klaude_code.protocol.models import SubAgentState, TaskMetadata, build_file_changes_since, merge_file_changes
 from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
 from klaude_code.session.session import Session
 
@@ -78,6 +78,7 @@ class SubAgentExecutor:
         else:
             child_session = Session(work_dir=parent_session.work_dir)
         child_session.sub_agent_state = state
+        child_file_change_baseline = child_session.file_change_summary.model_copy(deep=True)
         if model_override is not None and override_client is not None:
             child_session.model_name = override_client.model_name
             child_session.model_config_name = model_override
@@ -223,3 +224,6 @@ class SubAgentExecutor:
                 session_id=child_session.id,
                 error=True,
             )
+        finally:
+            child_changes = build_file_changes_since(child_file_change_baseline, child_session.file_change_summary)
+            merge_file_changes(parent_session.file_change_summary, child_changes)
