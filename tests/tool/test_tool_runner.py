@@ -736,7 +736,9 @@ class TestBashToolCancellation:
                     stdout_seen.set()
 
             args = BashTool.BashArguments(command="echo partial_before_interrupt; sleep 10", timeout_ms=60_000)
-            task = asyncio.create_task(BashTool.call_with_args(args, _tool_context().with_emit_tool_output_delta(_emit)))
+            task = asyncio.create_task(
+                BashTool.call_with_args(args, _tool_context().with_emit_tool_output_delta(_emit))
+            )
             await asyncio.wait_for(stdout_seen.wait(), timeout=2.0)
             task.cancel()
             result = await task
