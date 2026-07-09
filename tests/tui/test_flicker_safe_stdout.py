@@ -1,7 +1,6 @@
 # pyright: reportPrivateUsage=false
 
 import asyncio
-import contextlib
 from types import SimpleNamespace
 
 
@@ -59,20 +58,12 @@ def test_synchronized_in_terminal_times_out_stale_cpr(monkeypatch) -> None:
         def flush(self) -> None:
             return None
 
-    class _FakeInput:
-        def detach(self):
-            return contextlib.nullcontext()
-
-        def cooked_mode(self):
-            return contextlib.nullcontext()
-
     app = SimpleNamespace(
         _is_running=True,
         _running_in_terminal_f=None,
         _running_in_terminal=False,
         output=_FakeOutput(),
         renderer=_FakeRenderer(),
-        input=_FakeInput(),
         _request_absolute_cursor_position=lambda: None,
         _redraw=lambda: None,
     )
