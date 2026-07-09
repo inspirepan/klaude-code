@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar
 
@@ -11,7 +12,6 @@ from rich.tree import Tree
 from klaude_code.config.formatters import format_model_params
 from klaude_code.log import is_debug_enabled
 from klaude_code.protocol import events
-from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.update import get_display_version
@@ -38,13 +38,36 @@ def _format_memory_path(path: str, *, work_dir: Path) -> str:
         return path
 
 
-def _shorten_warning_path(warning: str, work_dir: Path) -> str:
-    """Shorten absolute paths in warning messages for display.
+_SCOPE_PRIORITY = {"system": 0, "user": 1, "project": 2}
 
-    Extracts the path prefix (before first ': ') and shortens it:
-    - Strips everything up to and including '/skills/' to show just '<skill-dir>/SKILL.md'
-    - Falls back to relative path or ~ notation
-    """
+
+@dataclass(frozen=True)
+class _DuplicateWarning:
+    name: str
+    chain: list[tuple[str, str]]
+
+
+@dataclass(frozen=True)
+class _NameMismatchWarning:
+    skill_name: str
+    directory_name: str
+    scope: str
+    path: str
+
+
+type _AggregatedWarning = _DuplicateWarning | _NameMismatchWarning | str
+
+
+def _shorten_skill_path(path: str, *, work_dir: Path) -> str:
+    """Format a skill path for display: ~ / relative, strip trailing /SKILL.md."""
+    short = _format_memory_path(path, work_dir=work_dir)
+    if short.endswith("/SKILL.md"):
+        return short[: -len("/SKILL.md")]
+    return short
+
+
+def _shorten_warning_path(warning: str, work_dir: Path) -> str:
+    """Shorten absolute paths in generic (non-structured) warning messages."""
     if "\n" in warning:
         return warning
 
@@ -53,16 +76,7 @@ def _shorten_warning_path(warning: str, work_dir: Path) -> str:
     if idx < 0:
         return warning
     path_str, message = warning[:idx], warning[idx:]
-    # Try to extract just the skill directory name (e.g. "my-skill")
-    skills_marker = "/skills/"
-    marker_idx = path_str.rfind(skills_marker)
-    if marker_idx >= 0:
-        short = path_str[marker_idx + len(skills_marker) :]
-        # Strip trailing /SKILL.md since all skills use the same filename
-        if short.endswith("/SKILL.md"):
-            short = short[: -len("/SKILL.md")]
-        return short + message
-    return _format_memory_path(path_str, work_dir=work_dir) + message
+    return _shorten_skill_path(path_str, work_dir=work_dir) + message
 
 
 def _parse_duplicate_warning(warning: str) -> tuple[str, list[tuple[str, str, bool]]] | None:
@@ -113,49 +127,106 @@ def _parse_name_mismatch_warning(warning: str) -> tuple[str, str, str, str] | No
     return skill_name, directory_name, scope, path
 
 
-def _render_warning(warning: str, *, work_dir: Path) -> RenderableType:
-    mismatch = _parse_name_mismatch_warning(warning)
-    if mismatch is not None:
-        skill_name, directory_name, scope, path = mismatch
-        title = Text()
-        title.append('skill name "', style=ThemeKey.WARN)
-        title.append(skill_name, style=ThemeKey.WARN_BOLD)
-        title.append('" should match directory name "', style=ThemeKey.WARN)
-        title.append(directory_name, style=ThemeKey.WARN_BOLD)
-        title.append('":', style=ThemeKey.WARN)
+def _merge_duplicate_chain(
+    existing: list[tuple[str, str]],
+    new_items: list[tuple[str, str, bool]],
+) -> list[tuple[str, str]]:
+    """Merge a new duplicate pair into an ordered override chain.
 
-        paths_grid = create_grid()
-        path_text = Text()
-        path_text.append(f"[{scope}]", style=ThemeKey.WARN_SCOPE)
-        path_text.append(" ", style=ThemeKey.WARN)
-        path_text.append(_format_memory_path(path, work_dir=work_dir), style=ThemeKey.WARN)
-        paths_grid.add_row(Text("  •", style=ThemeKey.WARN_BOLD), path_text)
-        return Group(title, paths_grid)
+    Keeps unique (scope, path) entries in encounter order, then ensures the
+    highest-priority scope (project > user > system) is last — that is the
+    effective skill.
+    """
+    seen = {(scope, path) for scope, path in existing}
+    merged = list(existing)
+    for scope, path, _using in new_items:
+        key = (scope, path)
+        if key not in seen:
+            seen.add(key)
+            merged.append(key)
 
-    duplicate = _parse_duplicate_warning(warning)
-    if duplicate is not None:
-        name, items = duplicate
-        title = Text()
-        title.append('duplicate "', style=ThemeKey.WARN)
-        title.append(name, style=ThemeKey.WARN_BOLD)
-        title.append('" skill:', style=ThemeKey.WARN)
-        paths_grid = create_grid()
-        for scope, path, using_this in items:
-            path_text = Text()
-            path_text.append(f"[{scope}]", style=ThemeKey.WARN_SCOPE)
-            path_text.append(" ", style=ThemeKey.WARN)
-            path_text.append(_format_memory_path(path, work_dir=work_dir), style=ThemeKey.WARN)
-            if using_this:
-                path_text.append(" (using this)", style=ThemeKey.WARN)
-            paths_grid.add_row(Text("  •", style=ThemeKey.WARN_BOLD), path_text)
-        return Group(title, paths_grid)
+    if len(merged) <= 1:
+        return merged
 
+    winner_idx = max(range(len(merged)), key=lambda i: _SCOPE_PRIORITY.get(merged[i][0], -1))
+    if winner_idx != len(merged) - 1:
+        winner = merged.pop(winner_idx)
+        merged.append(winner)
+    return merged
+
+
+def _aggregate_skill_warnings(warning_items: list[str]) -> list[_AggregatedWarning]:
+    """Parse warnings and merge same-name duplicates into override chains."""
+    result: list[_AggregatedWarning] = []
+    dup_index: dict[str, int] = {}
+
+    for warning in warning_items:
+        duplicate = _parse_duplicate_warning(warning)
+        if duplicate is not None:
+            name, items = duplicate
+            if name in dup_index:
+                idx = dup_index[name]
+                existing = result[idx]
+                assert isinstance(existing, _DuplicateWarning)
+                result[idx] = _DuplicateWarning(name, _merge_duplicate_chain(existing.chain, items))
+            else:
+                dup_index[name] = len(result)
+                result.append(_DuplicateWarning(name, _merge_duplicate_chain([], items)))
+            continue
+
+        mismatch = _parse_name_mismatch_warning(warning)
+        if mismatch is not None:
+            skill_name, directory_name, scope, path = mismatch
+            result.append(_NameMismatchWarning(skill_name, directory_name, scope, path))
+            continue
+
+        result.append(warning)
+
+    return result
+
+
+def _append_scoped_path(text: Text, scope: str, path: str, *, work_dir: Path) -> None:
+    text.append(f"[{scope}]", style=ThemeKey.WARN_SCOPE)
+    text.append(" ", style=ThemeKey.WARN)
+    text.append(_shorten_skill_path(path, work_dir=work_dir), style=ThemeKey.WARN)
+
+
+def _render_duplicate_warning(entry: _DuplicateWarning, *, work_dir: Path) -> Text:
+    text = Text()
+    text.append(entry.name, style=ThemeKey.WARN_BOLD)
+    text.append("  ", style=ThemeKey.WARN)
+    for i, (scope, path) in enumerate(entry.chain):
+        if i > 0:
+            text.append(" → ", style=ThemeKey.WARN)
+        _append_scoped_path(text, scope, path, work_dir=work_dir)
+    return text
+
+
+def _render_name_mismatch_warning(entry: _NameMismatchWarning, *, work_dir: Path) -> Text:
+    text = Text()
+    text.append(entry.skill_name, style=ThemeKey.WARN_BOLD)
+    text.append(" ≠ ", style=ThemeKey.WARN)
+    text.append(entry.directory_name, style=ThemeKey.WARN_BOLD)
+    text.append("  ", style=ThemeKey.WARN)
+    _append_scoped_path(text, entry.scope, entry.path, work_dir=work_dir)
+    return text
+
+
+def _render_generic_warning(warning: str, *, work_dir: Path) -> Text:
     lines = _shorten_warning_path(warning, work_dir).splitlines() or [warning]
     text = Text(lines[0], style=ThemeKey.WARN)
     for line in lines[1:]:
         text.append("\n")
         text.append(line, style=ThemeKey.WARN)
     return text
+
+
+def _render_aggregated_warning(entry: _AggregatedWarning, *, work_dir: Path) -> Text:
+    if isinstance(entry, _DuplicateWarning):
+        return _render_duplicate_warning(entry, work_dir=work_dir)
+    if isinstance(entry, _NameMismatchWarning):
+        return _render_name_mismatch_warning(entry, work_dir=work_dir)
+    return _render_generic_warning(entry, work_dir=work_dir)
 
 
 def _build_multi_column_tree(
@@ -290,8 +361,8 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
             Text("skill warnings", style=ThemeKey.WARN_BOLD),
             guide_style=ThemeKey.LINES,
         )
-        for warning in warning_items:
-            warning_tree.add(_render_warning(warning, work_dir=work_dir))
+        for entry in _aggregate_skill_warnings(warning_items):
+            warning_tree.add(_render_aggregated_warning(entry, work_dir=work_dir))
         renderables.append(Text())
         renderables.append(warning_tree)
 
