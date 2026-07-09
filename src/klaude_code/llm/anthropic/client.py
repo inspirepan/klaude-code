@@ -59,6 +59,8 @@ _ANTHROPIC_STOP_REASON_OVERRIDES: dict[str, StopReason] = {
     "aborted": "aborted",
 }
 
+_ANTHROPIC_USER_AGENT = "klaude-code/2"
+
 
 def _map_anthropic_stop_reason(reason: str) -> StopReason | None:
     return map_stop_reason(reason, _ANTHROPIC_STOP_REASON_OVERRIDES)
@@ -437,6 +439,7 @@ class AnthropicClient(LLMClientABC):
             client = anthropic.AsyncAnthropic(
                 api_key=config.api_key,
                 base_url=config.base_url,
+                default_headers={"User-Agent": _ANTHROPIC_USER_AGENT},
                 timeout=create_http_timeout(),
             )
         finally:

@@ -15,6 +15,8 @@ from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param
 
+_OPENAI_USER_AGENT = "klaude-code/2"
+
 
 def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreateParamsStreaming, dict[str, object]]:
     """Build OpenAI API request parameters."""
@@ -59,12 +61,14 @@ class OpenAICompatibleClient(LLMClientABC):
                 api_key=config.api_key,
                 azure_endpoint=str(config.base_url),
                 api_version=config.azure_api_version,
+                default_headers={"User-Agent": _OPENAI_USER_AGENT},
                 timeout=create_http_timeout(),
             )
         else:
             client = openai.AsyncOpenAI(
                 api_key=config.api_key,
                 base_url=config.base_url,
+                default_headers={"User-Agent": _OPENAI_USER_AGENT},
                 timeout=create_http_timeout(),
             )
         self.client: openai.AsyncAzureOpenAI | openai.AsyncOpenAI = client

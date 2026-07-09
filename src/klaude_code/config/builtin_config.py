@@ -30,6 +30,7 @@ SUPPORTED_API_KEYS: tuple[ApiKeyInfo, ...] = (
     ApiKeyInfo("ANTHROPIC_API_KEY", "Anthropic", "Anthropic API key"),
     ApiKeyInfo("OPENAI_API_KEY", "OpenAI", "OpenAI API key"),
     ApiKeyInfo("OPENROUTER_API_KEY", "OpenRouter", "OpenRouter API key"),
+    ApiKeyInfo("YOUTU_API_KEY", "Youtu Gateway", "Youtu gateway API key"),
     ApiKeyInfo("GOOGLE_API_KEY", "Google Gemini", "Google API key (Gemini)"),
     ApiKeyInfo("GEMINI_API_KEY", "Google Gemini", "Gemini API key (Google AI Studio)"),
     ApiKeyInfo("DEEPSEEK_API_KEY", "DeepSeek", "DeepSeek API key"),

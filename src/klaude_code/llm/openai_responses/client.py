@@ -26,6 +26,8 @@ from klaude_code.protocol.model_id import supports_extended_prompt_cache
 from klaude_code.protocol.models import AssistantPhase, StopReason, Usage
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
+_OPENAI_USER_AGENT = "klaude-code/2"
+
 
 def _merge_assistant_phase(
     current: AssistantPhase | None,
@@ -414,12 +416,14 @@ class ResponsesClient(LLMClientABC):
                 api_key=config.api_key,
                 azure_endpoint=str(config.base_url),
                 api_version=config.azure_api_version,
+                default_headers={"User-Agent": _OPENAI_USER_AGENT},
                 timeout=create_http_timeout(),
             )
         else:
             client = AsyncOpenAI(
                 api_key=config.api_key,
                 base_url=config.base_url,
+                default_headers={"User-Agent": _OPENAI_USER_AGENT},
                 timeout=create_http_timeout(),
             )
         self.client: AsyncAzureOpenAI | AsyncOpenAI = client
