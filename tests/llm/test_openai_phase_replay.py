@@ -172,3 +172,12 @@ def test_responses_and_codex_payload_replay_assistant_phase() -> None:
 
     assert _assistant_item_phase(responses_payload.get("input")) == "commentary"
     assert _assistant_item_phase(codex_payload.get("input")) == "commentary"
+
+
+def test_responses_payload_omits_empty_reasoning_summary() -> None:
+    param = _basic_call_param([message.UserMessage(parts=[message.TextPart(text="hi")])])
+    param.thinking = llm_param.Thinking(reasoning_effort="high")
+
+    payload = build_responses_payload(param)
+
+    assert payload.get("reasoning") == {"effort": "high"}

@@ -753,6 +753,14 @@ provider_list:
     max_tokens: 128000
     cost: { input: 1.75, output: 14, cache_read: 0.17 }
 
+  - model_name: grok-4.5
+    model_alias: [ grok-4.5-latest, grok-build-latest ]
+    model_id: grok-4.5
+    context_limit: 500000
+    thinking:
+      reasoning_effort: high
+    cost: { input: 2, output: 6, cache_read: 0.5 }
+
 # ######################################## youtu-openai-chat ########################################
 - provider_name: youtu-openai-chat
   protocol: openai

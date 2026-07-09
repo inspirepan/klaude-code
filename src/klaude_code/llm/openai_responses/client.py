@@ -6,7 +6,7 @@ import httpx
 import openai
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types import responses
-from openai.types.responses.response_create_params import ResponseCreateParamsBase
+from openai.types.responses.response_create_params import Reasoning, ResponseCreateParamsBase
 
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.http import create_http_timeout
@@ -83,10 +83,10 @@ def build_payload(
         payload["include"] = ["reasoning.encrypted_content"]
 
     if param.thinking and param.thinking.reasoning_effort:
-        payload["reasoning"] = {
-            "effort": param.thinking.reasoning_effort,
-            "summary": param.thinking.reasoning_summary,
-        }
+        reasoning: Reasoning = {"effort": param.thinking.reasoning_effort}
+        if param.thinking.reasoning_summary:
+            reasoning["summary"] = param.thinking.reasoning_summary
+        payload["reasoning"] = reasoning
 
     if param.verbosity:
         # Our verbosity literal ("max") is wider than the SDK's TypedDict declaration.
