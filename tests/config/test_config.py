@@ -1002,9 +1002,7 @@ class TestLoadConfig:
         assert "provider_list[0].protocol" in str(exc_info.value)
         assert "klaude conf" in str(exc_info.value)
 
-    def test_load_config_suggests_typo_for_missing_field(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_load_config_suggests_typo_for_missing_field(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Missing required fields should hint at nearby typos like provoder_name."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         test_config_path.parent.mkdir(parents=True)

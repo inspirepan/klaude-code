@@ -64,9 +64,7 @@ def test_render_welcome_shows_duplicate_skill_warning_as_single_line_chain() -> 
 
     output = _print_welcome(event)
 
-    assert (
-        "pdf  [system] ~/.klaude/skills/.system/pdf → [project] .claude/skills/pdf" in output
-    )
+    assert "pdf  [system] ~/.klaude/skills/.system/pdf → [project] .claude/skills/pdf" in output
     assert 'duplicate "' not in output
     assert "(using this)" not in output
     assert "SKILL.md" not in output
@@ -87,15 +85,9 @@ def test_render_welcome_merges_same_name_duplicate_warnings_into_one_chain() -> 
         work_dir="/tmp/project",
         llm_config=llm_config,
         loaded_skill_warnings={
-            "user": [
-                f'duplicate "gpt-image-gen" skill:\n'
-                f"- [system] {system_path}\n"
-                f"- [user] {user_path} (using this)"
-            ],
+            "user": [f'duplicate "gpt-image-gen" skill:\n- [system] {system_path}\n- [user] {user_path} (using this)'],
             "project": [
-                f'duplicate "gpt-image-gen" skill:\n'
-                f"- [user] {user_path}\n"
-                f"- [project] {project_path} (using this)"
+                f'duplicate "gpt-image-gen" skill:\n- [user] {user_path}\n- [project] {project_path} (using this)'
             ],
         },
     )
