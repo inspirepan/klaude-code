@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import re
+import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import override
@@ -61,9 +62,29 @@ _INPUT_HEIGHT_SAFETY_ROWS = 1
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
 
+# The prompt footer is re-rendered on every frame (spinner runs at ~8fps while
+# an agent streams). Reading .git/HEAD and .git/config from disk each frame is
+# wasted event-loop time; branch switches are rare, so cache with a short TTL.
+_GIT_INFO_CACHE_TTL_S = 5.0
+_git_info_cache: tuple[float, Path, tuple[str | None, str | None]] | None = None
+
 
 class _PromptPaused(Exception):
     """Internal signal used to pause the REPL while another prompt_toolkit app owns stdin."""
+
+
+def _get_git_info_cached() -> tuple[str | None, str | None]:
+    """TTL-cached wrapper around :func:`_get_git_info`, keyed by cwd."""
+    global _git_info_cache
+    now = time.monotonic()
+    cwd = Path.cwd()
+    if _git_info_cache is not None:
+        cached_at, cached_cwd, cached_info = _git_info_cache
+        if cached_cwd == cwd and now - cached_at < _GIT_INFO_CACHE_TTL_S:
+            return cached_info
+    info = _get_git_info()
+    _git_info_cache = (now, cwd, info)
+    return info
 
 
 def _get_git_info() -> tuple[str | None, str | None]:
@@ -394,7 +415,7 @@ class PromptToolkitInput(InputProviderABC):
     def _build_prompt_context_fragments(self, *, prefix: str = "") -> StyleAndTextTuples:
         """Build the idle prompt context shown below the input frame."""
 
-        repo_display, branch = _get_git_info()
+        repo_display, branch = _get_git_info_cached()
         cwd_name = Path.cwd().name or str(Path.cwd())
         dir_name = repo_display or cwd_name
         current_model: str | None = None
@@ -475,6 +496,12 @@ class PromptToolkitInput(InputProviderABC):
         # Make the Escape key feel responsive
         with contextlib.suppress(Exception):
             self._session.app.ttimeoutlen = 0.05
+
+        # Pace redraws so the invalidate storm while an agent streams
+        # (spinner frames + stream tail + status lines each call invalidate)
+        # coalesces into at most ~50fps instead of one full render per event.
+        with contextlib.suppress(Exception):
+            self._session.app.min_redraw_interval = 0.02
 
         # Keep completion popups left-aligned and customize completion rendering.
         with contextlib.suppress(Exception):

@@ -16,6 +16,10 @@ This module:
    the redraw, so the new bottom UI lands inside the same atomic frame.
 3. Bumps the StdoutProxy throttle from 0.2s to 0.5s, halving the cycle
    frequency for typical streaming workloads.
+4. Keeps the input attached during the write cycle (stock ``in_terminal``
+   detaches stdin and enters cooked mode, which stalls key processing for
+   the whole erase/write/redraw window). The body only writes, so yielding
+   stdin is unnecessary and typing stays responsive while streaming.
 
 Drop-in replacement for ``patch_stdout(raw=True)``.
 """
@@ -38,8 +42,10 @@ _SYNC_END = "\x1b[?2026l"
 
 # Cap how long we wait for the CPR response inside the sync block. Modern
 # terminals typically respond in <10ms; we time out conservatively so a
-# misbehaving terminal can't stall the prompt.
-_CPR_WAIT_TIMEOUT_S = 0.1
+# misbehaving terminal can't stall the prompt. Keep this short: while a
+# write cycle is in flight the renderer defers redraws, so every ms spent
+# here delays the next visible frame (though key events keep flowing).
+_CPR_WAIT_TIMEOUT_S = 0.05
 
 
 @contextlib.asynccontextmanager
@@ -65,6 +71,10 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
     if previous_f is not None:
         await previous_f
 
+    # Drain any outstanding CPR response before erasing, so a late reply to
+    # the previous redraw's request is not attributed to the request we issue
+    # after this cycle's reset. Input stays attached, so the response is
+    # consumed by the vt100 parser as soon as it arrives.
     if app.output.responds_to_cpr:
         with contextlib.suppress(Exception):
             await asyncio.wait_for(
@@ -81,8 +91,15 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
     app._running_in_terminal = True
 
     try:
-        with app.input.detach(), app.input.cooked_mode():
-            yield
+        # Unlike prompt_toolkit's stock ``in_terminal`` we do NOT detach the
+        # input or enter cooked mode: the body only writes to stdout, never
+        # reads stdin. Keeping the reader attached lets key presses be
+        # processed (buffer updates, key bindings) during the write cycle
+        # instead of piling up in the tty buffer — detaching here was the
+        # main source of typing latency while the agent streamed output.
+        # ``Application._redraw`` already defers rendering while
+        # ``_running_in_terminal`` is set, so there is no paint race.
+        yield
     finally:
         try:
             app._running_in_terminal = False
