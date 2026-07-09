@@ -9,6 +9,7 @@ from .config import (
     prioritize_model_preference,
 )
 from .loader import (
+    ConfigValidationError,
     create_example_config,
     load_config,
     print_no_available_models_hint,
@@ -16,6 +17,7 @@ from .loader import (
 
 __all__ = [
     "Config",
+    "ConfigValidationError",
     "ModelAvailability",
     "ModelDiagnosis",
     "UserConfig",

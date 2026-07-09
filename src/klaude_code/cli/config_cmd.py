@@ -13,10 +13,15 @@ def list_models(
 ) -> None:
     """List available models"""
     from klaude_code.cli.list_model import display_models_and_providers
-    from klaude_code.config import load_config
+    from klaude_code.config import ConfigValidationError, load_config
+    from klaude_code.log import log
     from klaude_code.tui.terminal.color import is_light_terminal_background
 
-    config = load_config()
+    try:
+        config = load_config()
+    except ConfigValidationError as exc:
+        log((str(exc), "red"))
+        sys.exit(1)
 
     # Auto-detect theme when not explicitly set in config, to match other CLI entrypoints.
     if config.theme is None:

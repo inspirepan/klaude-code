@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import difflib
 import os
 from functools import lru_cache
+from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import ValidationError
@@ -14,6 +17,59 @@ from klaude_code.config.builtin_config import SUPPORTED_API_KEYS, get_builtin_co
 from klaude_code.config.merge import merge_configs
 from klaude_code.log import log
 from klaude_code.protocol import llm_param
+
+
+class ConfigValidationError(ValueError):
+    """Raised when the user config file fails schema or YAML validation."""
+
+    def __init__(self, path: Path, message: str) -> None:
+        self.path = path
+        super().__init__(message)
+
+
+def _format_error_loc(loc: tuple[Any, ...]) -> str:
+    """Format a pydantic error location as ``provider_list[2].provider_name``."""
+    parts: list[str] = []
+    for item in loc:
+        if isinstance(item, int):
+            if parts:
+                parts[-1] = f"{parts[-1]}[{item}]"
+            else:
+                parts.append(f"[{item}]")
+        else:
+            parts.append(str(item))
+    return ".".join(parts)
+
+
+def _suggest_missing_field_typo(missing_field: str, input_value: Any) -> str | None:
+    """Suggest a likely typo when a required field is missing but a similar key exists."""
+    if not isinstance(input_value, dict):
+        return None
+    unknown_keys = [key for key in input_value if isinstance(key, str)]
+    matches = difflib.get_close_matches(missing_field, unknown_keys, n=1, cutoff=0.6)
+    if not matches:
+        return None
+    return f"did you mean '{missing_field}'? (found '{matches[0]}')"
+
+
+def format_config_validation_error(path: Path, exc: ValidationError) -> str:
+    """Turn a pydantic ValidationError into a concise, user-facing message."""
+    lines = [f"Invalid config file: {path}", ""]
+    for err in exc.errors():
+        loc = _format_error_loc(tuple(err["loc"]))
+        msg = err["msg"]
+        lines.append(f"  • {loc}: {msg}" if loc else f"  • {msg}")
+
+        input_value = err.get("input")
+        if err.get("type") == "missing":
+            suggestion = _suggest_missing_field_typo(str(err["loc"][-1]), input_value)
+            if suggestion:
+                lines.append(f"    Hint: {suggestion}")
+        elif input_value is not None and not isinstance(input_value, (dict, list)):
+            lines.append(f"    Got: {input_value!r}")
+
+    lines.extend(["", "Fix the file and try again, or run: klaude conf"])
+    return "\n".join(lines)
 
 
 def get_example_config() -> _schema.UserConfig:
@@ -82,7 +138,17 @@ def _load_user_config() -> _schema.UserConfig | None:
         return None
 
     config_yaml = _schema.config_path.read_text()
-    config_dict = yaml.safe_load(config_yaml)
+    try:
+        config_dict = yaml.safe_load(config_yaml)
+    except yaml.YAMLError as e:
+        message = (
+            f"Invalid config file: {_schema.config_path}\n"
+            f"\n"
+            f"  • YAML parse error: {e}\n"
+            f"\n"
+            f"Fix the file and try again, or run: klaude conf"
+        )
+        raise ConfigValidationError(_schema.config_path, message) from e
 
     if config_dict is None:
         return None
@@ -90,9 +156,8 @@ def _load_user_config() -> _schema.UserConfig | None:
     try:
         return _schema.UserConfig.model_validate(config_dict)
     except ValidationError as e:
-        log(f"Invalid config file: {_schema.config_path}")
-        log(str(e))
-        raise ValueError(f"Invalid config file: {_schema.config_path}") from e
+        message = format_config_validation_error(_schema.config_path, e)
+        raise ConfigValidationError(_schema.config_path, message) from e
 
 
 def _load_config_uncached() -> _schema.Config:

@@ -20,7 +20,7 @@ from klaude_code.config.config import (
     parse_env_var_syntax,
     prioritize_model_preference,
 )
-from klaude_code.config.loader import load_config
+from klaude_code.config.loader import ConfigValidationError, format_config_validation_error, load_config
 from klaude_code.config.merge import merge_configs
 from klaude_code.protocol import llm_param
 
@@ -978,7 +978,7 @@ class TestLoadConfig:
         assert "anthropic" in provider_names or "openai" in provider_names
 
     def test_load_config_raises_on_invalid_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that load_config raises ValueError for invalid config."""
+        """Test that load_config raises ConfigValidationError for invalid config."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         test_config_path.parent.mkdir(parents=True)
 
@@ -997,8 +997,51 @@ class TestLoadConfig:
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
         load_config.cache_clear()
 
-        with pytest.raises(ValueError, match="Invalid config file"):
+        with pytest.raises(ConfigValidationError, match="Invalid config file") as exc_info:
             load_config()
+        assert "provider_list[0].protocol" in str(exc_info.value)
+        assert "klaude conf" in str(exc_info.value)
+
+    def test_load_config_suggests_typo_for_missing_field(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing required fields should hint at nearby typos like provoder_name."""
+        test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
+        test_config_path.parent.mkdir(parents=True)
+        config_dict = {
+            "provider_list": [
+                {
+                    "provoder_name": "google-vertex",
+                    "disabled": True,
+                }
+            ]
+        }
+        test_config_path.write_text(str(yaml.dump(config_dict) or ""))
+
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        load_config.cache_clear()
+
+        with pytest.raises(ConfigValidationError) as exc_info:
+            load_config()
+        message = str(exc_info.value)
+        assert "provider_list[0].provider_name" in message
+        assert "did you mean 'provider_name'?" in message
+        assert "provoder_name" in message
+
+    def test_format_config_validation_error_includes_path(self) -> None:
+        """Formatter should include the config path and a fix hint."""
+        from pydantic import ValidationError
+
+        try:
+            UserProviderConfig.model_validate({"provoder_name": "x", "disabled": True})
+        except ValidationError as exc:
+            message = format_config_validation_error(Path("/tmp/klaude-config.yaml"), exc)
+        else:
+            pytest.fail("expected ValidationError")
+
+        assert "Invalid config file: /tmp/klaude-config.yaml" in message
+        assert "provider_name" in message
+        assert "klaude conf" in message
 
     def test_load_config_caches_result(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Ensure config is cached and requires cache_clear to reload."""

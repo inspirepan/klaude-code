@@ -336,11 +336,15 @@ def main_callback(
         # If still no session_id, leave as None to create a new session
 
         if session_id is not None and chosen_model is None:
-            from klaude_code.config import load_config
+            from klaude_code.config import ConfigValidationError, load_config
             from klaude_code.log import log
 
             session_meta = Session.load_meta(session_id, work_dir=Path.cwd())
-            cfg = load_config()
+            try:
+                cfg = load_config()
+            except ConfigValidationError as exc:
+                log((str(exc), "red"))
+                sys.exit(1)
 
             if session_meta.model_config_name:
                 session_model = session_meta.model_config_name.strip()
@@ -379,9 +383,20 @@ def main_callback(
         # If still no model, check main_model; if not configured or invalid,
         # trigger interactive selection.
         if chosen_model is None:
-            from klaude_code.config import ModelAvailability, format_model_preference, load_config
+            from klaude_code.config import (
+                ConfigValidationError,
+                ModelAvailability,
+                format_model_preference,
+                load_config,
+            )
 
-            cfg = load_config()
+            try:
+                cfg = load_config()
+            except ConfigValidationError as exc:
+                from klaude_code.log import log
+
+                log((str(exc), "red"))
+                sys.exit(1)
             main_model = cfg.main_model
 
             picker_highlighted: list[str] | None = None
