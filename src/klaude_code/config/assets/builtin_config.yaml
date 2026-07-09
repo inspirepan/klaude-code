@@ -29,17 +29,6 @@ provider_list:
       type: adaptive
     cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
 
-  - &fable_1h
-    model_name: fable:1h
-    model_id: claude-fable-5
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: xhigh
-    cache_retention: long
-    thinking:
-      type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 20 }
-
   - &sonnet
     model_name: sonnet
     model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
@@ -79,17 +68,6 @@ provider_list:
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
-
-  - &opus_1h
-    model_name: opus:1h
-    model_id: claude-opus-4-8
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: xhigh
-    cache_retention: long
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 10 }
 
   - model_name: opus:fast
     model_id: claude-opus-4-8
@@ -132,16 +110,6 @@ provider_list:
       type: adaptive
     cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
 
-  - model_name: fable:1h
-    model_id: global.anthropic.claude-fable-5
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: xhigh
-    cache_retention: long
-    thinking:
-      type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 20 }
-
   - model_name: sonnet
     model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
     model_id: global.anthropic.claude-sonnet-5
@@ -178,29 +146,11 @@ provider_list:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
-  - model_name: opus:1h
-    model_id: global.anthropic.claude-opus-4-8
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: xhigh
-    cache_retention: long
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 10 }
-
   - model_name: opus-4-7
     model_id: global.anthropic.claude-opus-4-7
     max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: opus-4-6
-    model_id: global.anthropic.claude-opus-4-6-v1
-    context_limit: 1000000
-    effort: high
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
@@ -401,17 +351,6 @@ provider_list:
       type: adaptive
     cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
 
-  - model_name: fable:1h
-    model_alias: [ claude-fable-5:1h ]
-    model_id: claude-fable-5
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: xhigh
-    cache_retention: long
-    thinking:
-      type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 20 }
-
   - model_name: sonnet
     model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
     model_id: claude-sonnet-5
@@ -446,26 +385,6 @@ provider_list:
     max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: opus:1h
-    model_alias: [ opus-4-7:1h, claude-opus-4-7:1h ]
-    model_id: claude-opus-4-7
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: xhigh
-    cache_retention: long
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 10 }
-
-  - model_name: opus-4-6
-    model_alias: [ claude-opus-4-6, claude-opus-4-6-v1 ]
-    model_id: claude-opus-4-6-v1
-    context_limit: 1000000
-    effort: high
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
@@ -639,14 +558,6 @@ provider_list:
       reasoning_effort: minimal
     cost: { input: 1.5, output: 9, cache_read: 0.15 }
 
-  - model_name: gemini-flash:low
-    model_alias: [ gemini-3.5-flash:low ]
-    model_id: gemini-3.5-flash
-    context_limit: 1048576
-    thinking:
-      reasoning_effort: low
-    cost: { input: 1.5, output: 9, cache_read: 0.15 }
-
   - model_name: gemini-flash:high
     model_alias: [ gemini-3.5-flash:high ]
     model_id: gemini-3.5-flash
@@ -661,22 +572,6 @@ provider_list:
     context_limit: 1048576
     thinking:
       reasoning_effort: minimal
-    cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
-
-  - model_name: gemini-flash-lite:low
-    model_alias: [ gemini-3.1-flash-lite:low, gemini-3.1-flash-lite-preview:low ]
-    model_id: gemini-3.1-flash-lite
-    context_limit: 1048576
-    thinking:
-      reasoning_effort: low
-    cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
-
-  - model_name: gemini-flash-lite:high
-    model_alias: [ gemini-3.1-flash-lite:high, gemini-3.1-flash-lite-preview:high ]
-    model_id: gemini-3.1-flash-lite
-    context_limit: 1048576
-    thinking:
-      reasoning_effort: high
     cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
 
 # ######################################## deepseek ########################################
@@ -699,15 +594,6 @@ provider_list:
     model_id: deepseek-v4-flash
     context_limit: 1000000
     effort: high
-    thinking:
-      type: enabled
-    cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
-
-  - model_name: deepseek-flash:max
-    model_alias: [ v4-flash:max ]
-    model_id: deepseek-v4-flash
-    context_limit: 1000000
-    effort: max
     thinking:
       type: enabled
     cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
