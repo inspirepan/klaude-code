@@ -40,9 +40,7 @@ class ManageProvidersCommand(CommandABC):
             )
         selected = await asyncio.to_thread(manage_providers_interactive, states)
         if selected is None:
-            return CommandResult(
-                events=[events.NoticeEvent(session_id=agent.session.id, content="(cancelled)")]
-            )
+            return CommandResult(events=[events.NoticeEvent(session_id=agent.session.id, content="(cancelled)")])
 
         changed = [state for state in states if selected[state.name] != state.disabled]
         if not changed:

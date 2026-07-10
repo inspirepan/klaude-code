@@ -77,7 +77,10 @@ def manage_providers_interactive(states: list[ProviderState]) -> dict[str, bool]
             disabled = disabled_by_name[state.name]
             tokens.extend(
                 [
-                    ("class:accent.red" if disabled else "class:accent.green", "disabled  " if disabled else "enabled   "),
+                    (
+                        "class:accent.red" if disabled else "class:accent.green",
+                        "disabled  " if disabled else "enabled   ",
+                    ),
                     ("class:highlighted" if selected else "class:msg", f"{state.name:<{name_width}}"),
                     ("class:meta", f"  {state.source}  {state.model_count} models"),
                     ("class:meta", "\n"),
