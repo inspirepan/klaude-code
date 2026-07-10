@@ -24,7 +24,7 @@ _DEFAULT_MODEL_DECISION_TREE = """- For specialized agents such as `finder`, `co
 - For general-purpose image or other multimodal reading and analysis, prefer Gemini models: `gemini-pro` or `gemini-flash`.
 - For general-purpose frontend tasks (UI, React, CSS, styling, design), prefer `opus`.
 - For general-purpose Chinese-language writing and proofreading/review, prefer `deepseek` or `kimi`.
-- For general or simple coding subtasks delegated to a general-purpose agent, prefer Claude models: `sonnet`, or `haiku` for cheap parallel work.
+- For general or simple tasks delegated to a general-purpose agent, prefer the unqualified model selector `gpt-5.6-terra`.
 - Use provider-qualified selectors like `sonnet@openrouter` only when provider routing matters; otherwise use the unqualified model name."""
 
 
