@@ -752,7 +752,7 @@ def test_responses_stream_state_manager_full_sequence() -> None:
                     "output": [],
                     "usage": {
                         "input_tokens": 40,
-                        "input_tokens_details": {"cached_tokens": 5},
+                        "input_tokens_details": {"cached_tokens": 5, "cache_write_tokens": 7},
                         "output_tokens": 20,
                         "output_tokens_details": {"reasoning_tokens": 8},
                         "total_tokens": 60,
@@ -798,6 +798,7 @@ def test_responses_stream_state_manager_full_sequence() -> None:
     assert final.usage is not None
     assert final.usage.input_tokens == 40
     assert final.usage.cached_tokens == 5
+    assert final.usage.cache_write_tokens == 7
     assert final.usage.output_tokens == 20
     assert final.usage.reasoning_tokens == 8
     assert final.usage.context_size == 60

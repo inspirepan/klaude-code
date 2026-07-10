@@ -32,6 +32,7 @@ def usage_instances(draw: st.DrawFn) -> Usage:
     input_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
     output_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
     cache_read_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
+    cache_write_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
 
     return Usage(
         input_tokens=input_tokens,
@@ -44,6 +45,7 @@ def usage_instances(draw: st.DrawFn) -> Usage:
         input_cost=input_cost,
         output_cost=output_cost,
         cache_read_cost=cache_read_cost,
+        cache_write_cost=cache_write_cost,
     )
 
 
@@ -56,6 +58,7 @@ def cost_configs(draw: st.DrawFn) -> "llm_param.Cost":
         input=draw(st.floats(min_value=0, max_value=100, allow_nan=False)),
         output=draw(st.floats(min_value=0, max_value=100, allow_nan=False)),
         cache_read=draw(st.floats(min_value=0, max_value=100, allow_nan=False)),
+        cache_write=draw(st.floats(min_value=0, max_value=100, allow_nan=False)),
         currency=draw(st.sampled_from(["USD", "CNY"])),
     )
 
@@ -75,6 +78,7 @@ def test_calculate_cost_non_negative(usage: Usage, cost_config: "llm_param.Cost"
     fresh_usage = Usage(
         input_tokens=usage.input_tokens,
         cached_tokens=usage.cached_tokens,
+        cache_write_tokens=usage.cache_write_tokens,
         output_tokens=usage.output_tokens,
         reasoning_tokens=usage.reasoning_tokens,
     )
@@ -85,12 +89,14 @@ def test_calculate_cost_non_negative(usage: Usage, cost_config: "llm_param.Cost"
         assert fresh_usage.input_cost is None
         assert fresh_usage.output_cost is None
         assert fresh_usage.cache_read_cost is None
+        assert fresh_usage.cache_write_cost is None
         assert fresh_usage.total_cost is None
         return
 
     assert fresh_usage.input_cost is not None
     assert fresh_usage.output_cost is not None
     assert fresh_usage.cache_read_cost is not None
+    assert fresh_usage.cache_write_cost is not None
 
     # Non-cached input tokens cost
     # Note: if cached_tokens > input_tokens (invalid state), cost could be negative
@@ -98,6 +104,7 @@ def test_calculate_cost_non_negative(usage: Usage, cost_config: "llm_param.Cost"
     assert fresh_usage.input_cost >= 0
     assert fresh_usage.output_cost >= 0
     assert fresh_usage.cache_read_cost >= 0
+    assert fresh_usage.cache_write_cost >= 0
 
 
 @given(usage=usage_instances())
@@ -122,12 +129,27 @@ def test_calculate_cost_no_config_no_change(usage: Usage) -> None:
 
 
 def test_empty_usage_zero_cost_is_unknown() -> None:
-    usage = Usage(input_cost=0.0, output_cost=0.0, cache_read_cost=0.0)
+    usage = Usage(input_cost=0.0, output_cost=0.0, cache_read_cost=0.0, cache_write_cost=0.0)
 
     assert usage.total_cost is None
 
 
 def test_token_usage_zero_cost_remains_known() -> None:
-    usage = Usage(input_tokens=1, input_cost=0.0, output_cost=0.0, cache_read_cost=0.0)
+    usage = Usage(input_tokens=1, input_cost=0.0, output_cost=0.0, cache_read_cost=0.0, cache_write_cost=0.0)
 
     assert usage.total_cost == 0.0
+
+
+def test_calculate_cost_includes_cache_write() -> None:
+    from klaude_code.llm.usage import calculate_cost
+    from klaude_code.protocol.llm_param import Cost
+
+    usage = Usage(input_tokens=100, cached_tokens=20, cache_write_tokens=30, output_tokens=40)
+    calculate_cost(usage, Cost(input=10, output=20, cache_read=1, cache_write=2))
+
+    assert usage.input_cost == 0.0005
+    assert usage.cache_read_cost == 0.00002
+    assert usage.cache_write_cost == 0.00006
+    assert usage.output_cost == 0.0008
+    assert usage.total_cost is not None
+    assert abs(usage.total_cost - 0.00138) < 1e-12

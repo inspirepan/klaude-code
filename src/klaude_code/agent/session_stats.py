@@ -79,6 +79,8 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
             total.output_cost = (total.output_cost or 0.0) + usage.output_cost
         if usage.cache_read_cost is not None:
             total.cache_read_cost = (total.cache_read_cost or 0.0) + usage.cache_read_cost
+        if usage.cache_write_cost is not None:
+            total.cache_write_cost = (total.cache_write_cost or 0.0) + usage.cache_write_cost
 
         if usage.context_size is not None:
             total.context_size = usage.context_size

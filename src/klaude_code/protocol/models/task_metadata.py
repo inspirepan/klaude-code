@@ -41,6 +41,8 @@ class TaskMetadata(BaseModel):
             dst.output_cost = (dst.output_cost or 0.0) + src.output_cost
         if src.cache_read_cost is not None:
             dst.cache_read_cost = (dst.cache_read_cost or 0.0) + src.cache_read_cost
+        if src.cache_write_cost is not None:
+            dst.cache_write_cost = (dst.cache_write_cost or 0.0) + src.cache_write_cost
 
     @staticmethod
     def aggregate_by_model(metadata_list: list[TaskMetadata]) -> list[TaskMetadata]:

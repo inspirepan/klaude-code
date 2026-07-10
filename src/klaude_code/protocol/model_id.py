@@ -115,6 +115,8 @@ def supports_extended_prompt_cache(model_name: str | None) -> bool:
     if ":" in model_lower:
         model_lower = model_lower.split(":", 1)[0]
     supported = {
+        "gpt-5.5",
+        "gpt-5.5-pro",
         "gpt-5.4",
         "gpt-5.2",
         "gpt-5.1-codex-max",
@@ -127,6 +129,18 @@ def supports_extended_prompt_cache(model_name: str | None) -> bool:
         "gpt-4.1",
     }
     return model_lower in supported
+
+
+def supports_prompt_cache_options_ttl(model_name: str | None) -> bool:
+    """Check if the OpenAI model supports prompt_cache_options.ttl."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    if "/" in model_lower:
+        model_lower = model_lower.rsplit("/", 1)[-1]
+    if ":" in model_lower:
+        model_lower = model_lower.split(":", 1)[0]
+    return model_lower in {"gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
 
 
 # -- Google --------------------------------------------------------------------
