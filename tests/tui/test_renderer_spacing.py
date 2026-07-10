@@ -479,6 +479,7 @@ def test_sub_agent_call_prompt_renders_as_markdown() -> None:
                 sub_agent_prompt="## Plan\n\n- item",
             ),
             code_theme="monokai",
+            effective_model="gpt-5.4-mini",
         )
     )
 
@@ -486,3 +487,24 @@ def test_sub_agent_call_prompt_renders_as_markdown() -> None:
     assert "## Plan" not in rendered
     assert "Plan" in rendered
     assert " • item" in rendered
+    assert "[model default: gpt-5.4-mini]" in rendered
+
+
+def test_sub_agent_call_identifies_model_override() -> None:
+    renderer, output = _renderer_and_output()
+
+    renderer.console.print(
+        render_sub_agent_call(
+            SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="searching",
+                sub_agent_prompt="Find it",
+                model="sonnet",
+            ),
+            effective_model="claude-sonnet-4-6",
+        )
+    )
+
+    rendered = output.getvalue()
+    assert "[model override: sonnet]" in rendered
+    assert "model default" not in rendered
