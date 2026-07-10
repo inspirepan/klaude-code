@@ -12,19 +12,19 @@ from klaude_code.protocol.models import Usage
 def calculate_cost(usage: Usage, cost_config: llm_param.Cost | None) -> None:
     """Calculate and set cost fields on usage based on cost configuration.
 
-    Note: input_tokens includes cached_tokens, so we need to subtract cached_tokens
-    to get the actual non-cached input tokens for cost calculation.
+    Note: input_tokens includes cached_tokens and cache_write_tokens, so we subtract
+    both to get the actual non-cached input tokens for cost calculation.
     """
     if cost_config is None:
         return
-    if not any((usage.input_tokens, usage.cached_tokens, usage.output_tokens)):
+    if not any((usage.input_tokens, usage.cached_tokens, usage.cache_write_tokens, usage.output_tokens)):
         return
 
     # Set currency
     usage.currency = cost_config.currency
 
     # Non-cached input tokens cost
-    non_cached_input = max(0, usage.input_tokens - usage.cached_tokens)
+    non_cached_input = max(0, usage.input_tokens - usage.cached_tokens - usage.cache_write_tokens)
     usage.input_cost = (non_cached_input / 1_000_000) * cost_config.input
 
     # Output tokens cost (includes reasoning tokens)
@@ -32,6 +32,9 @@ def calculate_cost(usage: Usage, cost_config: llm_param.Cost | None) -> None:
 
     # Cache read cost
     usage.cache_read_cost = (usage.cached_tokens / 1_000_000) * (cost_config.cache_read or cost_config.input)
+
+    # Cache write cost
+    usage.cache_write_cost = (usage.cache_write_tokens / 1_000_000) * (cost_config.cache_write or cost_config.input)
 
 
 class MetadataTracker:
@@ -147,10 +150,12 @@ def convert_usage(
     representing the actual context window usage for this step.
     """
     completion_details = usage.completion_tokens_details
+    prompt_details = usage.prompt_tokens_details
 
     return Usage(
         input_tokens=usage.prompt_tokens,
-        cached_tokens=(usage.prompt_tokens_details.cached_tokens if usage.prompt_tokens_details else 0) or 0,
+        cached_tokens=(prompt_details.cached_tokens if prompt_details else 0) or 0,
+        cache_write_tokens=(getattr(prompt_details, "cache_write_tokens", 0) if prompt_details else 0) or 0,
         reasoning_tokens=(completion_details.reasoning_tokens if completion_details else 0) or 0,
         output_tokens=usage.completion_tokens,
         context_size=usage.total_tokens,

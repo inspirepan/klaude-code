@@ -1,6 +1,6 @@
 import json
 from collections.abc import AsyncGenerator, AsyncIterable
-from typing import Literal, cast, override
+from typing import Any, Literal, cast, override
 
 import httpx
 import openai
@@ -12,6 +12,7 @@ from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.http import create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_responses.input import convert_history_to_input, convert_tool_schema
+from klaude_code.llm.openai_responses.prompt_cache import build_prompt_cache_payload
 from klaude_code.llm.registry import register
 from klaude_code.llm.stream_parts import (
     append_text_part,
@@ -22,7 +23,6 @@ from klaude_code.llm.stream_parts import (
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.model_id import supports_extended_prompt_cache
 from klaude_code.protocol.models import AssistantPhase, StopReason, Usage
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
@@ -69,24 +69,25 @@ def build_payload(
     if not is_volces_base_url:
         payload["prompt_cache_key"] = param.session_id or ""
 
-    # Default to extended (24h) cache retention for supported models since OpenAI
-    # prices extended retention identically to in-memory. Users can opt out by
-    # setting cache_retention: short explicitly.
-    if (
-        not is_volces_base_url
-        and param.cache_retention != "short"
-        and (param.cache_retention == "long" or supports_extended_prompt_cache(param.model_id))
-    ):
-        payload["prompt_cache_retention"] = "24h"
+    if not is_volces_base_url:
+        payload.update(build_prompt_cache_payload(param.model_id, param.cache_retention))
 
     if not is_volces_base_url:
         payload["include"] = ["reasoning.encrypted_content"]
 
-    if param.thinking and param.thinking.reasoning_effort:
-        reasoning: Reasoning = {"effort": param.thinking.reasoning_effort}
+    if param.thinking and (
+        param.thinking.reasoning_effort or param.thinking.reasoning_mode or param.thinking.reasoning_context
+    ):
+        reasoning: dict[str, Any] = {}
+        if param.thinking.reasoning_effort:
+            reasoning["effort"] = param.thinking.reasoning_effort
+        if param.thinking.reasoning_mode:
+            reasoning["mode"] = param.thinking.reasoning_mode
+        if param.thinking.reasoning_context:
+            reasoning["context"] = param.thinking.reasoning_context
         if param.thinking.reasoning_summary:
             reasoning["summary"] = param.thinking.reasoning_summary
-        payload["reasoning"] = reasoning
+        payload["reasoning"] = cast(Reasoning, reasoning)
 
     if param.verbosity:
         # Our verbosity literal ("max") is wider than the SDK's TypedDict declaration.
@@ -211,11 +212,13 @@ async def parse_responses_stream(
         if response.incomplete_details is not None:
             error_reason = response.incomplete_details.reason
         if response.usage is not None:
+            input_details = response.usage.input_tokens_details
             metadata_tracker.set_usage(
                 Usage(
                     input_tokens=response.usage.input_tokens,
                     output_tokens=response.usage.output_tokens,
-                    cached_tokens=response.usage.input_tokens_details.cached_tokens,
+                    cached_tokens=input_details.cached_tokens,
+                    cache_write_tokens=getattr(input_details, "cache_write_tokens", 0) or 0,
                     reasoning_tokens=response.usage.output_tokens_details.reasoning_tokens,
                     context_size=response.usage.total_tokens,
                     context_limit=param.context_limit,

@@ -6,12 +6,15 @@ from typing import TYPE_CHECKING, Any, cast
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
+from openai._models import construct_type_unchecked
+from openai.types.completion_usage import CompletionUsage
 
 from klaude_code.llm import image as image_module
 from klaude_code.llm import input_common as input_common_module
 from klaude_code.llm.anthropic.input import convert_history_to_input as anthropic_history
 from klaude_code.llm.anthropic.input import convert_system_to_input as anthropic_system_input
 from klaude_code.llm.google.input import convert_history_to_contents as google_history
+from klaude_code.llm.usage import convert_usage
 from klaude_code.protocol.models import Usage
 
 if TYPE_CHECKING:
@@ -66,7 +69,6 @@ def test_anthropic_history_includes_image_blocks():
     assert second_block["type"] == "image"
     source = _ensure_dict(second_block["source"])
     assert source["type"] == "base64"
-
     tool_message = _ensure_dict(messages[1])
     tool_contents = _ensure_list(tool_message["content"])
     tool_entry = _ensure_dict(tool_contents[0])
@@ -76,6 +78,27 @@ def test_anthropic_history_includes_image_blocks():
     assert first_tool_block["type"] == "text"
     second_tool_block = _ensure_dict(tool_blocks[1])
     assert second_tool_block["type"] == "image"
+
+
+def test_convert_usage_preserves_cache_write_tokens() -> None:
+    usage = construct_type_unchecked(
+        value={
+            "prompt_tokens": 100,
+            "completion_tokens": 20,
+            "total_tokens": 120,
+            "prompt_tokens_details": {"cached_tokens": 30, "cache_write_tokens": 40},
+            "completion_tokens_details": {"reasoning_tokens": 5},
+        },
+        type_=CompletionUsage,
+    )
+
+    converted = convert_usage(usage)
+
+    assert converted.input_tokens == 100
+    assert converted.cached_tokens == 30
+    assert converted.cache_write_tokens == 40
+    assert converted.output_tokens == 20
+    assert converted.reasoning_tokens == 5
 
 
 def test_anthropic_system_input_splits_static_and_dynamic_blocks() -> None:
@@ -609,6 +632,7 @@ def usage_instances(draw: st.DrawFn) -> "Usage":
     input_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
     output_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
     cache_read_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
+    cache_write_cost = draw(st.none() | st.floats(min_value=0, max_value=100, allow_nan=False))
 
     return Usage(
         input_tokens=input_tokens,
@@ -621,6 +645,7 @@ def usage_instances(draw: st.DrawFn) -> "Usage":
         input_cost=input_cost,
         output_cost=output_cost,
         cache_read_cost=cache_read_cost,
+        cache_write_cost=cache_write_cost,
     )
 
 
@@ -635,7 +660,7 @@ def test_usage_total_tokens_computed_correctly(usage: "Usage") -> None:
 @settings(max_examples=100, deadline=None)
 def test_usage_total_cost_computed_correctly(usage: "Usage") -> None:
     """Property: total_cost = sum of non-None cost components."""
-    costs = [usage.input_cost, usage.output_cost, usage.cache_read_cost]
+    costs = [usage.input_cost, usage.output_cost, usage.cache_read_cost, usage.cache_write_cost]
     non_none = [c for c in costs if c is not None]
     has_tokens = any(
         (

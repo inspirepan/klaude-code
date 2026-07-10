@@ -19,7 +19,7 @@ from klaude_code.protocol.models import TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.session.codec import decode_jsonl_line
 
 ASCII_HORIZONAL = Box(" -- \n    \n -- \n    \n -- \n -- \n    \n -- \n")
-COST_CACHE_VERSION = 1
+COST_CACHE_VERSION = 2
 COST_CACHE_PATH = Path.home() / ".klaude" / "cache" / "cost_cache.json"
 SPLIT_SUB_PROVIDER = False
 
@@ -33,6 +33,7 @@ class ModelUsageStats:
     input_tokens: int = 0
     output_tokens: int = 0
     cached_tokens: int = 0
+    cache_write_tokens: int = 0
     cost_usd: float = 0.0
     cost_cny: float = 0.0
 
@@ -45,15 +46,16 @@ class ModelUsageStats:
         """Non-cached prompt tokens.
 
         We store `input_tokens` as the provider-reported prompt token count, which
-        includes cached tokens for providers that support prompt caching.
+        includes cached and cache-write tokens for providers that support prompt caching.
         """
 
-        return max(0, self.input_tokens - self.cached_tokens)
+        return max(0, self.input_tokens - self.cached_tokens - self.cache_write_tokens)
 
     def add_usage(self, usage: Usage) -> None:
         self.input_tokens += usage.input_tokens
         self.output_tokens += usage.output_tokens
         self.cached_tokens += usage.cached_tokens
+        self.cache_write_tokens += usage.cache_write_tokens
         if usage.total_cost is not None:
             if usage.currency == "CNY":
                 self.cost_cny += usage.total_cost
@@ -126,6 +128,7 @@ def group_models_by_provider(
         group.total.input_tokens += stats.input_tokens
         group.total.output_tokens += stats.output_tokens
         group.total.cached_tokens += stats.cached_tokens
+        group.total.cache_write_tokens += stats.cache_write_tokens
         group.total.cost_usd += stats.cost_usd
         group.total.cost_cny += stats.cost_cny
 
@@ -142,6 +145,7 @@ def group_models_by_provider(
             sub_group.total.input_tokens += stats.input_tokens
             sub_group.total.output_tokens += stats.output_tokens
             sub_group.total.cached_tokens += stats.cached_tokens
+            sub_group.total.cache_write_tokens += stats.cache_write_tokens
             sub_group.total.cost_usd += stats.cost_usd
             sub_group.total.cost_cny += stats.cost_cny
         else:
@@ -151,6 +155,7 @@ def group_models_by_provider(
                 existing.input_tokens += stats.input_tokens
                 existing.output_tokens += stats.output_tokens
                 existing.cached_tokens += stats.cached_tokens
+                existing.cache_write_tokens += stats.cache_write_tokens
                 existing.cost_usd += stats.cost_usd
                 existing.cost_cny += stats.cost_cny
             else:
@@ -238,6 +243,7 @@ def _apply_entries(daily_stats: dict[str, DailyStats], entries: list[dict[str, A
             input_tokens = int(entry["input_tokens"])
             output_tokens = int(entry["output_tokens"])
             cached_tokens = int(entry["cached_tokens"])
+            cache_write_tokens = int(entry.get("cache_write_tokens", 0))
             cost_usd = float(entry["cost_usd"])
             cost_cny = float(entry["cost_cny"])
 
@@ -249,6 +255,7 @@ def _apply_entries(daily_stats: dict[str, DailyStats], entries: list[dict[str, A
             stats.input_tokens += input_tokens
             stats.output_tokens += output_tokens
             stats.cached_tokens += cached_tokens
+            stats.cache_write_tokens += cache_write_tokens
             stats.cost_usd += cost_usd
             stats.cost_cny += cost_cny
     except (KeyError, TypeError, ValueError):
@@ -278,6 +285,7 @@ def _aggregate_session_entries(events_path: Path) -> list[dict[str, Any]]:
                     "input_tokens": stats.input_tokens,
                     "output_tokens": stats.output_tokens,
                     "cached_tokens": stats.cached_tokens,
+                    "cache_write_tokens": stats.cache_write_tokens,
                     "cost_usd": stats.cost_usd,
                     "cost_cny": stats.cost_cny,
                 }
@@ -508,6 +516,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
                 subtotal.input_tokens += stats.input_tokens
                 subtotal.output_tokens += stats.output_tokens
                 subtotal.cached_tokens += stats.cached_tokens
+                subtotal.cache_write_tokens += stats.cache_write_tokens
                 subtotal.cost_usd += stats.cost_usd
                 subtotal.cost_cny += stats.cost_cny
             add_stats_row(subtotal, row_style="bold")
@@ -522,6 +531,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
             global_by_model[model_key].input_tokens += stats.input_tokens
             global_by_model[model_key].output_tokens += stats.output_tokens
             global_by_model[model_key].cached_tokens += stats.cached_tokens
+            global_by_model[model_key].cache_write_tokens += stats.cache_write_tokens
             global_by_model[model_key].cost_usd += stats.cost_usd
             global_by_model[model_key].cost_cny += stats.cost_cny
 
@@ -553,6 +563,7 @@ def render_cost_table(daily_stats: dict[str, DailyStats]) -> Table:
         grand_total.input_tokens += stats.input_tokens
         grand_total.output_tokens += stats.output_tokens
         grand_total.cached_tokens += stats.cached_tokens
+        grand_total.cache_write_tokens += stats.cache_write_tokens
         grand_total.cost_usd += stats.cost_usd
         grand_total.cost_cny += stats.cost_cny
     add_stats_row(grand_total, row_style="bold")

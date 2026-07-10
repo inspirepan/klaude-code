@@ -11,6 +11,7 @@ from klaude_code.llm.openai_codex.client import build_payload as build_codex_pay
 from klaude_code.llm.openai_responses.client import ResponsesLLMStream
 from klaude_code.llm.openai_responses.client import build_payload as build_responses_payload
 from klaude_code.llm.openai_responses.input import convert_history_to_input
+from klaude_code.llm.openrouter.client import build_payload as build_openrouter_payload
 from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, message
 
@@ -181,3 +182,58 @@ def test_responses_payload_omits_empty_reasoning_summary() -> None:
     payload = build_responses_payload(param)
 
     assert payload.get("reasoning") == {"effort": "high"}
+
+
+def test_responses_codex_and_openrouter_payload_include_reasoning_mode() -> None:
+    param = _basic_call_param([message.UserMessage(parts=[message.TextPart(text="hi")])])
+    param.model_id = "gpt-5.6-sol"
+    param.thinking = llm_param.Thinking(
+        reasoning_effort="max",
+        reasoning_mode="pro",
+        reasoning_context="all_turns",
+        reasoning_summary="detailed",
+    )
+
+    responses_payload = build_responses_payload(param)
+    codex_payload = build_codex_payload(param)
+    _, openrouter_extra_body, _ = build_openrouter_payload(param)
+
+    expected = {"effort": "max", "mode": "pro", "context": "all_turns", "summary": "detailed"}
+    assert responses_payload.get("reasoning") == expected
+    assert codex_payload.get("reasoning") == expected
+    assert openrouter_extra_body.get("reasoning") == {"effort": "max", "mode": "pro", "context": "all_turns"}
+
+
+def test_responses_and_codex_payload_use_prompt_cache_options_ttl_for_gpt56() -> None:
+    param = _basic_call_param([message.UserMessage(parts=[message.TextPart(text="hi")])])
+    param.model_id = "gpt-5.6-sol"
+
+    responses_payload = build_responses_payload(param)
+    codex_payload = build_codex_payload(param)
+
+    assert responses_payload.get("prompt_cache_options") == {"ttl": "30m"}
+    assert codex_payload.get("prompt_cache_options") == {"ttl": "30m"}
+    assert "prompt_cache_retention" not in responses_payload
+    assert "prompt_cache_retention" not in codex_payload
+
+
+def test_responses_and_codex_payload_keep_prompt_cache_retention_for_older_gpt() -> None:
+    param = _basic_call_param([message.UserMessage(parts=[message.TextPart(text="hi")])])
+    param.model_id = "gpt-5.5"
+
+    responses_payload = build_responses_payload(param)
+    codex_payload = build_codex_payload(param)
+
+    assert responses_payload.get("prompt_cache_retention") == "24h"
+    assert codex_payload.get("prompt_cache_retention") == "24h"
+    assert "prompt_cache_options" not in responses_payload
+    assert "prompt_cache_options" not in codex_payload
+
+
+def test_codex_payload_sets_priority_service_tier_for_fast_mode() -> None:
+    param = _basic_call_param([message.UserMessage(parts=[message.TextPart(text="hi")])])
+    param.fast_mode = True
+
+    codex_payload = build_codex_payload(param)
+
+    assert codex_payload.get("service_tier") == "priority"

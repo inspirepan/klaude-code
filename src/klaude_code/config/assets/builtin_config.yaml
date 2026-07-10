@@ -177,6 +177,78 @@ provider_list:
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
+  - &gpt56sol
+    model_name: gpt-5.6-sol
+    model_alias: [ gpt-5.6 ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - &gpt56sol_fast
+    model_name: gpt-5.6-sol:fast
+    model_alias: [ gpt-5.6:fast ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 10, output: 60, cache_read: 1, cache_write: 12.5 }
+
+  - &gpt56sol_max
+    model_name: gpt-5.6-sol:max
+    model_alias: [ gpt-5.6:max ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - &gpt56sol_pro_max
+    model_name: gpt-5.6-sol:pro:max
+    model_alias: [ gpt-5.6:pro:max ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_mode: pro
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - &gpt56terra
+    model_name: gpt-5.6-terra
+    model_id: gpt-5.6-terra
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
+
+  - &gpt56luna
+    model_name: gpt-5.6-luna
+    model_id: gpt-5.6-luna
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: low
+      reasoning_summary: detailed
+    cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
+
   - &gpt55_xhigh
     model_name: gpt-5.5:xhigh
     model_id: gpt-5.5
@@ -187,28 +259,6 @@ provider_list:
       reasoning_effort: xhigh
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
-
-  - model_name: gpt-5.5:fast
-    model_id: gpt-5.5
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    fast_mode: true
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: detailed
-    cost: { input: 10, output: 60, cache_read: 1 }
-
-  - model_name: gpt-5.5:xhigh:fast
-    model_id: gpt-5.5
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    fast_mode: true
-    thinking:
-      reasoning_effort: xhigh
-      reasoning_summary: detailed
-    cost: { input: 10, output: 60, cache_read: 1 }
 
   - &gpt54nano
     model_name: gpt-5.4-nano
@@ -261,6 +311,60 @@ provider_list:
       reasoning_effort: high
       reasoning_summary: detailed
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
+
+  - model_name: gpt-5.6-sol
+    model_alias: [ gpt-5.6 ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-sol:max
+    model_alias: [ gpt-5.6:max ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-sol:pro:max
+    model_alias: [ gpt-5.6:pro:max ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_mode: pro
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-terra
+    model_id: gpt-5.6-terra
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
+
+  - model_name: gpt-5.6-luna
+    model_id: gpt-5.6-luna
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: low
+      reasoning_summary: detailed
+    cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
 
 # ######################################## google ########################################
 - provider_name: google
@@ -430,6 +534,72 @@ provider_list:
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
+  - model_name: gpt-5.6-sol
+    model_alias: [ gpt-5.6 ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-sol:fast
+    model_alias: [ gpt-5.6:fast ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 10, output: 60, cache_read: 1, cache_write: 12.5 }
+
+  - model_name: gpt-5.6-sol:max
+    model_alias: [ gpt-5.6:max ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-sol:pro:max
+    model_alias: [ gpt-5.6:pro:max ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_mode: pro
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-terra
+    model_id: gpt-5.6-terra
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
+
+  - model_name: gpt-5.6-luna
+    model_id: gpt-5.6-luna
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: low
+      reasoning_summary: detailed
+    cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
+
   - model_name: gpt-5.5:xhigh
     model_id: gpt-5.5
     max_tokens: 128000
@@ -439,28 +609,6 @@ provider_list:
       reasoning_effort: xhigh
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
-
-  - model_name: gpt-5.5:fast
-    model_id: gpt-5.5
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    fast_mode: true
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: detailed
-    cost: { input: 10, output: 60, cache_read: 1 }
-
-  - model_name: gpt-5.5:xhigh:fast
-    model_id: gpt-5.5
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    fast_mode: true
-    thinking:
-      reasoning_effort: xhigh
-      reasoning_summary: detailed
-    cost: { input: 10, output: 60, cache_read: 1 }
 
   - model_name: gpt-5.4-nano
     model_alias: [ gpt-5.4-nano-2026-03-17 ]
@@ -761,6 +909,12 @@ provider_list:
       reasoning_effort: xhigh
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
+  - *gpt56sol
+  - *gpt56sol_fast
+  - *gpt56sol_max
+  - *gpt56sol_pro_max
+  - *gpt56terra
+  - *gpt56luna
   - *gpt54nano
   - *gpt54mini
   - *gpt54
@@ -795,6 +949,60 @@ provider_list:
       reasoning_effort: medium
       reasoning_summary: detailed
     cost: { input: 5, output: 30, cache_read: 0.5 }
+
+  - model_name: gpt-5.6-sol
+    model_alias: [ gpt-5.6 ]
+    model_id: openai/gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-sol:max
+    model_alias: [ gpt-5.6:max ]
+    model_id: openai/gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-sol:pro:max
+    model_alias: [ gpt-5.6:pro:max ]
+    model_id: openai/gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_mode: pro
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-terra
+    model_id: openai/gpt-5.6-terra
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
+
+  - model_name: gpt-5.6-luna
+    model_id: openai/gpt-5.6-luna
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: low
+      reasoning_summary: detailed
+    cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
 
   - model_name: gpt-5.5:xhigh
     model_id: openai/gpt-5.5
@@ -964,27 +1172,24 @@ sub_agent_model_decision_tree: |
   - For frontend tasks (UI, React, CSS, styling, design), prefer Claude models: `opus` or `sonnet`.
   - For Chinese-language writing and proofreading/review, prefer `deepseek` or `kimi`.
   - For general or simple coding subtasks, prefer Claude models: `sonnet`, or `haiku` for cheap parallel work.
-  - For read-only search, repository exploration, summarization, or many parallel agents, prefer low-cost models: `gpt-5.4-mini`, `gemini-flash-lite`, or `haiku`.
+  - For read-only search, repository exploration, summarization, or many parallel agents, prefer low-cost models: `gpt-5.6-luna`, `gpt-5.4-mini`, `gemini-flash-lite`, or `haiku`.
   - Use provider-qualified selectors like `sonnet@openrouter` only when provider routing matters; otherwise use the unqualified model name.
 
 sub_agent_models:
   finder:
+  - gpt-5.6-luna
   - gpt-5.4-mini
   - gemini-flash:minimal
   - haiku
   code-reviewer:
-  - gpt-5.5:xhigh
-  - gpt-5.5
+  - gpt-5.6-sol:max
   - fable
   - opus
   code-maintenance-reviewer:
-  - gpt-5.5:xhigh
-  - gpt-5.5
+  - gpt-5.6-sol:max
   - opus
 
 fast_model:
 - gpt-5.4-nano
 - gemini-flash-lite
-- gpt-5.4-mini
-- gemini-flash:minimal
 - haiku

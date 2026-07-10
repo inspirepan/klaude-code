@@ -26,6 +26,7 @@ class Usage(BaseModel):
     input_cost: float | None = None
     output_cost: float | None = None
     cache_read_cost: float | None = None
+    cache_write_cost: float | None = None
     currency: str = "USD"
     response_id: str | None = None
     model_name: str = ""
@@ -42,8 +43,8 @@ class Usage(BaseModel):
     @computed_field
     @property
     def total_cost(self) -> float | None:
-        """Total cost computed from input + output + cache_read costs."""
-        costs = [self.input_cost, self.output_cost, self.cache_read_cost]
+        """Total cost computed from all known cost components."""
+        costs = [self.input_cost, self.output_cost, self.cache_read_cost, self.cache_write_cost]
         non_none = [cost for cost in costs if cost is not None]
         if not non_none:
             return None

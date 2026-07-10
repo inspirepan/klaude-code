@@ -1,12 +1,12 @@
 """Codex LLM client using ChatGPT subscription via OAuth."""
 
 import json
-from typing import override
+from typing import Any, cast, override
 
 import httpx
 import openai
 from openai import AsyncOpenAI
-from openai.types.responses.response_create_params import ResponseCreateParamsBase
+from openai.types.responses.response_create_params import Reasoning, ResponseCreateParamsBase
 
 from klaude_code.auth.codex.exceptions import CodexNotLoggedInError
 from klaude_code.auth.codex.oauth import CodexOAuth
@@ -20,11 +20,11 @@ from klaude_code.llm.http import create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_responses.client import ResponsesLLMStream
 from klaude_code.llm.openai_responses.input import convert_history_to_input, convert_tool_schema
+from klaude_code.llm.openai_responses.prompt_cache import build_prompt_cache_payload
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param
-from klaude_code.protocol.model_id import supports_extended_prompt_cache
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
 
@@ -54,20 +54,20 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
     if session_id:
         payload["prompt_cache_key"] = session_id
 
-    # Default to extended (24h) cache retention for supported models (same price
-    # as in-memory per OpenAI docs). Users can opt out via cache_retention=short.
-    if param.cache_retention != "short" and (
-        param.cache_retention == "long" or supports_extended_prompt_cache(param.model_id)
-    ):
-        payload["prompt_cache_retention"] = "24h"
+    payload.update(build_prompt_cache_payload(param.model_id, param.cache_retention))
 
     verbosity = "high" if param.verbosity == "max" else (param.verbosity or "medium")
     payload["text"] = {"verbosity": verbosity}  # type: ignore[typeddict-item]
 
+    if param.fast_mode:
+        payload["service_tier"] = "priority"
+
     if tools:
         payload["tools"] = tools
 
-    if param.thinking and param.thinking.reasoning_effort:
+    if param.thinking and (
+        param.thinking.reasoning_effort or param.thinking.reasoning_mode or param.thinking.reasoning_context
+    ):
         effort = param.thinking.reasoning_effort
         model_id = str(param.model_id)
         if (model_id.startswith("gpt-5.2") or model_id.startswith("gpt-5.3")) and effort == "minimal":
@@ -78,10 +78,14 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
             effort = "high"
         if model_id == "gpt-5.1-codex-mini" and effort in {"none", "minimal", "low"}:
             effort = "medium"
-        payload["reasoning"] = {
-            "effort": effort,
-            "summary": param.thinking.reasoning_summary or "auto",
-        }
+        reasoning: dict[str, Any] = {"summary": param.thinking.reasoning_summary or "auto"}
+        if effort:
+            reasoning["effort"] = effort
+        if param.thinking.reasoning_mode:
+            reasoning["mode"] = param.thinking.reasoning_mode
+        if param.thinking.reasoning_context:
+            reasoning["context"] = param.thinking.reasoning_context
+        payload["reasoning"] = cast(Reasoning, reasoning)
 
     return payload
 

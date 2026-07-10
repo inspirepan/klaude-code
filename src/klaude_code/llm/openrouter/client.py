@@ -49,10 +49,19 @@ def build_payload(
                 "max_tokens": param.thinking.budget_tokens,
                 "enabled": True,
             }  # OpenRouter: https://openrouter.ai/docs/use-cases/reasoning-tokens#anthropic-models-with-reasoning-tokens
-        elif param.thinking.reasoning_effort is not None:
-            extra_body["reasoning"] = {
-                "effort": param.thinking.reasoning_effort,
-            }
+        elif (
+            param.thinking.reasoning_effort is not None
+            or param.thinking.reasoning_mode is not None
+            or param.thinking.reasoning_context is not None
+        ):
+            reasoning: dict[str, object] = {}
+            if param.thinking.reasoning_effort is not None:
+                reasoning["effort"] = param.thinking.reasoning_effort
+            if param.thinking.reasoning_mode is not None:
+                reasoning["mode"] = param.thinking.reasoning_mode
+            if param.thinking.reasoning_context is not None:
+                reasoning["context"] = param.thinking.reasoning_context
+            extra_body["reasoning"] = reasoning
     else:
         extra_body["reasoning"] = {"enabled": False}
 

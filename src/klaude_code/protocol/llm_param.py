@@ -31,7 +31,9 @@ class Thinking(BaseModel):
     """
 
     # OpenAI Reasoning Style
-    reasoning_effort: Literal["high", "medium", "low", "minimal", "none", "xhigh"] | None = None
+    reasoning_effort: Literal["high", "medium", "low", "minimal", "none", "xhigh", "max"] | None = None
+    reasoning_mode: Literal["standard", "pro"] | None = None
+    reasoning_context: Literal["auto", "current_turn", "all_turns"] | None = None
     reasoning_summary: Literal["auto", "concise", "detailed"] | None = None
 
     # Claude/Gemini Thinking Style
@@ -45,7 +47,7 @@ class Cost(BaseModel):
     input: float = 0.0  # Input token price per million tokens
     output: float = 0.0  # Output token price per million tokens
     cache_read: float = 0.0  # Cache read price per million tokens
-    cache_write: float = 0.0  # Cache write price per million tokens (ignored in calculation for now)
+    cache_write: float = 0.0  # Cache write price per million tokens
     currency: Literal["USD", "CNY"] = "USD"  # Currency for cost display
 
 
@@ -132,8 +134,8 @@ class LLMConfigModelParameter(BaseModel):
     fast_mode: bool = False
 
     # Prompt cache retention window.
-    # - "short" (default): Anthropic cache_control ttl=5m / OpenAI prompt_cache_retention=in-memory
-    # - "long": Anthropic cache_control ttl=1h / OpenAI prompt_cache_retention=24h
+    # - "short" (default): Anthropic cache_control ttl=5m / OpenAI in-memory prompt cache
+    # - "long": Anthropic cache_control ttl=1h / OpenAI extended prompt cache when supported
     cache_retention: Literal["short", "long"] | None = None
 
     # Cost configuration (USD per million tokens)

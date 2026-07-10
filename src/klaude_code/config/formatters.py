@@ -26,6 +26,11 @@ def format_model_params(model_params: "LLMConfigModelParameter") -> list[str]:
     if model_params.thinking:
         if model_params.thinking.type == "adaptive":
             parts.append("adaptive thinking")
+        elif model_params.thinking.reasoning_mode:
+            if model_params.thinking.reasoning_effort:
+                parts.append(f"reasoning {model_params.thinking.reasoning_mode} {model_params.thinking.reasoning_effort}")
+            else:
+                parts.append(f"reasoning {model_params.thinking.reasoning_mode}")
         elif model_params.thinking.reasoning_effort:
             parts.append(f"reasoning {model_params.thinking.reasoning_effort}")
         if model_params.thinking.reasoning_summary:
