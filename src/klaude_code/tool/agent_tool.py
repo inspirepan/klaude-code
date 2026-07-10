@@ -18,12 +18,13 @@ from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy, ToolMetada
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
 
-_DEFAULT_MODEL_DECISION_TREE = """- Omit `model` unless overriding the configured default clearly helps.
+_DEFAULT_MODEL_DECISION_TREE = """- For specialized agents such as `finder`, `code-reviewer`, and `code-maintenance-reviewer`, omit `model` in most cases; their configured defaults are selected for their roles.
+- Choose a model based on task characteristics only for `general-purpose` and `general-purpose-fork-context` agents.
 - If the user asks for a specific model or provider, pass that selector exactly.
-- For image or other multimodal reading and analysis, prefer Gemini models: `gemini-pro` or `gemini-flash`.
-- For frontend tasks (UI, React, CSS, styling, design), prefer Claude models: `opus` or `sonnet`.
-- For Chinese-language writing and proofreading/review, prefer `deepseek` or `kimi`.
-- For general or simple coding subtasks, prefer Claude models: `sonnet`, or `haiku` for cheap parallel work.
+- For general-purpose image or other multimodal reading and analysis, prefer Gemini models: `gemini-pro` or `gemini-flash`.
+- For general-purpose frontend tasks (UI, React, CSS, styling, design), prefer Claude models: `opus` or `sonnet`.
+- For general-purpose Chinese-language writing and proofreading/review, prefer `deepseek` or `kimi`.
+- For general or simple coding subtasks delegated to a general-purpose agent, prefer Claude models: `sonnet`, or `haiku` for cheap parallel work.
 - Use provider-qualified selectors like `sonnet@openrouter` only when provider routing matters; otherwise use the unqualified model name."""
 
 
