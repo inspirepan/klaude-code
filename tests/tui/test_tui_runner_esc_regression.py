@@ -546,6 +546,102 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
     assert runtime.notices == []
 
 
+def test_queued_follow_ups_continue_in_new_session_after_new_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    runner = _patch_runner_basics(monkeypatch)
+
+    class _FakeAgent:
+        def __init__(self, session_id: str) -> None:
+            self.follow_up_inputs: list[UserInputPayload] = []
+            self.session = self
+            self.id = session_id
+            self.work_dir = Path.cwd()
+
+        async def wait_for_flush(self) -> None:
+            return None
+
+        def follow_up(self, user_input: UserInputPayload) -> int:
+            self.follow_up_inputs.append(user_input)
+            return len(self.follow_up_inputs)
+
+        def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            return tuple(self.follow_up_inputs)
+
+        def pop_all_follow_up(self) -> tuple[UserInputPayload, ...]:
+            messages = tuple(self.follow_up_inputs)
+            self.follow_up_inputs.clear()
+            return messages
+
+        def pop_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs.pop(0)
+
+        def peek_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs[0]
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self.old_agent = _FakeAgent("s1")
+            self.new_agent = _FakeAgent("s2")
+            self._agent = self.old_agent
+
+        def current_session_id(self) -> str:
+            return self._agent.id
+
+        @property
+        def current_agent(self) -> _FakeAgent:
+            return self._agent
+
+        async def wait_for(self, wait_id: str) -> None:
+            await asyncio.sleep(0.01)
+            if wait_id == "wait-new":
+                self._agent = self.new_agent
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            if isinstance(operation, op.FollowUpAgentOperation):
+                self._agent.follow_up(operation.input)
+
+        async def emit_event(self, event: events.Event) -> None:
+            del event
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    submissions: list[tuple[str, str]] = []
+
+    async def _submit_user_input_payload(**kwargs: Any) -> Any:
+        user_input = cast(UserInputPayload, kwargs["user_input"])
+        submitted_session_id = cast(str, kwargs["session_id"])
+        submissions.append((user_input.text, submitted_session_id))
+        wait_id = "wait-new" if user_input.text == "/new" else f"wait-{len(submissions)}"
+        return runner.SubmitUserInputResult(wait_id=wait_id)
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    _FakePromptToolkitInput.payloads = [
+        UserInputPayload(text="first"),
+        UserInputPayload(text="/new\n---\nafter new", queued_edit=True),
+        UserInputPayload(text="exit"),
+    ]
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert submissions == [("first", "s1"), ("/new", "s1"), ("after new", "s2")]
+    assert runtime.old_agent.follow_up_inputs == []
+    assert runtime.new_agent.follow_up_inputs == []
+
+
 def test_busy_input_splits_explicit_separator_without_queue_edit_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 

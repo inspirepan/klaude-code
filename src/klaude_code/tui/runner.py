@@ -653,7 +653,11 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
             while True:
                 agent = components.runtime.current_agent
-                follow_up = agent.peek_next_follow_up() if agent is not None else None
+                if agent is None:
+                    _refresh_pending_messages()
+                    _mark_agent_idle()
+                    return
+                follow_up = agent.peek_next_follow_up()
                 if follow_up is None:
                     _refresh_pending_messages()
                     _mark_agent_idle()
@@ -662,18 +666,26 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     runtime=components.runtime,
                     wait_for_display_idle=components.wait_for_display_idle,
                     user_input=follow_up,
-                    session_id=session_id,
+                    session_id=agent.session.id,
                 )
-                if agent is not None:
-                    await agent.session.wait_for_flush()
-                    agent.pop_next_follow_up()
+                await agent.session.wait_for_flush()
+                agent.pop_next_follow_up()
+                current_agent = components.runtime.current_agent
+                if current_agent is not None and current_agent is not agent:
+                    for pending_follow_up in agent.pop_all_follow_up():
+                        current_agent.follow_up(pending_follow_up)
                 _refresh_pending_messages()
                 if submission.wait_id is None and not submission.deferred_operations:
                     continue
-                interrupted = await _wait_for_submission(submission, session_id=session_id)
+                interrupted = await _wait_for_submission(submission, session_id=agent.session.id)
                 await components.wait_for_display_idle()
                 await settle_flicker_safe_stdout()
                 away_summary_coordinator.notify_task_finished()
+                current_agent = components.runtime.current_agent
+                if current_agent is not None and current_agent is not agent:
+                    for pending_follow_up in agent.pop_all_follow_up():
+                        current_agent.follow_up(pending_follow_up)
+                    _refresh_pending_messages()
                 if interrupted:
                     prefill_text = None
                     if components.runtime.current_agent is not None:
