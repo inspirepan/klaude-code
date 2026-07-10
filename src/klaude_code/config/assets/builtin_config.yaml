@@ -3,6 +3,300 @@
 # (ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.) without manual configuration.
 provider_list:
 
+# ######################################## youtu-anthropic ########################################
+- provider_name: youtu-anthropic
+  protocol: anthropic
+  api_key: ${YOUTU_API_KEY}
+  base_url: https://api.youtu.uk/anthropic
+  model_list:
+
+  - model_name: fable
+    model_alias: [ claude-fable-5 ]
+    model_id: claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
+  - model_name: fable:xhigh
+    model_alias: [ claude-fable-5:xhigh ]
+    model_id: claude-fable-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: xhigh
+    thinking:
+      type: adaptive
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
+  - model_name: sonnet
+    model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
+    model_id: claude-sonnet-5
+    context_limit: 1000000
+    effort: medium
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: sonnet:low
+    model_alias: [ sonnet-5:low, sonnet5:low, claude-sonnet-5:low ]
+    model_id: claude-sonnet-5
+    context_limit: 1000000
+    effort: low
+    thinking:
+      type: adaptive
+    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+
+  - model_name: opus
+    model_alias: [ opus-4-7, claude-opus-4-7 ]
+    model_id: claude-opus-4-7
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: opus:xhigh
+    model_alias: [ opus-4-7:xhigh, claude-opus-4-7:xhigh ]
+    model_id: claude-opus-4-7
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: xhigh
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: haiku
+    model_alias: [ claude-haiku-4-5, claude-haiku-4-5-20251001 ]
+    model_id: claude-haiku-4-5
+    context_limit: 200000
+    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
+
+  - model_name: kimi
+    model_alias: [ k2.7-code, kimi-k2.7-code, kimi-k2.7, kimi-k2-7-code ]
+    model_id: kimi-k2.7-code
+    context_limit: 262144
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost: { input: 0.95, output: 4, cache_read: 0.19 }
+
+  - model_name: kimi:fast
+    model_alias: [ k2.7-code-highspeed, kimi-k2.7-code-highspeed, kimi-k2.7-highspeed, kimi-k2-7-code-highspeed ]
+    model_id: kimi-k2.7-code-highspeed
+    context_limit: 262144
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost: { input: 1.9, output: 8, cache_read: 0.38 }
+
+# ######################################## youtu-openai ########################################
+- provider_name: youtu-openai
+  protocol: responses
+  api_key: ${YOUTU_API_KEY}
+  base_url: https://api.youtu.uk/v1
+  model_list:
+
+  - model_name: gpt-5.5
+    model_id: gpt-5.5
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
+
+  - model_name: gpt-5.6-sol
+    model_alias: [ gpt-5.6 ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-sol:fast
+    model_alias: [ gpt-5.6:fast ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 10, output: 60, cache_read: 1, cache_write: 12.5 }
+
+  - model_name: gpt-5.6-sol:max
+    model_alias: [ gpt-5.6:max ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-sol:pro:max
+    model_alias: [ gpt-5.6:pro:max ]
+    model_id: gpt-5.6-sol
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_mode: pro
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
+
+  - model_name: gpt-5.6-terra
+    model_id: gpt-5.6-terra
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: detailed
+    cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
+
+  - model_name: gpt-5.6-luna
+    model_id: gpt-5.6-luna
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: low
+      reasoning_summary: detailed
+    cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
+
+  - model_name: gpt-5.5:xhigh
+    model_id: gpt-5.5
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: xhigh
+      reasoning_summary: detailed
+    cost: { input: 5, output: 30, cache_read: 0.5 }
+
+  - model_name: gpt-5.4-nano
+    model_alias: [ gpt-5.4-nano-2026-03-17 ]
+    model_id: gpt-5.4-nano
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: none
+      reasoning_summary: detailed
+    cost: { input: 0.2, output: 1.25, cache_read: 0.02 }
+
+  - model_name: gpt-5.4-mini
+    model_alias: [ gpt-5.4-mini-2026-03-17 ]
+    model_id: gpt-5.4-mini
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: none
+      reasoning_summary: detailed
+    cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
+
+  - model_name: gpt-5.4
+    model_id: gpt-5.4
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: high
+      reasoning_summary: detailed
+    cost: { input: 2.5, output: 15, cache_read: 0.25 }
+
+  - model_name: grok-4.5
+    model_alias: [ grok-4.5-latest, grok-build-latest ]
+    model_id: grok-4.5
+    context_limit: 500000
+    thinking:
+      reasoning_effort: high
+    cost: { input: 2, output: 6, cache_read: 0.5 }
+
+# ######################################## youtu-openai-chat ########################################
+- provider_name: youtu-openai-chat
+  protocol: openai
+  api_key: ${YOUTU_API_KEY}
+  base_url: https://api.youtu.uk/v1
+  model_list:
+
+  - model_name: kimi
+    model_alias: [ k2.7-code, kimi-k2.7-code, kimi-k2.7, kimi-k2-7-code ]
+    model_id: kimi-k2.7-code
+    context_limit: 262144
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost: { input: 0.95, output: 4, cache_read: 0.19 }
+
+  - model_name: kimi:fast
+    model_alias: [ k2.7-code-highspeed, kimi-k2.7-code-highspeed, kimi-k2.7-highspeed, kimi-k2-7-code-highspeed ]
+    model_id: kimi-k2.7-code-highspeed
+    context_limit: 262144
+    thinking:
+      type: enabled
+      budget_tokens: 8192
+    cost: { input: 1.9, output: 8, cache_read: 0.38 }
+
+# ######################################## youtu-gemini ########################################
+- provider_name: youtu-gemini
+  protocol: google
+  api_key: ${YOUTU_API_KEY}
+  base_url: https://api.youtu.uk/gemini
+  model_list:
+
+  - model_name: gemini-pro
+    model_alias: [ gemini-3.1-pro-preview, gemini-pro-latest, gemini-3-pro-preview ]
+    model_id: gemini-3.1-pro-preview
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: high
+    cost: { input: 2, output: 12, cache_read: 0.2 }
+
+  - model_name: gemini-flash
+    model_alias: [ gemini-3.5-flash, gemini-flash-latest ]
+    model_id: gemini-3.5-flash
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: medium
+    cost: { input: 1.5, output: 9, cache_read: 0.15 }
+
+  - model_name: gemini-flash:minimal
+    model_alias: [ gemini-3.5-flash:minimal ]
+    model_id: gemini-3.5-flash
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: minimal
+    cost: { input: 1.5, output: 9, cache_read: 0.15 }
+
+  - model_name: gemini-flash:high
+    model_alias: [ gemini-3.5-flash:high ]
+    model_id: gemini-3.5-flash
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: high
+    cost: { input: 1.5, output: 9, cache_read: 0.15 }
+
+  - model_name: gemini-flash-lite
+    model_alias: [ gemini-3.1-flash-lite, gemini-3.1-flash-lite-preview, gemini-flash-lite-latest ]
+    model_id: gemini-3.1-flash-lite
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: minimal
+    cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
+
 # ######################################## anthropic ########################################
 - provider_name: anthropic
   protocol: anthropic
@@ -427,300 +721,6 @@ provider_list:
   - *gemini_flash_minimal
 
   - *gemini_flash_lite
-
-# ######################################## youtu-anthropic ########################################
-- provider_name: youtu-anthropic
-  protocol: anthropic
-  api_key: ${YOUTU_API_KEY}
-  base_url: https://api.youtu.uk/anthropic
-  model_list:
-
-  - model_name: fable
-    model_alias: [ claude-fable-5 ]
-    model_id: claude-fable-5
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: high
-    thinking:
-      type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
-
-  - model_name: fable:xhigh
-    model_alias: [ claude-fable-5:xhigh ]
-    model_id: claude-fable-5
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: xhigh
-    thinking:
-      type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
-
-  - model_name: sonnet
-    model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
-    model_id: claude-sonnet-5
-    context_limit: 1000000
-    effort: medium
-    thinking:
-      type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
-
-  - model_name: sonnet:low
-    model_alias: [ sonnet-5:low, sonnet5:low, claude-sonnet-5:low ]
-    model_id: claude-sonnet-5
-    context_limit: 1000000
-    effort: low
-    thinking:
-      type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
-
-  - model_name: opus
-    model_alias: [ opus-4-7, claude-opus-4-7 ]
-    model_id: claude-opus-4-7
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: high
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: opus:xhigh
-    model_alias: [ opus-4-7:xhigh, claude-opus-4-7:xhigh ]
-    model_id: claude-opus-4-7
-    max_tokens: 128000
-    context_limit: 1000000
-    effort: xhigh
-    thinking:
-      type: adaptive
-    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: haiku
-    model_alias: [ claude-haiku-4-5, claude-haiku-4-5-20251001 ]
-    model_id: claude-haiku-4-5
-    context_limit: 200000
-    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
-
-  - model_name: kimi
-    model_alias: [ k2.7-code, kimi-k2.7-code, kimi-k2.7, kimi-k2-7-code ]
-    model_id: kimi-k2.7-code
-    context_limit: 262144
-    thinking:
-      type: enabled
-      budget_tokens: 8192
-    cost: { input: 0.95, output: 4, cache_read: 0.19 }
-
-  - model_name: kimi:fast
-    model_alias: [ k2.7-code-highspeed, kimi-k2.7-code-highspeed, kimi-k2.7-highspeed, kimi-k2-7-code-highspeed ]
-    model_id: kimi-k2.7-code-highspeed
-    context_limit: 262144
-    thinking:
-      type: enabled
-      budget_tokens: 8192
-    cost: { input: 1.9, output: 8, cache_read: 0.38 }
-
-# ######################################## youtu-openai ########################################
-- provider_name: youtu-openai
-  protocol: responses
-  api_key: ${YOUTU_API_KEY}
-  base_url: https://api.youtu.uk/v1
-  model_list:
-
-  - model_name: gpt-5.5
-    model_id: gpt-5.5
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: detailed
-    cost: { input: 5, output: 30, cache_read: 0.5 }
-
-  - model_name: gpt-5.6-sol
-    model_alias: [ gpt-5.6 ]
-    model_id: gpt-5.6-sol
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: detailed
-    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: gpt-5.6-sol:fast
-    model_alias: [ gpt-5.6:fast ]
-    model_id: gpt-5.6-sol
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    fast_mode: true
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: detailed
-    cost: { input: 10, output: 60, cache_read: 1, cache_write: 12.5 }
-
-  - model_name: gpt-5.6-sol:max
-    model_alias: [ gpt-5.6:max ]
-    model_id: gpt-5.6-sol
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    thinking:
-      reasoning_effort: max
-      reasoning_summary: detailed
-    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: gpt-5.6-sol:pro:max
-    model_alias: [ gpt-5.6:pro:max ]
-    model_id: gpt-5.6-sol
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    thinking:
-      reasoning_effort: max
-      reasoning_mode: pro
-      reasoning_summary: detailed
-    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: gpt-5.6-terra
-    model_id: gpt-5.6-terra
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: detailed
-    cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
-
-  - model_name: gpt-5.6-luna
-    model_id: gpt-5.6-luna
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    thinking:
-      reasoning_effort: low
-      reasoning_summary: detailed
-    cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
-
-  - model_name: gpt-5.5:xhigh
-    model_id: gpt-5.5
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    thinking:
-      reasoning_effort: xhigh
-      reasoning_summary: detailed
-    cost: { input: 5, output: 30, cache_read: 0.5 }
-
-  - model_name: gpt-5.4-nano
-    model_alias: [ gpt-5.4-nano-2026-03-17 ]
-    model_id: gpt-5.4-nano
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: none
-      reasoning_summary: detailed
-    cost: { input: 0.2, output: 1.25, cache_read: 0.02 }
-
-  - model_name: gpt-5.4-mini
-    model_alias: [ gpt-5.4-mini-2026-03-17 ]
-    model_id: gpt-5.4-mini
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: none
-      reasoning_summary: detailed
-    cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
-
-  - model_name: gpt-5.4
-    model_id: gpt-5.4
-    max_tokens: 128000
-    context_limit: 1050000
-    verbosity: low
-    thinking:
-      reasoning_effort: high
-      reasoning_summary: detailed
-    cost: { input: 2.5, output: 15, cache_read: 0.25 }
-
-  - model_name: grok-4.5
-    model_alias: [ grok-4.5-latest, grok-build-latest ]
-    model_id: grok-4.5
-    context_limit: 500000
-    thinking:
-      reasoning_effort: high
-    cost: { input: 2, output: 6, cache_read: 0.5 }
-
-# ######################################## youtu-openai-chat ########################################
-- provider_name: youtu-openai-chat
-  protocol: openai
-  api_key: ${YOUTU_API_KEY}
-  base_url: https://api.youtu.uk/v1
-  model_list:
-
-  - model_name: kimi
-    model_alias: [ k2.7-code, kimi-k2.7-code, kimi-k2.7, kimi-k2-7-code ]
-    model_id: kimi-k2.7-code
-    context_limit: 262144
-    thinking:
-      type: enabled
-      budget_tokens: 8192
-    cost: { input: 0.95, output: 4, cache_read: 0.19 }
-
-  - model_name: kimi:fast
-    model_alias: [ k2.7-code-highspeed, kimi-k2.7-code-highspeed, kimi-k2.7-highspeed, kimi-k2-7-code-highspeed ]
-    model_id: kimi-k2.7-code-highspeed
-    context_limit: 262144
-    thinking:
-      type: enabled
-      budget_tokens: 8192
-    cost: { input: 1.9, output: 8, cache_read: 0.38 }
-
-# ######################################## youtu-gemini ########################################
-- provider_name: youtu-gemini
-  protocol: google
-  api_key: ${YOUTU_API_KEY}
-  base_url: https://api.youtu.uk/gemini
-  model_list:
-
-  - model_name: gemini-pro
-    model_alias: [ gemini-3.1-pro-preview, gemini-pro-latest, gemini-3-pro-preview ]
-    model_id: gemini-3.1-pro-preview
-    context_limit: 1048576
-    thinking:
-      reasoning_effort: high
-    cost: { input: 2, output: 12, cache_read: 0.2 }
-
-  - model_name: gemini-flash
-    model_alias: [ gemini-3.5-flash, gemini-flash-latest ]
-    model_id: gemini-3.5-flash
-    context_limit: 1048576
-    thinking:
-      reasoning_effort: medium
-    cost: { input: 1.5, output: 9, cache_read: 0.15 }
-
-  - model_name: gemini-flash:minimal
-    model_alias: [ gemini-3.5-flash:minimal ]
-    model_id: gemini-3.5-flash
-    context_limit: 1048576
-    thinking:
-      reasoning_effort: minimal
-    cost: { input: 1.5, output: 9, cache_read: 0.15 }
-
-  - model_name: gemini-flash:high
-    model_alias: [ gemini-3.5-flash:high ]
-    model_id: gemini-3.5-flash
-    context_limit: 1048576
-    thinking:
-      reasoning_effort: high
-    cost: { input: 1.5, output: 9, cache_read: 0.15 }
-
-  - model_name: gemini-flash-lite
-    model_alias: [ gemini-3.1-flash-lite, gemini-3.1-flash-lite-preview, gemini-flash-lite-latest ]
-    model_id: gemini-3.1-flash-lite
-    context_limit: 1048576
-    thinking:
-      reasoning_effort: minimal
-    cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
 
 # ######################################## deepseek ########################################
 - provider_name: deepseek
@@ -1167,12 +1167,10 @@ provider_list:
 sub_agent_model_decision_tree: |
   - Omit `model` unless overriding the configured default clearly helps.
   - If the user asks for a specific model or provider, pass that selector exactly.
-  - For code review, subtle bugs, and security-sensitive analysis, prefer GPT models: `gpt-5.5:xhigh`, `gpt-5.5`, or `gpt-5.4`.
   - For image or other multimodal reading and analysis, prefer Gemini models: `gemini-pro` or `gemini-flash`.
   - For frontend tasks (UI, React, CSS, styling, design), prefer Claude models: `opus` or `sonnet`.
   - For Chinese-language writing and proofreading/review, prefer `deepseek` or `kimi`.
   - For general or simple coding subtasks, prefer Claude models: `sonnet`, or `haiku` for cheap parallel work.
-  - For read-only search, repository exploration, summarization, or many parallel agents, prefer low-cost models: `gpt-5.6-luna`, `gpt-5.4-mini`, `gemini-flash-lite`, or `haiku`.
   - Use provider-qualified selectors like `sonnet@openrouter` only when provider routing matters; otherwise use the unqualified model name.
 
 sub_agent_models:

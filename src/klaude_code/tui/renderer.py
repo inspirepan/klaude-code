@@ -671,6 +671,7 @@ class TUICommandRenderer:
                         event.sub_agent_state,
                         self._get_session_sub_agent_color(event.session_id),
                         code_theme=self.themes.code_theme,
+                        effective_model=event.model_id,
                     )
                 )
                 self.print()

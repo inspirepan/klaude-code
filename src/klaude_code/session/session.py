@@ -521,6 +521,7 @@ class Session(BaseModel):
         yield events.TaskStartEvent(
             session_id=self.id,
             sub_agent_state=self.sub_agent_state,
+            model_id=self.model_name,
             timestamp=self.created_at if self.created_at > 0 else time.time(),
             parent_session_id=parent_session_id,
         )
@@ -556,6 +557,7 @@ class Session(BaseModel):
                 yield events.TaskStartEvent(
                     session_id=self.id,
                     sub_agent_state=self.sub_agent_state,
+                    model_id=self.model_name,
                     timestamp=msg_ts,
                     parent_session_id=parent_session_id,
                 )

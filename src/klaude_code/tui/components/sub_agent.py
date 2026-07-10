@@ -18,6 +18,7 @@ def render_sub_agent_call(
     style: Style | None = None,
     *,
     code_theme: str = "monokai",
+    effective_model: str | None = None,
 ) -> RenderableType:
     """Render sub-agent tool call header and prompt body."""
     name_style = Style(color=style.color if style else None, bold=True, reverse=True)
@@ -26,7 +27,9 @@ def render_sub_agent_call(
     desc = Text(f" {e.sub_agent_desc} ", style=desc_style)
     header = Text.assemble(name, " ", desc)
     if e.model:
-        header.append(f" [model: {e.model}]", style=ThemeKey.STATUS_HINT)
+        header.append(f" [model override: {e.model}]", style=ThemeKey.STATUS_HINT)
+    elif effective_model:
+        header.append(f" [model default: {effective_model}]", style=ThemeKey.STATUS_HINT)
     if e.fork_context:
         header.append(" [fork]", style=ThemeKey.STATUS_HINT)
 

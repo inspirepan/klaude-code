@@ -397,6 +397,33 @@ class Config(BaseModel):
         """Set the user config reference for saving."""
         object.__setattr__(self, "_user_config", user_config)
 
+    def set_provider_disabled(self, provider_name: str, disabled: bool) -> None:
+        """Set a provider's disabled state and persist it as a user override."""
+        provider = next((item for item in self.provider_list if item.provider_name == provider_name), None)
+        if provider is None:
+            matches = [item for item in self.provider_list if item.provider_name.casefold() == provider_name.casefold()]
+            provider = matches[0] if len(matches) == 1 else None
+        if provider is None:
+            raise ValueError(f"Unknown provider: {provider_name}")
+
+        provider.disabled = disabled
+
+        user_config = self._user_config
+        if user_config is None:
+            user_config = UserConfig()
+            self.set_user_config(user_config)
+
+        user_provider = next(
+            (item for item in user_config.provider_list if item.provider_name == provider.provider_name),
+            None,
+        )
+        if user_provider is None:
+            user_config.provider_list.append(
+                UserProviderConfig(provider_name=provider.provider_name, disabled=disabled)
+            )
+        else:
+            user_provider.disabled = disabled
+
     def _get_provider_index(self) -> dict[str, list[ProviderConfig]]:
         """Return a cached case-insensitive index: casefold(provider_name) -> providers.
 
@@ -777,10 +804,10 @@ class Config(BaseModel):
         ]
 
     async def save(self) -> None:
-        """Save user config to file (excludes builtin providers).
+        """Save user config to file without copying full builtin definitions.
 
         Only saves user-specific settings like main_model and custom providers.
-        Builtin providers are never written to the user config file.
+        Partial user overrides for builtin providers may be written.
         Values that match builtin defaults are omitted to keep the file minimal.
         """
         # Get user config, creating one if needed

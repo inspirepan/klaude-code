@@ -37,6 +37,7 @@ def ensure_commands_loaded() -> None:
     from .fork_session_cmd import ForkSessionCommand
     from .login_cmd import LoginCommand
     from .logout_cmd import LogoutCommand
+    from .manage_providers_cmd import ManageProvidersCommand
     from .model_cmd import ModelCommand
     from .new_cmd import NewCommand
     from .recap_cmd import RecapCommand
@@ -55,6 +56,7 @@ def ensure_commands_loaded() -> None:
     register(WebCommand())
     register(NewCommand())
     register(ModelCommand())
+    register(ManageProvidersCommand())
     register(SubAgentModelCommand())
     register(StatusCommand())
     register(LoginCommand())
@@ -77,6 +79,7 @@ def __getattr__(name: str) -> object:
         "ForkSessionCommand": "fork_session_cmd",
         "LoginCommand": "login_cmd",
         "LogoutCommand": "logout_cmd",
+        "ManageProvidersCommand": "manage_providers_cmd",
         "ModelCommand": "model_cmd",
         "RecapCommand": "recap_cmd",
         "RefreshTerminalCommand": "refresh_cmd",
