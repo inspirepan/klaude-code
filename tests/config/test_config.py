@@ -873,6 +873,75 @@ class TestConfigSave:
         assert len(saved_content["provider_list"]) == 1
         assert saved_content["provider_list"][0]["provider_name"] == "my-custom-provider"
 
+    def test_set_provider_disabled_saves_builtin_override_and_preserves_custom_provider(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        custom_provider = UserProviderConfig(
+            provider_name="my-provider",
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+        )
+        user_config = UserConfig(provider_list=[custom_provider])
+        config = Config(
+            provider_list=[
+                ProviderConfig(
+                    provider_name="openai",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                ),
+                ProviderConfig(
+                    provider_name="my-provider",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="test-key",
+                ),
+            ]
+        )
+        config.set_user_config(user_config)
+
+        config.set_provider_disabled("openai", True)
+        config.set_provider_disabled("my-provider", True)
+        asyncio.run(config.save())
+
+        assert config.provider_list[0].disabled is True
+        assert config.provider_list[1].disabled is True
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        providers = {item["provider_name"]: item for item in saved_content["provider_list"]}
+        assert providers["openai"] == {"provider_name": "openai", "disabled": True}
+        assert providers["my-provider"]["protocol"] == "openai"
+        assert providers["my-provider"]["api_key"] == "test-key"
+        assert providers["my-provider"]["disabled"] is True
+
+    def test_set_provider_disabled_prefers_exact_name_when_casefold_names_collide(self) -> None:
+        user_config = UserConfig(
+            provider_list=[
+                UserProviderConfig(
+                    provider_name="OpenAI",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                )
+            ]
+        )
+        config = Config(
+            provider_list=[
+                ProviderConfig(
+                    provider_name="OpenAI",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                ),
+                ProviderConfig(
+                    provider_name="openai",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                ),
+            ]
+        )
+        config.set_user_config(user_config)
+
+        config.set_provider_disabled("openai", True)
+
+        assert config.provider_list[0].disabled is False
+        assert config.provider_list[1].disabled is True
+        assert [provider.provider_name for provider in user_config.provider_list] == ["OpenAI", "openai"]
+
     def test_save_creates_parent_directory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that save creates parent directory if it doesn't exist."""
         test_config_path = tmp_path / "nested" / "dir" / "config.yaml"
