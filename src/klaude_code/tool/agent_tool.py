@@ -20,12 +20,10 @@ from klaude_code.tool.core.registry import register
 
 _DEFAULT_MODEL_DECISION_TREE = """- Omit `model` unless overriding the configured default clearly helps.
 - If the user asks for a specific model or provider, pass that selector exactly.
-- For code review, subtle bugs, and security-sensitive analysis, prefer GPT models: `gpt-5.5:xhigh`, `gpt-5.5`, or `gpt-5.4`.
 - For image or other multimodal reading and analysis, prefer Gemini models: `gemini-pro` or `gemini-flash`.
 - For frontend tasks (UI, React, CSS, styling, design), prefer Claude models: `opus` or `sonnet`.
 - For Chinese-language writing and proofreading/review, prefer `deepseek` or `kimi`.
 - For general or simple coding subtasks, prefer Claude models: `sonnet`, or `haiku` for cheap parallel work.
-- For read-only search, repository exploration, summarization, or many parallel agents, prefer low-cost models: `gpt-5.4-mini`, `gemini-flash-lite`, or `haiku`.
 - Use provider-qualified selectors like `sonnet@openrouter` only when provider routing matters; otherwise use the unqualified model name."""
 
 
