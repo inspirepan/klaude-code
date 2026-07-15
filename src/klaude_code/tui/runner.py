@@ -807,7 +807,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     input_provider.set_agent_running(True)
                 final_submission: SubmitUserInputResult | None = None
                 try:
-                    for payload in submission_payloads:
+                    for index, payload in enumerate(submission_payloads):
                         submission = await submit_user_input_payload(
                             runtime=components.runtime,
                             wait_for_display_idle=components.wait_for_display_idle,
@@ -818,6 +818,15 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                         final_submission = submission
                         if submission.web_mode_request is not None:
                             pending_web_mode_request = submission.web_mode_request
+                            break
+                        if submission.wait_id is not None or submission.deferred_operations:
+                            follow_up_inputs = submission_payloads[index + 1 :]
+                            for follow_up_input in follow_up_inputs:
+                                await components.runtime.submit_and_wait(
+                                    op.FollowUpAgentOperation(session_id=active_session_id, input=follow_up_input)
+                                )
+                            if follow_up_inputs:
+                                _refresh_pending_messages()
                             break
 
                     if pending_web_mode_request is not None:

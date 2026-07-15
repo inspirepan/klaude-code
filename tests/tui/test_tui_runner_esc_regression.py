@@ -722,6 +722,7 @@ def test_idle_queue_edit_submission_splits_separator_messages(monkeypatch: pytes
 
     class _FakeAgent:
         def __init__(self) -> None:
+            self.follow_up_inputs: list[UserInputPayload] = []
             self.session = self
             self.id = "s1"
             self.work_dir = Path.cwd()
@@ -730,11 +731,23 @@ def test_idle_queue_edit_submission_splits_separator_messages(monkeypatch: pytes
             return None
 
         def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
-            return ()
+            return tuple(self.follow_up_inputs)
+
+        def peek_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs[0]
+
+        def pop_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs.pop(0)
 
     class _FakeRuntime:
         def __init__(self) -> None:
             self._agent = _FakeAgent()
+            self.root_active = False
+            self.queued_inputs: list[str] = []
 
         def current_session_id(self) -> str | None:
             return "s1"
@@ -742,6 +755,15 @@ def test_idle_queue_edit_submission_splits_separator_messages(monkeypatch: pytes
         @property
         def current_agent(self) -> _FakeAgent:
             return self._agent
+
+        async def wait_for(self, _wait_id: str) -> None:
+            assert self.root_active
+            self.root_active = False
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            assert isinstance(operation, op.FollowUpAgentOperation)
+            self.queued_inputs.append(operation.input.text)
+            self._agent.follow_up_inputs.append(operation.input)
 
     runtime = _FakeRuntime()
     components = _FakeComponents(
@@ -758,8 +780,10 @@ def test_idle_queue_edit_submission_splits_separator_messages(monkeypatch: pytes
     submissions: list[UserInputPayload] = []
 
     async def _submit_user_input_payload(**kwargs: Any) -> Any:
+        assert not runtime.root_active
+        runtime.root_active = True
         submissions.append(kwargs["user_input"])
-        return runner.SubmitUserInputResult(wait_id=None)
+        return runner.SubmitUserInputResult(wait_id=f"wait-{len(submissions)}")
 
     monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
 
@@ -771,6 +795,7 @@ def test_idle_queue_edit_submission_splits_separator_messages(monkeypatch: pytes
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert [payload.text for payload in submissions] == ["first edited", "second edited"]
+    assert runtime.queued_inputs == ["second edited"]
 
 
 def test_waiting_sigint_restores_prefill_when_no_visible_output(monkeypatch: pytest.MonkeyPatch) -> None:
