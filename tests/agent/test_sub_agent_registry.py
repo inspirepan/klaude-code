@@ -25,6 +25,7 @@ from klaude_code.tool import ToolABC, WriteTool
 from klaude_code.tool.agent_tool import AgentTool
 from klaude_code.tool.core.abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.tool.core.context import TodoContext, ToolContext
+from klaude_code.tool.core.registry import get_tool_schemas
 from klaude_code.tool.core.runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
 
 
@@ -50,6 +51,18 @@ def test_main_agent_tools_include_registered_sub_agents() -> None:
     assert tools.AGENT in claude_tool_names
     assert "Finder" not in claude_tool_names
     assert "Oracle" not in claude_tool_names
+
+
+def test_gpt_sub_agent_replaces_edit_and_write_with_apply_patch() -> None:
+    gpt_tool_names = [schema.name for schema in load_agent_tools("gpt-4.1", "general-purpose")]
+    claude_tool_names = [schema.name for schema in load_agent_tools("claude-3", "general-purpose")]
+
+    assert tools.APPLY_PATCH in gpt_tool_names
+    assert tools.EDIT not in gpt_tool_names
+    assert tools.WRITE not in gpt_tool_names
+    assert tools.APPLY_PATCH not in claude_tool_names
+    assert tools.EDIT in claude_tool_names
+    assert tools.WRITE in claude_tool_names
 
 
 class _SlowSubAgentTool(ToolABC):
@@ -158,14 +171,15 @@ class _RecordingClient(LLMClientABC):
         )
         self.response_text = response_text
         self.call_count = 0
+        self.call_params: list[llm_param.LLMCallParameter] = []
 
     @classmethod
     def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
         return cls(config.model_id or "", "created")
 
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
-        del param
         self.call_count += 1
+        self.call_params.append(param)
         return _SingleMessageStream(self.response_text)
 
 
@@ -281,13 +295,18 @@ def test_fork_context_model_override_updates_child_session_metadata(
 
     async def _test() -> None:
         parent_client = _RecordingClient("main-model", "main response")
-        override_client = _RecordingClient("override-model-id", "override response")
+        override_client = _RecordingClient("gpt-4.1", "override response")
         profile_provider = _TestProfileProvider()
         parent_session = Session(work_dir=tmp_path)
         parent_session.model_name = "main-model"
         parent_agent = Agent(
             session=parent_session,
-            profile=AgentProfile(llm_client=parent_client, system_prompt="parent prompt", tools=[], attachments=[]),
+            profile=AgentProfile(
+                llm_client=parent_client,
+                system_prompt="parent prompt",
+                tools=get_tool_schemas([tools.BASH, tools.READ, tools.EDIT, tools.WRITE]),
+                attachments=[],
+            ),
             model_profile_provider=profile_provider,
         )
         executor = SubAgentExecutor(
@@ -302,7 +321,7 @@ def test_fork_context_model_override_updates_child_session_metadata(
                     provider_name="test-provider",
                     protocol=llm_param.LLMClientProtocol.OPENAI,
                     api_key="test-key",
-                    model_list=[ModelConfig(model_name="override-model", model_id="override-model-id")],
+                    model_list=[ModelConfig(model_name="override-model", model_id="gpt-4.1")],
                 )
             ],
         )
@@ -321,8 +340,14 @@ def test_fork_context_model_override_updates_child_session_metadata(
         )
 
         child_session = Session.load(result.session_id, work_dir=tmp_path)
-        assert child_session.model_name == "override-model-id"
+        child_tools = override_client.call_params[0].tools
+        assert child_tools is not None
+        child_tool_names = {schema.name for schema in child_tools}
+        assert child_session.model_name == "gpt-4.1"
         assert child_session.model_config_name == "override-model"
+        assert tools.APPLY_PATCH in child_tool_names
+        assert tools.EDIT not in child_tool_names
+        assert tools.WRITE not in child_tool_names
 
     asyncio.run(_test())
 

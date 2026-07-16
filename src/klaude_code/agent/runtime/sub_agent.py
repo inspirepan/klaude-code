@@ -7,7 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import replace
 
 from klaude_code.agent.agent import Agent
-from klaude_code.agent.agent_profile import ModelProfileProvider
+from klaude_code.agent.agent_profile import ModelProfileProvider, adapt_sub_agent_tools_for_model
 from klaude_code.agent.runtime.llm import LLMClients, clone_llm_client, create_llm_client_for_candidates
 from klaude_code.agent.system_prompt import build_sub_agent_env_info, load_prompt_by_path
 from klaude_code.config import load_config
@@ -107,6 +107,10 @@ class SubAgentExecutor:
                 replace(parent_agent.profile, llm_client=override_client)
                 if override_client is not None
                 else parent_agent.profile
+            )
+            child_profile = replace(
+                child_profile,
+                tools=adapt_sub_agent_tools_for_model(child_profile.llm_client.model_name, child_profile.tools),
             )
         else:
             child_client = override_client

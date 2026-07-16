@@ -23,9 +23,7 @@ from klaude_code.agent.attachments.skills import (
 from klaude_code.agent.system_prompt import load_system_prompt
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, tools
-from klaude_code.protocol.model_id import (
-    is_gpt5_model,
-)
+from klaude_code.protocol.model_id import is_gpt5_model, is_gpt_model_any
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.tool.core.registry import get_tool_schemas
 
@@ -52,6 +50,29 @@ MAIN_AGENT_COMMON_TOOLS: list[str] = [
 ]
 
 
+def adapt_sub_agent_tools_for_model(
+    model_name: str, agent_tools: list[llm_param.ToolSchema]
+) -> list[llm_param.ToolSchema]:
+    """Replace Edit and Write with apply_patch for GPT sub-agents."""
+    if not is_gpt_model_any(model_name):
+        return agent_tools
+
+    diff_tool_names = {tools.EDIT, tools.WRITE}
+    if not any(tool.name in diff_tool_names for tool in agent_tools):
+        return agent_tools
+
+    apply_patch_schema = get_tool_schemas([tools.APPLY_PATCH])[0]
+    adapted_tools: list[llm_param.ToolSchema] = []
+    inserted_apply_patch = any(tool.name == tools.APPLY_PATCH for tool in agent_tools)
+    for tool in agent_tools:
+        if tool.name not in diff_tool_names:
+            adapted_tools.append(tool)
+        elif not inserted_apply_patch:
+            adapted_tools.append(apply_patch_schema)
+            inserted_apply_patch = True
+    return adapted_tools
+
+
 def load_agent_tools(
     model_name: str,
     sub_agent_type: tools.SubAgentType | None = None,
@@ -68,7 +89,7 @@ def load_agent_tools(
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
         if profile.tool_set:
-            return get_tool_schemas(list(profile.tool_set))
+            return adapt_sub_agent_tools_for_model(model_name, get_tool_schemas(list(profile.tool_set)))
         # Empty tool_set means inherit main agent tools; fall through below
 
     # Main agent tools = common + model-specific diff + common

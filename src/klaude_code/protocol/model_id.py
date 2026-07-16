@@ -91,6 +91,11 @@ def model_supports_unsigned_thinking(model_name: str | None) -> bool:
 # -- OpenAI / Responses -------------------------------------------------------
 
 
+def is_gpt_model_any(model_name: str | None) -> bool:
+    """Return True if the model name contains a GPT model identifier."""
+    return model_name is not None and "gpt-" in model_name.lower()
+
+
 def is_gpt5_model(model_name: str | None) -> bool:
     """Check if the model is any GPT-5 variant."""
     if not model_name:
