@@ -61,7 +61,10 @@ AGENT_FINDER_PARALLEL_INST = """- Launch multiple finder sub-agents in parallel 
 AGENT_REVIEW_PARALLEL_INST = (
     "- For non-trivial code review requests, launch `code-reviewer` and `code-maintenance-reviewer` "
     "in parallel, then synthesize their findings yourself. Use additional review agents only when the user "
-    "explicitly asks for high-effort or multi-angle review."
+    "explicitly asks for high-effort or multi-angle review. This applies to the initial review only. After fixing "
+    "review findings, validate the fixes yourself with targeted tests and direct diff inspection; do not launch a "
+    "follow-up reviewer by default. Launch only the reviewer responsible for a finding when the fix is high-risk, "
+    "cannot be verified confidently, or the user explicitly requests another review."
 )
 
 TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
