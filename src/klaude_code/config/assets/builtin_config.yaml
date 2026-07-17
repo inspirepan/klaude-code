@@ -75,6 +75,14 @@ provider_list:
     cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
 
   - model_name: kimi
+    model_alias: [ k3, kimi-k3 ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    effort: max
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:code
     model_alias: [ k2.7-code, kimi-k2.7-code, kimi-k2.7, kimi-k2-7-code ]
     model_id: kimi-k2.7-code
     context_limit: 262144
@@ -233,6 +241,15 @@ provider_list:
   model_list:
 
   - model_name: kimi
+    model_alias: [ k3, kimi-k3 ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: max
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:code
     model_alias: [ k2.7-code, kimi-k2.7-code, kimi-k2.7, kimi-k2-7-code ]
     model_id: kimi-k2.7-code
     context_limit: 262144
@@ -772,6 +789,14 @@ provider_list:
   model_list:
 
   - model_name: kimi
+    model_alias: [ k3, kimi-k3 ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    effort: max
+    cost: { input: 20, output: 100, cache_read: 2, currency: CNY }
+
+  - model_name: kimi:code
     model_alias: [ k2.7-code, kimi-k2.7-code ]
     model_id: kimi-k2.7-code
     context_limit: 262144
@@ -797,6 +822,15 @@ provider_list:
   model_list:
 
   - model_name: kimi
+    model_alias: [ k3, kimi-k3 ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: max
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:code
     model_alias: [ k2.7-code, kimi-k2.7-code ]
     model_id: kimi-k2.7-code
     context_limit: 262144
@@ -1136,6 +1170,18 @@ provider_list:
     cost: { input: 0.25, output: 1.5, cache_read: 0.02 }
 
   - model_name: kimi
+    model_alias: [ k3, kimi-k3 ]
+    model_id: moonshotai/kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    provider_routing:
+      only:
+      - moonshotai
+    thinking:
+      reasoning_effort: max
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:code
     model_alias: [ k2.7-code, kimi-k2.7-code ]
     model_id: moonshotai/kimi-k2.7-code
     context_limit: 262144
