@@ -10,6 +10,7 @@ from typing import Any, ClassVar
 
 from markdown_it import MarkdownIt
 from markdown_it.token import Token
+from prompt_toolkit.patch_stdout import StdoutProxy
 from rich import box
 from rich._loop import loop_first
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
@@ -370,6 +371,14 @@ class MarkdownStream:
             return False
         console_file = getattr(self.console, "file", None)
         if console_file is None:
+            return False
+        # When stdout is patched (interactive REPL), writes are queued and
+        # re-emitted later inside the proxy's own DEC-2026 frame around its
+        # erase/write/redraw cycle. DEC modes do not nest: an embedded ?2026l
+        # would end that frame right after the erase, presenting the terminal
+        # a frame without the bottom prompt UI — the exact flicker the proxy
+        # exists to prevent. Let the proxy own synchronization in that case.
+        if isinstance(console_file, StdoutProxy):
             return False
         isatty = getattr(console_file, "isatty", None)
         if isatty is None:

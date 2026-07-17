@@ -3,9 +3,10 @@ from __future__ import annotations
 import io
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from prompt_toolkit.patch_stdout import StdoutProxy
 from rich.console import Console
 from rich.text import Text
 from rich.theme import Theme
@@ -245,6 +246,50 @@ def test_update_does_not_write_synchronized_output_sequences_when_not_tty(monkey
     assert "\x1b[?2026h" not in captured
     assert "\x1b[?2026l" not in captured
     assert live_calls
+
+
+def test_update_does_not_write_synchronized_output_sequences_through_stdout_proxy() -> None:
+    """When console.file is a patched-stdout proxy, writes are re-emitted
+    later inside the proxy's own DEC-2026 frame. Embedded 2026 sequences
+    would terminate that frame early (DEC modes do not nest), so the stream
+    must not emit them."""
+
+    class _FakeStdoutProxy(StdoutProxy):
+        def __init__(self, sink: io.StringIO) -> None:  # pyright: ignore[reportMissingSuperCall]
+            # Skip StdoutProxy.__init__: no flush thread / real output needed.
+            self._sink = sink
+
+        def write(self, data: str) -> int:
+            self._sink.write(data)
+            return len(data)
+
+        def flush(self) -> None:
+            return None
+
+        def isatty(self) -> bool:
+            return True
+
+    theme = Theme(
+        {
+            "markdown.code.border": "dim",
+            "markdown.code.block": "dim",
+            "markdown.h1": "bold",
+            "markdown.h2.border": "dim",
+            "markdown.hr": "dim",
+        }
+    )
+    out = io.StringIO()
+    console = Console(file=cast(Any, _FakeStdoutProxy(out)), force_terminal=True, width=80, theme=theme)
+    stream = MarkdownStream(console=console, theme=theme, live_sink=lambda _: None, left_margin=0)
+    stream.min_delay = 0
+
+    stream.update("Para 1\n\nPara 2", final=False)
+    stream.update("Para 1\n\nPara 2\n", final=True)
+    captured = out.getvalue()
+
+    assert "\x1b[?2026h" not in captured
+    assert "\x1b[?2026l" not in captured
+    assert "Para 1" in captured
 
 
 def test_update_sets_live_renderable_without_stable_block() -> None:

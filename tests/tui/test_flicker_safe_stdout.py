@@ -34,14 +34,20 @@ def test_flicker_safe_proxy_constructs_with_raw_default() -> None:
 
 
 def test_synchronized_in_terminal_times_out_stale_cpr(monkeypatch) -> None:
-    """A stale CPR wait must not block the first scrollback write after submit."""
+    """A stale CPR wait must not block the first scrollback write after submit.
+
+    On timeout the pending CPR futures must be left intact (not cancelled,
+    not cleared) so a late response is still attributed FIFO to the request
+    that triggered it.
+    """
+
+    from collections import deque
 
     import klaude_code.tui.input.flicker_safe_stdout as module
 
     class _FakeRenderer:
-        async def wait_for_cpr_responses(self, timeout: int | None = None) -> None:
-            del timeout
-            await asyncio.Future()
+        def __init__(self) -> None:
+            self._waiting_for_cpr_futures: deque[asyncio.Future[None]] = deque()
 
         def erase(self) -> None:
             return None
@@ -58,12 +64,13 @@ def test_synchronized_in_terminal_times_out_stale_cpr(monkeypatch) -> None:
         def flush(self) -> None:
             return None
 
+    renderer = _FakeRenderer()
     app = SimpleNamespace(
         _is_running=True,
         _running_in_terminal_f=None,
         _running_in_terminal=False,
         output=_FakeOutput(),
-        renderer=_FakeRenderer(),
+        renderer=renderer,
         _request_absolute_cursor_position=lambda: None,
         _redraw=lambda: None,
     )
@@ -74,8 +81,12 @@ def test_synchronized_in_terminal_times_out_stale_cpr(monkeypatch) -> None:
 
     async def _run() -> None:
         nonlocal entered
+        stale: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        renderer._waiting_for_cpr_futures.append(stale)
         async with module.synchronized_in_terminal():
             entered = True
+        assert not stale.cancelled()
+        assert renderer._waiting_for_cpr_futures
 
     asyncio.run(asyncio.wait_for(_run(), timeout=0.2))
     assert entered is True

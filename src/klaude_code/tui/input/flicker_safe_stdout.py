@@ -33,6 +33,7 @@ import threading
 from collections.abc import AsyncGenerator, Generator
 from typing import TextIO, cast
 
+from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app_or_none
 from prompt_toolkit.patch_stdout import StdoutProxy
 
@@ -46,6 +47,32 @@ _SYNC_END = "\x1b[?2026l"
 # write cycle is in flight the renderer defers redraws, so every ms spent
 # here delays the next visible frame (though key events keep flowing).
 _CPR_WAIT_TIMEOUT_S = 0.05
+
+
+async def _await_cpr_responses(app: Application[object], timeout: float) -> None:
+    """Wait briefly for pending CPR responses, preserving renderer state.
+
+    ``Renderer.wait_for_cpr_responses`` spawns an internal timeout task that,
+    when it fires, cancels the futures it snapshotted and replaces the
+    renderer's whole pending deque. Wrapping that call in ``asyncio.wait_for``
+    leaks the timeout task on early cancellation, so up to a second later it
+    wipes CPR futures belonging to a *later* write cycle. That desyncs
+    response attribution and feeds the renderer wrong height estimates —
+    visible as the bottom UI jumping while an agent streams. Wait on a
+    snapshot instead and leave the deque untouched on timeout; late responses
+    still resolve their futures in FIFO order.
+    """
+    renderer = app.renderer
+    pending = renderer._waiting_for_cpr_futures
+    # Safety valve: a terminal that advertises CPR support but stops
+    # responding would otherwise grow the deque by one future per cycle.
+    while len(pending) > 8:
+        pending.popleft().cancel()
+    futures = [future for future in pending if not future.done()]
+    if not futures:
+        return
+    with contextlib.suppress(Exception):
+        await asyncio.wait(futures, timeout=timeout)
 
 
 @contextlib.asynccontextmanager
@@ -76,11 +103,7 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
     # after this cycle's reset. Input stays attached, so the response is
     # consumed by the vt100 parser as soon as it arrives.
     if app.output.responds_to_cpr:
-        with contextlib.suppress(Exception):
-            await asyncio.wait_for(
-                app.renderer.wait_for_cpr_responses(timeout=1),
-                timeout=_CPR_WAIT_TIMEOUT_S,
-            )
+        await _await_cpr_responses(app, _CPR_WAIT_TIMEOUT_S)
 
     output = app.output
 
@@ -110,11 +133,7 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
             # is set). Without this wait the redraw lands AFTER sync_end and
             # we lose the atomicity.
             if output.responds_to_cpr:
-                with contextlib.suppress(Exception):
-                    await asyncio.wait_for(
-                        app.renderer.wait_for_cpr_responses(timeout=1),
-                        timeout=_CPR_WAIT_TIMEOUT_S,
-                    )
+                await _await_cpr_responses(app, _CPR_WAIT_TIMEOUT_S)
             app._redraw()
         finally:
             _safe_write_raw(output, _SYNC_END)
