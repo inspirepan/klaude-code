@@ -19,6 +19,7 @@ from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.layout.containers import ConditionalContainer, Container, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 
+from klaude_code.const import STATUS_WAITING_TEXT
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_USER_INPUT
 
@@ -47,9 +48,11 @@ class PromptBottomBar:
         *,
         invalidate: Callable[[], None],
         refresh_status: Callable[[], None] | None = None,
+        is_agent_running: Callable[[], bool] | None = None,
     ) -> None:
         self._invalidate = invalidate
         self._refresh_status = refresh_status
+        self._is_agent_running = is_agent_running
 
         self._stream_lines: tuple[str, ...] = ()
         self._stream_reserved_line_count: int = 0
@@ -270,7 +273,16 @@ class PromptBottomBar:
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []
         spinner = _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
-        for index, line in enumerate(self._visible_status_lines()):
+        visible_lines = self._visible_status_lines()
+        if not visible_lines:
+            # A task has been submitted but no status snapshot has arrived yet
+            # (agent runtime is still starting up). Show the waiting text
+            # immediately so submission feedback is not tied to backend
+            # startup latency.
+            if self._is_agent_running is not None and self._is_agent_running():
+                return [(CLASS_META, f"{spinner} "), (CLASS_META, STATUS_WAITING_TEXT)]
+            return fragments
+        for index, line in enumerate(visible_lines):
             if index:
                 fragments.append(("", "\n"))
             fragments.append((CLASS_META, f"{spinner} "))

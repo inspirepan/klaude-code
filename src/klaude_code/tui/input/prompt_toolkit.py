@@ -223,6 +223,7 @@ class PromptToolkitInput(InputProviderABC):
         self._bottom_bar = PromptBottomBar(
             invalidate=self._invalidate_app,
             refresh_status=refresh_status,
+            is_agent_running=self._is_agent_running,
         )
 
         # Teach the vt100 parser kitty CSI-u key encodings before any input is

@@ -26,6 +26,7 @@ from klaude_code.log import log
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
+from klaude_code.skill.system_skills import install_system_skills
 from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,
@@ -750,6 +751,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             agent_session = agent.session
             input_provider.set_session_dir(Session.paths(agent_session.work_dir).session_dir(agent_session.id))
         _refresh_pending_messages()
+
+        # Warm the system-skills install check off the event loop. It hashes
+        # every embedded asset file (hundreds of ms of disk I/O); doing it here
+        # lets the memoized result be ready before the first task start would
+        # otherwise block the loop — and the "Loading…" paint — on it.
+        skills_warmup_task = asyncio.create_task(asyncio.to_thread(install_system_skills))
+        skills_warmup_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 
         await input_provider.start()
         inputs_iter = cast(AsyncGenerator[UserInputPayload], input_provider.iter_inputs())

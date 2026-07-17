@@ -6,6 +6,7 @@ on application startup. It uses a fingerprint mechanism to avoid unnecessary re-
 
 import hashlib
 import shutil
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from importlib import resources
@@ -109,7 +110,32 @@ def _with_embedded_assets_dir() -> Iterator[Path | None]:
         yield None
 
 
+# install_system_skills runs on every agent task start (system prompt build).
+# The fingerprint pass reads and hashes every embedded asset file — hundreds
+# of milliseconds of blocking I/O on the event loop — yet the embedded assets
+# are package files that cannot change during the process lifetime, so the
+# result is memoized per process.
+_install_lock = threading.Lock()
+_install_result: bool | None = None
+
+
 def install_system_skills() -> bool:
+    """Install system skills from the embedded assets to the user directory.
+
+    The underlying check/extract runs once per process; subsequent calls
+    return the memoized result. See :func:`_install_system_skills_uncached`.
+
+    Returns:
+        True if skills were installed/updated, False if already up-to-date
+    """
+    global _install_result
+    with _install_lock:
+        if _install_result is None:
+            _install_result = _install_system_skills_uncached()
+        return _install_result
+
+
+def _install_system_skills_uncached() -> bool:
     """Install system skills from the embedded assets to the user directory.
 
     This function:
