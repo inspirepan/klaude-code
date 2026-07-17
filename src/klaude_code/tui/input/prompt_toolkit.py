@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import re
+import sys
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
@@ -36,6 +37,7 @@ from klaude_code.tui.input.completion_menu import (
     customize_completion_menus,
     remove_completion_menu_floats,
 )
+from klaude_code.tui.input.csi_u import KITTY_KEYBOARD_RESET, install_csi_u_sequences
 from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout
 from klaude_code.tui.input.images import (
@@ -222,6 +224,11 @@ class PromptToolkitInput(InputProviderABC):
             invalidate=self._invalidate_app,
             refresh_status=refresh_status,
         )
+
+        # Teach the vt100 parser kitty CSI-u key encodings before any input is
+        # parsed, so a leaked kitty keyboard mode cannot turn Ctrl+<key> into a
+        # task-interrupting Escape plus garbage text.
+        install_csi_u_sequences()
 
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
@@ -925,6 +932,13 @@ class PromptToolkitInput(InputProviderABC):
 
     @override
     async def iter_inputs(self) -> AsyncIterator[UserInputPayload]:
+        # Clear any kitty keyboard-protocol flags leaked into the terminal by
+        # a previous program; the REPL expects legacy key encoding. Terminals
+        # without kitty protocol silently ignore the sequence.
+        with contextlib.suppress(Exception):
+            sys.stdout.write(KITTY_KEYBOARD_RESET)
+            sys.stdout.flush()
+
         # Keep one StdoutProxy alive for the entire input session instead of
         # rebuilding it on every prompt_async iteration. The proxy's close()
         # joins its background flush thread, which can block up to
