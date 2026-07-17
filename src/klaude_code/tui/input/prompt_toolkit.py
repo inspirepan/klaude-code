@@ -10,7 +10,7 @@ from typing import override
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application.current import get_app
-from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.buffer import Buffer, CompletionState
 from prompt_toolkit.completion import Completion, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import CursorShape
 from prompt_toolkit.filters import Condition
@@ -207,6 +207,9 @@ class PromptToolkitInput(InputProviderABC):
         self._last_completion_panel_completions: tuple[Completion, ...] = ()
         self._last_completion_panel_selected_index: int | None = None
         self._last_completion_panel_context_key: str | None = None
+        self._completion_panel_snapshot_cache: (
+            tuple[tuple[int, int, int | None, str], tuple[list[Completion], int | None]] | None
+        ) = None
         self._queued_edit_active = False
         self._agent_running = False
         self._prompt_active = False
@@ -595,10 +598,27 @@ class PromptToolkitInput(InputProviderABC):
     def _get_completion_panel_snapshot(self) -> tuple[list[Completion], int | None]:
         try:
             state = self._session.default_buffer.complete_state
+            text_before = self._session.default_buffer.document.text_before_cursor
         except Exception:
             return [], None
         if state is None:
             return [], None
+        # This snapshot is requested several times per rendered frame
+        # (visibility filter, window height, fragments, reserved input rows),
+        # and the cached-panel fallback below runs to_plain_text over every
+        # completion entry. Memoize per (state, selection, input) key so each
+        # distinct UI state pays the cost once. The completion count is part
+        # of the key because ThreadedCompleter appends to the same
+        # CompletionState in place while results stream in.
+        cache_key = (id(state), len(state.completions), getattr(state, "complete_index", None), text_before)
+        cached_snapshot = self._completion_panel_snapshot_cache
+        if cached_snapshot is not None and cached_snapshot[0] == cache_key:
+            return cached_snapshot[1]
+        snapshot = self._compute_completion_panel_snapshot(state)
+        self._completion_panel_snapshot_cache = (cache_key, snapshot)
+        return snapshot
+
+    def _compute_completion_panel_snapshot(self, state: CompletionState) -> tuple[list[Completion], int | None]:
         if state.completions:
             completions = list(state.completions)
             context = self._current_completion_context()

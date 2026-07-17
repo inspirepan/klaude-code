@@ -164,6 +164,34 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     assert stream_updates[-1] == tuple(lines)
 
 
+def test_bash_live_tail_throttles_renders_and_flushes_trailing_content() -> None:
+    import asyncio
+
+    from klaude_code.tui.renderer import BASH_LIVE_TAIL_MIN_INTERVAL_S, TUICommandRenderer
+
+    stream_updates, _full_updates, _sink = _make_stream_recorder()
+    renderer = TUICommandRenderer(stream_sink=_sink)
+    _renderer_console(renderer)
+
+    async def _scenario() -> None:
+        renderer.display_bash_command_start(events.BashCommandStartEvent(session_id="s", command="spam"))
+        renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content="one\n"))
+        renders_after_first = len(stream_updates)
+        assert any("one" in line for line in stream_updates[-1])
+
+        # A burst within the throttle window must not repaint immediately...
+        renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content="two\n"))
+        renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content="three\n"))
+        assert len(stream_updates) == renders_after_first
+
+        # ...but the trailing flush must render the accumulated tail.
+        await asyncio.sleep(BASH_LIVE_TAIL_MIN_INTERVAL_S + 0.03)
+        assert len(stream_updates) > renders_after_first
+        assert any("three" in line for line in stream_updates[-1])
+
+    asyncio.run(_scenario())
+
+
 def test_display_bash_command_end_clears_live_tail() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 

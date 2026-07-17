@@ -25,6 +25,12 @@ from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_USER_I
 _STATUS_SPINNER_FRAMES = ("·  ", "·· ", "···", " ··", "  ·", "   ")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
 
+# Refresh the renderer-side status snapshot every N spinner ticks instead of
+# every tick. The snapshot only changes with the elapsed-time clock (second
+# granularity), while each refresh re-renders the status block through Rich;
+# ~0.48s cadence keeps the clock fresh at a fraction of the cost.
+_STATUS_REFRESH_EVERY_TICKS = 4
+
 # How long to hold the stream area's reserved height after an end-of-stream
 # signal before truly collapsing it. Adjacent post-stream events
 # (TaskMetadata, TaskFinish) typically arrive within a few milliseconds;
@@ -291,12 +297,14 @@ class PromptBottomBar:
     # ---- spinner task ----------------------------------------------------
 
     async def _spin_status(self) -> None:
+        tick = 0
         while True:
             await asyncio.sleep(_STATUS_SPINNER_INTERVAL_SECONDS)
             if not self._status_lines:
                 return
             self._status_spinner_frame = (self._status_spinner_frame + 1) % len(_STATUS_SPINNER_FRAMES)
-            if self._refresh_status is not None:
+            tick += 1
+            if self._refresh_status is not None and tick % _STATUS_REFRESH_EVERY_TICKS == 0:
                 with contextlib.suppress(Exception):
                     self._refresh_status()
             with contextlib.suppress(Exception):

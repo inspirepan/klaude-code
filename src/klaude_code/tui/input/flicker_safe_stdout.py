@@ -20,6 +20,10 @@ This module:
    detaches stdin and enters cooked mode, which stalls key processing for
    the whole erase/write/redraw window). The body only writes, so yielding
    stdin is unnecessary and typing stays responsive while streaming.
+5. Keeps the cursor hidden for the whole erase/write/redraw cycle.
+   ``Renderer.erase``/``reset`` re-show the cursor, so on terminals without
+   DEC 2026 it visibly jumps between the scrollback write position and the
+   redrawn prompt. The final redraw restores visibility from screen state.
 
 Drop-in replacement for ``patch_stdout(raw=True)``.
 """
@@ -111,6 +115,10 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
     _safe_write_raw(output, _SYNC_BEGIN)
 
     app.renderer.erase()
+    # erase() ends with reset(), which re-shows the cursor. Keep it hidden
+    # for the rest of the cycle; the closing redraw restores visibility from
+    # the rendered screen state.
+    _safe_hide_cursor(output)
     app._running_in_terminal = True
 
     try:
@@ -127,6 +135,7 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
         try:
             app._running_in_terminal = False
             app.renderer.reset()
+            _safe_hide_cursor(output)
             app._request_absolute_cursor_position()
             # Wait for CPR inside the sync block so the subsequent redraw
             # actually paints (renderer defers render() while waiting_for_cpr
@@ -149,6 +158,14 @@ def _safe_write_raw(output: object, text: str) -> None:
         return
     with contextlib.suppress(Exception):
         write_raw(text)
+
+
+def _safe_hide_cursor(output: object) -> None:
+    hide_cursor = getattr(output, "hide_cursor", None)
+    if hide_cursor is None:
+        return
+    with contextlib.suppress(Exception):
+        hide_cursor()
 
 
 class FlickerSafeStdoutProxy(StdoutProxy):

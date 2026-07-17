@@ -38,6 +38,7 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._last_completion_panel_completions = ()
     prompt_input._last_completion_panel_selected_index = None
     prompt_input._last_completion_panel_context_key = None
+    prompt_input._completion_panel_snapshot_cache = None
     prompt_input._bottom_bar = PromptBottomBar(invalidate=invalidate)
     prompt_input._queued_edit_active = False
     prompt_input._agent_running = False

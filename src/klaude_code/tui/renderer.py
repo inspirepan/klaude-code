@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import shutil
+import time
 from collections import deque
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -103,6 +105,11 @@ from klaude_code.tui.terminal.title import (
 
 BASH_LIVE_TAIL_MAX_LINES = 5
 
+# A fast-spewing command can deliver hundreds of output deltas per second;
+# rendering the tail through Rich for each one wastes event-loop time. Cap
+# tail repaints and flush trailing content once the interval elapses.
+BASH_LIVE_TAIL_MIN_INTERVAL_S = 1 / 30
+
 
 @dataclass
 class _ActiveStream:
@@ -200,6 +207,8 @@ class TUICommandRenderer:
         self._bash_live_tail_lines: deque[str] = deque(maxlen=BASH_LIVE_TAIL_MAX_LINES)
         self._bash_live_partial_line: str = ""
         self._bash_live_hidden_lines: int = 0
+        self._bash_live_last_render_at: float = 0.0
+        self._bash_live_flush_handle: asyncio.TimerHandle | None = None
 
         self._sessions: dict[str, _SessionStatus] = {}
         self._current_sub_agent_color: Style | None = None
@@ -592,6 +601,7 @@ class TUICommandRenderer:
         # The user input line already shows `!cmd`; bash output is streamed as it arrives.
         # We keep minimal rendering here to avoid adding noise.
         del e
+        self._cancel_bash_live_flush()
         self._bash_stream_active = True
         self._bash_live_tail_lines.clear()
         self._bash_live_partial_line = ""
@@ -615,7 +625,36 @@ class TUICommandRenderer:
                 self._bash_live_hidden_lines += 1
             self._bash_live_tail_lines.append(part.rstrip("\r\n"))
 
+    def _schedule_bash_live_tail_render(self) -> None:
+        if self._bash_live_flush_handle is not None:
+            return
+        now = time.monotonic()
+        due = self._bash_live_last_render_at + BASH_LIVE_TAIL_MIN_INTERVAL_S
+        if now >= due:
+            self._render_bash_live_tail()
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._render_bash_live_tail()
+            return
+        self._bash_live_flush_handle = loop.call_later(due - now, self._flush_bash_live_tail)
+
+    def _flush_bash_live_tail(self) -> None:
+        self._bash_live_flush_handle = None
+        if self._bash_stream_active:
+            self._render_bash_live_tail()
+
+    def _cancel_bash_live_flush(self) -> None:
+        handle = self._bash_live_flush_handle
+        if handle is None:
+            return
+        self._bash_live_flush_handle = None
+        with contextlib.suppress(Exception):
+            handle.cancel()
+
     def _render_bash_live_tail(self) -> None:
+        self._bash_live_last_render_at = time.monotonic()
         lines = list(self._bash_live_tail_lines)
         if self._bash_live_partial_line:
             lines.append(self._bash_live_partial_line)
@@ -644,10 +683,11 @@ class TUICommandRenderer:
             return
 
         self._append_bash_live_tail(content)
-        self._render_bash_live_tail()
+        self._schedule_bash_live_tail_render()
 
     def display_bash_command_end(self, e: events.BashCommandEndEvent) -> None:
         del e
+        self._cancel_bash_live_flush()
         if self._bash_stream_active:
             self.set_stream_renderable(None)
         self._bash_stream_active = False
@@ -1113,6 +1153,7 @@ class TUICommandRenderer:
                     continue
 
     async def stop(self) -> None:
+        self._cancel_bash_live_flush()
         self._flush_open_blocks()
         self._flush_assistant()
         self._flush_thinking()
