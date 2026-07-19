@@ -46,6 +46,7 @@ const SKIP_EVENT_TYPES = new Set([
   "session.holder.acquired",
   "usage",
   "welcome",
+  "welcome.context",
   "replay.history",
   "compaction.start",
 

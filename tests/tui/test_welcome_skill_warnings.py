@@ -6,13 +6,22 @@ from rich.console import Console
 from klaude_code.protocol import events
 from klaude_code.protocol.llm_param import LLMClientProtocol, LLMConfigParameter
 from klaude_code.tui.components.rich.theme import get_theme
-from klaude_code.tui.components.welcome import render_welcome
+from klaude_code.tui.components.welcome import render_welcome, render_welcome_context
 
 
 def _print_welcome(event: events.WelcomeEvent) -> str:
     out = io.StringIO()
     console = Console(file=out, force_terminal=False, width=200, theme=get_theme().app_theme)
     console.print(render_welcome(event))
+    return out.getvalue()
+
+
+def _print_welcome_context(event: events.WelcomeContextEvent) -> str:
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=False, width=200, theme=get_theme().app_theme)
+    renderable = render_welcome_context(event)
+    if renderable is not None:
+        console.print(renderable)
     return out.getvalue()
 
 
@@ -195,4 +204,22 @@ def test_render_welcome_hides_startup_shortcuts_without_startup_info() -> None:
 
     output = _print_welcome(event)
 
+    assert "shortcuts" not in output
+
+
+def test_render_deferred_context_does_not_repeat_base_welcome() -> None:
+    event = events.WelcomeContextEvent(
+        session_id="s1",
+        work_dir="/tmp/project",
+        loaded_skills={"system": ["playwright", "web-search"]},
+        loaded_memories={"project": ["/tmp/project/AGENTS.md"]},
+    )
+
+    output = _print_welcome_context(event)
+
+    assert "context" in output
+    assert "playwright" in output
+    assert "AGENTS.md" in output
+    assert "Klaude Code" not in output
+    assert " via " not in output
     assert "shortcuts" not in output

@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from klaude_code.agent.compaction import should_compact_threshold
 from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
-from klaude_code.agent.skill_inventory import warmup_skill_inventory
+from klaude_code.agent.welcome_context import build_welcome_context_event
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime import (
     AppInitConfig,
@@ -188,6 +188,10 @@ class SubmitUserInputResult:
 
 async def _warmup_runtime_clients(runtime: RuntimeFacade) -> None:
     await runtime.warmup_current_llm_clients()
+
+
+async def _emit_welcome_context(runtime: RuntimeFacade, event: events.WelcomeContextEvent) -> None:
+    await runtime.emit_event(event)
 
 
 async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> WebModeRequest | None:
@@ -735,14 +739,30 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         with contextlib.suppress(Exception, asyncio.CancelledError):
             task.result()
 
-    async def _initialize_after_prompt_start() -> None:
+    async def _load_context_after_prompt_start() -> None:
         await prompt_started.wait()
-        await asyncio.to_thread(warmup_skill_inventory)
+        agent = components.runtime.current_agent
+        if agent is not None and hasattr(agent, "session"):
+            agent_session = agent.session
+            context_event = await asyncio.to_thread(
+                build_welcome_context_event,
+                session_id=agent_session.id,
+                work_dir=agent_session.work_dir,
+            )
+            await _emit_welcome_context(components.runtime, context_event)
+            await components.wait_for_display_idle()
+        await _warmup_runtime_clients(components.runtime)
+
+    try:
+        await away_summary_coordinator.start()
+
+        tui_holder_key = uuid4().hex
         await initialize_session(
             components.runtime,
             components.wait_for_display_idle,
             session_id=session_id,
             holder_key=tui_holder_key,
+            defer_welcome_context=True,
         )
         backfill_session_model_config(
             components.runtime.current_agent,
@@ -756,13 +776,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             agent_session = agent.session
             input_provider.set_session_dir(Session.paths(agent_session.work_dir).session_dir(agent_session.id))
         _refresh_pending_messages()
-        await _warmup_runtime_clients(components.runtime)
 
-    try:
-        await away_summary_coordinator.start()
-
-        tui_holder_key = uuid4().hex
-        startup_task = asyncio.create_task(_initialize_after_prompt_start())
+        startup_task = asyncio.create_task(_load_context_after_prompt_start())
 
         await input_provider.start()
         inputs_iter = cast(AsyncGenerator[UserInputPayload], input_provider.iter_inputs())

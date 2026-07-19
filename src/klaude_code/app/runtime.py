@@ -264,10 +264,17 @@ async def initialize_session(
     session_id: str | None = None,
     *,
     holder_key: str | None = None,
+    defer_welcome_context: bool = False,
 ) -> str | None:
     """Initialize a session and return the active session id."""
     resolved_session_id = session_id or uuid4().hex
-    await runtime.submit_and_wait(op.InitAgentOperation(session_id=resolved_session_id, work_dir=Path.cwd()))
+    await runtime.submit_and_wait(
+        op.InitAgentOperation(
+            session_id=resolved_session_id,
+            work_dir=Path.cwd(),
+            defer_welcome_context=defer_welcome_context,
+        )
+    )
     await wait_for_display_idle()
 
     active_session_id = runtime.current_session_id() or resolved_session_id

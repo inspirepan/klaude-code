@@ -275,7 +275,13 @@ class AgentOperationHandler:
             return None
         return runtime.get_agent()
 
-    async def ensure_agent(self, session_id: str | None = None, *, work_dir: Path | None = None) -> Agent:
+    async def ensure_agent(
+        self,
+        session_id: str | None = None,
+        *,
+        work_dir: Path | None = None,
+        defer_welcome_context: bool = False,
+    ) -> Agent:
         """Return the agent for a session, creating or loading as needed.
 
         work_dir is required when the session needs to be created or loaded from disk.
@@ -323,9 +329,11 @@ class AgentOperationHandler:
                 work_dir=str(session.work_dir),
                 llm_config=session_clients.main.get_llm_config(),
                 title=session.title,
-                loaded_skills=get_skill_names_by_location(),
-                loaded_skill_warnings=get_skill_warnings_by_location(),
-                loaded_memories=get_existing_memory_paths_by_location(work_dir=session.work_dir),
+                loaded_skills={} if defer_welcome_context else get_skill_names_by_location(),
+                loaded_skill_warnings={} if defer_welcome_context else get_skill_warnings_by_location(),
+                loaded_memories=(
+                    {} if defer_welcome_context else get_existing_memory_paths_by_location(work_dir=session.work_dir)
+                ),
                 startup_info=events.WelcomeStartupInfo(
                     update_info=(
                         events.WelcomeUpdateInfo(
@@ -351,8 +359,12 @@ class AgentOperationHandler:
         )
         return agent
 
-    async def init_agent(self, session_id: str, *, work_dir: Path) -> None:
-        agent = await self.ensure_agent(session_id, work_dir=work_dir)
+    async def init_agent(self, session_id: str, *, work_dir: Path, defer_welcome_context: bool = False) -> None:
+        agent = await self.ensure_agent(
+            session_id,
+            work_dir=work_dir,
+            defer_welcome_context=defer_welcome_context,
+        )
         self._primary_session_id = agent.session.id
 
     async def _refresh_session_title(
@@ -1117,8 +1129,12 @@ class AgentRunner:
     def current_agent(self) -> Agent | None:
         return self._operation_handler.current_agent
 
-    async def init_agent(self, session_id: str, *, work_dir: Path) -> None:
-        await self._operation_handler.init_agent(session_id, work_dir=work_dir)
+    async def init_agent(self, session_id: str, *, work_dir: Path, defer_welcome_context: bool = False) -> None:
+        await self._operation_handler.init_agent(
+            session_id,
+            work_dir=work_dir,
+            defer_welcome_context=defer_welcome_context,
+        )
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._operation_handler.run_agent(operation)

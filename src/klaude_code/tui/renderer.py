@@ -59,6 +59,7 @@ from klaude_code.tui.commands import (
     RenderToolResult,
     RenderUserMessage,
     RenderWelcome,
+    RenderWelcomeContext,
     SeparatorText,
     SpinnerStart,
     SpinnerStatusLine,
@@ -698,6 +699,11 @@ class TUICommandRenderer:
     def display_welcome(self, event: events.WelcomeEvent) -> None:
         self.print(c_welcome.render_welcome(event))
 
+    def display_welcome_context(self, event: events.WelcomeContextEvent) -> None:
+        context = c_welcome.render_welcome_context(event)
+        if context is not None:
+            self.print(context)
+
     def display_user_message(self, event: events.UserMessageEvent) -> None:
         self.print(c_user_input.render_user_input(event.content))
         self.print()
@@ -995,6 +1001,8 @@ class TUICommandRenderer:
             match cmd:
                 case RenderWelcome(event=event):
                     self.display_welcome(event)
+                case RenderWelcomeContext(event=event):
+                    self.display_welcome_context(event)
                 case RenderUserMessage(event=event):
                     self.display_user_message(event)
                 case RenderTaskStart(event=event):

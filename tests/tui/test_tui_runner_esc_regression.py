@@ -171,14 +171,17 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     async def _noop_warmup(_runtime: object) -> None:
         return None
 
+    async def _noop_emit_welcome_context(_runtime: object, _event: events.WelcomeContextEvent) -> None:
+        return None
+
     def _install_sigint_interrupt(_cb: Callable[[], None]) -> Callable[[], None]:
         return lambda: None
 
     def _noop_prevent_sleep() -> None:
         return None
 
-    def _noop_skill_warmup() -> None:
-        return None
+    def _build_welcome_context_event(*, session_id: str, work_dir: Path) -> events.WelcomeContextEvent:
+        return events.WelcomeContextEvent(session_id=session_id, work_dir=str(work_dir))
 
     monkeypatch.setattr(runner, "TUIDisplay", _FakeDisplay)
     monkeypatch.setattr(runner, "PromptToolkitInput", _FakePromptToolkitInput)
@@ -188,11 +191,12 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(runner, "cleanup_app_components", _noop_cleanup)
     monkeypatch.setattr(runner, "initialize_session", _fake_initialize_session)
     monkeypatch.setattr(runner, "_warmup_runtime_clients", _noop_warmup)
+    monkeypatch.setattr(runner, "_emit_welcome_context", _noop_emit_welcome_context)
     monkeypatch.setattr(runner, "install_sigint_interrupt", _install_sigint_interrupt)
     monkeypatch.setattr(runner, "start_prevent_sleep", _noop_prevent_sleep)
     monkeypatch.setattr(runner, "stop_prevent_sleep", _noop_prevent_sleep)
     monkeypatch.setattr(runner, "force_stop_prevent_sleep", _noop_prevent_sleep)
-    monkeypatch.setattr(runner, "warmup_skill_inventory", _noop_skill_warmup)
+    monkeypatch.setattr(runner, "build_welcome_context_event", _build_welcome_context_event)
 
     return runner
 

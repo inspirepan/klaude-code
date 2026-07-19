@@ -298,6 +298,50 @@ def _build_shortcuts_tree() -> Tree:
     return tree
 
 
+def _build_context_renderables(
+    *,
+    work_dir: Path,
+    loaded_memories: dict[str, list[str]],
+    loaded_skills: dict[str, list[str]],
+    loaded_skill_warnings: dict[str, list[str]],
+    leading_spacing: bool,
+) -> list[RenderableType]:
+    renderables: list[RenderableType] = []
+    grouped_context: list[tuple[str, list[str]]] = []
+    for scope in ("user", "project"):
+        paths = loaded_memories.get(scope) or []
+        if paths:
+            grouped_context.append((f"{scope} memory", [_format_memory_path(p, work_dir=work_dir) for p in paths]))
+
+    for scope in ("user", "project", "system"):
+        skills = loaded_skills.get(scope) or []
+        if skills:
+            grouped_context.append((f"{scope} skills", skills))
+
+    if grouped_context:
+        if leading_spacing:
+            renderables.append(Text())
+        renderables.append(_build_multi_column_tree("context", grouped_context))
+
+    warning_items: list[str] = []
+    for scope in ("user", "project", "system"):
+        warnings = loaded_skill_warnings.get(scope) or []
+        if warnings:
+            warning_items.extend(warnings)
+    if warning_items:
+        warning_tree = _RoundedTree(
+            Text("skill warnings", style=ThemeKey.WARN_BOLD),
+            guide_style=ThemeKey.LINES,
+        )
+        for entry in _aggregate_skill_warnings(warning_items):
+            warning_tree.add(_render_aggregated_warning(entry, work_dir=work_dir))
+        if leading_spacing or renderables:
+            renderables.append(Text())
+        renderables.append(warning_tree)
+
+    return renderables
+
+
 def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     """Render the welcome panel with model info and settings."""
     debug_mode = is_debug_enabled()
@@ -309,7 +353,6 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
             Text.assemble(("Klaude Code", klaude_code_style), (f" v{get_display_version()}", ThemeKey.WELCOME_INFO))
         )
 
-    # Model tree: model @ provider with params as children
     model_label = Text.assemble(
         (str(e.llm_config.model_id), ThemeKey.WELCOME_INFO_BOLD),
         (" via ", ThemeKey.WELCOME_INFO),
@@ -331,40 +374,15 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
         renderables.append(Text())
         renderables.append(_build_shortcuts_tree())
 
-    # Context tree: loaded memories and skills
-    work_dir = Path(e.work_dir)
-    loaded_memories = e.loaded_memories or {}
-    grouped_context: list[tuple[str, list[str]]] = []
-    for scope in ("user", "project"):
-        paths = loaded_memories.get(scope) or []
-        if paths:
-            grouped_context.append((f"{scope} memory", [_format_memory_path(p, work_dir=work_dir) for p in paths]))
-
-    loaded_skills = e.loaded_skills or {}
-    for scope in ("user", "project", "system"):
-        skills = loaded_skills.get(scope) or []
-        if skills:
-            grouped_context.append((f"{scope} skills", skills))
-
-    if grouped_context:
-        renderables.append(Text())
-        renderables.append(_build_multi_column_tree("context", grouped_context))
-
-    loaded_skill_warnings = e.loaded_skill_warnings or {}
-    warning_items: list[str] = []
-    for scope in ("user", "project", "system"):
-        warnings = loaded_skill_warnings.get(scope) or []
-        if warnings:
-            warning_items.extend(warnings)
-    if warning_items:
-        warning_tree = _RoundedTree(
-            Text("skill warnings", style=ThemeKey.WARN_BOLD),
-            guide_style=ThemeKey.LINES,
+    renderables.extend(
+        _build_context_renderables(
+            work_dir=Path(e.work_dir),
+            loaded_memories=e.loaded_memories,
+            loaded_skills=e.loaded_skills,
+            loaded_skill_warnings=e.loaded_skill_warnings,
+            leading_spacing=True,
         )
-        for entry in _aggregate_skill_warnings(warning_items):
-            warning_tree.add(_render_aggregated_warning(entry, work_dir=work_dir))
-        renderables.append(Text())
-        renderables.append(warning_tree)
+    )
 
     border_style = ThemeKey.WELCOME_DEBUG_BORDER if debug_mode else ThemeKey.LINES
     panel_content = Quote(Group(*renderables), style=border_style, prefix="▌ ")
@@ -372,3 +390,18 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     if e.show_klaude_code_info:
         return Group("", panel_content, "")
     return Group(panel_content, "")
+
+
+def render_welcome_context(e: events.WelcomeContextEvent) -> RenderableType | None:
+    """Render context discovered after the base welcome is visible."""
+    renderables = _build_context_renderables(
+        work_dir=Path(e.work_dir),
+        loaded_memories=e.loaded_memories,
+        loaded_skills=e.loaded_skills,
+        loaded_skill_warnings=e.loaded_skill_warnings,
+        leading_spacing=False,
+    )
+    if not renderables:
+        return None
+    border_style = ThemeKey.WELCOME_DEBUG_BORDER if is_debug_enabled() else ThemeKey.LINES
+    return Group(Quote(Group(*renderables), style=border_style, prefix="▌ "), "")

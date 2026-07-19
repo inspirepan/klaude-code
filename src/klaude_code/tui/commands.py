@@ -44,6 +44,11 @@ class RenderWelcome(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderWelcomeContext(RenderCommand):
+    event: events.WelcomeContextEvent
+
+
+@dataclass(frozen=True, slots=True)
 class RenderUserMessage(RenderCommand):
     event: events.UserMessageEvent
 

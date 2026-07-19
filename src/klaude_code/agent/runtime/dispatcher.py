@@ -214,7 +214,11 @@ class OperationDispatcher:
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
-        await self._agent_runner.init_agent(operation.session_id, work_dir=operation.work_dir)
+        await self._agent_runner.init_agent(
+            operation.session_id,
+            work_dir=operation.work_dir,
+            defer_welcome_context=operation.defer_welcome_context,
+        )
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._agent_runner.run_agent(operation)

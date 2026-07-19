@@ -81,6 +81,7 @@ __all__ = [
     "UserInteractionResolvedEvent",
     "UserInteractionResponseReceivedEvent",
     "UserMessageEvent",
+    "WelcomeContextEvent",
     "WelcomeEvent",
     "WelcomeStartupInfo",
     "WelcomeUpdateInfo",
@@ -425,6 +426,13 @@ class WelcomeEvent(Event):
     loaded_skill_warnings: dict[str, list[str]] = Field(default_factory=dict)
     loaded_memories: dict[str, list[str]] = Field(default_factory=dict)
     startup_info: WelcomeStartupInfo | None = None
+
+
+class WelcomeContextEvent(Event):
+    work_dir: str
+    loaded_skills: dict[str, list[str]] = Field(default_factory=dict)
+    loaded_skill_warnings: dict[str, list[str]] = Field(default_factory=dict)
+    loaded_memories: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class ErrorEvent(Event):

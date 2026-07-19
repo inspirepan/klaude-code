@@ -276,6 +276,7 @@ class InitAgentOperation(Operation):
     type: OperationType = OperationType.INIT_AGENT
     session_id: str
     work_dir: Path
+    defer_welcome_context: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)

@@ -56,6 +56,7 @@ from klaude_code.tui.commands import (
     RenderToolResult,
     RenderUserMessage,
     RenderWelcome,
+    RenderWelcomeContext,
     SeparatorText,
     SpinnerStart,
     SpinnerStatusLine,
@@ -823,6 +824,12 @@ class DisplayStateMachine:
             )
         )
         return cmds
+
+    def _handle_WelcomeContextEvent(
+        self, e: events.WelcomeContextEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        del is_replay, s
+        return [RenderWelcomeContext(e)]
 
     def _handle_UserMessageEvent(
         self, e: events.UserMessageEvent, *, is_replay: bool, s: _SessionState
@@ -1604,6 +1611,7 @@ class DisplayStateMachine:
 # Event-type -> handler dispatch table (built after class definition to reference methods).
 DisplayStateMachine._EVENT_HANDLERS = {
     events.WelcomeEvent: DisplayStateMachine._handle_WelcomeEvent,
+    events.WelcomeContextEvent: DisplayStateMachine._handle_WelcomeContextEvent,
     events.UserMessageEvent: DisplayStateMachine._handle_UserMessageEvent,
     events.BashCommandStartEvent: DisplayStateMachine._handle_BashCommandStartEvent,
     events.BashCommandOutputDeltaEvent: DisplayStateMachine._handle_BashCommandOutputDeltaEvent,

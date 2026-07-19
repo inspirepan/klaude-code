@@ -176,6 +176,17 @@ describe("reduceBatch", () => {
 });
 
 describe("reduceEvent — skipped events", () => {
+  it("ignores deferred TUI welcome context", () => {
+    const state = reduceEvent(
+      createInitialState(),
+      "welcome.context",
+      makeEvent({ loaded_skills: { system: ["playwright"] } }),
+      null,
+    );
+
+    expect(state.items).toHaveLength(0);
+  });
+
   it("ignores task file change summaries instead of rendering an unknown event", () => {
     const state = reduceEvent(
       createInitialState(),
