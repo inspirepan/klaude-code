@@ -19,6 +19,7 @@ from klaude_code.tui.commands import (
     RenderNotice,
     RenderTaskFinish,
     RenderTaskStart,
+    RenderThinkingSummary,
     RenderToolCall,
     RenderToolResult,
     RenderUserMessage,
@@ -365,6 +366,26 @@ def test_stream_end_emits_single_blank_line_in_interactive_mode() -> None:
     rendered = output.getvalue()
     assert "● hello\n\n∵ thinking" in rendered
     assert "● hello\n\n\n∵ thinking" not in rendered
+
+
+def test_sub_agent_thinking_summary_uses_scoped_quote() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "sub-1"
+    renderer.register_session(
+        session_id,
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="searching", sub_agent_prompt="prompt"),
+    )
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderThinkingSummary(session_id=session_id, duration_s=20.0, word_count=1234),
+                RenderThinkingSummary(session_id=session_id, duration_s=None, word_count=2345),
+            ]
+        )
+    )
+
+    assert output.getvalue() == "▌ Thought for 20s · 1.2K words\n▌ Thought · 2.3K words\n"
 
 
 def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:

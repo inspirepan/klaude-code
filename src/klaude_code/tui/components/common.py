@@ -4,6 +4,7 @@ from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
+from klaude_code.config.formatters import format_number
 from klaude_code.const import (
     MIN_HIDDEN_LINES_FOR_INDICATOR,
     TAB_EXPAND_WIDTH,
@@ -33,6 +34,11 @@ def format_elapsed_compact(seconds: float) -> str:
 
     hours, minute = divmod(minutes, 60)
     return f"{hours}h{minute:02d}m{sec:02d}s"
+
+
+def format_compact_count(count: int) -> str:
+    """Format a UI count with an uppercase thousands suffix."""
+    return format_number(count).replace("k", "K")
 
 
 def create_grid(*, overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "fold") -> Table:

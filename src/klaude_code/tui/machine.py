@@ -52,6 +52,7 @@ from klaude_code.tui.commands import (
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
+    RenderThinkingSummary,
     RenderToolCall,
     RenderToolResult,
     RenderUserMessage,
@@ -70,7 +71,12 @@ from klaude_code.tui.commands import (
     TaskClockStart,
     UpdateTerminalTitlePrefix,
 )
-from klaude_code.tui.components.common import format_elapsed_compact, format_more_lines_indicator, format_pascal_case
+from klaude_code.tui.components.common import (
+    format_compact_count,
+    format_elapsed_compact,
+    format_more_lines_indicator,
+    format_pascal_case,
+)
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
@@ -90,6 +96,10 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.REWIND,
     }
 )
+
+
+def _format_char_count(char_count: int) -> str:
+    return format_compact_count(char_count)
 
 STATUS_LEFT_MIN_WIDTH_CELLS = 10
 SUB_AGENT_STATUS_MAX_LINES = 5
@@ -406,7 +416,7 @@ class SpinnerStatusState:
             case SpinnerPhase.COMPOSING:
                 text = Text(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
                 if STATUS_SHOW_BUFFER_LENGTH and self._composing_buffer_length > 0:
-                    text.append(f" ({self._composing_buffer_length:,} chars)", style=ThemeKey.STATUS_TEXT)
+                    text.append(f" ({_format_char_count(self._composing_buffer_length)} chars)", style=ThemeKey.STATUS_TEXT)
                 return text
             case SpinnerPhase.COMPACTING:
                 return Text(STATUS_COMPACTING_TEXT, style=ThemeKey.STATUS_TEXT)
@@ -542,6 +552,10 @@ class _SessionState:
     assistant_stream_active: bool = False
     thinking_stream_active: bool = False
     assistant_char_count: int = 0
+    thinking_char_count: int = 0
+    thinking_started_at: float | None = None
+    thinking_word_count: int = 0
+    thinking_word_open: bool = False
     task_active: bool = False
     status_composing: bool = False
     status_tool_calls: dict[str, int] = field(default_factory=_empty_status_tool_counts)
@@ -563,6 +577,29 @@ class _SessionState:
         self.status_composing = False
         self.status_tool_calls = {}
         self.status_tool_calls_by_id = {}
+
+    def start_thinking(self, timestamp: float) -> None:
+        self.thinking_stream_active = True
+        self.thinking_char_count = 0
+        self.thinking_started_at = timestamp
+        self.thinking_word_count = 0
+        self.thinking_word_open = False
+
+    def append_thinking(self, content: str) -> None:
+        self.thinking_char_count += len(content)
+        for char in content:
+            if char.isspace():
+                self.thinking_word_open = False
+            elif not self.thinking_word_open:
+                self.thinking_word_count += 1
+                self.thinking_word_open = True
+
+    def reset_thinking(self) -> None:
+        self.thinking_stream_active = False
+        self.thinking_char_count = 0
+        self.thinking_started_at = None
+        self.thinking_word_count = 0
+        self.thinking_word_open = False
 
     def add_status_tool_call(self, tool_call_id: str, tool_name: str) -> None:
         if tool_call_id in self.status_tool_calls_by_id:
@@ -598,13 +635,19 @@ class _SessionState:
     def status_activity_text(self) -> str | None:
         if self.status_tool_calls:
             return ", ".join(f"{name} × {count}" for name, count in self.status_tool_calls.items())
-        if self.status_composing:
-            return STATUS_COMPOSING_TEXT
         if self.thinking_stream_active:
-            return STATUS_THINKING_TEXT
+            return self._status_with_char_count(STATUS_THINKING_TEXT, self.thinking_char_count)
+        if self.status_composing:
+            return self._status_with_char_count(STATUS_COMPOSING_TEXT, self.assistant_char_count)
         if self.task_active:
             return STATUS_RUNNING_TEXT
         return None
+
+    @staticmethod
+    def _status_with_char_count(status: str, char_count: int) -> str:
+        if not STATUS_SHOW_BUFFER_LENGTH or char_count <= 0:
+            return status
+        return f"{status} ({_format_char_count(char_count)} chars)"
 
 
 class DisplayStateMachine:
@@ -679,7 +722,7 @@ class DisplayStateMachine:
                 continue
             session.task_active = False
             session.clear_status_activity()
-            session.thinking_stream_active = False
+            session.reset_thinking()
             session.assistant_stream_active = False
             session.assistant_char_count = 0
 
@@ -1133,6 +1176,8 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(FlushOpenBlocks())
+        if s.is_sub_agent:
+            s.reset_thinking()
         if not is_replay:
             if s.is_sub_agent:
                 s.clear_status_activity()
@@ -1147,7 +1192,10 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            return []
+            s.start_thinking(e.timestamp)
+            if not is_replay:
+                cmds.extend(self._spinner_update_commands())
+            return cmds
         if not self._is_primary(e.session_id):
             return []
         s.thinking_stream_active = True
@@ -1165,6 +1213,9 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
+            s.append_thinking(e.content)
+            if not is_replay:
+                cmds.extend(self._spinner_update_commands())
             return cmds
 
         if not self._is_primary(e.session_id):
@@ -1177,7 +1228,14 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            return []
+            duration_s = None if is_replay else max(0.0, e.timestamp - (s.thinking_started_at or e.timestamp))
+            word_count = s.thinking_word_count
+            s.reset_thinking()
+            if word_count > 0:
+                cmds.append(RenderThinkingSummary(e.session_id, duration_s, word_count))
+            if not is_replay:
+                cmds.extend(self._spinner_update_commands())
+            return cmds
         if not self._is_primary(e.session_id):
             return []
         s.thinking_stream_active = False
@@ -1196,6 +1254,7 @@ class DisplayStateMachine:
         if s.is_sub_agent:
             if not is_replay:
                 s.status_composing = True
+                s.assistant_char_count = 0
                 cmds.extend(self._spinner_update_commands())
             return cmds
         if not self._is_primary(e.session_id):
@@ -1216,7 +1275,10 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            return []
+            s.assistant_char_count += len(e.content)
+            if not is_replay:
+                cmds.extend(self._spinner_update_commands())
+            return cmds
         if not self._is_primary(e.session_id):
             return []
 
@@ -1497,8 +1559,9 @@ class DisplayStateMachine:
 
         # Defensive: finalize any open streams so buffered markdown is flushed.
         if s.thinking_stream_active:
-            s.thinking_stream_active = False
-            cmds.append(EndThinkingStream(session_id=e.session_id))
+            s.reset_thinking()
+            if not s.is_sub_agent:
+                cmds.append(EndThinkingStream(session_id=e.session_id))
         if s.assistant_stream_active:
             s.assistant_stream_active = False
             cmds.append(EndAssistantStream(session_id=e.session_id))
@@ -1543,11 +1606,13 @@ class DisplayStateMachine:
             cmds.append(SpinnerStop())
         s.task_active = False
         s.clear_status_activity()
+        s.reset_thinking()
         if not s.is_sub_agent:
             self._terminal_title_prefix = None
             self._clear_active_sub_agent_sessions()
-        cmds.append(EndThinkingStream(session_id=e.session_id))
-        cmds.append(EndAssistantStream(session_id=e.session_id))
+        if not s.is_sub_agent:
+            cmds.append(EndThinkingStream(session_id=e.session_id))
+            cmds.append(EndAssistantStream(session_id=e.session_id))
         if not is_replay:
             cmds.append(TaskClockClear())
             if not s.is_sub_agent:

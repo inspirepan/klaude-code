@@ -146,6 +146,13 @@ class EndThinkingStream(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderThinkingSummary(RenderCommand):
+    session_id: str
+    duration_s: float | None
+    word_count: int
+
+
+@dataclass(frozen=True, slots=True)
 class StartAssistantStream(RenderCommand):
     session_id: str
 

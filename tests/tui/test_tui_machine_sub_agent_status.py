@@ -15,6 +15,7 @@ from klaude_code.tui.commands import (
     RenderBashCommandEnd,
     RenderCommand,
     RenderTaskFinish,
+    RenderThinkingSummary,
     RenderToolResult,
     SpinnerStatusLine,
     SpinnerUpdate,
@@ -124,6 +125,105 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == ["Finder: searching yyyyy | Bashing × 2"]
+
+
+def test_sub_agent_status_tracks_thinking_and_typing_char_counts() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    sub_session = "sub-1"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=SubAgentState(
+                sub_agent_type="general-purpose",
+                sub_agent_desc="compressing context",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    machine.transition(events.ThinkingStartEvent(session_id=sub_session, timestamp=100.0))
+    machine.transition(
+        events.ThinkingDeltaEvent(session_id=sub_session, content="x" * 1234, timestamp=101.0)
+    )
+    thinking = machine.transition(events.ThinkingDeltaEvent(session_id=sub_session, content=" second", timestamp=102.0))
+    assert [_line_plain(line) for line in _last_spinner_update(thinking).status_lines] == [
+        "GeneralPurpose: compressing context | Thinking… (1.2K chars)"
+    ]
+
+    ended = machine.transition(events.ThinkingEndEvent(session_id=sub_session, timestamp=120.0))
+    summary = next(cmd for cmd in ended if isinstance(cmd, RenderThinkingSummary))
+    assert summary.duration_s == 20.0
+    assert summary.word_count == 2
+    assert [_line_plain(line) for line in _last_spinner_update(ended).status_lines] == [
+        "GeneralPurpose: compressing context | Running…"
+    ]
+
+    machine.transition(events.AssistantTextStartEvent(session_id=sub_session))
+    typing = machine.transition(events.AssistantTextDeltaEvent(session_id=sub_session, content="y" * 2345))
+    assert [_line_plain(line) for line in _last_spinner_update(typing).status_lines] == [
+        "GeneralPurpose: compressing context | Typing… (2.3K chars)"
+    ]
+
+    composed = machine.transition(events.AssistantTextEndEvent(session_id=sub_session))
+    assert [_line_plain(line) for line in _last_spinner_update(composed).status_lines] == [
+        "GeneralPurpose: compressing context | Running…"
+    ]
+
+
+def test_sub_agent_new_step_clears_interrupted_thinking() -> None:
+    machine = DisplayStateMachine()
+    sub_session = "sub-1"
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="retrying",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    machine.transition(events.ThinkingStartEvent(session_id=sub_session))
+    machine.transition(events.ThinkingDeltaEvent(session_id=sub_session, content="stale thinking"))
+
+    machine.transition(events.StepStartEvent(session_id=sub_session))
+    machine.transition(events.AssistantTextStartEvent(session_id=sub_session))
+    typing = machine.transition(events.AssistantTextDeltaEvent(session_id=sub_session, content="answer"))
+
+    assert [_line_plain(line) for line in _last_spinner_update(typing).status_lines] == [
+        "Finder: retrying | Typing… (6 chars)"
+    ]
+
+
+def test_sub_agent_replay_summary_omits_unrecoverable_duration() -> None:
+    machine = DisplayStateMachine()
+    sub_session = "sub-1"
+    machine.transition_replay(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition_replay(
+        events.TaskStartEvent(
+            session_id=sub_session,
+            sub_agent_state=SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="replaying",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    machine.transition_replay(events.ThinkingStartEvent(session_id=sub_session, timestamp=100.0))
+    machine.transition_replay(events.ThinkingDeltaEvent(session_id=sub_session, content="two words", timestamp=100.0))
+
+    ended = machine.transition_replay(events.ThinkingEndEvent(session_id=sub_session, timestamp=100.0))
+
+    summary = next(cmd for cmd in ended if isinstance(cmd, RenderThinkingSummary))
+    assert summary.duration_s is None
+    assert summary.word_count == 2
 
 
 def test_main_session_bash_tool_streams_append_only_and_keeps_success_result(

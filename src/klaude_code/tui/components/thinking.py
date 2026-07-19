@@ -1,5 +1,10 @@
 import re
 
+from rich.text import Text
+
+from klaude_code.tui.components.common import format_compact_count, format_elapsed_compact
+from klaude_code.tui.components.rich.theme import ThemeKey
+
 
 def normalize_thinking_content(content: str) -> str:
     """Normalize thinking content for display."""
@@ -23,3 +28,12 @@ def normalize_thinking_content(content: str) -> str:
     text = text.replace("**\n\n", "**  \n")
 
     return text
+
+
+def render_thinking_summary(duration_s: float | None, word_count: int) -> Text:
+    """Render a compact summary for hidden sub-agent thinking."""
+    duration = f" for {format_elapsed_compact(duration_s)}" if duration_s is not None else ""
+    return Text(
+        f"Thought{duration} · {format_compact_count(word_count)} words",
+        style=ThemeKey.METADATA_DIM,
+    )

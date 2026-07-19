@@ -55,6 +55,7 @@ from klaude_code.tui.commands import (
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
+    RenderThinkingSummary,
     RenderToolCall,
     RenderToolResult,
     RenderUserMessage,
@@ -1040,6 +1041,9 @@ class TUICommandRenderer:
                     finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
                     if finalized and had_content:
                         self.print()
+                case RenderThinkingSummary(session_id=session_id, duration_s=duration_s, word_count=word_count):
+                    with self.session_print_context(session_id):
+                        self.print(c_thinking.render_thinking_summary(duration_s, word_count))
                 case StartAssistantStream(session_id=_):
                     if not self._assistant_stream.is_active:
                         self._assistant_stream.start(self._new_assistant_mdstream())
