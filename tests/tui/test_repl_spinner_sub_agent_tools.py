@@ -135,6 +135,7 @@ def test_assistant_delta_updates_typing_character_count() -> None:
 
     update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
     status_text = update.status_lines[0].text
+    assert isinstance(status_text, (str, Text))
     plain = status_text.plain if isinstance(status_text, Text) else status_text
     assert plain.startswith("Typing… (5 chars)")
 
@@ -174,6 +175,7 @@ def test_handoff_compaction_uses_distinct_spinner_status() -> None:
 
     update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
     status_text = update.status_lines[0].text
+    assert isinstance(status_text, (str, Text))
     plain = status_text.plain if isinstance(status_text, Text) else status_text
     assert plain.startswith(STATUS_HANDOFF_TEXT)
 
@@ -187,6 +189,7 @@ def test_handoff_compaction_clears_duplicate_tool_activity() -> None:
 
     update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
     status_text = update.status_lines[0].text
+    assert isinstance(status_text, (str, Text))
     plain = status_text.plain if isinstance(status_text, Text) else status_text
     assert plain.startswith(STATUS_HANDOFF_TEXT)
     assert " | Packing Context" not in plain

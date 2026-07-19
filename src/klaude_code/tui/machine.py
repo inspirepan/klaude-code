@@ -102,6 +102,7 @@ FAST_TOOLS: frozenset[str] = frozenset(
 def _format_char_count(char_count: int) -> str:
     return format_compact_count(char_count)
 
+
 STATUS_LEFT_MIN_WIDTH_CELLS = 10
 SUB_AGENT_STATUS_MAX_LINES = 5
 BASH_STREAM_DELAY_SEC = 3.0
@@ -417,7 +418,9 @@ class SpinnerStatusState:
             case SpinnerPhase.COMPOSING:
                 text = Text(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
                 if STATUS_SHOW_BUFFER_LENGTH and self._composing_buffer_length > 0:
-                    text.append(f" ({_format_char_count(self._composing_buffer_length)} chars)", style=ThemeKey.STATUS_TEXT)
+                    text.append(
+                        f" ({_format_char_count(self._composing_buffer_length)} chars)", style=ThemeKey.STATUS_TEXT
+                    )
                 return text
             case SpinnerPhase.COMPACTING:
                 return Text(STATUS_COMPACTING_TEXT, style=ThemeKey.STATUS_TEXT)

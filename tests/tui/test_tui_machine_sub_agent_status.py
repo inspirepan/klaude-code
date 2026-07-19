@@ -159,9 +159,7 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: py
     ]
 
     machine.transition(events.ThinkingStartEvent(session_id=sub_session, timestamp=100.0))
-    machine.transition(
-        events.ThinkingDeltaEvent(session_id=sub_session, content="x" * 1234, timestamp=101.0)
-    )
+    machine.transition(events.ThinkingDeltaEvent(session_id=sub_session, content="x" * 1234, timestamp=101.0))
     thinking = machine.transition(events.ThinkingDeltaEvent(session_id=sub_session, content=" second", timestamp=102.0))
     assert [_line_plain(line) for line in _last_spinner_update(thinking).status_lines] == [
         "GeneralPurpose: compressing context · 1 step | Thinking… (1.2K chars · 2s)"

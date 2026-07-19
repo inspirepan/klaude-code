@@ -387,9 +387,7 @@ def test_sub_agent_thinking_summary_uses_scoped_quote() -> None:
     )
 
     assert output.getvalue() == (
-        "▌ Thought for 20s · 1.2K chars\n"
-        "▌ Thought for a moment · 13 chars\n"
-        "▌ Thought · 2.3K chars\n"
+        "▌ Thought for 20s · 1.2K chars\n▌ Thought for a moment · 13 chars\n▌ Thought · 2.3K chars\n"
     )
 
 
