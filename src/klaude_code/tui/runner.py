@@ -680,11 +680,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             away_summary_coordinator.notify_task_finished()
             if interrupted:
                 prefill_text = None
-                if components.runtime.current_agent is not None:
-                    prefill_text = components.runtime.current_agent.consume_interrupt_prefill_text()
-                _mark_agent_idle()
-                input_provider.set_next_prefill(prefill_text)
-                return
+                agent = components.runtime.current_agent
+                if agent is not None:
+                    prefill_text = agent.consume_interrupt_prefill_text()
+                if agent is None or agent.peek_next_follow_up() is None:
+                    _mark_agent_idle()
+                    input_provider.set_next_prefill(prefill_text)
+                    return
 
             while True:
                 agent = components.runtime.current_agent
@@ -723,11 +725,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     _refresh_pending_messages()
                 if interrupted:
                     prefill_text = None
-                    if components.runtime.current_agent is not None:
-                        prefill_text = components.runtime.current_agent.consume_interrupt_prefill_text()
-                    _mark_agent_idle()
-                    input_provider.set_next_prefill(prefill_text)
-                    return
+                    current_agent = components.runtime.current_agent
+                    if current_agent is not None:
+                        prefill_text = current_agent.consume_interrupt_prefill_text()
+                    if current_agent is None or current_agent.peek_next_follow_up() is None:
+                        _mark_agent_idle()
+                        input_provider.set_next_prefill(prefill_text)
+                        return
         finally:
             _mark_agent_idle()
 
