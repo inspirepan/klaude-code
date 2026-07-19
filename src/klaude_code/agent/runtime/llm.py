@@ -118,9 +118,7 @@ class FallbackLLMClient(LLMClientABC):
 def create_llm_client_for_candidates(candidates: list[ModelConfigCandidate]) -> LLMClientABC:
     if not candidates:
         raise ValueError("At least one model candidate is required")
-    if len(candidates) > 1:
-        return FallbackLLMClient(candidates)
-    return create_llm_client(candidates[0].llm_config)
+    return FallbackLLMClient(candidates)
 
 
 @dataclass
@@ -181,13 +179,14 @@ def build_llm_clients(
     except ValueError as exc:
         raise ModelResolutionError("fast_model", config.fast_model, exc) from exc
     if selected_fast_model is not None:
-        fast_llm_config = config.get_model_config(selected_fast_model)
+        fast_candidate = config.iter_model_config_candidates(selected_fast_model)[0]
+        fast_llm_config = fast_candidate.llm_config
         log_debug(
             "Fast LLM config",
             fast_llm_config.model_dump_json(exclude_none=True),
             debug_type=DebugType.LLM_CONFIG,
         )
-        fast_client = create_llm_client(fast_llm_config)
+        fast_client = create_llm_client_for_candidates([fast_candidate])
 
     compact_client: LLMClientABC | None = None
     compact_candidates = config.iter_model_config_candidates(config.compact_model)

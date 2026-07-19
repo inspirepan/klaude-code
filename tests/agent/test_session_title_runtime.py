@@ -152,7 +152,10 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
         compact_model=["missing-compact-model", "compact-model"],
     )
 
+    created_clients: list[llm_param.LLMConfigParameter] = []
+
     def _create_client(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        created_clients.append(llm_config)
         return _FakeLLMClient([], config=llm_config)
 
     monkeypatch.setattr(
@@ -167,6 +170,7 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
     assert clients.fast.model_name == "fast-model-id"
     assert clients.compact is not None
     assert clients.compact.model_name == "compact-model-id"
+    assert created_clients == []
 
 
 def test_build_llm_clients_uses_main_model_fallback_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
