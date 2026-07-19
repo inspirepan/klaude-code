@@ -1,12 +1,16 @@
+from __future__ import annotations
+
 import time
 from collections.abc import AsyncGenerator
-
-import openai.types
+from typing import TYPE_CHECKING
 
 from klaude_code.const import THROUGHPUT_MIN_DURATION_SEC
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import Usage
+
+if TYPE_CHECKING:
+    from openai.types import CompletionUsage
 
 
 def calculate_cost(usage: Usage, cost_config: llm_param.Cost | None) -> None:
@@ -140,7 +144,7 @@ def error_llm_stream(
 
 
 def convert_usage(
-    usage: openai.types.CompletionUsage,
+    usage: CompletionUsage,
     context_limit: int | None = None,
     max_tokens: int | None = None,
 ) -> Usage:
