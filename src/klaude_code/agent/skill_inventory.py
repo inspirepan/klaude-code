@@ -57,3 +57,9 @@ def get_skill_warnings_by_location() -> dict[str, list[str]]:
         return {}
 
     return _safe_skill_call(get_skill_warnings_by_location, {})
+
+
+def warmup_skill_inventory() -> None:
+    """Load the shared skill inventory for later welcome and attachment use."""
+    get_skill_names_by_location()
+    get_skill_warnings_by_location()

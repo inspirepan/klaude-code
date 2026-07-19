@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from klaude_code.agent.compaction import should_compact_threshold
 from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
+from klaude_code.agent.skill_inventory import warmup_skill_inventory
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime import (
     AppInitConfig,
@@ -26,7 +27,6 @@ from klaude_code.log import log
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
-from klaude_code.skill.system_skills import install_system_skills
 from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,
@@ -504,6 +504,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             active_display.set_progress_ui_suspended(suspended)
 
     active_wait_task: asyncio.Task[None] | None = None
+    startup_task: asyncio.Task[None] | None = None
+    prompt_started = asyncio.Event()
     # Set when the user interrupts (Esc/Ctrl-C) the active turn. The wait task
     # keeps running while the interrupt winds down, so a submission that lands
     # in that window must start a fresh turn instead of being queued.
@@ -513,6 +515,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         return active_wait_task is not None and not active_wait_task.done()
 
     def _on_prompt_start() -> None:
+        prompt_started.set()
         _set_rich_progress_suspended(True)
         away_summary_coordinator.notify_prompt_started()
 
@@ -732,10 +735,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         with contextlib.suppress(Exception, asyncio.CancelledError):
             task.result()
 
-    try:
-        await away_summary_coordinator.start()
-
-        tui_holder_key = uuid4().hex
+    async def _initialize_after_prompt_start() -> None:
+        await prompt_started.wait()
+        await asyncio.to_thread(warmup_skill_inventory)
         await initialize_session(
             components.runtime,
             components.wait_for_display_idle,
@@ -749,27 +751,24 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             is_new_session=session_id is None,
         )
 
-        # Provide session directory so large pastes can be saved to files
         agent = components.runtime.current_agent
         if agent is not None and hasattr(agent, "session"):
             agent_session = agent.session
             input_provider.set_session_dir(Session.paths(agent_session.work_dir).session_dir(agent_session.id))
         _refresh_pending_messages()
+        await _warmup_runtime_clients(components.runtime)
 
-        # Warm blocking startup dependencies while prompt_toolkit owns the input.
-        # A submission that wins the race waits on the same client initialization.
-        provider_warmup_task = asyncio.create_task(_warmup_runtime_clients(components.runtime))
-        provider_warmup_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+    try:
+        await away_summary_coordinator.start()
 
-        # The system-skills check hashes every embedded asset file. Keep that I/O
-        # off the event loop so the input remains responsive during warmup.
-        skills_warmup_task = asyncio.create_task(asyncio.to_thread(install_system_skills))
-        skills_warmup_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+        tui_holder_key = uuid4().hex
+        startup_task = asyncio.create_task(_initialize_after_prompt_start())
 
         await input_provider.start()
         inputs_iter = cast(AsyncGenerator[UserInputPayload], input_provider.iter_inputs())
         async with contextlib.aclosing(inputs_iter) as inputs:
             async for user_input in inputs:
+                await startup_task
                 is_exit_input = user_input.text.strip().lower() in {"exit", ":q", "quit"}
                 # The user interrupted the running turn and immediately submitted.
                 # Wait for the interrupted turn to settle so this submission starts
@@ -882,6 +881,10 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         exit_hint_printed = True
     finally:
         _set_rich_progress_suspended(False)
+        if startup_task is not None and not startup_task.done():
+            startup_task.cancel()
+            with contextlib.suppress(Exception, asyncio.CancelledError):
+                await startup_task
         if active_wait_task is not None:
             if not active_wait_task.done():
                 active_wait_task.cancel()

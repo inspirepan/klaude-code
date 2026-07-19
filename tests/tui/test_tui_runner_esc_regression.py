@@ -74,13 +74,15 @@ class _FakePromptToolkitInput:
     agent_running_changes: ClassVar[list[bool]] = []
     pause_calls: ClassVar[int] = 0
 
-    def __init__(self, **_: Any) -> None:
-        pass
+    def __init__(self, **kwargs: Any) -> None:
+        self._on_prompt_start = kwargs.get("on_prompt_start")
 
     async def start(self) -> None:
         return None
 
     async def iter_inputs(self):
+        if self._on_prompt_start is not None:
+            self._on_prompt_start()
         for payload in list(self.payloads):
             yield payload
 
@@ -175,6 +177,9 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     def _noop_prevent_sleep() -> None:
         return None
 
+    def _noop_skill_warmup() -> None:
+        return None
+
     monkeypatch.setattr(runner, "TUIDisplay", _FakeDisplay)
     monkeypatch.setattr(runner, "PromptToolkitInput", _FakePromptToolkitInput)
     monkeypatch.setattr(runner, "load_config", _load_config)
@@ -187,6 +192,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(runner, "start_prevent_sleep", _noop_prevent_sleep)
     monkeypatch.setattr(runner, "stop_prevent_sleep", _noop_prevent_sleep)
     monkeypatch.setattr(runner, "force_stop_prevent_sleep", _noop_prevent_sleep)
+    monkeypatch.setattr(runner, "warmup_skill_inventory", _noop_skill_warmup)
 
     return runner
 

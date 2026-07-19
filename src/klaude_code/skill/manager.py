@@ -4,6 +4,7 @@ This module provides a centralized interface for accessing skills throughout the
 Skills are loaded lazily on first access to avoid unnecessary IO at startup.
 """
 
+import threading
 from pathlib import Path
 
 from klaude_code.skill.loader import Skill, SkillLoader
@@ -11,6 +12,7 @@ from klaude_code.skill.system_skills import install_system_skills
 
 _loader: SkillLoader | None = None
 _initialized: bool = False
+_initialization_lock = threading.Lock()
 
 
 def _ensure_initialized() -> SkillLoader:
@@ -21,10 +23,12 @@ def _ensure_initialized() -> SkillLoader:
     """
     global _loader, _initialized
     if not _initialized:
-        install_system_skills()
-        _loader = SkillLoader()
-        _loader.discover_skills(work_dir=Path.cwd())
-        _initialized = True
+        with _initialization_lock:
+            if not _initialized:
+                install_system_skills()
+                _loader = SkillLoader()
+                _loader.discover_skills(work_dir=Path.cwd())
+                _initialized = True
     assert _loader is not None
     return _loader
 
