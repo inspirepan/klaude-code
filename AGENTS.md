@@ -88,6 +88,24 @@ Always use the [Conventional Commits](https://www.conventionalcommits.org/) spec
 <type>(<scope>): <description>
 ```
 
+## Push Workflow
+
+- Push completed changes directly to `main`; do not create a pull request or use the `submit-pr` skill.
+- Before every push, inspect the commits being pushed relative to `origin/main` and run formatting, linting, tests, and a build. All checks must pass before pushing.
+- If any file under `web/` is included in the push, run the full project checks:
+
+  ```bash
+  make pre-push
+  ```
+
+- If no file under `web/` is included in the push, skip Web checks and run the Python-only equivalents:
+
+  ```bash
+  make pre-push-python
+  ```
+
+- If formatting changes files, include those changes in the commit and rerun the affected checks before pushing.
+
 ## Module-Specific Docs
 
 - `src/klaude_code/auth/AGENTS.md` - Adding new OAuth authentication providers
