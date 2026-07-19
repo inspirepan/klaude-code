@@ -18,7 +18,7 @@ BEL: Final[int] = 7
 _OSC_BG_REGEX = re.compile(r"\x1b]11;([^\x07\x1b\\]*)")
 
 
-def is_light_terminal_background(timeout: float = 0.5) -> bool | None:
+def is_light_terminal_background(timeout: float = 0.05) -> bool | None:
     """Detect whether the current terminal background is light.
 
     Returns True for light background, False for dark, and None if detection fails.
