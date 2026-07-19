@@ -24,6 +24,10 @@ def is_light_terminal_background(timeout: float = 0.05) -> bool | None:
     Returns True for light background, False for dark, and None if detection fails.
     """
 
+    term = os.getenv("TERM", "").lower()
+    if os.getenv("TMUX") or os.getenv("SSH_TTY") or os.getenv("SSH_CONNECTION") or term.startswith(("screen", "tmux")):
+        return None
+
     rgb = _query_color_slot(slot=11, timeout=timeout)
     if rgb is None:
         return None
