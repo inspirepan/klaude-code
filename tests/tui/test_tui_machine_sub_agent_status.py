@@ -20,6 +20,7 @@ from klaude_code.tui.commands import (
     SpinnerStatusLine,
     SpinnerUpdate,
 )
+from klaude_code.tui.components.rich.status import DynamicText
 from klaude_code.tui.machine import DisplayStateMachine
 
 
@@ -35,6 +36,9 @@ def _line_plain(line: object) -> str:
         return _line_plain(line.text)
     if isinstance(line, Text):
         return line.plain
+    plain = getattr(line, "plain", None)
+    if isinstance(plain, str):
+        return plain
     return str(line)
 
 
@@ -79,6 +83,8 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == ["Finder: searching xxxxx | Running…"]
     first_line = update.status_lines[0].text
+    if isinstance(first_line, DynamicText):
+        first_line = first_line.snapshot()
     assert isinstance(first_line, Text)
     assert any(
         span.style == "italic" and first_line.plain[span.start : span.end] == "searching xxxxx"
@@ -127,7 +133,9 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     assert lines == ["Finder: searching yyyyy | Bashing × 2"]
 
 
-def test_sub_agent_status_tracks_thinking_and_typing_char_counts() -> None:
+def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: pytest.MonkeyPatch) -> None:
+    now = 102.0
+    monkeypatch.setattr(machine_module.time, "time", lambda: now)
     machine = DisplayStateMachine()
     main_session = "main"
     sub_session = "sub-1"
@@ -145,13 +153,23 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts() -> None:
         )
     )
 
+    first_step = machine.transition(events.StepStartEvent(session_id=sub_session))
+    assert [_line_plain(line) for line in _last_spinner_update(first_step).status_lines] == [
+        "GeneralPurpose: compressing context · 1 step | Running…"
+    ]
+
     machine.transition(events.ThinkingStartEvent(session_id=sub_session, timestamp=100.0))
     machine.transition(
         events.ThinkingDeltaEvent(session_id=sub_session, content="x" * 1234, timestamp=101.0)
     )
     thinking = machine.transition(events.ThinkingDeltaEvent(session_id=sub_session, content=" second", timestamp=102.0))
     assert [_line_plain(line) for line in _last_spinner_update(thinking).status_lines] == [
-        "GeneralPurpose: compressing context | Thinking… (1.2K chars)"
+        "GeneralPurpose: compressing context · 1 step | Thinking… (1.2K chars · 2s)"
+    ]
+
+    now = 125.0
+    assert [_line_plain(line) for line in _last_spinner_update(thinking).status_lines] == [
+        "GeneralPurpose: compressing context · 1 step | Thinking… (1.2K chars · 25s)"
     ]
 
     ended = machine.transition(events.ThinkingEndEvent(session_id=sub_session, timestamp=120.0))
@@ -159,18 +177,23 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts() -> None:
     assert summary.duration_s == 20.0
     assert summary.char_count == 1241
     assert [_line_plain(line) for line in _last_spinner_update(ended).status_lines] == [
-        "GeneralPurpose: compressing context | Running…"
+        "GeneralPurpose: compressing context · 1 step | Running…"
     ]
 
     machine.transition(events.AssistantTextStartEvent(session_id=sub_session))
     typing = machine.transition(events.AssistantTextDeltaEvent(session_id=sub_session, content="y" * 2345))
     assert [_line_plain(line) for line in _last_spinner_update(typing).status_lines] == [
-        "GeneralPurpose: compressing context | Typing… (2.3K chars)"
+        "GeneralPurpose: compressing context · 1 step | Typing… (2.3K chars)"
     ]
 
     composed = machine.transition(events.AssistantTextEndEvent(session_id=sub_session))
     assert [_line_plain(line) for line in _last_spinner_update(composed).status_lines] == [
-        "GeneralPurpose: compressing context | Running…"
+        "GeneralPurpose: compressing context · 1 step | Running…"
+    ]
+
+    second_step = machine.transition(events.StepStartEvent(session_id=sub_session))
+    assert [_line_plain(line) for line in _last_spinner_update(second_step).status_lines] == [
+        "GeneralPurpose: compressing context · 2 steps | Running…"
     ]
 
 
@@ -197,7 +220,7 @@ def test_sub_agent_new_step_clears_interrupted_thinking() -> None:
     typing = machine.transition(events.AssistantTextDeltaEvent(session_id=sub_session, content="answer"))
 
     assert [_line_plain(line) for line in _last_spinner_update(typing).status_lines] == [
-        "Finder: retrying | Typing… (6 chars)"
+        "Finder: retrying · 1 step | Typing… (6 chars)"
     ]
 
 

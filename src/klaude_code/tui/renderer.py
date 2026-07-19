@@ -16,6 +16,7 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.rule import Rule
 from rich.style import Style, StyleType
+from rich.styled import Styled
 from rich.text import Text
 
 from klaude_code.config.formatters import format_number
@@ -468,14 +469,16 @@ class TUICommandRenderer:
             if colored.plain:
                 colored.stylize(fg_only, 0, len(colored))
             return colored
-        return Text(text, style=fg_only)
+        return Styled(text, fg_only)
 
     @staticmethod
-    def _spinner_text_key(text: str | Text) -> object:
+    def _spinner_text_key(text: RenderableType) -> object:
         if isinstance(text, Text):
             style = str(text.style) if text.style else ""
             return ("Text", text.plain, style)
-        return ("str", text)
+        if isinstance(text, str):
+            return ("str", text)
+        return ("other", id(text))
 
     @staticmethod
     def _spinner_right_text_key(text: RenderableType | None) -> object:

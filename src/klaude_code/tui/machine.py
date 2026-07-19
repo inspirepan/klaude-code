@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -554,6 +555,7 @@ class _SessionState:
     assistant_char_count: int = 0
     thinking_char_count: int = 0
     thinking_started_at: float | None = None
+    step_count: int = 0
     task_active: bool = False
     status_composing: bool = False
     status_tool_calls: dict[str, int] = field(default_factory=_empty_status_tool_counts)
@@ -624,7 +626,12 @@ class _SessionState:
         if self.status_tool_calls:
             return ", ".join(f"{name} × {count}" for name, count in self.status_tool_calls.items())
         if self.thinking_stream_active:
-            return self._status_with_char_count(STATUS_THINKING_TEXT, self.thinking_char_count)
+            started_at = self.thinking_started_at if self.thinking_started_at is not None else time.time()
+            return self._status_with_char_count(
+                STATUS_THINKING_TEXT,
+                self.thinking_char_count,
+                elapsed_s=max(0.0, time.time() - started_at),
+            )
         if self.status_composing:
             return self._status_with_char_count(STATUS_COMPOSING_TEXT, self.assistant_char_count)
         if self.task_active:
@@ -632,10 +639,15 @@ class _SessionState:
         return None
 
     @staticmethod
-    def _status_with_char_count(status: str, char_count: int) -> str:
-        if not STATUS_SHOW_BUFFER_LENGTH or char_count <= 0:
+    def _status_with_char_count(status: str, char_count: int, *, elapsed_s: float | None = None) -> str:
+        details: list[str] = []
+        if STATUS_SHOW_BUFFER_LENGTH and char_count > 0:
+            details.append(f"{_format_char_count(char_count)} chars")
+        if elapsed_s is not None:
+            details.append(format_elapsed_compact(elapsed_s))
+        if not details:
             return status
-        return f"{status} ({_format_char_count(char_count)} chars)"
+        return f"{status} ({' · '.join(details)})"
 
 
 class DisplayStateMachine:
@@ -719,20 +731,12 @@ class DisplayStateMachine:
         for session in self._sessions.values():
             if not session.is_sub_agent or not session.task_active:
                 continue
-            title = session.status_title()
-            description = session.status_description()
-            line = Text(title, style=ThemeKey.STATUS_TEXT)
-            if description:
-                line.append(": ", style=ThemeKey.STATUS_TEXT)
-                description_start = len(line)
-                line.append(description, style=ThemeKey.STATUS_TEXT)
-                line.stylize("italic", description_start, len(line))
-
-            activity = session.status_activity_text()
-            if activity:
-                line.append(" | ")
-                line.append(activity, style=ThemeKey.STATUS_TEXT)
-            lines.append(SpinnerStatusLine(text=line, session_id=session.session_id))
+            lines.append(
+                SpinnerStatusLine(
+                    text=r_status.DynamicText(lambda session=session: self._sub_agent_status_line(session)),
+                    session_id=session.session_id,
+                )
+            )
 
         if len(lines) <= SUB_AGENT_STATUS_MAX_LINES:
             return tuple(lines)
@@ -741,6 +745,27 @@ class DisplayStateMachine:
         visible = lines[:SUB_AGENT_STATUS_MAX_LINES]
         visible.append(SpinnerStatusLine(text=Text(format_more_lines_indicator(hidden), style=ThemeKey.STATUS_HINT)))
         return tuple(visible)
+
+    @staticmethod
+    def _sub_agent_status_line(session: _SessionState) -> Text:
+        title = session.status_title()
+        description = session.status_description()
+        line = Text(title, style=ThemeKey.STATUS_TEXT)
+        if description:
+            line.append(": ", style=ThemeKey.STATUS_TEXT)
+            description_start = len(line)
+            line.append(description, style=ThemeKey.STATUS_TEXT)
+            line.stylize("italic", description_start, len(line))
+
+        if session.step_count > 0:
+            suffix = "step" if session.step_count == 1 else "steps"
+            line.append(f" · {session.step_count} {suffix}", style=ThemeKey.STATUS_HINT)
+
+        activity = session.status_activity_text()
+        if activity:
+            line.append(" | ")
+            line.append(activity, style=ThemeKey.STATUS_TEXT)
+        return line
 
     def _spinner_update_commands(self) -> list[RenderCommand]:
         sub_agent_lines = self._sub_agent_status_lines()
@@ -952,6 +977,7 @@ class DisplayStateMachine:
         s.parent_session_id = e.parent_session_id
         s.model_id = e.model_id
         s.task_active = True
+        s.step_count = 0
         s.clear_status_activity()
         if not s.is_sub_agent:
             # Keep primary session tracking in sync even if the session id changes
@@ -1165,6 +1191,7 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
         cmds.append(FlushOpenBlocks())
         if s.is_sub_agent:
+            s.step_count += 1
             s.reset_thinking()
         if not is_replay:
             if s.is_sub_agent:

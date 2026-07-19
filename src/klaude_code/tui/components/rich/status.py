@@ -52,11 +52,14 @@ class DynamicText:
 
     @property
     def plain(self) -> str:
-        return self._factory().plain
+        return self.snapshot().plain
+
+    def snapshot(self) -> Text:
+        return self._factory()
 
     def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
         # Ensure Table/grid layout allocates a stable width for this renderable.
-        text = self._factory()
+        text = self.snapshot()
         measured = Measurement.get(console, options, text)
         min_width = max(measured.minimum, self.min_width_cells)
         max_width = max(measured.maximum, self.min_width_cells)
@@ -67,7 +70,7 @@ class DynamicText:
         return Measurement(min_width, max_width)
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        yield self._factory()
+        yield self.snapshot()
 
 
 class ResponsiveDynamicText(DynamicText):

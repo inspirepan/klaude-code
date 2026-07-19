@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 from rich.console import RenderableType
-from rich.text import Text
 
 from klaude_code.protocol import events
 
@@ -180,7 +179,7 @@ class SpinnerStop(RenderCommand):
 
 @dataclass(frozen=True, slots=True)
 class SpinnerStatusLine:
-    text: str | Text
+    text: RenderableType
     session_id: str | None = None
 
 
