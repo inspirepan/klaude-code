@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import threading
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
@@ -79,12 +80,13 @@ class FallbackLLMClient(LLMClientABC):
         return list(self._candidates)
 
     def fallback_to_next(self) -> ModelFallback | None:
-        if not self.has_next_candidate:
-            return None
-        from_candidate = self.active_candidate
-        self._active_index += 1
-        to_candidate = self.active_candidate
-        self._config = to_candidate.llm_config
+        with self._client_lock:
+            if not self.has_next_candidate:
+                return None
+            from_candidate = self.active_candidate
+            self._active_index += 1
+            to_candidate = self.active_candidate
+            self._config = to_candidate.llm_config
         log_debug(
             f"Fallback model config: {from_candidate.selector} -> {to_candidate.selector}",
             debug_type=DebugType.LLM_CONFIG,
@@ -106,9 +108,11 @@ class FallbackLLMClient(LLMClientABC):
         return await client.call(param)
 
     async def warmup(self) -> None:
-        """Create the active provider client without blocking the event loop."""
+        """Best-effort creation of the active provider client off the event loop."""
         if self._active_index not in self._clients:
-            await asyncio.to_thread(self._active_client)
+            # The first real call preserves the normal error-stream and fallback path.
+            with contextlib.suppress(Exception):
+                await asyncio.to_thread(self._active_client)
 
     def _active_client(self) -> LLMClientABC:
         with self._client_lock:
@@ -149,9 +153,9 @@ class LLMClients:
         return self.fast or self.main
 
     async def warmup(self) -> None:
-        """Warm clients used by the main interactive flow."""
-        clients = (self.main, self.fast, self.compact)
-        await asyncio.gather(*(client.warmup() for client in clients if isinstance(client, FallbackLLMClient)))
+        """Warm the client needed by the first interactive request."""
+        if isinstance(self.main, FallbackLLMClient):
+            await self.main.warmup()
 
 
 def build_llm_clients(

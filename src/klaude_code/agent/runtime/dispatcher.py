@@ -204,7 +204,7 @@ class OperationDispatcher:
 
     def get_session_llm_clients(self, session_id: str) -> LLMClients:
         """Return the client set owned by an initialized session."""
-        return self._agent_operation_handler.get_session_llm_clients(session_id)
+        return self._agent_runner.get_session_llm_clients(session_id)
 
     @property
     def current_agent(self) -> Agent | None:

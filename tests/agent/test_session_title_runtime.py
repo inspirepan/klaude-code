@@ -176,11 +176,7 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
         await asyncio.gather(clients.warmup(), clients.warmup())
 
     asyncio.run(_warm_concurrently())
-    assert sorted(client.model_id for client in created_clients) == [
-        "compact-model-id",
-        "fast-model-id",
-        "main-model-id",
-    ]
+    assert [client.model_id for client in created_clients] == ["main-model-id"]
 
 
 def test_build_llm_clients_uses_main_model_fallback_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
