@@ -379,13 +379,18 @@ def test_sub_agent_thinking_summary_uses_scoped_quote() -> None:
     asyncio.run(
         renderer.execute(
             [
-                RenderThinkingSummary(session_id=session_id, duration_s=20.0, word_count=1234),
-                RenderThinkingSummary(session_id=session_id, duration_s=None, word_count=2345),
+                RenderThinkingSummary(session_id=session_id, duration_s=20.0, char_count=1234),
+                RenderThinkingSummary(session_id=session_id, duration_s=0.2, char_count=13),
+                RenderThinkingSummary(session_id=session_id, duration_s=None, char_count=2345),
             ]
         )
     )
 
-    assert output.getvalue() == "▌ Thought for 20s · 1.2K words\n▌ Thought · 2.3K words\n"
+    assert output.getvalue() == (
+        "▌ Thought for 20s · 1.2K chars\n"
+        "▌ Thought for a moment · 13 chars\n"
+        "▌ Thought · 2.3K chars\n"
+    )
 
 
 def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:

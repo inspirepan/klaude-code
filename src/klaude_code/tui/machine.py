@@ -554,8 +554,6 @@ class _SessionState:
     assistant_char_count: int = 0
     thinking_char_count: int = 0
     thinking_started_at: float | None = None
-    thinking_word_count: int = 0
-    thinking_word_open: bool = False
     task_active: bool = False
     status_composing: bool = False
     status_tool_calls: dict[str, int] = field(default_factory=_empty_status_tool_counts)
@@ -582,24 +580,14 @@ class _SessionState:
         self.thinking_stream_active = True
         self.thinking_char_count = 0
         self.thinking_started_at = timestamp
-        self.thinking_word_count = 0
-        self.thinking_word_open = False
 
     def append_thinking(self, content: str) -> None:
         self.thinking_char_count += len(content)
-        for char in content:
-            if char.isspace():
-                self.thinking_word_open = False
-            elif not self.thinking_word_open:
-                self.thinking_word_count += 1
-                self.thinking_word_open = True
 
     def reset_thinking(self) -> None:
         self.thinking_stream_active = False
         self.thinking_char_count = 0
         self.thinking_started_at = None
-        self.thinking_word_count = 0
-        self.thinking_word_open = False
 
     def add_status_tool_call(self, tool_call_id: str, tool_name: str) -> None:
         if tool_call_id in self.status_tool_calls_by_id:
@@ -1229,10 +1217,10 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             duration_s = None if is_replay else max(0.0, e.timestamp - (s.thinking_started_at or e.timestamp))
-            word_count = s.thinking_word_count
+            char_count = s.thinking_char_count
             s.reset_thinking()
-            if word_count > 0:
-                cmds.append(RenderThinkingSummary(e.session_id, duration_s, word_count))
+            if char_count > 0:
+                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count))
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
             return cmds

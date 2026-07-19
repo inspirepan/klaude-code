@@ -149,7 +149,7 @@ class EndThinkingStream(RenderCommand):
 class RenderThinkingSummary(RenderCommand):
     session_id: str
     duration_s: float | None
-    word_count: int
+    char_count: int
 
 
 @dataclass(frozen=True, slots=True)

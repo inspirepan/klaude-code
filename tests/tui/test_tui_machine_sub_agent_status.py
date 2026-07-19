@@ -157,7 +157,7 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts() -> None:
     ended = machine.transition(events.ThinkingEndEvent(session_id=sub_session, timestamp=120.0))
     summary = next(cmd for cmd in ended if isinstance(cmd, RenderThinkingSummary))
     assert summary.duration_s == 20.0
-    assert summary.word_count == 2
+    assert summary.char_count == 1241
     assert [_line_plain(line) for line in _last_spinner_update(ended).status_lines] == [
         "GeneralPurpose: compressing context | Running…"
     ]
@@ -217,13 +217,13 @@ def test_sub_agent_replay_summary_omits_unrecoverable_duration() -> None:
         )
     )
     machine.transition_replay(events.ThinkingStartEvent(session_id=sub_session, timestamp=100.0))
-    machine.transition_replay(events.ThinkingDeltaEvent(session_id=sub_session, content="two words", timestamp=100.0))
+    machine.transition_replay(events.ThinkingDeltaEvent(session_id=sub_session, content="你好，世界", timestamp=100.0))
 
     ended = machine.transition_replay(events.ThinkingEndEvent(session_id=sub_session, timestamp=100.0))
 
     summary = next(cmd for cmd in ended if isinstance(cmd, RenderThinkingSummary))
     assert summary.duration_s is None
-    assert summary.word_count == 2
+    assert summary.char_count == 5
 
 
 def test_main_session_bash_tool_streams_append_only_and_keeps_success_result(
