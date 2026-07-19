@@ -281,6 +281,7 @@ class AgentOperationHandler:
         *,
         work_dir: Path | None = None,
         defer_welcome_context: bool = False,
+        defer_replay: bool = False,
     ) -> Agent:
         """Return the agent for a session, creating or loading as needed.
 
@@ -347,25 +348,45 @@ class AgentOperationHandler:
             )
         )
 
-        async for evt in agent.replay_history():
-            await self._emit_event(evt)
-
-        runtime.set_agent(agent)
-        if self._primary_session_id is None:
-            self._primary_session_id = session.id
+        if defer_replay:
+            runtime.set_agent(agent)
+            if self._primary_session_id is None:
+                self._primary_session_id = session.id
+        else:
+            async for evt in agent.replay_history():
+                await self._emit_event(evt)
+            runtime.set_agent(agent)
+            if self._primary_session_id is None:
+                self._primary_session_id = session.id
         log_debug(
             f"Initialized agent for session: {session.id}",
             debug_type=DebugType.EXECUTION,
         )
         return agent
 
-    async def init_agent(self, session_id: str, *, work_dir: Path, defer_welcome_context: bool = False) -> None:
+    async def init_agent(
+        self,
+        session_id: str,
+        *,
+        work_dir: Path,
+        defer_welcome_context: bool = False,
+        defer_replay: bool = False,
+    ) -> None:
         agent = await self.ensure_agent(
             session_id,
             work_dir=work_dir,
             defer_welcome_context=defer_welcome_context,
+            defer_replay=defer_replay,
         )
         self._primary_session_id = agent.session.id
+
+    async def replay_session_history(self, session_id: str) -> None:
+        runtime = self._get_session_actor(session_id)
+        agent = runtime.get_agent() if runtime is not None else None
+        if agent is None:
+            raise ValueError(f"Session is not initialized: {session_id}")
+        async for evt in agent.replay_history():
+            await self._emit_event(evt)
 
     async def _refresh_session_title(
         self,
@@ -1129,12 +1150,23 @@ class AgentRunner:
     def current_agent(self) -> Agent | None:
         return self._operation_handler.current_agent
 
-    async def init_agent(self, session_id: str, *, work_dir: Path, defer_welcome_context: bool = False) -> None:
+    async def init_agent(
+        self,
+        session_id: str,
+        *,
+        work_dir: Path,
+        defer_welcome_context: bool = False,
+        defer_replay: bool = False,
+    ) -> None:
         await self._operation_handler.init_agent(
             session_id,
             work_dir=work_dir,
             defer_welcome_context=defer_welcome_context,
+            defer_replay=defer_replay,
         )
+
+    async def replay_session_history(self, session_id: str) -> None:
+        await self._operation_handler.replay_session_history(session_id)
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._operation_handler.run_agent(operation)

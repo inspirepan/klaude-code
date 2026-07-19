@@ -218,7 +218,11 @@ class OperationDispatcher:
             operation.session_id,
             work_dir=operation.work_dir,
             defer_welcome_context=operation.defer_welcome_context,
+            defer_replay=operation.defer_replay,
         )
+
+    async def replay_session_history(self, session_id: str) -> None:
+        await self._agent_runner.replay_session_history(session_id)
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._agent_runner.run_agent(operation)

@@ -23,7 +23,7 @@ from klaude_code.app.runtime import (
 )
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import load_config
-from klaude_code.log import log
+from klaude_code.log import DebugType, log, log_debug
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
@@ -192,6 +192,29 @@ async def _warmup_runtime_clients(runtime: RuntimeFacade) -> None:
 
 async def _emit_welcome_context(runtime: RuntimeFacade, event: events.WelcomeContextEvent) -> None:
     await runtime.emit_event(event)
+
+
+async def _replay_session_history(runtime: RuntimeFacade, session_id: str) -> None:
+    await runtime.replay_session_history(session_id)
+
+
+async def _load_welcome_context_and_replay(
+    runtime: RuntimeFacade,
+    session: Session,
+    wait_for_display_idle: Callable[[], Awaitable[None]],
+) -> None:
+    try:
+        context_event = await asyncio.to_thread(
+            build_welcome_context_event,
+            session_id=session.id,
+            work_dir=session.work_dir,
+        )
+        await _emit_welcome_context(runtime, context_event)
+        await wait_for_display_idle()
+    except Exception as exc:
+        log_debug(f"Welcome context initialization failed: {exc}", debug_type=DebugType.EXECUTION)
+    await _replay_session_history(runtime, session.id)
+    await wait_for_display_idle()
 
 
 async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> WebModeRequest | None:
@@ -744,13 +767,11 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         agent = components.runtime.current_agent
         if agent is not None and hasattr(agent, "session"):
             agent_session = agent.session
-            context_event = await asyncio.to_thread(
-                build_welcome_context_event,
-                session_id=agent_session.id,
-                work_dir=agent_session.work_dir,
+            await _load_welcome_context_and_replay(
+                components.runtime,
+                agent_session,
+                components.wait_for_display_idle,
             )
-            await _emit_welcome_context(components.runtime, context_event)
-            await components.wait_for_display_idle()
         await _warmup_runtime_clients(components.runtime)
 
     try:
@@ -763,6 +784,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             session_id=session_id,
             holder_key=tui_holder_key,
             defer_welcome_context=True,
+            defer_replay=True,
         )
         backfill_session_model_config(
             components.runtime.current_agent,

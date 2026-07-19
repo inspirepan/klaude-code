@@ -73,6 +73,7 @@ class _FakePromptToolkitInput:
     pending_messages: ClassVar[list[tuple[str, ...]]] = []
     agent_running_changes: ClassVar[list[bool]] = []
     pause_calls: ClassVar[int] = 0
+    startup_events: ClassVar[list[str]] = []
 
     def __init__(self, **kwargs: Any) -> None:
         self._on_prompt_start = kwargs.get("on_prompt_start")
@@ -152,6 +153,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     _FakePromptToolkitInput.pending_messages = []
     _FakePromptToolkitInput.agent_running_changes = []
     _FakePromptToolkitInput.pause_calls = 0
+    _FakePromptToolkitInput.startup_events = []
 
     def _load_config() -> SimpleNamespace:
         return SimpleNamespace(theme="dark")
@@ -165,14 +167,20 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     async def _noop_cleanup(_components: object) -> None:
         return None
 
-    async def _fake_initialize_session(*_args: object, **_kwargs: object) -> str:
+    async def _fake_initialize_session(*_args: object, **kwargs: object) -> str:
+        _FakePromptToolkitInput.startup_events.append(
+            f"init:{kwargs.get('defer_welcome_context')}:{kwargs.get('defer_replay')}"
+        )
         return "s1"
 
     async def _noop_warmup(_runtime: object) -> None:
         return None
 
     async def _noop_emit_welcome_context(_runtime: object, _event: events.WelcomeContextEvent) -> None:
-        return None
+        _FakePromptToolkitInput.startup_events.append("context")
+
+    async def _noop_replay_session_history(_runtime: object, _session_id: str) -> None:
+        _FakePromptToolkitInput.startup_events.append("replay")
 
     def _install_sigint_interrupt(_cb: Callable[[], None]) -> Callable[[], None]:
         return lambda: None
@@ -192,6 +200,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(runner, "initialize_session", _fake_initialize_session)
     monkeypatch.setattr(runner, "_warmup_runtime_clients", _noop_warmup)
     monkeypatch.setattr(runner, "_emit_welcome_context", _noop_emit_welcome_context)
+    monkeypatch.setattr(runner, "_replay_session_history", _noop_replay_session_history)
     monkeypatch.setattr(runner, "install_sigint_interrupt", _install_sigint_interrupt)
     monkeypatch.setattr(runner, "start_prevent_sleep", _noop_prevent_sleep)
     monkeypatch.setattr(runner, "stop_prevent_sleep", _noop_prevent_sleep)
@@ -250,6 +259,26 @@ def test_threshold_compaction_submission_defers_run_until_after_compact(monkeypa
     assert any(isinstance(event, events.UserMessageEvent) for event in emitted)
 
 
+def test_welcome_context_failure_still_replays_history(monkeypatch: pytest.MonkeyPatch) -> None:
+    import klaude_code.tui.runner as runner
+
+    replayed: list[str] = []
+
+    def _fail_context(**_kwargs: object) -> events.WelcomeContextEvent:
+        raise OSError("skill scan failed")
+
+    async def _record_replay(_runtime: object, session_id: str) -> None:
+        replayed.append(session_id)
+
+    monkeypatch.setattr(runner, "build_welcome_context_event", _fail_context)
+    monkeypatch.setattr(runner, "_replay_session_history", _record_replay)
+
+    session = SimpleNamespace(id="s1", work_dir=Path.cwd())
+    arun(runner._load_welcome_context_and_replay(cast(Any, object()), cast(Any, session), lambda: asyncio.sleep(0)))
+
+    assert replayed == ["s1"]
+
+
 def test_run_interactive_marks_input_running_before_submission_returns(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 
@@ -295,6 +324,7 @@ def test_run_interactive_marks_input_running_before_submission_returns(monkeypat
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert _FakePromptToolkitInput.agent_running_changes[:2] == [True, False]
+    assert _FakePromptToolkitInput.startup_events == ["init:True:True", "context", "replay"]
 
 
 def test_run_interactive_cancels_auto_recap_on_prompt_submission(monkeypatch: pytest.MonkeyPatch) -> None:

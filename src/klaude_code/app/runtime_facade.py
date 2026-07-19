@@ -329,6 +329,10 @@ class RuntimeFacade:
     async def emit_event(self, event: events.Event) -> None:
         await self._operation_dispatcher.emit_event(event)
 
+    async def replay_session_history(self, session_id: str) -> None:
+        """Replay an initialized session's transcript to the display."""
+        await self._operation_dispatcher.replay_session_history(session_id)
+
     def current_session_id(self) -> str | None:
         return self._operation_dispatcher.current_session_id()
 
