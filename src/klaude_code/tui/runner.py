@@ -186,6 +186,10 @@ class SubmitUserInputResult:
     deferred_operations: tuple[op.Operation, ...] = ()
 
 
+async def _warmup_runtime_clients(runtime: RuntimeFacade) -> None:
+    await runtime.warmup_current_llm_clients()
+
+
 async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> WebModeRequest | None:
     """Run the interactive REPL (TUI).
 
@@ -752,10 +756,13 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             input_provider.set_session_dir(Session.paths(agent_session.work_dir).session_dir(agent_session.id))
         _refresh_pending_messages()
 
-        # Warm the system-skills install check off the event loop. It hashes
-        # every embedded asset file (hundreds of ms of disk I/O); doing it here
-        # lets the memoized result be ready before the first task start would
-        # otherwise block the loop — and the "Loading…" paint — on it.
+        # Warm blocking startup dependencies while prompt_toolkit owns the input.
+        # A submission that wins the race waits on the same client initialization.
+        provider_warmup_task = asyncio.create_task(_warmup_runtime_clients(components.runtime))
+        provider_warmup_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
+
+        # The system-skills check hashes every embedded asset file. Keep that I/O
+        # off the event loop so the input remains responsive during warmup.
         skills_warmup_task = asyncio.create_task(asyncio.to_thread(install_system_skills))
         skills_warmup_task.add_done_callback(lambda t: t.exception() if not t.cancelled() else None)
 

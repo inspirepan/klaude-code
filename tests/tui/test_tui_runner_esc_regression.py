@@ -166,6 +166,9 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     async def _fake_initialize_session(*_args: object, **_kwargs: object) -> str:
         return "s1"
 
+    async def _noop_warmup(_runtime: object) -> None:
+        return None
+
     def _install_sigint_interrupt(_cb: Callable[[], None]) -> Callable[[], None]:
         return lambda: None
 
@@ -179,6 +182,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(runner, "backfill_session_model_config", _noop_backfill)
     monkeypatch.setattr(runner, "cleanup_app_components", _noop_cleanup)
     monkeypatch.setattr(runner, "initialize_session", _fake_initialize_session)
+    monkeypatch.setattr(runner, "_warmup_runtime_clients", _noop_warmup)
     monkeypatch.setattr(runner, "install_sigint_interrupt", _install_sigint_interrupt)
     monkeypatch.setattr(runner, "start_prevent_sleep", _noop_prevent_sleep)
     monkeypatch.setattr(runner, "stop_prevent_sleep", _noop_prevent_sleep)
