@@ -16,10 +16,12 @@ from base64 import b64decode, b64encode
 from binascii import Error as BinasciiError
 from io import BytesIO
 from pathlib import Path
-
-from PIL import Image, ImageOps, UnidentifiedImageError
+from typing import TYPE_CHECKING
 
 from klaude_code.protocol import message
+
+if TYPE_CHECKING:
+    from PIL.Image import Image as PILImage
 
 _MAX_IMAGE_SIZE_BYTES = 4_500_000
 _MAX_BASE64_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
@@ -216,7 +218,9 @@ def _resize_image_windows(input_path: Path, output_path: Path, *, width: int, he
     return result.returncode == 0 and "ok" in result.stdout and output_path.exists() and output_path.stat().st_size > 0
 
 
-def _flatten_for_jpeg(image: Image.Image) -> Image.Image:
+def _flatten_for_jpeg(image: PILImage) -> PILImage:
+    from PIL import Image
+
     if image.mode in {"RGBA", "LA"} or "transparency" in image.info:
         rgba = image.convert("RGBA")
         background = Image.new("RGB", rgba.size, (255, 255, 255))
@@ -235,6 +239,8 @@ def _pillow_reencode_image_bytes(
     quality: int = 85,
     quantize: bool = False,
 ) -> bytes | None:
+    from PIL import Image, ImageOps, UnidentifiedImageError
+
     output_mime = (output_mime_type or mime_type).lower()
     try:
         with Image.open(BytesIO(image_bytes)) as opened:
