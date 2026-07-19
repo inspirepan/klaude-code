@@ -332,6 +332,13 @@ class RuntimeFacade:
     def current_session_id(self) -> str | None:
         return self._operation_dispatcher.current_session_id()
 
+    async def warmup_current_llm_clients(self) -> None:
+        """Warm provider clients for the active session."""
+        session_id = self.current_session_id()
+        if session_id is None:
+            return
+        await self._operation_dispatcher.get_session_llm_clients(session_id).warmup()
+
     @property
     def current_agent(self) -> Agent | None:
         return self._operation_dispatcher.current_agent

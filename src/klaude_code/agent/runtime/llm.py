@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
 from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from typing import override
@@ -54,6 +56,7 @@ class FallbackLLMClient(LLMClientABC):
         self._candidates = candidates
         self._active_index = 0
         self._clients: dict[int, LLMClientABC] = {}
+        self._client_lock = threading.Lock()
         super().__init__(candidates[0].llm_config)
 
     @classmethod
@@ -91,7 +94,9 @@ class FallbackLLMClient(LLMClientABC):
     @override
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         try:
-            client = self._active_client()
+            client = self._clients.get(self._active_index)
+            if client is None:
+                client = await asyncio.to_thread(self._active_client)
         except Exception as exc:
             metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
             return error_llm_stream(
@@ -100,19 +105,25 @@ class FallbackLLMClient(LLMClientABC):
             )
         return await client.call(param)
 
+    async def warmup(self) -> None:
+        """Create the active provider client without blocking the event loop."""
+        if self._active_index not in self._clients:
+            await asyncio.to_thread(self._active_client)
+
     def _active_client(self) -> LLMClientABC:
-        client = self._clients.get(self._active_index)
-        if client is None:
-            candidate = self.active_candidate
-            log_debug(
-                "Creating fallback LLM client",
-                candidate.selector,
-                candidate.llm_config.model_dump_json(exclude_none=True),
-                debug_type=DebugType.LLM_CONFIG,
-            )
-            client = create_llm_client(candidate.llm_config)
-            self._clients[self._active_index] = client
-        return client
+        with self._client_lock:
+            client = self._clients.get(self._active_index)
+            if client is None:
+                candidate = self.active_candidate
+                log_debug(
+                    "Creating fallback LLM client",
+                    candidate.selector,
+                    candidate.llm_config.model_dump_json(exclude_none=True),
+                    debug_type=DebugType.LLM_CONFIG,
+                )
+                client = create_llm_client(candidate.llm_config)
+                self._clients[self._active_index] = client
+            return client
 
 
 def create_llm_client_for_candidates(candidates: list[ModelConfigCandidate]) -> LLMClientABC:
@@ -136,6 +147,11 @@ class LLMClients:
 
     def get_fast_client(self) -> LLMClientABC:
         return self.fast or self.main
+
+    async def warmup(self) -> None:
+        """Warm clients used by the main interactive flow."""
+        clients = (self.main, self.fast, self.compact)
+        await asyncio.gather(*(client.warmup() for client in clients if isinstance(client, FallbackLLMClient)))
 
 
 def build_llm_clients(
