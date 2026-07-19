@@ -70,7 +70,7 @@ def manage_providers_interactive(states: list[ProviderState]) -> dict[str, bool]
         name_width = max(len(state.name) for state in states)
         for index, state in enumerate(states):
             selected = index == pointed_at
-            tokens.append(("class:pointer" if selected else "class:text", " -> " if selected else "    "))
+            tokens.append(("class:pointer" if selected else "class:text", "  → " if selected else "    "))
             if selected:
                 tokens.append(("[SetCursorPosition]", ""))
 
@@ -91,7 +91,7 @@ def manage_providers_interactive(states: list[ProviderState]) -> dict[str, bool]
         tokens.extend(
             [
                 ("class:meta", "\n"),
-                ("class:pointer" if selected else "class:text", " -> " if selected else "    "),
+                ("class:pointer" if selected else "class:text", "  → " if selected else "    "),
             ]
         )
         if selected:
@@ -106,7 +106,7 @@ def manage_providers_interactive(states: list[ProviderState]) -> dict[str, bool]
 
     def move(delta: int) -> None:
         nonlocal pointed_at
-        pointed_at = min(max(pointed_at + delta, 0), save_index)
+        pointed_at = (pointed_at + delta) % (save_index + 1)
 
     def activate(event: KeyPressEvent) -> None:
         if pointed_at == save_index:
