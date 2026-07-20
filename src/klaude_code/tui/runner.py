@@ -537,6 +537,18 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
     # keeps running while the interrupt winds down, so a submission that lands
     # in that window must start a fresh turn instead of being queued.
     interrupt_in_flight = False
+    # Cleared when an interrupt is requested and set again once the interrupted
+    # turn has wound down (display drained). The input loop waits on this
+    # instead of the whole wait task: after an interrupt the wait task may keep
+    # running queued follow-ups, and awaiting it would leave the prompt torn
+    # down until the agent went fully idle.
+    interrupt_settled = asyncio.Event()
+    interrupt_settled.set()
+
+    def _settle_interrupt() -> None:
+        nonlocal interrupt_in_flight
+        interrupt_in_flight = False
+        interrupt_settled.set()
 
     def _has_active_wait_running() -> bool:
         return active_wait_task is not None and not active_wait_task.done()
@@ -613,6 +625,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 return
             interrupt_requested = True
             interrupt_in_flight = True
+            interrupt_settled.clear()
             interrupt_task = asyncio.create_task(_submit_interrupt(session_id))
 
         def _request_interrupt_once() -> None:
@@ -678,6 +691,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             await components.wait_for_display_idle()
             await settle_flicker_safe_stdout()
             away_summary_coordinator.notify_task_finished()
+            _settle_interrupt()
             if interrupted:
                 prefill_text = None
                 agent = components.runtime.current_agent
@@ -718,6 +732,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 await components.wait_for_display_idle()
                 await settle_flicker_safe_stdout()
                 away_summary_coordinator.notify_task_finished()
+                _settle_interrupt()
                 current_agent = components.runtime.current_agent
                 if current_agent is not None and current_agent is not agent:
                     for pending_follow_up in agent.pop_all_follow_up():
@@ -733,6 +748,9 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                         input_provider.set_next_prefill(prefill_text)
                         return
         finally:
+            # Guarantee no input-loop waiter is left hanging on the settled
+            # event if the wait task exits on an error path.
+            _settle_interrupt()
             _mark_agent_idle()
 
     def _refresh_pending_messages() -> int:
@@ -812,17 +830,18 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 await startup_task
                 is_exit_input = user_input.text.strip().lower() in {"exit", ":q", "quit"}
                 # The user interrupted the running turn and immediately submitted.
-                # Wait for the interrupted turn to settle so this submission starts
-                # a fresh turn instead of being queued as a follow-up.
+                # Wait for the interrupted turn to wind down — but only the
+                # wind-down, not the whole wait task: the task may keep running
+                # queued follow-ups after the interrupt, and awaiting it here
+                # would leave the prompt torn down until the agent went idle.
                 if interrupt_in_flight and not is_exit_input and _has_active_wait_running():
-                    if active_wait_task is not None:
-                        with contextlib.suppress(Exception, asyncio.CancelledError):
-                            await active_wait_task
-                        active_wait_task = None
+                    await interrupt_settled.wait()
                     interrupt_in_flight = False
-                    # The user already typed a fresh message, so drop the
-                    # interrupted turn's prefill that the wait task just queued.
-                    input_provider.set_next_prefill(None)
+                    if not _active_agent_running():
+                        # The interrupted turn ended with no queued follow-up,
+                        # so this submission starts a fresh turn; drop the
+                        # interrupted turn's prefill that the wait task queued.
+                        input_provider.set_next_prefill(None)
                 if _active_agent_running():
                     if is_exit_input:
                         if active_wait_task is not None:
@@ -839,7 +858,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                                 op.FollowUpAgentOperation(session_id=sid, input=follow_up_input)
                             )
                         _refresh_pending_messages()
-                        await components.wait_for_display_idle()
                     continue
 
                 if is_exit_input:

@@ -497,7 +497,7 @@ def test_waiting_sigint_triggers_interrupt_submit(monkeypatch: pytest.MonkeyPatc
     assert runtime.interrupts[0].session_id == "s1"
 
 
-def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_busy_input_queues_follow_up_without_waiting_for_display_drain(monkeypatch: pytest.MonkeyPatch) -> None:
     runner = _patch_runner_basics(monkeypatch)
 
     class _FakeAgent:
@@ -530,6 +530,7 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
         def __init__(self) -> None:
             self.notices: list[events.NoticeEvent] = []
             self._agent = _FakeAgent()
+            self.current_task_finished = False
 
         def current_session_id(self) -> str | None:
             return "s1"
@@ -540,6 +541,7 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
 
         async def wait_for(self, _wait_id: str) -> None:
             await asyncio.sleep(0.01)
+            self.current_task_finished = True
 
         async def submit_and_wait(self, operation: op.Operation) -> None:
             if isinstance(operation, op.FollowUpAgentOperation):
@@ -550,8 +552,12 @@ def test_busy_input_queues_follow_up_and_drains_after_current_task(monkeypatch: 
             if isinstance(event, events.NoticeEvent):
                 self.notices.append(event)
 
+    class _BusyFakeComponents(_FakeComponents):
+        async def wait_for_display_idle(self) -> None:
+            assert self.runtime.current_task_finished or not self.runtime.current_agent.follow_up_inputs
+
     runtime = _FakeRuntime()
-    components = _FakeComponents(
+    components = _BusyFakeComponents(
         config=SimpleNamespace(main_model=None),
         runtime=runtime,
         display=_FakeDisplay(theme="dark"),
@@ -688,6 +694,137 @@ def test_interrupt_drains_next_queued_follow_up(monkeypatch: pytest.MonkeyPatch)
     assert submissions == ["first", "a", "b", "c"]
     assert runtime.queue_after_first_drain == ("b", "c")
     assert runtime.current_agent.follow_up_inputs == []
+
+
+def test_submission_during_interrupt_follow_up_run_queues_without_blocking(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stale interrupt_in_flight flag must not block the input loop.
+
+    After an interrupt with a queued follow-up, the wait task keeps running the
+    follow-up turn. A message submitted during that turn must be queued
+    immediately instead of awaiting the whole wait task (which tears the prompt
+    down until the agent goes fully idle).
+    """
+
+    runner = _patch_runner_basics(monkeypatch)
+
+    follow_up_turn_started = asyncio.Event()
+
+    class _GatedInput(_FakePromptToolkitInput):
+        async def iter_inputs(self):
+            if self._on_prompt_start is not None:
+                self._on_prompt_start()
+            yield UserInputPayload(text="first")
+            yield UserInputPayload(text="queued before interrupt")
+            await follow_up_turn_started.wait()
+            yield UserInputPayload(text="typed during follow-up")
+            yield UserInputPayload(text="exit")
+
+    monkeypatch.setattr(runner, "PromptToolkitInput", _GatedInput)
+
+    class _FakeAgent:
+        def __init__(self) -> None:
+            self.follow_up_inputs: list[UserInputPayload] = []
+            self.session = self
+            self.id = "s1"
+            self.work_dir = Path.cwd()
+
+        async def wait_for_flush(self) -> None:
+            return None
+
+        def consume_interrupt_prefill_text(self) -> None:
+            return None
+
+        def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            return tuple(self.follow_up_inputs)
+
+        def pop_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs.pop(0)
+
+        def peek_next_follow_up(self) -> UserInputPayload | None:
+            if not self.follow_up_inputs:
+                return None
+            return self.follow_up_inputs[0]
+
+    class _FakeRuntime:
+        def __init__(self) -> None:
+            self._agent = _FakeAgent()
+            self._interrupt_received = asyncio.Event()
+            self.queued_during_follow_up_turn = False
+
+        def current_session_id(self) -> str:
+            return "s1"
+
+        @property
+        def current_agent(self) -> _FakeAgent:
+            return self._agent
+
+        async def wait_for(self, wait_id: str) -> None:
+            if wait_id == "wait-1":
+                while not self._agent.follow_up_inputs or sigint_state["on_interrupt"] is None:
+                    await asyncio.sleep(0)
+                sigint_state["on_interrupt"]()
+                await asyncio.wait_for(self._interrupt_received.wait(), timeout=1.0)
+                return
+            if wait_id == "wait-2":
+                # The follow-up turn is running; the input loop must be able to
+                # queue a new submission while this wait is still in flight.
+                follow_up_turn_started.set()
+
+                async def _poll_for_queued_submission() -> None:
+                    while all(payload.text != "typed during follow-up" for payload in self._agent.follow_up_inputs):
+                        await asyncio.sleep(0)
+
+                try:
+                    await asyncio.wait_for(_poll_for_queued_submission(), timeout=1.0)
+                except TimeoutError:
+                    return
+                self.queued_during_follow_up_turn = True
+
+        async def submit_and_wait(self, operation: op.Operation) -> None:
+            if isinstance(operation, op.FollowUpAgentOperation):
+                self._agent.follow_up_inputs.append(operation.input)
+            elif isinstance(operation, op.InterruptOperation):
+                self._interrupt_received.set()
+
+        async def emit_event(self, event: events.Event) -> None:
+            del event
+
+    runtime = _FakeRuntime()
+    components = _FakeComponents(
+        config=SimpleNamespace(main_model=None),
+        runtime=runtime,
+        display=_FakeDisplay(theme="dark"),
+    )
+
+    async def _init_components(**_: Any) -> _FakeComponents:
+        return components
+
+    monkeypatch.setattr(runner, "initialize_app_components", _init_components)
+
+    submissions: list[str] = []
+
+    async def _submit_user_input_payload(**kwargs: Any) -> Any:
+        submissions.append(cast(UserInputPayload, kwargs["user_input"]).text)
+        return runner.SubmitUserInputResult(wait_id=f"wait-{len(submissions)}")
+
+    monkeypatch.setattr(runner, "submit_user_input_payload", _submit_user_input_payload)
+
+    sigint_state: dict[str, Callable[[], None] | None] = {"on_interrupt": None}
+
+    def _install_sigint_interrupt(on_interrupt: Callable[[], None]) -> Callable[[], None]:
+        sigint_state["on_interrupt"] = on_interrupt
+        return lambda: None
+
+    monkeypatch.setattr(runner, "install_sigint_interrupt", _install_sigint_interrupt)
+
+    arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
+
+    assert submissions == ["first", "queued before interrupt", "typed during follow-up"]
+    assert runtime.queued_during_follow_up_turn is True
+    assert runtime.current_agent.follow_up_inputs == []
+    assert _FakePromptToolkitInput.prefills == []
 
 
 def test_queued_follow_ups_continue_in_new_session_after_new_command(monkeypatch: pytest.MonkeyPatch) -> None:
