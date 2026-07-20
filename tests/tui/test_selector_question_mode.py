@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import sys
+from typing import Any
 
 from _pytest.monkeypatch import MonkeyPatch
 
+from klaude_code.tui.terminal import ask_user_question
 from klaude_code.tui.terminal.ask_user_question import (
     _has_unconfirmed_edits,  # pyright: ignore[reportPrivateUsage]
     _normalize_question_selection,  # pyright: ignore[reportPrivateUsage]
@@ -59,6 +61,55 @@ def test_select_questions_returns_none_without_tty(monkeypatch: MonkeyPatch) -> 
         ]
     )
     assert result is None
+
+
+def test_select_questions_marks_terminal_title_until_cancelled(monkeypatch: MonkeyPatch) -> None:
+    class _TTY:
+        def isatty(self) -> bool:
+            return True
+
+    calls: list[str] = []
+
+    class _Renderer:
+        cpr_not_supported_callback: Any = None
+
+    class _Application:
+        renderer = _Renderer()
+
+        def __init__(self, **_: Any) -> None:
+            pass
+
+        def run(self) -> None:
+            assert calls == ["set:❓"]
+            return None
+
+    monkeypatch.setattr(sys, "stdin", _TTY())
+    monkeypatch.setattr(sys, "stdout", _TTY())
+    monkeypatch.setattr(ask_user_question, "Application", _Application)
+    monkeypatch.setattr(
+        ask_user_question.terminal_title,
+        "set_terminal_title_override",
+        lambda prefix: calls.append(f"set:{prefix}"),
+    )
+    monkeypatch.setattr(
+        ask_user_question.terminal_title,
+        "clear_terminal_title_override",
+        lambda: calls.append("clear"),
+    )
+
+    result = ask_user_question.select_questions(
+        questions=[
+            QuestionPrompt(
+                header="H1",
+                message="Pick",
+                items=[SelectItem(title=[("", "1. A\n")], value="a", search_text="a")],
+                multi_select=False,
+            )
+        ]
+    )
+
+    assert result is None
+    assert calls == ["set:❓", "clear"]
 
 
 def test_normalize_question_selection_single_select_other_overrides_previous_choice() -> None:

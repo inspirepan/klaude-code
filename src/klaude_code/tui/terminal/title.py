@@ -10,10 +10,13 @@ from klaude_code.log import DebugType, log_debug
 # Blink state: cycles a single-glyph Braille spinner to keep title width stable.
 _BLINK_PREFIXES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
 _BLINK_INTERVAL = 0.08  # seconds
+_OVERRIDE_BLINK_TICKS = 6
+_OVERRIDE_DIM_PREFIX = "❔"
 
 _blink_task: asyncio.Task[None] | None = None
 _blink_model_name: str | None = None
 _blink_session_title: str | None = None
+_title_override_prefix: str | None = None
 
 
 def _format_session_title(session_title: str | None) -> str | None:
@@ -79,12 +82,16 @@ def update_terminal_title(
 async def _blink_loop() -> None:
     idx = 0
     while True:
+        if _title_override_prefix is None:
+            prefix = _BLINK_PREFIXES[idx % len(_BLINK_PREFIXES)]
+        else:
+            prefix = _title_override_prefix if (idx // _OVERRIDE_BLINK_TICKS) % 2 == 0 else _OVERRIDE_DIM_PREFIX
         update_terminal_title(
             _blink_model_name,
-            prefix=_BLINK_PREFIXES[idx],
+            prefix=prefix,
             session_title=_blink_session_title,
         )
-        idx = (idx + 1) % len(_BLINK_PREFIXES)
+        idx += 1
         await asyncio.sleep(_BLINK_INTERVAL)
 
 
@@ -110,9 +117,25 @@ def is_title_blinking() -> bool:
     return _blink_task is not None and not _blink_task.done()
 
 
+def set_terminal_title_override(prefix: str) -> None:
+    """Temporarily replace the active-task spinner with a status prefix."""
+    global _title_override_prefix
+    _title_override_prefix = prefix
+    update_terminal_title(_blink_model_name, prefix=prefix, session_title=_blink_session_title)
+
+
+def clear_terminal_title_override() -> None:
+    """Clear a temporary status prefix and restore the active-task title."""
+    global _title_override_prefix
+    _title_override_prefix = None
+    prefix = _BLINK_PREFIXES[0] if is_title_blinking() else None
+    update_terminal_title(_blink_model_name, prefix=prefix, session_title=_blink_session_title)
+
+
 def stop_terminal_title_blink() -> None:
     """Cancel the blink loop if running."""
-    global _blink_task
+    global _blink_task, _title_override_prefix
     if _blink_task is not None:
         _blink_task.cancel()
         _blink_task = None
+    _title_override_prefix = None

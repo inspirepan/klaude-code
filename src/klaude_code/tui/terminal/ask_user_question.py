@@ -25,6 +25,7 @@ from rich.console import Console
 from klaude_code.tui.components.common import format_more_lines_indicator
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.input.pt_theme import get_base_style
+from klaude_code.tui.terminal import title as terminal_title
 from klaude_code.tui.terminal.selector import (
     QuestionPrompt,
     QuestionSelectResult,
@@ -959,7 +960,11 @@ def select_questions[T](
         color_depth=ColorDepth.TRUE_COLOR,
     )
     app.renderer.cpr_not_supported_callback = lambda: None
-    return app.run()
+    terminal_title.set_terminal_title_override("❓")
+    try:
+        return app.run()
+    finally:
+        terminal_title.clear_terminal_title_override()
 
 
 def select_question[T](

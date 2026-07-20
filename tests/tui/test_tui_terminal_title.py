@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 
 import pytest
@@ -96,6 +97,40 @@ def test_update_terminal_title_falls_back_to_default_title(monkeypatch: pytest.M
     )
 
     assert captured == ["✔ klaude · project"]
+
+
+def test_terminal_title_override_blinks(monkeypatch: pytest.MonkeyPatch) -> None:
+    prefixes: list[str | None] = []
+    ticks = 0
+
+    def _capture_update(
+        model_name: str | None = None,
+        *,
+        prefix: str | None = None,
+        work_dir: str | None = None,
+        session_title: str | None = None,
+    ) -> None:
+        del model_name, work_dir, session_title
+        prefixes.append(prefix)
+
+    async def _sleep(_: float) -> None:
+        nonlocal ticks
+        ticks += 1
+        if ticks > terminal_title._OVERRIDE_BLINK_TICKS:  # pyright: ignore[reportPrivateUsage]
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(terminal_title, "update_terminal_title", _capture_update)
+    monkeypatch.setattr(asyncio, "sleep", _sleep)
+
+    terminal_title.set_terminal_title_override("❓")
+    try:
+        with pytest.raises(asyncio.CancelledError):
+            asyncio.run(terminal_title._blink_loop())  # pyright: ignore[reportPrivateUsage]
+    finally:
+        terminal_title.stop_terminal_title_blink()
+
+    assert prefixes[0] == "❓"
+    assert prefixes[-1] == "❔"
 
 
 def test_task_finish_cancelled_clears_terminal_title_prefix() -> None:
