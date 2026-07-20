@@ -7,6 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.32.0] - 2026-07-20
+
+### Added
+
+- blink title while awaiting answers (`3dba48a14`)
+- show live subagent progress (`8480848ce`)
+- show subagent thinking summaries (`146592fb9`)
+- wrap provider manager navigation (`98e86ecdd`)
+- coordinate background client warmup (`862b9d6d7`)
+- add Kimi K3 builtin models (`9b0f198a3`)
+- use apply_patch for GPT sub-agents (`4e08e5f10`)
+- add provider management command (#353) (`4b19b888f`)
+- add GPT-5.6 model support (#352) (`0930d4aec`)
+- add grok 4.5 youtu gateway preset (#349) (`47f8f2b67`)
+- add youtu gateway provider support (#348) (`4c2fd7ec1`)
+- improve file change tracking and skill assets (#347) (`2a5d8e8c8`)
+- split code review roles (#346) (`b99690560`)
+- add sonnet 5 builtin model (#344) (`4e9d35488`)
+- show long-running tool warnings (#343) (`859e21e79`)
+
+### Changed
+
+- defer welcome context rendering (`2e96df902`)
+- open input before skill discovery (`1d8e6e11c`)
+- warm providers behind the input prompt (`c3841bab8`)
+- defer provider client creation (`f0c7ef884`)
+- bound terminal theme detection delay (`be36c9f74`)
+- load Pillow only for image processing (`e315f6ac8`)
+- defer OpenAI type imports (`ed6d8c3c4`)
+- show task startup feedback immediately (`17df9f464`)
+- reduce interactive rendering overhead (`605fddd9e`)
+- prefer terra for general tasks (`b013033f1`)
+- prefer opus for frontend tasks (#355) (`564eb2eb8`)
+- clarify sub-agent model selection (#354) (`eb12544a5`)
+
+### Fixed
+
+- run queued follow-up after interrupt (`fddc086f9`)
+- replay resumed transcript after welcome context (`65454cd87`)
+- count subagent thoughts by characters (`6ee00e74a`)
+- skip color queries on indirect terminals (`42c5d7413`)
+- preserve fallback during client warmup (`9355429a1`)
+- tolerate leaked kitty keyboard mode (`728c0f341`)
+- avoid redundant follow-up reviews (`c6f88a5c8`)
+- prevent streaming output flicker (`b4e9761df`)
+- queue split messages after active submission (`7ef276e32`)
+- continue queued follow-ups after session reset (`c7a5d2f9a`)
+- keep input responsive while streaming (#350) (`51b0d7729`)
+- preserve bash interrupt output (#345) (`3774622b5`)
+
+### Other
+
+- satisfy Python validation checks (`38431c92e`)
+- add direct-push validation workflow (`8ef8033e3`)
+- remove retired builtin model variants (#351) (`977476754`)
+
 ## [2.31.0] - 2026-06-29
 
 ### Added
@@ -2370,7 +2426,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.31.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.32.0...HEAD
+[2.32.0]: https://github.com/inspirepan/klaude-code/compare/v2.31.0...v2.32.0
 [2.31.0]: https://github.com/inspirepan/klaude-code/compare/v2.30.0...v2.31.0
 [2.30.0]: https://github.com/inspirepan/klaude-code/compare/v2.29.0...v2.30.0
 [2.29.0]: https://github.com/inspirepan/klaude-code/compare/v2.28.0...v2.29.0
