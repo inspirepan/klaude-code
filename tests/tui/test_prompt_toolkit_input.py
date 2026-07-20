@@ -130,6 +130,36 @@ def test_status_lines_render_above_prompt() -> None:
     assert bar.metadata_footer_lines == ("in 10",)
 
 
+def test_startup_loading_survives_agent_status_clear_without_marking_agent_running() -> None:
+    async def _scenario() -> None:
+        prompt_input = _build_input("")
+        bar = prompt_input._bottom_bar
+
+        prompt_input.set_startup_loading(True)
+
+        assert prompt_input._is_agent_running() is False
+        assert prompt_input._build_placeholder() == []
+        assert bar._get_status_fragments() == [
+            ("class:meta", "·   "),
+            ("class:meta", "Preparing session…"),
+        ]
+
+        prompt_input.set_status_lines((_status("Replaying…"),))
+        prompt_input.set_status_lines(())
+
+        assert bar._get_status_fragments() == [
+            ("class:meta", "·   "),
+            ("class:meta", "Preparing session…"),
+        ]
+
+        prompt_input.set_startup_loading(False)
+
+        assert bar._get_status_fragments() == []
+        bar.stop()
+
+    asyncio.run(_scenario())
+
+
 def test_status_window_height_stays_stable_until_status_clears() -> None:
     prompt_input = _build_input("")
 

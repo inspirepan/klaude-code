@@ -268,6 +268,9 @@ class PromptToolkitInput(InputProviderABC):
         self._agent_running = running
         self._invalidate_app()
 
+    def set_startup_loading(self, loading: bool) -> None:
+        self._bottom_bar.set_startup_loading(loading)
+
     def _invalidate_app(self) -> None:
         with contextlib.suppress(Exception):
             self._session.app.invalidate()

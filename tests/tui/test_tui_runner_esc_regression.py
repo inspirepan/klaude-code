@@ -72,6 +72,7 @@ class _FakePromptToolkitInput:
     prefills: ClassVar[list[str | None]] = []
     pending_messages: ClassVar[list[tuple[str, ...]]] = []
     agent_running_changes: ClassVar[list[bool]] = []
+    startup_loading_changes: ClassVar[list[bool]] = []
     pause_calls: ClassVar[int] = 0
     startup_events: ClassVar[list[str]] = []
 
@@ -108,6 +109,9 @@ class _FakePromptToolkitInput:
 
     def set_agent_running(self, running: bool) -> None:
         self.agent_running_changes.append(running)
+
+    def set_startup_loading(self, loading: bool) -> None:
+        self.startup_loading_changes.append(loading)
 
     def set_dequeue_pending_messages(self, dequeue_pending_messages: Callable[[], tuple[str, ...]] | None) -> None:
         del dequeue_pending_messages
@@ -152,6 +156,7 @@ def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     _FakePromptToolkitInput.prefills = []
     _FakePromptToolkitInput.pending_messages = []
     _FakePromptToolkitInput.agent_running_changes = []
+    _FakePromptToolkitInput.startup_loading_changes = []
     _FakePromptToolkitInput.pause_calls = 0
     _FakePromptToolkitInput.startup_events = []
 
@@ -324,6 +329,7 @@ def test_run_interactive_marks_input_running_before_submission_returns(monkeypat
     arun(runner.run_interactive(runner.AppInitConfig(model=None, debug=False, vanilla=False), session_id="s1"))
 
     assert _FakePromptToolkitInput.agent_running_changes[:2] == [True, False]
+    assert _FakePromptToolkitInput.startup_loading_changes == [True, False]
     assert _FakePromptToolkitInput.startup_events == ["init:True:True", "context", "replay"]
 
 

@@ -786,15 +786,19 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     async def _load_context_after_prompt_start() -> None:
         await prompt_started.wait()
-        agent = components.runtime.current_agent
-        if agent is not None and hasattr(agent, "session"):
-            agent_session = agent.session
-            await _load_welcome_context_and_replay(
-                components.runtime,
-                agent_session,
-                components.wait_for_display_idle,
-            )
-        await _warmup_runtime_clients(components.runtime)
+        input_provider.set_startup_loading(True)
+        try:
+            agent = components.runtime.current_agent
+            if agent is not None and hasattr(agent, "session"):
+                agent_session = agent.session
+                await _load_welcome_context_and_replay(
+                    components.runtime,
+                    agent_session,
+                    components.wait_for_display_idle,
+                )
+            await _warmup_runtime_clients(components.runtime)
+        finally:
+            input_provider.set_startup_loading(False)
 
     try:
         await away_summary_coordinator.start()

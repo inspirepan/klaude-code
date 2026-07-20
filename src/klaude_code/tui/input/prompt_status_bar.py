@@ -25,6 +25,7 @@ from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_USER_I
 
 _STATUS_SPINNER_FRAMES = ("·  ", "·· ", "···", " ··", "  ·", "   ")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
+_STARTUP_LOADING_TEXT = "Preparing session…"
 
 # Refresh the renderer-side status snapshot every N spinner ticks instead of
 # every tick. The snapshot only changes with the elapsed-time clock (second
@@ -62,6 +63,7 @@ class PromptBottomBar:
         self._status_reserved_line_count: int = 0
         self._status_collapse_handle: asyncio.TimerHandle | None = None
         self._running_separator_label: str | None = None
+        self._startup_loading = False
         self._pending_messages: tuple[str, ...] = ()
 
         self._status_spinner_task: asyncio.Task[None] | None = None
@@ -144,7 +146,7 @@ class PromptBottomBar:
         if status_lines == self._status_lines and separator_text == self._running_separator_label:
             if metadata_footer_lines:
                 self._metadata_footer_lines = metadata_footer_lines
-            if visible_status_lines:
+            if visible_status_lines or self._startup_loading:
                 self._ensure_status_spinner()
             else:
                 self._cancel_status_spinner()
@@ -155,8 +157,25 @@ class PromptBottomBar:
         if metadata_footer_lines:
             self._metadata_footer_lines = metadata_footer_lines
         self._running_separator_label = separator_text
-        if visible_status_lines:
+        if visible_status_lines or self._startup_loading:
             self._status_reserved_line_count = max(self._status_reserved_line_count, len(visible_status_lines))
+            self._ensure_status_spinner()
+        else:
+            self._cancel_status_spinner()
+            if self._status_reserved_line_count > 0:
+                self._schedule_status_collapse()
+        self._invalidate()
+
+    def set_startup_loading(self, loading: bool) -> None:
+        if self._startup_loading == loading:
+            return
+
+        self._cancel_pending_status_collapse()
+        self._startup_loading = loading
+        if loading:
+            self._status_reserved_line_count = max(self._status_reserved_line_count, 1)
+            self._ensure_status_spinner()
+        elif self._visible_status_lines():
             self._ensure_status_spinner()
         else:
             self._cancel_status_spinner()
@@ -275,6 +294,8 @@ class PromptBottomBar:
         spinner = _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
         visible_lines = self._visible_status_lines()
         if not visible_lines:
+            if self._startup_loading:
+                return [(CLASS_META, f"{spinner} "), (CLASS_META, _STARTUP_LOADING_TEXT)]
             # A task has been submitted but no status snapshot has arrived yet
             # (agent runtime is still starting up). Show the waiting text
             # immediately so submission feedback is not tied to backend
@@ -312,7 +333,7 @@ class PromptBottomBar:
         tick = 0
         while True:
             await asyncio.sleep(_STATUS_SPINNER_INTERVAL_SECONDS)
-            if not self._status_lines:
+            if not self._visible_status_lines() and not self._startup_loading:
                 return
             self._status_spinner_frame = (self._status_spinner_frame + 1) % len(_STATUS_SPINNER_FRAMES)
             tick += 1
