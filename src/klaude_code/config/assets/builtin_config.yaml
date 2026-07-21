@@ -114,7 +114,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - model_name: gpt-5.6-sol
@@ -125,7 +125,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gpt-5.6-sol:fast
@@ -137,7 +137,7 @@ provider_list:
     fast_mode: true
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 10, output: 60, cache_read: 1, cache_write: 12.5 }
 
   - model_name: gpt-5.6-sol:max
@@ -148,7 +148,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: max
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gpt-5.6-sol:pro:max
@@ -160,7 +160,7 @@ provider_list:
     thinking:
       reasoning_effort: max
       reasoning_mode: pro
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gpt-5.6-terra
@@ -170,7 +170,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
 
   - model_name: gpt-5.6-luna
@@ -180,7 +180,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: low
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
 
   - model_name: gpt-5.5:xhigh
@@ -190,7 +190,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: xhigh
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - model_name: gpt-5.4-nano
@@ -201,7 +201,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 0.2, output: 1.25, cache_read: 0.02 }
 
   - model_name: gpt-5.4-mini
@@ -212,7 +212,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
   - model_name: gpt-5.4
@@ -222,7 +222,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: high
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: grok-4.5
@@ -485,7 +485,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - &gpt56sol
@@ -497,7 +497,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - &gpt56sol_fast
@@ -510,7 +510,7 @@ provider_list:
     fast_mode: true
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 10, output: 60, cache_read: 1, cache_write: 12.5 }
 
   - &gpt56sol_max
@@ -522,7 +522,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: max
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - &gpt56sol_pro_max
@@ -535,7 +535,7 @@ provider_list:
     thinking:
       reasoning_effort: max
       reasoning_mode: pro
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - &gpt56terra
@@ -546,7 +546,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
 
   - &gpt56luna
@@ -557,7 +557,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: low
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
 
   - &gpt55_xhigh
@@ -568,7 +568,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: xhigh
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - &gpt54nano
@@ -579,7 +579,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 0.2, output: 1.25, cache_read: 0.02 }
 
   - &gpt54mini
@@ -590,7 +590,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
   - &gpt54
@@ -601,7 +601,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: high
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
 # ######################################## azure-openai-responses ########################################
@@ -620,7 +620,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: high
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: gpt-5.6-sol
@@ -631,7 +631,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gpt-5.6-sol:max
@@ -642,7 +642,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: max
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gpt-5.6-sol:pro:max
@@ -654,7 +654,7 @@ provider_list:
     thinking:
       reasoning_effort: max
       reasoning_mode: pro
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gpt-5.6-terra
@@ -664,7 +664,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
 
   - model_name: gpt-5.6-luna
@@ -674,7 +674,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: low
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
 
 # ######################################## google ########################################
@@ -962,7 +962,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - model_name: gpt-5.6-sol
@@ -973,7 +973,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gpt-5.6-sol:max
@@ -984,7 +984,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: max
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gpt-5.6-sol:pro:max
@@ -996,7 +996,7 @@ provider_list:
     thinking:
       reasoning_effort: max
       reasoning_mode: pro
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: gpt-5.6-terra
@@ -1006,7 +1006,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: medium
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25, cache_write: 3.125 }
 
   - model_name: gpt-5.6-luna
@@ -1016,7 +1016,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: low
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 1, output: 6, cache_read: 0.1, cache_write: 1.25 }
 
   - model_name: gpt-5.5:xhigh
@@ -1026,7 +1026,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: xhigh
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - model_name: gpt-5.4-nano
@@ -1036,7 +1036,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 0.2, output: 1.25, cache_read: 0.02 }
 
   - model_name: gpt-5.4-mini
@@ -1046,7 +1046,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: none
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 0.75, output: 4.5, cache_read: 0.075 }
 
   - model_name: gpt-5.4
@@ -1056,7 +1056,7 @@ provider_list:
     verbosity: low
     thinking:
       reasoning_effort: high
-      reasoning_summary: detailed
+      reasoning_summary: concise
     cost: { input: 2.5, output: 15, cache_read: 0.25 }
 
   - model_name: fable
