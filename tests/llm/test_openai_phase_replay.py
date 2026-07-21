@@ -204,7 +204,7 @@ def test_responses_codex_and_openrouter_payload_include_reasoning_mode() -> None
     assert openrouter_extra_body.get("reasoning") == {"effort": "max", "mode": "pro", "context": "all_turns"}
 
 
-def test_responses_and_codex_payload_use_prompt_cache_options_ttl_for_gpt56() -> None:
+def test_responses_and_codex_payload_use_supported_prompt_cache_fields_for_gpt56() -> None:
     param = _basic_call_param([message.UserMessage(parts=[message.TextPart(text="hi")])])
     param.model_id = "gpt-5.6-sol"
 
@@ -212,9 +212,9 @@ def test_responses_and_codex_payload_use_prompt_cache_options_ttl_for_gpt56() ->
     codex_payload = build_codex_payload(param)
 
     assert responses_payload.get("prompt_cache_options") == {"ttl": "30m"}
-    assert codex_payload.get("prompt_cache_options") == {"ttl": "30m"}
     assert "prompt_cache_retention" not in responses_payload
     assert "prompt_cache_retention" not in codex_payload
+    assert "prompt_cache_options" not in codex_payload
 
 
 def test_responses_and_codex_payload_keep_prompt_cache_retention_for_older_gpt() -> None:
