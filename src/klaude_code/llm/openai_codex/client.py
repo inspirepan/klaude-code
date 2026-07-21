@@ -54,7 +54,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
     if session_id:
         payload["prompt_cache_key"] = session_id
 
-    payload.update(build_prompt_cache_payload(param.model_id, param.cache_retention))
+    payload.update(build_prompt_cache_payload(param.model_id, param.cache_retention, allow_ttl_options=False))
 
     verbosity = "high" if param.verbosity == "max" else (param.verbosity or "medium")
     payload["text"] = {"verbosity": verbosity}  # type: ignore[typeddict-item]

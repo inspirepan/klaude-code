@@ -15,3 +15,9 @@ def test_prompt_cache_payload_respects_short_retention() -> None:
 
 def test_prompt_cache_payload_uses_long_retention_for_unknown_model() -> None:
     assert build_prompt_cache_payload("custom-model", "long") == {"prompt_cache_retention": "24h"}
+
+
+def test_prompt_cache_payload_skips_ttl_options_when_disallowed() -> None:
+    # Codex backend rejects prompt_cache_options with 400.
+    assert build_prompt_cache_payload("gpt-5.6-sol", None, allow_ttl_options=False) == {}
+    assert build_prompt_cache_payload("gpt-5.5", None, allow_ttl_options=False) == {"prompt_cache_retention": "24h"}
