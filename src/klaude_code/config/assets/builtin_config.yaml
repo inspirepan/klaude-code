@@ -927,31 +927,12 @@ provider_list:
   protocol: codex_oauth
   model_list:
 
-  - model_name: gpt-5.5
-    model_id: gpt-5.5
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: detailed
-    cost: { input: 5, output: 30, cache_read: 0.5 }
-  - model_name: gpt-5.5:xhigh
-    model_id: gpt-5.5
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: xhigh
-      reasoning_summary: detailed
-    cost: { input: 5, output: 30, cache_read: 0.5 }
   - *gpt56sol
   - *gpt56sol_fast
   - *gpt56sol_max
   - *gpt56sol_pro_max
   - *gpt56terra
   - *gpt56luna
-  - *gpt54nano
-  - *gpt54mini
-  - *gpt54
 
 # ######################################## ark-coding-plan ########################################
 - provider_name: ark-coding-plan
@@ -1235,6 +1216,7 @@ sub_agent_models:
   - opus
 
 fast_model:
-- gpt-5.4-nano
 - gemini-flash-lite
+- gpt-5.6-luna
+- gpt-5.4-nano
 - haiku
