@@ -412,7 +412,7 @@ class AgentOperationHandler:
         except asyncio.CancelledError:
             return
         except Exception as exc:
-            log_debug(f"Session title generation failed: {exc!s}", debug_type=DebugType.EXECUTION)
+            log_debug(f"[SessionTitle] generation failed: {exc!s}", debug_type=DebugType.EXECUTION)
             return
 
         if session.user_messages != user_messages_snapshot:

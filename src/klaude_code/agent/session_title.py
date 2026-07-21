@@ -78,6 +78,10 @@ async def generate_session_title(
             raise
         except Exception as exc:
             if attempt == _SESSION_TITLE_MAX_ATTEMPTS:
+                log_debug(
+                    f"[SessionTitle] attempt {attempt}/{_SESSION_TITLE_MAX_ATTEMPTS} failed: {exc!s}; giving up",
+                    debug_type=DebugType.RESPONSE,
+                )
                 raise
             log_debug(
                 f"[SessionTitle] attempt {attempt}/{_SESSION_TITLE_MAX_ATTEMPTS} failed: {exc!s}; retrying",
