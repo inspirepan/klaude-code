@@ -719,13 +719,17 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                     user_input=follow_up,
                     session_id=agent.session.id,
                 )
-                await agent.session.wait_for_flush()
+                # Pop and refresh before waiting on the session flush: the
+                # message is already submitted, so leaving it in the pending
+                # list would show a stale "queued" entry for as long as the
+                # flush (and the turn it overlaps) takes.
                 agent.pop_next_follow_up()
                 current_agent = components.runtime.current_agent
                 if current_agent is not None and current_agent is not agent:
                     for pending_follow_up in agent.pop_all_follow_up():
                         current_agent.follow_up(pending_follow_up)
                 _refresh_pending_messages()
+                await agent.session.wait_for_flush()
                 if submission.wait_id is None and not submission.deferred_operations:
                     continue
                 interrupted = await _wait_for_submission(submission, session_id=agent.session.id)
