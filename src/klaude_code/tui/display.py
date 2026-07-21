@@ -142,7 +142,30 @@ class TUIDisplay(DisplayABC):
 
     @override
     async def start(self) -> None:
-        pass
+        self._create_bg_task(self._watch_event_loop_stalls())
+
+    @staticmethod
+    async def _watch_event_loop_stalls(*, interval: float = 0.5, threshold: float = 1.0) -> None:
+        """Log (after recovery) when the event loop stops running for a while.
+
+        A stall here means something synchronous held the loop — typically a
+        blocking fd-1 write into a terminal that stopped draining the pty.
+        The log line lands once the loop resumes, giving forensics for
+        'display frozen but session kept running' reports.
+        """
+
+        loop = asyncio.get_running_loop()
+        last = loop.time()
+        while True:
+            await asyncio.sleep(interval)
+            now = loop.time()
+            gap = now - last - interval
+            if gap > threshold:
+                log_debug(
+                    f"[watchdog] event loop stalled for {gap:.1f}s",
+                    debug_type=DebugType.EXECUTION,
+                )
+            last = now
 
     @override
     async def stop(self) -> None:

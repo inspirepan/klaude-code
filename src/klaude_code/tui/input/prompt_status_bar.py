@@ -22,6 +22,7 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from klaude_code.const import STATUS_WAITING_TEXT
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_USER_INPUT
+from klaude_code.tui.terminal.tty_state import stdout_writable
 
 _STATUS_SPINNER_FRAMES = ("·  ", "·· ", "···", " ··", "  ·", "   ")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
@@ -335,6 +336,11 @@ class PromptBottomBar:
             await asyncio.sleep(_STATUS_SPINNER_INTERVAL_SECONDS)
             if not self._visible_status_lines() and not self._startup_loading:
                 return
+            # Skip animation frames while the tty is not draining: the redraw
+            # this invalidate triggers would block the event loop on a full
+            # pty buffer, freezing the display consumer and the LLM stream.
+            if not stdout_writable():
+                continue
             self._status_spinner_frame = (self._status_spinner_frame + 1) % len(_STATUS_SPINNER_FRAMES)
             tick += 1
             if self._refresh_status is not None and tick % _STATUS_REFRESH_EVERY_TICKS == 0:

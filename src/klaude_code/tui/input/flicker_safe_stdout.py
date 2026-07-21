@@ -41,6 +41,8 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app_or_none
 from prompt_toolkit.patch_stdout import StdoutProxy
 
+from klaude_code.tui.terminal.tty_state import stdout_writable
+
 # DEC mode 2026 — synchronized output / "atomic update".
 _SYNC_BEGIN = "\x1b[?2026h"
 _SYNC_END = "\x1b[?2026l"
@@ -51,6 +53,24 @@ _SYNC_END = "\x1b[?2026l"
 # write cycle is in flight the renderer defers redraws, so every ms spent
 # here delays the next visible frame (though key events keep flowing).
 _CPR_WAIT_TIMEOUT_S = 0.05
+
+# When the terminal stops draining the pty (occluded window, renderer stall),
+# hold the write cycle in an awaitable wait instead of letting the erase/write
+# block the event loop. Capped so a permanently wedged terminal still makes
+# (blocking) progress eventually rather than buffering output forever.
+_TTY_WRITABLE_POLL_INTERVAL_S = 0.05
+_TTY_WRITABLE_WAIT_MAX_S = 30.0
+
+
+async def _wait_for_tty_writable() -> None:
+    if stdout_writable():
+        return
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _TTY_WRITABLE_WAIT_MAX_S
+    while loop.time() < deadline:
+        await asyncio.sleep(_TTY_WRITABLE_POLL_INTERVAL_S)
+        if stdout_writable():
+            return
 
 
 async def _await_cpr_responses(app: Application[object], timeout: float) -> None:
@@ -101,6 +121,13 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
     app._running_in_terminal_f = new_f
     if previous_f is not None:
         await previous_f
+
+    # Hold the cycle while the terminal is not draining the pty. The erase
+    # and body writes below are synchronous fd-1 writes; issuing them into a
+    # full buffer would block the whole event loop (display, LLM stream)
+    # instead of just delaying this frame. Ordering is safe: later cycles
+    # chain behind this one via app._running_in_terminal_f.
+    await _wait_for_tty_writable()
 
     # Drain any outstanding CPR response before erasing, so a late reply to
     # the previous redraw's request is not attributed to the request we issue

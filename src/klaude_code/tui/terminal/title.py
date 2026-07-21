@@ -6,6 +6,7 @@ import os
 import sys
 
 from klaude_code.log import DebugType, log_debug
+from klaude_code.tui.terminal.tty_state import stdout_writable
 
 # Blink state: cycles a single-glyph Braille spinner to keep title width stable.
 _BLINK_PREFIXES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
@@ -50,6 +51,12 @@ def set_terminal_title(title: str) -> None:
             return
     except Exception:
         log_debug("Terminal title skipped: failed to probe TTY state", debug_type=DebugType.TERMINAL)
+        return
+
+    # A stalled terminal (not draining the pty) would turn this write into an
+    # event-loop-blocking call; drop the frame instead. Blink retries in 80ms.
+    if not stdout_writable():
+        log_debug("Terminal title skipped: stdout not writable (tty backpressure)", debug_type=DebugType.TERMINAL)
         return
 
     log_debug(f"Terminal title set: {title}", debug_type=DebugType.TERMINAL)
