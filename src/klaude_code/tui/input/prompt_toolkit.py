@@ -184,6 +184,7 @@ class PromptToolkitInput(InputProviderABC):
         on_user_activity: Callable[[], None] | None = None,
         on_change_model: Callable[[str], Awaitable[None]] | None = None,
         get_current_model_config_name: Callable[[], str | None] | None = None,
+        get_current_model_provider_name: Callable[[], str | None] | None = None,
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
         dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
         request_interrupt: Callable[[], None] | None = None,
@@ -197,6 +198,7 @@ class PromptToolkitInput(InputProviderABC):
         self._on_user_activity = on_user_activity
         self._on_change_model = on_change_model
         self._get_current_model_config_name = get_current_model_config_name
+        self._get_current_model_provider_name = get_current_model_provider_name
         self._command_info_provider = command_info_provider
         self._dequeue_pending_messages = dequeue_pending_messages
         self._request_interrupt = request_interrupt
@@ -442,6 +444,10 @@ class PromptToolkitInput(InputProviderABC):
                 main_candidates = config.iter_model_config_candidates(config.main_model)
                 current_model = main_candidates[0].selector if main_candidates else None
         model_name = current_model.split("@", 1)[0] if current_model else None
+        provider_name: str | None = None
+        if self._get_current_model_provider_name is not None:
+            with contextlib.suppress(Exception):
+                provider_name = self._get_current_model_provider_name()
 
         parts = [dir_name]
         # Show cwd in brackets when it differs from the repo name
@@ -455,12 +461,15 @@ class PromptToolkitInput(InputProviderABC):
             suffix = " " + " ".join(parts[1:])
         if not model_name:
             return [("class:placeholder", prefix), ("class:accent.blue", dir_name), ("class:placeholder", suffix)]
-        return [
+        fragments: StyleAndTextTuples = [
             ("class:placeholder", prefix),
             ("class:accent.blue", dir_name),
             ("class:placeholder", f"{suffix} > "),
             ("class:accent.blue", model_name),
         ]
+        if provider_name:
+            fragments.extend([(CLASS_META, " via "), (CLASS_META, provider_name)])
+        return fragments
 
     def _is_bash_mode_active(self) -> bool:
         try:

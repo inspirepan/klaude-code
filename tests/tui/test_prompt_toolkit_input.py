@@ -33,6 +33,7 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._refresh_status = None
     prompt_input._request_interrupt = None
     prompt_input._get_current_model_config_name = lambda: "test-model"
+    prompt_input._get_current_model_provider_name = lambda: "test-provider"
     prompt_input._next_prefill_text = None
     prompt_input._prompt_suggestion = None
     prompt_input._last_completion_panel_completions = ()
@@ -267,6 +268,16 @@ def test_input_footer_context_name_uses_blue_not_placeholder() -> None:
 
     assert fragments[0] == ("class:placeholder", "  ")
     assert fragments[1][0] == "class:accent.blue"
+
+
+def test_input_footer_context_renders_model_provider() -> None:
+    prompt_input: Any = _build_input("")
+
+    assert prompt_input._build_prompt_context_fragments()[-3:] == [
+        ("class:accent.blue", "test-model"),
+        ("class:meta", " via "),
+        ("class:meta", "test-provider"),
+    ]
 
 
 def test_input_footer_reserves_idle_metadata_row() -> None:

@@ -605,6 +605,11 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             if components.runtime.current_agent is not None
             else None
         ),
+        get_current_model_provider_name=lambda: (
+            components.runtime.current_agent.profile.llm_client.get_llm_config().provider_name
+            if components.runtime.current_agent is not None
+            else None
+        ),
         on_change_model=_change_model_from_prompt,
         command_info_provider=get_command_info_list,
     )
