@@ -43,6 +43,33 @@ def test_load_auto_memory_with_truncation_notice(monkeypatch: pytest.MonkeyPatch
     assert loaded.content.splitlines()[-1] == f"line {memory.AUTO_MEMORY_MAX_LINES}"
 
 
+def test_get_claude_code_auto_memory_path(isolated_home: Path) -> None:
+    work_dir = Path("/Users/panjx/code/claude-code")
+
+    result = memory.get_claude_code_auto_memory_path(work_dir)
+
+    assert result == (isolated_home / ".claude/projects/-Users-panjx-code-claude-code/memory/MEMORY.md")
+
+
+def test_load_auto_memories_includes_klaude_and_claude_code(isolated_home: Path) -> None:
+    work_dir = isolated_home / "code" / "claude-code"
+    work_dir.mkdir(parents=True)
+
+    klaude_memory_path = memory.get_auto_memory_path(work_dir)
+    klaude_memory_path.write_text("klaude memory\n", encoding="utf-8")
+
+    claude_memory_path = memory.get_claude_code_auto_memory_path(work_dir)
+    claude_memory_path.parent.mkdir(parents=True)
+    claude_memory_path.write_text("claude memory\n", encoding="utf-8")
+
+    loaded = memory.load_auto_memories(work_dir)
+
+    assert [(item.path, item.content) for item in loaded] == [
+        (str(klaude_memory_path), "klaude memory\n"),
+        (str(claude_memory_path), "claude memory\n"),
+    ]
+
+
 def test_get_existing_memory_files_includes_git_root_memories(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     fake_home = tmp_path / "home"
     fake_home.mkdir()

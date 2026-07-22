@@ -116,9 +116,13 @@ def get_existing_memory_paths_by_location(*, work_dir: Path) -> dict[str, list[s
     result = get_existing_memory_files(work_dir=work_dir)
 
     paths = ProjectPaths(project_key=project_key_from_path(work_dir))
-    auto_memory_path = paths.memory_dir / AUTO_MEMORY_FILE
-    if auto_memory_path.exists() and auto_memory_path.is_file():
-        result.setdefault("project", []).append(str(auto_memory_path))
+    auto_memory_paths = (
+        paths.memory_dir / AUTO_MEMORY_FILE,
+        get_claude_code_auto_memory_path(work_dir),
+    )
+    for auto_memory_path in auto_memory_paths:
+        if auto_memory_path.exists() and auto_memory_path.is_file():
+            result.setdefault("project", []).append(str(auto_memory_path))
 
     if not any(result.values()):
         return {}
@@ -242,10 +246,14 @@ def get_auto_memory_path(work_dir: Path) -> Path:
     return paths.memory_dir / AUTO_MEMORY_FILE
 
 
-def load_auto_memory(work_dir: Path) -> Memory | None:
-    """Load the per-project MEMORY.md from the auto-memory directory."""
+def get_claude_code_auto_memory_path(work_dir: Path) -> Path:
+    """Return Claude Code's per-project MEMORY.md path."""
 
-    memory_path = get_auto_memory_path(work_dir)
+    project_key = str(work_dir.resolve()).replace("/", "-")
+    return Path.home() / ".claude" / "projects" / project_key / "memory" / AUTO_MEMORY_FILE
+
+
+def _load_auto_memory_file(memory_path: Path) -> Memory | None:
     if not memory_path.exists() or not memory_path.is_file():
         return None
     try:
@@ -259,6 +267,28 @@ def load_auto_memory(work_dir: Path) -> Memory | None:
         text = "\n".join(lines[:AUTO_MEMORY_MAX_LINES])
         instruction += f" (truncated to first {AUTO_MEMORY_MAX_LINES} lines from {total_lines} total lines)"
     return Memory(path=str(memory_path), instruction=instruction, content=text)
+
+
+def load_auto_memory(work_dir: Path) -> Memory | None:
+    """Load the per-project MEMORY.md from the auto-memory directory."""
+
+    return _load_auto_memory_file(get_auto_memory_path(work_dir))
+
+
+def load_auto_memories(work_dir: Path) -> list[Memory]:
+    """Load klaude and Claude Code auto-memory files for a project."""
+
+    memories: list[Memory] = []
+    seen: set[Path] = set()
+    for memory_path in (get_auto_memory_path(work_dir), get_claude_code_auto_memory_path(work_dir)):
+        resolved = memory_path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        loaded = _load_auto_memory_file(memory_path)
+        if loaded is not None:
+            memories.append(loaded)
+    return memories
 
 
 def _count_memory_session_bytes(session: Session) -> int:
@@ -305,9 +335,11 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
             continue
 
     auto_memory_hint = ""
-    auto_memory = load_auto_memory(session.work_dir)
-    if auto_memory is not None:
-        if not is_memory_loaded(session, auto_memory.path):
+    auto_memories = load_auto_memories(session.work_dir)
+    if auto_memories:
+        for auto_memory in auto_memories:
+            if is_memory_loaded(session, auto_memory.path):
+                continue
             auto_memory_content = truncate_memory_content(auto_memory.content, auto_memory.path)
             auto_memory_bytes = len(auto_memory_content.encode("utf-8"))
             if auto_memory_bytes <= remaining_budget:
