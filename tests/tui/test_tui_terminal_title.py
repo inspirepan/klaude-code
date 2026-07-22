@@ -133,6 +133,50 @@ def test_terminal_title_override_blinks(monkeypatch: pytest.MonkeyPatch) -> None
     assert prefixes[-1] == "❔"
 
 
+def test_set_terminal_title_retries_when_tty_busy(monkeypatch: pytest.MonkeyPatch) -> None:
+    writes: list[str] = []
+    busy = True
+
+    def _fake_try_write(title: str) -> bool:
+        if busy:
+            return False
+        writes.append(title)
+        return True
+
+    monkeypatch.setattr(terminal_title, "_try_write_title", _fake_try_write)
+    monkeypatch.setattr(terminal_title, "_RETRY_INTERVAL", 0.001)
+
+    async def _run() -> None:
+        nonlocal busy
+        terminal_title.set_terminal_title("✅ done · project")
+        assert writes == []
+        retry_task = terminal_title._retry_task  # pyright: ignore[reportPrivateUsage]
+        assert retry_task is not None and not retry_task.done()
+        busy = False
+        await asyncio.wait_for(retry_task, timeout=1)
+        assert writes == ["✅ done · project"]
+        assert terminal_title._pending_title is None  # pyright: ignore[reportPrivateUsage]
+
+    asyncio.run(_run())
+
+
+def test_stop_title_blink_cancels_pending_title_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(terminal_title, "_try_write_title", lambda _title: False)
+    monkeypatch.setattr(terminal_title, "_RETRY_INTERVAL", 0.001)
+
+    async def _run() -> None:
+        terminal_title.set_terminal_title("⠙ stale · project")
+        retry_task = terminal_title._retry_task  # pyright: ignore[reportPrivateUsage]
+        assert retry_task is not None
+        terminal_title.stop_terminal_title_blink()
+        assert terminal_title._pending_title is None  # pyright: ignore[reportPrivateUsage]
+        assert terminal_title._retry_task is None  # pyright: ignore[reportPrivateUsage]
+        await asyncio.sleep(0)
+        assert retry_task.cancelled()
+
+    asyncio.run(_run())
+
+
 def test_task_finish_cancelled_clears_terminal_title_prefix() -> None:
     machine = DisplayStateMachine()
     session_id = "s1"

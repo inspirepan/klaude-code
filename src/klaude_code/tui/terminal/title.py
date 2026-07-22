@@ -19,6 +19,14 @@ _blink_model_name: str | None = None
 _blink_session_title: str | None = None
 _title_override_prefix: str | None = None
 
+# Retry state: a title write dropped on a busy tty is re-attempted until it
+# lands, so one-shot updates (the final ✅/❌ after a task) aren't lost.
+_RETRY_INTERVAL = 0.08  # seconds
+_RETRY_MAX_ATTEMPTS = 62  # ~5s before giving up
+
+_pending_title: str | None = None
+_retry_task: asyncio.Task[None] | None = None
+
 
 def _format_session_title(session_title: str | None) -> str | None:
     if not session_title:
@@ -42,34 +50,82 @@ def _build_terminal_title(work_dir: str | None, session_title: str | None) -> st
     return f"klaude · {project_name}"
 
 
-def set_terminal_title(title: str) -> None:
-    """Set terminal window title using an ANSI escape sequence."""
+def _try_write_title(title: str) -> bool:
+    """Write the OSC title sequence; True when done (or permanently skipped)."""
     stream = getattr(sys, "__stdout__", None) or sys.stdout
     try:
         if not stream.isatty():
             log_debug("Terminal title skipped: stdout is not a TTY", debug_type=DebugType.TERMINAL)
-            return
+            return True
     except Exception:
         log_debug("Terminal title skipped: failed to probe TTY state", debug_type=DebugType.TERMINAL)
-        return
+        return True
 
     # A stalled terminal (not draining the pty) would turn this write into an
-    # event-loop-blocking call; drop the frame instead. Blink retries in 80ms.
+    # event-loop-blocking call; drop the frame instead.
     if not stdout_writable():
         log_debug("Terminal title skipped: stdout not writable (tty backpressure)", debug_type=DebugType.TERMINAL)
-        return
+        return False
 
     # A scrollback drain may be mid-frame with its payload split at an
     # arbitrary byte; injecting this OSC there would corrupt terminal
-    # parsing. Drop the frame; blink retries in 80ms.
+    # parsing. Drop the frame.
     if scrollback_write_in_flight():
         log_debug("Terminal title skipped: scrollback write in flight", debug_type=DebugType.TERMINAL)
-        return
+        return False
 
     log_debug(f"Terminal title set: {title}", debug_type=DebugType.TERMINAL)
     stream.write(f"\033]0;{title}\007")
     with contextlib.suppress(Exception):
         stream.flush()
+    return True
+
+
+def set_terminal_title(title: str) -> None:
+    """Set terminal window title using an ANSI escape sequence."""
+    global _pending_title
+    if _try_write_title(title):
+        _pending_title = None
+        _cancel_title_retry()
+        return
+
+    # The tty is busy. While the blink loop runs, the next 80ms tick rewrites
+    # the title anyway — but the final title of a task (✅/❌) is a one-shot
+    # write issued right when the last message is draining to scrollback, so
+    # it must be retried or it's lost and the stale spinner glyph sticks.
+    _pending_title = title
+    _ensure_title_retry()
+
+
+def _ensure_title_retry() -> None:
+    global _retry_task
+    if _retry_task is not None and not _retry_task.done():
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        _retry_task = None
+        return
+    _retry_task = loop.create_task(_retry_loop())
+
+
+def _cancel_title_retry() -> None:
+    global _retry_task
+    if _retry_task is not None:
+        _retry_task.cancel()
+        _retry_task = None
+
+
+async def _retry_loop() -> None:
+    global _pending_title
+    for _ in range(_RETRY_MAX_ATTEMPTS):
+        await asyncio.sleep(_RETRY_INTERVAL)
+        title = _pending_title
+        if title is None:
+            return
+        if _try_write_title(title):
+            _pending_title = None
+            return
 
 
 def update_terminal_title(
@@ -148,8 +204,12 @@ def clear_terminal_title_override() -> None:
 
 def stop_terminal_title_blink() -> None:
     """Cancel the blink loop if running."""
-    global _blink_task, _title_override_prefix
+    global _blink_task, _title_override_prefix, _pending_title
     if _blink_task is not None:
         _blink_task.cancel()
         _blink_task = None
     _title_override_prefix = None
+    # Drop any retry carrying a stale blink frame; the caller's follow-up
+    # title update re-arms the retry if the tty is still busy.
+    _pending_title = None
+    _cancel_title_retry()
