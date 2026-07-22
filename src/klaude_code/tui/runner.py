@@ -717,7 +717,16 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 if follow_up is None:
                     _refresh_pending_messages()
                     _mark_agent_idle()
-                    return
+                    # A submission that saw this task as still running may have
+                    # queued a follow-up between the peek above and the idle
+                    # flip. Re-peek and resume draining instead of stranding it
+                    # in the queue until some later turn finishes.
+                    if agent.peek_next_follow_up() is None:
+                        return
+                    marked_idle = False
+                    input_provider.set_agent_running(True)
+                    _refresh_pending_messages()
+                    continue
                 submission = await submit_user_input_payload(
                     runtime=components.runtime,
                     wait_for_display_idle=components.wait_for_display_idle,
@@ -871,6 +880,19 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                                 op.FollowUpAgentOperation(session_id=sid, input=follow_up_input)
                             )
                         _refresh_pending_messages()
+                        # The turn may have wound down while these ops were in
+                        # flight: the wait task's final follow-up check ran
+                        # before the queue op landed, so nothing would drain
+                        # this message until some later turn. Detect that and
+                        # start a drain cycle ourselves.
+                        if not _active_agent_running():
+                            agent = components.runtime.current_agent
+                            if agent is not None and agent.peek_next_follow_up() is not None:
+                                input_provider.set_agent_running(True)
+                                active_wait_task = asyncio.create_task(
+                                    _finish_active_wait(SubmitUserInputResult(wait_id=None), session_id=sid)
+                                )
+                                active_wait_task.add_done_callback(_consume_active_wait_result)
                     continue
 
                 if is_exit_input:

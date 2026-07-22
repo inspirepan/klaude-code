@@ -372,3 +372,131 @@ def test_wait_for_pending_writes_waits_for_thread_handoff() -> None:
         asyncio.run(_scenario())
     finally:
         proxy.close()
+
+
+def test_renderer_flush_guard_parks_tail_and_drains_when_writable() -> None:
+    """A renderer flush into a full pipe must return immediately (loop stays
+    alive), park the unwritten tail, mark it via tty_state, and finish the
+    write once the reader drains — with byte order preserved."""
+    import klaude_code.tui.input.flicker_safe_stdout as module
+    from klaude_code.tui.terminal import tty_state
+
+    read_fd, write_fd = os.pipe()
+    # Fill the pipe so the first non-blocking write cannot complete.
+    os.set_blocking(write_fd, False)
+    preload = 0
+    try:
+        while True:
+            preload += os.write(write_fd, b"x" * 4096)
+    except BlockingIOError:
+        pass
+    os.set_blocking(write_fd, True)
+
+    frame = "F" * 8192
+
+    class _Vt100Like:
+        def __init__(self) -> None:
+            self._buffer: list[str] = [frame]
+
+        def fileno(self) -> int:
+            return write_fd
+
+        def encoding(self) -> str:
+            return "utf-8"
+
+        def flush(self) -> None:
+            raise AssertionError("guard must not fall back to the blocking flush here")
+
+    output = _Vt100Like()
+    received = bytearray()
+
+    async def _scenario() -> None:
+        loop = asyncio.get_running_loop()
+        guard = module.RendererFlushGuard(output)
+        guard.install()
+        started = loop.time()
+        output.flush()
+        # The flush returned without blocking on the full pipe.
+        assert loop.time() - started < 1.0
+        assert tty_state.renderer_tail_pending()
+        assert output._buffer == []
+
+        def _drain_all() -> None:
+            target = preload + len(frame)
+            while len(received) < target:
+                time.sleep(0.001)
+                received.extend(os.read(read_fd, 65536))
+
+        await loop.run_in_executor(None, _drain_all)
+        # Give the loop writer callback a few iterations to finish the tail.
+        for _ in range(100):
+            if not tty_state.renderer_tail_pending():
+                break
+            await asyncio.sleep(0.01)
+        assert not tty_state.renderer_tail_pending()
+
+    try:
+        asyncio.run(asyncio.wait_for(_scenario(), timeout=10.0))
+        assert bytes(received[preload:]) == frame.encode()
+    finally:
+        tty_state.set_renderer_tail_pending(False)
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def test_renderer_flush_guard_writes_through_when_unobstructed() -> None:
+    """With room in the pipe the guard behaves like the stock flush: bytes
+    land immediately and no tail is parked."""
+    import klaude_code.tui.input.flicker_safe_stdout as module
+    from klaude_code.tui.terminal import tty_state
+
+    read_fd, write_fd = os.pipe()
+
+    class _Vt100Like:
+        def __init__(self) -> None:
+            self._buffer: list[str] = ["prompt line\n"]
+
+        def fileno(self) -> int:
+            return write_fd
+
+        def encoding(self) -> str:
+            return "utf-8"
+
+        def flush(self) -> None:
+            raise AssertionError("unexpected blocking flush")
+
+    output = _Vt100Like()
+
+    async def _scenario() -> None:
+        guard = module.RendererFlushGuard(output)
+        guard.install()
+        output.flush()
+        assert not tty_state.renderer_tail_pending()
+
+    try:
+        asyncio.run(_scenario())
+        assert os.read(read_fd, 1024) == b"prompt line\n"
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def test_scrollback_cycle_flag_blocks_raw_writers() -> None:
+    """scrollback_write_in_flight() must cover the whole cycle window and
+    the renderer-tail window so title/notifier raw writes stay out."""
+    from klaude_code.tui.terminal import tty_state
+
+    assert not tty_state.scrollback_write_in_flight()
+    tty_state.push_scrollback_cycle()
+    try:
+        assert tty_state.scrollback_write_in_flight()
+    finally:
+        tty_state.pop_scrollback_cycle()
+    assert not tty_state.scrollback_write_in_flight()
+
+    tty_state.set_renderer_tail_pending(True)
+    try:
+        assert tty_state.scrollback_write_in_flight()
+    finally:
+        tty_state.set_renderer_tail_pending(False)
+    assert not tty_state.scrollback_write_in_flight()

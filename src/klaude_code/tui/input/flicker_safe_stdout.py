@@ -36,13 +36,14 @@ import fcntl
 import os
 import sys
 import threading
-from collections.abc import AsyncGenerator, Generator
-from typing import TextIO, cast
+from collections.abc import AsyncGenerator, Callable, Generator
+from typing import Any, TextIO, cast
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app_or_none
 from prompt_toolkit.patch_stdout import StdoutProxy
 
+from klaude_code.tui.terminal import tty_state
 from klaude_code.tui.terminal.tty_state import stdout_writable
 
 # DEC mode 2026 — synchronized output / "atomic update".
@@ -81,6 +82,26 @@ async def _wait_for_tty_writable() -> None:
         await asyncio.sleep(_TTY_WRITABLE_POLL_INTERVAL_S)
         if stdout_writable():
             return
+
+
+async def _wait_for_renderer_tail_drained() -> None:
+    """Hold until any partially-written renderer frame finishes draining.
+
+    A write cycle starting while a renderer flush tail is pending would
+    interleave the erase sequence into the middle of that frame's escape
+    sequences. The tail drains via a loop writer callback; give up after
+    the shared deadline and force it out blockingly so a wedged terminal
+    still makes progress.
+    """
+    if not tty_state.renderer_tail_pending():
+        return
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _TTY_WRITABLE_WAIT_MAX_S
+    while loop.time() < deadline:
+        await asyncio.sleep(_TTY_WRITABLE_POLL_INTERVAL_S)
+        if not tty_state.renderer_tail_pending():
+            return
+    drain_renderer_tail_blocking()
 
 
 def _split_write_frames(text: str, max_chars: int = _FRAME_MAX_CHARS) -> list[str]:
@@ -199,6 +220,145 @@ async def _flush_output_nonblocking(output: object) -> None:
     await _write_fd_nonblocking(fd, data.encode(encoding, "replace"))
 
 
+# Cap the renderer-tail buffer. Under a stalled tty pt keeps rendering
+# (key presses append a few KB per frame); past this we drain blockingly —
+# the old behavior — rather than buffer without bound.
+_RENDERER_TAIL_MAX_BYTES = 1024 * 1024
+
+_renderer_flush_guard: RendererFlushGuard | None = None
+
+
+class RendererFlushGuard:
+    """Make prompt_toolkit renderer flushes non-blocking under tty backpressure.
+
+    ``Renderer.render`` ends with a synchronous ``output.flush()`` straight
+    into fd 1; when the terminal stops draining the pty, a key-press redraw
+    freezes the whole event loop. This wraps the app output's ``flush``:
+    outside write cycles it drains what it can with ``O_NONBLOCK`` and
+    parks the unwritten tail on a loop writer callback. Ordering is
+    preserved — later flushes append to the tail — and cross-writer safety
+    is handled by ``tty_state.renderer_tail_pending`` (title/notifier skip,
+    write cycles await the drain).
+    """
+
+    def __init__(self, output: Any) -> None:
+        self._output = output
+        self._orig_flush: Callable[[], None] = output.flush
+        self._pending = bytearray()
+        self._writer_fd: int | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def install(self) -> None:
+        self._output.flush = self._flush
+
+    def _take_buffered_bytes(self) -> bytes:
+        buffer = getattr(self._output, "_buffer", None)
+        if not isinstance(buffer, list) or not buffer:
+            return b""
+        data = "".join(cast("list[str]", buffer))
+        buffer.clear()
+        get_encoding = getattr(self._output, "encoding", None)
+        encoding = "utf-8"
+        if get_encoding is not None:
+            with contextlib.suppress(Exception):
+                encoding = str(get_encoding() or "utf-8")
+        return data.encode(encoding, "replace")
+
+    def _flush(self) -> None:
+        if tty_state.scrollback_write_in_flight() and not self._pending:
+            # Inside a write cycle ordering relies on sequential blocking
+            # writes (cycle start already ensured writability + tail drain).
+            self._orig_flush()
+            return
+        try:
+            fd = int(self._output.fileno())
+            loop = asyncio.get_running_loop()
+        except Exception:
+            self._orig_flush()
+            return
+        self._pending.extend(self._take_buffered_bytes())
+        if not self._pending:
+            return
+        self._loop = loop
+        self._drain(fd)
+
+    def _drain(self, fd: int) -> None:
+        try:
+            while self._pending:
+                old_flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+                fcntl.fcntl(fd, fcntl.F_SETFL, old_flags | os.O_NONBLOCK)
+                try:
+                    written = os.write(fd, self._pending)
+                except BlockingIOError:
+                    written = 0
+                finally:
+                    fcntl.fcntl(fd, fcntl.F_SETFL, old_flags)
+                if written == 0:
+                    break
+                del self._pending[:written]
+        except OSError:
+            # Flag manipulation or write failed; degrade to the blocking path.
+            self._drain_blocking(fd)
+            return
+        if not self._pending:
+            self._unpark(fd)
+            return
+        if len(self._pending) > _RENDERER_TAIL_MAX_BYTES:
+            self._drain_blocking(fd)
+            return
+        self._park(fd)
+
+    def _park(self, fd: int) -> None:
+        tty_state.set_renderer_tail_pending(True)
+        if self._writer_fd is not None or self._loop is None:
+            return
+        try:
+            self._loop.add_writer(fd, self._drain, fd)
+            self._writer_fd = fd
+        except (NotImplementedError, OSError):
+            self._drain_blocking(fd)
+
+    def _unpark(self, fd: int) -> None:
+        if self._writer_fd is not None and self._loop is not None:
+            with contextlib.suppress(Exception):
+                self._loop.remove_writer(self._writer_fd)
+            self._writer_fd = None
+        tty_state.set_renderer_tail_pending(False)
+
+    def _drain_blocking(self, fd: int) -> None:
+        pending = bytes(self._pending)
+        self._pending.clear()
+        self._unpark(fd)
+        if pending:
+            with contextlib.suppress(OSError):
+                _write_fd_blocking(fd, memoryview(pending), 0)
+
+    def drain_blocking(self) -> None:
+        """Force any parked tail out with blocking writes (teardown/fallback)."""
+        try:
+            fd = int(self._output.fileno())
+        except Exception:
+            self._pending.clear()
+            tty_state.set_renderer_tail_pending(False)
+            return
+        self._drain_blocking(fd)
+
+
+def install_renderer_flush_guard(output: Any) -> None:
+    """Idempotently wrap ``output.flush`` with the non-blocking guard."""
+    global _renderer_flush_guard
+    if _renderer_flush_guard is not None and _renderer_flush_guard._output is output:
+        return
+    guard = RendererFlushGuard(output)
+    guard.install()
+    _renderer_flush_guard = guard
+
+
+def drain_renderer_tail_blocking() -> None:
+    if _renderer_flush_guard is not None:
+        _renderer_flush_guard.drain_blocking()
+
+
 async def _await_cpr_responses(app: Application[object], timeout: float) -> None:
     """Wait briefly for pending CPR responses, preserving renderer state.
 
@@ -238,6 +398,10 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
     """
     app = get_app_or_none()
     if app is None or not getattr(app, "_is_running", False):
+        # No app: writes below go straight to fd 1. Flush any parked
+        # renderer tail first so they don't land mid-escape-sequence.
+        if tty_state.renderer_tail_pending():
+            drain_renderer_tail_blocking()
         yield
         return
 
@@ -254,6 +418,9 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
     # instead of just delaying this frame. Ordering is safe: later cycles
     # chain behind this one via app._running_in_terminal_f.
     await _wait_for_tty_writable()
+    # A partially-drained renderer frame must finish before the erase below,
+    # or the erase sequence lands mid-escape.
+    await _wait_for_renderer_tail_drained()
 
     # Drain any outstanding CPR response before erasing, so a late reply to
     # the previous redraw's request is not attributed to the request we issue
@@ -263,6 +430,10 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
         await _await_cpr_responses(app, _CPR_WAIT_TIMEOUT_S)
 
     output = app.output
+
+    # Mark the WHOLE cycle (erase through closing redraw) so raw fd-1
+    # writers skip it and the wrapped renderer flush stays blocking inside.
+    tty_state.push_scrollback_cycle()
 
     # Begin synchronized output before any visible mutation.
     _safe_write_raw(output, _SYNC_BEGIN)
@@ -305,6 +476,7 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
             _safe_write_raw(output, _SYNC_END)
             with contextlib.suppress(Exception):
                 output.flush()
+            tty_state.pop_scrollback_cycle()
             if not new_f.done():
                 new_f.set_result(None)
 

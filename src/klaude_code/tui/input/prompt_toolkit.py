@@ -39,7 +39,7 @@ from klaude_code.tui.input.completion_menu import (
 )
 from klaude_code.tui.input.csi_u import KITTY_KEYBOARD_RESET, install_csi_u_sequences
 from klaude_code.tui.input.drag_drop import convert_dropped_text
-from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout
+from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout, install_renderer_flush_guard
 from klaude_code.tui.input.images import (
     capture_clipboard_tag,
     extract_images_from_text,
@@ -525,6 +525,12 @@ class PromptToolkitInput(InputProviderABC):
         # coalesces into at most ~50fps instead of one full render per event.
         with contextlib.suppress(Exception):
             self._session.app.min_redraw_interval = 0.02
+
+        # Key-press redraws flush straight into fd 1; under tty backpressure
+        # (terminal not draining the pty) that blocking flush freezes the
+        # event loop. Route renderer flushes through the non-blocking guard.
+        with contextlib.suppress(Exception):
+            install_renderer_flush_guard(self._session.app.output)
 
         # Keep completion popups left-aligned and customize completion rendering.
         with contextlib.suppress(Exception):

@@ -46,6 +46,18 @@ class AppInitConfig:
 
 
 @dataclass
+class SubscriptionHolder:
+    """Mutable reference to a consumer's current bus subscription.
+
+    The bus disconnects a subscriber whose queue overflows; consumers
+    resubscribe with a fresh subscription and swap it in here so waiters
+    (e.g. ``wait_for_display_idle``) always target the live queue.
+    """
+
+    subscription: EventSubscription
+
+
+@dataclass
 class AppComponents:
     """Initialized runtime components."""
 
@@ -55,7 +67,7 @@ class AppComponents:
     event_relay_publisher: EventRelayPublisher | None
     session_meta_relay_publisher: SessionMetaRelayPublisher | None
     unregister_session_meta_relay_observer: Callable[[], None] | None
-    event_bus_subscription: EventSubscription
+    event_bus_subscription: SubscriptionHolder
     display: DisplayABC
     display_task: asyncio.Task[None]
     interaction_task: asyncio.Task[None] | None
@@ -64,25 +76,33 @@ class AppComponents:
 
     async def wait_for_display_idle(self) -> None:
         """Wait until EventBus subscription has consumed pending events."""
-        await self.event_bus_subscription.wait_for_drain()
+        await self.event_bus_subscription.subscription.wait_for_drain()
 
 
 async def _consume_display_from_subscription(
-    subscription: EventSubscription,
+    event_bus: EventBus,
+    holder: SubscriptionHolder,
     display: DisplayABC,
 ) -> None:
     await display.start()
-    async for envelope in subscription:
-        try:
-            if isinstance(envelope.event, events.EndEvent):
-                await display.stop()
-                return
-            await display.consume_envelope(envelope)
-        except Exception as e:
-            import traceback
+    while True:
+        async for envelope in holder.subscription:
+            try:
+                if isinstance(envelope.event, events.EndEvent):
+                    await display.stop()
+                    return
+                await display.consume_envelope(envelope)
+            except Exception as e:
+                import traceback
 
-            log(f"Error in display event stream, {e.__class__.__name__}, {e}")
-            log(traceback.format_exc())
+                log(f"Error in display event stream, {e.__class__.__name__}, {e}")
+                log(traceback.format_exc())
+        # The iterator ended without an EndEvent: the bus disconnected this
+        # subscriber because its queue overflowed while the display stalled.
+        # Resubscribe rather than go permanently (and silently) dark; the
+        # overflowed backlog is lost, so note it visibly.
+        log(("Display event stream overflowed; resubscribed (some output may have been dropped)", "yellow"))
+        holder.subscription = event_bus.subscribe(None)
 
 
 async def _reclaim_idle_sessions_loop(runtime: RuntimeFacade) -> None:
@@ -98,31 +118,37 @@ async def _heartbeat_session_owners_loop(runtime: RuntimeFacade) -> None:
 
 
 async def _consume_interactions_from_subscription(
-    subscription: EventSubscription,
+    event_bus: EventBus,
+    holder: SubscriptionHolder,
     runtime: RuntimeFacade,
     handler: InteractionHandlerABC,
 ) -> None:
-    async for envelope in subscription:
-        event = envelope.event
-        if isinstance(event, events.EndEvent):
-            return
-        if not isinstance(event, events.UserInteractionRequestEvent):
-            continue
+    while True:
+        async for envelope in holder.subscription:
+            event = envelope.event
+            if isinstance(event, events.EndEvent):
+                return
+            if not isinstance(event, events.UserInteractionRequestEvent):
+                continue
 
-        try:
-            response = await handler.collect_response(event)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            response = user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+            try:
+                response = await handler.collect_response(event)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                response = user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
-        await runtime.submit_and_wait(
-            op.UserInteractionRespondOperation(
-                session_id=event.session_id,
-                request_id=event.request_id,
-                response=response,
+            await runtime.submit_and_wait(
+                op.UserInteractionRespondOperation(
+                    session_id=event.session_id,
+                    request_id=event.request_id,
+                    response=response,
+                )
             )
-        )
+        # Disconnected by the bus (queue overflowed while a prompt was open);
+        # resubscribe so future permission prompts keep working.
+        log_debug("Interaction event stream overflowed; resubscribed", debug_type=DebugType.EVENT_BUS)
+        holder.subscription = event_bus.subscribe(None)
 
 
 async def initialize_app_components(
@@ -200,8 +226,10 @@ async def initialize_app_components(
         )
 
     event_bus = EventBus(publish_hook=event_relay_publisher.publish if event_relay_publisher is not None else None)
-    event_bus_subscription = event_bus.subscribe(None)
-    interaction_subscription = event_bus.subscribe(None) if interaction_handler is not None else None
+    event_bus_subscription = SubscriptionHolder(subscription=event_bus.subscribe(None))
+    interaction_subscription = (
+        SubscriptionHolder(subscription=event_bus.subscribe(None)) if interaction_handler is not None else None
+    )
 
     runtime = RuntimeFacade(
         event_bus,
@@ -232,13 +260,13 @@ async def initialize_app_components(
     owner_heartbeat_task = asyncio.create_task(_heartbeat_session_owners_loop(runtime))
     _drain_background_task_exception(owner_heartbeat_task, label="owner-heartbeat")
 
-    display_task = asyncio.create_task(_consume_display_from_subscription(event_bus_subscription, display))
+    display_task = asyncio.create_task(_consume_display_from_subscription(event_bus, event_bus_subscription, display))
     _drain_background_task_exception(display_task, label="display")
 
     interaction_task: asyncio.Task[None] | None = None
     if interaction_subscription is not None and interaction_handler is not None:
         interaction_task = asyncio.create_task(
-            _consume_interactions_from_subscription(interaction_subscription, runtime, interaction_handler)
+            _consume_interactions_from_subscription(event_bus, interaction_subscription, runtime, interaction_handler)
         )
         _drain_background_task_exception(interaction_task, label="interaction")
 

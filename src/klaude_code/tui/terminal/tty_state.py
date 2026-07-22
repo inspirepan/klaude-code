@@ -35,16 +35,49 @@ def stdout_writable() -> bool:
     return bool(writable)
 
 
-def scrollback_write_in_flight() -> bool:
-    """Return True while a terminal write cycle holds the tty.
+# Depth of active flicker-safe write cycles (erase → body → redraw). Set by
+# synchronized_in_terminal around the WHOLE cycle, unlike the app's
+# _running_in_terminal flag which only covers the body.
+_scrollback_cycle_depth = 0
 
-    The flicker-safe scrollback drain writes its payload in non-blocking
-    chunks and yields to the event loop between them; a chunk boundary can
-    fall mid-escape-sequence. A raw fd-1 write (title blink, OSC
-    notification) landing in that gap corrupts terminal parsing, so direct
-    writers must skip or reroute while this is set.
+# True while a prompt_toolkit renderer flush left a partially-written frame
+# on fd 1 (tty stopped draining mid-write). The tail is drained by a loop
+# writer callback; until then fd 1 may be mid-escape-sequence.
+_renderer_tail_pending = False
+
+
+def push_scrollback_cycle() -> None:
+    global _scrollback_cycle_depth
+    _scrollback_cycle_depth += 1
+
+
+def pop_scrollback_cycle() -> None:
+    global _scrollback_cycle_depth
+    _scrollback_cycle_depth = max(0, _scrollback_cycle_depth - 1)
+
+
+def set_renderer_tail_pending(pending: bool) -> None:
+    global _renderer_tail_pending
+    _renderer_tail_pending = pending
+
+
+def renderer_tail_pending() -> bool:
+    return _renderer_tail_pending
+
+
+def scrollback_write_in_flight() -> bool:
+    """Return True while fd 1 may be mid-escape-sequence.
+
+    Covers two hazards: a flicker-safe scrollback write cycle in progress
+    (payload drained in non-blocking chunks whose boundaries can fall
+    mid-escape-sequence), and a renderer flush whose unfinished tail is
+    still waiting for the tty to drain. A raw fd-1 write (title blink, OSC
+    notification) landing in either gap corrupts terminal parsing, so
+    direct writers must skip or reroute while this is set.
     """
 
+    if _scrollback_cycle_depth > 0 or _renderer_tail_pending:
+        return True
     try:
         from prompt_toolkit.application.current import get_app_or_none
 
