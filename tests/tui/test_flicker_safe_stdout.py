@@ -1,6 +1,9 @@
 # pyright: reportPrivateUsage=false
 
 import asyncio
+import fcntl
+import os
+import time
 from types import SimpleNamespace
 
 
@@ -194,6 +197,151 @@ def test_wait_for_pending_writes_timeout_does_not_cancel_in_flight_future() -> N
         asyncio.run(_scenario())
     finally:
         proxy.close()
+
+
+def test_split_write_frames_small_text_single_frame() -> None:
+    """The common streaming case (small flush) must stay a single cycle."""
+    from klaude_code.tui.input.flicker_safe_stdout import _split_write_frames
+
+    text = "line one\nline two\n"
+    assert _split_write_frames(text, max_chars=100) == [text]
+
+
+def test_split_write_frames_breaks_on_line_boundaries() -> None:
+    """Large payloads split into line-aligned frames that rejoin losslessly:
+    the redraw between cycles paints the bottom UI at the cursor row, so no
+    frame may end mid-line."""
+    from klaude_code.tui.input.flicker_safe_stdout import _split_write_frames
+
+    lines = [f"line {i:04d} with some padding text\n" for i in range(100)]
+    text = "".join(lines)
+    frames = _split_write_frames(text, max_chars=200)
+
+    assert len(frames) > 1
+    assert "".join(frames) == text
+    for frame in frames[:-1]:
+        assert frame.endswith("\n")
+        assert len(frame) <= 200
+
+
+def test_split_write_frames_keeps_oversized_line_whole() -> None:
+    """A single line longer than the cap must not split mid-line (and thus
+    mid-escape-sequence at a frame boundary)."""
+    from klaude_code.tui.input.flicker_safe_stdout import _split_write_frames
+
+    huge = "x" * 500
+    text = f"short\n{huge}\nshort\n"
+    frames = _split_write_frames(text, max_chars=100)
+
+    assert "".join(frames) == text
+    assert any(huge in frame for frame in frames)
+
+
+def test_write_fd_nonblocking_keeps_loop_alive_under_backpressure() -> None:
+    """Writing a payload much larger than the pipe buffer against a slow
+    reader must not block the event loop: a concurrent ticker task has to
+    keep running while the drain is in progress, and every byte must arrive
+    intact. This is the regression test for the mid-write loop freeze
+    (queue box disappearing / frozen spinner during large tool results)."""
+    import klaude_code.tui.input.flicker_safe_stdout as module
+
+    read_fd, write_fd = os.pipe()
+    payload = bytes(range(256)) * 4096  # 1 MiB, far beyond the pipe buffer
+    received = bytearray()
+    ticks = 0
+
+    async def _scenario() -> None:
+        nonlocal ticks
+        loop = asyncio.get_running_loop()
+
+        async def _ticker() -> None:
+            nonlocal ticks
+            while True:
+                ticks += 1
+                await asyncio.sleep(0.005)
+
+        def _slow_drain() -> None:
+            while len(received) < len(payload):
+                time.sleep(0.002)
+                received.extend(os.read(read_fd, 65536))
+
+        ticker = asyncio.create_task(_ticker())
+        drain = loop.run_in_executor(None, _slow_drain)
+        try:
+            await module._write_fd_nonblocking(write_fd, payload)
+            await drain
+        finally:
+            ticker.cancel()
+
+    try:
+        asyncio.run(asyncio.wait_for(_scenario(), timeout=10.0))
+        assert bytes(received) == payload
+        # A blocking write would freeze the loop for the whole drain
+        # (ticks stays 0-1); the non-blocking path keeps it running.
+        assert ticks >= 3
+        # The fd must be left blocking (macOS F_GETFL reports extra
+        # kernel-internal bits, so compare the O_NONBLOCK bit only).
+        assert not (fcntl.fcntl(write_fd, fcntl.F_GETFL) & os.O_NONBLOCK)
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def test_flush_output_nonblocking_writes_buffer_through_fd() -> None:
+    """With a Vt100-shaped output the buffer is drained via the fd and
+    cleared, exactly like the stock flush but loop-friendly."""
+    import klaude_code.tui.input.flicker_safe_stdout as module
+
+    read_fd, write_fd = os.pipe()
+
+    class _Vt100Like:
+        def __init__(self) -> None:
+            self._buffer: list[str] = ["hello ", "world\n"]
+
+        def fileno(self) -> int:
+            return write_fd
+
+        def encoding(self) -> str:
+            return "utf-8"
+
+        def flush(self) -> None:
+            raise AssertionError("blocking flush must not be used on the fd path")
+
+    output = _Vt100Like()
+    try:
+        asyncio.run(module._flush_output_nonblocking(output))
+        assert output._buffer == []
+        assert os.read(read_fd, 1024) == b"hello world\n"
+    finally:
+        os.close(read_fd)
+        os.close(write_fd)
+
+
+def test_flush_output_nonblocking_falls_back_without_fd() -> None:
+    """Outputs without Vt100 internals (plain-text outputs in tests) must
+    fall back to the stock blocking flush with the buffer intact."""
+    import klaude_code.tui.input.flicker_safe_stdout as module
+
+    flushed = False
+
+    class _PlainOutput:
+        def __init__(self) -> None:
+            self._buffer: list[str] = ["content"]
+
+        def fileno(self) -> int:
+            raise OSError("no fd")
+
+        def encoding(self) -> str:
+            return "utf-8"
+
+        def flush(self) -> None:
+            nonlocal flushed
+            flushed = True
+
+    output = _PlainOutput()
+    asyncio.run(module._flush_output_nonblocking(output))
+    assert flushed is True
+    assert output._buffer == ["content"]
 
 
 def test_wait_for_pending_writes_waits_for_thread_handoff() -> None:

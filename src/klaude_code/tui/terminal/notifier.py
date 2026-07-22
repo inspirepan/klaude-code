@@ -8,6 +8,7 @@ from typing import TextIO, cast
 
 from klaude_code.const import NOTIFY_COMPACT_LIMIT
 from klaude_code.log import DebugType, log_debug
+from klaude_code.tui.terminal.tty_state import scrollback_write_in_flight
 
 ST = "\033\\"
 BEL = "\a"
@@ -17,6 +18,12 @@ def resolve_stream(stream: TextIO | None) -> TextIO:
     """Use the original stdout when available to avoid interception by Rich wrappers."""
     if stream is not None:
         return stream
+    # While a scrollback drain is mid-frame, a raw fd-1 write could land
+    # between two non-blocking chunks — possibly mid-escape-sequence. Route
+    # through the patched proxy instead so the payload is serialized behind
+    # the in-flight write cycle.
+    if scrollback_write_in_flight():
+        return sys.stdout
     if hasattr(sys, "__stdout__") and sys.__stdout__ is not None:
         return cast(TextIO, sys.__stdout__)
     return sys.stdout

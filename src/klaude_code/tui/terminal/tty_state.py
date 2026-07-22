@@ -33,3 +33,22 @@ def stdout_writable() -> bool:
     except Exception:
         return True
     return bool(writable)
+
+
+def scrollback_write_in_flight() -> bool:
+    """Return True while a terminal write cycle holds the tty.
+
+    The flicker-safe scrollback drain writes its payload in non-blocking
+    chunks and yields to the event loop between them; a chunk boundary can
+    fall mid-escape-sequence. A raw fd-1 write (title blink, OSC
+    notification) landing in that gap corrupts terminal parsing, so direct
+    writers must skip or reroute while this is set.
+    """
+
+    try:
+        from prompt_toolkit.application.current import get_app_or_none
+
+        app = get_app_or_none()
+    except Exception:
+        return False
+    return app is not None and bool(getattr(app, "_running_in_terminal", False))

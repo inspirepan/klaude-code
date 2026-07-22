@@ -6,7 +6,7 @@ import os
 import sys
 
 from klaude_code.log import DebugType, log_debug
-from klaude_code.tui.terminal.tty_state import stdout_writable
+from klaude_code.tui.terminal.tty_state import scrollback_write_in_flight, stdout_writable
 
 # Blink state: cycles a single-glyph Braille spinner to keep title width stable.
 _BLINK_PREFIXES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
@@ -57,6 +57,13 @@ def set_terminal_title(title: str) -> None:
     # event-loop-blocking call; drop the frame instead. Blink retries in 80ms.
     if not stdout_writable():
         log_debug("Terminal title skipped: stdout not writable (tty backpressure)", debug_type=DebugType.TERMINAL)
+        return
+
+    # A scrollback drain may be mid-frame with its payload split at an
+    # arbitrary byte; injecting this OSC there would corrupt terminal
+    # parsing. Drop the frame; blink retries in 80ms.
+    if scrollback_write_in_flight():
+        log_debug("Terminal title skipped: scrollback write in flight", debug_type=DebugType.TERMINAL)
         return
 
     log_debug(f"Terminal title set: {title}", debug_type=DebugType.TERMINAL)

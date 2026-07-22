@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import fcntl
+import os
 import sys
 import threading
 from collections.abc import AsyncGenerator, Generator
@@ -61,6 +63,14 @@ _CPR_WAIT_TIMEOUT_S = 0.05
 _TTY_WRITABLE_POLL_INTERVAL_S = 0.05
 _TTY_WRITABLE_WAIT_MAX_S = 30.0
 
+# Cap the scrollback payload written inside a single erase/write/redraw
+# cycle. A large tool result (diff, bash output) written as one frame keeps
+# the bottom UI erased — and the DEC 2026 frame open — for the whole drain,
+# so a slow terminal presents the erased state (input box and queue list
+# gone). Splitting on line boundaries restores the bottom UI between frames
+# and keeps each synchronized frame short.
+_FRAME_MAX_CHARS = 8192
+
 
 async def _wait_for_tty_writable() -> None:
     if stdout_writable():
@@ -71,6 +81,122 @@ async def _wait_for_tty_writable() -> None:
         await asyncio.sleep(_TTY_WRITABLE_POLL_INTERVAL_S)
         if stdout_writable():
             return
+
+
+def _split_write_frames(text: str, max_chars: int = _FRAME_MAX_CHARS) -> list[str]:
+    """Split a coalesced scrollback payload into per-cycle frames.
+
+    Frames break only on line boundaries: the redraw between cycles paints
+    the bottom UI at the cursor row, so a frame must not end mid-line. A
+    single line longer than ``max_chars`` stays whole (the non-blocking
+    drain still protects the event loop for oversized frames).
+    """
+    if len(text) <= max_chars:
+        return [text]
+    frames: list[str] = []
+    current: list[str] = []
+    current_len = 0
+    for line in text.splitlines(keepends=True):
+        if current and current_len + len(line) > max_chars:
+            frames.append("".join(current))
+            current = []
+            current_len = 0
+        current.append(line)
+        current_len += len(line)
+    if current:
+        frames.append("".join(current))
+    return frames
+
+
+def _write_fd_blocking(fd: int, view: memoryview, offset: int) -> None:
+    """Write the remainder of ``view`` with a blocking fd, restoring flags."""
+    old_flags: int | None
+    try:
+        old_flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, old_flags & ~os.O_NONBLOCK)
+    except OSError:
+        old_flags = None
+    try:
+        while offset < len(view):
+            offset += os.write(fd, view[offset:])
+    finally:
+        if old_flags is not None:
+            with contextlib.suppress(OSError):
+                fcntl.fcntl(fd, fcntl.F_SETFL, old_flags)
+
+
+async def _write_fd_nonblocking(fd: int, payload: bytes) -> None:
+    """Write ``payload`` to ``fd`` without ever blocking the event loop.
+
+    ``stdout_writable()`` before a cycle only proves the pty buffer has
+    *some* room; a multi-KB payload can still block mid-write when the
+    terminal drains slowly — with the bottom UI already erased. Toggle
+    ``O_NONBLOCK`` around each ``os.write`` so partial writes return
+    immediately, and yield to the loop between attempts. After
+    ``_TTY_WRITABLE_WAIT_MAX_S`` (or if flag manipulation fails) fall back
+    to a blocking write so a wedged terminal still makes progress
+    eventually instead of buffering output forever.
+    """
+    view = memoryview(payload)
+    offset = 0
+    total = len(view)
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _TTY_WRITABLE_WAIT_MAX_S
+    while offset < total:
+        try:
+            old_flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, old_flags | os.O_NONBLOCK)
+            try:
+                written = os.write(fd, view[offset:])
+            except BlockingIOError:
+                written = 0
+            finally:
+                fcntl.fcntl(fd, fcntl.F_SETFL, old_flags)
+        except OSError:
+            break
+        offset += written
+        if offset >= total:
+            return
+        if written == 0:
+            if loop.time() >= deadline:
+                break
+            await asyncio.sleep(_TTY_WRITABLE_POLL_INTERVAL_S)
+    _write_fd_blocking(fd, view, offset)
+
+
+async def _flush_output_nonblocking(output: object) -> None:
+    """Drain the prompt_toolkit output buffer without blocking the loop.
+
+    Mirrors ``Vt100_Output.flush`` (join ``_buffer``, encode with
+    ``replace``) but hands the bytes to :func:`_write_fd_nonblocking`.
+    Falls back to the stock blocking ``flush()`` when the output does not
+    have the expected Vt100 shape (plain-text outputs in tests, no fd).
+    """
+    buffer = getattr(output, "_buffer", None)
+    flush = getattr(output, "flush", None)
+
+    def _flush_blocking() -> None:
+        if flush is not None:
+            with contextlib.suppress(Exception):
+                flush()
+
+    if not isinstance(buffer, list) or not buffer:
+        _flush_blocking()
+        return
+    fileno = getattr(output, "fileno", None)
+    get_encoding = getattr(output, "encoding", None)
+    if fileno is None or get_encoding is None:
+        _flush_blocking()
+        return
+    try:
+        fd = int(fileno())
+        encoding = str(get_encoding() or "utf-8")
+    except Exception:
+        _flush_blocking()
+        return
+    data = "".join(buffer)
+    buffer.clear()
+    await _write_fd_nonblocking(fd, data.encode(encoding, "replace"))
 
 
 async def _await_cpr_responses(app: Application[object], timeout: float) -> None:
@@ -170,6 +296,10 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
             # we lose the atomicity.
             if output.responds_to_cpr:
                 await _await_cpr_responses(app, _CPR_WAIT_TIMEOUT_S)
+            # The redraw paints the full bottom UI (a few KB) through a
+            # blocking flush; hold it while the pty buffer has zero room so
+            # a stalled terminal can't freeze the loop right at cycle end.
+            await _wait_for_tty_writable()
             app._redraw()
         finally:
             _safe_write_raw(output, _SYNC_END)
@@ -210,20 +340,25 @@ class FlickerSafeStdoutProxy(StdoutProxy):
         self._active_write_handoffs = 0
 
     def _write_and_flush(self, loop: asyncio.AbstractEventLoop | None, text: str) -> None:
-        def write_and_flush() -> None:
+        def _buffer_frame(frame: str) -> None:
             self._output.enable_autowrap()
             if self.raw:
-                self._output.write_raw(text)
+                self._output.write_raw(frame)
             else:
-                self._output.write(text)
-            self._output.flush()
+                self._output.write(frame)
 
-        async def run() -> None:
+        async def run(frame: str) -> None:
             async with synchronized_in_terminal():
-                write_and_flush()
+                _buffer_frame(frame)
+                # Drain via non-blocking fd writes: the bottom UI is erased
+                # at this point, and a blocking flush into a slow-draining
+                # terminal would freeze the loop (spinner, display consumer,
+                # LLM stream) with the UI torn down.
+                await _flush_output_nonblocking(self._output)
 
         if loop is None:
-            write_and_flush()
+            _buffer_frame(text)
+            self._output.flush()
             return
 
         with self._pending_lock:
@@ -231,11 +366,15 @@ class FlickerSafeStdoutProxy(StdoutProxy):
 
         def schedule() -> None:
             try:
-                future = asyncio.ensure_future(run())
+                # One erase/write/redraw cycle per frame; cycles chain via
+                # app._running_in_terminal_f, and tasks created in order run
+                # their synchronous prologue in order, so frames stay FIFO.
+                futures = [asyncio.ensure_future(run(frame)) for frame in _split_write_frames(text)]
                 with self._pending_lock:
-                    self._pending_in_terminal.add(future)
+                    self._pending_in_terminal.update(futures)
                     self._active_write_handoffs -= 1
-                future.add_done_callback(self._discard_pending_future)
+                for future in futures:
+                    future.add_done_callback(self._discard_pending_future)
             except Exception:
                 with self._pending_lock:
                     self._active_write_handoffs -= 1
