@@ -1,3 +1,4 @@
+import asyncio
 import json
 from collections.abc import AsyncGenerator, AsyncIterable
 from typing import Any, Literal, cast, override
@@ -442,7 +443,8 @@ class ResponsesClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        payload = build_payload(param, is_volces_base_url=self._is_volces_base_url)
+        # Payload building re-encodes history images; keep it off the event loop.
+        payload = await asyncio.to_thread(build_payload, param, is_volces_base_url=self._is_volces_base_url)
 
         log_debug(
             lambda: json.dumps(payload, ensure_ascii=False, default=str),

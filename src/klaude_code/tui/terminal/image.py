@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import IO
 
+from klaude_code.llm.image import shrink_image_bytes_for_inline_display
 from klaude_code.tui.terminal import supports_kitty_graphics
 
 # Kitty graphics protocol chunk size (4096 is the recommended max)
@@ -147,7 +148,15 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
             size_param = f"r={_MAX_ROWS}"
         print("", file=out)
         if not _write_kitty_graphics_via_file(out, data, size_param=size_param):
-            encoded = base64.standard_b64encode(data).decode("ascii")
+            # Inline transmission ships the full image as base64 in one escape
+            # sequence; shrink large images so the write cycle doesn't hold
+            # the bottom UI erased while a slow terminal drains megabytes.
+            shrunk = shrink_image_bytes_for_inline_display(data)
+            if shrunk is not data and not size_param and dimensions is not None:
+                # Pin the original display size so the downscaled pixels
+                # still occupy the same cell area.
+                size_param = f"c={min(max(dimensions[0] // _PIXELS_PER_COL, 1), target_cols)}"
+            encoded = base64.standard_b64encode(shrunk).decode("ascii")
             _write_kitty_graphics(out, encoded, size_param=size_param)
         print("", file=out)
         out.flush()

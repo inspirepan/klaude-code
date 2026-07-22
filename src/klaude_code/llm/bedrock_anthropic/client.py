@@ -688,7 +688,7 @@ class BedrockClient(LLMClientABC):
     ) -> LLMStreamABC:
         import anthropic
 
-        payload = build_payload(param)
+        payload = await asyncio.to_thread(build_payload, param)
         log_debug(
             lambda: json.dumps(payload, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,

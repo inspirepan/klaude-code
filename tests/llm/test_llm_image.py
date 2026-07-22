@@ -479,3 +479,33 @@ def test_image_url_to_request_url_keeps_frozen_data_url(monkeypatch: pytest.Monk
     monkeypatch.setattr(image_module, "normalize_image_data_url", _fail)
 
     assert image_module.image_url_to_request_url(frozen, max_dimension=2000) == frozen.url
+
+
+def test_shrink_inline_display_keeps_small_and_non_image_bytes() -> None:
+    small = b"\x89PNG\r\n\x1a\n" + b"x" * 100
+    assert image_module.shrink_image_bytes_for_inline_display(small) is small
+
+    non_image = b"not an image" * 50_000
+    assert image_module.shrink_image_bytes_for_inline_display(non_image) is non_image
+
+
+def test_shrink_inline_display_downscales_large_png() -> None:
+    PIL = pytest.importorskip("PIL")
+    del PIL
+    import io
+    import random
+
+    from PIL import Image
+
+    rng = random.Random(42)
+    img = Image.new("RGB", (1600, 1200))
+    img.putdata([(rng.randrange(256), rng.randrange(256), rng.randrange(256)) for _ in range(1600 * 1200)])
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    original = buf.getvalue()
+    assert len(original) > 256 * 1024
+
+    shrunk = image_module.shrink_image_bytes_for_inline_display(original)
+    assert len(shrunk) < len(original)
+    with Image.open(io.BytesIO(shrunk)) as reopened:
+        assert max(reopened.size) <= 1024

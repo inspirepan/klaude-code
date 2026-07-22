@@ -449,6 +449,79 @@ def _compress_image_bytes_for_request(
     return current, current_mime
 
 
+# Inline terminal graphics (kitty protocol without the file medium) ship the
+# whole image as base64 inside one escape sequence; past ~256KB the scrollback
+# write cycle visibly holds the bottom UI erased while a slow terminal drains
+# it. Shrink aggressively — display resolution needs are modest.
+_INLINE_DISPLAY_TARGET_BYTES = 256 * 1024
+_INLINE_DISPLAY_MAX_DIMENSION = 1024
+
+
+def shrink_image_bytes_for_inline_display(image_bytes: bytes) -> bytes:
+    """Best-effort shrink of an image destined for inline terminal graphics.
+
+    Keeps the original bytes when they are already small, not a recognized
+    raster format, or when no resize backend is available. Output is PNG so
+    kitty ``f=100`` still applies. This runs on the display path, so it uses
+    a fast PNG encode (no optimize / max compression) rather than the
+    history-snapshot settings.
+    """
+    if len(image_bytes) <= _INLINE_DISPLAY_TARGET_BYTES:
+        return image_bytes
+    mime_type = detect_mime_type_from_bytes(image_bytes)
+    if mime_type is None:
+        return image_bytes
+
+    shrunk = _fast_downscale_to_png(image_bytes)
+    if shrunk is not None and len(shrunk) < len(image_bytes):
+        return shrunk
+
+    # No Pillow: fall back to the platform resize tools (sips/convert).
+    dims = _detect_image_dimensions(image_bytes, mime_type)
+    if dims is None:
+        return image_bytes
+    width, height = dims
+    largest = max(width, height)
+    if largest <= _INLINE_DISPLAY_MAX_DIMENSION:
+        return image_bytes
+    scale = _INLINE_DISPLAY_MAX_DIMENSION / largest
+    resized = _resize_image_bytes(
+        image_bytes,
+        mime_type,
+        width=max(1, int(width * scale)),
+        height=max(1, int(height * scale)),
+    )
+    if resized is not None and len(resized) < len(image_bytes):
+        return resized
+    return image_bytes
+
+
+def _fast_downscale_to_png(image_bytes: bytes) -> bytes | None:
+    """Downscale + palette-quantize with a fast PNG encode (~100ms for 1.4MB)."""
+    try:
+        from PIL import Image, ImageOps, UnidentifiedImageError
+    except ImportError:
+        return None
+    try:
+        with Image.open(BytesIO(image_bytes)) as opened:
+            image = ImageOps.exif_transpose(opened)
+            width, height = image.size
+            largest = max(width, height)
+            if largest > _INLINE_DISPLAY_MAX_DIMENSION:
+                scale = _INLINE_DISPLAY_MAX_DIMENSION / largest
+                image = image.resize(
+                    (max(1, int(width * scale)), max(1, int(height * scale))),
+                    Image.Resampling.LANCZOS,
+                )
+            if image.mode not in {"RGBA", "LA"} and "transparency" not in image.info:
+                image = image.convert("RGB").quantize(colors=256)
+            output = BytesIO()
+            image.save(output, format="PNG", optimize=False, compress_level=6)
+            return output.getvalue()
+    except (OSError, UnidentifiedImageError, ValueError):
+        return None
+
+
 def parse_data_url(url: str) -> tuple[str, str, bytes]:
     """Parse a base64 data URL and return (mime_type, base64_payload, decoded_bytes)."""
 

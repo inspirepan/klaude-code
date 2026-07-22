@@ -1,5 +1,6 @@
 """Codex LLM client using ChatGPT subscription via OAuth."""
 
+import asyncio
 import json
 from typing import Any, cast, override
 
@@ -152,7 +153,8 @@ class CodexClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        payload = build_payload(param)
+        # Payload building re-encodes history images; keep it off the event loop.
+        payload = await asyncio.to_thread(build_payload, param)
         session_id = param.session_id or ""
         extra_headers: dict[str, str] = {}
         if session_id:

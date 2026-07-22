@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any, Literal, cast, override
 
@@ -85,7 +86,8 @@ class OpenAICompatibleClient(LLMClientABC):
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
         try:
-            payload, extra_body = build_payload(param)
+            # Payload building re-encodes history images; keep it off the event loop.
+            payload, extra_body = await asyncio.to_thread(build_payload, param)
         except (ValueError, OSError) as e:
             return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
 

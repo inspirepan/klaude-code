@@ -2,6 +2,7 @@
 # pyright: reportUnknownVariableType=false
 # pyright: reportUnknownArgumentType=false
 # pyright: reportAttributeAccessIssue=false
+import asyncio
 import warnings
 from base64 import b64encode
 from collections.abc import AsyncGenerator, AsyncIterator
@@ -469,7 +470,8 @@ class GoogleClient(LLMClientABC):
         param = apply_config_defaults(param, self.get_llm_config())
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        contents = convert_history_to_contents(param.input, model_name=str(param.model_id))
+        # History conversion re-encodes images; keep it off the event loop.
+        contents = await asyncio.to_thread(convert_history_to_contents, param.input, model_name=str(param.model_id))
         config = _build_config(param)
 
         if param.session_id:
