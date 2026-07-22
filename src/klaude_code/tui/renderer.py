@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import io
 import shutil
 import time
 from collections import deque
@@ -112,6 +113,13 @@ BASH_LIVE_TAIL_MAX_LINES = 5
 # rendering the tail through Rich for each one wastes event-loop time. Cap
 # tail repaints and flush trailing content once the interval elapses.
 BASH_LIVE_TAIL_MIN_INTERVAL_S = 1 / 30
+
+
+class _TerminalCaptureBuffer(io.StringIO):
+    """In-memory sink that reports as a terminal so ANSI styling is kept."""
+
+    def isatty(self) -> bool:
+        return True
 
 
 @dataclass
@@ -230,6 +238,32 @@ class TUICommandRenderer:
         """
 
         self._replay_mode = enabled
+
+    @contextmanager
+    def bulk_render_capture(self) -> Iterator[io.StringIO]:
+        """Render into memory instead of the terminal.
+
+        Console output (including kitty image escapes, which also write to
+        ``console.file``) accumulates in the returned buffer in order. The
+        console size is pinned first: with an in-memory file Rich would fall
+        back to environment-based size detection mid-capture. The caller
+        flushes the buffer in a single scrollback write so the whole payload
+        paints at once (see ``write_scrollback_bulk``).
+        """
+
+        console = self.console
+        buffer = _TerminalCaptureBuffer()
+        size = console.size
+        old_width, old_height = console._width, console._height  # pyright: ignore[reportPrivateUsage]
+        old_file = console._file  # pyright: ignore[reportPrivateUsage]
+        console.size = size
+        console.file = buffer
+        try:
+            yield buffer
+        finally:
+            console._file = old_file  # pyright: ignore[reportPrivateUsage]
+            console._width = old_width  # pyright: ignore[reportPrivateUsage]
+            console._height = old_height  # pyright: ignore[reportPrivateUsage]
 
     # ---------------------------------------------------------------------
     # Session helpers
@@ -999,7 +1033,7 @@ class TUICommandRenderer:
             self._flush_open_blocks_before(cmd)
             log_debug(
                 f"{'[Cmd] [Replay]' if self._replay_mode else '[Cmd]'} [{cmd.__class__.__name__}]",
-                str(cmd),
+                lambda cmd=cmd: str(cmd),
                 debug_type=DebugType.UI_EVENT,
             )
             match cmd:

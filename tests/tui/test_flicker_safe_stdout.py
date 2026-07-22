@@ -500,3 +500,81 @@ def test_scrollback_cycle_flag_blocks_raw_writers() -> None:
     finally:
         tty_state.set_renderer_tail_pending(False)
     assert not tty_state.scrollback_write_in_flight()
+
+
+def test_write_scrollback_bulk_without_proxy_writes_directly() -> None:
+    """When sys.stdout is not the flicker-safe proxy (headless, tests),
+    the bulk payload must still reach stdout verbatim."""
+    import io
+    import sys
+
+    from klaude_code.tui.input.flicker_safe_stdout import write_scrollback_bulk
+
+    buffer = io.StringIO()
+    original = sys.stdout
+    sys.stdout = buffer
+    try:
+        asyncio.run(write_scrollback_bulk("line1\nline2\n"))
+    finally:
+        sys.stdout = original
+    assert buffer.getvalue() == "line1\nline2\n"
+
+
+def test_write_scrollback_bulk_lands_after_queued_proxy_writes() -> None:
+    """The bulk payload must not overtake writes already queued through the
+    proxy's flush thread — the replay transcript has to land after the
+    welcome banner."""
+    import sys
+
+    from klaude_code.tui.input.flicker_safe_stdout import (
+        FlickerSafeStdoutProxy,
+        write_scrollback_bulk,
+    )
+
+    proxy = FlickerSafeStdoutProxy(sleep_between_writes=0.01, raw=True)
+    written: list[str] = []
+    proxy._output = SimpleNamespace(  # type: ignore[assignment]
+        enable_autowrap=lambda: None,
+        write_raw=written.append,
+        write=written.append,
+        flush=lambda: None,
+    )
+
+    async def _scenario() -> None:
+        proxy.write("queued\n")
+        await write_scrollback_bulk("bulk-payload\n")
+
+    original = sys.stdout
+    sys.stdout = proxy  # type: ignore[assignment]
+    try:
+        asyncio.run(_scenario())
+    finally:
+        sys.stdout = original
+        proxy.close()
+
+    joined = "".join(written)
+    assert joined.index("queued") < joined.index("bulk-payload")
+
+
+def test_bulk_render_capture_buffers_output_and_restores_console() -> None:
+    """bulk_render_capture must route console output (with ANSI styling)
+    into the buffer and fully restore console file/size afterwards."""
+    from rich.text import Text
+
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer(theme="dark")
+    console = renderer.console
+    old_file = console._file
+    old_width, old_height = console._width, console._height
+
+    with renderer.bulk_render_capture() as buffer:
+        assert console.is_terminal
+        renderer.print(Text("styled", style="bold red"))
+        captured_width = console.size.width
+
+    assert "styled" in buffer.getvalue()
+    assert console._file is old_file
+    assert console._width == old_width
+    assert console._height == old_height
+    assert captured_width > 0

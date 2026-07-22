@@ -9,6 +9,7 @@ from klaude_code.app.ports import DisplayABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
 from klaude_code.tui.commands import PromptStatusLine
+from klaude_code.tui.input.flicker_safe_stdout import write_scrollback_bulk
 from klaude_code.tui.machine import DisplayStateMachine, is_cancelled_task_result
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
@@ -56,18 +57,27 @@ class TUIDisplay(DisplayABC):
             self._renderer.set_stream_renderable(None)
             self._renderer.set_replay_mode(True)
             try:
-                await self._renderer.execute(self._machine.begin_replay())
-                for item in event.events:
-                    log_debug(
-                        f"[Replay] [{item.__class__.__name__}]",
-                        item.model_dump_json(exclude_none=True),
-                        debug_type=DebugType.UI_EVENT,
-                    )
+                # Render the whole transcript into memory first (yielding per
+                # event so the pure-CPU render loop doesn't starve the event
+                # loop), then flush it in a single scrollback write. Routing
+                # per-event output through the stdout proxy instead paints the
+                # history as dozens of frame-sized chunks, each paying a CPR
+                # round trip and a bottom-UI redraw.
+                with self._renderer.bulk_render_capture() as buffer:
+                    await self._renderer.execute(self._machine.begin_replay())
+                    for item in event.events:
+                        log_debug(
+                            f"[Replay] [{item.__class__.__name__}]",
+                            lambda item=item: item.model_dump_json(exclude_none=True),
+                            debug_type=DebugType.UI_EVENT,
+                        )
 
-                    commands = self._machine.transition_replay(item)
-                    if commands:
-                        await self._renderer.execute(commands)
-                await self._renderer.execute(self._machine.end_replay())
+                        commands = self._machine.transition_replay(item)
+                        if commands:
+                            await self._renderer.execute(commands)
+                        await asyncio.sleep(0)
+                    await self._renderer.execute(self._machine.end_replay())
+                await write_scrollback_bulk(buffer.getvalue())
             finally:
                 self._renderer.set_replay_mode(False)
             self._restore_prompt_suggestion_from_replay(event.events)
@@ -75,7 +85,7 @@ class TUIDisplay(DisplayABC):
 
         log_debug(
             f"[{event.__class__.__name__}]",
-            event.model_dump_json(exclude_none=True),
+            lambda: event.model_dump_json(exclude_none=True),
             debug_type=DebugType.UI_EVENT,
         )
         self._handle_prompt_suggestion_event(event)

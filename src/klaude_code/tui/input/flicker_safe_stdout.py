@@ -146,6 +146,33 @@ def _write_fd_blocking(fd: int, view: memoryview, offset: int) -> None:
                 fcntl.fcntl(fd, fcntl.F_SETFL, old_flags)
 
 
+async def _await_fd_writable(fd: int, timeout: float) -> None:
+    """Suspend until ``fd`` signals writability (or the timeout elapses).
+
+    Event-driven rather than a fixed-interval poll: a pty buffer holds only
+    a few KB, so sleeping 50ms per refill caps throughput at ~100KB/s and
+    visibly paces large scrollback payloads (session-resume replay).
+    Falls back to a single short sleep when the loop cannot watch the fd.
+    """
+    loop = asyncio.get_running_loop()
+    future: asyncio.Future[None] = loop.create_future()
+
+    def _on_writable() -> None:
+        if not future.done():
+            future.set_result(None)
+
+    try:
+        loop.add_writer(fd, _on_writable)
+    except (NotImplementedError, OSError):
+        await asyncio.sleep(_TTY_WRITABLE_POLL_INTERVAL_S)
+        return
+    try:
+        await asyncio.wait([future], timeout=timeout)
+    finally:
+        with contextlib.suppress(Exception):
+            loop.remove_writer(fd)
+
+
 async def _write_fd_nonblocking(fd: int, payload: bytes) -> None:
     """Write ``payload`` to ``fd`` without ever blocking the event loop.
 
@@ -153,7 +180,7 @@ async def _write_fd_nonblocking(fd: int, payload: bytes) -> None:
     *some* room; a multi-KB payload can still block mid-write when the
     terminal drains slowly — with the bottom UI already erased. Toggle
     ``O_NONBLOCK`` around each ``os.write`` so partial writes return
-    immediately, and yield to the loop between attempts. After
+    immediately, and await writability between attempts. After
     ``_TTY_WRITABLE_WAIT_MAX_S`` (or if flag manipulation fails) fall back
     to a blocking write so a wedged terminal still makes progress
     eventually instead of buffering output forever.
@@ -179,9 +206,10 @@ async def _write_fd_nonblocking(fd: int, payload: bytes) -> None:
         if offset >= total:
             return
         if written == 0:
-            if loop.time() >= deadline:
+            remaining = deadline - loop.time()
+            if remaining <= 0:
                 break
-            await asyncio.sleep(_TTY_WRITABLE_POLL_INTERVAL_S)
+            await _await_fd_writable(fd, remaining)
     _write_fd_blocking(fd, view, offset)
 
 
@@ -607,6 +635,34 @@ class FlickerSafeStdoutProxy(StdoutProxy):
             # callback can land on the loop and create a new future, or
             # so a still-buffered partial line gets flushed.
             await asyncio.sleep(0.01)
+
+
+async def write_scrollback_bulk(text: str) -> None:
+    """Write a large scrollback payload in a single erase/write/redraw cycle.
+
+    Used for session-resume replay: routing the transcript through the proxy
+    would split it into ``_FRAME_MAX_CHARS`` frames, and each frame's cycle
+    pays CPR round trips and a bottom-UI redraw — a multi-hundred-KB replay
+    then paints as dozens of visible chunks. One synchronized cycle paints
+    the whole transcript at once; the non-blocking drain still protects the
+    event loop against a slow terminal.
+    """
+    if not text:
+        return
+    proxy = sys.stdout
+    if not isinstance(proxy, FlickerSafeStdoutProxy):
+        sys.stdout.write(text)
+        with contextlib.suppress(Exception):
+            sys.stdout.flush()
+        return
+    # Writes already queued through the proxy (welcome banner, notices)
+    # must land before the transcript.
+    await proxy.wait_for_pending_writes()
+    output = proxy._output
+    async with synchronized_in_terminal():
+        output.enable_autowrap()
+        output.write_raw(text)
+        await _flush_output_nonblocking(output)
 
 
 async def settle_flicker_safe_stdout(*, timeout: float = 2.0) -> None:
