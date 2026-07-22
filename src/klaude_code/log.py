@@ -5,7 +5,7 @@ import os
 import shutil
 import subprocess
 from base64 import b64encode
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import datetime, timedelta
 from enum import Enum
 from logging.handlers import RotatingFileHandler
@@ -149,13 +149,16 @@ def log(*objects: str | tuple[str, str]) -> None:
 
 
 def log_debug(
-    *objects: str | tuple[str, str],
+    *objects: str | tuple[str, str] | Callable[[], str],
     debug_type: DebugType = DebugType.GENERAL,
 ) -> None:
     """Log debug messages with category support.
 
     Args:
-        objects: Strings or (text, style) tuples to log
+        objects: Strings, (text, style) tuples, or zero-arg callables to log.
+            Callables are only evaluated when debug logging is enabled, so
+            expensive serialization (e.g. multi-MB request payloads) costs
+            nothing on normal runs.
         debug_type: Category of the debug message
     """
     if not _debug_enabled:
@@ -171,14 +174,16 @@ def log_debug(
     logger.debug(message, extra=extra)
 
 
-def _build_message(objects: Iterable[str | tuple[str, str]]) -> str:
+def _build_message(objects: Iterable[str | tuple[str, str] | Callable[[], str]]) -> str:
     """Build plain text message from objects."""
     parts: list[str] = []
     for obj in objects:
-        if isinstance(obj, tuple):
-            parts.append(obj[0])
-        else:
+        if isinstance(obj, str):
             parts.append(obj)
+        elif isinstance(obj, tuple):
+            parts.append(cast("tuple[str, str]", obj)[0])
+        else:
+            parts.append(obj())
     return " ".join(parts)
 
 

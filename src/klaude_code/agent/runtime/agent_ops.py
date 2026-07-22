@@ -559,7 +559,7 @@ class AgentOperationHandler:
             events.PromptSuggestionReadyEvent(session_id=session.id, text=suggestion),
         )
 
-    def _freeze_user_input_for_history(
+    async def _freeze_user_input_for_history(
         self,
         user_input: message.UserInputPayload,
         *,
@@ -568,9 +568,14 @@ class AgentOperationHandler:
         images = user_input.images
         if not images:
             return user_input
+        # Freezing compresses each pasted image (~1s of CPU per multi-MB
+        # screenshot); run off the event loop so submit doesn't stall the TUI.
+        frozen_images = await asyncio.to_thread(
+            lambda: [freeze_image_for_history(image, images_dir=images_dir) for image in images]
+        )
         return message.UserInputPayload(
             text=user_input.text,
-            images=[freeze_image_for_history(image, images_dir=images_dir) for image in images],
+            images=frozen_images,
             pasted_files=user_input.pasted_files,
         )
 
@@ -580,7 +585,7 @@ class AgentOperationHandler:
         self._cancel_prompt_suggestion(operation.session_id)
         self._cancel_auto_away_summary(operation.session_id)
         await self._emit_event(events.PromptSuggestionClearedEvent(session_id=operation.session_id))
-        frozen_input = self._freeze_user_input_for_history(
+        frozen_input = await self._freeze_user_input_for_history(
             operation.input,
             images_dir=Session.paths(agent.session.work_dir).images_dir(agent.session.id),
         )

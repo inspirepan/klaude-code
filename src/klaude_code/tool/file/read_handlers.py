@@ -57,7 +57,10 @@ async def read_image(
         detected = detect_mime_type_from_bytes(image_bytes)
         if detected:
             mime_type = detected
-        image_part = freeze_image_to_file_for_history(
+        # Snapshot compression is ~1s of CPU for a multi-MB image; run it in a
+        # thread so the event loop (display, spinner, LLM stream) keeps moving.
+        image_part = await asyncio.to_thread(
+            freeze_image_to_file_for_history,
             message.ImageFilePart(file_path=file_path, mime_type=mime_type),
             images_dir=_session_images_dir(context),
         )

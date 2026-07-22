@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import os
 import shutil
 import subprocess
 import sys
@@ -96,7 +97,6 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
         else:
             data = source_data
 
-        encoded = base64.standard_b64encode(data).decode("ascii")
         out = file or sys.stdout
 
         term_size = shutil.get_terminal_size()
@@ -146,11 +146,80 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
             # Fallback: constrain by height since we can't determine image size
             size_param = f"r={_MAX_ROWS}"
         print("", file=out)
-        _write_kitty_graphics(out, encoded, size_param=size_param)
+        if not _write_kitty_graphics_via_file(out, data, size_param=size_param):
+            encoded = base64.standard_b64encode(data).decode("ascii")
+            _write_kitty_graphics(out, encoded, size_param=size_param)
         print("", file=out)
         out.flush()
     except Exception:
         print(f"[[Image: {path}]]", file=file or sys.stdout, flush=True)
+
+
+def _supports_kitty_file_transmission() -> bool:
+    """Whether the terminal can read image files from disk (kitty t=t medium).
+
+    Only kitty and Ghostty implement the file-based transmission mediums
+    reliably; WezTerm/Konsole advertise the graphics protocol but their
+    support is partial. Over SSH the terminal runs on another host and
+    cannot see local files, so inline transmission is required.
+    """
+    if os.environ.get("SSH_TTY") or os.environ.get("SSH_CONNECTION"):
+        return False
+    term_program = os.environ.get("TERM_PROGRAM", "").lower()
+    term = os.environ.get("TERM", "").lower()
+    return any(name in term_program or name in term for name in ("kitty", "ghostty"))
+
+
+# Keep t=f snapshot files around long enough for the terminal to read them
+# asynchronously; prune anything older on the next image render.
+_KITTY_FILE_MAX_AGE_S = 3600.0
+_KITTY_FILE_PREFIX = "klaude-kitty-"
+
+
+def _prune_stale_kitty_files(tmp_dir: Path) -> None:
+    import time
+
+    cutoff = time.time() - _KITTY_FILE_MAX_AGE_S
+    try:
+        for stale in tmp_dir.glob(f"{_KITTY_FILE_PREFIX}*.png"):
+            try:
+                if stale.stat().st_mtime < cutoff:
+                    stale.unlink()
+            except OSError:
+                continue
+    except OSError:
+        pass
+
+
+def _write_kitty_graphics_via_file(out: IO[str], data: bytes, *, size_param: str) -> bool:
+    """Transmit an image by file path (kitty t=f medium) instead of inline base64.
+
+    An inline payload is megabytes of base64 in a single escape sequence; the
+    scrollback write cycle keeps the bottom UI erased until a slow terminal
+    drains all of it. With file transmission the payload is just the encoded
+    path (~100 bytes) and the terminal reads the image from disk itself.
+
+    Uses t=f rather than t=t: t=t asks the terminal to delete the file after
+    reading, but Ghostty deletes before its async decode completes and the
+    image never shows. We keep ownership of the temp files and prune old
+    ones ourselves.
+    """
+    if not _supports_kitty_file_transmission():
+        return False
+    try:
+        # /tmp keeps paths short and world-readable for the terminal process;
+        # fall back to the platform default when it doesn't exist.
+        tmp_dir = Path("/tmp") if os.path.isdir("/tmp") else Path(tempfile.gettempdir())
+        _prune_stale_kitty_files(tmp_dir)
+        fd, tmp_path = tempfile.mkstemp(prefix=_KITTY_FILE_PREFIX, suffix=".png", dir=str(tmp_dir))
+        with os.fdopen(fd, "wb") as tmp_file:
+            tmp_file.write(data)
+    except OSError:
+        return False
+    encoded_path = base64.standard_b64encode(tmp_path.encode("utf-8")).decode("ascii")
+    base_ctrl = f"a=T,f=100,t=f,{size_param}" if size_param else "a=T,f=100,t=f"
+    out.write(f"\033_G{base_ctrl};{encoded_path}\033\\")
+    return True
 
 
 def _write_kitty_graphics(out: IO[str], encoded_data: str, *, size_param: str) -> None:

@@ -429,7 +429,9 @@ async def parse_bedrock_stream(
         if event is None:
             continue
 
-        log_debug(json.dumps(event, ensure_ascii=False, default=str), debug_type=DebugType.LLM_STREAM)
+        log_debug(
+            lambda event=event: json.dumps(event, ensure_ascii=False, default=str), debug_type=DebugType.LLM_STREAM
+        )
 
         if "messageStart" in event:
             continue
@@ -660,7 +662,7 @@ class BedrockClient(LLMClientABC):
         request = await asyncio.to_thread(build_bedrock_request, param, region=self.get_llm_config().aws_region)
 
         log_debug(
-            json.dumps(request, ensure_ascii=False, default=str),
+            lambda: json.dumps(request, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
         )
 
@@ -688,7 +690,7 @@ class BedrockClient(LLMClientABC):
 
         payload = build_payload(param)
         log_debug(
-            json.dumps(payload, ensure_ascii=False, default=str),
+            lambda: json.dumps(payload, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
         )
 

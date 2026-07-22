@@ -90,7 +90,7 @@ class OpenAICompatibleClient(LLMClientABC):
             return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
 
         log_debug(
-            json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
+            lambda: json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
         )
 

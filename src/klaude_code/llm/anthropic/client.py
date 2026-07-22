@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from collections.abc import AsyncGenerator
@@ -273,7 +274,7 @@ async def parse_anthropic_stream(
     async for event in await stream:
         log_debug(
             f"[{event.type}]",
-            event.model_dump_json(exclude_none=True),
+            lambda event=event: event.model_dump_json(exclude_none=True),
             debug_type=DebugType.LLM_STREAM,
         )
         match event:
@@ -458,10 +459,12 @@ class AnthropicClient(LLMClientABC):
 
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
-        payload = build_payload(param)
+        # Payload building re-reads and base64-encodes every history image;
+        # keep that CPU/disk work off the event loop.
+        payload = await asyncio.to_thread(build_payload, param)
 
         log_debug(
-            json.dumps(payload, ensure_ascii=False, default=str),
+            lambda: json.dumps(payload, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
         )
 

@@ -137,7 +137,7 @@ class OpenRouterClient(LLMClientABC):
             extra_headers["x-session-id"] = param.session_id
 
         log_debug(
-            json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
+            lambda: json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
         )
 

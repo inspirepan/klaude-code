@@ -445,7 +445,7 @@ class ResponsesClient(LLMClientABC):
         payload = build_payload(param, is_volces_base_url=self._is_volces_base_url)
 
         log_debug(
-            json.dumps(payload, ensure_ascii=False, default=str),
+            lambda: json.dumps(payload, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
         )
         extra_headers: dict[str, str] = {}

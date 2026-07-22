@@ -528,6 +528,13 @@ def freeze_image_for_history(
     return message.ImageURLPart(url=url, frozen=True, source_file_path=image.file_path)
 
 
+# Compressing a multi-MB screenshot for the history snapshot takes ~1s of CPU;
+# cache results by source-bytes digest so re-freezing the same image (repeated
+# Reads, re-pasted screenshots) skips the recompression entirely.
+_FREEZE_RESULT_CACHE_MAX = 64
+_freeze_result_cache: dict[str, message.ImageFilePart] = {}
+
+
 def freeze_image_to_file_for_history(
     image: message.ImageURLPart | message.ImageFilePart,
     *,
@@ -539,10 +546,22 @@ def freeze_image_to_file_for_history(
         if isinstance(image, message.ImageURLPart):
             if not image.url.startswith("data:"):
                 return None
+            try:
+                _, _, source_bytes = parse_data_url(image.url)
+            except ValueError:
+                source_bytes = image.url.encode("utf-8")
+            cache_key = _freeze_cache_key(source_bytes, images_dir)
+            cached = _freeze_cache_lookup(cache_key)
+            if cached is not None:
+                return cached
             mime_type, _, image_bytes = parse_data_url(normalize_image_data_url(image.url))
         else:
             file_path = Path(image.file_path)
             image_bytes = file_path.read_bytes()
+            cache_key = _freeze_cache_key(image_bytes, images_dir)
+            cached = _freeze_cache_lookup(cache_key)
+            if cached is not None:
+                return cached
             mime_type = image.mime_type or mimetypes.guess_type(str(file_path))[0] or "application/octet-stream"
 
         detected = detect_mime_type_from_bytes(image_bytes)
@@ -555,15 +574,37 @@ def freeze_image_to_file_for_history(
         target = images_dir / f"{digest}{suffix}"
         if not target.exists():
             target.write_bytes(image_bytes)
-        return message.ImageFilePart(
+        part = message.ImageFilePart(
             file_path=str(target),
             mime_type=mime_type,
             byte_size=len(image_bytes),
             sha256=digest,
             frozen=True,
         )
+        _freeze_cache_store(cache_key, part)
+        return part
     except OSError:
         return None
+
+
+def _freeze_cache_key(source_bytes: bytes, images_dir: Path) -> str:
+    return f"{hashlib.sha256(source_bytes).hexdigest()}:{images_dir}"
+
+
+def _freeze_cache_lookup(cache_key: str) -> message.ImageFilePart | None:
+    part = _freeze_result_cache.get(cache_key)
+    if part is None:
+        return None
+    if not Path(part.file_path).exists():
+        _freeze_result_cache.pop(cache_key, None)
+        return None
+    return part.model_copy()
+
+
+def _freeze_cache_store(cache_key: str, part: message.ImageFilePart) -> None:
+    while len(_freeze_result_cache) >= _FREEZE_RESULT_CACHE_MAX:
+        _freeze_result_cache.pop(next(iter(_freeze_result_cache)))
+    _freeze_result_cache[cache_key] = part.model_copy()
 
 
 def _is_session_image_snapshot_path(file_path: Path) -> bool:

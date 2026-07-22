@@ -162,7 +162,7 @@ class CodexClient(LLMClientABC):
             extra_headers["x-session-id"] = session_id
 
         log_debug(
-            json.dumps(payload, ensure_ascii=False, default=str),
+            lambda: json.dumps(payload, ensure_ascii=False, default=str),
             debug_type=DebugType.LLM_PAYLOAD,
         )
         try:
