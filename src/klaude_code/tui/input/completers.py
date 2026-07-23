@@ -8,6 +8,7 @@ This module provides completers for the REPL input:
 
 Public API:
 - create_repl_completer(): Factory function to create the combined completer
+- path_matches_query(): Check whether a path fuzzy-matches a query
 - AT_TOKEN_PATTERN: Regex pattern for @token matching (used by key bindings)
 - SKILL_TOKEN_PATTERN: Regex pattern for skill tokens (used by key bindings)
 """
@@ -18,7 +19,10 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
+from bisect import insort
+from collections import deque
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import NamedTuple
@@ -27,7 +31,7 @@ from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.document import Document
 from prompt_toolkit.formatted_text import FormattedText
 
-from klaude_code.const import COMPLETER_CACHE_TTL_SEC, COMPLETER_CMD_TIMEOUT_SEC, COMPLETER_DEBOUNCE_SEC
+from klaude_code.const import COMPLETER_CACHE_TTL_SEC, COMPLETER_CMD_TIMEOUT_SEC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol.input_syntax import AT_COMPLETION_PATTERN, SKILL_COMPLETION_PATTERN
 from klaude_code.tui.command.types import CommandInfo
@@ -87,6 +91,120 @@ def _skill_match_rank(name: str, desc: str, frag_lower: str) -> tuple[int, int, 
         0 if desc_contains else 1,
         len(name_lower),
     )
+
+
+type _PathMatchRank = tuple[int, int, int, int, int]
+type _PathSortKey = tuple[int, int, int, int, int, int, int, int, int]
+type _RankedPath = tuple[_PathSortKey, str, str]
+
+
+def _path_match_rank(path: str, query: str) -> _PathMatchRank | None:
+    """Return a path-aware fuzzy rank, or None when the query does not match."""
+    normalized = path.removeprefix("./").removeprefix(".\\").rstrip("/")
+    path_lower = normalized.lower()
+    query_lower = query.lower()
+    if not query_lower:
+        return (0, 0, 0, 0, 0)
+
+    basename_offset = path_lower.rfind("/") + 1
+    basename = path_lower[basename_offset:]
+    stem = basename.rsplit(".", 1)[0] if "." in basename and not basename.startswith(".") else basename
+
+    if stem == query_lower:
+        return (0, 0, 0, 0, basename_offset)
+    if basename.startswith(query_lower):
+        return (1, 0, 0, 0, basename_offset)
+
+    basename_pos = basename.find(query_lower)
+    if basename_pos >= 0:
+        return (2, 0, 0, 0, basename_offset + basename_pos)
+
+    path_pos = path_lower.find(query_lower)
+    if path_pos >= 0:
+        return (3, 0, 0, 0, path_pos)
+
+    preserves_indices = len(normalized) == len(path_lower)
+
+    def is_boundary(index: int) -> bool:
+        return (
+            index == 0
+            or path_lower[index - 1] in "/\\._- "
+            or (
+                preserves_indices
+                and normalized[index].isupper()
+                and normalized[index - 1].islower()
+            )
+        )
+
+    # For every endpoint, retain the best partial subsequence ending there.
+    # The state is (-boundary_hits, total_gap, runs, start_position).
+    states: dict[int, tuple[int, int, int, int]] = {
+        index: (-int(is_boundary(index)), 0, 1, index)
+        for index, char in enumerate(path_lower)
+        if char == query_lower[0]
+    }
+    for query_char in query_lower[1:]:
+        next_states: dict[int, tuple[int, int, int, int]] = {}
+        for index, char in enumerate(path_lower):
+            if char != query_char:
+                continue
+            candidates = []
+            for previous_index, state in states.items():
+                if previous_index >= index:
+                    continue
+                step_gap = index - previous_index - 1
+                candidates.append(
+                    (
+                        state[0] - int(is_boundary(index)),
+                        state[1] + step_gap,
+                        state[2] + int(step_gap > 0),
+                        state[3],
+                    )
+                )
+            if candidates:
+                next_states[index] = min(candidates)
+        states = next_states
+        if not states:
+            return None
+
+    if not states:
+        return None
+
+    boundary_score, gap, runs, start = min(states.values())
+    if boundary_score == 0 and gap > max(12, len(query_lower) * 4):
+        return None
+    return (4 if start >= basename_offset else 5, boundary_score, gap, runs, start)
+
+
+def path_matches_query(path: str, query: str) -> bool:
+    """Return whether query fuzzy-matches path as an ordered subsequence."""
+    return _path_match_rank(path, query) is not None
+
+
+def _path_sort_key(path: str, query: str) -> _PathSortKey | None:
+    match_rank = _path_match_rank(path, query)
+    if match_rank is None:
+        return None
+
+    normalized = path.removeprefix("./").removeprefix(".\\")
+    path_lower = normalized.lower()
+    is_hidden = any(segment.startswith(".") for segment in normalized.split("/") if segment)
+    has_test = "test" in path_lower
+    depth = normalized.rstrip("/").count("/")
+    return (1 if is_hidden else 0, 1 if has_test else 0, *match_rank, depth, len(normalized))
+
+
+def _add_ranked_path(ranked: list[_RankedPath], path: str, query: str, *, limit: int) -> bool:
+    """Insert a matching path into a bounded sorted list and report overflow."""
+    rank = _path_sort_key(path, query)
+    if rank is None:
+        return False
+
+    insort(ranked, (rank, path.lower(), path))
+    if len(ranked) <= limit:
+        return False
+    ranked.pop()
+    return True
 
 
 def create_repl_completer(
@@ -354,28 +472,26 @@ class _AtFilesCompleter(Completer):
     - Only triggers when the cursor is after an "@…" token (until whitespace).
     - Completes paths relative to the current working directory.
     - Uses the Git index inside repositories and an in-process scan elsewhere.
-    - Debounces Git commands and caches results to avoid excessive spawning.
+    - Caches Git indexes and query results to avoid excessive spawning.
     - Inserts a trailing space after completion to stop further triggering.
     """
 
     _AT_TOKEN_RE = AT_TOKEN_PATTERN
+    _FILESYSTEM_SCAN_TIMEOUT_SEC = 0.15
+    _FILESYSTEM_SCAN_MAX_ENTRIES = 50_000
 
     def __init__(
         self,
-        debounce_sec: float = COMPLETER_DEBOUNCE_SEC,
         cache_ttl_sec: float = COMPLETER_CACHE_TTL_SEC,
         max_results: int = 20,
     ):
-        self._debounce_sec = debounce_sec
         self._cache_ttl = cache_ttl_sec
         self._max_results = max_results
 
-        # Debounce/caching state
-        self._last_cmd_time: float = 0.0
+        # Query result cache
         self._last_query_key: str | None = None
         self._last_results: list[str] = []
         self._last_results_time: float = 0.0
-        self._last_results_truncated: bool = False
 
         # git ls-files cache (preferred when inside a git repo)
         self._git_repo_root: Path | None = None
@@ -383,9 +499,15 @@ class _AtFilesCompleter(Completer):
         self._git_repo_root_cwd: Path | None = None
 
         self._git_file_list: list[str] | None = None
-        self._git_file_list_lower: list[str] | None = None
+        self._git_dir_list: list[str] | None = None
         self._git_file_list_time: float = 0.0
         self._git_file_list_cwd: Path | None = None
+
+        # Path searches are bounded and never overlap. ThreadedCompleter does
+        # not cancel an in-flight generator when the user types another key.
+        self._path_search_lock = threading.Lock()
+        self._filesystem_scan_timeout_sec = self._FILESYSTEM_SCAN_TIMEOUT_SEC
+        self._filesystem_scan_max_entries = self._FILESYSTEM_SCAN_MAX_ENTRIES
 
         # Command timeout is intentionally higher than a keypress cadence.
         # Git discovery and file lists are cached across completion requests.
@@ -448,39 +570,6 @@ class _AtFilesCompleter(Completer):
 
         max_scan_results = self._max_results * 3
 
-        # Debounce: if called too soon again, filter last results
-        if self._last_results and self._last_query_key is not None:
-            prev = self._last_query_key
-            if self._same_scope(prev, query_key):
-                # Determine if query is narrowing or broadening
-                _, prev_kw = self._parse_query_key(prev)
-                _, cur_kw = self._parse_query_key(query_key)
-                is_narrowing = (
-                    prev_kw is not None
-                    and cur_kw is not None
-                    and len(cur_kw) >= len(prev_kw)
-                    and cur_kw.startswith(prev_kw)
-                )
-
-                # If the previous result set was not truncated, it is a complete
-                # superset for any narrower prefix. Reuse it even if the user
-                # pauses between keystrokes.
-                if (
-                    is_narrowing
-                    and not self._last_results_truncated
-                    and now - self._last_results_time < self._cache_ttl
-                ):
-                    return self._filter_and_format(self._last_results, cwd, key_norm)
-
-                if is_narrowing and (now - self._last_cmd_time) < self._debounce_sec:
-                    # For rapid narrowing, fast-filter previous results to avoid expensive calls
-                    # If the previous result set was truncated (e.g., for a 1-char query),
-                    # filtering it can legitimately produce an empty set even when matches
-                    # exist elsewhere. Fall back to a real search in that case.
-                    filtered = self._filter_and_format(self._last_results, cwd, key_norm)
-                    if filtered:
-                        return filtered
-
         # Cache TTL: reuse cached results for same query within TTL
         if self._last_results and self._last_query_key == query_key and now - self._last_results_time < self._cache_ttl:
             return self._filter_and_format(self._last_results, cwd, key_norm)
@@ -488,19 +577,17 @@ class _AtFilesCompleter(Completer):
         # Git provides the bounded path index inside repositories. Scanning is
         # reserved for non-Git directories or environments without Git.
         if self._get_git_repo_root(cwd) is not None:
-            results, truncated = self._git_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
+            results, _truncated = self._git_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
         else:
-            results, truncated = self._python_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
+            results, _truncated = self._python_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
 
         if not results:
             return []
 
         # Update caches
-        self._last_cmd_time = now
         self._last_query_key = query_key
         self._last_results = results
         self._last_results_time = now
-        self._last_results_truncated = truncated
         return self._filter_and_format(results, cwd, key_norm)
 
     def _filter_and_format(
@@ -509,55 +596,19 @@ class _AtFilesCompleter(Completer):
         cwd: Path,
         keyword_norm: str,
     ) -> list[str]:
-        # Filter to keyword (case-insensitive) and rank by:
-        # 1. Hidden files (starting with .) are deprioritized
-        # 2. Paths containing "test" are deprioritized
-        # 3. Directory depth (shallower first)
-        # 4. Basename hit first, then path hit position, then length
-        # All path sources return paths relative to cwd.
-        kn = keyword_norm
-        out: list[tuple[str, tuple[int, int, int, int, int, int, int, int]]] = []
+        out: list[tuple[str, tuple[int, int, int, int, int, int, int, int, int]]] = []
         for p in paths_from_root:
-            pl = p.lower()
-            if kn not in pl:
-                continue
-
             # Path sources return paths relative to cwd. Some Git output can
             # include a leading './' prefix; strip that exact prefix only.
             #
             # Do not use lstrip('./') here: it would also remove the leading '.'
             # from dotfiles/directories like '.claude/'.
             rel_to_cwd = p.removeprefix("./").removeprefix(".\\")
-            base = os.path.basename(rel_to_cwd.rstrip("/")).lower()
-            base_pos = base.find(kn)
-            path_pos = pl.find(kn)
-            depth = rel_to_cwd.rstrip("/").count("/")
-
-            # Deprioritize hidden files/directories (any path segment starting with .)
-            is_hidden = any(seg.startswith(".") for seg in rel_to_cwd.split("/") if seg)
-            # Deprioritize paths containing "test"
-            has_test = "test" in pl
-
-            # Calculate basename match quality: how close is base to the keyword?
-            # Strip extension for files to compare stem (e.g., "renderer.py" -> "renderer")
-            base_stem = base.rsplit(".", 1)[0] if "." in base and not base.startswith(".") else base
-            # Exact stem match gets 0, otherwise difference in length
-            base_match_quality = abs(len(base_stem) - len(kn)) if base_pos != -1 else 10_000
-
-            score = (
-                1 if is_hidden else 0,
-                1 if has_test else 0,
-                0 if base_pos != -1 else 1,  # basename match first
-                base_match_quality,  # more precise basename match wins
-                depth,  # then shallower paths
-                base_pos if base_pos != -1 else 10_000,
-                path_pos,
-                len(p),
-            )
-
-            out.append((rel_to_cwd, score))
+            score = _path_sort_key(rel_to_cwd, keyword_norm)
+            if score is not None:
+                out.append((rel_to_cwd, score))
         # Sort by score
-        out.sort(key=lambda x: x[1])
+        out.sort(key=lambda item: (item[1], item[0].lower()))
         # Unique while preserving order
         seen: set[str] = set()
         uniq: list[str] = []
@@ -612,40 +663,35 @@ class _AtFilesCompleter(Completer):
 
         return FormattedText(segments)
 
-    def _same_scope(self, prev_key: str, cur_key: str) -> bool:
-        # Consider same scope if they share the same base directory and one prefix startswith the other
-        try:
-            prev_root, prev_pref = prev_key.split("::", 1)
-            cur_root, cur_pref = cur_key.split("::", 1)
-        except ValueError:
-            return False
-        return prev_root == cur_root and (prev_pref.startswith(cur_pref) or cur_pref.startswith(prev_pref))
-
-    def _parse_query_key(self, key: str) -> tuple[str | None, str | None]:
-        try:
-            root, rest = key.split("::", 1)
-            tag, kw = rest.split("::", 1)
-            if tag != "search":
-                return root, None
-            return root, kw
-        except ValueError:
-            return None, None
-
     # ---- Utilities ----
     def _python_paths_for_keyword(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
-        """Scan paths with os.scandir and return case-insensitive substring matches."""
+        """Return bounded fuzzy matches from a breadth-first filesystem scan."""
+        if not self._path_search_lock.acquire(blocking=False):
+            return [], True
+
+        try:
+            return self._scan_python_paths(cwd, keyword_norm, max_results=max_results)
+        finally:
+            self._path_search_lock.release()
+
+    def _scan_python_paths(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
         excluded = {".git", ".venv", "node_modules"}
-        paths: list[str] = []
-        pending: list[tuple[str, str]] = [("", str(cwd))]
-        deadline = time.monotonic() + self._cmd_timeout_sec
+        ranked: list[_RankedPath] = []
+        pending: deque[tuple[str, str]] = deque([("", str(cwd))])
+        deadline = time.monotonic() + self._filesystem_scan_timeout_sec
+        scanned = 0
+        truncated = False
 
         while pending:
-            rel_dir, directory = pending.pop()
+            rel_dir, directory = pending.popleft()
             try:
                 with os.scandir(directory) as entries:
                     for entry in entries:
-                        if time.monotonic() >= deadline:
-                            return paths, True
+                        scanned += 1
+                        if scanned > self._filesystem_scan_max_entries or time.monotonic() >= deadline:
+                            truncated = True
+                            pending.clear()
+                            break
                         if entry.name in excluded:
                             continue
 
@@ -661,21 +707,28 @@ class _AtFilesCompleter(Completer):
                         else:
                             candidate = rel
 
-                        if keyword_norm in candidate.lower():
-                            paths.append(candidate)
-                            if len(paths) >= max_results:
-                                return paths, True
+                        if _add_ranked_path(ranked, candidate, keyword_norm, limit=max_results):
+                            truncated = True
             except OSError:
                 continue
 
-        return paths, False
+        return [path for _, _, path in ranked], truncated
 
     def _git_paths_for_keyword(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
         """Get path suggestions from the git index (fast for large repos).
 
-        Returns (candidates, truncated). "truncated" is True when we
-        intentionally stop early to keep per-keystroke costs bounded.
+        Returns (candidates, truncated). "truncated" is True when more than
+        max_results paths matched the query.
         """
+        if not self._path_search_lock.acquire(blocking=False):
+            return [], True
+
+        try:
+            return self._rank_git_paths(cwd, keyword_norm, max_results=max_results)
+        finally:
+            self._path_search_lock.release()
+
+    def _rank_git_paths(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
         repo_root = self._get_git_repo_root(cwd)
         if repo_root is None:
             return [], False
@@ -691,7 +744,7 @@ class _AtFilesCompleter(Completer):
             r = self._run_cmd(cmd, cwd=repo_root, timeout_sec=self._cmd_timeout_sec)
             if not r.ok:
                 self._git_file_list = []
-                self._git_file_list_lower = []
+                self._git_dir_list = []
                 self._git_file_list_time = now
                 self._git_file_list_cwd = cwd
             else:
@@ -712,7 +765,7 @@ class _AtFilesCompleter(Completer):
                 cwd_resolved = cwd.resolve()
                 root_resolved = repo_root.resolve()
                 files: list[str] = []
-                files_lower: list[str] = []
+                directories: set[str] = set()
                 for rel in all_lines:
                     abs_path = root_resolved / rel
                     try:
@@ -721,81 +774,25 @@ class _AtFilesCompleter(Completer):
                         continue
                     rel_posix = rel_to_cwd.as_posix()
                     files.append(rel_posix)
-                    files_lower.append(rel_posix.lower())
+                    parent = os.path.dirname(rel_posix)
+                    while parent and parent != ".":
+                        directories.add(f"{parent}/")
+                        parent = os.path.dirname(parent)
                 self._git_file_list = files
-                self._git_file_list_lower = files_lower
+                self._git_dir_list = sorted(directories)
                 self._git_file_list_time = now
                 self._git_file_list_cwd = cwd
 
         all_files = self._git_file_list or []
-        all_files_lower = self._git_file_list_lower or []
-        kn = keyword_norm
+        all_directories = self._git_dir_list or []
+        ranked: list[_RankedPath] = []
+        truncated = False
+        for paths in (all_directories, all_files):
+            for path in paths:
+                if _add_ranked_path(ranked, path, keyword_norm, limit=max_results):
+                    truncated = True
 
-        # Bound per-keystroke work.
-        #
-        # Important: When the keyword is common (e.g. "tools"), truncating the
-        # scan purely by number of matching *files* can accidentally hide valid
-        # directory completions that appear later in the git path order.
-        #
-        # Example: multiple */tools/ directories under different parents.
-        file_quota = max_results
-        dir_quota = max_results
-        scan_cap = max(2000, max_results * 200)
-
-        keyword_stripped = keyword_norm.strip("/")
-        keyword_basename = os.path.basename(keyword_stripped)
-        explicit_parent = "/" in keyword_stripped
-
-        def dir_matches_keyword(dir_path: str) -> bool:
-            if not keyword_basename:
-                return False
-            if explicit_parent:
-                # When user typed an explicit parent segment, match against the
-                # whole directory path (not just basename).
-                return kn in f"{dir_path}/".lower()
-            # Otherwise prioritize directories by basename match.
-            return keyword_basename in os.path.basename(dir_path).lower()
-
-        matching_files: list[str] = []
-        dir_list: list[str] = []
-        dir_seen: set[str] = set()
-        scan_truncated = False
-        scanned = 0
-
-        for p, pl in zip(all_files, all_files_lower, strict=False):
-            scanned += 1
-            if kn not in pl:
-                if scanned >= scan_cap and (matching_files or dir_list):
-                    scan_truncated = True
-                    break
-                continue
-
-            if len(matching_files) < file_quota:
-                matching_files.append(p)
-            else:
-                scan_truncated = True
-
-            # Collect matching parent directories, walking upwards until repo root.
-            # This allows completing into directories like "image/tools/" even
-            # when the matching file is nested deeper.
-            parent = os.path.dirname(p)
-            while parent and parent != ".":
-                if dir_matches_keyword(parent):
-                    cand = f"{parent}/"
-                    if cand not in dir_seen:
-                        if len(dir_list) >= dir_quota:
-                            scan_truncated = True
-                            break
-                        dir_seen.add(cand)
-                        dir_list.append(cand)
-                parent = os.path.dirname(parent)
-
-            if len(matching_files) >= file_quota and len(dir_list) >= dir_quota:
-                scan_truncated = True
-                break
-
-        candidates = dir_list + matching_files
-        return candidates, scan_truncated
+        return [path for _, _, path in ranked], truncated
 
     def _decode_git_path_line(self, line: str) -> str:
         """Decode git's C-style quoted path output when core.quotePath is enabled."""

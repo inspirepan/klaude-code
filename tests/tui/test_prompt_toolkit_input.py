@@ -324,6 +324,22 @@ def test_completion_panel_uses_cached_items_while_next_results_are_loading() -> 
     assert "src/hooks/useApiKey.ts" not in rendered
 
 
+def test_completion_panel_fuzzy_filters_cached_at_file_items() -> None:
+    prompt_input: Any = _build_input("@sauas")
+    prompt_input._last_completion_panel_completions = (
+        Completion(text="@src/hooks/useApiKey.ts ", display="src/hooks/useApiKey.ts"),
+        Completion(text="@src/agent/useAgentSkills.ts ", display="src/agent/useAgentSkills.ts"),
+    )
+    prompt_input._last_completion_panel_context_key = "at"
+    buffer: Any = prompt_input._session.default_buffer
+    buffer.complete_state = SimpleNamespace(completions=[], complete_index=None)  # ty: ignore[invalid-assignment]
+
+    rendered = "".join(text for _style, text, *_ in prompt_input._get_completion_panel_fragments())
+
+    assert "src/agent/useAgentSkills.ts" in rendered
+    assert "src/hooks/useApiKey.ts" not in rendered
+
+
 def test_completion_panel_does_not_reuse_cache_across_completion_contexts() -> None:
     prompt_input: Any = _build_input("/use")
     prompt_input._last_completion_panel_completions = (

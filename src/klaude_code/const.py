@@ -209,7 +209,6 @@ STATUS_SHOW_BUFFER_LENGTH = True  # Show character count (e.g., "(213 chars)") d
 # UI - Completion System
 # =============================================================================
 
-COMPLETER_DEBOUNCE_SEC = 0.25  # Debounce time for file path completion (seconds)
 COMPLETER_CACHE_TTL_SEC = 60.0  # Cache TTL for completion results (seconds)
 COMPLETER_CMD_TIMEOUT_SEC = 3.0  # Timeout for completion subprocess commands (seconds)
 

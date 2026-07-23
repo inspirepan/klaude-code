@@ -31,7 +31,12 @@ from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
-from klaude_code.tui.input.completers import AT_TOKEN_PATTERN, SKILL_TOKEN_PATTERN, create_repl_completer
+from klaude_code.tui.input.completers import (
+    AT_TOKEN_PATTERN,
+    SKILL_TOKEN_PATTERN,
+    create_repl_completer,
+    path_matches_query,
+)
 from klaude_code.tui.input.completion_menu import (
     build_completion_panel_fragments,
     customize_completion_menus,
@@ -681,7 +686,8 @@ class PromptToolkitInput(InputProviderABC):
             display_text = to_plain_text(completion.display)
             meta_text = to_plain_text(completion.display_meta)
             haystack = f"{completion.text} {display_text} {meta_text}".lower()
-            if fragment in haystack:
+            matches = path_matches_query(display_text, fragment) if context_key == "at" else fragment in haystack
+            if matches:
                 result.append(completion)
         return result
 
