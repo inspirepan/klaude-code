@@ -132,6 +132,80 @@ def test_task_metadata_hides_empty_zero_cost() -> None:
     assert "cost" not in output
 
 
+def _make_sub_agent(description: str, *, input_tokens: int, reasoning_tokens: int = 0) -> TaskMetadata:
+    return TaskMetadata(
+        sub_agent_name="general-purpose",
+        description=description,
+        model_name="sub-model",
+        provider="prov",
+        usage=Usage(
+            input_tokens=input_tokens,
+            output_tokens=2_000 + reasoning_tokens,
+            reasoning_tokens=reasoning_tokens,
+            input_cost=0.5,
+            throughput_tps=50.0,
+        ),
+        task_duration_s=180,
+        step_count=5,
+    )
+
+
+def _multi_sub_agent_event() -> events.TaskMetadataEvent:
+    return events.TaskMetadataEvent(
+        session_id="test",
+        metadata=TaskMetadataItem(
+            main_agent=TaskMetadata(model_name="main-model"),
+            sub_agent_task_metadata=[
+                _make_sub_agent("first task", input_tokens=80_900, reasoning_tokens=3_500),
+                _make_sub_agent("second longer task", input_tokens=1_143_400),
+            ],
+        ),
+    )
+
+
+def test_multiple_sub_agents_align_metric_columns_on_wide_console() -> None:
+    console = Console(width=200, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_task_metadata(_multi_sub_agent_event()))
+    lines = console.export_text(styles=False).splitlines()
+
+    metric_lines = [line for line in lines if "cost $" in line and "total cost" not in line]
+    assert len(metric_lines) == 2
+    for line in metric_lines:
+        assert " · " not in line
+
+    for marker in ("in ", "out ", "cost $", "tok/s", "steps"):
+        positions = {line.find(marker) for line in metric_lines}
+        assert len(positions) == 1, f"column {marker!r} not aligned: {metric_lines}"
+
+    identity_lines = [line for line in lines if "sub-model via prov" in line]
+    assert len(identity_lines) == 2
+    assert len({line.find("sub-model via prov") for line in identity_lines}) == 1
+
+
+def test_multiple_sub_agents_fall_back_to_flow_style_on_narrow_console() -> None:
+    console = Console(width=60, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_task_metadata(_multi_sub_agent_event()))
+    output = console.export_text(styles=False)
+
+    assert " · " in output
+
+
+def test_single_sub_agent_keeps_flow_style() -> None:
+    event = events.TaskMetadataEvent(
+        session_id="test",
+        metadata=TaskMetadataItem(
+            main_agent=TaskMetadata(model_name="main-model"),
+            sub_agent_task_metadata=[_make_sub_agent("only task", input_tokens=10_000)],
+        ),
+    )
+
+    console = Console(width=200, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_task_metadata(event))
+    output = console.export_text(styles=False)
+
+    assert "in 10k · out 2k" in output
+
+
 def test_task_metadata_keeps_duration_and_steps_inline_without_worked_summary() -> None:
     metadata = TaskMetadata(model_name="claude-sonnet-4-6", step_count=2, task_duration_s=288)
     event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem(main_agent=metadata))

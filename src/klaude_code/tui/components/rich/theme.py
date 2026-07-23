@@ -23,6 +23,7 @@ class Palette:
     black: str
     # Dim variants: pre-computed dimmed colors to avoid relying on terminal "dim" attribute
     dim_red: str
+    dim_blue: str
     dim_grey1: str
     dim_grey2: str
     dim_grey3: str
@@ -62,6 +63,7 @@ LIGHT_PALETTE = Palette(
     lavender="#7878b0",
     black="#101827",
     dim_red="#d88888",
+    dim_blue="#7ba3c9",
     dim_grey1="#8fa2b0",
     dim_grey2="#b0bec5",
     dim_grey3="#d8dfe3",
@@ -100,6 +102,7 @@ DARK_PALETTE = Palette(
     lavender="#9898b8",
     black="white",
     dim_red="#9a4545",
+    dim_blue="#417299",
     dim_grey1="#6e7b89",
     dim_grey2="#576574",
     dim_grey3="#3e444f",
@@ -159,6 +162,8 @@ class ThemeKey(str, Enum):
     METADATA_TOKEN_OK = "metadata.token.ok"
     METADATA_TOKEN_WARN = "metadata.token.warn"
     METADATA_CONTEXT = "metadata.context"
+    METADATA_MODEL = "metadata.model"
+    METADATA_MODEL_DIM = "metadata.model.dim"
     METADATA_MAIN_AGENT_NAME = "metadata.main_agent_name"
     METADATA_SUB_AGENT_NAME = "metadata.sub_agent_name"
     METADATA_GREEN = "metadata.green"
@@ -321,6 +326,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA_TOKEN_OK.value: palette.green + " on " + palette.green_background,
                 ThemeKey.METADATA_TOKEN_WARN.value: palette.red + " on " + palette.red_background,
                 ThemeKey.METADATA_CONTEXT.value: palette.dim_grey1,
+                ThemeKey.METADATA_MODEL.value: palette.blue,
+                ThemeKey.METADATA_MODEL_DIM.value: palette.dim_blue,
                 ThemeKey.METADATA_MAIN_AGENT_NAME.value: palette.blue + " on " + palette.blue_sub_background,
                 ThemeKey.METADATA_SUB_AGENT_NAME.value: palette.purple + " on " + palette.purple_background,
                 ThemeKey.METADATA_GREEN.value: palette.green,
