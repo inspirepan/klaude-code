@@ -3,7 +3,7 @@
 This module provides completers for the REPL input:
 - _SlashCommandCompleter: Completes slash commands/skills at the effective line start
 - _SkillCompleter: Completes inline skill names with / or // prefixes
-- _AtFilesCompleter: Completes @path segments using fd or ripgrep
+- _AtFilesCompleter: Completes @path segments using Git or a Python filesystem scan
 - _ComboCompleter: Combines all completers with priority logic
 
 Public API:
@@ -348,13 +348,13 @@ class _ComboCompleter(Completer):
 
 
 class _AtFilesCompleter(Completer):
-    """Complete @path segments using fd or ripgrep.
+    """Complete @path segments using Git or a Python filesystem scan.
 
     Behavior:
     - Only triggers when the cursor is after an "@…" token (until whitespace).
     - Completes paths relative to the current working directory.
-    - Uses `fd` when available (files and directories), falls back to `rg --files` (files only).
-    - Debounces external commands and caches results to avoid excessive spawning.
+    - Uses the Git index inside repositories and an in-process scan elsewhere.
+    - Debounces Git commands and caches results to avoid excessive spawning.
     - Inserts a trailing space after completion to stop further triggering.
     """
 
@@ -377,11 +377,6 @@ class _AtFilesCompleter(Completer):
         self._last_results_time: float = 0.0
         self._last_results_truncated: bool = False
 
-        # rg --files cache (used when fd is unavailable)
-        self._rg_file_list: list[str] | None = None
-        self._rg_file_list_time: float = 0.0
-        self._rg_file_list_cwd: Path | None = None
-
         # git ls-files cache (preferred when inside a git repo)
         self._git_repo_root: Path | None = None
         self._git_repo_root_time: float = 0.0
@@ -393,7 +388,7 @@ class _AtFilesCompleter(Completer):
         self._git_file_list_cwd: Path | None = None
 
         # Command timeout is intentionally higher than a keypress cadence.
-        # We rely on caching/narrowing to avoid calling fd repeatedly.
+        # Git discovery and file lists are cached across completion requests.
         self._cmd_timeout_sec: float = COMPLETER_CMD_TIMEOUT_SEC
 
     # ---- prompt_toolkit API ----
@@ -490,61 +485,12 @@ class _AtFilesCompleter(Completer):
         if self._last_results and self._last_query_key == query_key and now - self._last_results_time < self._cache_ttl:
             return self._filter_and_format(self._last_results, cwd, key_norm)
 
-        # Prefer git index (fast in large repos), then fd, then rg --files.
-        results: list[str] = []
-        truncated = False
-
-        # For very short keywords, prefer fd's early-exit behavior.
-        # For keywords >= 2 chars, using git's file list is typically faster
-        # than scanning the filesystem repeatedly.
-        if len(key_norm) >= 2:
+        # Git provides the bounded path index inside repositories. Scanning is
+        # reserved for non-Git directories or environments without Git.
+        if self._get_git_repo_root(cwd) is not None:
             results, truncated = self._git_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
-
-        if not results:
-            if self._has_cmd("fd"):
-                # First, get immediate children matching the keyword (depth=0).
-                # fd's traversal order is not depth-first, so --max-results may
-                # truncate shallow matches. We ensure depth=0 items are always included.
-                immediate = self._get_immediate_matches(cwd, key_norm)
-                # Use fd to search anywhere in full path (files and directories), case-insensitive
-                fd_results, truncated = self._run_fd_search(cwd, key_norm, max_results=max_scan_results)
-                # Merge: immediate matches first, then fd results (deduped in _filter_and_format)
-                results = immediate + fd_results
-            elif self._has_cmd("rg"):
-                # Use rg to search only in current directory
-                rg_cache_ttl = max(self._cache_ttl, 30.0)
-                if (
-                    self._rg_file_list is None
-                    or self._rg_file_list_cwd != cwd
-                    or now - self._rg_file_list_time > rg_cache_ttl
-                ):
-                    cmd = [
-                        "rg",
-                        "--files",
-                        "--hidden",
-                        "--glob",
-                        "!**/.git/**",
-                        "--glob",
-                        "!**/.venv/**",
-                        "--glob",
-                        "!**/node_modules/**",
-                    ]
-                    r = self._run_cmd(cmd, cwd=cwd, timeout_sec=self._cmd_timeout_sec)  # Search from current directory
-                    if r.ok:
-                        self._rg_file_list = r.lines
-                        self._rg_file_list_time = now
-                        self._rg_file_list_cwd = cwd
-                    else:
-                        self._rg_file_list = []
-                        self._rg_file_list_time = now
-                        self._rg_file_list_cwd = cwd
-                # Filter by keyword
-                all_files = self._rg_file_list or []
-                kn = key_norm
-                results = [p for p in all_files if kn in p.lower()]
-                # For rg fallback, we don't implement any priority sorting.
-            else:
-                results, truncated = self._python_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
+        else:
+            results, truncated = self._python_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
 
         if not results:
             return []
@@ -568,7 +514,7 @@ class _AtFilesCompleter(Completer):
         # 2. Paths containing "test" are deprioritized
         # 3. Directory depth (shallower first)
         # 4. Basename hit first, then path hit position, then length
-        # Since both fd and rg now search from current directory, all paths are relative to cwd
+        # All path sources return paths relative to cwd.
         kn = keyword_norm
         out: list[tuple[str, tuple[int, int, int, int, int, int, int, int]]] = []
         for p in paths_from_root:
@@ -576,8 +522,8 @@ class _AtFilesCompleter(Completer):
             if kn not in pl:
                 continue
 
-            # Most tools return paths relative to cwd. Some include a leading
-            # './' prefix; strip that exact prefix only.
+            # Path sources return paths relative to cwd. Some Git output can
+            # include a leading './' prefix; strip that exact prefix only.
             #
             # Do not use lstrip('./') here: it would also remove the leading '.'
             # from dotfiles/directories like '.claude/'.
@@ -686,63 +632,41 @@ class _AtFilesCompleter(Completer):
             return None, None
 
     # ---- Utilities ----
-    def _run_fd_search(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
-        """Run fd search and return (results, truncated).
-
-        Note: This is called in the prompt_toolkit completion path, so avoid
-        doing extra background scans here.
-        """
-        cmd = [
-            "fd",
-            "--color=never",
-            "--type",
-            "f",
-            "--type",
-            "d",
-            "--hidden",
-            "--full-path",
-            "-i",
-            "-F",
-            "--max-results",
-            str(max_results),
-            "--exclude",
-            ".git",
-            "--exclude",
-            ".venv",
-            "--exclude",
-            "node_modules",
-            keyword_norm,
-            ".",
-        ]
-
-        r = self._run_cmd(cmd, cwd=cwd, timeout_sec=self._cmd_timeout_sec)
-        lines = r.lines if r.ok else []
-        return lines, (len(lines) >= max_results)
-
     def _python_paths_for_keyword(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
+        """Scan paths with os.scandir and return case-insensitive substring matches."""
         excluded = {".git", ".venv", "node_modules"}
         paths: list[str] = []
-        try:
-            for root, dirs, files in os.walk(cwd):
-                dirs[:] = [d for d in dirs if d not in excluded]
-                root_path = Path(root)
+        pending: list[tuple[str, str]] = [("", str(cwd))]
+        deadline = time.monotonic() + self._cmd_timeout_sec
 
-                for d in dirs:
-                    rel_dir = (root_path / d).relative_to(cwd).as_posix()
-                    rel = f"{rel_dir}/"
-                    if keyword_norm in rel.lower():
-                        paths.append(rel)
-                        if len(paths) >= max_results:
+        while pending:
+            rel_dir, directory = pending.pop()
+            try:
+                with os.scandir(directory) as entries:
+                    for entry in entries:
+                        if time.monotonic() >= deadline:
                             return paths, True
+                        if entry.name in excluded:
+                            continue
 
-                for f in files:
-                    rel = (root_path / f).relative_to(cwd).as_posix()
-                    if keyword_norm in rel.lower():
-                        paths.append(rel)
-                        if len(paths) >= max_results:
-                            return paths, True
-        except OSError:
-            return [], False
+                        rel = f"{rel_dir}/{entry.name}" if rel_dir else entry.name
+                        try:
+                            is_dir = entry.is_dir(follow_symlinks=False)
+                        except OSError:
+                            continue
+
+                        if is_dir:
+                            pending.append((rel, entry.path))
+                            candidate = f"{rel}/"
+                        else:
+                            candidate = rel
+
+                        if keyword_norm in candidate.lower():
+                            paths.append(candidate)
+                            if len(paths) >= max_results:
+                                return paths, True
+            except OSError:
+                continue
 
         return paths, False
 
@@ -977,28 +901,6 @@ class _AtFilesCompleter(Completer):
         except OSError:
             return []
         return items[: min(self._max_results, 100)]
-
-    def _get_immediate_matches(self, cwd: Path, keyword_norm: str) -> list[str]:
-        """Get immediate children of cwd that match the keyword (case-insensitive).
-
-        This ensures depth=0 matches are always included, even when fd's
-        --max-results truncates before reaching them.
-        """
-        excluded = {".git", ".venv", "node_modules"}
-        items: list[str] = []
-        try:
-            for p in cwd.iterdir():
-                name = p.name
-                if name in excluded:
-                    continue
-                if keyword_norm in name.lower():
-                    rel = name
-                    if p.is_dir():
-                        rel += "/"
-                    items.append(rel)
-        except OSError:
-            return []
-        return items
 
     def _run_cmd(self, cmd: list[str], cwd: Path | None = None, *, timeout_sec: float) -> _CmdResult:
         cmd_str = " ".join(cmd)
