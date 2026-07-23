@@ -82,6 +82,22 @@ provider_list:
     effort: max
     cost: { input: 3, output: 15, cache_read: 0.3 }
 
+  - model_name: kimi:low
+    model_alias: [ k3:low, kimi-k3:low ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    effort: low
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:high
+    model_alias: [ k3:high, kimi-k3:high ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    effort: high
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
   - model_name: kimi:code
     model_alias: [ k2.7-code, kimi-k2.7-code, kimi-k2.7, kimi-k2-7-code ]
     model_id: kimi-k2.7-code
@@ -247,6 +263,24 @@ provider_list:
     context_limit: 1048576
     thinking:
       reasoning_effort: max
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:low
+    model_alias: [ k3:low, kimi-k3:low ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: low
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:high
+    model_alias: [ k3:high, kimi-k3:high ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: high
     cost: { input: 3, output: 15, cache_read: 0.3 }
 
   - model_name: kimi:code
@@ -796,6 +830,22 @@ provider_list:
     effort: max
     cost: { input: 20, output: 100, cache_read: 2, currency: CNY }
 
+  - model_name: kimi:low
+    model_alias: [ k3:low, kimi-k3:low ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    effort: low
+    cost: { input: 20, output: 100, cache_read: 2, currency: CNY }
+
+  - model_name: kimi:high
+    model_alias: [ k3:high, kimi-k3:high ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    effort: high
+    cost: { input: 20, output: 100, cache_read: 2, currency: CNY }
+
   - model_name: kimi:code
     model_alias: [ k2.7-code, kimi-k2.7-code ]
     model_id: kimi-k2.7-code
@@ -828,6 +878,24 @@ provider_list:
     context_limit: 1048576
     thinking:
       reasoning_effort: max
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:low
+    model_alias: [ k3:low, kimi-k3:low ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: low
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:high
+    model_alias: [ k3:high, kimi-k3:high ]
+    model_id: kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: high
     cost: { input: 3, output: 15, cache_read: 0.3 }
 
   - model_name: kimi:code
@@ -1160,6 +1228,30 @@ provider_list:
       - moonshotai
     thinking:
       reasoning_effort: max
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:low
+    model_alias: [ k3:low, kimi-k3:low ]
+    model_id: moonshotai/kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    provider_routing:
+      only:
+      - moonshotai
+    thinking:
+      reasoning_effort: low
+    cost: { input: 3, output: 15, cache_read: 0.3 }
+
+  - model_name: kimi:high
+    model_alias: [ k3:high, kimi-k3:high ]
+    model_id: moonshotai/kimi-k3
+    max_tokens: 131072
+    context_limit: 1048576
+    provider_routing:
+      only:
+      - moonshotai
+    thinking:
+      reasoning_effort: high
     cost: { input: 3, output: 15, cache_read: 0.3 }
 
   - model_name: kimi:code
