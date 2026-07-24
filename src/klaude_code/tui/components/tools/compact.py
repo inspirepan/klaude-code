@@ -125,12 +125,10 @@ def render_compact_tool_result(
             details.append(target, style=target_style)
     display_status = "error" if exit_code not in (None, 0) else status
     _append_status(details, display_status)
-    if display_status in ("error", "aborted"):
-        error = (
-            f"Command exited with code {exit_code}"
-            if exit_code not in (None, 0)
-            else next((line.strip() for line in result.splitlines() if line.strip()), "")
-        )
+    if exit_code not in (None, 0):
+        details.append(f" exit {exit_code}", style=ThemeKey.ERROR_DIM)
+    elif display_status in ("error", "aborted"):
+        error = next((line.strip() for line in result.splitlines() if line.strip()), "")
         if error:
             details.append(" · ", style=ThemeKey.METADATA_DIM)
             details.append(error, style=ThemeKey.ERROR)

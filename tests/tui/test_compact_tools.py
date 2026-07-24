@@ -108,7 +108,7 @@ def test_compact_bash_falls_back_to_flattened_command() -> None:
     assert output.getvalue() == "$ Bash uv run pytest tests/tui ✓\n\n"
 
 
-def test_compact_bash_failure_keeps_first_error_line() -> None:
+def test_compact_bash_failure_shows_concise_exit_code() -> None:
     renderer, output = _renderer_and_output()
 
     asyncio.run(
@@ -122,7 +122,7 @@ def test_compact_bash_failure_keeps_first_error_line() -> None:
     )
 
     rendered = output.getvalue()
-    assert rendered == "$ Bash 运行测试  uv run pytest ✗ · Command exited with code 1\n\n"
+    assert rendered == "$ Bash 运行测试  uv run pytest ✗ exit 1\n\n"
     assert "failed test details" not in rendered
 
 
