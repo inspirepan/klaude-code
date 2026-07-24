@@ -23,7 +23,9 @@ def _one_line(value: object) -> str:
     return " ".join(str(value).replace("\\\n", " ").split())
 
 
-def _clamp_subject(value: str, max_chars: int, *, include_mark: bool) -> str:
+def _clamp_subject(value: str, max_chars: int | None, *, include_mark: bool) -> str:
+    if max_chars is None:
+        return value
     if len(value) <= max_chars:
         return value
     if not include_mark:
@@ -72,12 +74,13 @@ def render_compact_tool_activity(
     arguments: str,
     *,
     status: str | None = None,
-    max_target_chars: int = 40,
+    max_target_chars: int | None = 40,
     include_truncation_mark: bool = True,
 ) -> Text:
     """Render one compact tool activity line."""
 
-    line = Text(format_pascal_case(tool_name), style=ThemeKey.TOOL_NAME)
+    line = Text()
+    line.append(format_pascal_case(tool_name), style=ThemeKey.TOOL_NAME)
     if tool_name == tools.BASH:
         description, command_summary = _bash_parts(_tool_arguments(arguments))
         target = "  ".join(part for part in (description, command_summary) if part)

@@ -142,11 +142,12 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
                 session_id="child",
                 sub_agent_animated=False,
             ),
+            SpinnerStatusLine(text=Text("Found the issue…"), session_id="child", sub_agent_continuation=True),
         )
     )
 
-    line = status_updates[-1][0][0]
-    assert line.text == "● Finder: inspect status ✓ · 2s"
+    line, result_line = status_updates[-1][0]
+    assert line.text == " ●  Finder: inspect status ✓ · 2s"
     assert line.fragments
     assert line.show_spinner is False
     assert "".join(text for _, text in line.fragments) == line.text
@@ -158,6 +159,8 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert success_style != line.fragments[0][0]
     assert "reverse" not in success_style
     assert line.fragments[success_index - 1] == ("class:meta", " ")
+    assert result_line.text == "    Found the issue…"
+    assert result_line.show_spinner is False
 
 
 def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
@@ -175,15 +178,21 @@ def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     renderer.set_progress_ui_suspended(True)
     renderer.spinner_start()
     renderer.spinner_update(
-        status_lines=(SpinnerStatusLine(text=Text("Finder: inspect status · Thinking… · 2s"), session_id="child"),)
+        status_lines=(
+            SpinnerStatusLine(text=Text("Finder: inspect status · Thinking… · 2s"), session_id="child"),
+            SpinnerStatusLine(text=Text("Bash inspect files ✓"), session_id="child", sub_agent_continuation=True),
+        )
     )
 
-    line = status_updates[-1][0][0]
+    line, tool_line = status_updates[-1][0]
     assert line.text == "··· Finder: inspect status · Thinking… · 2s"
     assert line.show_spinner is False
     assert line.inline_spinner_style is not None
     assert line.inline_spinner_style.startswith("fg:#")
     assert "".join(text for _, text in line.fragments) == "Finder: inspect status · Thinking… · 2s"
+    assert tool_line.text == "    Bash inspect files ✓"
+    assert tool_line.show_spinner is False
+    assert tool_line.inline_spinner_style is None
 
 
 def test_interactive_status_snapshot_does_not_use_rich_shimmer(monkeypatch) -> None:

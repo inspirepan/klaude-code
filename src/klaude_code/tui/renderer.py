@@ -214,6 +214,7 @@ class TUICommandRenderer:
             show_hint=False,
             shimmer=False,
         )
+        self._status_line_specs: tuple[SpinnerStatusLine, ...] = ()
         self._notifier = notifier
         self._status_sink = status_sink
         self._stream_sink = stream_sink
@@ -431,7 +432,15 @@ class TUICommandRenderer:
     ) -> None:
         new_key = (
             self._spinner_right_text_key(metadata_text),
-            tuple((line.session_id, self._spinner_text_key(line.text)) for line in status_lines),
+            tuple(
+                (
+                    line.session_id,
+                    line.sub_agent_continuation,
+                    line.sub_agent_animated,
+                    self._spinner_text_key(line.text),
+                )
+                for line in status_lines
+            ),
             separator_text,
             reset_bottom_height,
             leading_blank_line,
@@ -443,6 +452,7 @@ class TUICommandRenderer:
         self._status_top_blank_line = top_blank_line
         self._status_metadata_text = metadata_text
         self._status_separator_text = separator_text
+        self._status_line_specs = status_lines
 
         rendered_status_lines = tuple(self._render_status_line(line) for line in status_lines)
 
@@ -497,16 +507,23 @@ class TUICommandRenderer:
         if not nonempty_lines:
             return ()
         result: list[PromptStatusLine] = []
+        status_index = 0
         for line, rendered_line in zip(lines, rendered, strict=True):
             if not line:
                 continue
             fragments = self._prompt_status_fragments(rendered_line)
             inline_spinner_style: str | None = None
-            show_spinner = not line.startswith(("  ", "● "))
-            if line.startswith("··· ") and fragments:
-                inline_spinner_style = fragments[0][0]
-                fragments = self._strip_prompt_fragment_prefix(fragments, 4)
-                show_spinner = False
+            show_spinner = True
+            spec = self._status_line_specs[status_index] if status_index < len(self._status_line_specs) else None
+            if spec is not None:
+                status_index += 1
+                if spec.sub_agent_continuation:
+                    show_spinner = False
+                elif spec.session_id is not None and self.is_sub_agent_session(spec.session_id):
+                    show_spinner = False
+                    if spec.sub_agent_animated and fragments:
+                        inline_spinner_style = fragments[0][0]
+                        fragments = self._strip_prompt_fragment_prefix(fragments, 4)
             result.append(
                 PromptStatusLine(
                     line,
@@ -630,11 +647,11 @@ class TUICommandRenderer:
             else:
                 content = Text(str(text))
             if line.sub_agent_continuation:
-                prefix_text = "  "
+                prefix_text = "    "
             elif line.sub_agent_animated:
                 prefix_text = "··· "
             else:
-                prefix_text = "● "
+                prefix_text = " ●  "
             prefix = Text(prefix_text, style=fg_only)
             rendered = Text.assemble(prefix, content)
             if not line.sub_agent_continuation:
@@ -696,6 +713,30 @@ class TUICommandRenderer:
             right_margin=MARKDOWN_RIGHT_MARGIN,
             markdown_class=ThinkingMarkdown,
         )
+
+    def _render_compact_thinking_content(self, content: str) -> Text:
+        source = " ".join(content.split())
+        markdown = ThinkingMarkdown(
+            source,
+            code_theme=self.themes.code_theme,
+            style=ThemeKey.THINKING,
+        )
+        options = self.console.options.update(
+            max_width=max(self.console.options.max_width, Text(source).cell_len + 8),
+            no_wrap=True,
+            overflow="ignore",
+        )
+        with self.console.use_theme(self.themes.thinking_markdown_theme):
+            lines = self.console.render_lines(markdown, options, pad=False)
+
+        rendered = Text()
+        for line_index, line in enumerate(lines):
+            if line_index:
+                rendered.append(" ", style=ThemeKey.THINKING)
+            for segment in line:
+                if not segment.control:
+                    rendered.append(segment.text, style=segment.style)
+        return rendered
 
     def _new_assistant_mdstream(self) -> MarkdownStream:
         live_sink = None if self._replay_mode else self.set_stream_renderable
@@ -1291,14 +1332,20 @@ class TUICommandRenderer:
                     content=content,
                 ):
                     compact_main_summary = self._compact_transcript and not self.is_sub_agent_session(session_id)
+                    raw_content = content.strip()
+                    single_line_content = (
+                        self._render_compact_thinking_content(raw_content)
+                        if compact_main_summary and raw_content and len(raw_content.splitlines()) == 1
+                        else None
+                    )
                     with self.session_print_context(session_id):
                         summary = c_thinking.render_thinking_summary(
                             duration_s,
                             char_count,
                             include_mark=compact_main_summary,
-                            single_line_content=content if compact_main_summary else "",
+                            single_line_content=single_line_content,
                         )
-                        if compact_main_summary and content.strip() and len(content.strip().splitlines()) == 1:
+                        if single_line_content:
                             summary = truncate_right(
                                 summary,
                                 max(1, self.console.options.max_width),

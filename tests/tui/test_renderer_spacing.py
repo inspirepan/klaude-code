@@ -445,7 +445,7 @@ def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
 
     rendered = output.getvalue()
     assert "gpt-5.6-luna · 12s · 3 tools · 1.2K tokens" in rendered
-    assert "Found the path…" in rendered
+    assert "Found the path." in rendered
     assert "Child failed…" not in rendered
 
 
@@ -498,6 +498,23 @@ def test_compact_main_single_line_thinking_shows_content() -> None:
     rendered = output.getvalue()
     assert "∵ Checking the current path\n\n→ Read ./README.md" in rendered
     assert "Thought for" not in rendered
+
+
+def test_compact_main_single_line_thinking_renders_markdown() -> None:
+    renderer, output = _renderer_and_output()
+    source = "**Reviewing prompt toolkit tests**"
+
+    rendered_content = renderer._render_compact_thinking_content(source)
+    asyncio.run(
+        renderer.execute(
+            [RenderThinkingSummary(session_id="main", duration_s=1.0, char_count=len(source), content=source)]
+        )
+    )
+
+    assert output.getvalue().splitlines() == ["∵ Reviewing prompt toolkit tests", ""]
+    expected_style = renderer.themes.thinking_markdown_theme.styles["markdown.strong"]
+    assert rendered_content.get_style_at_offset(renderer.console, 0) == expected_style
+    assert rendered_content.get_style_at_offset(renderer.console, 0).bold is True
 
 
 def test_compact_main_single_line_thinking_truncates_with_ellipsis() -> None:

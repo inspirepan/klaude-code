@@ -94,7 +94,10 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     assert update.leading_blank_line is True
     assert update.status_lines[0].session_id == sub_session
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Finder: searching xxxxx · Running… · 0s"]
+    assert lines == [
+        "Finder: searching xxxxx · test-model · Running… · 0s",
+        "Initializing…",
+    ]
     first_line = update.status_lines[0].text
     if isinstance(first_line, DynamicText):
         first_line = first_line.snapshot()
@@ -132,7 +135,10 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     )
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Finder: searching yyyyy · Bash · 0s"]
+    assert lines == [
+        "Finder: searching yyyyy · test-model · Running… · 0s",
+        "Bash",
+    ]
 
     cmds = machine.transition(
         events.ToolCallStartEvent(
@@ -143,7 +149,39 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     )
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in update.status_lines]
-    assert lines == ["Finder: searching yyyyy · Bash · 0s"]
+    assert lines == [
+        "Finder: searching yyyyy · test-model · Running… · 0s",
+        "Bash",
+    ]
+
+
+def test_sub_agent_latest_tool_defers_long_target_truncation_to_renderer() -> None:
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id="sub-1",
+            sub_agent_state=SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="reading history",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    long_path = "outside/" + "nested/" * 8 + "history.py"
+
+    machine.transition(
+        events.ToolCallEvent(
+            session_id="sub-1",
+            tool_call_id="read-long",
+            tool_name=tools.READ,
+            arguments=f'{{"file_path":"{long_path}"}}',
+        )
+    )
+    commands = machine.transition(events.ThinkingStartEvent(session_id="sub-1"))
+
+    assert _line_plain(_last_spinner_update(commands).status_lines[1]) == f"Read {long_path}"
 
 
 def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> None:
@@ -181,11 +219,20 @@ def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> N
             )
         )
 
+    machine.transition(events.ThinkingStartEvent(session_id="sub-1"))
+    thinking = machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="reviewing"))
+    assert [_line_plain(line) for line in _last_spinner_update(thinking).status_lines] == [
+        "Finder: tracking usage stats · test-model · 2 tools · Thinking… · 0s",
+        "Read stats.py ✓",
+    ]
+
+    machine.transition(events.ThinkingEndEvent(session_id="sub-1"))
     machine.transition(events.AssistantTextStartEvent(session_id="sub-1"))
     commands = machine.transition(events.AssistantTextDeltaEvent(session_id="sub-1", content="result"))
 
     assert [_line_plain(line) for line in _last_spinner_update(commands).status_lines] == [
-        "Finder: tracking usage stats · 2 tools · Typing… · 0s"
+        "Finder: tracking usage stats · test-model · 2 tools · Typing… · 0s",
+        "Read stats.py ✓",
     ]
 
 
@@ -212,41 +259,48 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: py
 
     first_step = machine.transition(events.StepStartEvent(session_id=sub_session))
     assert [_line_plain(line) for line in _last_spinner_update(first_step).status_lines] == [
-        "GeneralPurpose: compressing context · Running… · 2s"
+        "GeneralPurpose: compressing context · test-model · Running… · 2s",
+        "Initializing…",
     ]
 
     machine.transition(events.ThinkingStartEvent(session_id=sub_session, timestamp=100.0))
     machine.transition(events.ThinkingDeltaEvent(session_id=sub_session, content="x" * 1234, timestamp=101.0))
     thinking = machine.transition(events.ThinkingDeltaEvent(session_id=sub_session, content=" second", timestamp=102.0))
     assert [_line_plain(line) for line in _last_spinner_update(thinking).status_lines] == [
-        "GeneralPurpose: compressing context · Thinking… · 2s"
+        "GeneralPurpose: compressing context · test-model · Thinking… · 2s",
+        "Initializing…",
     ]
 
     now = 125.0
     assert [_line_plain(line) for line in _last_spinner_update(thinking).status_lines] == [
-        "GeneralPurpose: compressing context · Thinking… · 25s"
+        "GeneralPurpose: compressing context · test-model · Thinking… · 25s",
+        "Initializing…",
     ]
 
     ended = machine.transition(events.ThinkingEndEvent(session_id=sub_session, timestamp=120.0))
     assert not any(isinstance(cmd, RenderThinkingSummary) for cmd in ended)
     assert [_line_plain(line) for line in _last_spinner_update(ended).status_lines] == [
-        "GeneralPurpose: compressing context · Running… · 25s"
+        "GeneralPurpose: compressing context · test-model · Running… · 25s",
+        "Initializing…",
     ]
 
     machine.transition(events.AssistantTextStartEvent(session_id=sub_session))
     typing = machine.transition(events.AssistantTextDeltaEvent(session_id=sub_session, content="y" * 2345))
     assert [_line_plain(line) for line in _last_spinner_update(typing).status_lines] == [
-        "GeneralPurpose: compressing context · Typing… · 25s"
+        "GeneralPurpose: compressing context · test-model · Typing… · 25s",
+        "Initializing…",
     ]
 
     composed = machine.transition(events.AssistantTextEndEvent(session_id=sub_session))
     assert [_line_plain(line) for line in _last_spinner_update(composed).status_lines] == [
-        "GeneralPurpose: compressing context · Running… · 25s"
+        "GeneralPurpose: compressing context · test-model · Running… · 25s",
+        "Initializing…",
     ]
 
     second_step = machine.transition(events.StepStartEvent(session_id=sub_session))
     assert [_line_plain(line) for line in _last_spinner_update(second_step).status_lines] == [
-        "GeneralPurpose: compressing context · Running… · 25s"
+        "GeneralPurpose: compressing context · test-model · Running… · 25s",
+        "Initializing…",
     ]
 
 
@@ -273,7 +327,8 @@ def test_sub_agent_new_step_clears_interrupted_thinking() -> None:
     typing = machine.transition(events.AssistantTextDeltaEvent(session_id=sub_session, content="answer"))
 
     assert [_line_plain(line) for line in _last_spinner_update(typing).status_lines] == [
-        "Finder: retrying · Typing… · 0s"
+        "Finder: retrying · test-model · Typing… · 0s",
+        "Initializing…",
     ]
 
 
@@ -355,15 +410,20 @@ def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pyte
         )
     )
     first_finished = machine.transition(
-        events.TaskFinishEvent(session_id="sub-a", task_result="## Result\n\n- Found the replay path.", timestamp=105.0)
+        events.TaskFinishEvent(
+            session_id="sub-a",
+            task_result="## Result\n\n- Found the replay path.\n\nAlso checked the renderer tests.",
+            timestamp=105.0,
+        )
     )
 
     assert not any(isinstance(command, RenderSubAgentBatchSummary) for command in first_finished)
     first_status = _last_spinner_update(first_finished)
     assert [_line_plain(line) for line in first_status.status_lines] == [
-        "Finder: task 0 · 1 tool ✓ · 5s",
-        "Found the replay path…",
-        "Finder: task 1 · Running… · 4s",
+        "Finder: task 0 · test-model · 1 tool ✓ · 5s",
+        "Result Found the replay path. Also checked the renderer tests.",
+        "Finder: task 1 · test-model · Running… · 4s",
+        "Initializing…",
     ]
 
     now = 108.0
@@ -372,7 +432,7 @@ def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pyte
     )
     batch = next(command for command in second_finished if isinstance(command, RenderSubAgentBatchSummary))
     assert [summary.session_id for summary in batch.summaries] == ["sub-a", "sub-b"]
-    assert batch.summaries[0].result_summary == "Found the replay path."
+    assert batch.summaries[0].result_summary == "Result Found the replay path. Also checked the renderer tests."
     assert batch.summaries[0].model_id == "test-model"
     assert batch.summaries[0].tool_count == 1
     assert batch.summaries[0].token_count == 120
@@ -676,10 +736,18 @@ def test_sub_agent_status_lines_cap_with_more_indicator(monkeypatch: pytest.Monk
 
     assert last_update is not None
     lines = [_line_plain(line) for line in last_update.status_lines]
-    assert len(lines) == 4
-    assert lines[0] == "Finder: searching 0 · Running… · 0s"
-    assert lines[2] == "Finder: searching 2 · Running… · 0s"
-    assert lines[3] == "… 4 more agents"
+    assert lines == [
+        "Finder: searching 0 · test-model · Running… · 0s",
+        "Initializing…",
+        "… 6 more agents",
+    ]
+
+    monkeypatch.setattr(machine_module.shutil, "get_terminal_size", lambda fallback: os.terminal_size((120, 6)))
+    short_terminal = machine.transition(events.ThinkingStartEvent(session_id="sub-0"))
+    assert [_line_plain(line) for line in _last_spinner_update(short_terminal).status_lines] == [
+        "Finder: searching 0 · test-model · Thinking… · 0s",
+        "Initializing…",
+    ]
 
 
 def test_sub_agent_finish_triggers_bottom_height_reset() -> None:

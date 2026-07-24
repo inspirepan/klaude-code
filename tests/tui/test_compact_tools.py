@@ -189,6 +189,35 @@ def test_compact_activity_clamps_description_to_forty_characters() -> None:
     assert rendered.plain == f"Bash {'x' * 39}…"
 
 
+def test_compact_activity_can_defer_truncation_to_parent_renderable() -> None:
+    description = "x" * 80
+
+    rendered = render_compact_tool_activity(
+        tools.BASH,
+        f'{{"command":"echo hi","description":"{description}"}}',
+        max_target_chars=None,
+    )
+
+    assert rendered.plain == f"Bash {description}  echo"
+
+
+def test_compact_activity_does_not_apply_tool_name_bold_to_parameters() -> None:
+    renderer, _ = _renderer_and_output()
+    path = "/Users/test/project/tests/tui/test_example.py"
+    rendered = render_compact_tool_activity(
+        tools.READ,
+        f'{{"file_path":"{path}"}}',
+        status="success",
+        max_target_chars=None,
+    )
+
+    segments = [segment for segment in renderer.console.render(rendered) if segment.text]
+    tool_segment = next(segment for segment in segments if "Read" in segment.text)
+    path_segment = next(segment for segment in segments if path in segment.text)
+    assert tool_segment.style is not None and tool_segment.style.bold
+    assert path_segment.style is None or not path_segment.style.bold
+
+
 def test_bash_command_summary_keeps_auditable_scope() -> None:
     assert summarize_bash_command("pwd") == "pwd"
     assert summarize_bash_command("rg -n 'needle' src/klaude_code tests -g '*.py'") == "rg src/klaude_code tests"

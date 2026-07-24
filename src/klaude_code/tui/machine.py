@@ -682,16 +682,19 @@ class _SessionState:
             return ""
         return _normalize_status_text(self.sub_agent_state.sub_agent_desc)
 
-    def status_activity_text(self) -> Text | None:
+    def status_phase_text(self) -> Text | None:
         if self.thinking_stream_active:
             return Text(STATUS_THINKING_TEXT, style=ThemeKey.THINKING)
         if self.status_composing:
             return Text(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
-        if self.latest_tool_name is not None:
-            return self.latest_tool_activity.copy() if self.latest_tool_activity is not None else None
         if self.task_active:
             return Text(STATUS_RUNNING_TEXT, style=ThemeKey.STATUS_TEXT)
         return None
+
+    def latest_tool_activity_text(self) -> Text:
+        if self.latest_tool_activity is not None:
+            return self.latest_tool_activity.copy()
+        return Text("Initializing…", style=ThemeKey.STATUS_HINT)
 
     def expanded_status_activity_text(self) -> str | None:
         if self.status_tool_calls:
@@ -861,23 +864,25 @@ class DisplayStateMachine:
                 )
             ]
             if session.terminal_status is not None:
-                group.append(
-                    SpinnerStatusLine(
-                        text=r_status.DynamicText(
-                            lambda session=session: Text(
-                                c_sub_agent.format_compact_result_summary(
-                                    session.result_summary,
-                                    session.terminal_status or "error",
-                                ),
-                                style=ThemeKey.TOOL_RESULT,
-                                no_wrap=True,
-                                overflow="ellipsis",
-                            )
+                continuation = r_status.DynamicText(
+                    lambda session=session: Text(
+                        c_sub_agent.format_compact_result_summary(
+                            session.result_summary,
                         ),
-                        session_id=session.session_id,
-                        sub_agent_continuation=True,
+                        style=ThemeKey.TOOL_RESULT,
+                        no_wrap=True,
+                        overflow="ellipsis",
                     )
                 )
+            else:
+                continuation = r_status.DynamicText(lambda session=session: session.latest_tool_activity_text())
+            group.append(
+                SpinnerStatusLine(
+                    text=continuation,
+                    session_id=session.session_id,
+                    sub_agent_continuation=True,
+                )
+            )
             groups.append(group)
 
         if not groups:
@@ -892,12 +897,14 @@ class DisplayStateMachine:
         visible: list[SpinnerStatusLine] = []
         visible_groups = 0
         for group in groups:
-            if len(visible) + len(group) > max_lines - 1:
+            reserved_lines = 0 if not visible else 1
+            if len(visible) + len(group) > max_lines - reserved_lines:
                 break
             visible.extend(group)
             visible_groups += 1
         hidden = len(groups) - visible_groups
-        visible.append(SpinnerStatusLine(text=Text(f"… {hidden} more agents", style=ThemeKey.STATUS_HINT)))
+        if hidden and len(visible) < max_lines:
+            visible.append(SpinnerStatusLine(text=Text(f"… {hidden} more agents", style=ThemeKey.STATUS_HINT)))
         return tuple(visible)
 
     @staticmethod
@@ -910,6 +917,9 @@ class DisplayStateMachine:
             description_start = len(line)
             line.append(description, style=ThemeKey.STATUS_TEXT)
             line.stylize("italic", description_start, len(line))
+
+        if session.model_id:
+            line.append(f" · {session.model_id}", style=ThemeKey.STATUS_HINT)
 
         tool_count = len(session.tool_call_ids)
         if tool_count:
@@ -926,7 +936,7 @@ class DisplayStateMachine:
             else:
                 line.append(" cancelled", style=ThemeKey.INTERRUPT)
         else:
-            activity = session.status_activity_text()
+            activity = session.status_phase_text()
             if activity:
                 line.append(" · ")
                 line.append_text(activity)
@@ -1658,7 +1668,11 @@ class DisplayStateMachine:
                 s.latest_tool_name = e.tool_name
                 s.latest_tool_arguments = ""
                 s.latest_tool_status = None
-                s.latest_tool_activity = c_tools.render_compact_tool_activity(e.tool_name, "")
+                s.latest_tool_activity = c_tools.render_compact_tool_activity(
+                    e.tool_name,
+                    "",
+                    max_target_chars=None,
+                )
             else:
                 self._spinner.set_composing(False)
 
@@ -1696,7 +1710,11 @@ class DisplayStateMachine:
             s.latest_tool_name = e.tool_name
             s.latest_tool_arguments = e.arguments
             s.latest_tool_status = None
-            s.latest_tool_activity = c_tools.render_compact_tool_activity(e.tool_name, e.arguments)
+            s.latest_tool_activity = c_tools.render_compact_tool_activity(
+                e.tool_name,
+                e.arguments,
+                max_target_chars=None,
+            )
             s.tool_call_ids.add(e.tool_call_id)
             s.status_composing = False
             s.reset_thinking()
@@ -1797,6 +1815,7 @@ class DisplayStateMachine:
                 s.latest_tool_name or e.tool_name,
                 s.latest_tool_arguments,
                 status=e.status,
+                max_target_chars=None,
             )
             cmds.extend(self._spinner_update_commands())
         elif not is_replay and is_sub_agent_tool(e.tool_name):

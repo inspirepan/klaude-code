@@ -23,28 +23,19 @@ _MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s*)")
 
 
 def extract_result_summary(result: str) -> str:
-    """Extract the first useful Markdown text block as a single plain line."""
+    """Normalize a complete Markdown result into one plain line."""
 
-    blocks = re.split(r"\n\s*\n", result.strip())
-    for block in blocks:
-        lines = [line.strip() for line in block.splitlines() if line.strip()]
-        lines = [line for line in lines if not _MARKDOWN_HEADING_RE.match(line)]
-        if not lines:
-            continue
-        text = " ".join(_MARKDOWN_PREFIX_RE.sub("", line) for line in lines)
-        text = re.sub(r"!?(?:\[([^]]+)\])\([^)]+\)", r"\1", text)
-        text = re.sub(r"[*_`~]+", "", text)
-        return " ".join(text.split())
-    return ""
+    lines = [line.strip() for line in result.splitlines() if line.strip()]
+    text = " ".join(_MARKDOWN_PREFIX_RE.sub("", _MARKDOWN_HEADING_RE.sub("", line)) for line in lines)
+    text = re.sub(r"!?(?:\[([^]]+)\])\([^)]+\)", r"\1", text)
+    text = re.sub(r"[*_`~]+", "", text)
+    return " ".join(text.split())
 
 
-def format_compact_result_summary(result_summary: str, status: str) -> str:
-    """Format a compact sub-agent result with an open-ended success marker."""
+def format_compact_result_summary(result_summary: str) -> str:
+    """Return a normalized result or an explicit empty-result placeholder."""
 
-    displayed_result = result_summary or "(no summary)"
-    if status == "success":
-        return displayed_result.rstrip("。.!！?？:：;；…") + "…"
-    return displayed_result
+    return result_summary or "(no summary)"
 
 
 def render_compact_sub_agent_summary(
@@ -87,7 +78,7 @@ def render_compact_sub_agent_summary(
     if metrics:
         first.append(f" · {' · '.join(metrics)}", style=ThemeKey.METADATA_DIM)
 
-    displayed_result = format_compact_result_summary(result_summary, status)
+    displayed_result = format_compact_result_summary(result_summary)
     second = Text(displayed_result, style=ThemeKey.TOOL_RESULT, no_wrap=True, overflow="ellipsis")
     return Group(first, second)
 

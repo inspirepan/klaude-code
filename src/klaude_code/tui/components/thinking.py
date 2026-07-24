@@ -35,7 +35,7 @@ def render_thinking_summary(
     char_count: int,
     *,
     include_mark: bool = False,
-    single_line_content: str = "",
+    single_line_content: Text | None = None,
 ) -> Text:
     """Render a compact summary for hidden thinking."""
     if duration_s is None:
@@ -47,9 +47,8 @@ def render_thinking_summary(
     summary = Text()
     if include_mark:
         summary.append("∵ ", style=ThemeKey.THINKING)
-    content = single_line_content.strip()
-    if content and len(content.splitlines()) == 1:
-        summary.append(" ".join(content.split()), style=ThemeKey.THINKING)
+    if single_line_content:
+        summary.append_text(single_line_content)
         return summary
     summary.append(
         f"Thought{duration} · {format_compact_count(char_count)} chars",
