@@ -688,7 +688,7 @@ class _SessionState:
         if self.status_composing:
             return Text(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
         if self.task_active:
-            return Text(STATUS_RUNNING_TEXT, style=ThemeKey.STATUS_TEXT)
+            return Text(STATUS_RUNNING_TEXT, style=ThemeKey.THINKING)
         return None
 
     def latest_tool_activity_text(self) -> Text:

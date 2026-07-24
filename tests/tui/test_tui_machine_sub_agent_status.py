@@ -34,6 +34,7 @@ from klaude_code.tui.commands import (
     SpinnerUpdate,
 )
 from klaude_code.tui.components.rich.status import DynamicText
+from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.machine import DisplayStateMachine
 
 
@@ -104,6 +105,10 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     assert isinstance(first_line, Text)
     assert any(
         span.style == "italic" and first_line.plain[span.start : span.end] == "searching xxxxx"
+        for span in first_line.spans
+    )
+    assert any(
+        span.style == ThemeKey.THINKING and first_line.plain[span.start : span.end] == "Running…"
         for span in first_line.spans
     )
 

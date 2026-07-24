@@ -14,7 +14,7 @@ def render_away_summary(e: events.AwaySummaryEvent) -> RenderableType:
     """
     grid = create_grid()
     grid.add_row(
-        Text(RECAP_MARK, style=ThemeKey.ATTACHMENT),
+        Text(RECAP_MARK, style=ThemeKey.WARN),
         Text.assemble(
             ("recap: ", ThemeKey.RECAP_LABEL),
             (e.text, ThemeKey.RECAP_TEXT),

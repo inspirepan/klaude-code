@@ -1,6 +1,6 @@
 """Away-summary ("while you were away" recap) generator.
 
-Given a session, ask a small/fast LLM for a 1-3 sentence recap of where the
+Given a session, ask a small/fast LLM for a 1-2 sentence recap of where the
 user left off. Mirrors `session_title.generate_session_title` in spirit:
 one-shot non-streaming call, single synthesized user message, no tools.
 """

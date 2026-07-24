@@ -344,8 +344,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 # ATTACHMENT
                 ThemeKey.ATTACHMENT.value: palette.grey1,
                 ThemeKey.ATTACHMENT_BOLD.value: palette.grey1,
-                ThemeKey.RECAP_LABEL.value: "bold " + palette.grey1,
-                ThemeKey.RECAP_TEXT.value: "italic " + palette.grey1,
+                ThemeKey.RECAP_LABEL.value: "bold " + palette.yellow,
+                ThemeKey.RECAP_TEXT.value: "italic " + palette.yellow,
                 # TOOL
                 ThemeKey.INVALID_TOOL_CALL_ARGS.value: palette.yellow,
                 ThemeKey.TOOL_NAME.value: "bold",
