@@ -54,6 +54,26 @@ def format_elapsed_compact(seconds: float) -> str:
     return f"{hours}h{minute:02d}m{sec:02d}s"
 
 
+def format_compact_token_values(
+    *,
+    input_tokens: int,
+    cached_tokens: int,
+    cache_write_tokens: int,
+    output_tokens: int,
+    reasoning_tokens: int,
+) -> dict[str, str]:
+    """Format split token counts using the compact status-bar notation."""
+    values = {"in": f"↑{format_number(input_tokens)}"}
+    if cached_tokens > 0:
+        values["cache"] = f"◎{format_number(cached_tokens)}"
+    if cache_write_tokens > 0:
+        values["cache_write"] = f"⊕{format_number(cache_write_tokens)}"
+    values["out"] = f"↓{format_number(output_tokens)}"
+    if reasoning_tokens > 0:
+        values["thought"] = f"∵{format_number(reasoning_tokens)}"
+    return values
+
+
 def format_compact_count(count: int) -> str:
     """Format a UI count with an uppercase thousands suffix."""
     return format_number(count).replace("k", "K")

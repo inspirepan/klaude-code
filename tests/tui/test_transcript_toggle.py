@@ -10,7 +10,7 @@ from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.keys import Keys
 
 from klaude_code.protocol import events
-from klaude_code.protocol.models import SubAgentState
+from klaude_code.protocol.models import SubAgentState, TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.tui import runner as runner_module
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.key_bindings import create_key_bindings
@@ -64,6 +64,32 @@ def test_compact_renderer_hides_sub_agent_body_and_expanded_restores_it() -> Non
         renderer.display_task_start(event)
     assert "inspect replay" in expanded.getvalue()
     assert "Read every relevant file" in expanded.getvalue()
+
+
+def test_renderer_switches_task_metadata_between_compact_and_expanded() -> None:
+    renderer = TUICommandRenderer()
+    event = events.TaskMetadataEvent(
+        session_id="main",
+        metadata=TaskMetadataItem(
+            main_agent=TaskMetadata(
+                model_name="test-model",
+                usage=Usage(input_tokens=30_000, cached_tokens=20_000, output_tokens=2_000),
+                step_count=2,
+                task_duration_s=18,
+            )
+        ),
+    )
+
+    with renderer.bulk_render_capture() as compact:
+        renderer.display_task_metadata(event)
+    assert "• test-model · ↑10k ◎20k ↓2k · 18s" in compact.getvalue()
+    assert "2 steps" not in compact.getvalue()
+
+    renderer.set_compact_transcript(False)
+    with renderer.bulk_render_capture() as expanded:
+        renderer.display_task_metadata(event)
+    assert "in 10k · cache 20k · out 2k" in expanded.getvalue()
+    assert "2 steps" in expanded.getvalue()
 
 
 def test_display_toggle_is_process_local() -> None:

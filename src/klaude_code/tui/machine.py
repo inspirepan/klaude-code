@@ -80,6 +80,7 @@ from klaude_code.tui.components import sub_agent as c_sub_agent
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components.common import (
     format_compact_count,
+    format_compact_token_values,
     format_elapsed_compact,
     format_more_lines_indicator,
     format_pascal_case,
@@ -505,31 +506,28 @@ class SpinnerStatusState:
         parts: list[str] = []
         if self._token_input is not None and self._token_output is not None:
             if compact:
-                token_parts: list[str] = [f"↑{format_number(self._token_input)}"]
+                token_parts = list(
+                    format_compact_token_values(
+                        input_tokens=self._token_input,
+                        cached_tokens=self._token_cached or 0,
+                        cache_write_tokens=self._token_cache_write or 0,
+                        output_tokens=self._token_output,
+                        reasoning_tokens=self._token_thought or 0,
+                    ).values()
+                )
             else:
                 token_parts = [f"in {format_number(self._token_input)}"]
-            if self._token_cached and self._token_cached > 0:
-                if compact:
-                    cache_text = f"◎{format_number(self._token_cached)}"
-                else:
-                    cache_text = f"cache {format_number(self._token_cached)}"
-                if not compact and self._cache_hit_rate is not None:
+            if not compact and self._token_cached and self._token_cached > 0:
+                cache_text = f"cache {format_number(self._token_cached)}"
+                if self._cache_hit_rate is not None:
                     cache_text += f" ({self._cache_hit_rate:.0%})"
                 token_parts.append(cache_text)
-            if self._token_cache_write and self._token_cache_write > 0:
-                if compact:
-                    token_parts.append(f"⊕{format_number(self._token_cache_write)}")
-                else:
-                    token_parts.append(f"cache+ {format_number(self._token_cache_write)}")
-            if compact:
-                token_parts.append(f"↓{format_number(self._token_output)}")
-            else:
+            if not compact and self._token_cache_write and self._token_cache_write > 0:
+                token_parts.append(f"cache+ {format_number(self._token_cache_write)}")
+            if not compact:
                 token_parts.append(f"out {format_number(self._token_output)}")
-            if self._token_thought and self._token_thought > 0:
-                if compact:
-                    token_parts.append(f"∵{format_number(self._token_thought)}")
-                else:
-                    token_parts.append(f"thought {format_number(self._token_thought)}")
+            if not compact and self._token_thought and self._token_thought > 0:
+                token_parts.append(f"thought {format_number(self._token_thought)}")
             parts.append(" ".join(token_parts) if compact else " · ".join(token_parts))
 
         if (

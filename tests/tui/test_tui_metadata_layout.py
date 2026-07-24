@@ -6,6 +6,14 @@ from klaude_code.tui.components.metadata import render_task_metadata
 from klaude_code.tui.components.rich.theme import get_theme
 
 
+def _render_metadata(event: events.TaskMetadataEvent, *, width: int, compact: bool) -> str:
+    console = Console(width=width, record=True, force_terminal=False, theme=get_theme().app_theme)
+    renderable = render_task_metadata(event, compact=compact)
+    assert renderable is not None
+    console.print(renderable)
+    return console.export_text(styles=False)
+
+
 def test_task_metadata_wraps_details_under_identity_column() -> None:
     usage = Usage(
         input_tokens=10300,
@@ -217,3 +225,148 @@ def test_task_metadata_keeps_duration_and_steps_inline_without_worked_summary() 
     assert "Worked for" not in output
     assert "4m48s" in output
     assert "2 steps" in output
+
+
+def test_compact_task_metadata_uses_status_bar_token_symbols() -> None:
+    metadata = TaskMetadata(
+        model_name="gpt-5.6-sol",
+        provider="openai/openrouter",
+        usage=Usage(
+            input_tokens=30_000,
+            cached_tokens=20_000,
+            cache_write_tokens=5_000,
+            output_tokens=2_382,
+            reasoning_tokens=382,
+            input_cost=0.01,
+            output_cost=0.0107,
+        ),
+        task_duration_s=18,
+    )
+    event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem(main_agent=metadata))
+
+    assert _render_metadata(event, width=120, compact=True) == (
+        "• gpt-5.6-sol@openrouter · ↑5k ◎20k ⊕5k ↓2k ∵382 · $0.0207 · 18s\n"
+    )
+
+
+def test_compact_task_metadata_shows_sub_agents_and_currency_totals() -> None:
+    event = events.TaskMetadataEvent(
+        session_id="test",
+        metadata=TaskMetadataItem(
+            main_agent=TaskMetadata(
+                model_name="main-model",
+                provider="provider/main",
+                usage=Usage(input_tokens=1_000, output_tokens=200, input_cost=0.02, currency="CNY"),
+                task_duration_s=20,
+            ),
+            sub_agent_task_metadata=[
+                TaskMetadata(
+                    sub_agent_name="finder",
+                    description="scan repo",
+                    model_name="sub-model",
+                    provider="provider/sub",
+                    usage=Usage(input_tokens=2_000, output_tokens=300, input_cost=0.01),
+                    task_duration_s=5,
+                ),
+                TaskMetadata(
+                    sub_agent_name="general-purpose",
+                    description="apply fix",
+                    model_name="other-model",
+                    provider="provider/other",
+                    usage=Usage(input_tokens=3_000, output_tokens=400, input_cost=0.03, currency="CNY"),
+                    task_duration_s=8,
+                ),
+            ],
+        ),
+    )
+
+    assert _render_metadata(event, width=160, compact=True).splitlines() == [
+        "• main-model@main · ↑1k ↓200 · ¥0.0200 · 20s",
+        "  ├─ Finder: scan repo · sub-model@sub · ↑2k ↓300 · $0.0100 · 5s",
+        "  ├─ GeneralPurpose: apply fix · other-model@other · ↑3k ↓400 · ¥0.0300 · 8s",
+        "  ╰─ total cost ¥0.0500 · $0.0100",
+    ]
+    assert "total cost ¥0.0500 · $0.0100" in _render_metadata(event, width=160, compact=False)
+
+
+def test_compact_task_metadata_preserves_tokens_duration_and_interrupt_on_narrow_console() -> None:
+    metadata = TaskMetadata(
+        model_name="very-long-model-name",
+        provider="provider/long-provider",
+        usage=Usage(
+            input_tokens=300_000,
+            cached_tokens=200_000,
+            cache_write_tokens=50_000,
+            output_tokens=120_000,
+            reasoning_tokens=20_000,
+            input_cost=0.1,
+        ),
+        task_duration_s=18,
+    )
+    event = events.TaskMetadataEvent(
+        session_id="test",
+        metadata=TaskMetadataItem(main_agent=metadata),
+        is_partial=True,
+    )
+
+    assert _render_metadata(event, width=35, compact=True).strip() == "• ↑50k ↓100k · 18s · interrupted"
+
+
+def test_compact_sub_agent_truncates_identity_before_input_and_output_tokens() -> None:
+    event = events.TaskMetadataEvent(
+        session_id="test",
+        metadata=TaskMetadataItem(
+            main_agent=TaskMetadata(model_name="main"),
+            sub_agent_task_metadata=[
+                TaskMetadata(
+                    sub_agent_name="general-purpose",
+                    description="inspect\nall metadata paths",
+                    model_name="very-long-sub-agent-model",
+                    provider="provider/long-provider",
+                    usage=Usage(input_tokens=50_000, output_tokens=100_000),
+                )
+            ],
+        ),
+    )
+
+    sub_agent_line = _render_metadata(event, width=25, compact=True).splitlines()[1]
+    assert sub_agent_line == "  ╰─ Genera… · ↑50k ↓100k"
+
+
+def test_expanded_task_metadata_marks_interrupt_and_uses_compact_tree_guides() -> None:
+    event = events.TaskMetadataEvent(
+        session_id="test",
+        metadata=TaskMetadataItem(
+            main_agent=TaskMetadata(model_name="main-model"),
+            sub_agent_task_metadata=[
+                TaskMetadata(sub_agent_name="finder", model_name="sub-model", usage=Usage(input_cost=0.01))
+            ],
+        ),
+        is_partial=True,
+    )
+
+    lines = _render_metadata(event, width=120, compact=False).splitlines()
+    assert "• main-model · interrupted" in lines[0]
+    assert any(line.startswith("  ├─ ") and "finder" in line for line in lines)
+    assert lines[-1] == "  ╰─ total cost $0.0100"
+
+
+def test_task_metadata_hides_zero_total_cost_in_both_modes() -> None:
+    event = events.TaskMetadataEvent(
+        session_id="test",
+        metadata=TaskMetadataItem(
+            main_agent=TaskMetadata(model_name="main-model"),
+            sub_agent_task_metadata=[TaskMetadata(sub_agent_name="finder", model_name="sub-model")],
+        ),
+    )
+
+    for compact in (False, True):
+        output = _render_metadata(event, width=120, compact=compact)
+        assert "total cost" not in output
+        assert "  ╰─ " in output
+
+
+def test_compact_task_metadata_hides_empty_block() -> None:
+    event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem())
+
+    assert render_task_metadata(event, compact=True) is None

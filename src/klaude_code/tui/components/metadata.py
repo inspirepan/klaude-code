@@ -10,23 +10,60 @@ from klaude_code.config.formatters import format_number
 from klaude_code.const import DEFAULT_MAX_TOKENS, LOW_CACHE_HIT_RATE_THRESHOLD
 from klaude_code.protocol import events
 from klaude_code.protocol.models import TaskMetadata, TaskMetadataItem
-from klaude_code.tui.components.common import create_grid, format_elapsed_compact
+from klaude_code.tui.components.common import (
+    create_grid,
+    format_compact_token_values,
+    format_elapsed_compact,
+    format_pascal_case,
+)
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 METADATA_MIN_DETAILS_WIDTH_FOR_SINGLE_LINE_IDENTITY = 60
 
-# Cell width of tree guide prefixes like "  ├── " (see _RoundedTree.TREE_GUIDES).
-TREE_GUIDE_WIDTH = 6
+# Cell width of tree guide prefixes like "  ├─ " (see _RoundedTree.TREE_GUIDES).
+TREE_GUIDE_WIDTH = 5
 METRIC_COLUMN_GAP = 2
 MIN_SUB_AGENTS_FOR_ALIGNMENT = 2
 
 
 class _RoundedTree(Tree):
     TREE_GUIDES: ClassVar[list[tuple[str, str, str, str]]] = [
-        ("      ", "  │   ", "  ├── ", "  ╰── "),
-        ("      ", "  │   ", "  ├── ", "  ╰── "),
-        ("      ", "  │   ", "  ├── ", "  ╰── "),
+        ("     ", "  │  ", "  ├─ ", "  ╰─ "),
+        ("     ", "  │  ", "  ├─ ", "  ╰─ "),
+        ("     ", "  │  ", "  ├─ ", "  ╰─ "),
     ]
+
+
+def _currency_symbol(currency: str) -> str:
+    return "¥" if currency == "CNY" else "$"
+
+
+def _positive_cost(metadata: TaskMetadata) -> tuple[str, float] | None:
+    if metadata.usage is None or metadata.usage.total_cost is None or metadata.usage.total_cost <= 0:
+        return None
+    return metadata.usage.currency, metadata.usage.total_cost
+
+
+def _total_costs(metadata: TaskMetadataItem) -> list[tuple[str, float]]:
+    totals: dict[str, float] = {}
+    for task in (metadata.main_agent, *metadata.sub_agent_task_metadata):
+        cost = _positive_cost(task)
+        if cost is None:
+            continue
+        currency, value = cost
+        totals[currency] = totals.get(currency, 0.0) + value
+    return list(totals.items())
+
+
+def _build_total_cost_text(costs: list[tuple[str, float]], *, label: str = "total cost") -> Text:
+    line = Text(label, style=ThemeKey.METADATA_DIM)
+    if label:
+        line.append(" ")
+    for index, (currency, value) in enumerate(costs):
+        if index:
+            line.append(" · ", style=ThemeKey.METADATA_DIM)
+        line.append(f"{_currency_symbol(currency)}{value:.4f}", style=ThemeKey.METADATA_DIM)
+    return line
 
 
 def _should_split_sub_agent_identity(metadata: TaskMetadata, *, max_width: int) -> bool:
@@ -85,11 +122,13 @@ class _MetadataContent:
         show_context_and_time: bool = True,
         show_step_count: bool = True,
         show_duration: bool = True,
+        interrupted: bool = False,
     ) -> None:
         self.metadata = metadata
         self.show_context_and_time = show_context_and_time
         self.show_step_count = show_step_count
         self.show_duration = show_duration
+        self.interrupted = interrupted
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         max_width = max(1, getattr(options, "max_width", options.size.width))
@@ -97,6 +136,10 @@ class _MetadataContent:
             self.metadata,
             split_sub_agent_and_model=_should_split_sub_agent_identity(self.metadata, max_width=max_width),
         )
+        if self.interrupted:
+            if identity.plain:
+                identity.append(" · ", style=ThemeKey.METADATA_DIM)
+            identity.append("interrupted", style=ThemeKey.INTERRUPT)
 
         content = _build_metadata_content(
             self.metadata,
@@ -233,12 +276,14 @@ def _build_metadata_content_renderable(
     show_context_and_time: bool = True,
     show_step_count: bool = True,
     show_duration: bool = True,
+    interrupted: bool = False,
 ) -> RenderableType:
     return _MetadataContent(
         metadata,
         show_context_and_time=show_context_and_time,
         show_step_count=show_step_count,
         show_duration=show_duration,
+        interrupted=interrupted,
     )
 
 
@@ -349,17 +394,249 @@ def _build_aligned_sub_agent_rows(
     return rows
 
 
+_COMPACT_TOKEN_COLUMNS = ("in", "cache", "cache_write", "out", "thought")
+_COMPACT_TOKEN_DROP_ORDER = ("cache_write", "thought", "cache")
+
+
+def _compact_token_values(metadata: TaskMetadata) -> dict[str, str]:
+    usage = metadata.usage
+    if usage is None:
+        return {}
+    return format_compact_token_values(
+        input_tokens=max(usage.input_tokens - usage.cached_tokens - usage.cache_write_tokens, 0),
+        cached_tokens=usage.cached_tokens,
+        cache_write_tokens=usage.cache_write_tokens,
+        output_tokens=max(usage.output_tokens - usage.reasoning_tokens, 0),
+        reasoning_tokens=usage.reasoning_tokens,
+    )
+
+
+def _truncate_to_cells(value: str, max_cells: int) -> str:
+    if max_cells <= 0:
+        return ""
+    text = Text(value)
+    text.truncate(max_cells, overflow="ellipsis")
+    return text.plain[:-2] + "…" if text.plain.endswith(" …") else text.plain
+
+
+def _build_compact_identity(
+    metadata: TaskMetadata,
+    *,
+    sub_agent_name: str,
+    description: str,
+    model_name: str,
+    show_provider: bool,
+) -> Text:
+    identity = Text()
+    if sub_agent_name:
+        identity.append(sub_agent_name, style=ThemeKey.METADATA_SUB_AGENT_NAME_COMPACT)
+        if description:
+            identity.append(": ", style=ThemeKey.METADATA_DIM)
+            identity.append(description, style=ThemeKey.METADATA_ITALIC)
+    if model_name:
+        if identity.plain:
+            identity.append(" · ", style=ThemeKey.METADATA_DIM)
+        identity.append(model_name, style=ThemeKey.METADATA_MODEL)
+        if show_provider and metadata.provider:
+            provider = metadata.provider.rsplit("/", 1)[-1]
+            identity.append(f"@{provider}", style=ThemeKey.METADATA_MODEL_DIM)
+    return identity
+
+
+def _build_compact_row(
+    metadata: TaskMetadata,
+    *,
+    prefix: str,
+    max_width: int,
+    interrupted: bool = False,
+) -> Text:
+    sub_agent_name = format_pascal_case(metadata.sub_agent_name) if metadata.sub_agent_name else ""
+    description = " ".join((metadata.description or "").split())
+    model_name = " ".join(metadata.model_name.split())
+    show_provider = bool(model_name and metadata.provider)
+    show_cost = _positive_cost(metadata) is not None
+    hidden_tokens: set[str] = set()
+    token_values = _compact_token_values(metadata)
+
+    def build(*, include_tail: bool = True) -> Text:
+        groups: list[Text] = []
+        identity = _build_compact_identity(
+            metadata,
+            sub_agent_name=sub_agent_name,
+            description=description,
+            model_name=model_name,
+            show_provider=show_provider,
+        )
+        if identity.plain:
+            groups.append(identity)
+
+        tokens = [
+            token_values[key] for key in _COMPACT_TOKEN_COLUMNS if key in token_values and key not in hidden_tokens
+        ]
+        if tokens:
+            groups.append(Text(" ".join(tokens), style=ThemeKey.METADATA_DIM))
+
+        cost = _positive_cost(metadata)
+        if show_cost and cost is not None:
+            currency, value = cost
+            groups.append(Text(f"{_currency_symbol(currency)}{value:.4f}", style=ThemeKey.METADATA_DIM))
+        if include_tail and metadata.task_duration_s is not None:
+            groups.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA_DIM))
+        if include_tail and interrupted:
+            groups.append(Text("interrupted", style=ThemeKey.INTERRUPT))
+
+        line = Text(prefix, style=ThemeKey.METADATA_DIM)
+        if groups:
+            line.append(" ")
+            line.append_text(Text(" · ", style=ThemeKey.METADATA_DIM).join(groups))
+        return line
+
+    line = build()
+    if cell_len(line.plain) <= max_width:
+        return line
+
+    if description:
+        overflow = cell_len(line.plain) - max_width
+        target_width = cell_len(description) - overflow
+        description = _truncate_to_cells(description, target_width) if target_width >= 2 else ""
+        line = build()
+        if cell_len(line.plain) <= max_width:
+            return line
+        description = ""
+        line = build()
+        if cell_len(line.plain) <= max_width:
+            return line
+
+    if show_provider:
+        show_provider = False
+        line = build()
+        if cell_len(line.plain) <= max_width:
+            return line
+
+    if show_cost:
+        show_cost = False
+        line = build()
+        if cell_len(line.plain) <= max_width:
+            return line
+
+    if model_name:
+        line = build()
+        overflow = cell_len(line.plain) - max_width
+        target_width = cell_len(model_name) - overflow
+        model_name = _truncate_to_cells(model_name, target_width) if target_width >= 2 else ""
+        line = build()
+        if cell_len(line.plain) <= max_width:
+            return line
+
+    for token_key in _COMPACT_TOKEN_DROP_ORDER:
+        if token_key not in token_values:
+            continue
+        hidden_tokens.add(token_key)
+        line = build()
+        if cell_len(line.plain) <= max_width:
+            return line
+
+    if sub_agent_name:
+        overflow = cell_len(line.plain) - max_width
+        target_width = cell_len(sub_agent_name) - overflow
+        sub_agent_name = _truncate_to_cells(sub_agent_name, target_width) if target_width >= 2 else ""
+        line = build()
+        if cell_len(line.plain) <= max_width:
+            return line
+
+    tail_groups: list[Text] = []
+    if metadata.task_duration_s is not None:
+        tail_groups.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA_DIM))
+    if interrupted:
+        tail_groups.append(Text("interrupted", style=ThemeKey.INTERRUPT))
+    if tail_groups:
+        tail = Text(" · ", style=ThemeKey.METADATA_DIM).join(tail_groups)
+        core = build(include_tail=False)
+        separator_width = 3 if core.plain != prefix else 1
+        core_width = max_width - cell_len(tail.plain) - separator_width
+        if core_width >= cell_len(prefix):
+            core.truncate(core_width, overflow="ellipsis")
+            core.append(" · " if core.plain != prefix else " ", style=ThemeKey.METADATA_DIM)
+            core.append_text(tail)
+            return core
+        if interrupted:
+            state = Text(prefix, style=ThemeKey.METADATA_DIM)
+            state.append(" ")
+            state.append("interrupted", style=ThemeKey.INTERRUPT)
+            state.truncate(max_width, overflow="ellipsis")
+            return state
+
+    line.truncate(max_width, overflow="ellipsis")
+    return line
+
+
+def _build_compact_total_cost_row(costs: list[tuple[str, float]], *, prefix: str, max_width: int) -> Text:
+    line = Text()
+    for label in ("total cost", "total", ""):
+        line = Text(prefix, style=ThemeKey.METADATA_DIM)
+        line.append(" ")
+        line.append_text(_build_total_cost_text(costs, label=label))
+        if cell_len(line.plain) <= max_width:
+            return line
+    line.truncate(max_width, overflow="ellipsis")
+    return line
+
+
+def _has_compact_content(metadata: TaskMetadata, *, interrupted: bool = False) -> bool:
+    return bool(
+        metadata.model_name
+        or metadata.sub_agent_name
+        or metadata.description
+        or metadata.usage is not None
+        or metadata.task_duration_s is not None
+        or interrupted
+    )
+
+
+class _CompactTaskMetadataRenderable:
+    def __init__(self, metadata: TaskMetadataItem, *, interrupted: bool) -> None:
+        self.metadata = metadata
+        self.interrupted = interrupted
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        del console
+        max_width = max(1, getattr(options, "max_width", options.size.width))
+        sub_agents = self.metadata.sub_agent_task_metadata
+        costs = _total_costs(self.metadata) if sub_agents else []
+        lines: list[Text] = [
+            _build_compact_row(
+                self.metadata.main_agent,
+                prefix="•",
+                max_width=max_width,
+                interrupted=self.interrupted,
+            )
+        ]
+
+        for index, metadata in enumerate(sub_agents):
+            lines.append(
+                _build_compact_row(
+                    metadata,
+                    prefix="  ├─" if costs or index < len(sub_agents) - 1 else "  ╰─",
+                    max_width=max_width,
+                )
+            )
+        if costs:
+            lines.append(_build_compact_total_cost_row(costs, prefix="  ╰─", max_width=max_width))
+        yield Group(*lines)
+
+
 class _TaskMetadataRenderable:
     """Width-aware renderer for a task metadata block (main agent + sub-agent tree)."""
 
-    def __init__(self, metadata: TaskMetadataItem) -> None:
+    def __init__(self, metadata: TaskMetadataItem, *, interrupted: bool) -> None:
         self.metadata = metadata
+        self.interrupted = interrupted
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         max_width = max(1, getattr(options, "max_width", options.size.width))
         main = self.metadata.main_agent
         sub_agents = self.metadata.sub_agent_task_metadata
-        main_content = _build_metadata_content_renderable(main)
+        main_content = _build_metadata_content_renderable(main, interrupted=self.interrupted)
 
         grid = create_grid()
         grid.add_row(Text("•", style=ThemeKey.METADATA), main_content)
@@ -379,26 +656,20 @@ class _TaskMetadataRenderable:
             for meta in sub_agents:
                 tree.add(_build_metadata_content_renderable(meta))
 
-        total_cost = 0.0
-        currency = "USD"
-        if main.usage and main.usage.total_cost:
-            total_cost += main.usage.total_cost
-            currency = main.usage.currency
-        for meta in sub_agents:
-            if meta.usage and meta.usage.total_cost:
-                total_cost += meta.usage.total_cost
-
-        currency_symbol = "¥" if currency == "CNY" else "$"
-        tree.add(
-            Text.assemble(
-                ("total cost ", ThemeKey.METADATA_DIM),
-                (currency_symbol, ThemeKey.METADATA_DIM),
-                (f"{total_cost:.4f}", ThemeKey.METADATA_DIM),
-            )
-        )
+        total_costs = _total_costs(self.metadata)
+        if total_costs:
+            tree.add(_build_total_cost_text(total_costs))
         yield tree
 
 
-def render_task_metadata(e: events.TaskMetadataEvent) -> RenderableType:
+def render_task_metadata(e: events.TaskMetadataEvent, *, compact: bool = False) -> RenderableType | None:
     """Render task metadata including main agent and sub-agents."""
-    return _TaskMetadataRenderable(e.metadata)
+    interrupted = e.is_partial or e.metadata.is_partial
+    if compact:
+        has_content = _has_compact_content(e.metadata.main_agent, interrupted=interrupted) or any(
+            _has_compact_content(metadata) for metadata in e.metadata.sub_agent_task_metadata
+        )
+        if not has_content:
+            return None
+        return _CompactTaskMetadataRenderable(e.metadata, interrupted=interrupted)
+    return _TaskMetadataRenderable(e.metadata, interrupted=interrupted)

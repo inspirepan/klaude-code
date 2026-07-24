@@ -950,7 +950,10 @@ class TUICommandRenderer:
     def display_task_metadata(self, event: events.TaskMetadataEvent) -> None:
         if self.is_sub_agent_session(event.session_id):
             return
-        self.print(c_metadata.render_task_metadata(event))
+        renderable = c_metadata.render_task_metadata(event, compact=self._compact_transcript)
+        if renderable is None:
+            return
+        self.print(renderable)
         self.print()
 
     def display_task_file_change_summary(self, event: events.TaskFileChangeSummaryEvent) -> None:

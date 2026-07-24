@@ -166,6 +166,7 @@ class ThemeKey(str, Enum):
     METADATA_MODEL_DIM = "metadata.model.dim"
     METADATA_MAIN_AGENT_NAME = "metadata.main_agent_name"
     METADATA_SUB_AGENT_NAME = "metadata.sub_agent_name"
+    METADATA_SUB_AGENT_NAME_COMPACT = "metadata.sub_agent_name.compact"
     METADATA_GREEN = "metadata.green"
     METADATA_GREEN_DIM = "metadata.green.dim"
     # SPINNER_STATUS
@@ -330,6 +331,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA_MODEL_DIM.value: palette.dim_blue,
                 ThemeKey.METADATA_MAIN_AGENT_NAME.value: palette.blue + " on " + palette.blue_sub_background,
                 ThemeKey.METADATA_SUB_AGENT_NAME.value: palette.purple + " on " + palette.purple_background,
+                ThemeKey.METADATA_SUB_AGENT_NAME_COMPACT.value: "bold " + palette.purple,
                 ThemeKey.METADATA_GREEN.value: palette.green,
                 ThemeKey.METADATA_GREEN_DIM.value: palette.grey_green,
                 # STATUS
