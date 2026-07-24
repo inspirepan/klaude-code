@@ -20,7 +20,29 @@ def test_build_env_info_handles_missing_work_dir(tmp_path: Path) -> None:
     env_info = _build_env_info("gpt-5.3-codex", missing_dir)
 
     assert f"Working directory: {missing_dir} (not found)" in env_info
-    assert "Current directory is not a git repo" in env_info
+    assert "Current directory is not a jj or git repo" in env_info
+
+
+def test_build_env_info_prefers_jj_repo(tmp_path: Path) -> None:
+    (tmp_path / ".jj").mkdir()
+    (tmp_path / ".git").mkdir()
+    work_dir = tmp_path / "src"
+    work_dir.mkdir()
+
+    env_info = _build_env_info("gpt-5.3-codex", work_dir)
+
+    assert f"Current directory is a jj repo (root: {tmp_path})" in env_info
+    assert "Current directory is a git repo" not in env_info
+
+
+def test_build_env_info_falls_back_to_git_repo(tmp_path: Path) -> None:
+    (tmp_path / ".git").mkdir()
+    work_dir = tmp_path / "src"
+    work_dir.mkdir()
+
+    env_info = _build_env_info("gpt-5.3-codex", work_dir)
+
+    assert f"Current directory is a git repo (root: {tmp_path})" in env_info
 
 
 def test_load_main_base_prompt_routes_gpt5_to_gpt_prompt() -> None:

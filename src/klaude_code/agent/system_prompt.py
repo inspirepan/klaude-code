@@ -6,7 +6,7 @@ from functools import cache
 from importlib.resources import files
 from pathlib import Path
 
-from klaude_code.const import ProjectPaths, find_git_repo_root, project_key_from_path
+from klaude_code.const import ProjectPaths, find_git_repo_root, find_jj_workspace_root, project_key_from_path
 from klaude_code.protocol import llm_param, model_id, tools
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.protocol.system_prompt import (
@@ -198,7 +198,7 @@ def _get_available_commands() -> list[str]:
 
 def build_sub_agent_env_info(work_dir: Path) -> str:
     """Build environment info block for sub-agents, appended at the end of their prompt."""
-    workspace_root = find_git_repo_root(work_dir=work_dir) or work_dir
+    workspace_root = find_jj_workspace_root(work_dir=work_dir) or find_git_repo_root(work_dir=work_dir) or work_dir
     available_commands = _get_available_commands()
 
     env_lines: list[str] = [
@@ -221,7 +221,8 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     """Build environment info section with dynamic runtime values."""
 
     today = datetime.datetime.now().strftime("%Y-%m-%d")
-    git_root = find_git_repo_root(work_dir=work_dir)
+    jj_root = find_jj_workspace_root(work_dir=work_dir)
+    git_root = find_git_repo_root(work_dir=work_dir) if jj_root is None else None
     is_missing_dir = not work_dir.exists()
     is_empty_dir = not is_missing_dir and not any(work_dir.iterdir())
 
@@ -230,10 +231,14 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     cwd_display = (
         f"{work_dir} (not found)" if is_missing_dir else f"{work_dir} (empty)" if is_empty_dir else str(work_dir)
     )
-    git_repo_line = (
-        f"Current directory is a git repo (root: {git_root})"
-        if git_root is not None
-        else "Current directory is not a git repo (Exercise caution when modifying files; back up when necessary)"
+    repo_line = (
+        f"Current directory is a jj repo (root: {jj_root})"
+        if jj_root is not None
+        else (
+            f"Current directory is a git repo (root: {git_root})"
+            if git_root is not None
+            else "Current directory is not a jj or git repo (Exercise caution when modifying files; back up when necessary)"
+        )
     )
 
     env_lines: list[str] = [
@@ -244,7 +249,7 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
         "<env>",
         f"Working directory: {cwd_display}",
         f"Today's Date: {today}",
-        git_repo_line,
+        repo_line,
         f"You are powered by the model: {model_name}",
     ]
 
