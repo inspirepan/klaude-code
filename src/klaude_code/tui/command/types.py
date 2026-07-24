@@ -31,6 +31,7 @@ class CommandName(str, Enum):
     CONTINUE = "continue"
     WEB = "web"
     RECAP = "recap"
+    GRILL_ME = "grill-me"
 
     def __str__(self) -> str:
         return self.value

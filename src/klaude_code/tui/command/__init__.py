@@ -35,6 +35,7 @@ def ensure_commands_loaded() -> None:
     from .debug_cmd import DebugCommand
     from .export_session_cmd import ExportSessionCommand
     from .fork_session_cmd import ForkSessionCommand
+    from .grill_me_cmd import GrillMeCommand
     from .login_cmd import LoginCommand
     from .logout_cmd import LogoutCommand
     from .manage_providers_cmd import ManageProvidersCommand
@@ -64,6 +65,7 @@ def ensure_commands_loaded() -> None:
     register(SwitchCommand())
     register(ContinueCommand())
     register(RecapCommand())
+    register(GrillMeCommand())
     register(DebugCommand())
 
 
@@ -77,6 +79,7 @@ def __getattr__(name: str) -> object:
         "DebugCommand": "debug_cmd",
         "ExportSessionCommand": "export_session_cmd",
         "ForkSessionCommand": "fork_session_cmd",
+        "GrillMeCommand": "grill_me_cmd",
         "LoginCommand": "login_cmd",
         "LogoutCommand": "logout_cmd",
         "ManageProvidersCommand": "manage_providers_cmd",
