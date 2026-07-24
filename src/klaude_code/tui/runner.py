@@ -644,6 +644,15 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         with contextlib.suppress(Exception):
             loop.call_soon_threadsafe(_start)
 
+    def _get_current_model_effort() -> str | None:
+        current_agent = components.runtime.current_agent
+        if current_agent is None:
+            return None
+        llm_config = current_agent.profile.llm_client.get_llm_config()
+        if llm_config.thinking is not None and llm_config.thinking.reasoning_effort is not None:
+            return llm_config.thinking.reasoning_effort
+        return llm_config.effort
+
     input_provider = PromptToolkitInput(
         pre_prompt=_stop_rich_bottom_ui,
         on_prompt_start=_on_prompt_start,
@@ -660,6 +669,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             if components.runtime.current_agent is not None
             else None
         ),
+        get_current_model_effort=_get_current_model_effort,
         on_change_model=_change_model_from_prompt,
         command_info_provider=get_command_info_list,
         request_toggle_transcript=_request_toggle_transcript,

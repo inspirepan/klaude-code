@@ -34,6 +34,7 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._request_interrupt = None
     prompt_input._get_current_model_config_name = lambda: "test-model"
     prompt_input._get_current_model_provider_name = lambda: "test-provider"
+    prompt_input._get_current_model_effort = None
     prompt_input._next_prefill_text = None
     prompt_input._prompt_suggestion = None
     prompt_input._last_completion_panel_completions = ()
@@ -278,6 +279,30 @@ def test_input_footer_context_renders_model_provider() -> None:
         ("class:meta", " via "),
         ("class:meta", "test-provider"),
     ]
+
+
+def test_input_footer_context_renders_model_effort() -> None:
+    prompt_input: Any = _build_input("")
+    prompt_input._get_current_model_effort = lambda: "high"
+
+    assert prompt_input._build_prompt_context_fragments()[-5:] == [
+        ("class:accent.blue", "test-model"),
+        ("class:meta", " "),
+        ("class:accent.blue", "high"),
+        ("class:meta", " via "),
+        ("class:meta", "test-provider"),
+    ]
+
+
+def test_input_footer_context_does_not_repeat_effort_from_model_suffix() -> None:
+    prompt_input: Any = _build_input("")
+    prompt_input._get_current_model_config_name = lambda: "test-model:xhigh"
+    prompt_input._get_current_model_effort = lambda: "xhigh"
+
+    rendered = "".join(text for _style, text, *_ in prompt_input._build_prompt_context_fragments())
+
+    assert "test-model:xhigh via test-provider" in rendered
+    assert "xhigh xhigh" not in rendered
 
 
 def test_input_footer_reserves_idle_metadata_row() -> None:
