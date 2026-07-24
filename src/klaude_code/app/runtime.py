@@ -15,6 +15,7 @@ from klaude_code.agent.agent_profile import (
     VanillaModelProfileProvider,
 )
 from klaude_code.agent.runtime.llm import ModelResolutionError, build_llm_clients
+from klaude_code.app.herdr import HerdrReporter
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import Config, load_config
@@ -225,7 +226,17 @@ async def initialize_app_components(
             lambda session_id, meta: session_meta_relay_publisher.publish_upsert(session_id, meta)
         )
 
-    event_bus = EventBus(publish_hook=event_relay_publisher.publish if event_relay_publisher is not None else None)
+    herdr_reporter = HerdrReporter.from_env() if init_config.runtime_kind == "tui" else None
+
+    async def _publish_hook(envelope: events.EventEnvelope) -> None:
+        if event_relay_publisher is not None:
+            await event_relay_publisher.publish(envelope)
+        if herdr_reporter is not None:
+            herdr_reporter.consume_event(envelope.event)
+
+    event_bus = EventBus(
+        publish_hook=_publish_hook if event_relay_publisher is not None or herdr_reporter is not None else None
+    )
     event_bus_subscription = SubscriptionHolder(subscription=event_bus.subscribe(None))
     interaction_subscription = (
         SubscriptionHolder(subscription=event_bus.subscribe(None)) if interaction_handler is not None else None
@@ -237,6 +248,7 @@ async def initialize_app_components(
         model_profile_provider=model_profile_provider,
         on_model_change=on_model_change,
         runtime_kind=init_config.runtime_kind,
+        herdr_reporter=herdr_reporter,
     )
 
     if on_model_change is not None:

@@ -13,6 +13,7 @@ from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
 from klaude_code.agent.runtime.dispatcher import OperationDispatcher, OperationDispatcherPorts
 from klaude_code.agent.runtime.llm import LLMClients
+from klaude_code.app.herdr import HerdrReporter
 from klaude_code.control.event_bus import EventBus, event_publish_context
 from klaude_code.control.runtime.registry import OperationLifecycleHooks, SessionRegistry
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
@@ -94,6 +95,7 @@ class RuntimeFacade:
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
         runtime_kind: Literal["tui", "web"] = "tui",
+        herdr_reporter: HerdrReporter | None = None,
     ):
         self.runtime_id = uuid4().hex
         self.runtime_kind: Literal["tui", "web"] = runtime_kind
@@ -134,6 +136,7 @@ class RuntimeFacade:
             on_model_change,
         )
         self._operation_awaiter = OperationCompletionAwaiter(event_bus)
+        self._herdr_reporter = herdr_reporter
         self._stopped = False
 
     def _session_owner(self) -> SessionOwner:
@@ -203,6 +206,9 @@ class RuntimeFacade:
         return SessionRuntimeState.IDLE
 
     async def _persist_session_state(self, session_id: str, session_state: SessionRuntimeState) -> None:
+        herdr_reporter = getattr(self, "_herdr_reporter", None)
+        if herdr_reporter is not None:
+            herdr_reporter.report_session_state(session_id, session_state)
         try:
             runtime = self.session_registry.get_session_actor(session_id)
             if runtime is None:
@@ -430,6 +436,9 @@ class RuntimeFacade:
 
     async def stop(self) -> None:
         self._stopped = True
+        herdr_reporter = getattr(self, "_herdr_reporter", None)
+        if herdr_reporter is not None:
+            await herdr_reporter.close()
         sessions_to_idle: list[tuple[str, Agent]] = []
         for runtime in self.session_registry.list_session_actors():
             agent = runtime.get_agent()

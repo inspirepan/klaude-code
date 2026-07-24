@@ -18,6 +18,14 @@ setup_src_path()
 from klaude_code.session.store_registry import close_default_store  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def isolate_herdr_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Prevent tests launched inside Herdr from reporting to a live pane."""
+    monkeypatch.delenv("HERDR_ENV", raising=False)
+    monkeypatch.delenv("HERDR_SOCKET_PATH", raising=False)
+    monkeypatch.delenv("HERDR_PANE_ID", raising=False)
+
+
 @pytest.fixture
 def isolated_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     """Redirect HOME/Path.home() to a per-test temp directory and close session stores afterward."""
