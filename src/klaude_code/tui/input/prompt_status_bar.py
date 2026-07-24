@@ -307,8 +307,12 @@ class PromptBottomBar:
         for index, line in enumerate(visible_lines):
             if index:
                 fragments.append(("", "\n"))
-            fragments.append((CLASS_META, f"{spinner} "))
-            fragments.append((CLASS_META, line.text))
+            if line.show_spinner:
+                fragments.append((CLASS_META, f"{spinner} "))
+            if line.fragments:
+                fragments.extend(line.fragments)
+            else:
+                fragments.append((CLASS_META, line.text))
         return fragments
 
     def _get_running_separator_fragments(self) -> StyleAndTextTuples:

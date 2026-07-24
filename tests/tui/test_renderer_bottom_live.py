@@ -112,6 +112,53 @@ def test_spinner_stop_keeps_prompt_metadata_footer() -> None:
     assert separator_text is None
 
 
+def test_sub_agent_status_sink_preserves_identity_color() -> None:
+    from klaude_code.protocol.models import SubAgentState
+    from klaude_code.tui.commands import PromptStatusLine, SpinnerStatusLine
+    from klaude_code.tui.components.rich.theme import ThemeKey
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
+    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    _renderer_console(renderer)
+    renderer.register_session(
+        "child",
+        SubAgentState(
+            sub_agent_type="finder",
+            sub_agent_desc="inspect status",
+            sub_agent_prompt="prompt",
+        ),
+    )
+    renderer.set_progress_ui_suspended(True)
+    renderer.spinner_start()
+    status = Text("Finder: inspect status")
+    status.append(" ")
+    status.append("✓", style=ThemeKey.METADATA_GREEN)
+    status.append(" · 2s", style=ThemeKey.STATUS_HINT)
+    renderer.spinner_update(
+        status_lines=(
+            SpinnerStatusLine(
+                text=status,
+                session_id="child",
+            ),
+        )
+    )
+
+    line = status_updates[-1][0][0]
+    assert line.text == "● Finder: inspect status ✓ · 2s"
+    assert line.fragments
+    assert line.show_spinner is False
+    assert "".join(text for _, text in line.fragments) == line.text
+    assert line.fragments[0][1] == "●"
+    assert line.fragments[0][0].startswith("fg:#")
+    success_index = next(index for index, (_, text) in enumerate(line.fragments) if "✓" in text)
+    success_style = line.fragments[success_index][0]
+    assert success_style.startswith("fg:#")
+    assert success_style != line.fragments[0][0]
+    assert "reverse" not in success_style
+    assert line.fragments[success_index - 1] == ("class:meta", " ")
+
+
 def test_display_image_prints_caption_then_image(monkeypatch) -> None:
     from klaude_code.tui import renderer as renderer_module
     from klaude_code.tui.renderer import TUICommandRenderer

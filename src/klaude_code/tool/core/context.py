@@ -101,6 +101,9 @@ class ToolContext:
     handoff_manager: HandoffManagerABC | None = None
     request_user_interaction: RequestUserInteraction | None = None
     emit_tool_output_delta: EmitToolOutputDelta | None = None
+    tool_batch_id: str | None = None
+    tool_batch_index: int | None = None
+    tool_batch_size: int | None = None
 
     def with_record_sub_agent_session_id(self, callback: Callable[[str], None] | None) -> ToolContext:
         return replace(self, record_sub_agent_session_id=callback)
@@ -127,3 +130,17 @@ class ToolContext:
 
     def with_emit_tool_output_delta(self, callback: EmitToolOutputDelta | None) -> ToolContext:
         return replace(self, emit_tool_output_delta=callback)
+
+    def with_tool_batch(
+        self,
+        *,
+        batch_id: str | None,
+        batch_index: int | None,
+        batch_size: int | None,
+    ) -> ToolContext:
+        return replace(
+            self,
+            tool_batch_id=batch_id,
+            tool_batch_index=batch_index,
+            tool_batch_size=batch_size,
+        )

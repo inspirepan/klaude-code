@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import shutil
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -25,7 +26,7 @@ from klaude_code.const import (
 )
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.model_id import is_gemini_model_any, is_grok_model
-from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, Usage
+from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, TaskMetadata, Usage
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
@@ -49,6 +50,7 @@ from klaude_code.tui.commands import (
     RenderNotice,
     RenderRewind,
     RenderSessionStats,
+    RenderSubAgentBatchSummary,
     RenderTaskFileChangeSummary,
     RenderTaskFinish,
     RenderTaskMetadata,
@@ -68,10 +70,12 @@ from klaude_code.tui.commands import (
     StartThinkingStream,
     StartTitleBlink,
     StopTitleBlink,
+    SubAgentSummary,
     TaskClockClear,
     TaskClockStart,
     UpdateTerminalTitlePrefix,
 )
+from klaude_code.tui.components import sub_agent as c_sub_agent
 from klaude_code.tui.components.common import (
     format_compact_count,
     format_elapsed_compact,
@@ -558,11 +562,23 @@ class _SessionState:
     assistant_char_count: int = 0
     thinking_char_count: int = 0
     thinking_started_at: float | None = None
+    task_started_at: float | None = None
+    task_finished_at: float | None = None
     step_count: int = 0
     task_active: bool = False
     status_composing: bool = False
     status_tool_calls: dict[str, int] = field(default_factory=_empty_status_tool_counts)
     status_tool_calls_by_id: dict[str, str] = field(default_factory=_empty_status_tool_ids)
+    latest_tool_name: str | None = None
+    latest_tool_arguments: str = ""
+    latest_tool_status: str | None = None
+    latest_tool_activity: Text | None = None
+    tool_call_ids: set[str] = field(default_factory=set)
+    task_metadata: TaskMetadata | None = None
+    task_result: str = ""
+    result_summary: str = ""
+    terminal_status: Literal["success", "error", "aborted"] | None = None
+    compact_batch_flushed: bool = False
 
     @property
     def is_sub_agent(self) -> bool:
@@ -625,7 +641,18 @@ class _SessionState:
             return ""
         return _normalize_status_text(self.sub_agent_state.sub_agent_desc)
 
-    def status_activity_text(self) -> str | None:
+    def status_activity_text(self) -> Text | None:
+        if self.thinking_stream_active:
+            return Text(STATUS_THINKING_TEXT, style=ThemeKey.THINKING)
+        if self.status_composing:
+            return Text(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
+        if self.latest_tool_name is not None:
+            return self.latest_tool_activity.copy() if self.latest_tool_activity is not None else None
+        if self.task_active:
+            return Text(STATUS_RUNNING_TEXT, style=ThemeKey.STATUS_TEXT)
+        return None
+
+    def expanded_status_activity_text(self) -> str | None:
         if self.status_tool_calls:
             return ", ".join(f"{name} × {count}" for name, count in self.status_tool_calls.items())
         if self.thinking_stream_active:
@@ -640,6 +667,16 @@ class _SessionState:
         if self.task_active:
             return STATUS_RUNNING_TEXT
         return None
+
+    def elapsed_s(self) -> float | None:
+        if self.task_finished_at is not None and self.task_metadata is not None:
+            duration_s = self.task_metadata.task_duration_s
+            if duration_s is not None:
+                return max(0.0, duration_s)
+        if self.task_started_at is None:
+            return None
+        end = self.task_finished_at if self.task_finished_at is not None else time.time()
+        return max(0.0, end - self.task_started_at)
 
     @staticmethod
     def _status_with_char_count(status: str, char_count: int, *, elapsed_s: float | None = None) -> str:
@@ -677,6 +714,17 @@ class DisplayStateMachine:
         self._bash_mode_output_chunks_by_session: dict[str, list[str]] = {}
         self._has_rendered_user_message = False
         self._skip_next_user_message_rule = False
+        self._compact_transcript = True
+        self._compact_sub_agent_hint_shown = False
+        self._pending_sub_agent_results: dict[str, events.ToolResultEvent] = {}
+        self._unspawned_sub_agents_by_batch: dict[str, int] = {}
+
+    @property
+    def compact_transcript(self) -> bool:
+        return self._compact_transcript
+
+    def set_compact_transcript(self, compact: bool) -> None:
+        self._compact_transcript = compact
 
     def set_model_name(self, model_name: str | None) -> None:
         self._model_name = model_name
@@ -703,6 +751,8 @@ class DisplayStateMachine:
         self._bash_mode_output_chunks_by_session = {}
         self._has_rendered_user_message = False
         self._skip_next_user_message_rule = False
+        self._pending_sub_agent_results = {}
+        self._unspawned_sub_agents_by_batch = {}
 
     def _session(self, session_id: str) -> _SessionState:
         existing = self._sessions.get(session_id)
@@ -719,38 +769,127 @@ class DisplayStateMachine:
         if self._primary_session_id is None:
             self._primary_session_id = session_id
 
-    def _clear_active_sub_agent_sessions(self) -> None:
-        for session in self._sessions.values():
-            if not session.is_sub_agent:
-                continue
+    def _abort_active_sub_agent_sessions(
+        self,
+        *,
+        timestamp: float,
+        result: str,
+        is_replay: bool,
+    ) -> list[RenderCommand]:
+        active = [session for session in self._sessions.values() if session.is_sub_agent and session.task_active]
+        for session in active:
             session.task_active = False
+            session.task_finished_at = timestamp
+            session.terminal_status = "aborted"
+            session.task_result = result
+            session.result_summary = c_sub_agent.extract_result_summary(result)
             session.clear_status_activity()
             session.reset_thinking()
-            session.assistant_stream_active = False
-            session.assistant_char_count = 0
+        commands: list[RenderCommand] = []
+        for session in active:
+            commands.extend(self._maybe_finish_sub_agent_batch(session, is_replay=is_replay))
+        return commands
 
     def _sub_agent_status_lines(self) -> tuple[SpinnerStatusLine, ...]:
-        lines: list[SpinnerStatusLine] = []
+        if not self._compact_transcript:
+            lines = [
+                SpinnerStatusLine(
+                    text=r_status.DynamicText(lambda session=session: self._expanded_sub_agent_status_line(session)),
+                    session_id=session.session_id,
+                )
+                for session in self._sessions.values()
+                if session.is_sub_agent and session.task_active
+            ]
+            if len(lines) <= SUB_AGENT_STATUS_MAX_LINES:
+                return tuple(lines)
+            hidden = len(lines) - SUB_AGENT_STATUS_MAX_LINES
+            return tuple(
+                [
+                    *lines[:SUB_AGENT_STATUS_MAX_LINES],
+                    SpinnerStatusLine(text=Text(format_more_lines_indicator(hidden), style=ThemeKey.STATUS_HINT)),
+                ]
+            )
+
+        groups: list[list[SpinnerStatusLine]] = []
         for session in self._sessions.values():
-            if not session.is_sub_agent or not session.task_active:
+            if not session.is_sub_agent or session.compact_batch_flushed:
                 continue
-            lines.append(
+            group = [
                 SpinnerStatusLine(
                     text=r_status.DynamicText(lambda session=session: self._sub_agent_status_line(session)),
                     session_id=session.session_id,
                 )
-            )
+            ]
+            if session.terminal_status is not None:
+                group.append(
+                    SpinnerStatusLine(
+                        text=r_status.DynamicText(
+                            lambda session=session: Text(
+                                session.result_summary or "(no summary)",
+                                style=ThemeKey.TOOL_RESULT,
+                                no_wrap=True,
+                                overflow="ellipsis",
+                            )
+                        ),
+                        session_id=session.session_id,
+                        sub_agent_continuation=True,
+                    )
+                )
+            groups.append(group)
 
-        if len(lines) <= SUB_AGENT_STATUS_MAX_LINES:
-            return tuple(lines)
+        if not groups:
+            return ()
 
-        hidden = len(lines) - SUB_AGENT_STATUS_MAX_LINES
-        visible = lines[:SUB_AGENT_STATUS_MAX_LINES]
-        visible.append(SpinnerStatusLine(text=Text(format_more_lines_indicator(hidden), style=ThemeKey.STATUS_HINT)))
+        terminal_lines = shutil.get_terminal_size((120, 24)).lines
+        max_lines = max(2, int(terminal_lines * 0.4))
+        total_lines = sum(len(group) for group in groups)
+        if total_lines <= max_lines:
+            return tuple(line for group in groups for line in group)
+
+        visible: list[SpinnerStatusLine] = []
+        visible_groups = 0
+        for group in groups:
+            if len(visible) + len(group) > max_lines - 1:
+                break
+            visible.extend(group)
+            visible_groups += 1
+        hidden = len(groups) - visible_groups
+        visible.append(SpinnerStatusLine(text=Text(f"… {hidden} more agents", style=ThemeKey.STATUS_HINT)))
         return tuple(visible)
 
     @staticmethod
     def _sub_agent_status_line(session: _SessionState) -> Text:
+        title = session.status_title()
+        description = session.status_description()
+        line = Text(title, style=ThemeKey.STATUS_TEXT, no_wrap=True, overflow="ellipsis")
+        if description:
+            line.append(": ", style=ThemeKey.STATUS_TEXT)
+            description_start = len(line)
+            line.append(description, style=ThemeKey.STATUS_TEXT)
+            line.stylize("italic", description_start, len(line))
+
+        if session.terminal_status is not None:
+            if session.terminal_status == "success":
+                line.append(" ")
+                line.append("✓", style=ThemeKey.METADATA_GREEN)
+            elif session.terminal_status == "error":
+                line.append(" ")
+                line.append("✗", style=ThemeKey.ERROR_BOLD)
+            else:
+                line.append(" cancelled", style=ThemeKey.INTERRUPT)
+        else:
+            activity = session.status_activity_text()
+            if activity:
+                line.append(" · ")
+                line.append_text(activity)
+
+        elapsed_s = session.elapsed_s()
+        if elapsed_s is not None:
+            line.append(f" · {format_elapsed_compact(elapsed_s)}", style=ThemeKey.STATUS_HINT)
+        return line
+
+    @staticmethod
+    def _expanded_sub_agent_status_line(session: _SessionState) -> Text:
         title = session.status_title()
         description = session.status_description()
         line = Text(title, style=ThemeKey.STATUS_TEXT)
@@ -759,16 +898,66 @@ class DisplayStateMachine:
             description_start = len(line)
             line.append(description, style=ThemeKey.STATUS_TEXT)
             line.stylize("italic", description_start, len(line))
-
         if session.step_count > 0:
             suffix = "step" if session.step_count == 1 else "steps"
             line.append(f" · {session.step_count} {suffix}", style=ThemeKey.STATUS_HINT)
-
-        activity = session.status_activity_text()
+        activity = session.expanded_status_activity_text()
         if activity:
             line.append(" | ")
             line.append(activity, style=ThemeKey.STATUS_TEXT)
         return line
+
+    @staticmethod
+    def _sub_agent_token_count(metadata: TaskMetadata | None) -> int | None:
+        if metadata is None or metadata.usage is None:
+            return None
+        usage = metadata.usage
+        input_tokens = max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
+        return input_tokens + usage.output_tokens
+
+    def _maybe_finish_sub_agent_batch(self, session: _SessionState, *, is_replay: bool) -> list[RenderCommand]:
+        state = session.sub_agent_state
+        if not self._compact_transcript or state is None or session.compact_batch_flushed:
+            return []
+        batch_id = state.parent_tool_batch_id or session.session_id
+        members: list[_SessionState] = []
+        for item in self._sessions.values():
+            item_state = item.sub_agent_state
+            if item_state is None or item.compact_batch_flushed:
+                continue
+            if (item_state.parent_tool_batch_id or item.session_id) == batch_id:
+                members.append(item)
+        expected = max(
+            (item.sub_agent_state.parent_tool_batch_size or 1) for item in members if item.sub_agent_state is not None
+        )
+        expected = max(0, expected - self._unspawned_sub_agents_by_batch.get(batch_id, 0))
+        if len(members) < expected or any(item.terminal_status is None for item in members):
+            return []
+
+        members.sort(key=lambda item: item.sub_agent_state.parent_tool_batch_index or 0)
+        summaries: list[SubAgentSummary] = []
+        for item in members:
+            item_state = item.sub_agent_state
+            if item_state is None or item.terminal_status is None:
+                continue
+            summaries.append(
+                SubAgentSummary(
+                    session_id=item.session_id,
+                    title=item.status_title(),
+                    description=item.status_description(),
+                    status=item.terminal_status,
+                    duration_s=item.elapsed_s(),
+                    tool_count=len(item.tool_call_ids),
+                    token_count=self._sub_agent_token_count(item.task_metadata),
+                    result_summary=item.result_summary,
+                )
+            )
+            item.compact_batch_flushed = True
+
+        show_hint = not is_replay and not self._compact_sub_agent_hint_shown
+        if show_hint:
+            self._compact_sub_agent_hint_shown = True
+        return [RenderSubAgentBatchSummary(tuple(summaries), show_expand_hint=show_hint)]
 
     def _spinner_update_commands(self) -> list[RenderCommand]:
         sub_agent_lines = self._sub_agent_status_lines()
@@ -980,6 +1169,27 @@ class DisplayStateMachine:
         s.parent_session_id = e.parent_session_id
         s.model_id = e.model_id
         s.task_active = True
+        s.task_started_at = e.timestamp
+        s.task_finished_at = None
+        s.terminal_status = None
+        s.task_result = ""
+        s.result_summary = ""
+        s.task_metadata = None
+        s.latest_tool_name = None
+        s.latest_tool_arguments = ""
+        s.latest_tool_status = None
+        s.latest_tool_activity = None
+        s.tool_call_ids = set()
+        s.compact_batch_flushed = False
+        pending_result = self._pending_sub_agent_results.pop(e.session_id, None)
+        if pending_result is not None:
+            s.task_metadata = pending_result.task_metadata
+            if pending_result.status in ("error", "aborted"):
+                s.task_active = False
+                s.task_finished_at = pending_result.timestamp
+                s.terminal_status = pending_result.status
+                s.task_result = pending_result.result
+                s.result_summary = c_sub_agent.extract_result_summary(pending_result.result)
         s.step_count = 0
         s.clear_status_activity()
         if not s.is_sub_agent:
@@ -1002,6 +1212,8 @@ class DisplayStateMachine:
         if not is_replay:
             cmds.append(SpinnerStart())
         cmds.append(RenderTaskStart(e))
+        if s.is_sub_agent and s.terminal_status is not None:
+            cmds.extend(self._maybe_finish_sub_agent_batch(s, is_replay=is_replay))
         if not is_replay:
             cmds.extend(self._spinner_update_commands())
         return cmds
@@ -1032,7 +1244,7 @@ class DisplayStateMachine:
             if not s.task_active:
                 cmds.append(SpinnerStop())
             cmds.extend(self._spinner_update_commands())
-        if e.summary and not e.aborted:
+        if e.summary and not e.aborted and not (self._compact_transcript and s.is_sub_agent):
             if e.reason == "handoff":
                 cmds.append(RenderHandoff(summary=e.summary))
             else:
@@ -1216,12 +1428,13 @@ class DisplayStateMachine:
             return cmds
         if not self._is_primary(e.session_id):
             return []
-        s.thinking_stream_active = True
+        s.start_thinking(e.timestamp)
         # Ensure the status reflects that reasoning has started even
         # before we receive any deltas.
         if not is_replay:
             self._spinner.enter_thinking()
-        cmds.append(StartThinkingStream(session_id=e.session_id))
+        if not self._compact_transcript:
+            cmds.append(StartThinkingStream(session_id=e.session_id))
         if not is_replay:
             cmds.extend(self._spinner_update_commands())
         return cmds
@@ -1238,7 +1451,9 @@ class DisplayStateMachine:
 
         if not self._is_primary(e.session_id):
             return []
-        cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
+        s.append_thinking(e.content)
+        if not self._compact_transcript:
+            cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
         return cmds
 
     def _handle_ThinkingEndEvent(
@@ -1246,20 +1461,30 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            duration_s = None if is_replay else max(0.0, e.timestamp - (s.thinking_started_at or e.timestamp))
+            duration_s = e.duration_s
+            if duration_s is None and not is_replay and s.thinking_started_at is not None:
+                duration_s = max(0.0, e.timestamp - s.thinking_started_at)
             char_count = s.thinking_char_count
             s.reset_thinking()
-            if char_count > 0:
+            if not self._compact_transcript and char_count > 0:
                 cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count))
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
             return cmds
         if not self._is_primary(e.session_id):
             return []
-        s.thinking_stream_active = False
+        duration_s = e.duration_s
+        if duration_s is None and not is_replay and s.thinking_started_at is not None:
+            duration_s = max(0.0, e.timestamp - s.thinking_started_at)
+        char_count = s.thinking_char_count
+        s.reset_thinking()
         if not is_replay:
             self._spinner.clear_default_reasoning_status()
-        cmds.append(EndThinkingStream(session_id=e.session_id))
+        if self._compact_transcript:
+            if char_count > 0:
+                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count))
+        else:
+            cmds.append(EndThinkingStream(session_id=e.session_id))
         if not is_replay:
             cmds.append(SpinnerStart())
             cmds.extend(self._spinner_update_commands())
@@ -1380,6 +1605,10 @@ class DisplayStateMachine:
         if not is_replay:
             if s.is_sub_agent:
                 s.status_composing = False
+                s.latest_tool_name = e.tool_name
+                s.latest_tool_arguments = ""
+                s.latest_tool_status = None
+                s.latest_tool_activity = c_sub_agent.render_compact_tool_activity(e.tool_name, "")
             else:
                 self._spinner.set_composing(False)
 
@@ -1412,6 +1641,15 @@ class DisplayStateMachine:
             if primary is not None and primary.thinking_stream_active:
                 primary.thinking_stream_active = False
                 cmds.append(EndThinkingStream(session_id=primary.session_id))
+
+        if s.is_sub_agent:
+            s.latest_tool_name = e.tool_name
+            s.latest_tool_arguments = e.arguments
+            s.latest_tool_status = None
+            s.latest_tool_activity = c_sub_agent.render_compact_tool_activity(e.tool_name, e.arguments)
+            s.tool_call_ids.add(e.tool_call_id)
+            s.status_composing = False
+            s.reset_thinking()
 
         if not is_replay and e.tool_name == tools.AGENT and not s.should_skip_tool_activity(e.tool_name):
             tool_active_form = get_agent_active_form(e.arguments)
@@ -1475,11 +1713,21 @@ class DisplayStateMachine:
         self, e: events.ToolResultEvent, *, is_replay: bool, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        linked_sub_agent: _SessionState | None = None
         if isinstance(e.ui_extra, SessionIdUIExtra):
-            self._session(e.ui_extra.session_id).parent_session_id = e.session_id
+            linked_sub_agent = self._session(e.ui_extra.session_id)
+            linked_sub_agent.parent_session_id = e.session_id
+            if linked_sub_agent.sub_agent_state is None:
+                self._pending_sub_agent_results[e.ui_extra.session_id] = e
         pending = self._pending_bash_tool_outputs.pop(e.tool_call_id, None)
         if not is_replay and s.is_sub_agent:
             s.finish_status_tool_call(e.tool_call_id)
+            s.latest_tool_status = e.status
+            s.latest_tool_activity = c_sub_agent.render_compact_tool_activity(
+                s.latest_tool_name or e.tool_name,
+                s.latest_tool_arguments,
+                status=e.status,
+            )
             cmds.extend(self._spinner_update_commands())
         elif not is_replay and is_sub_agent_tool(e.tool_name):
             self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
@@ -1506,6 +1754,27 @@ class DisplayStateMachine:
         elif pending is not None:
             self._live_bash_tool_call_ids.discard(e.tool_call_id)
 
+        if e.tool_name == tools.AGENT and linked_sub_agent is not None and linked_sub_agent.sub_agent_state is not None:
+            if e.task_metadata is not None:
+                linked_sub_agent.task_metadata = e.task_metadata
+            if linked_sub_agent.terminal_status is None and e.status in ("error", "aborted"):
+                linked_sub_agent.task_active = False
+                linked_sub_agent.task_finished_at = e.timestamp
+                linked_sub_agent.terminal_status = e.status
+                linked_sub_agent.task_result = e.result
+                linked_sub_agent.result_summary = c_sub_agent.extract_result_summary(e.result)
+            cmds.extend(self._maybe_finish_sub_agent_batch(linked_sub_agent, is_replay=is_replay))
+            if not is_replay:
+                cmds.extend(self._spinner_update_commands())
+        elif e.tool_name == tools.AGENT and linked_sub_agent is None and e.is_error and e.response_id:
+            self._unspawned_sub_agents_by_batch[e.response_id] = (
+                self._unspawned_sub_agents_by_batch.get(e.response_id, 0) + 1
+            )
+            for candidate in self._sessions.values():
+                candidate_state = candidate.sub_agent_state
+                if candidate_state is not None and candidate_state.parent_tool_batch_id == e.response_id:
+                    cmds.extend(self._maybe_finish_sub_agent_batch(candidate, is_replay=is_replay))
+
         if (
             s.is_sub_agent
             and not e.is_error
@@ -1521,6 +1790,8 @@ class DisplayStateMachine:
         self, e: events.TaskMetadataEvent, *, is_replay: bool, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        if s.is_sub_agent:
+            s.task_metadata = e.metadata.main_agent
         cmds.append(EndThinkingStream(e.session_id))
         cmds.append(EndAssistantStream(e.session_id))
         cmds.append(RenderTaskMetadata(e))
@@ -1568,12 +1839,19 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         s.task_active = False
+        s.task_finished_at = e.timestamp
+        s.task_result = e.task_result
+        s.result_summary = c_sub_agent.extract_result_summary(e.task_result)
+        s.terminal_status = "aborted" if is_cancelled_task_result(e.task_result) else "success"
         s.clear_status_activity()
         cmds.append(RenderTaskFinish(e))
         if s.is_sub_agent:
-            parent = self._sessions.get(s.parent_session_id or "")
-            parent_session_id = parent.session_id if parent is not None and parent.is_sub_agent else None
-            cmds.append(PrintBlankLine(session_id=parent_session_id))
+            if self._compact_transcript:
+                cmds.extend(self._maybe_finish_sub_agent_batch(s, is_replay=is_replay))
+            else:
+                parent = self._sessions.get(s.parent_session_id or "")
+                parent_session_id = parent.session_id if parent is not None and parent.is_sub_agent else None
+                cmds.append(PrintBlankLine(session_id=parent_session_id))
 
         # Defensive: finalize any open streams so buffered markdown is flushed.
         if s.thinking_stream_active:
@@ -1627,7 +1905,13 @@ class DisplayStateMachine:
         s.reset_thinking()
         if not s.is_sub_agent:
             self._terminal_title_prefix = None
-            self._clear_active_sub_agent_sessions()
+            cmds.extend(
+                self._abort_active_sub_agent_sessions(
+                    timestamp=e.timestamp,
+                    result="Parent task interrupted",
+                    is_replay=is_replay,
+                )
+            )
         if not s.is_sub_agent:
             cmds.append(EndThinkingStream(session_id=e.session_id))
             cmds.append(EndAssistantStream(session_id=e.session_id))
@@ -1653,6 +1937,12 @@ class DisplayStateMachine:
         if not e.can_retry:
             s.task_active = False
             s.clear_status_activity()
+            if s.is_sub_agent:
+                s.task_finished_at = e.timestamp
+                s.terminal_status = "error"
+                s.task_result = e.error_message
+                s.result_summary = c_sub_agent.extract_result_summary(e.error_message)
+                cmds.extend(self._maybe_finish_sub_agent_batch(s, is_replay=is_replay))
         cmds.append(RenderError(e))
         if not is_replay and not e.can_retry:
             self._spinner.clear_task_state()
@@ -1668,7 +1958,13 @@ class DisplayStateMachine:
                         session_title=self._session_title,
                     )
                 )
-                self._clear_active_sub_agent_sessions()
+                cmds.extend(
+                    self._abort_active_sub_agent_sessions(
+                        timestamp=e.timestamp,
+                        result=e.error_message,
+                        is_replay=is_replay,
+                    )
+                )
         if not is_replay:
             cmds.extend(self._spinner_update_commands())
         return cmds

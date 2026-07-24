@@ -34,6 +34,7 @@ def test_render_interrupt_and_aborted_tool_result_use_interrupt_style() -> None:
 
 def test_renderer_uses_interrupt_style_for_aborted_sub_agent_tool_result(monkeypatch: MonkeyPatch) -> None:
     renderer = TUICommandRenderer()
+    renderer.set_compact_transcript(False)
     output = io.StringIO()
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)

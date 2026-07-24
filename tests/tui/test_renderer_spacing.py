@@ -156,6 +156,7 @@ def test_sub_agent_blank_line_keeps_quote_prefix() -> None:
 
 def test_sub_agent_finish_result_does_not_include_trailing_quote_blank_line() -> None:
     renderer, output = _renderer_and_output()
+    renderer.set_compact_transcript(False)
     session_id = "sub-1"
 
     asyncio.run(
@@ -182,7 +183,9 @@ def test_sub_agent_finish_result_does_not_include_trailing_quote_blank_line() ->
 
 def test_sub_agent_finish_blank_line_after_result_is_not_quoted() -> None:
     renderer, output = _renderer_and_output()
+    renderer.set_compact_transcript(False)
     machine = DisplayStateMachine()
+    machine.set_compact_transcript(False)
     main_session = "main"
     sub_session = "sub-1"
 
@@ -210,6 +213,7 @@ def test_sub_agent_finish_blank_line_after_result_is_not_quoted() -> None:
 
 def test_sub_agent_block_flush_keeps_quote_prefix() -> None:
     renderer, output = _renderer_and_output()
+    renderer.set_compact_transcript(False)
     session_id = "sub-1"
     renderer.register_session(
         session_id,
@@ -257,6 +261,7 @@ def test_sub_agent_block_flush_keeps_quote_prefix() -> None:
 
 def test_sub_agent_block_flush_can_force_top_level_blank_line() -> None:
     renderer, output = _renderer_and_output()
+    renderer.set_compact_transcript(False)
     session_id = "sub-1"
     renderer.register_session(
         session_id,
@@ -285,6 +290,7 @@ def test_sub_agent_block_flush_can_force_top_level_blank_line() -> None:
 
 def test_sub_agent_standalone_tool_result_blank_line_keeps_quote_prefix() -> None:
     renderer, output = _renderer_and_output()
+    renderer.set_compact_transcript(False)
     session_id = "sub-1"
     renderer.register_session(
         session_id,
@@ -389,6 +395,28 @@ def test_sub_agent_thinking_summary_uses_scoped_quote() -> None:
     assert output.getvalue() == (
         "▌ Thought for 20s · 1.2K chars\n▌ Thought for a moment · 13 chars\n▌ Thought · 2.3K chars\n"
     )
+
+
+def test_compact_main_thinking_summary_uses_mark_and_preserves_blank_line() -> None:
+    renderer, output = _renderer_and_output()
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderThinkingSummary(session_id="main", duration_s=20.0, char_count=1234),
+                RenderToolCall(
+                    event=events.ToolCallEvent(
+                        session_id="main",
+                        tool_call_id="tool-1",
+                        tool_name=tools.READ,
+                        arguments='{"file_path":"README.md"}',
+                    )
+                ),
+            ]
+        )
+    )
+
+    assert "∵ Thought for 20s · 1.2K chars\n\n→ Read ./README.md" in output.getvalue()
 
 
 def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:

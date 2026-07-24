@@ -637,7 +637,7 @@ class FlickerSafeStdoutProxy(StdoutProxy):
             await asyncio.sleep(0.01)
 
 
-async def write_scrollback_bulk(text: str) -> None:
+async def write_scrollback_bulk(text: str, *, clear_screen: bool = False) -> None:
     """Write a large scrollback payload in a single erase/write/redraw cycle.
 
     Used for session-resume replay: routing the transcript through the proxy
@@ -647,10 +647,12 @@ async def write_scrollback_bulk(text: str) -> None:
     the whole transcript at once; the non-blocking drain still protects the
     event loop against a slow terminal.
     """
-    if not text:
+    if not text and not clear_screen:
         return
     proxy = sys.stdout
     if not isinstance(proxy, FlickerSafeStdoutProxy):
+        if clear_screen:
+            sys.stdout.write("\x1b[2J\x1b[3J\x1b[H")
         sys.stdout.write(text)
         with contextlib.suppress(Exception):
             sys.stdout.flush()
@@ -661,6 +663,8 @@ async def write_scrollback_bulk(text: str) -> None:
     output = proxy._output
     async with synchronized_in_terminal():
         output.enable_autowrap()
+        if clear_screen:
+            output.write_raw("\x1b[2J\x1b[3J\x1b[H")
         output.write_raw(text)
         await _flush_output_nonblocking(output)
 

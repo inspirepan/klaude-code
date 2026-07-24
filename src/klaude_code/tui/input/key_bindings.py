@@ -71,6 +71,7 @@ def create_key_bindings(
     has_pending_messages: Callable[[], bool] | None = None,
     request_interrupt: Callable[[], None] | None = None,
     is_interrupt_available: Callable[[], bool] | None = None,
+    request_toggle_transcript: Callable[[], None] | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
 
@@ -789,6 +790,12 @@ def create_key_bindings(
         if open_model_picker is not None:
             with contextlib.suppress(Exception):
                 open_model_picker()
+
+    @kb.add("c-o", filter=enabled, eager=True)
+    def _(event: KeyPressEvent) -> None:
+        del event
+        if request_toggle_transcript is not None:
+            request_toggle_transcript()
 
     @kb.add("escape", "up", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:

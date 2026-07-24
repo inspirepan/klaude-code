@@ -30,15 +30,19 @@ def normalize_thinking_content(content: str) -> str:
     return text
 
 
-def render_thinking_summary(duration_s: float | None, char_count: int) -> Text:
-    """Render a compact summary for hidden sub-agent thinking."""
+def render_thinking_summary(duration_s: float | None, char_count: int, *, include_mark: bool = False) -> Text:
+    """Render a compact summary for hidden thinking."""
     if duration_s is None:
         duration = ""
     elif duration_s < 1:
         duration = " for a moment"
     else:
         duration = f" for {format_elapsed_compact(duration_s)}"
-    return Text(
+    summary = Text()
+    if include_mark:
+        summary.append("∵ ", style=ThemeKey.THINKING)
+    summary.append(
         f"Thought{duration} · {format_compact_count(char_count)} chars",
         style=ThemeKey.METADATA_DIM,
     )
+    return summary

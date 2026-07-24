@@ -19,12 +19,15 @@ class DynamicSeparatorText:
 
 SeparatorText = str | DynamicSeparatorText
 PromptStatusLineKind = Literal["status", "metadata"]
+PromptStatusFragments = tuple[tuple[str, str], ...]
 
 
 @dataclass(frozen=True, slots=True)
 class PromptStatusLine:
     text: str
     kind: PromptStatusLineKind = "status"
+    fragments: PromptStatusFragments = ()
+    show_spinner: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +122,24 @@ class RenderTaskFinish(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class SubAgentSummary:
+    session_id: str
+    title: str
+    description: str
+    status: Literal["success", "error", "aborted"]
+    duration_s: float | None
+    tool_count: int
+    token_count: int | None
+    result_summary: str
+
+
+@dataclass(frozen=True, slots=True)
+class RenderSubAgentBatchSummary(RenderCommand):
+    summaries: tuple[SubAgentSummary, ...]
+    show_expand_hint: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class RenderInterrupt(RenderCommand):
     pass
 
@@ -181,6 +202,7 @@ class SpinnerStop(RenderCommand):
 class SpinnerStatusLine:
     text: RenderableType
     session_id: str | None = None
+    sub_agent_continuation: bool = False
 
 
 @dataclass(frozen=True, slots=True)

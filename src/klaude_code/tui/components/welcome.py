@@ -288,6 +288,7 @@ def _build_shortcuts_tree() -> Tree:
     tree.add(prefix_row)
     key_items = [
         ("ctrl-l", "change model (this chat)"),
+        ("ctrl-o", "toggle transcript detail"),
         ("ctrl-v", "paste image"),
     ]
     for key, desc in key_items:

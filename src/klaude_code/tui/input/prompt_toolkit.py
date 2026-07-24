@@ -194,6 +194,7 @@ class PromptToolkitInput(InputProviderABC):
         dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
         request_interrupt: Callable[[], None] | None = None,
         refresh_status: Callable[[], None] | None = None,
+        request_toggle_transcript: Callable[[], None] | None = None,
     ):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
@@ -208,6 +209,7 @@ class PromptToolkitInput(InputProviderABC):
         self._dequeue_pending_messages = dequeue_pending_messages
         self._request_interrupt = request_interrupt
         self._refresh_status = refresh_status
+        self._request_toggle_transcript = request_toggle_transcript
         self._next_prefill_text: str | None = None
         self._session_dir: Path | None = None
         self._clipboard_has_image: bool = False
@@ -371,6 +373,7 @@ class PromptToolkitInput(InputProviderABC):
             has_pending_messages=lambda: self._bottom_bar.has_pending_messages,
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
+            request_toggle_transcript=self._request_toggle_transcript,
         )
 
         return PromptSession(

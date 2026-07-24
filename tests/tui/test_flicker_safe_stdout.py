@@ -520,6 +520,22 @@ def test_write_scrollback_bulk_without_proxy_writes_directly() -> None:
     assert buffer.getvalue() == "line1\nline2\n"
 
 
+def test_write_scrollback_bulk_can_clear_before_replay() -> None:
+    import io
+    import sys
+
+    from klaude_code.tui.input.flicker_safe_stdout import write_scrollback_bulk
+
+    buffer = io.StringIO()
+    original = sys.stdout
+    sys.stdout = buffer
+    try:
+        asyncio.run(write_scrollback_bulk("transcript\n", clear_screen=True))
+    finally:
+        sys.stdout = original
+    assert buffer.getvalue() == "\x1b[2J\x1b[3J\x1b[Htranscript\n"
+
+
 def test_write_scrollback_bulk_lands_after_queued_proxy_writes() -> None:
     """The bulk payload must not overtake writes already queued through the
     proxy's flush thread — the replay transcript has to land after the

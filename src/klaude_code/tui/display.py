@@ -42,6 +42,18 @@ class TUIDisplay(DisplayABC):
 
         self._sigint_toast_clear_handle: asyncio.Handle | None = None
         self._bg_tasks: set[asyncio.Task[None]] = set()
+        self._clear_before_next_replay = False
+
+    @property
+    def compact_transcript(self) -> bool:
+        return self._machine.compact_transcript
+
+    def toggle_transcript_mode(self) -> bool:
+        compact = not self._machine.compact_transcript
+        self._machine.set_compact_transcript(compact)
+        self._renderer.set_compact_transcript(compact)
+        self._clear_before_next_replay = True
+        return compact
 
     def _create_bg_task(self, coro: Coroutine[Any, Any, None]) -> None:
         task = asyncio.create_task(coro)
@@ -56,6 +68,7 @@ class TUIDisplay(DisplayABC):
             # while reconstructing stable scrollback history.
             self._renderer.set_stream_renderable(None)
             self._renderer.set_replay_mode(True)
+            self._renderer.reset_replay_state()
             try:
                 # Render the whole transcript into memory first (yielding per
                 # event so the pure-CPU render loop doesn't starve the event
@@ -77,8 +90,12 @@ class TUIDisplay(DisplayABC):
                             await self._renderer.execute(commands)
                         await asyncio.sleep(0)
                     await self._renderer.execute(self._machine.end_replay())
-                await write_scrollback_bulk(buffer.getvalue())
+                await write_scrollback_bulk(
+                    buffer.getvalue(),
+                    clear_screen=self._clear_before_next_replay,
+                )
             finally:
+                self._clear_before_next_replay = False
                 self._renderer.set_replay_mode(False)
             self._restore_prompt_suggestion_from_replay(event.events)
             return

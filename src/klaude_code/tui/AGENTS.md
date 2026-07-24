@@ -8,6 +8,11 @@ dynamic UI while an agent task is running:
 - Rich prints stable scrollback content above the prompt.
 - prompt-toolkit renders live output, running status, queued follow-up block,
   and input editor in one bottom layout.
+- Interactive sessions default to compact transcript rendering: main-agent
+  thinking is summarized and sub-agent internals are represented by a batched
+  status/summary view. `Ctrl+O` toggles the process-local expanded view while
+  idle by clearing and replaying the current session; expanded mode preserves
+  the legacy full transcript rendering.
 - `MARKDOWN_STREAM_LIVE_REPAINT_ENABLED` is expected to stay `False` for this
   model; do not re-enable Markdown bottom Live to fix spacing or repaint bugs.
 - prompt-toolkit must be the only runtime stdin reader. Do not add background

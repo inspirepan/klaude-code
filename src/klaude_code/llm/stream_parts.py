@@ -41,6 +41,7 @@ def append_thinking_text_part(
                 reasoning_field=reasoning_field or last.reasoning_field,
                 format=reasoning_format or last.format,
                 id=reasoning_id or last.id,
+                duration_s=last.duration_s,
             )
             return len(parts) - 1
 

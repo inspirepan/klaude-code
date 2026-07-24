@@ -381,7 +381,7 @@ class ThinkingDeltaEvent(ResponseEvent):
 
 
 class ThinkingEndEvent(ResponseEvent):
-    pass
+    duration_s: float | None = None
 
 
 class AssistantTextStartEvent(ResponseEvent):

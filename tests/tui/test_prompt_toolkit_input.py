@@ -415,13 +415,35 @@ def test_renderer_status_sink_separates_interrupt_hint() -> None:
     )
 
     lines, separator_text = updates[-1]
-    assert lines == (_status("Loading…"), _metadata("in 12 · cache 3k"))
+    assert [(line.text, line.kind) for line in lines] == [
+        ("Loading…", "status"),
+        ("in 12 · cache 3k", "metadata"),
+    ]
     assert all("esc to interrupt" not in line.text for line in lines)
     assert separator_text == "1m51s · esc to interrupt"
 
     elapsed.text = "1m52s"
     renderer.refresh_prompt_status()
     assert updates[-1][1] == "1m52s · esc to interrupt"
+
+
+def test_sub_agent_status_line_does_not_add_global_spinner() -> None:
+    bottom_bar = PromptBottomBar(invalidate=lambda: None)
+    bottom_bar.set_status_lines(
+        (
+            PromptStatusLine(
+                "● Finder · Thinking… · 2s",
+                fragments=(("fg:#55aaff bold", "● Finder"), ("class:meta", " · Thinking… · 2s")),
+                show_spinner=False,
+            ),
+        )
+    )
+
+    fragments = bottom_bar._get_status_fragments()
+    assert fragments == [
+        ("fg:#55aaff bold", "● Finder"),
+        ("class:meta", " · Thinking… · 2s"),
+    ]
 
 
 def test_interrupt_handler_invalidates_running_separator() -> None:

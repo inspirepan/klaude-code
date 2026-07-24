@@ -203,6 +203,7 @@ class ThinkingTextPart(BaseModel):
         None  # Original field name: reasoning_content, reasoning, reasoning_text, reasoning_details
     )
     format: str | None = None  # e.g. "MiniMax-response-v1" for reasoning_details round-trip
+    duration_s: float | None = None
 
 
 class ThinkingSignaturePart(BaseModel):

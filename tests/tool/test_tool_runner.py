@@ -200,6 +200,54 @@ class MockSlowStreamingTool(ToolABC):
         return message.ToolResultMessage(status="success", output_text="done")
 
 
+def test_agent_calls_receive_stable_batch_context() -> None:
+    seen: list[tuple[str | None, int | None, int | None]] = []
+
+    class CaptureAgentTool(ToolABC):
+        @classmethod
+        def metadata(cls) -> ToolMetadata:
+            return ToolMetadata(concurrency_policy=ToolConcurrencyPolicy.CONCURRENT)
+
+        @classmethod
+        def schema(cls) -> llm_param.ToolSchema:
+            return llm_param.ToolSchema(
+                name=tools.AGENT,
+                type="function",
+                description="capture batch context",
+                parameters={"type": "object", "properties": {}},
+            )
+
+        @classmethod
+        async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
+            del arguments
+            seen.append(
+                (
+                    context.tool_batch_id,
+                    context.tool_batch_index,
+                    context.tool_batch_size,
+                )
+            )
+            return message.ToolResultMessage(status="success", output_text="done")
+
+    async def _test() -> None:
+        executor = ToolExecutor(
+            context=_tool_context(),
+            registry={tools.AGENT: CaptureAgentTool},
+            append_history=lambda items: None,
+        )
+        calls = [
+            ToolCallRequest(response_id="response-1", call_id="agent-a", tool_name=tools.AGENT, arguments_json="{}"),
+            ToolCallRequest(response_id="response-1", call_id="agent-b", tool_name=tools.AGENT, arguments_json="{}"),
+        ]
+        _ = [event async for event in executor.run_tools(calls)]
+
+    arun(_test())
+    assert sorted(seen) == [
+        ("response-1", 0, 2),
+        ("response-1", 1, 2),
+    ]
+
+
 class TestRunTool:
     """Test run_tool function."""
 

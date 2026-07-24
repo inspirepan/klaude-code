@@ -166,6 +166,7 @@ def test_task_finish_cancelled_result_no_fallback_render() -> None:
 
 def test_thinking_stream_sequence_primary() -> None:
     m = DisplayStateMachine()
+    m.set_compact_transcript(False)
     _ = m.transition(events.TaskStartEvent(session_id="s1", model_id="test-model"))
 
     start = m.transition(events.ThinkingStartEvent(session_id="s1", response_id="r1"))

@@ -574,6 +574,7 @@ class Session(BaseModel):
                     # This allows replay to reuse the same TUI state machine as live events.
                     thinking_open = False
                     thinking_had_content = False
+                    thinking_duration_s: float | None = None
                     assistant_open = False
 
                     for part in am.parts:
@@ -603,14 +604,20 @@ class Session(BaseModel):
                                     timestamp=msg_ts,
                                 )
                                 thinking_had_content = True
+                            if part.duration_s is not None:
+                                thinking_duration_s = (thinking_duration_s or 0.0) + part.duration_s
                             continue
 
                         if thinking_open:
                             thinking_open = False
                             thinking_had_content = False
                             yield events.ThinkingEndEvent(
-                                response_id=am.response_id, session_id=self.id, timestamp=msg_ts
+                                response_id=am.response_id,
+                                session_id=self.id,
+                                timestamp=msg_ts,
+                                duration_s=thinking_duration_s,
                             )
+                            thinking_duration_s = None
 
                         if isinstance(part, message.TextPart):
                             if not assistant_open:
@@ -627,7 +634,12 @@ class Session(BaseModel):
                                 )
 
                     if thinking_open:
-                        yield events.ThinkingEndEvent(response_id=am.response_id, session_id=self.id, timestamp=msg_ts)
+                        yield events.ThinkingEndEvent(
+                            response_id=am.response_id,
+                            session_id=self.id,
+                            timestamp=msg_ts,
+                            duration_s=thinking_duration_s,
+                        )
                     if assistant_open:
                         yield events.AssistantTextEndEvent(
                             response_id=am.response_id, session_id=self.id, timestamp=msg_ts
@@ -655,6 +667,7 @@ class Session(BaseModel):
                             timestamp=msg_ts,
                         )
                 case message.ToolResultMessage() as tr:
+                    tool_call_event = pending_tool_calls.get(tr.call_id)
                     if tr.call_id in pending_tool_calls:
                         yield pending_tool_calls.pop(tr.call_id)
                     status = "success" if tr.status == "success" else "error"
@@ -670,6 +683,7 @@ class Session(BaseModel):
                         status=status,
                         task_metadata=tr.task_metadata,
                         is_last_in_step=is_last_in_step,
+                        response_id=tool_call_event.response_id if tool_call_event is not None else None,
                         timestamp=msg_ts,
                     )
                     yield from self._iter_sub_agent_history(tr, seen_sub_agent_sessions)

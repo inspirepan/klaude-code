@@ -142,6 +142,7 @@ class ToolExecutor:
         self._sub_agent_metadata_getters: dict[str, Callable[[], TaskMetadata | None]] = {}
         self._sub_agent_progress_getters: dict[str, Callable[[], str | None]] = {}
         self._tool_interrupt_result_getters: dict[str, GetInterruptResultFn] = {}
+        self._tool_batch_info: dict[str, tuple[str, int, int]] = {}
 
     async def run_tools(self, tool_calls: list[ToolCallRequest]) -> AsyncGenerator[ToolExecutorEvent]:
         """Run the given tool calls and yield execution events.
@@ -150,6 +151,14 @@ class ToolExecutor:
         run sequentially, while sub-agent tools run concurrently. All results are
         appended to history via the injected `append_history` callback.
         """
+
+        agent_calls = [tool_call for tool_call in tool_calls if tool_call.tool_name == tools.AGENT]
+        if agent_calls:
+            batch_id = agent_calls[0].response_id or f"tool-step:{agent_calls[0].call_id}"
+            batch_size = len(agent_calls)
+            self._tool_batch_info.update(
+                {tool_call.call_id: (batch_id, index, batch_size) for index, tool_call in enumerate(agent_calls)}
+            )
 
         for tool_call in tool_calls:
             self._unfinished_calls[tool_call.call_id] = tool_call
@@ -282,6 +291,7 @@ class ToolExecutor:
             self._sub_agent_metadata_getters.pop(call_id, None)
             self._sub_agent_progress_getters.pop(call_id, None)
             self._tool_interrupt_result_getters.pop(call_id, None)
+            self._tool_batch_info.pop(call_id, None)
 
         return events_to_yield
 
@@ -352,6 +362,12 @@ class ToolExecutor:
         call_context = call_context.with_register_sub_agent_progress_getter(_register_progress_getter)
         call_context = call_context.with_register_tool_interrupt_result_getter(_register_interrupt_result_getter)
         call_context = call_context.with_emit_tool_output_delta(_emit_tool_output_delta)
+        batch_info = self._tool_batch_info.get(tool_call.call_id)
+        call_context = call_context.with_tool_batch(
+            batch_id=batch_info[0] if batch_info is not None else None,
+            batch_index=batch_info[1] if batch_info is not None else None,
+            batch_size=batch_info[2] if batch_info is not None else None,
+        )
         started_at = time.monotonic()
         tool_task = asyncio.create_task(run_tool(tool_call, self._registry, call_context))
 
@@ -402,6 +418,7 @@ class ToolExecutor:
         self._sub_agent_metadata_getters.pop(tool_call.call_id, None)
         self._sub_agent_progress_getters.pop(tool_call.call_id, None)
         self._tool_interrupt_result_getters.pop(tool_call.call_id, None)
+        self._tool_batch_info.pop(tool_call.call_id, None)
 
         extra_events = self._build_tool_side_effect_events(tool_result)
         yield result_event

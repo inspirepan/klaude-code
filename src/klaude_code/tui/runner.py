@@ -198,6 +198,33 @@ async def _replay_session_history(runtime: RuntimeFacade, session_id: str) -> No
     await runtime.replay_session_history(session_id)
 
 
+async def toggle_transcript_view(
+    *,
+    runtime: RuntimeFacade,
+    display: TUIDisplay,
+    is_agent_running: Callable[[], bool],
+    wait_for_display_idle: Callable[[], Awaitable[None]],
+) -> bool:
+    """Toggle compact transcript detail and replay when the active agent is idle."""
+
+    session_id = runtime.current_session_id()
+    if session_id is None:
+        return False
+    if is_agent_running():
+        await runtime.emit_event(
+            events.NoticeEvent(
+                session_id=session_id,
+                content="Ctrl+O is available when the agent is idle.",
+            )
+        )
+        return False
+    display.toggle_transcript_mode()
+    await runtime.replay_session_history(session_id)
+    await wait_for_display_idle()
+    await settle_flicker_safe_stdout()
+    return True
+
+
 async def _load_welcome_context_and_replay(
     runtime: RuntimeFacade,
     session: Session,
@@ -593,6 +620,29 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         )
 
     away_summary_coordinator = AwaySummaryCoordinator(runtime=components.runtime)
+    loop = asyncio.get_running_loop()
+    transcript_toggle_lock = asyncio.Lock()
+    transcript_toggle_tasks: set[asyncio.Task[None]] = set()
+
+    async def _toggle_transcript() -> None:
+        async with transcript_toggle_lock:
+            await toggle_transcript_view(
+                runtime=components.runtime,
+                display=tui_display,
+                is_agent_running=_active_agent_running,
+                wait_for_display_idle=components.wait_for_display_idle,
+            )
+
+    def _request_toggle_transcript() -> None:
+        def _start() -> None:
+            if transcript_toggle_tasks:
+                return
+            task = asyncio.create_task(_toggle_transcript())
+            transcript_toggle_tasks.add(task)
+            task.add_done_callback(transcript_toggle_tasks.discard)
+
+        with contextlib.suppress(Exception):
+            loop.call_soon_threadsafe(_start)
 
     input_provider = PromptToolkitInput(
         pre_prompt=_stop_rich_bottom_ui,
@@ -612,9 +662,8 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         ),
         on_change_model=_change_model_from_prompt,
         command_info_provider=get_command_info_list,
+        request_toggle_transcript=_request_toggle_transcript,
     )
-
-    loop = asyncio.get_running_loop()
 
     async def _wait_for_with_interrupt(wait_id: str, *, session_id: str) -> bool:
         wait_task = asyncio.create_task(components.runtime.wait_for(wait_id))
@@ -975,6 +1024,11 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         exit_hint_printed = True
     finally:
         _set_rich_progress_suspended(False)
+        for task in transcript_toggle_tasks:
+            if not task.done():
+                task.cancel()
+        if transcript_toggle_tasks:
+            await asyncio.gather(*transcript_toggle_tasks, return_exceptions=True)
         if startup_task is not None and not startup_task.done():
             startup_task.cancel()
             with contextlib.suppress(Exception, asyncio.CancelledError):

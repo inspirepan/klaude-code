@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
@@ -242,7 +243,27 @@ class StepExecutor:
         ctx = self._context
         session_ctx = ctx.session_ctx
         thinking_active = False
+        thinking_started_at: float | None = None
+        thinking_duration_s = 0.0
         assistant_text_active = False
+
+        def _finish_thinking_segment() -> float | None:
+            nonlocal thinking_started_at, thinking_duration_s
+            if thinking_started_at is None:
+                return None
+            duration_s = max(0.0, time.monotonic() - thinking_started_at)
+            thinking_started_at = None
+            thinking_duration_s += duration_s
+            return duration_s
+
+        def _persist_thinking_duration(msg: message.AssistantMessage) -> None:
+            if thinking_duration_s <= 0:
+                return
+            for part in msg.parts:
+                if isinstance(part, message.ThinkingTextPart):
+                    part.duration_s = thinking_duration_s
+                    return
+
         message_types = (
             message.SystemMessage,
             message.DeveloperMessage,
@@ -276,6 +297,7 @@ class StepExecutor:
                     case message.ThinkingTextDelta() as delta:
                         if not thinking_active:
                             thinking_active = True
+                            thinking_started_at = time.monotonic()
                             yield events.ThinkingStartEvent(
                                 response_id=delta.response_id,
                                 session_id=session_ctx.session_id,
@@ -294,6 +316,7 @@ class StepExecutor:
                             yield events.ThinkingEndEvent(
                                 response_id=delta.response_id,
                                 session_id=session_ctx.session_id,
+                                duration_s=_finish_thinking_segment(),
                             )
                         if not assistant_text_active:
                             assistant_text_active = True
@@ -318,6 +341,7 @@ class StepExecutor:
                             yield events.ThinkingEndEvent(
                                 response_id=msg.response_id,
                                 session_id=session_ctx.session_id,
+                                duration_s=_finish_thinking_segment(),
                             )
                         if assistant_text_active:
                             assistant_text_active = False
@@ -325,6 +349,7 @@ class StepExecutor:
                                 response_id=msg.response_id,
                                 session_id=session_ctx.session_id,
                             )
+                        _persist_thinking_duration(msg)
                         step_result.assistant_message = msg
                         for part in msg.parts:
                             if isinstance(part, message.ToolCallPart):
@@ -376,6 +401,7 @@ class StepExecutor:
                             yield events.ThinkingEndEvent(
                                 response_id=msg.response_id,
                                 session_id=session_ctx.session_id,
+                                duration_s=_finish_thinking_segment(),
                             )
                         if assistant_text_active:
                             assistant_text_active = False

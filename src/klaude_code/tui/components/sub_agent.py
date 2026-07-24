@@ -1,3 +1,7 @@
+import json
+import re
+from typing import Any, cast
+
 from rich import box
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -5,12 +9,139 @@ from rich.style import Style
 from rich.text import Text
 
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
+from klaude_code.protocol import tools
 from klaude_code.protocol.models import SubAgentState
-from klaude_code.tui.components.common import format_more_lines_indicator, format_pascal_case
+from klaude_code.tui.components.common import (
+    format_compact_count,
+    format_elapsed_compact,
+    format_more_lines_indicator,
+    format_pascal_case,
+)
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 _SUB_AGENT_PROMPT_MAX_LINES = 20
+_MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
+_MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s*)")
+
+
+def _tool_arguments(arguments: str) -> dict[str, object]:
+    try:
+        value: Any = json.loads(arguments)
+    except json.JSONDecodeError:
+        return {}
+    return cast(dict[str, object], value) if isinstance(value, dict) else {}
+
+
+def _one_line(value: object) -> str:
+    return " ".join(str(value).split())
+
+
+def render_compact_tool_activity(tool_name: str, arguments: str, *, status: str | None = None) -> Text:
+    """Render one compact sub-agent tool activity line."""
+
+    args = _tool_arguments(arguments)
+    label = format_pascal_case(tool_name)
+    target = ""
+    target_style: str | ThemeKey = ThemeKey.TOOL_PARAM
+
+    if tool_name == tools.READ:
+        target = _one_line(args.get("file_path", ""))
+        offset = args.get("offset")
+        limit = args.get("limit")
+        if target and isinstance(offset, int):
+            start = max(1, offset)
+            target += f":{start}"
+            if isinstance(limit, int) and limit > 0:
+                target += f"-{start + limit - 1}"
+        target_style = ThemeKey.TOOL_PARAM_FILE_PATH
+    elif tool_name in (tools.EDIT, tools.WRITE):
+        target = _one_line(args.get("file_path", ""))
+        target_style = ThemeKey.TOOL_PARAM_FILE_PATH
+    elif tool_name == tools.BASH:
+        target = _one_line(args.get("description") or args.get("command", ""))
+        target_style = ThemeKey.BASH_TOOL_DESCRIPTION
+    elif tool_name == tools.WEB_SEARCH:
+        target = _one_line(args.get("query", ""))
+    elif tool_name == tools.WEB_FETCH:
+        target = _one_line(args.get("url", ""))
+        target_style = ThemeKey.TOOL_PARAM_FILE_PATH
+    else:
+        for key in ("description", "query", "file_path", "path", "url", "command"):
+            if args.get(key):
+                target = _one_line(args[key])
+                break
+
+    line = Text(label, style=ThemeKey.TOOL_NAME)
+    if target:
+        line.append(" ")
+        line.append(target, style=target_style)
+    if status == "success":
+        line.append(" ")
+        line.append("✓", style=ThemeKey.METADATA_GREEN)
+    elif status == "error":
+        line.append(" ")
+        line.append("✗", style=ThemeKey.ERROR_BOLD)
+    elif status == "aborted":
+        line.append(" cancelled", style=ThemeKey.INTERRUPT)
+    return line
+
+
+def extract_result_summary(result: str) -> str:
+    """Extract the first useful Markdown text block as a single plain line."""
+
+    blocks = re.split(r"\n\s*\n", result.strip())
+    for block in blocks:
+        lines = [line.strip() for line in block.splitlines() if line.strip()]
+        lines = [line for line in lines if not _MARKDOWN_HEADING_RE.match(line)]
+        if not lines:
+            continue
+        text = " ".join(_MARKDOWN_PREFIX_RE.sub("", line) for line in lines)
+        text = re.sub(r"!?(?:\[([^]]+)\])\([^)]+\)", r"\1", text)
+        text = re.sub(r"[*_`~]+", "", text)
+        return " ".join(text.split())
+    return ""
+
+
+def render_compact_sub_agent_summary(
+    *,
+    title: str,
+    description: str,
+    status: str,
+    duration_s: float | None,
+    tool_count: int,
+    token_count: int | None,
+    result_summary: str,
+    color: Style,
+) -> RenderableType:
+    """Render a stable two-line compact sub-agent summary."""
+
+    identity_style = Style(color=color.color, bold=True)
+    first = Text(no_wrap=True, overflow="ellipsis")
+    first.append(title, style=identity_style)
+    if description:
+        first.append(f": {description}", style=Style(color=color.color, italic=True))
+    if status == "success":
+        first.append(" ")
+        first.append("✓", style=ThemeKey.METADATA_GREEN)
+    elif status == "error":
+        first.append(" ")
+        first.append("✗", style=ThemeKey.ERROR_BOLD)
+    else:
+        first.append(" cancelled", style=ThemeKey.INTERRUPT)
+
+    metrics: list[str] = []
+    if duration_s is not None:
+        metrics.append(format_elapsed_compact(duration_s))
+    if tool_count:
+        metrics.append(f"{tool_count} {'tool' if tool_count == 1 else 'tools'}")
+    if token_count is not None:
+        metrics.append(f"{format_compact_count(token_count)} tokens")
+    if metrics:
+        first.append(f" · {' · '.join(metrics)}", style=ThemeKey.METADATA_DIM)
+
+    second = Text(result_summary or "(no summary)", style=ThemeKey.TOOL_RESULT, no_wrap=True, overflow="ellipsis")
+    return Group(first, second)
 
 
 def render_sub_agent_call(
