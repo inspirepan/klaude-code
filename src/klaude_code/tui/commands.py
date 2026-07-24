@@ -57,6 +57,11 @@ class RenderUserMessage(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderTimeMarker(RenderCommand):
+    label: str
+
+
+@dataclass(frozen=True, slots=True)
 class RenderTaskStart(RenderCommand):
     event: events.TaskStartEvent
 

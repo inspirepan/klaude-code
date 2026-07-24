@@ -4,6 +4,7 @@ import shutil
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum, auto
 from typing import ClassVar, Literal
 
@@ -57,6 +58,7 @@ from klaude_code.tui.commands import (
     RenderTaskMetadata,
     RenderTaskStart,
     RenderThinkingSummary,
+    RenderTimeMarker,
     RenderToolCall,
     RenderToolResult,
     RenderUserMessage,
@@ -104,6 +106,40 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.REWIND,
     }
 )
+
+# Expanded-transcript time markers: the first visible block of each 5-minute
+# bucket is prefixed with a clock label so the full transcript keeps a coarse
+# sense of wall-clock time without timestamping every message.
+TIME_MARKER_INTERVAL_S = 300.0
+
+# Commands that mark the start of a visible transcript block. Stream chunks
+# (Append*/End*) and status-only commands are excluded so a marker never
+# interrupts an open Markdown stream or the prompt-owned status UI.
+_TIME_MARKER_TRIGGER_COMMANDS: tuple[type[RenderCommand], ...] = (
+    RenderUserMessage,
+    RenderTaskStart,
+    RenderDeveloperMessage,
+    RenderNotice,
+    RenderAwaySummary,
+    RenderBashCommandStart,
+    RenderToolCall,
+    StartThinkingStream,
+    RenderThinkingSummary,
+    StartAssistantStream,
+    RenderInterrupt,
+    RenderError,
+    RenderCompactionSummary,
+    RenderHandoff,
+    RenderRewind,
+)
+
+
+def _format_time_marker_label(ts: float) -> str:
+    """Format a marker label as 24-hour ``HH:MM``, adding the date when it is not today."""
+    dt = datetime.fromtimestamp(ts)
+    if dt.date() == datetime.now().date():
+        return dt.strftime("%H:%M")
+    return dt.strftime("%m-%d %H:%M")
 
 
 def _format_char_count(char_count: int) -> str:
@@ -761,6 +797,7 @@ class DisplayStateMachine:
         self._compact_transcript = True
         self._pending_sub_agent_results: dict[str, events.ToolResultEvent] = {}
         self._unspawned_sub_agents_by_batch: dict[str, int] = {}
+        self._last_time_marker_ts: float | None = None
 
     @property
     def compact_transcript(self) -> bool:
@@ -796,6 +833,7 @@ class DisplayStateMachine:
         self._skip_next_user_message_rule = False
         self._pending_sub_agent_results = {}
         self._unspawned_sub_agents_by_batch = {}
+        self._last_time_marker_ts = None
 
     def _session(self, session_id: str) -> _SessionState:
         existing = self._sessions.get(session_id)
@@ -1105,7 +1143,22 @@ class DisplayStateMachine:
         handler = self._EVENT_HANDLERS.get(type(event))
         if handler is None:
             return []
-        return handler(self, event, is_replay=is_replay, s=s)
+        cmds = handler(self, event, is_replay=is_replay, s=s)
+        if not self._compact_transcript and cmds:
+            marker = self._maybe_time_marker(event.timestamp, cmds)
+            if marker is not None:
+                cmds.insert(0, marker)
+        return cmds
+
+    def _maybe_time_marker(self, timestamp: float, cmds: list[RenderCommand]) -> RenderTimeMarker | None:
+        """Emit a coarse clock label when the event opens the first visible block of a 5-minute bucket."""
+        if not any(isinstance(cmd, _TIME_MARKER_TRIGGER_COMMANDS) for cmd in cmds):
+            return None
+        prev_ts = self._last_time_marker_ts
+        if prev_ts is not None and int(timestamp // TIME_MARKER_INTERVAL_S) == int(prev_ts // TIME_MARKER_INTERVAL_S):
+            return None
+        self._last_time_marker_ts = timestamp
+        return RenderTimeMarker(label=_format_time_marker_label(timestamp))
 
     def _handle_WelcomeEvent(self, e: events.WelcomeEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []

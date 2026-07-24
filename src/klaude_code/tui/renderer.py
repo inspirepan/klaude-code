@@ -67,6 +67,7 @@ from klaude_code.tui.commands import (
     RenderTaskMetadata,
     RenderTaskStart,
     RenderThinkingSummary,
+    RenderTimeMarker,
     RenderToolCall,
     RenderToolResult,
     RenderUserMessage,
@@ -961,6 +962,10 @@ class TUICommandRenderer:
         self.print(c_user_input.render_user_input(event.content))
         self.print()
 
+    def display_time_marker(self, label: str) -> None:
+        self.print(Text(f"⏱ {label}"))
+        self.print()
+
     def display_task_start(self, event: events.TaskStartEvent) -> None:
         self.register_session(event.session_id, event.sub_agent_state)
         if event.sub_agent_state is not None and not self._compact_transcript:
@@ -1290,6 +1295,8 @@ class TUICommandRenderer:
                     self.display_welcome_context(event)
                 case RenderUserMessage(event=event):
                     self.display_user_message(event)
+                case RenderTimeMarker(label=label):
+                    self.display_time_marker(label)
                 case RenderTaskStart(event=event):
                     self.display_task_start(event)
                 case RenderDeveloperMessage(event=event):
