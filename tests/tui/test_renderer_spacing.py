@@ -445,7 +445,7 @@ def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
 
     rendered = output.getvalue()
     assert "gpt-5.6-luna · 12s · 3 tools · 1.2K tokens" in rendered
-    assert "Found the path." in rendered
+    assert "▌ ↳ Found the path." in rendered
     assert "Child failed…" not in rendered
 
 

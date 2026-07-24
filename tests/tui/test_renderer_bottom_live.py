@@ -159,7 +159,7 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert success_style != line.fragments[0][0]
     assert "reverse" not in success_style
     assert line.fragments[success_index - 1] == ("class:meta", " ")
-    assert result_line.text == "    Found the issue…"
+    assert result_line.text == "    ↳ Found the issue…"
     assert result_line.show_spinner is False
 
 
@@ -190,7 +190,7 @@ def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     assert line.inline_spinner_style is not None
     assert line.inline_spinner_style.startswith("fg:#")
     assert "".join(text for _, text in line.fragments) == "Finder: inspect status · Thinking… · 2s"
-    assert tool_line.text == "    Bash inspect files ✓"
+    assert tool_line.text == "    ↳ Bash inspect files ✓"
     assert tool_line.show_spinner is False
     assert tool_line.inline_spinner_style is None
 

@@ -20,6 +20,7 @@ from klaude_code.tui.components.rich.theme import ThemeKey
 _SUB_AGENT_PROMPT_MAX_LINES = 20
 _MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 _MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s*)")
+COMPACT_CONTINUATION_PREFIX = "↳ "
 
 
 def extract_result_summary(result: str) -> str:
@@ -79,7 +80,9 @@ def render_compact_sub_agent_summary(
         first.append(f" · {' · '.join(metrics)}", style=ThemeKey.METADATA_DIM)
 
     displayed_result = format_compact_result_summary(result_summary)
-    second = Text(displayed_result, style=ThemeKey.TOOL_RESULT, no_wrap=True, overflow="ellipsis")
+    second = Text(no_wrap=True, overflow="ellipsis")
+    second.append(COMPACT_CONTINUATION_PREFIX, style=Style(color=color.color))
+    second.append(displayed_result, style=ThemeKey.TOOL_RESULT)
     return Group(first, second)
 
 
