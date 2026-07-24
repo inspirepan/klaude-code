@@ -133,7 +133,7 @@ def test_spinner_text_key_for_plain_string() -> None:
 
 
 def test_spinner_text_key_for_text() -> None:
-    assert TUICommandRenderer._spinner_text_key(Text("hi")) == ("Text", "hi", "")
+    assert TUICommandRenderer._spinner_text_key(Text("hi")) == ("Text", "hi", "", ())
 
 
 def test_spinner_text_key_distinguishes_str_and_text() -> None:
@@ -146,7 +146,7 @@ def test_spinner_right_text_key_none() -> None:
 
 def test_spinner_right_text_key_str_and_text() -> None:
     assert TUICommandRenderer._spinner_right_text_key("x") == ("str", "x")
-    assert TUICommandRenderer._spinner_right_text_key(Text("y")) == ("Text", "y", "")
+    assert TUICommandRenderer._spinner_right_text_key(Text("y")) == ("Text", "y", "", ())
 
 
 def test_spinner_status_line_dataclass_defaults() -> None:

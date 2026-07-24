@@ -101,7 +101,7 @@ from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.common import format_more_lines_indicator, truncate_head
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
-from klaude_code.tui.components.rich.status import DynamicText, StackedStatusText, truncate_right
+from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText, truncate_right
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.status_runtime import clear_task_start, set_task_start
 from klaude_code.tui.terminal.image import print_kitty_image
@@ -124,6 +124,22 @@ BASH_LIVE_TAIL_MAX_LINES = 5
 # rendering the tail through Rich for each one wastes event-loop time. Cap
 # tail repaints and flush trailing content once the interval elapses.
 BASH_LIVE_TAIL_MIN_INTERVAL_S = 1 / 30
+
+# Spinner updates are emitted per streamed LLM delta; rebuilding the Rich
+# status snapshot for each one costs far more than the visible change (the
+# status text only moves at sub-second granularity). Coalesce rebuilds to a
+# fixed cadence and flush the trailing state once the interval elapses.
+SPINNER_UPDATE_MIN_INTERVAL_S = 1 / 10
+
+# Dedup key for spinner updates. `reset_bottom_height` only participates in
+# the key; it carries no rendering state of its own.
+_SpinnerUpdateKey = tuple[object, object, object, object, object, object]
+
+
+def _text_fingerprint(text: Text) -> tuple[str, str, tuple[tuple[int, int, str], ...]]:
+    """Content fingerprint of a Text: plain text, root style, and styled spans."""
+    spans = tuple((span.start, span.end, str(span.style)) for span in text.spans)
+    return (text.plain, str(text.style) if text.style else "", spans)
 
 
 class _TerminalCaptureBuffer(io.StringIO):
@@ -204,7 +220,10 @@ class TUICommandRenderer:
         self._stream_renderable: RenderableType | None = None
         self._spinner_visible: bool = False
         self._progress_ui_suspended: bool = False
-        self._spinner_last_update_key: tuple[object, object, object, object, object, object] | None = None
+        self._spinner_last_update_key: _SpinnerUpdateKey | None = None
+        self._spinner_pending_update: SpinnerUpdate | None = None
+        self._spinner_flush_handle: asyncio.TimerHandle | None = None
+        self._spinner_last_apply_at: float = 0.0
         self._status_top_blank_line: bool = False
         self._status_metadata_text: RenderableType | None = None
         self._status_separator_text: SeparatorText | None = None
@@ -415,9 +434,11 @@ class TUICommandRenderer:
 
     def spinner_start(self) -> None:
         self._spinner_visible = True
-        self._emit_prompt_status()
+        if not self._flush_pending_spinner_update():
+            self._emit_prompt_status()
 
     def spinner_stop(self) -> None:
+        self._flush_pending_spinner_update()
         self._spinner_visible = False
         self._status_separator_text = None
         self._emit_prompt_status(self._prompt_metadata_lines(), None)
@@ -431,8 +452,28 @@ class TUICommandRenderer:
         leading_blank_line: bool = False,
         top_blank_line: bool = False,
     ) -> None:
-        new_key = (
-            self._spinner_right_text_key(metadata_text),
+        update = SpinnerUpdate(
+            right_text=metadata_text,
+            status_lines=status_lines,
+            separator_text=separator_text,
+            reset_bottom_height=reset_bottom_height,
+            leading_blank_line=leading_blank_line,
+            top_blank_line=top_blank_line,
+        )
+        # Inside the throttle window the payload is stashed as-is; the
+        # (comparatively expensive) content key is only materialized when an
+        # update is actually applied.
+        if time.monotonic() - self._spinner_last_apply_at < SPINNER_UPDATE_MIN_INTERVAL_S:
+            self._spinner_pending_update = update
+            self._schedule_spinner_flush()
+            return
+        self._cancel_spinner_flush()
+        self._spinner_pending_update = None
+        self._apply_spinner_update(update)
+
+    def _spinner_update_key(self, update: SpinnerUpdate) -> _SpinnerUpdateKey:
+        return (
+            self._spinner_right_text_key(update.right_text),
             tuple(
                 (
                     line.session_id,
@@ -440,38 +481,87 @@ class TUICommandRenderer:
                     line.sub_agent_animated,
                     self._spinner_text_key(line.text),
                 )
-                for line in status_lines
+                for line in update.status_lines
             ),
-            separator_text,
-            reset_bottom_height,
-            leading_blank_line,
-            top_blank_line,
+            update.separator_text,
+            update.reset_bottom_height,
+            update.leading_blank_line,
+            update.top_blank_line,
         )
-        if self._spinner_last_update_key == new_key:
-            return
-        self._spinner_last_update_key = new_key
-        self._status_top_blank_line = top_blank_line
-        self._status_metadata_text = metadata_text
-        self._status_separator_text = separator_text
-        self._status_line_specs = status_lines
 
-        rendered_status_lines = tuple(self._render_status_line(line) for line in status_lines)
+    def _apply_spinner_update(self, update: SpinnerUpdate) -> bool:
+        """Apply a spinner update unless its rendered content is unchanged.
+
+        Returns True when a new status snapshot was emitted.
+        """
+        new_key = self._spinner_update_key(update)
+        if new_key == self._spinner_last_update_key:
+            return False
+        self._spinner_last_update_key = new_key
+        self._spinner_last_apply_at = time.monotonic()
+        self._status_top_blank_line = update.top_blank_line
+        self._status_metadata_text = update.right_text
+        self._status_separator_text = update.separator_text
+        self._status_line_specs = update.status_lines
+
+        rendered_status_lines = tuple(self._render_status_line(line) for line in update.status_lines)
 
         self._status_text = StackedStatusText(
-            metadata_text=metadata_text,
+            metadata_text=update.right_text,
             status_lines=rendered_status_lines,
-            leading_blank_line=leading_blank_line,
+            leading_blank_line=update.leading_blank_line,
             show_hint=False,
             shimmer=False,
         )
         self._emit_prompt_status()
+        return True
+
+    def _schedule_spinner_flush(self) -> None:
+        if self._spinner_flush_handle is not None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop (synchronous callers, e.g. tests): apply now so
+            # behavior matches the un-throttled contract.
+            self._flush_pending_spinner_update()
+            return
+        due = self._spinner_last_apply_at + SPINNER_UPDATE_MIN_INTERVAL_S
+        self._spinner_flush_handle = loop.call_later(max(0.0, due - time.monotonic()), self._flush_spinner_update)
+
+    def _flush_spinner_update(self) -> None:
+        self._spinner_flush_handle = None
+        self._flush_pending_spinner_update()
+
+    def _flush_pending_spinner_update(self) -> bool:
+        """Apply any pending update now, cancelling a scheduled flush.
+
+        Returns True when a new status snapshot was emitted.
+        """
+        self._cancel_spinner_flush()
+        pending = self._spinner_pending_update
+        if pending is None:
+            return False
+        self._spinner_pending_update = None
+        return self._apply_spinner_update(pending)
+
+    def _cancel_spinner_flush(self) -> None:
+        handle = self._spinner_flush_handle
+        if handle is None:
+            return
+        self._spinner_flush_handle = None
+        with contextlib.suppress(Exception):
+            handle.cancel()
 
     def set_progress_ui_suspended(self, suspended: bool) -> None:
         self._progress_ui_suspended = suspended
         if not suspended:
+            self._cancel_spinner_flush()
+            self._spinner_pending_update = None
             self._emit_prompt_status((), None)
             self._emit_prompt_stream((), end_of_stream=True)
             return
+        self._flush_pending_spinner_update()
         self._emit_prompt_status()
 
     def _emit_prompt_status(
@@ -496,7 +586,7 @@ class TUICommandRenderer:
         return separator_text
 
     def refresh_prompt_status(self) -> None:
-        if self._progress_ui_suspended:
+        if self._progress_ui_suspended and not self._flush_pending_spinner_update():
             self._emit_prompt_status()
 
     def _prompt_status_lines(self) -> tuple[PromptStatusLine, ...]:
@@ -667,9 +757,10 @@ class TUICommandRenderer:
 
     @staticmethod
     def _spinner_text_key(text: RenderableType) -> object:
+        if isinstance(text, DynamicText):
+            return ("DynamicText", *_text_fingerprint(text.snapshot()))
         if isinstance(text, Text):
-            style = str(text.style) if text.style else ""
-            return ("Text", text.plain, style)
+            return ("Text", *_text_fingerprint(text))
         if isinstance(text, str):
             return ("str", text)
         return ("other", id(text))
@@ -678,12 +769,17 @@ class TUICommandRenderer:
     def _spinner_right_text_key(text: RenderableType | None) -> object:
         if text is None:
             return ("none",)
+        if isinstance(text, ResponsiveDynamicText):
+            # The compact variant derives from the same state, so fingerprinting
+            # the full render is enough to detect content changes.
+            return ("ResponsiveDynamicText", *_text_fingerprint(text.render(compact=False)))
         if isinstance(text, Text):
-            style = str(text.style) if text.style else ""
-            return ("Text", text.plain, style)
+            return ("Text", *_text_fingerprint(text))
         if isinstance(text, str):
             return ("str", text)
-        # Fall back to a unique key so we never skip updates for dynamic renderables.
+        if isinstance(text, DynamicText):
+            return ("DynamicText", *_text_fingerprint(text.snapshot()))
+        # Fall back to a unique key so we never skip updates for unknown renderables.
         return ("other", object())
 
     def set_stream_renderable(self, renderable: RenderableType | None) -> None:
@@ -1492,6 +1588,7 @@ class TUICommandRenderer:
 
     async def stop(self) -> None:
         self._cancel_bash_live_flush()
+        self._cancel_spinner_flush()
         self._flush_open_blocks()
         self._flush_assistant()
         self._flush_thinking()

@@ -177,6 +177,11 @@ NOTIFY_COMPACT_LIMIT = 160  # Maximum length for notification body text
 UI_REFRESH_RATE_FPS = 10  # UI refresh rate (frames per second)
 MARKDOWN_STREAM_LIVE_REPAINT_ENABLED = False  # Enable live area for streaming markdown
 MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED = True  # Use terminal "Synchronized Output" to reduce flicker
+# Each MarkdownStream frame re-parses the whole buffer with markdown-it (pure
+# Python, ~4ms per 10KB); at the base cadence long messages saturate the event
+# loop. Past this buffer size the frame interval scales up linearly, capped.
+MARKDOWN_STREAM_ADAPTIVE_DELAY_CHARS = 20_000
+MARKDOWN_STREAM_MAX_DELAY_S = 1.0
 MARKDOWN_LEFT_MARGIN = 2  # Left margin (columns) for markdown rendering
 MARKDOWN_RIGHT_MARGIN = 0  # Right margin (columns) for markdown rendering
 

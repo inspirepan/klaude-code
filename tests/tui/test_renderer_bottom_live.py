@@ -291,6 +291,110 @@ def test_bash_live_tail_throttles_renders_and_flushes_trailing_content() -> None
     asyncio.run(_scenario())
 
 
+def test_spinner_update_dedupes_identical_dynamic_content() -> None:
+    from klaude_code.tui.commands import SpinnerStatusLine
+    from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    status_updates: list[tuple[tuple[object, ...], str | None]] = []
+    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    _renderer_console(renderer)
+    renderer.set_progress_ui_suspended(True)
+    renderer.spinner_start()
+
+    emits_after_start = len(status_updates)
+
+    def _update(content: str, *, right: str) -> None:
+        renderer.spinner_update(
+            metadata_text=ResponsiveDynamicText(lambda: Text(right), lambda: Text(right)),
+            status_lines=(SpinnerStatusLine(text=DynamicText(lambda: Text(content))),),
+        )
+
+    _update("Thinking", right="in 1k")
+    assert len(status_updates) == emits_after_start + 1
+
+    # New DynamicText / ResponsiveDynamicText instances with identical rendered
+    # content must be deduped: nothing visible changed.
+    _update("Thinking", right="in 1k")
+    _update("Thinking", right="in 1k")
+    assert len(status_updates) == emits_after_start + 1
+
+    _update("Composing", right="in 1k")
+    assert len(status_updates) == emits_after_start + 2
+    _update("Composing", right="in 2k")
+    assert len(status_updates) == emits_after_start + 3
+
+
+def test_spinner_update_throttles_burst_and_flushes_trailing() -> None:
+    import asyncio
+
+    from klaude_code.tui.commands import PromptStatusLine, SpinnerStatusLine
+    from klaude_code.tui.renderer import SPINNER_UPDATE_MIN_INTERVAL_S, TUICommandRenderer
+
+    status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
+    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    _renderer_console(renderer)
+    renderer.set_progress_ui_suspended(True)
+
+    async def _scenario() -> None:
+        renderer.spinner_start()
+        emits_after_start = len(status_updates)
+
+        renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("one")),))
+        assert len(status_updates) == emits_after_start + 1
+
+        # Distinct updates inside the throttle window coalesce: no immediate emit.
+        renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("two")),))
+        renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("three")),))
+        assert len(status_updates) == emits_after_start + 1
+
+        # The trailing flush applies the newest state exactly once.
+        await asyncio.sleep(SPINNER_UPDATE_MIN_INTERVAL_S + 0.05)
+        assert len(status_updates) == emits_after_start + 2
+        assert status_updates[-1][0][0].text == "three"
+
+        # spinner_stop flushes any pending state synchronously.
+        renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("four")),))
+        renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("five")),))
+        renderer.spinner_stop()
+        assert any(update[0] and update[0][0].text == "five" for update in status_updates)
+
+    asyncio.run(_scenario())
+
+
+def test_manual_status_flush_cancels_scheduled_flush() -> None:
+    import asyncio
+
+    from klaude_code.tui.commands import PromptStatusLine, SpinnerStatusLine
+    from klaude_code.tui.renderer import SPINNER_UPDATE_MIN_INTERVAL_S, TUICommandRenderer
+
+    status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
+    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    _renderer_console(renderer)
+    renderer.set_progress_ui_suspended(True)
+
+    async def _scenario() -> None:
+        renderer.spinner_start()
+        renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("one")),))
+        renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("two")),))
+        assert renderer._spinner_flush_handle is not None
+
+        # A periodic refresh applies the pending update immediately and must
+        # cancel the scheduled flush so the next update starts a fresh window.
+        await asyncio.sleep(0.01)
+        emits_before_refresh = len(status_updates)
+        renderer.refresh_prompt_status()
+        assert len(status_updates) == emits_before_refresh + 1
+        assert renderer._spinner_flush_handle is None
+
+        renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("three")),))
+        assert renderer._spinner_flush_handle is not None
+        await asyncio.sleep(SPINNER_UPDATE_MIN_INTERVAL_S + 0.05)
+        assert status_updates[-1][0][0].text == "three"
+
+    asyncio.run(_scenario())
+
+
 def test_display_bash_command_end_clears_live_tail() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 

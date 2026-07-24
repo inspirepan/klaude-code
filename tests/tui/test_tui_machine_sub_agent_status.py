@@ -720,6 +720,7 @@ def test_sub_agent_bash_tool_output_delta_is_ignored() -> None:
 
 def test_sub_agent_status_lines_cap_with_more_indicator(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(machine_module.shutil, "get_terminal_size", lambda fallback: os.terminal_size((120, 10)))
+    monkeypatch.setattr(machine_module, "_terminal_lines_cache", None)
     machine = DisplayStateMachine()
     main_session = "main"
     machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
@@ -748,6 +749,7 @@ def test_sub_agent_status_lines_cap_with_more_indicator(monkeypatch: pytest.Monk
     ]
 
     monkeypatch.setattr(machine_module.shutil, "get_terminal_size", lambda fallback: os.terminal_size((120, 6)))
+    monkeypatch.setattr(machine_module, "_terminal_lines_cache", None)
     short_terminal = machine.transition(events.ThinkingStartEvent(session_id="sub-0"))
     assert [_line_plain(line) for line in _last_spinner_update(short_terminal).status_lines] == [
         "Finder: searching 0 · test-model · Thinking… · 0s",
@@ -1151,3 +1153,84 @@ def test_spinner_update_separates_elapsed_interrupt_hint(monkeypatch: pytest.Mon
     assert "esc to interrupt" not in metadata
     assert isinstance(update.separator_text, DynamicSeparatorText)
     assert update.separator_text.render() == "1m51s · esc to interrupt"
+
+
+def _spawn_sub_agent(machine: DisplayStateMachine, session_id: str) -> None:
+    machine.transition(
+        events.TaskStartEvent(
+            session_id=session_id,
+            sub_agent_state=SubAgentState(
+                sub_agent_type="general-purpose",
+                sub_agent_desc="do research",
+                sub_agent_prompt="prompt",
+            ),
+            parent_session_id="main",
+        )
+    )
+    machine.transition(events.ThinkingStartEvent(session_id=session_id))
+
+
+def test_compact_mode_skips_sub_agent_thinking_content_accumulation() -> None:
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    _spawn_sub_agent(machine, "sub-1")
+
+    machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="deep thoughts "))
+
+    state = machine._sessions["sub-1"]
+    assert state.thinking_char_count == len("deep thoughts ")
+    assert state.thinking_content == ""
+
+
+def test_expanded_mode_accumulates_sub_agent_thinking_content() -> None:
+    machine = DisplayStateMachine()
+    machine.set_compact_transcript(False)
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    _spawn_sub_agent(machine, "sub-1")
+
+    machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="deep thoughts "))
+
+    state = machine._sessions["sub-1"]
+    assert state.thinking_char_count == len("deep thoughts ")
+    assert state.thinking_content == "deep thoughts "
+
+
+def test_terminal_lines_lookup_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:
+    import shutil
+
+    calls = 0
+    real_get_terminal_size = shutil.get_terminal_size
+
+    def _counting_get_terminal_size(fallback: tuple[int, int] = (80, 24)) -> os.terminal_size:
+        nonlocal calls
+        calls += 1
+        return real_get_terminal_size(fallback)
+
+    monkeypatch.setattr(machine_module.shutil, "get_terminal_size", _counting_get_terminal_size)
+    monkeypatch.setattr(machine_module, "_terminal_lines_cache", None)
+
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    _spawn_sub_agent(machine, "sub-1")
+
+    machine._sub_agent_status_lines()
+    machine._sub_agent_status_lines()
+
+    assert calls == 1
+
+
+def test_terminal_lines_cache_expires_after_ttl(monkeypatch: pytest.MonkeyPatch) -> None:
+    import os
+    import time
+
+    monkeypatch.setattr(
+        machine_module.shutil,
+        "get_terminal_size",
+        lambda fallback=(80, 24): os.terminal_size((120, 42)),
+    )
+    # A cache entry older than the TTL must be refreshed...
+    monkeypatch.setattr(machine_module, "_terminal_lines_cache", (time.monotonic() - 10.0, 7))
+    assert machine_module._terminal_lines() == 42
+    # ...while a fresh entry is reused as-is.
+    monkeypatch.setattr(machine_module, "_terminal_lines_cache", (time.monotonic(), 7))
+    assert machine_module._terminal_lines() == 7

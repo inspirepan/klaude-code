@@ -23,7 +23,9 @@ from rich.text import Text
 from rich.theme import Theme
 
 from klaude_code.const import (
+    MARKDOWN_STREAM_ADAPTIVE_DELAY_CHARS,
     MARKDOWN_STREAM_LIVE_REPAINT_ENABLED,
+    MARKDOWN_STREAM_MAX_DELAY_S,
     MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED,
     UI_REFRESH_RATE_FPS,
 )
@@ -360,6 +362,11 @@ class MarkdownStream:
 
         self.right_margin: int = max(right_margin, 0)
         self.markdown_class: Callable[..., Markdown] = markdown_class or NoInsetMarkdown
+
+    def _effective_min_delay(self, text_length: int) -> float:
+        """Frame interval scaled by buffer size to bound full-buffer parse cost."""
+        scale = max(1.0, text_length / MARKDOWN_STREAM_ADAPTIVE_DELAY_CHARS)
+        return min(self.min_delay * scale, MARKDOWN_STREAM_MAX_DELAY_S)
 
     def _get_base_width(self) -> int:
         return self.console.options.max_width
@@ -716,7 +723,7 @@ class MarkdownStream:
         """Update the display with the latest full markdown buffer."""
 
         now = time.time()
-        if not final and now - self.when < self.min_delay:
+        if not final and now - self.when < self._effective_min_delay(len(text)):
             return
         self.when = now
 

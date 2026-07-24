@@ -567,3 +567,19 @@ def test_update_preserves_numbered_heading_after_prefix_frame() -> None:
     direct_plain = _ANSI_ESCAPE_RE.sub("", direct_out.getvalue())
     assert streamed_plain == direct_plain
     assert "创建 Network Allow 规则（放行你的 SSH）" in streamed_plain
+
+
+def test_effective_min_delay_scales_with_buffer_size() -> None:
+    from klaude_code.const import MARKDOWN_STREAM_ADAPTIVE_DELAY_CHARS, MARKDOWN_STREAM_MAX_DELAY_S
+
+    stream = _make_stream()
+
+    # Below the adaptive threshold the base cadence is preserved.
+    assert stream._effective_min_delay(1) == stream.min_delay
+    assert stream._effective_min_delay(MARKDOWN_STREAM_ADAPTIVE_DELAY_CHARS) == stream.min_delay
+
+    # Past the threshold the interval grows linearly with buffer size...
+    assert stream._effective_min_delay(MARKDOWN_STREAM_ADAPTIVE_DELAY_CHARS * 3) == pytest.approx(stream.min_delay * 3)
+
+    # ...and is capped so very long messages still repaint at least once per second.
+    assert stream._effective_min_delay(MARKDOWN_STREAM_ADAPTIVE_DELAY_CHARS * 10_000) == MARKDOWN_STREAM_MAX_DELAY_S

@@ -150,6 +150,23 @@ STATUS_LEFT_MIN_WIDTH_CELLS = 10
 SUB_AGENT_STATUS_MAX_LINES = 5
 BASH_STREAM_DELAY_SEC = 3.0
 
+# `shutil.get_terminal_size()` is an ioctl; the sub-agent status layout calls
+# it on every spinner update. Cache it briefly — a stale value for up to a
+# second only affects how many rows are shown right after a resize.
+_TERMINAL_LINES_CACHE_TTL_S = 1.0
+_terminal_lines_cache: tuple[float, int] | None = None
+
+
+def _terminal_lines() -> int:
+    global _terminal_lines_cache
+    now = time.monotonic()
+    cached = _terminal_lines_cache
+    if cached is not None and now - cached[0] < _TERMINAL_LINES_CACHE_TTL_S:
+        return cached[1]
+    lines = shutil.get_terminal_size((120, 24)).lines
+    _terminal_lines_cache = (now, lines)
+    return lines
+
 
 def _empty_bash_chunks() -> list[str]:
     return []
@@ -677,9 +694,10 @@ class _SessionState:
         self.thinking_content = ""
         self.thinking_started_at = timestamp
 
-    def append_thinking(self, content: str) -> None:
+    def append_thinking(self, content: str, *, keep_content: bool = True) -> None:
         self.thinking_char_count += len(content)
-        self.thinking_content += content
+        if keep_content:
+            self.thinking_content += content
 
     def reset_thinking(self) -> None:
         self.thinking_stream_active = False
@@ -926,7 +944,7 @@ class DisplayStateMachine:
         if not groups:
             return ()
 
-        terminal_lines = shutil.get_terminal_size((120, 24)).lines
+        terminal_lines = _terminal_lines()
         max_lines = max(2, int(terminal_lines * 0.4))
         total_lines = sum(len(group) for group in groups)
         if total_lines <= max_lines:
@@ -1551,7 +1569,9 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            s.append_thinking(e.content)
+            # Compact mode never renders sub-agent thinking content (only the
+            # char count), so skip accumulating the full text.
+            s.append_thinking(e.content, keep_content=not self._compact_transcript)
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
             return cmds
