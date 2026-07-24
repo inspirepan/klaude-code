@@ -59,6 +59,11 @@ class ImageUIExtra(BaseModel):
     file_path: str
 
 
+class BashUIExtra(BaseModel):
+    type: Literal["bash"] = "bash"
+    exit_code: int
+
+
 class MarkdownDocUIExtra(BaseModel):
     type: Literal["markdown_doc"] = "markdown_doc"
     file_path: str
@@ -106,7 +111,8 @@ class SessionStatsUIExtra(BaseModel):
 
 
 MultiUIExtraItem = (
-    DiffUIExtra
+    BashUIExtra
+    | DiffUIExtra
     | TodoListUIExtra
     | SessionIdUIExtra
     | ImageUIExtra
@@ -125,7 +131,8 @@ class MultiUIExtra(BaseModel):
 
 
 ToolResultUIExtra = Annotated[
-    DiffUIExtra
+    BashUIExtra
+    | DiffUIExtra
     | TodoListUIExtra
     | SessionIdUIExtra
     | ImageUIExtra
@@ -140,6 +147,7 @@ ToolResultUIExtra = Annotated[
 __all__ = [
     "AskUserQuestionSummaryItem",
     "AskUserQuestionSummaryUIExtra",
+    "BashUIExtra",
     "DiffFileDiff",
     "DiffLine",
     "DiffSpan",

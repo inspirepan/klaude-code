@@ -42,6 +42,7 @@ from klaude_code.tui.commands import (
     RenderBashCommandStart,
     RenderCommand,
     RenderCompactionSummary,
+    RenderCompactToolResult,
     RenderDeveloperMessage,
     RenderError,
     RenderForkCacheHitRate,
@@ -76,6 +77,7 @@ from klaude_code.tui.commands import (
     UpdateTerminalTitlePrefix,
 )
 from klaude_code.tui.components import sub_agent as c_sub_agent
+from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components.common import (
     format_compact_count,
     format_elapsed_compact,
@@ -123,6 +125,7 @@ def is_cancelled_task_result(task_result: str) -> bool:
 @dataclass
 class _PendingBashToolOutput:
     started_at: float
+    arguments: str = ""
     chunks: list[str] = field(default_factory=_empty_bash_chunks)
     streaming_started: bool = False
 
@@ -157,12 +160,21 @@ class ActivityState:
     def __init__(self) -> None:
         self._tool_calls: dict[str, int] = {}
         self._tool_calls_by_id: dict[str, str] = {}
+        self._tool_kinds_by_id: dict[str, str] = {}
         self._sub_agent_tool_calls: dict[str, int] = {}
         self._sub_agent_tool_calls_by_id: dict[str, str] = {}
 
-    def add_tool_call(self, tool_name: str, tool_call_id: str | None = None) -> None:
+    def add_tool_call(
+        self,
+        tool_name: str,
+        tool_call_id: str | None = None,
+        *,
+        tool_kind: str | None = None,
+    ) -> None:
         if tool_call_id is not None:
             self._set_tool_call_label(tool_call_id, tool_name)
+            if tool_kind is not None:
+                self._tool_kinds_by_id[tool_call_id] = tool_kind
             return
         self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
 
@@ -174,6 +186,7 @@ class ActivityState:
         self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
 
     def finish_tool_call(self, tool_call_id: str) -> None:
+        self._tool_kinds_by_id.pop(tool_call_id, None)
         tool_name = self._tool_calls_by_id.pop(tool_call_id, None)
         if tool_name is not None:
             self._decrement_tool_call(tool_name)
@@ -209,14 +222,17 @@ class ActivityState:
     def clear_tool_calls(self) -> None:
         self._tool_calls = {}
         self._tool_calls_by_id = {}
+        self._tool_kinds_by_id = {}
 
     def clear_for_new_step(self) -> None:
         self._tool_calls = {}
         self._tool_calls_by_id = {}
+        self._tool_kinds_by_id = {}
 
     def reset(self) -> None:
         self._tool_calls = {}
         self._tool_calls_by_id = {}
+        self._tool_kinds_by_id = {}
         self._sub_agent_tool_calls = {}
         self._sub_agent_tool_calls_by_id = {}
 
@@ -248,6 +264,9 @@ class ActivityState:
     def has_activity_label(self, label: str) -> bool:
         return label in self._tool_calls or any(name.startswith(f"{label} ") for name in self._tool_calls)
 
+    def has_tool_kind(self, tool_kind: str) -> bool:
+        return tool_kind in self._tool_kinds_by_id.values()
+
 
 class SpinnerStatusState:
     """State machine for spinner status plus task/session metadata."""
@@ -257,6 +276,7 @@ class SpinnerStatusState:
         self._custom_status: str | None = None
         self._toast_status: str | None = None
         self._composing_buffer_length: int = 0
+        self._thinking_buffer_length: int = 0
         self._activity = ActivityState()
         self._token_input: int | None = None
         self._token_cached: int | None = None
@@ -299,6 +319,7 @@ class SpinnerStatusState:
         self._phase = phase
         self._custom_status = custom_status if phase is SpinnerPhase.CUSTOM else None
         self._composing_buffer_length = 0
+        self._thinking_buffer_length = 0
 
     def enter_waiting(self) -> None:
         self._enter_phase(SpinnerPhase.WAITING)
@@ -349,8 +370,18 @@ class SpinnerStatusState:
         if self._phase is SpinnerPhase.COMPOSING:
             self._composing_buffer_length = length
 
-    def add_tool_call(self, tool_name: str, tool_call_id: str | None = None) -> None:
-        self._activity.add_tool_call(tool_name, tool_call_id)
+    def set_thinking_buffer_length(self, length: int) -> None:
+        if self._phase is SpinnerPhase.THINKING:
+            self._thinking_buffer_length = length
+
+    def add_tool_call(
+        self,
+        tool_name: str,
+        tool_call_id: str | None = None,
+        *,
+        tool_kind: str | None = None,
+    ) -> None:
+        self._activity.add_tool_call(tool_name, tool_call_id, tool_kind=tool_kind)
 
     def finish_tool_call(self, tool_call_id: str) -> None:
         self._activity.finish_tool_call(tool_call_id)
@@ -413,12 +444,20 @@ class SpinnerStatusState:
     def has_activity_label(self, label: str) -> bool:
         return self._activity.has_activity_label(label)
 
+    def has_tool_kind(self, tool_kind: str) -> bool:
+        return self._activity.has_tool_kind(tool_kind)
+
     def _base_status_text(self) -> Text | None:
         match self._phase:
             case SpinnerPhase.WAITING:
                 return None
             case SpinnerPhase.THINKING:
-                return Text(STATUS_THINKING_TEXT, style=ThemeKey.STATUS_TEXT)
+                text = Text(STATUS_THINKING_TEXT, style=ThemeKey.STATUS_TEXT)
+                if STATUS_SHOW_BUFFER_LENGTH and self._thinking_buffer_length > 0:
+                    text.append(
+                        f" ({_format_char_count(self._thinking_buffer_length)} chars)", style=ThemeKey.STATUS_TEXT
+                    )
+                return text
             case SpinnerPhase.COMPOSING:
                 text = Text(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
                 if STATUS_SHOW_BUFFER_LENGTH and self._composing_buffer_length > 0:
@@ -561,6 +600,7 @@ class _SessionState:
     thinking_stream_active: bool = False
     assistant_char_count: int = 0
     thinking_char_count: int = 0
+    thinking_content: str = ""
     thinking_started_at: float | None = None
     task_started_at: float | None = None
     task_finished_at: float | None = None
@@ -600,14 +640,17 @@ class _SessionState:
     def start_thinking(self, timestamp: float) -> None:
         self.thinking_stream_active = True
         self.thinking_char_count = 0
+        self.thinking_content = ""
         self.thinking_started_at = timestamp
 
     def append_thinking(self, content: str) -> None:
         self.thinking_char_count += len(content)
+        self.thinking_content += content
 
     def reset_thinking(self) -> None:
         self.thinking_stream_active = False
         self.thinking_char_count = 0
+        self.thinking_content = ""
         self.thinking_started_at = None
 
     def add_status_tool_call(self, tool_call_id: str, tool_name: str) -> None:
@@ -715,7 +758,6 @@ class DisplayStateMachine:
         self._has_rendered_user_message = False
         self._skip_next_user_message_rule = False
         self._compact_transcript = True
-        self._compact_sub_agent_hint_shown = False
         self._pending_sub_agent_results: dict[str, events.ToolResultEvent] = {}
         self._unspawned_sub_agents_by_batch: dict[str, int] = {}
 
@@ -774,7 +816,6 @@ class DisplayStateMachine:
         *,
         timestamp: float,
         result: str,
-        is_replay: bool,
     ) -> list[RenderCommand]:
         active = [session for session in self._sessions.values() if session.is_sub_agent and session.task_active]
         for session in active:
@@ -787,7 +828,7 @@ class DisplayStateMachine:
             session.reset_thinking()
         commands: list[RenderCommand] = []
         for session in active:
-            commands.extend(self._maybe_finish_sub_agent_batch(session, is_replay=is_replay))
+            commands.extend(self._maybe_finish_sub_agent_batch(session))
         return commands
 
     def _sub_agent_status_lines(self) -> tuple[SpinnerStatusLine, ...]:
@@ -818,6 +859,7 @@ class DisplayStateMachine:
                 SpinnerStatusLine(
                     text=r_status.DynamicText(lambda session=session: self._sub_agent_status_line(session)),
                     session_id=session.session_id,
+                    sub_agent_animated=session.terminal_status is None,
                 )
             ]
             if session.terminal_status is not None:
@@ -825,7 +867,10 @@ class DisplayStateMachine:
                     SpinnerStatusLine(
                         text=r_status.DynamicText(
                             lambda session=session: Text(
-                                session.result_summary or "(no summary)",
+                                c_sub_agent.format_compact_result_summary(
+                                    session.result_summary,
+                                    session.terminal_status or "error",
+                                ),
                                 style=ThemeKey.TOOL_RESULT,
                                 no_wrap=True,
                                 overflow="ellipsis",
@@ -867,6 +912,11 @@ class DisplayStateMachine:
             description_start = len(line)
             line.append(description, style=ThemeKey.STATUS_TEXT)
             line.stylize("italic", description_start, len(line))
+
+        tool_count = len(session.tool_call_ids)
+        if tool_count:
+            suffix = "tool" if tool_count == 1 else "tools"
+            line.append(f" · {tool_count} {suffix}", style=ThemeKey.STATUS_HINT)
 
         if session.terminal_status is not None:
             if session.terminal_status == "success":
@@ -915,7 +965,7 @@ class DisplayStateMachine:
         input_tokens = max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
         return input_tokens + usage.output_tokens
 
-    def _maybe_finish_sub_agent_batch(self, session: _SessionState, *, is_replay: bool) -> list[RenderCommand]:
+    def _maybe_finish_sub_agent_batch(self, session: _SessionState) -> list[RenderCommand]:
         state = session.sub_agent_state
         if not self._compact_transcript or state is None or session.compact_batch_flushed:
             return []
@@ -946,6 +996,7 @@ class DisplayStateMachine:
                     title=item.status_title(),
                     description=item.status_description(),
                     status=item.terminal_status,
+                    model_id=item.model_id,
                     duration_s=item.elapsed_s(),
                     tool_count=len(item.tool_call_ids),
                     token_count=self._sub_agent_token_count(item.task_metadata),
@@ -954,19 +1005,14 @@ class DisplayStateMachine:
             )
             item.compact_batch_flushed = True
 
-        show_hint = not is_replay and not self._compact_sub_agent_hint_shown
-        if show_hint:
-            self._compact_sub_agent_hint_shown = True
-        return [RenderSubAgentBatchSummary(tuple(summaries), show_expand_hint=show_hint)]
+        return [RenderSubAgentBatchSummary(tuple(summaries))]
 
     def _spinner_update_commands(self) -> list[RenderCommand]:
         sub_agent_lines = self._sub_agent_status_lines()
         status_lines = sub_agent_lines if sub_agent_lines else (SpinnerStatusLine(text=self._spinner.get_status()),)
         reset_bottom_height = self._had_sub_agent_status_lines and not sub_agent_lines
         self._had_sub_agent_status_lines = bool(sub_agent_lines)
-        top_blank_line = (
-            self._spinner.has_activity_label(get_tool_active_form(tools.BASH)) and not self._live_bash_tool_call_ids
-        )
+        top_blank_line = self._spinner.has_tool_kind(tools.BASH) and not self._live_bash_tool_call_ids
         return [
             SpinnerUpdate(
                 right_text=self._spinner.get_right_text(),
@@ -1213,7 +1259,7 @@ class DisplayStateMachine:
             cmds.append(SpinnerStart())
         cmds.append(RenderTaskStart(e))
         if s.is_sub_agent and s.terminal_status is not None:
-            cmds.extend(self._maybe_finish_sub_agent_batch(s, is_replay=is_replay))
+            cmds.extend(self._maybe_finish_sub_agent_batch(s))
         if not is_replay:
             cmds.extend(self._spinner_update_commands())
         return cmds
@@ -1452,8 +1498,12 @@ class DisplayStateMachine:
         if not self._is_primary(e.session_id):
             return []
         s.append_thinking(e.content)
+        if not is_replay:
+            self._spinner.set_thinking_buffer_length(s.thinking_char_count)
         if not self._compact_transcript:
             cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
+        if not is_replay:
+            cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_ThinkingEndEvent(
@@ -1465,9 +1515,10 @@ class DisplayStateMachine:
             if duration_s is None and not is_replay and s.thinking_started_at is not None:
                 duration_s = max(0.0, e.timestamp - s.thinking_started_at)
             char_count = s.thinking_char_count
+            content = s.thinking_content
             s.reset_thinking()
             if not self._compact_transcript and char_count > 0:
-                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count))
+                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count, content))
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
             return cmds
@@ -1477,12 +1528,13 @@ class DisplayStateMachine:
         if duration_s is None and not is_replay and s.thinking_started_at is not None:
             duration_s = max(0.0, e.timestamp - s.thinking_started_at)
         char_count = s.thinking_char_count
+        content = s.thinking_content
         s.reset_thinking()
         if not is_replay:
             self._spinner.clear_default_reasoning_status()
         if self._compact_transcript:
             if char_count > 0:
-                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count))
+                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count, content))
         else:
             cmds.append(EndThinkingStream(session_id=e.session_id))
         if not is_replay:
@@ -1608,7 +1660,7 @@ class DisplayStateMachine:
                 s.latest_tool_name = e.tool_name
                 s.latest_tool_arguments = ""
                 s.latest_tool_status = None
-                s.latest_tool_activity = c_sub_agent.render_compact_tool_activity(e.tool_name, "")
+                s.latest_tool_activity = c_tools.render_compact_tool_activity(e.tool_name, "")
             else:
                 self._spinner.set_composing(False)
 
@@ -1621,7 +1673,7 @@ class DisplayStateMachine:
             elif is_sub_agent_tool(e.tool_name):
                 self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
             else:
-                self._spinner.add_tool_call(tool_active_form, e.tool_call_id)
+                self._spinner.add_tool_call(tool_active_form, e.tool_call_id, tool_kind=e.tool_name)
 
         if not is_replay:
             cmds.extend(self._spinner_update_commands())
@@ -1646,10 +1698,26 @@ class DisplayStateMachine:
             s.latest_tool_name = e.tool_name
             s.latest_tool_arguments = e.arguments
             s.latest_tool_status = None
-            s.latest_tool_activity = c_sub_agent.render_compact_tool_activity(e.tool_name, e.arguments)
+            s.latest_tool_activity = c_tools.render_compact_tool_activity(e.tool_name, e.arguments)
             s.tool_call_ids.add(e.tool_call_id)
             s.status_composing = False
             s.reset_thinking()
+
+        if (
+            not is_replay
+            and not s.is_sub_agent
+            and self._compact_transcript
+            and e.tool_name == tools.BASH
+            and not s.should_skip_tool_activity(e.tool_name)
+        ):
+            activity = c_tools.render_compact_tool_activity(
+                e.tool_name,
+                e.arguments,
+                max_target_chars=39,
+                include_truncation_mark=False,
+            )
+            self._spinner.add_tool_call(activity.plain, e.tool_call_id, tool_kind=e.tool_name)
+            cmds.extend(self._spinner_update_commands())
 
         if not is_replay and e.tool_name == tools.AGENT and not s.should_skip_tool_activity(e.tool_name):
             tool_active_form = get_agent_active_form(e.arguments)
@@ -1660,9 +1728,13 @@ class DisplayStateMachine:
             cmds.extend(self._spinner_update_commands())
 
         if not s.is_sub_agent and e.tool_name == tools.BASH:
-            self._pending_bash_tool_outputs[e.tool_call_id] = _PendingBashToolOutput(started_at=e.timestamp)
+            self._pending_bash_tool_outputs[e.tool_call_id] = _PendingBashToolOutput(
+                started_at=e.timestamp,
+                arguments=e.arguments,
+            )
 
-        cmds.append(RenderToolCall(e))
+        if not (self._compact_transcript and not s.is_sub_agent and e.tool_name == tools.BASH):
+            cmds.append(RenderToolCall(e))
         return cmds
 
     def _handle_ToolLongRunningEvent(
@@ -1723,7 +1795,7 @@ class DisplayStateMachine:
         if not is_replay and s.is_sub_agent:
             s.finish_status_tool_call(e.tool_call_id)
             s.latest_tool_status = e.status
-            s.latest_tool_activity = c_sub_agent.render_compact_tool_activity(
+            s.latest_tool_activity = c_tools.render_compact_tool_activity(
                 s.latest_tool_name or e.tool_name,
                 s.latest_tool_arguments,
                 status=e.status,
@@ -1763,7 +1835,7 @@ class DisplayStateMachine:
                 linked_sub_agent.terminal_status = e.status
                 linked_sub_agent.task_result = e.result
                 linked_sub_agent.result_summary = c_sub_agent.extract_result_summary(e.result)
-            cmds.extend(self._maybe_finish_sub_agent_batch(linked_sub_agent, is_replay=is_replay))
+            cmds.extend(self._maybe_finish_sub_agent_batch(linked_sub_agent))
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
         elif e.tool_name == tools.AGENT and linked_sub_agent is None and e.is_error and e.response_id:
@@ -1773,7 +1845,7 @@ class DisplayStateMachine:
             for candidate in self._sessions.values():
                 candidate_state = candidate.sub_agent_state
                 if candidate_state is not None and candidate_state.parent_tool_batch_id == e.response_id:
-                    cmds.extend(self._maybe_finish_sub_agent_batch(candidate, is_replay=is_replay))
+                    cmds.extend(self._maybe_finish_sub_agent_batch(candidate))
 
         if (
             s.is_sub_agent
@@ -1783,7 +1855,10 @@ class DisplayStateMachine:
         ):
             return cmds
 
-        cmds.append(RenderToolResult(event=e, is_sub_agent_session=s.is_sub_agent))
+        if self._compact_transcript and not s.is_sub_agent and e.tool_name == tools.BASH:
+            cmds.append(RenderCompactToolResult(event=e, arguments=pending.arguments if pending is not None else ""))
+        else:
+            cmds.append(RenderToolResult(event=e, is_sub_agent_session=s.is_sub_agent))
         return cmds
 
     def _handle_TaskMetadataEvent(
@@ -1847,7 +1922,7 @@ class DisplayStateMachine:
         cmds.append(RenderTaskFinish(e))
         if s.is_sub_agent:
             if self._compact_transcript:
-                cmds.extend(self._maybe_finish_sub_agent_batch(s, is_replay=is_replay))
+                cmds.extend(self._maybe_finish_sub_agent_batch(s))
             else:
                 parent = self._sessions.get(s.parent_session_id or "")
                 parent_session_id = parent.session_id if parent is not None and parent.is_sub_agent else None
@@ -1909,7 +1984,6 @@ class DisplayStateMachine:
                 self._abort_active_sub_agent_sessions(
                     timestamp=e.timestamp,
                     result="Parent task interrupted",
-                    is_replay=is_replay,
                 )
             )
         if not s.is_sub_agent:
@@ -1942,7 +2016,7 @@ class DisplayStateMachine:
                 s.terminal_status = "error"
                 s.task_result = e.error_message
                 s.result_summary = c_sub_agent.extract_result_summary(e.error_message)
-                cmds.extend(self._maybe_finish_sub_agent_batch(s, is_replay=is_replay))
+                cmds.extend(self._maybe_finish_sub_agent_batch(s))
         cmds.append(RenderError(e))
         if not is_replay and not e.can_retry:
             self._spinner.clear_task_state()
@@ -1962,7 +2036,6 @@ class DisplayStateMachine:
                     self._abort_active_sub_agent_sessions(
                         timestamp=e.timestamp,
                         result=e.error_message,
-                        is_replay=is_replay,
                     )
                 )
         if not is_replay:

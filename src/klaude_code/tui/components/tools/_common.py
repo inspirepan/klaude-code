@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from typing import Any, Literal, cast
 
 from rich.console import RenderableType
@@ -7,7 +6,7 @@ from rich.text import Text
 
 from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
-from klaude_code.tui.components.common import create_grid, truncate_middle
+from klaude_code.tui.components.common import create_grid, shorten_path, truncate_middle
 from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
 
@@ -62,11 +61,8 @@ def get_agent_active_form(arguments: str) -> str:
 
 
 def render_path(path: str, style: str, is_directory: bool = False) -> Text:
-    if path.startswith(str(Path().cwd())):
-        path = path.replace(str(Path().cwd()), "").lstrip("/")
-    elif path.startswith(str(Path().home())):
-        path = path.replace(str(Path().home()), "~")
-    elif not path.startswith("/") and not path.startswith("."):
+    path = shorten_path(path)
+    if not path.startswith("/") and not path.startswith("."):
         path = "./" + path
     if is_directory:
         path = path.rstrip("/") + "/"

@@ -1,6 +1,4 @@
-import json
 import re
-from typing import Any, cast
 
 from rich import box
 from rich.console import Group, RenderableType
@@ -9,7 +7,6 @@ from rich.style import Style
 from rich.text import Text
 
 from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
-from klaude_code.protocol import tools
 from klaude_code.protocol.models import SubAgentState
 from klaude_code.tui.components.common import (
     format_compact_count,
@@ -23,68 +20,6 @@ from klaude_code.tui.components.rich.theme import ThemeKey
 _SUB_AGENT_PROMPT_MAX_LINES = 20
 _MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 _MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s*)")
-
-
-def _tool_arguments(arguments: str) -> dict[str, object]:
-    try:
-        value: Any = json.loads(arguments)
-    except json.JSONDecodeError:
-        return {}
-    return cast(dict[str, object], value) if isinstance(value, dict) else {}
-
-
-def _one_line(value: object) -> str:
-    return " ".join(str(value).split())
-
-
-def render_compact_tool_activity(tool_name: str, arguments: str, *, status: str | None = None) -> Text:
-    """Render one compact sub-agent tool activity line."""
-
-    args = _tool_arguments(arguments)
-    label = format_pascal_case(tool_name)
-    target = ""
-    target_style: str | ThemeKey = ThemeKey.TOOL_PARAM
-
-    if tool_name == tools.READ:
-        target = _one_line(args.get("file_path", ""))
-        offset = args.get("offset")
-        limit = args.get("limit")
-        if target and isinstance(offset, int):
-            start = max(1, offset)
-            target += f":{start}"
-            if isinstance(limit, int) and limit > 0:
-                target += f"-{start + limit - 1}"
-        target_style = ThemeKey.TOOL_PARAM_FILE_PATH
-    elif tool_name in (tools.EDIT, tools.WRITE):
-        target = _one_line(args.get("file_path", ""))
-        target_style = ThemeKey.TOOL_PARAM_FILE_PATH
-    elif tool_name == tools.BASH:
-        target = _one_line(args.get("description") or args.get("command", ""))
-        target_style = ThemeKey.BASH_TOOL_DESCRIPTION
-    elif tool_name == tools.WEB_SEARCH:
-        target = _one_line(args.get("query", ""))
-    elif tool_name == tools.WEB_FETCH:
-        target = _one_line(args.get("url", ""))
-        target_style = ThemeKey.TOOL_PARAM_FILE_PATH
-    else:
-        for key in ("description", "query", "file_path", "path", "url", "command"):
-            if args.get(key):
-                target = _one_line(args[key])
-                break
-
-    line = Text(label, style=ThemeKey.TOOL_NAME)
-    if target:
-        line.append(" ")
-        line.append(target, style=target_style)
-    if status == "success":
-        line.append(" ")
-        line.append("✓", style=ThemeKey.METADATA_GREEN)
-    elif status == "error":
-        line.append(" ")
-        line.append("✗", style=ThemeKey.ERROR_BOLD)
-    elif status == "aborted":
-        line.append(" cancelled", style=ThemeKey.INTERRUPT)
-    return line
 
 
 def extract_result_summary(result: str) -> str:
@@ -103,11 +38,21 @@ def extract_result_summary(result: str) -> str:
     return ""
 
 
+def format_compact_result_summary(result_summary: str, status: str) -> str:
+    """Format a compact sub-agent result with an open-ended success marker."""
+
+    displayed_result = result_summary or "(no summary)"
+    if status == "success":
+        return displayed_result.rstrip("。.!！?？:：;；…") + "…"
+    return displayed_result
+
+
 def render_compact_sub_agent_summary(
     *,
     title: str,
     description: str,
     status: str,
+    model_id: str | None,
     duration_s: float | None,
     tool_count: int,
     token_count: int | None,
@@ -131,6 +76,8 @@ def render_compact_sub_agent_summary(
         first.append(" cancelled", style=ThemeKey.INTERRUPT)
 
     metrics: list[str] = []
+    if model_id:
+        metrics.append(model_id)
     if duration_s is not None:
         metrics.append(format_elapsed_compact(duration_s))
     if tool_count:
@@ -140,7 +87,8 @@ def render_compact_sub_agent_summary(
     if metrics:
         first.append(f" · {' · '.join(metrics)}", style=ThemeKey.METADATA_DIM)
 
-    second = Text(result_summary or "(no summary)", style=ThemeKey.TOOL_RESULT, no_wrap=True, overflow="ellipsis")
+    displayed_result = format_compact_result_summary(result_summary, status)
+    second = Text(displayed_result, style=ThemeKey.TOOL_RESULT, no_wrap=True, overflow="ellipsis")
     return Group(first, second)
 
 

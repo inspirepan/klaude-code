@@ -1,6 +1,7 @@
 """Bash command syntax highlighting for terminal display."""
 
 import re
+import shlex
 from typing import Any
 
 from pygments.lexers.shell import BashLexer  # pyright: ignore[reportMissingTypeStubs, reportUnknownVariableType]
@@ -8,7 +9,7 @@ from pygments.token import Token
 from rich.text import Text
 
 from klaude_code.const import BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES
-from klaude_code.tui.components.common import truncate_head
+from klaude_code.tui.components.common import shorten_path, truncate_head
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 # Token types for bash syntax highlighting
@@ -82,6 +83,29 @@ _SUBCOMMAND_COMMANDS = frozenset(
 )
 
 _LEXER: Any = BashLexer(ensurenl=False)  # pyright: ignore[reportUnknownVariableType]
+
+_SUMMARY_OPERATORS = frozenset({"&&", "||", ";", "|"})
+_SUMMARY_PIPE_HELPERS = frozenset({"awk", "column", "cut", "head", "sed", "sort", "tail", "tr", "uniq", "wc"})
+_SUMMARY_FLAGS_WITH_VALUES = frozenset(
+    {
+        "-A",
+        "-B",
+        "-C",
+        "-e",
+        "-f",
+        "-g",
+        "-m",
+        "-t",
+        "--after-context",
+        "--before-context",
+        "--context",
+        "--glob",
+        "--iglob",
+        "--max-count",
+        "--max-depth",
+        "--type",
+    }
+)
 
 # Regex to match heredoc: << [-]? [space]? ['"]? DELIMITER ['"]? [extra] \n body \n DELIMITER
 # Groups: (<<-?) (space) (quote) (delimiter) (quote) (extra on first line) (body) (end delimiter)
@@ -212,3 +236,110 @@ def highlight_bash_command(command: str) -> Text:
                 expect_subcommand = False
 
     return result
+
+
+def summarize_bash_command(command: str) -> str:
+    """Return a conservative one-line summary of a shell command."""
+
+    source = " ".join(command.replace("\\\n", " ").split())
+    if not source:
+        return ""
+    if any(marker in source for marker in ("$(", "`", ">", "<")):
+        return source
+
+    try:
+        lexer = shlex.shlex(source, posix=True, punctuation_chars=";&|")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = list(lexer)
+    except ValueError:
+        return source
+
+    commands: list[list[str]] = []
+    current: list[str] = []
+    for token in tokens:
+        if token in _SUMMARY_OPERATORS:
+            if current:
+                commands.append(current)
+                current = []
+            continue
+        if token and all(char in ";&|" for char in token):
+            return source
+        current.append(token)
+    if current:
+        commands.append(current)
+    if not commands:
+        return source
+
+    summaries: list[str] = []
+    for index, argv in enumerate(commands):
+        summary = _summarize_argv(argv, pipeline_stage=index > 0)
+        if not summary:
+            continue
+        if summaries and summary == summaries[-1]:
+            continue
+        summaries.append(summary)
+    if not summaries:
+        return source
+    if len(summaries) > 2:
+        return f"{summaries[0]} · {summaries[1]} · …"
+    return " · ".join(summaries)
+
+
+def _summarize_argv(argv: list[str], *, pipeline_stage: bool) -> str | None:
+    words = list(argv)
+    while words and "=" in words[0] and not words[0].startswith("="):
+        words.pop(0)
+    if not words:
+        return None
+
+    command = words[0].rsplit("/", 1)[-1]
+    if command == "cd":
+        return None
+    if pipeline_stage and command in _SUMMARY_PIPE_HELPERS:
+        return None
+
+    positionals = _positional_args(words[1:])
+    if command in {"rg", "rga", "grep"}:
+        paths = _shorten_paths(positionals if "--files" in words else positionals[1:])
+        return " ".join([command, *paths[:2]])
+    if command == "find":
+        return " ".join([command, *_shorten_paths(positionals[:1])])
+    if command in {"fd", "fdfind"}:
+        paths = _shorten_paths(positionals[1:] if len(positionals) > 1 else [])
+        return " ".join([command, *paths[:1]])
+    if command in {"git", "jj", "hg", "svn"}:
+        return " ".join([command, *positionals[:1]])
+    if command == "uv" and positionals[:1] == ["run"]:
+        nested = positionals[:2]
+        paths = _shorten_paths(positionals[2:3])
+        return " ".join([command, *nested, *paths])
+    if command in {"pytest", "ls"}:
+        return " ".join([command, *_shorten_paths(positionals[:2])])
+    if command in {"bat", "batcat", "cat", "head", "less", "more", "nl", "tail"}:
+        return " ".join([command, *_shorten_paths(positionals[-1:])])
+    return command
+
+
+def _positional_args(args: list[str]) -> list[str]:
+    positionals: list[str] = []
+    index = 0
+    options_done = False
+    while index < len(args):
+        value = args[index]
+        if options_done:
+            positionals.append(value)
+        elif value == "--":
+            options_done = True
+        elif value in _SUMMARY_FLAGS_WITH_VALUES:
+            index += 1
+        elif value.startswith("-"):
+            pass
+        else:
+            positionals.append(value)
+        index += 1
+    return positionals
+
+
+def _shorten_paths(paths: list[str]) -> list[str]:
+    return [shorten_path(path) for path in paths]

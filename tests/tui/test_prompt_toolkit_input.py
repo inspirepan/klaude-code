@@ -432,16 +432,18 @@ def test_sub_agent_status_line_does_not_add_global_spinner() -> None:
     bottom_bar.set_status_lines(
         (
             PromptStatusLine(
-                "● Finder · Thinking… · 2s",
-                fragments=(("fg:#55aaff bold", "● Finder"), ("class:meta", " · Thinking… · 2s")),
+                "··· Finder · Thinking… · 2s",
+                fragments=(("fg:#55aaff bold", "Finder"), ("class:meta", " · Thinking… · 2s")),
                 show_spinner=False,
+                inline_spinner_style="fg:#55aaff bold",
             ),
         )
     )
 
     fragments = bottom_bar._get_status_fragments()
     assert fragments == [
-        ("fg:#55aaff bold", "● Finder"),
+        ("fg:#55aaff bold", "·   "),
+        ("fg:#55aaff bold", "Finder"),
         ("class:meta", " · Thinking… · 2s"),
     ]
 

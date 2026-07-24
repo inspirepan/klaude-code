@@ -236,11 +236,13 @@ class StackedStatusText:
         status_lines: tuple[RenderableType, ...] = (),
         leading_blank_line: bool = False,
         show_hint: bool = True,
+        shimmer: bool = True,
     ) -> None:
         self._metadata_line = StatusMetadataLine(metadata_text, hint_style=ThemeKey.STATUS_HINT)
         self._status_lines = status_lines
         self._leading_blank_line = leading_blank_line
         self._show_hint = show_hint
+        self._shimmer = shimmer
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         max_width = max(1, getattr(options, "max_width", options.size.width))
@@ -253,11 +255,12 @@ class StackedStatusText:
                 console=console,
                 options=line_options.update(max_width=max_width),
             )
-            line = _render_single_line_text(
-                _StatusShimmerLine(main=line),
-                console=console,
-                options=line_options.update(max_width=max_width),
-            )
+            if self._shimmer:
+                line = _render_single_line_text(
+                    _StatusShimmerLine(main=line),
+                    console=console,
+                    options=line_options.update(max_width=max_width),
+                )
             if line.plain:
                 rendered_status_lines.append(line)
 

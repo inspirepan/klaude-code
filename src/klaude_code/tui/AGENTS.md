@@ -26,11 +26,13 @@ The status data still originates in the existing renderer/status pipeline:
 1. `DisplayStateMachine` emits `SpinnerStart` / `SpinnerUpdate` /
    `SpinnerStop` commands.
 2. `TUICommandRenderer` builds the Rich status renderable with
-   `StackedStatusText` and renders it to plain text snapshot lines.
+   `StackedStatusText` and renders it to styled snapshot fragments. Interactive
+   snapshots disable Rich shimmer; prompt-toolkit owns the only status animation.
 3. `TUICommandRenderer(status_sink=...)` sends those lines to
    `PromptToolkitInput.set_status_lines()`.
 4. `PromptToolkitInput` displays those lines in a prompt-toolkit window and
-   adds the lightweight prompt-toolkit spinner prefix.
+   adds the lightweight prompt-toolkit spinner prefix. Sub-agent rows reuse the
+   same frames with their identity color; completed rows use a static marker.
 5. `PromptToolkitInput` periodically asks the renderer to refresh the status
    snapshot so elapsed-time metadata keeps updating while only the spinner is
    animating.

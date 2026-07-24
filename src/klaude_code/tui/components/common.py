@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 from rich.style import Style
@@ -20,6 +21,23 @@ def format_pascal_case(name: str) -> str:
     import re
 
     return "".join(word.capitalize() for word in re.split(r"[-_]", name))
+
+
+def shorten_path(path: str) -> str:
+    """Shorten an absolute path against the current working or home directory."""
+
+    path_obj = Path(path)
+    if path_obj.is_absolute():
+        try:
+            relative = path_obj.relative_to(Path.cwd())
+            return str(relative) if relative.parts else "."
+        except ValueError:
+            pass
+        try:
+            return str(Path("~") / path_obj.relative_to(Path.home()))
+        except ValueError:
+            pass
+    return path
 
 
 def format_elapsed_compact(seconds: float) -> str:

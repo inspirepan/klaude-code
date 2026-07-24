@@ -131,7 +131,7 @@ def test_render_bash_tool_call_shows_description_callout() -> None:
     output = _render_tool_call_to_text(event)
 
     assert output is not None
-    description_idx = output.find("# Show tracked file changes in short format")
+    description_idx = output.find("Show tracked file changes in short format")
     command_idx = output.find("git status --short")
 
     assert description_idx != -1

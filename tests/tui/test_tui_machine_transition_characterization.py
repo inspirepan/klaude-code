@@ -174,7 +174,7 @@ def test_thinking_stream_sequence_primary() -> None:
     end = m.transition(events.ThinkingEndEvent(session_id="s1", response_id="r1"))
 
     assert _types(start) == ["StartThinkingStream", "SpinnerUpdate"]
-    assert _types(delta) == ["AppendThinking"]
+    assert _types(delta) == ["AppendThinking", "SpinnerUpdate"]
     assert isinstance(delta[0], c.AppendThinking)
     assert delta[0].content == "reasoning"
     assert _types(end) == ["EndThinkingStream", "SpinnerStart", "SpinnerUpdate"]

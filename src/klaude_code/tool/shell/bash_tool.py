@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_TERMINATE_TIMEOUT_SEC
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.protocol.models import FileStatus
+from klaude_code.protocol.models import BashUIExtra, FileStatus
 from klaude_code.tool.core.abc import ToolABC, load_desc
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
@@ -464,7 +464,7 @@ class BashTool(ToolABC):
 
             stdout = "".join(stdout_chunks)
             stderr = "".join(stderr_chunks)
-            rc = proc.returncode
+            rc = proc.returncode if proc.returncode is not None else 1
 
             if rc == 0:
                 output = stdout
@@ -478,6 +478,7 @@ class BashTool(ToolABC):
                     # Preserve leading whitespace for tools like `nl -ba`.
                     # Only trim trailing newlines to avoid adding an extra blank line in the UI.
                     output_text=output.rstrip("\n"),
+                    ui_extra=BashUIExtra(exit_code=rc),
                 )
             else:
                 await _emit_output_delta(f"\nCommand exited with code {rc}\n")
@@ -492,6 +493,7 @@ class BashTool(ToolABC):
                     status="success",
                     # Preserve leading whitespace; only trim trailing newlines.
                     output_text=combined.rstrip("\n"),
+                    ui_extra=BashUIExtra(exit_code=rc),
                 )
         except FileNotFoundError:
             return message.ToolResultMessage(

@@ -30,7 +30,13 @@ def normalize_thinking_content(content: str) -> str:
     return text
 
 
-def render_thinking_summary(duration_s: float | None, char_count: int, *, include_mark: bool = False) -> Text:
+def render_thinking_summary(
+    duration_s: float | None,
+    char_count: int,
+    *,
+    include_mark: bool = False,
+    single_line_content: str = "",
+) -> Text:
     """Render a compact summary for hidden thinking."""
     if duration_s is None:
         duration = ""
@@ -41,6 +47,10 @@ def render_thinking_summary(duration_s: float | None, char_count: int, *, includ
     summary = Text()
     if include_mark:
         summary.append("∵ ", style=ThemeKey.THINKING)
+    content = single_line_content.strip()
+    if content and len(content.splitlines()) == 1:
+        summary.append(" ".join(content.split()), style=ThemeKey.THINKING)
+        return summary
     summary.append(
         f"Thought{duration} · {format_compact_count(char_count)} chars",
         style=ThemeKey.METADATA_DIM,

@@ -13,6 +13,7 @@ import pytest
 import klaude_code.tool.core.runner as runner
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import (
+    BashUIExtra,
     SessionIdUIExtra,
     TaskMetadata,
     TodoItem,
@@ -810,6 +811,7 @@ class TestBashToolStreaming:
             )
             result = await BashTool.call_with_args(args, _tool_context())
             assert result.output_text == "1"
+            assert result.ui_extra == BashUIExtra(exit_code=0)
 
         arun(_run())
 
@@ -831,6 +833,18 @@ class TestBashToolStreaming:
 
         assert emitted
         assert "".join(emitted) == "short\ndone\n"
+
+    def test_bash_nonzero_exit_exposes_ui_exit_code(self) -> None:
+        if os.name != "posix" or shutil.which("bash") is None:
+            pytest.skip("bash tool requires POSIX + bash")
+
+        async def _run() -> None:
+            args = BashTool.BashArguments(command="printf failed; exit 7", timeout_ms=5_000)
+            result = await BashTool.call_with_args(args, _tool_context())
+            assert result.status == "success"
+            assert result.ui_extra == BashUIExtra(exit_code=7)
+
+        arun(_run())
 
     def test_bash_timeout_preserves_partial_output(self) -> None:
         if os.name != "posix" or shutil.which("bash") is None:

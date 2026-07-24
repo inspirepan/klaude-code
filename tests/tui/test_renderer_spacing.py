@@ -17,6 +17,7 @@ from klaude_code.tui.commands import (
     RenderDeveloperMessage,
     RenderError,
     RenderNotice,
+    RenderSubAgentBatchSummary,
     RenderTaskFinish,
     RenderTaskStart,
     RenderThinkingSummary,
@@ -25,6 +26,7 @@ from klaude_code.tui.commands import (
     RenderUserMessage,
     StartAssistantStream,
     StartThinkingStream,
+    SubAgentSummary,
 )
 from klaude_code.tui.components.sub_agent import render_sub_agent_call
 from klaude_code.tui.machine import DisplayStateMachine
@@ -397,7 +399,57 @@ def test_sub_agent_thinking_summary_uses_scoped_quote() -> None:
     )
 
 
-def test_compact_main_thinking_summary_uses_mark_and_preserves_blank_line() -> None:
+def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
+    renderer, output = _renderer_and_output()
+    renderer.register_session(
+        "sub-success",
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="search", sub_agent_prompt="prompt"),
+    )
+    renderer.register_session(
+        "sub-error",
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="fail", sub_agent_prompt="prompt"),
+    )
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderSubAgentBatchSummary(
+                    summaries=(
+                        SubAgentSummary(
+                            session_id="sub-success",
+                            title="Finder",
+                            description="search",
+                            status="success",
+                            model_id="gpt-5.6-luna",
+                            duration_s=12.0,
+                            tool_count=3,
+                            token_count=1200,
+                            result_summary="Found the path.",
+                        ),
+                        SubAgentSummary(
+                            session_id="sub-error",
+                            title="Finder",
+                            description="fail",
+                            status="error",
+                            model_id="gpt-5.6-luna",
+                            duration_s=4.0,
+                            tool_count=1,
+                            token_count=None,
+                            result_summary="Child failed",
+                        ),
+                    )
+                )
+            ]
+        )
+    )
+
+    rendered = output.getvalue()
+    assert "gpt-5.6-luna · 12s · 3 tools · 1.2K tokens" in rendered
+    assert "Found the path…" in rendered
+    assert "Child failed…" not in rendered
+
+
+def test_compact_main_thinking_summary_uses_mark_and_blank_line() -> None:
     renderer, output = _renderer_and_output()
 
     asyncio.run(
@@ -417,6 +469,55 @@ def test_compact_main_thinking_summary_uses_mark_and_preserves_blank_line() -> N
     )
 
     assert "∵ Thought for 20s · 1.2K chars\n\n→ Read ./README.md" in output.getvalue()
+
+
+def test_compact_main_single_line_thinking_shows_content() -> None:
+    renderer, output = _renderer_and_output()
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderThinkingSummary(
+                    session_id="main",
+                    duration_s=1.0,
+                    char_count=24,
+                    content="Checking the current path",
+                ),
+                RenderToolCall(
+                    event=events.ToolCallEvent(
+                        session_id="main",
+                        tool_call_id="tool-1",
+                        tool_name=tools.READ,
+                        arguments='{"file_path":"README.md"}',
+                    )
+                ),
+            ]
+        )
+    )
+
+    rendered = output.getvalue()
+    assert "∵ Checking the current path\n\n→ Read ./README.md" in rendered
+    assert "Thought for" not in rendered
+
+
+def test_compact_main_single_line_thinking_truncates_with_ellipsis() -> None:
+    renderer, output = _renderer_and_output()
+    renderer.console.width = 30
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderThinkingSummary(
+                    session_id="main",
+                    duration_s=1.0,
+                    char_count=100,
+                    content="This is a deliberately long single-line thought that must not wrap",
+                )
+            ]
+        )
+    )
+
+    assert output.getvalue().splitlines() == ["∵ This is a deliberately long…", ""]
 
 
 def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:
@@ -449,6 +550,7 @@ def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:
 
 def test_step_start_flushes_open_tool_block_before_spinner_updates() -> None:
     renderer, output = _renderer_and_output()
+    renderer.set_compact_transcript(False)
     machine = DisplayStateMachine()
     session_id = "main"
 
@@ -479,6 +581,7 @@ def test_step_start_flushes_open_tool_block_before_spinner_updates() -> None:
 
 def test_replay_step_start_flushes_open_tool_block() -> None:
     renderer, output = _renderer_and_output()
+    renderer.set_compact_transcript(False)
     machine = DisplayStateMachine()
     session_id = "main"
 

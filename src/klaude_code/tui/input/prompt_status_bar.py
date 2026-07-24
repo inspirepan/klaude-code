@@ -307,7 +307,9 @@ class PromptBottomBar:
         for index, line in enumerate(visible_lines):
             if index:
                 fragments.append(("", "\n"))
-            if line.show_spinner:
+            if line.inline_spinner_style is not None:
+                fragments.append((line.inline_spinner_style, f"{spinner} "))
+            elif line.show_spinner:
                 fragments.append((CLASS_META, f"{spinner} "))
             if line.fragments:
                 fragments.extend(line.fragments)

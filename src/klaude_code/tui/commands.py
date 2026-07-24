@@ -28,6 +28,7 @@ class PromptStatusLine:
     kind: PromptStatusLineKind = "status"
     fragments: PromptStatusFragments = ()
     show_spinner: bool = True
+    inline_spinner_style: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +108,12 @@ class RenderToolResult(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderCompactToolResult(RenderCommand):
+    event: events.ToolResultEvent
+    arguments: str
+
+
+@dataclass(frozen=True, slots=True)
 class RenderTaskMetadata(RenderCommand):
     event: events.TaskMetadataEvent
 
@@ -127,6 +134,7 @@ class SubAgentSummary:
     title: str
     description: str
     status: Literal["success", "error", "aborted"]
+    model_id: str | None
     duration_s: float | None
     tool_count: int
     token_count: int | None
@@ -136,7 +144,6 @@ class SubAgentSummary:
 @dataclass(frozen=True, slots=True)
 class RenderSubAgentBatchSummary(RenderCommand):
     summaries: tuple[SubAgentSummary, ...]
-    show_expand_hint: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,6 +177,7 @@ class RenderThinkingSummary(RenderCommand):
     session_id: str
     duration_s: float | None
     char_count: int
+    content: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,6 +211,7 @@ class SpinnerStatusLine:
     text: RenderableType
     session_id: str | None = None
     sub_agent_continuation: bool = False
+    sub_agent_animated: bool = True
 
 
 @dataclass(frozen=True, slots=True)

@@ -158,6 +158,28 @@ def test_thinking_status_is_shown() -> None:
     assert status.plain.startswith("Thinking…")
 
 
+def test_thinking_status_shows_streamed_character_count() -> None:
+    state = SpinnerStatusState()
+    state.enter_thinking()
+    state.set_thinking_buffer_length(34)
+
+    assert state.get_status().plain.startswith("Thinking… (34 chars)")
+
+
+def test_thinking_delta_updates_character_count() -> None:
+    machine = DisplayStateMachine()
+    session_id = "s1"
+    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model"))
+    machine.transition(events.ThinkingStartEvent(session_id=session_id, response_id="r1"))
+
+    commands = machine.transition(events.ThinkingDeltaEvent(session_id=session_id, response_id="r1", content="hello"))
+
+    update = next(command for command in commands if isinstance(command, SpinnerUpdate))
+    status = update.status_lines[0].text
+    assert isinstance(status, Text)
+    assert status.plain.startswith("Thinking… (5 chars)")
+
+
 def test_clear_default_reasoning_status_keeps_non_thinking_phase() -> None:
     state = SpinnerStatusState()
     state.set_reasoning_status(STATUS_COMPACTING_TEXT)

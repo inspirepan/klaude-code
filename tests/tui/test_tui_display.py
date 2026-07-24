@@ -47,6 +47,7 @@ def test_hide_progress_ui_flushes_open_renderer_blocks() -> None:
         force_terminal=False,
     )
     display._renderer.console.push_theme(display._renderer.themes.markdown_theme)
+    display._renderer.set_compact_transcript(False)
 
     asyncio.run(
         display._renderer.execute(

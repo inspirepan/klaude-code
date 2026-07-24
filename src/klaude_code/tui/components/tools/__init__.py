@@ -50,6 +50,7 @@ from klaude_code.tui.components.tools._web import (
     render_web_fetch_tool_call,
     render_web_search_tool_call,
 )
+from klaude_code.tui.components.tools.compact import render_compact_tool_activity, render_compact_tool_result
 
 __all__ = [
     # Constants
@@ -79,6 +80,8 @@ __all__ = [
     "render_ask_user_question_tool_call",
     "render_ask_user_question_tool_result",
     "render_bash_tool_call",
+    "render_compact_tool_activity",
+    "render_compact_tool_result",
     "render_edit_tool_call",
     "render_fallback_tool_result",
     "render_generic_tool_call",

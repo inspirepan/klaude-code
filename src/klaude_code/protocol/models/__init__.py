@@ -37,6 +37,7 @@ from klaude_code.protocol.models.todo import TodoItem, todo_list_str
 from klaude_code.protocol.models.tool_ui import (
     AskUserQuestionSummaryItem,
     AskUserQuestionSummaryUIExtra,
+    BashUIExtra,
     DiffFileDiff,
     DiffLine,
     DiffSpan,
@@ -63,6 +64,7 @@ __all__ = [
     "AtFileImagesUIItem",
     "AtFileOp",
     "AtFileOpsUIItem",
+    "BashUIExtra",
     "DeveloperUIExtra",
     "DeveloperUIItem",
     "DiffFileDiff",

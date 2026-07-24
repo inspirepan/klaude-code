@@ -140,6 +140,7 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
             SpinnerStatusLine(
                 text=status,
                 session_id="child",
+                sub_agent_animated=False,
             ),
         )
     )
@@ -149,7 +150,7 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert line.fragments
     assert line.show_spinner is False
     assert "".join(text for _, text in line.fragments) == line.text
-    assert line.fragments[0][1] == "●"
+    assert line.inline_spinner_style is None
     assert line.fragments[0][0].startswith("fg:#")
     success_index = next(index for index, (_, text) in enumerate(line.fragments) if "✓" in text)
     success_style = line.fragments[success_index][0]
@@ -157,6 +158,48 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert success_style != line.fragments[0][0]
     assert "reverse" not in success_style
     assert line.fragments[success_index - 1] == ("class:meta", " ")
+
+
+def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
+    from klaude_code.protocol.models import SubAgentState
+    from klaude_code.tui.commands import PromptStatusLine, SpinnerStatusLine
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
+    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    _renderer_console(renderer)
+    renderer.register_session(
+        "child",
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="inspect status", sub_agent_prompt="prompt"),
+    )
+    renderer.set_progress_ui_suspended(True)
+    renderer.spinner_start()
+    renderer.spinner_update(
+        status_lines=(SpinnerStatusLine(text=Text("Finder: inspect status · Thinking… · 2s"), session_id="child"),)
+    )
+
+    line = status_updates[-1][0][0]
+    assert line.text == "··· Finder: inspect status · Thinking… · 2s"
+    assert line.show_spinner is False
+    assert line.inline_spinner_style is not None
+    assert line.inline_spinner_style.startswith("fg:#")
+    assert "".join(text for _, text in line.fragments) == "Finder: inspect status · Thinking… · 2s"
+
+
+def test_interactive_status_snapshot_does_not_use_rich_shimmer(monkeypatch) -> None:
+    from klaude_code.tui.commands import SpinnerStatusLine
+    from klaude_code.tui.components.rich import status as status_module
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    def _unexpected_shimmer(_text: str) -> list[tuple[str, float]]:
+        raise AssertionError("interactive status should use only the prompt-toolkit spinner")
+
+    monkeypatch.setattr(status_module, "_shimmer_profile", _unexpected_shimmer)
+    renderer = TUICommandRenderer(status_sink=lambda lines, separator: None)
+    _renderer_console(renderer)
+    renderer.set_progress_ui_suspended(True)
+    renderer.spinner_start()
+    renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("Bashing…")),))
 
 
 def test_display_image_prints_caption_then_image(monkeypatch) -> None:

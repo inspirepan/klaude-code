@@ -27,8 +27,15 @@ from klaude_code.const import (
     STATUS_DEFAULT_TEXT,
 )
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events
-from klaude_code.protocol.models import AtFileImagesUIItem, ImageUIExtra, SubAgentState, UserImagesUIItem
+from klaude_code.protocol import events, tools
+from klaude_code.protocol.models import (
+    AtFileImagesUIItem,
+    BashUIExtra,
+    ImageUIExtra,
+    ReadPreviewUIExtra,
+    SubAgentState,
+    UserImagesUIItem,
+)
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
@@ -45,6 +52,7 @@ from klaude_code.tui.commands import (
     RenderBashCommandStart,
     RenderCommand,
     RenderCompactionSummary,
+    RenderCompactToolResult,
     RenderDeveloperMessage,
     RenderError,
     RenderForkCacheHitRate,
@@ -92,7 +100,7 @@ from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.common import format_more_lines_indicator, truncate_head
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
-from klaude_code.tui.components.rich.status import DynamicText, StackedStatusText
+from klaude_code.tui.components.rich.status import DynamicText, StackedStatusText, truncate_right
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.status_runtime import clear_task_start, set_task_start
 from klaude_code.tui.terminal.image import print_kitty_image
@@ -204,6 +212,7 @@ class TUICommandRenderer:
             None,
             (Text(STATUS_DEFAULT_TEXT, style=ThemeKey.STATUS_TEXT),),
             show_hint=False,
+            shimmer=False,
         )
         self._notifier = notifier
         self._status_sink = status_sink
@@ -387,6 +396,7 @@ class TUICommandRenderer:
             case (
                 RenderToolCall()
                 | RenderToolResult()
+                | RenderCompactToolResult()
                 | RenderBashCommandStart()
                 | AppendBashCommandOutput()
                 | RenderBashCommandEnd()
@@ -441,6 +451,7 @@ class TUICommandRenderer:
             status_lines=rendered_status_lines,
             leading_blank_line=leading_blank_line,
             show_hint=False,
+            shimmer=False,
         )
         self._emit_prompt_status()
 
@@ -485,22 +496,33 @@ class TUICommandRenderer:
         nonempty_lines = [line for line in lines if line]
         if not nonempty_lines:
             return ()
-        result = [
-            PromptStatusLine(
-                line,
-                "status",
-                self._prompt_status_fragments(rendered_line),
-                not line.startswith(("● ", "  ")),
+        result: list[PromptStatusLine] = []
+        for line, rendered_line in zip(lines, rendered, strict=True):
+            if not line:
+                continue
+            fragments = self._prompt_status_fragments(rendered_line)
+            inline_spinner_style: str | None = None
+            show_spinner = not line.startswith(("  ", "● "))
+            if line.startswith("··· ") and fragments:
+                inline_spinner_style = fragments[0][0]
+                fragments = self._strip_prompt_fragment_prefix(fragments, 4)
+                show_spinner = False
+            result.append(
+                PromptStatusLine(
+                    line,
+                    "status",
+                    fragments,
+                    show_spinner,
+                    inline_spinner_style,
+                )
             )
-            for line, rendered_line in zip(lines, rendered, strict=True)
-            if line
-        ]
         if self._status_metadata_text is not None:
             result[-1] = PromptStatusLine(
                 result[-1].text,
                 "metadata",
                 result[-1].fragments,
                 result[-1].show_spinner,
+                result[-1].inline_spinner_style,
             )
         return tuple(result)
 
@@ -536,6 +558,23 @@ class TUICommandRenderer:
                 break
             fragments.pop()
         return tuple(fragments)
+
+    @staticmethod
+    def _strip_prompt_fragment_prefix(
+        fragments: tuple[tuple[str, str], ...], prefix_length: int
+    ) -> tuple[tuple[str, str], ...]:
+        remaining = prefix_length
+        stripped: list[tuple[str, str]] = []
+        for style, text in fragments:
+            if remaining >= len(text):
+                remaining -= len(text)
+                continue
+            if remaining:
+                text = text[remaining:]
+                remaining = 0
+            if text:
+                stripped.append((style, text))
+        return tuple(stripped)
 
     def _prompt_metadata_lines(self) -> tuple[PromptStatusLine, ...]:
         if self._status_metadata_text is None:
@@ -590,7 +629,13 @@ class TUICommandRenderer:
                 content = text.copy()
             else:
                 content = Text(str(text))
-            prefix = Text("  " if line.sub_agent_continuation else "● ", style=fg_only)
+            if line.sub_agent_continuation:
+                prefix_text = "  "
+            elif line.sub_agent_animated:
+                prefix_text = "··· "
+            else:
+                prefix_text = "● "
+            prefix = Text(prefix_text, style=fg_only)
             rendered = Text.assemble(prefix, content)
             if not line.sub_agent_continuation:
                 boundaries = [
@@ -692,6 +737,14 @@ class TUICommandRenderer:
         if c_tools.is_sub_agent_tool(e.tool_name):
             return False
 
+        if (
+            self._compact_transcript
+            and not is_sub_agent
+            and e.tool_name == tools.READ
+            and isinstance(e.ui_extra, ReadPreviewUIExtra)
+        ):
+            return False
+
         if is_sub_agent and e.is_error:
             error_msg = truncate_head(e.result)
             style = ThemeKey.INTERRUPT if e.status == "aborted" else ThemeKey.ERROR
@@ -706,6 +759,18 @@ class TUICommandRenderer:
             self.print(renderable)
             return True
         return False
+
+    def display_compact_tool_result(self, event: events.ToolResultEvent, arguments: str) -> None:
+        exit_code = event.ui_extra.exit_code if isinstance(event.ui_extra, BashUIExtra) else None
+        self.print(
+            c_tools.render_compact_tool_result(
+                event.tool_name,
+                arguments,
+                event.result,
+                status=event.status,
+                exit_code=exit_code,
+            )
+        )
 
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
         if self._compact_transcript and self.is_sub_agent_session(e.session_id):
@@ -911,9 +976,7 @@ class TUICommandRenderer:
                 )
                 self.print()
 
-    def display_sub_agent_batch_summary(
-        self, summaries: tuple[SubAgentSummary, ...], *, show_expand_hint: bool
-    ) -> None:
+    def display_sub_agent_batch_summary(self, summaries: tuple[SubAgentSummary, ...]) -> None:
         rendered: list[RenderableType] = []
         for summary in summaries:
             session_id = summary.session_id
@@ -922,6 +985,7 @@ class TUICommandRenderer:
                 title=summary.title,
                 description=summary.description,
                 status=summary.status,
+                model_id=summary.model_id,
                 duration_s=summary.duration_s,
                 tool_count=summary.tool_count,
                 token_count=summary.token_count,
@@ -937,9 +1001,6 @@ class TUICommandRenderer:
             )
         if summaries:
             self.console.print(Group(*rendered), overflow="ellipsis")
-            self.print()
-        if show_expand_hint:
-            self.print(Text("Subagent details hidden · Ctrl+O to expand", style=ThemeKey.STATUS_HINT))
             self.print()
 
     def display_interrupt(self) -> None:
@@ -1220,16 +1281,27 @@ class TUICommandRenderer:
                     finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
                     if finalized and had_content:
                         self.print()
-                case RenderThinkingSummary(session_id=session_id, duration_s=duration_s, char_count=char_count):
+                case RenderThinkingSummary(
+                    session_id=session_id,
+                    duration_s=duration_s,
+                    char_count=char_count,
+                    content=content,
+                ):
                     compact_main_summary = self._compact_transcript and not self.is_sub_agent_session(session_id)
                     with self.session_print_context(session_id):
-                        self.print(
-                            c_thinking.render_thinking_summary(
-                                duration_s,
-                                char_count,
-                                include_mark=compact_main_summary,
-                            )
+                        summary = c_thinking.render_thinking_summary(
+                            duration_s,
+                            char_count,
+                            include_mark=compact_main_summary,
+                            single_line_content=content if compact_main_summary else "",
                         )
+                        if compact_main_summary and content.strip() and len(content.strip().splitlines()) == 1:
+                            summary = truncate_right(
+                                summary,
+                                max(1, self.console.options.max_width),
+                                console=self.console,
+                            )
+                        self.print(summary)
                         if compact_main_summary:
                             self.print()
                 case StartAssistantStream(session_id=_):
@@ -1263,12 +1335,19 @@ class TUICommandRenderer:
                         self._tool_block_session_id = event.session_id
                         self._developer_block_open = False
                         self._developer_block_session_id = None
+                case RenderCompactToolResult(event=event, arguments=arguments):
+                    with self.session_print_context(event.session_id):
+                        self.display_compact_tool_result(event, arguments)
+                    self._tool_block_open = True
+                    self._tool_block_session_id = event.session_id
+                    self._developer_block_open = False
+                    self._developer_block_session_id = None
                 case RenderTaskMetadata(event=event):
                     self.display_task_metadata(event)
                 case RenderTaskFileChangeSummary(event=event):
                     self.display_task_file_change_summary(event)
-                case RenderSubAgentBatchSummary(summaries=summaries, show_expand_hint=show_expand_hint):
-                    self.display_sub_agent_batch_summary(summaries, show_expand_hint=show_expand_hint)
+                case RenderSubAgentBatchSummary(summaries=summaries):
+                    self.display_sub_agent_batch_summary(summaries)
                 case RenderTaskFinish() as cmd_finish:
                     self.display_task_finish(cmd_finish.event)
                     if not self._replay_mode:

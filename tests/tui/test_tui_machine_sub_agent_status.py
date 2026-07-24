@@ -8,6 +8,7 @@ from rich.text import Text
 
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import (
+    BashUIExtra,
     SessionIdUIExtra,
     SubAgentState,
     TaskMetadata,
@@ -24,6 +25,7 @@ from klaude_code.tui.commands import (
     PrintBlankLine,
     RenderBashCommandEnd,
     RenderCommand,
+    RenderCompactToolResult,
     RenderSubAgentBatchSummary,
     RenderTaskFinish,
     RenderThinkingSummary,
@@ -144,6 +146,49 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     assert lines == ["Finder: searching yyyyy · Bash · 0s"]
 
 
+def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> None:
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id="sub-1",
+            parent_session_id="main",
+            sub_agent_state=SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="tracking usage stats",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    for index in range(2):
+        call_id = f"read-{index}"
+        machine.transition(
+            events.ToolCallEvent(
+                session_id="sub-1",
+                tool_call_id=call_id,
+                tool_name=tools.READ,
+                arguments='{"file_path":"stats.py"}',
+            )
+        )
+        machine.transition(
+            events.ToolResultEvent(
+                session_id="sub-1",
+                tool_call_id=call_id,
+                tool_name=tools.READ,
+                result="content",
+                status="success",
+            )
+        )
+
+    machine.transition(events.AssistantTextStartEvent(session_id="sub-1"))
+    commands = machine.transition(events.AssistantTextDeltaEvent(session_id="sub-1", content="result"))
+
+    assert [_line_plain(line) for line in _last_spinner_update(commands).status_lines] == [
+        "Finder: tracking usage stats · 2 tools · Typing… · 0s"
+    ]
+
+
 def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: pytest.MonkeyPatch) -> None:
     now = 102.0
     monkeypatch.setattr(machine_module.time, "time", lambda: now)
@@ -258,6 +303,7 @@ def test_main_agent_compact_thinking_uses_persisted_duration() -> None:
     summary = next(command for command in commands if isinstance(command, RenderThinkingSummary))
     assert summary.duration_s == 1.5
     assert summary.char_count == 9
+    assert summary.content == "reasoning"
 
 
 def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -315,8 +361,8 @@ def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pyte
     assert not any(isinstance(command, RenderSubAgentBatchSummary) for command in first_finished)
     first_status = _last_spinner_update(first_finished)
     assert [_line_plain(line) for line in first_status.status_lines] == [
-        "Finder: task 0 ✓ · 5s",
-        "Found the replay path.",
+        "Finder: task 0 · 1 tool ✓ · 5s",
+        "Found the replay path…",
         "Finder: task 1 · Running… · 4s",
     ]
 
@@ -327,9 +373,9 @@ def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pyte
     batch = next(command for command in second_finished if isinstance(command, RenderSubAgentBatchSummary))
     assert [summary.session_id for summary in batch.summaries] == ["sub-a", "sub-b"]
     assert batch.summaries[0].result_summary == "Found the replay path."
+    assert batch.summaries[0].model_id == "test-model"
     assert batch.summaries[0].tool_count == 1
     assert batch.summaries[0].token_count == 120
-    assert batch.show_expand_hint is True
     assert _last_spinner_update(second_finished).reset_bottom_height is True
 
 
@@ -416,7 +462,8 @@ def test_main_session_bash_tool_streams_append_only_and_keeps_success_result(
         )
     )
     assert any(isinstance(cmd, RenderBashCommandEnd) for cmd in result_cmds)
-    assert any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
+    assert any(isinstance(cmd, RenderCompactToolResult) for cmd in result_cmds)
+    assert not any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
 
 
 def test_main_session_bash_tool_buffers_before_delay_and_falls_back_to_tool_result(
@@ -460,7 +507,8 @@ def test_main_session_bash_tool_buffers_before_delay_and_falls_back_to_tool_resu
     )
     assert not any(isinstance(cmd, AppendBashCommandOutput) for cmd in result_cmds)
     assert not any(isinstance(cmd, RenderBashCommandEnd) for cmd in result_cmds)
-    assert any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
+    assert any(isinstance(cmd, RenderCompactToolResult) for cmd in result_cmds)
+    assert not any(isinstance(cmd, RenderToolResult) for cmd in result_cmds)
 
 
 def test_sub_agent_todo_write_result_is_rendered() -> None:
@@ -774,6 +822,46 @@ def test_main_bash_tool_call_adds_blank_line_before_stream_starts() -> None:
     assert update.top_blank_line is True
     assert len(update.status_lines) == 1
     assert _line_plain(update.status_lines[0]).startswith("Bashing")
+
+
+def test_main_bash_compact_status_prefers_clamped_description() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+    description = "x" * 50
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    machine.transition(
+        events.ToolCallStartEvent(
+            session_id=main_session,
+            tool_call_id="tc-bash-1",
+            tool_name=tools.BASH,
+        )
+    )
+    commands = machine.transition(
+        events.ToolCallEvent(
+            session_id=main_session,
+            tool_call_id="tc-bash-1",
+            tool_name=tools.BASH,
+            arguments=f'{{"command":"echo hi","description":"{description}"}}',
+        )
+    )
+
+    update = _last_spinner_update(commands)
+    assert _line_plain(update.status_lines[0]) == f"Bash {'x' * 39}…"
+
+    result_commands = machine.transition(
+        events.ToolResultEvent(
+            session_id=main_session,
+            tool_call_id="tc-bash-1",
+            tool_name=tools.BASH,
+            result="done",
+            status="success",
+            ui_extra=BashUIExtra(exit_code=0),
+        )
+    )
+    compact = next(command for command in result_commands if isinstance(command, RenderCompactToolResult))
+    assert compact.arguments == f'{{"command":"echo hi","description":"{description}"}}'
+    assert not any(isinstance(command, RenderToolResult) for command in result_commands)
 
 
 def test_main_session_composing_keeps_sub_agent_activity_priority() -> None:
