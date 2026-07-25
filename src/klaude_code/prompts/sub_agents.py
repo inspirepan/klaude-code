@@ -37,8 +37,8 @@ REVIEW_SUMMARY = (
 
 MAINTENANCE_REVIEW_SUMMARY = (
     "Reviews proposed changes for maintainability: missed reuse, unnecessary complexity, wasted work,\n"
-    "fragile layering, and violations of governing CLAUDE.md/AGENTS.md rules. Read-only; returns\n"
-    "findings with priority levels.\n"
+    "fragile layering, and violations of governing CLAUDE.md/AGENTS.md rules. Bugs are `code-reviewer`'s\n"
+    "job, not this one's. Read-only; returns findings with priority levels.\n"
     "(Tools: Bash, Read)"
 )
 
