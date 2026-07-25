@@ -8,7 +8,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 from rich import box
@@ -217,7 +217,7 @@ class TUICommandRenderer:
         self,
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
-        status_sink: Callable[[tuple[PromptStatusLine, ...], str | None], None] | None = None,
+        status_sink: Callable[[tuple[PromptStatusLine, ...], str | None, bool], None] | None = None,
         stream_sink: Callable[[tuple[str, ...], bool], None] | None = None,
     ) -> None:
         self.themes = get_theme(theme)
@@ -471,6 +471,8 @@ class TUICommandRenderer:
         # (comparatively expensive) content key is only materialized when an
         # update is actually applied.
         if time.monotonic() - self._spinner_last_apply_at < SPINNER_UPDATE_MIN_INTERVAL_S:
+            if self._spinner_pending_update is not None and self._spinner_pending_update.reset_bottom_height:
+                update = replace(update, reset_bottom_height=True)
             self._spinner_pending_update = update
             self._schedule_spinner_flush()
             return
@@ -520,7 +522,7 @@ class TUICommandRenderer:
             show_hint=False,
             shimmer=False,
         )
-        self._emit_prompt_status()
+        self._emit_prompt_status(reset_bottom_height=update.reset_bottom_height)
         return True
 
     def _schedule_spinner_flush(self) -> None:
@@ -575,6 +577,7 @@ class TUICommandRenderer:
         self,
         lines: tuple[PromptStatusLine, ...] | None = None,
         separator_text: SeparatorText | None = None,
+        reset_bottom_height: bool = False,
     ) -> None:
         if self._status_sink is None:
             return
@@ -582,7 +585,7 @@ class TUICommandRenderer:
             lines = self._prompt_status_lines()
             separator_text = self._status_separator_text
         resolved_separator_text = self._resolve_separator_text(separator_text)
-        self._status_sink(lines, resolved_separator_text)
+        self._status_sink(lines, resolved_separator_text, reset_bottom_height)
 
     @staticmethod
     def _resolve_separator_text(separator_text: SeparatorText | None) -> str | None:

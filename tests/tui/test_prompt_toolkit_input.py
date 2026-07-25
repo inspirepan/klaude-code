@@ -179,6 +179,47 @@ def test_status_window_height_stays_stable_until_status_clears() -> None:
     assert prompt_input._bottom_bar._status_window_height() == 1
 
 
+def test_status_window_height_resets_after_sub_agent_rows_disappear() -> None:
+    prompt_input = _build_input("")
+    bar = prompt_input._bottom_bar
+
+    prompt_input.set_status_lines(
+        (
+            _status("Loading…"),
+            _status("Finder: searching"),
+            _status("Reviewer: checking"),
+            _status("Executor: testing"),
+        )
+    )
+    assert bar._status_window_height() == 4
+
+    prompt_input.set_status_lines((_status("Loading…"),), reset_bottom_height=True)
+
+    assert bar._status_reserved_line_count == 1
+    assert bar._status_window_height() == 1
+
+
+def test_status_reserved_height_pads_above_remaining_status_rows() -> None:
+    prompt_input = _build_input("")
+    bar = prompt_input._bottom_bar
+
+    prompt_input.set_status_lines(
+        (
+            _status("Loading…"),
+            _status("Finder: searching"),
+            _status("Reviewer: checking"),
+        )
+    )
+    prompt_input.set_status_lines((_status("Loading…"),))
+
+    assert bar._status_window_height() == 3
+    assert bar._get_status_fragments() == [
+        ("", "\n\n"),
+        ("class:meta", "·   "),
+        ("class:meta", "Loading…"),
+    ]
+
+
 def test_status_clear_defers_height_collapse_under_loop() -> None:
     async def _scenario() -> None:
         invalidations = SimpleNamespace(count=0)
@@ -188,7 +229,7 @@ def test_status_clear_defers_height_collapse_under_loop() -> None:
         prompt_input.set_status_lines((_status("Typing…"),), separator_text="13s · esc to interrupt")
         assert bar._status_reserved_line_count == 1
 
-        prompt_input.set_status_lines((), separator_text=None)
+        prompt_input.set_status_lines((), separator_text=None, reset_bottom_height=True)
         assert bar._status_lines == ()
         assert bar._get_status_fragments() == []
         assert bar._status_reserved_line_count == 1
@@ -428,7 +469,9 @@ def test_input_footer_renders_metadata_below_context_line() -> None:
 
 def test_renderer_status_sink_separates_interrupt_hint() -> None:
     updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
-    renderer = TUICommandRenderer(status_sink=lambda lines, separator_text: updates.append((lines, separator_text)))
+    renderer = TUICommandRenderer(
+        status_sink=lambda lines, separator_text, _reset: updates.append((lines, separator_text))
+    )
     elapsed = SimpleNamespace(text="1m51s")
 
     renderer.set_progress_ui_suspended(True)

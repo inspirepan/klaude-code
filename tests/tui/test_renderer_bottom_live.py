@@ -64,7 +64,7 @@ def test_prompt_separator_text_can_be_sent_without_status_lines() -> None:
 
     status_updates: list[tuple[tuple[object, ...], str | None]] = []
 
-    def _record_status(lines: tuple[object, ...], separator_text: str | None) -> None:
+    def _record_status(lines: tuple[object, ...], separator_text: str | None, _reset_reserved_height: bool) -> None:
         status_updates.append((lines, separator_text))
 
     renderer = TUICommandRenderer(status_sink=_record_status)
@@ -74,12 +74,27 @@ def test_prompt_separator_text_can_be_sent_without_status_lines() -> None:
     assert status_updates[-1] == ((), "12s · esc to interrupt")
 
 
+def test_spinner_update_forwards_reserved_height_reset() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    status_updates: list[tuple[tuple[object, ...], str | None, bool]] = []
+
+    def _record_status(lines: tuple[object, ...], separator_text: str | None, reset_reserved_height: bool) -> None:
+        status_updates.append((lines, separator_text, reset_reserved_height))
+
+    renderer = TUICommandRenderer(status_sink=_record_status)
+
+    renderer.spinner_update(reset_bottom_height=True)
+
+    assert status_updates[-1] == ((), None, True)
+
+
 def test_spinner_stop_clears_prompt_separator_text() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     status_updates: list[tuple[tuple[object, ...], str | None]] = []
 
-    def _record_status(lines: tuple[object, ...], separator_text: str | None) -> None:
+    def _record_status(lines: tuple[object, ...], separator_text: str | None, _reset_reserved_height: bool) -> None:
         status_updates.append((lines, separator_text))
 
     renderer = TUICommandRenderer(status_sink=_record_status)
@@ -98,7 +113,9 @@ def test_spinner_stop_keeps_prompt_metadata_footer() -> None:
 
     status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
 
-    def _record_status(lines: tuple[PromptStatusLine, ...], separator_text: str | None) -> None:
+    def _record_status(
+        lines: tuple[PromptStatusLine, ...], separator_text: str | None, _reset_reserved_height: bool
+    ) -> None:
         status_updates.append((lines, separator_text))
 
     renderer = TUICommandRenderer(status_sink=_record_status)
@@ -119,7 +136,9 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
-    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    renderer = TUICommandRenderer(
+        status_sink=lambda lines, separator, _reset: status_updates.append((lines, separator))
+    )
     _renderer_console(renderer)
     renderer.register_session(
         "child",
@@ -183,7 +202,9 @@ def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
-    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    renderer = TUICommandRenderer(
+        status_sink=lambda lines, separator, _reset: status_updates.append((lines, separator))
+    )
     _renderer_console(renderer)
     renderer.register_session(
         "child",
@@ -243,7 +264,7 @@ def test_interactive_status_snapshot_does_not_use_rich_shimmer(monkeypatch) -> N
         raise AssertionError("interactive status should use only the prompt-toolkit spinner")
 
     monkeypatch.setattr(status_module, "_shimmer_profile", _unexpected_shimmer)
-    renderer = TUICommandRenderer(status_sink=lambda lines, separator: None)
+    renderer = TUICommandRenderer(status_sink=lambda lines, separator, reset: None)
     _renderer_console(renderer)
     renderer.set_progress_ui_suspended(True)
     renderer.spinner_start()
@@ -336,7 +357,9 @@ def test_spinner_update_dedupes_identical_dynamic_content() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     status_updates: list[tuple[tuple[object, ...], str | None]] = []
-    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    renderer = TUICommandRenderer(
+        status_sink=lambda lines, separator, _reset: status_updates.append((lines, separator))
+    )
     _renderer_console(renderer)
     renderer.set_progress_ui_suspended(True)
     renderer.spinner_start()
@@ -370,8 +393,10 @@ def test_spinner_update_throttles_burst_and_flushes_trailing() -> None:
     from klaude_code.tui.commands import PromptStatusLine, SpinnerStatusLine
     from klaude_code.tui.renderer import SPINNER_UPDATE_MIN_INTERVAL_S, TUICommandRenderer
 
-    status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
-    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None, bool]] = []
+    renderer = TUICommandRenderer(
+        status_sink=lambda lines, separator, reset: status_updates.append((lines, separator, reset))
+    )
     _renderer_console(renderer)
     renderer.set_progress_ui_suspended(True)
 
@@ -383,7 +408,10 @@ def test_spinner_update_throttles_burst_and_flushes_trailing() -> None:
         assert len(status_updates) == emits_after_start + 1
 
         # Distinct updates inside the throttle window coalesce: no immediate emit.
-        renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("two")),))
+        renderer.spinner_update(
+            status_lines=(SpinnerStatusLine(text=Text("two")),),
+            reset_bottom_height=True,
+        )
         renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("three")),))
         assert len(status_updates) == emits_after_start + 1
 
@@ -391,6 +419,7 @@ def test_spinner_update_throttles_burst_and_flushes_trailing() -> None:
         await asyncio.sleep(SPINNER_UPDATE_MIN_INTERVAL_S + 0.05)
         assert len(status_updates) == emits_after_start + 2
         assert status_updates[-1][0][0].text == "three"
+        assert status_updates[-1][2] is True
 
         # spinner_stop flushes any pending state synchronously.
         renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("four")),))
@@ -408,7 +437,9 @@ def test_manual_status_flush_cancels_scheduled_flush() -> None:
     from klaude_code.tui.renderer import SPINNER_UPDATE_MIN_INTERVAL_S, TUICommandRenderer
 
     status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
-    renderer = TUICommandRenderer(status_sink=lambda lines, separator: status_updates.append((lines, separator)))
+    renderer = TUICommandRenderer(
+        status_sink=lambda lines, separator, _reset: status_updates.append((lines, separator))
+    )
     _renderer_console(renderer)
     renderer.set_progress_ui_suspended(True)
 

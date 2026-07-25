@@ -99,9 +99,16 @@ class _FakePromptToolkitInput:
         del end_of_stream
         return None
 
-    def set_status_lines(self, lines: tuple[PromptStatusLine, ...], *, separator_text: str | None = None) -> None:
+    def set_status_lines(
+        self,
+        lines: tuple[PromptStatusLine, ...],
+        *,
+        separator_text: str | None = None,
+        reset_bottom_height: bool = False,
+    ) -> None:
         del lines
         del separator_text
+        del reset_bottom_height
         return None
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:

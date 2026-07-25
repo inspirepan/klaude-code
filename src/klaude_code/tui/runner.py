@@ -272,9 +272,17 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if input_provider is not None:
             input_provider.set_prompt_suggestion(text)
 
-    def _set_status_lines(lines: tuple[PromptStatusLine, ...], separator_text: str | None = None) -> None:
+    def _set_status_lines(
+        lines: tuple[PromptStatusLine, ...],
+        separator_text: str | None = None,
+        reset_bottom_height: bool = False,
+    ) -> None:
         if input_provider is not None:
-            input_provider.set_status_lines(lines, separator_text=separator_text)
+            input_provider.set_status_lines(
+                lines,
+                separator_text=separator_text,
+                reset_bottom_height=reset_bottom_height,
+            )
 
     def _set_stream_lines(lines: tuple[str, ...], end_of_stream: bool = False) -> None:
         if input_provider is not None:

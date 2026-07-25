@@ -143,10 +143,16 @@ class PromptBottomBar:
         lines: tuple[PromptStatusLine, ...],
         *,
         separator_text: str | None = None,
+        reset_bottom_height: bool = False,
     ) -> None:
         status_lines = tuple(line for line in lines if line.text.strip())
         visible_status_lines = tuple(line for line in status_lines if line.kind != "metadata")
         metadata_footer_lines = tuple(line.text for line in status_lines if line.kind == "metadata")
+        reserved_height_changed = False
+        if reset_bottom_height and visible_status_lines:
+            self._cancel_pending_status_collapse()
+            reserved_height_changed = self._status_reserved_line_count != len(visible_status_lines)
+            self._status_reserved_line_count = len(visible_status_lines)
         if status_lines == self._status_lines and separator_text == self._running_separator_label:
             if metadata_footer_lines:
                 self._metadata_footer_lines = metadata_footer_lines
@@ -154,6 +160,8 @@ class PromptBottomBar:
                 self._ensure_status_spinner()
             else:
                 self._cancel_status_spinner()
+            if reserved_height_changed:
+                self._invalidate()
             return
 
         self._cancel_pending_status_collapse()
@@ -296,15 +304,26 @@ class PromptBottomBar:
         fragments: StyleAndTextTuples = []
         spinner = _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
         visible_lines = self._visible_status_lines()
+        show_waiting = bool(
+            not visible_lines
+            and not self._startup_loading
+            and self._is_agent_running is not None
+            and self._is_agent_running()
+        )
+        content_line_count = len(visible_lines) or int(self._startup_loading or show_waiting)
+        top_padding = self._status_window_height() - content_line_count
+        if content_line_count and top_padding > 0:
+            fragments.append(("", "\n" * top_padding))
         if not visible_lines:
             if self._startup_loading:
-                return [(CLASS_META, f"{spinner} "), (CLASS_META, _STARTUP_LOADING_TEXT)]
+                fragments.extend([(CLASS_META, f"{spinner} "), (CLASS_META, _STARTUP_LOADING_TEXT)])
+                return fragments
             # A task has been submitted but no status snapshot has arrived yet
             # (agent runtime is still starting up). Show the waiting text
             # immediately so submission feedback is not tied to backend
             # startup latency.
-            if self._is_agent_running is not None and self._is_agent_running():
-                return [(CLASS_META, f"{spinner} "), (CLASS_META, STATUS_WAITING_TEXT)]
+            if show_waiting:
+                fragments.extend([(CLASS_META, f"{spinner} "), (CLASS_META, STATUS_WAITING_TEXT)])
             return fragments
         for index, line in enumerate(visible_lines):
             if index:

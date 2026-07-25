@@ -267,8 +267,18 @@ class PromptToolkitInput(InputProviderABC):
     def set_stream_lines(self, lines: tuple[str, ...], *, end_of_stream: bool = False) -> None:
         self._bottom_bar.set_stream_lines(lines, end_of_stream=end_of_stream)
 
-    def set_status_lines(self, lines: tuple[PromptStatusLine, ...], *, separator_text: str | None = None) -> None:
-        self._bottom_bar.set_status_lines(lines, separator_text=separator_text)
+    def set_status_lines(
+        self,
+        lines: tuple[PromptStatusLine, ...],
+        *,
+        separator_text: str | None = None,
+        reset_bottom_height: bool = False,
+    ) -> None:
+        self._bottom_bar.set_status_lines(
+            lines,
+            separator_text=separator_text,
+            reset_bottom_height=reset_bottom_height,
+        )
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
         self._bottom_bar.set_pending_messages(messages)
