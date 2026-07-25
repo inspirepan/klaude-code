@@ -123,6 +123,7 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertEqual(result.output_text, "Done!")
         self.assertIsNone(result.ui_extra)
         self.assertFalse(Path("obsolete.txt").exists())
+        assert context.file_change_summary is not None
         self.assertEqual(context.file_change_summary.deleted_files, [str(Path("obsolete.txt").resolve())])
         self.assertEqual(context.file_change_summary.diff_lines_removed, 2)
 
