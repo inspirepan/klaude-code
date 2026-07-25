@@ -48,6 +48,7 @@ from klaude_code.tui.components.tools._web import (
     render_web_search_results,
     render_web_search_tool_call,
 )
+from klaude_code.tui.transcript_detail import Detail
 
 _COMPACT_MARKDOWN_PREVIEW_LINES = 5
 
@@ -170,14 +171,14 @@ def render_markdown_doc(
     md_ui: MarkdownDocUIExtra,
     *,
     code_theme: str,
-    compact: bool = False,
+    detail: Detail = Detail.FULL,
     show_file_path: bool = False,
 ) -> RenderableType:
     """Render a Markdown document preview with a 2-character left indent."""
     terminal_width = shutil.get_terminal_size().columns
     panel_width = min(100, terminal_width) - 2
 
-    if compact:
+    if detail.is_compact:
         lines = md_ui.content.splitlines()
         hidden_lines = max(0, len(lines) - _COMPACT_MARKDOWN_PREVIEW_LINES)
         preview: list[RenderableType] = [
@@ -245,12 +246,13 @@ def render_tool_result(
     e: events.ToolResultEvent,
     *,
     code_theme: str = "monokai",
-    compact: bool = True,
+    detail: Detail = Detail.COMPACT,
 ) -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
     Returns a Rich Renderable or None if the tool result should not be rendered.
     """
+    compact = detail.is_compact
     if is_sub_agent_tool(e.tool_name):
         return None
 
@@ -279,7 +281,7 @@ def render_tool_result(
                     render_markdown_doc(
                         item,
                         code_theme=code_theme,
-                        compact=compact,
+                        detail=detail,
                         show_file_path=show_file_path,
                     )
                 )
@@ -306,12 +308,12 @@ def render_tool_result(
         case tools.WRITE:
             if md_ui:
                 # Markdown docs render without TreeQuote wrap (already has 2-char indent)
-                return render_markdown_doc(md_ui, code_theme=code_theme, compact=compact)
+                return render_markdown_doc(md_ui, code_theme=code_theme, detail=detail)
             return wrap(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
         case tools.APPLY_PATCH:
             if md_ui:
                 # Markdown docs render without TreeQuote wrap (already has 2-char indent)
-                return render_markdown_doc(md_ui, code_theme=code_theme, compact=compact)
+                return render_markdown_doc(md_ui, code_theme=code_theme, detail=detail)
             if diff_ui:
                 return wrap(r_diffs.render_structured_diff(diff_ui, show_file_name=True))
             return _render_fallback()
@@ -325,7 +327,7 @@ def render_tool_result(
         case tools.WEB_SEARCH:
             search_results = parse_web_search_results(e.result)
             if search_results:
-                return wrap(render_web_search_results(search_results, compact=compact))
+                return wrap(render_web_search_results(search_results, detail=detail))
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
                 return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
@@ -363,7 +365,7 @@ def render_compact_file_change(
                 render_markdown_doc(
                     item,
                     code_theme=code_theme,
-                    compact=True,
+                    detail=Detail.COMPACT,
                     show_file_path=show_file_names,
                 )
             )

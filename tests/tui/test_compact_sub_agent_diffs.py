@@ -19,6 +19,7 @@ from klaude_code.tui.components import sub_agent as c_sub_agent
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.renderer import TUICommandRenderer
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _diff() -> DiffUIExtra:
@@ -250,7 +251,7 @@ def test_compact_markdown_preview_preserves_source_lines_and_uses_ellipsis() -> 
 @pytest.mark.parametrize("tool_name", [tools.WRITE, tools.APPLY_PATCH])
 def test_expanded_markdown_preview_keeps_all_lines(tool_name: str) -> None:
     renderer = TUICommandRenderer()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     content = "\n".join(f"# Line {line}" for line in range(1, 8))
     markdown = MarkdownDocUIExtra(file_path="docs/new.md", content=content)
     event = events.ToolResultEvent(

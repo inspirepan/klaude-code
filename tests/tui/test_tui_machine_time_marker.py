@@ -9,6 +9,7 @@ from klaude_code.tui.commands import RenderTimeMarker, RenderUserMessage
 from klaude_code.tui.components.rich.theme import DARK_PALETTE, ThemeKey
 from klaude_code.tui.machine import DisplayStateMachine, _format_time_marker_label
 from klaude_code.tui.renderer import TUICommandRenderer
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _ts(dt: datetime) -> float:
@@ -21,7 +22,7 @@ def _user_message(ts: float, content: str = "hi") -> events.UserMessageEvent:
 
 def _expanded_machine() -> DisplayStateMachine:
     machine = DisplayStateMachine()
-    machine.set_compact_transcript(False)
+    machine.set_transcript_detail(Detail.FULL)
     return machine
 
 

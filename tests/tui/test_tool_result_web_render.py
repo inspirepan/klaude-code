@@ -4,11 +4,12 @@ from klaude_code.protocol import events, tools
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.tools import render_tool_result
 from klaude_code.tui.renderer import TUICommandRenderer
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _render_event_to_text(event: events.ToolResultEvent, *, compact: bool = True) -> str:
     console = Console(width=100, record=True, force_terminal=False, theme=get_theme().app_theme)
-    renderable = render_tool_result(event, compact=compact)
+    renderable = render_tool_result(event, detail=Detail.COMPACT if compact else Detail.FULL)
     assert renderable is not None
     console.print(renderable)
     return console.export_text()
@@ -163,7 +164,7 @@ def test_compact_transcript_hides_web_fetch_body_but_keeps_errors() -> None:
     assert "fetched body" not in compact.getvalue()
     assert "HTTP error 404" in compact.getvalue()
 
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     with renderer.bulk_render_capture() as expanded:
         assert renderer.display_tool_call_result(success) is True
     assert "fetched body" in expanded.getvalue()

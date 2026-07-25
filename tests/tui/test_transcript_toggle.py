@@ -16,6 +16,7 @@ from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.runner import toggle_transcript_view
+from klaude_code.tui.transcript_detail import Detail
 
 
 class _Display:
@@ -58,7 +59,7 @@ def test_compact_renderer_hides_sub_agent_body_and_expanded_restores_it() -> Non
         renderer.display_task_start(event)
     assert compact.getvalue() == ""
 
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     renderer.reset_replay_state()
     with renderer.bulk_render_capture() as expanded:
         renderer.display_task_start(event)
@@ -85,7 +86,7 @@ def test_renderer_switches_task_metadata_between_compact_and_expanded() -> None:
     assert "• test-model · ↑10k ◎20k ↓2k · 18s" in compact.getvalue()
     assert "2 steps" not in compact.getvalue()
 
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     with renderer.bulk_render_capture() as expanded:
         renderer.display_task_metadata(event)
     assert "in 10k · cache 20k · out 2k" in expanded.getvalue()
@@ -111,7 +112,7 @@ def test_renderer_switches_error_detail_between_compact_and_expanded() -> None:
     assert "Cached tokens:" not in compact.getvalue()
     assert "Report:" not in compact.getvalue()
 
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     with renderer.bulk_render_capture() as expanded:
         renderer.display_error(event)
     assert "Cached tokens: 138,752 -> 2,560 (drop: 136,192)" in expanded.getvalue()

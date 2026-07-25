@@ -12,6 +12,7 @@ from klaude_code.protocol import events, tools
 from klaude_code.tui.commands import RenderTaskFinish, RenderToolCall
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
+from klaude_code.tui.transcript_detail import Detail
 
 
 def test_notify_ask_user_question_emits_terminal_notification() -> None:
@@ -47,7 +48,7 @@ def test_hide_progress_ui_flushes_open_renderer_blocks() -> None:
         force_terminal=False,
     )
     display._renderer.console.push_theme(display._renderer.themes.markdown_theme)
-    display._renderer.set_compact_transcript(False)
+    display._renderer.set_transcript_detail(Detail.FULL)
 
     asyncio.run(
         display._renderer.execute(

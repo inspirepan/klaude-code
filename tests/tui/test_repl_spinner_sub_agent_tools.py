@@ -235,7 +235,7 @@ def test_compaction_end_updates_status_metadata_count() -> None:
 
     update = next(cmd for cmd in cmds if isinstance(cmd, SpinnerUpdate))
     assert isinstance(update.right_text, ResponsiveDynamicText)
-    assert "46k/200k (23.0%) · compact 1" in update.right_text.render(compact=False).plain
+    assert "46k/200k (23.0%) · compact 1" in update.right_text.render(narrow=False).plain
 
 
 def test_composing_status_keeps_min_loading_width() -> None:

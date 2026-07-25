@@ -32,6 +32,7 @@ from klaude_code.tui.commands import (
 from klaude_code.tui.components.sub_agent import render_sub_agent_call
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.renderer import TUICommandRenderer
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _renderer_and_output() -> tuple[TUICommandRenderer, io.StringIO]:
@@ -159,7 +160,7 @@ def test_sub_agent_blank_line_keeps_quote_prefix() -> None:
 
 def test_sub_agent_finish_result_does_not_include_trailing_quote_blank_line() -> None:
     renderer, output = _renderer_and_output()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     session_id = "sub-1"
 
     asyncio.run(
@@ -186,9 +187,9 @@ def test_sub_agent_finish_result_does_not_include_trailing_quote_blank_line() ->
 
 def test_sub_agent_finish_blank_line_after_result_is_not_quoted() -> None:
     renderer, output = _renderer_and_output()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     machine = DisplayStateMachine()
-    machine.set_compact_transcript(False)
+    machine.set_transcript_detail(Detail.FULL)
     main_session = "main"
     sub_session = "sub-1"
 
@@ -216,7 +217,7 @@ def test_sub_agent_finish_blank_line_after_result_is_not_quoted() -> None:
 
 def test_sub_agent_block_flush_keeps_quote_prefix() -> None:
     renderer, output = _renderer_and_output()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     session_id = "sub-1"
     renderer.register_session(
         session_id,
@@ -264,7 +265,7 @@ def test_sub_agent_block_flush_keeps_quote_prefix() -> None:
 
 def test_sub_agent_block_flush_can_force_top_level_blank_line() -> None:
     renderer, output = _renderer_and_output()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     session_id = "sub-1"
     renderer.register_session(
         session_id,
@@ -293,7 +294,7 @@ def test_sub_agent_block_flush_can_force_top_level_blank_line() -> None:
 
 def test_sub_agent_standalone_tool_result_blank_line_keeps_quote_prefix() -> None:
     renderer, output = _renderer_and_output()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     session_id = "sub-1"
     renderer.register_session(
         session_id,
@@ -575,7 +576,7 @@ def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:
 
 def test_step_start_flushes_open_tool_block_before_spinner_updates() -> None:
     renderer, output = _renderer_and_output()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     machine = DisplayStateMachine()
     session_id = "main"
 
@@ -606,7 +607,7 @@ def test_step_start_flushes_open_tool_block_before_spinner_updates() -> None:
 
 def test_replay_step_start_flushes_open_tool_block() -> None:
     renderer, output = _renderer_and_output()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     machine = DisplayStateMachine()
     session_id = "main"
 

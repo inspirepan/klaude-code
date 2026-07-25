@@ -118,7 +118,7 @@ def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
     assert "95.1% · esc to interrupt" in third_line
 
 
-def test_third_line_drops_hint_before_compact_when_full_metadata_fits() -> None:
+def test_third_line_drops_hint_before_narrowing_when_full_metadata_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
         Usage(
@@ -145,7 +145,7 @@ def test_third_line_drops_hint_before_compact_when_full_metadata_fits() -> None:
     assert "esc to interrupt" not in third_line
 
 
-def test_third_line_compacts_tokens_after_dropping_hint() -> None:
+def test_third_line_narrows_tokens_after_dropping_hint() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
         Usage(
@@ -161,11 +161,11 @@ def test_third_line_compacts_tokens_after_dropping_hint() -> None:
     right_text = state.get_right_text()
     assert right_text is not None
 
-    compact_plain = right_text.render(compact=True).plain
+    narrow_plain = right_text.render(narrow=True).plain
     full_plain = right_text.plain
-    assert cell_len(compact_plain) < cell_len(full_plain)
+    assert cell_len(narrow_plain) < cell_len(full_plain)
 
-    width = cell_len(compact_plain)
+    width = cell_len(narrow_plain)
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=get_theme().app_theme)
     status = StackedStatusText(metadata_text=right_text, status_lines=(Text("Loading…", style=ThemeKey.STATUS_TEXT),))
     lines = console.render_lines(
@@ -175,12 +175,12 @@ def test_third_line_compacts_tokens_after_dropping_hint() -> None:
     )
 
     third_line = "".join(segment.text for segment in lines[-1] if segment.text)
-    assert third_line == compact_plain
+    assert third_line == narrow_plain
     assert "esc to interrupt" not in third_line
     assert "↑" in third_line
 
 
-def test_third_line_shows_compact_with_hint_when_only_that_fits() -> None:
+def test_third_line_shows_narrow_with_hint_when_only_that_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
         Usage(
@@ -196,12 +196,12 @@ def test_third_line_shows_compact_with_hint_when_only_that_fits() -> None:
     right_text = state.get_right_text()
     assert right_text is not None
 
-    compact_plain = right_text.render(compact=True).plain
+    narrow_plain = right_text.render(narrow=True).plain
     full_plain = right_text.plain
     hint = current_hint_text().strip()
     separator = " · "
 
-    width = cell_len(compact_plain + separator + hint)
+    width = cell_len(narrow_plain + separator + hint)
     assert cell_len(full_plain) > width
 
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=get_theme().app_theme)
@@ -213,10 +213,10 @@ def test_third_line_shows_compact_with_hint_when_only_that_fits() -> None:
     )
 
     third_line = "".join(segment.text for segment in lines[-1] if segment.text)
-    assert third_line == compact_plain + separator + hint
+    assert third_line == narrow_plain + separator + hint
 
 
-def test_third_line_avoids_compact_when_full_metadata_still_fits() -> None:
+def test_third_line_avoids_narrowing_when_full_metadata_still_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(
         Usage(
@@ -230,8 +230,8 @@ def test_third_line_avoids_compact_when_full_metadata_still_fits() -> None:
     assert right_text is not None
 
     full_plain = right_text.plain
-    compact_plain = right_text.render(compact=True).plain
-    assert cell_len(compact_plain) < cell_len(full_plain)
+    narrow_plain = right_text.render(narrow=True).plain
+    assert cell_len(narrow_plain) < cell_len(full_plain)
 
     width = cell_len(full_plain) + 1
     assert cell_len(full_plain) <= width

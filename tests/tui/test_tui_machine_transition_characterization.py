@@ -16,6 +16,7 @@ from klaude_code.protocol.llm_param import LLMClientProtocol, LLMConfigParameter
 from klaude_code.protocol.models import SubAgentState
 from klaude_code.tui import commands as c
 from klaude_code.tui.machine import DisplayStateMachine
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _types(cmds: list[c.RenderCommand]) -> list[str]:
@@ -166,7 +167,7 @@ def test_task_finish_cancelled_result_no_fallback_render() -> None:
 
 def test_thinking_stream_sequence_primary() -> None:
     m = DisplayStateMachine()
-    m.set_compact_transcript(False)
+    m.set_transcript_detail(Detail.FULL)
     _ = m.transition(events.TaskStartEvent(session_id="s1", model_id="test-model"))
 
     start = m.transition(events.ThinkingStartEvent(session_id="s1", response_id="r1"))

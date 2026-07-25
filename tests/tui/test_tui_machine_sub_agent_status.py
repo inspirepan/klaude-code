@@ -36,6 +36,7 @@ from klaude_code.tui.commands import (
 from klaude_code.tui.components.rich.status import DynamicText
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.machine import DisplayStateMachine
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _last_spinner_update(cmds: Sequence[RenderCommand]) -> SpinnerUpdate:
@@ -62,7 +63,7 @@ def _right_plain(update: SpinnerUpdate) -> str:
         return ""
     render = getattr(right, "render", None)
     if callable(render):
-        rendered = render(compact=False)
+        rendered = render(narrow=False)
         if isinstance(rendered, Text):
             return rendered.plain
     plain = getattr(right, "plain", None)
@@ -620,7 +621,7 @@ def test_sub_agent_batch_closes_when_sibling_never_spawns() -> None:
 
 def test_expanded_mode_keeps_full_thinking_stream_commands() -> None:
     machine = DisplayStateMachine()
-    machine.set_compact_transcript(False)
+    machine.set_transcript_detail(Detail.FULL)
     machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
 
     started = machine.transition(events.ThinkingStartEvent(session_id="main"))
@@ -1032,7 +1033,7 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
 
 def test_sub_agent_finish_emits_unscoped_blank_line_after_result() -> None:
     machine = DisplayStateMachine()
-    machine.set_compact_transcript(False)
+    machine.set_transcript_detail(Detail.FULL)
     main_session = "main"
     sub_session = "sub-1"
 
@@ -1066,7 +1067,7 @@ def test_sub_agent_finish_emits_unscoped_blank_line_after_result() -> None:
 
 def test_nested_sub_agent_finish_emits_parent_scoped_blank_line() -> None:
     machine = DisplayStateMachine()
-    machine.set_compact_transcript(False)
+    machine.set_transcript_detail(Detail.FULL)
     main_session = "main"
     parent_session = "sub-parent"
     child_session = "sub-child"
@@ -1461,7 +1462,7 @@ def test_compact_mode_skips_sub_agent_thinking_content_accumulation() -> None:
 
 def test_expanded_mode_accumulates_sub_agent_thinking_content() -> None:
     machine = DisplayStateMachine()
-    machine.set_compact_transcript(False)
+    machine.set_transcript_detail(Detail.FULL)
     machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
     _spawn_sub_agent(machine, "sub-1")
 

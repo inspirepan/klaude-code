@@ -20,6 +20,7 @@ from klaude_code.tui.components.tools._common import (
     MARK_WEB_SEARCH,
     render_tool_call_tree,
 )
+from klaude_code.tui.transcript_detail import Detail
 
 _EXTERNAL_CONTENT_START = "<<<EXTERNAL_UNTRUSTED_CONTENT>>>"
 _EXTERNAL_CONTENT_END = "<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>"
@@ -101,12 +102,13 @@ def parse_web_search_results(result: str) -> list[WebSearchResultItem]:
     return items
 
 
-def render_web_search_results(items: list[WebSearchResultItem], *, compact: bool) -> RenderableType:
+def render_web_search_results(items: list[WebSearchResultItem], *, detail: Detail) -> RenderableType:
     """Render search results as a numbered list.
 
     Compact mode lists a few titles only; expanded mode spells out every title
     with its URL on the next line so it can be selected and copied.
     """
+    compact = detail.is_compact
     visible = items[:WEB_SEARCH_COMPACT_RESULT_LIMIT] if compact else items
 
     grid = Table.grid(padding=(0, 1))

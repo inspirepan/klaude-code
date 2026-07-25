@@ -17,6 +17,7 @@ from klaude_code.tui.components.common import (
     format_pascal_case,
 )
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.transcript_detail import Detail
 
 METADATA_MIN_DETAILS_WIDTH_FOR_SINGLE_LINE_IDENTITY = 60
 
@@ -662,10 +663,10 @@ class _TaskMetadataRenderable:
         yield tree
 
 
-def render_task_metadata(e: events.TaskMetadataEvent, *, compact: bool = False) -> RenderableType | None:
+def render_task_metadata(e: events.TaskMetadataEvent, *, detail: Detail = Detail.FULL) -> RenderableType | None:
     """Render task metadata including main agent and sub-agents."""
     interrupted = e.is_partial or e.metadata.is_partial
-    if compact:
+    if detail.is_compact:
         has_content = _has_compact_content(e.metadata.main_agent, interrupted=interrupted) or any(
             _has_compact_content(metadata) for metadata in e.metadata.sub_agent_task_metadata
         )

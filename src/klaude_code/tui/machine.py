@@ -92,6 +92,7 @@ from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
 from klaude_code.tui.status_runtime import current_elapsed_text
+from klaude_code.tui.transcript_detail import Detail, TranscriptDetail, is_visible
 
 # Tools that complete quickly and don't benefit from streaming activity display.
 # For models without fine-grained tool JSON streaming (e.g., Gemini), showing these
@@ -570,10 +571,10 @@ class SpinnerStatusState:
             status_text.append(" " * (min_status_cells - status_cells), style=ThemeKey.STATUS_TEXT)
         return status_text
 
-    def _build_metadata_text(self, *, compact: bool, include_elapsed: bool) -> Text | None:
+    def _build_metadata_text(self, *, narrow: bool, include_elapsed: bool) -> Text | None:
         parts: list[str] = []
         if self._token_input is not None and self._token_output is not None:
-            if compact:
+            if narrow:
                 token_parts = list(
                     format_compact_token_values(
                         input_tokens=self._token_input,
@@ -585,18 +586,18 @@ class SpinnerStatusState:
                 )
             else:
                 token_parts = [f"in {format_number(self._token_input)}"]
-            if not compact and self._token_cached and self._token_cached > 0:
+            if not narrow and self._token_cached and self._token_cached > 0:
                 cache_text = f"cache {format_number(self._token_cached)}"
                 if self._cache_hit_rate is not None:
                     cache_text += f" ({self._cache_hit_rate:.0%})"
                 token_parts.append(cache_text)
-            if not compact and self._token_cache_write and self._token_cache_write > 0:
+            if not narrow and self._token_cache_write and self._token_cache_write > 0:
                 token_parts.append(f"cache+ {format_number(self._token_cache_write)}")
-            if not compact:
+            if not narrow:
                 token_parts.append(f"out {format_number(self._token_output)}")
-            if not compact and self._token_thought and self._token_thought > 0:
+            if not narrow and self._token_thought and self._token_thought > 0:
                 token_parts.append(f"thought {format_number(self._token_thought)}")
-            parts.append(" ".join(token_parts) if compact else " · ".join(token_parts))
+            parts.append(" ".join(token_parts) if narrow else " · ".join(token_parts))
 
         if (
             self._context_size is not None
@@ -616,7 +617,7 @@ class SpinnerStatusState:
             if parts:
                 parts.append(" · ")
             currency_symbol = "¥" if self._cost_currency == "CNY" else "$"
-            if compact:
+            if narrow:
                 parts.append(f"{currency_symbol}{self._cost_total:.4f}")
             else:
                 parts.append(f"cost {currency_symbol}{self._cost_total:.4f}")
@@ -633,17 +634,17 @@ class SpinnerStatusState:
         return Text("".join(parts), style=ThemeKey.METADATA_DIM)
 
     def get_right_text(self) -> r_status.ResponsiveDynamicText | None:
-        metadata_text = self._build_metadata_text(compact=False, include_elapsed=False)
+        metadata_text = self._build_metadata_text(narrow=False, include_elapsed=False)
         if metadata_text is None:
             return None
 
-        def _render(*, compact: bool) -> Text:
-            built = self._build_metadata_text(compact=compact, include_elapsed=False)
+        def _render(*, narrow: bool) -> Text:
+            built = self._build_metadata_text(narrow=narrow, include_elapsed=False)
             return built if built is not None else Text("")
 
         return r_status.ResponsiveDynamicText(
-            lambda: _render(compact=False),
-            lambda: _render(compact=True),
+            lambda: _render(narrow=False),
+            lambda: _render(narrow=True),
         )
 
     def get_separator_text(self) -> SeparatorText:
@@ -914,7 +915,7 @@ class DisplayStateMachine:
     # methods after the class body (see module-level assignment).
     _EVENT_HANDLERS: ClassVar[dict[type[events.Event], Callable[..., list[RenderCommand]]]] = {}
 
-    def __init__(self) -> None:
+    def __init__(self, detail: TranscriptDetail | None = None) -> None:
         self._sessions: dict[str, _SessionState] = {}
         self._primary_session_id: str | None = None
         self._spinner = SpinnerStatusState()
@@ -927,17 +928,26 @@ class DisplayStateMachine:
         self._bash_mode_output_chunks_by_session: dict[str, list[str]] = {}
         self._has_rendered_user_message = False
         self._skip_next_user_message_rule = False
-        self._compact_transcript = True
+        self._detail = detail if detail is not None else TranscriptDetail()
         self._pending_sub_agent_results: dict[str, events.ToolResultEvent] = {}
         self._unspawned_sub_agents_by_batch: dict[str, int] = {}
         self._last_time_marker_ts: float | None = None
 
     @property
-    def compact_transcript(self) -> bool:
-        return self._compact_transcript
+    def _compact(self) -> bool:
+        return self._detail.is_compact
 
-    def set_compact_transcript(self, compact: bool) -> None:
-        self._compact_transcript = compact
+    def set_transcript_detail(self, detail: Detail) -> None:
+        self._detail.set(detail)
+
+    def _visible(self, e: events.Event, s: _SessionState) -> bool:
+        """Whether this event reaches the transcript at the current detail level.
+
+        Same table the renderer consults, asked one layer earlier: these events
+        arrive as commands that carry only a summary string, so the renderer has
+        no event left to ask about.
+        """
+        return is_visible(e, detail=self._detail.current, is_sub_agent=s.is_sub_agent)
 
     def set_model_name(self, model_name: str | None) -> None:
         self._model_name = model_name
@@ -1004,7 +1014,7 @@ class DisplayStateMachine:
         return commands
 
     def _sub_agent_status_lines(self) -> tuple[SpinnerStatusLine, ...]:
-        if not self._compact_transcript:
+        if not self._compact:
             lines = [
                 SpinnerStatusLine(
                     text=r_status.DynamicText(lambda session=session: self._expanded_sub_agent_status_line(session)),
@@ -1165,7 +1175,7 @@ class DisplayStateMachine:
 
     def _maybe_finish_sub_agent_batch(self, session: _SessionState) -> list[RenderCommand]:
         state = session.sub_agent_state
-        if not self._compact_transcript or state is None or session.compact_batch_flushed:
+        if not self._compact or state is None or session.compact_batch_flushed:
             return []
         batch_id = state.parent_tool_batch_id or session.session_id
         members: list[_SessionState] = []
@@ -1261,7 +1271,7 @@ class DisplayStateMachine:
         if handler is None:
             return []
         cmds = handler(self, event, is_replay=is_replay, s=s)
-        if not self._compact_transcript and cmds:
+        if not self._compact and cmds:
             marker = self._maybe_time_marker(event.timestamp, cmds)
             if marker is not None:
                 cmds.insert(0, marker)
@@ -1464,7 +1474,7 @@ class DisplayStateMachine:
             if not s.task_active:
                 cmds.append(SpinnerStop())
             cmds.extend(self._spinner_update_commands())
-        if e.summary and not e.aborted and not (self._compact_transcript and s.is_sub_agent):
+        if e.summary and not e.aborted and self._visible(e, s):
             if e.reason == "handoff":
                 cmds.append(RenderHandoff(summary=e.summary))
             else:
@@ -1625,7 +1635,7 @@ class DisplayStateMachine:
         # before we receive any deltas.
         if not is_replay:
             self._spinner.enter_thinking()
-        if not self._compact_transcript:
+        if not self._compact:
             cmds.append(StartThinkingStream(session_id=e.session_id))
         if not is_replay:
             cmds.extend(self._spinner_update_commands())
@@ -1638,7 +1648,7 @@ class DisplayStateMachine:
         if s.is_sub_agent:
             # Compact mode never renders sub-agent thinking content (only the
             # char count), so skip accumulating the full text.
-            s.append_thinking(e.content, keep_content=not self._compact_transcript)
+            s.append_thinking(e.content, keep_content=not self._compact)
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
             return cmds
@@ -1648,7 +1658,7 @@ class DisplayStateMachine:
         s.append_thinking(e.content)
         if not is_replay:
             self._spinner.set_thinking_buffer_length(s.thinking_char_count)
-        if not self._compact_transcript:
+        if not self._compact:
             cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
         if not is_replay:
             cmds.extend(self._spinner_update_commands())
@@ -1665,7 +1675,7 @@ class DisplayStateMachine:
             char_count = s.thinking_char_count
             content = s.thinking_content
             s.reset_thinking()
-            if not self._compact_transcript and char_count > 0:
+            if self._visible(e, s) and char_count > 0:
                 cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count, content))
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
@@ -1680,7 +1690,7 @@ class DisplayStateMachine:
         s.reset_thinking()
         if not is_replay:
             self._spinner.clear_default_reasoning_status()
-        if self._compact_transcript:
+        if self._compact:
             if char_count > 0:
                 cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count, content))
         else:
@@ -1848,7 +1858,7 @@ class DisplayStateMachine:
         if (
             not is_replay
             and not s.is_sub_agent
-            and self._compact_transcript
+            and self._compact
             and e.tool_name == tools.BASH
             and not s.should_skip_tool_activity(e.tool_name)
         ):
@@ -1877,7 +1887,7 @@ class DisplayStateMachine:
                 arguments=e.arguments,
             )
 
-        if not (self._compact_transcript and not s.is_sub_agent and e.tool_name == tools.BASH):
+        if not (self._compact and not s.is_sub_agent and e.tool_name == tools.BASH):
             cmds.append(RenderToolCall(e))
         return cmds
 
@@ -1994,7 +2004,7 @@ class DisplayStateMachine:
         ):
             return cmds
 
-        if self._compact_transcript and not s.is_sub_agent and e.tool_name == tools.BASH:
+        if self._compact and not s.is_sub_agent and e.tool_name == tools.BASH:
             cmds.append(RenderCompactToolResult(event=e, arguments=pending.arguments if pending is not None else ""))
         else:
             cmds.append(RenderToolResult(event=e, is_sub_agent_session=s.is_sub_agent))
@@ -2060,7 +2070,7 @@ class DisplayStateMachine:
         s.clear_status_activity()
         cmds.append(RenderTaskFinish(e))
         if s.is_sub_agent:
-            if self._compact_transcript:
+            if self._compact:
                 cmds.extend(self._maybe_finish_sub_agent_batch(s))
             else:
                 parent = self._sessions.get(s.parent_session_id or "")

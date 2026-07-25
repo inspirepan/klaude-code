@@ -74,19 +74,25 @@ class DynamicText:
 
 
 class ResponsiveDynamicText(DynamicText):
+    """Status text with a second, shorter form for when the line runs out of room.
+
+    This is the terminal-width axis, spelled `narrow` to keep it distinct from the
+    transcript detail level in `tui.transcript_detail` -- both can apply at once.
+    """
+
     def __init__(
         self,
         factory: Callable[[], Text],
-        compact_factory: Callable[[], Text],
+        narrow_factory: Callable[[], Text],
         *,
         min_width_cells: int = 0,
     ) -> None:
         super().__init__(factory, min_width_cells=min_width_cells)
-        self._compact_factory = compact_factory
+        self._narrow_factory = narrow_factory
 
-    def render(self, *, compact: bool) -> Text:
-        if compact:
-            return self._compact_factory()
+    def render(self, *, narrow: bool) -> Text:
+        if narrow:
+            return self._narrow_factory()
         return self._factory()
 
 
@@ -302,15 +308,15 @@ def _render_right_text(
     *,
     console: Console,
     options: ConsoleOptions,
-    compact: bool,
+    narrow: bool,
 ) -> Text:
     if isinstance(renderable, ResponsiveDynamicText):
-        return renderable.render(compact=compact)
+        return renderable.render(narrow=narrow)
     return _render_single_line_text(renderable, console=console, options=options)
 
 
 class StatusMetadataLine:
-    """Build the bottom metadata line, including compact/hint fallback policy."""
+    """Build the bottom metadata line, including narrow/hint fallback policy."""
 
     def __init__(self, metadata_text: RenderableType | None, *, hint_style: ThemeKey) -> None:
         self._metadata_text = metadata_text
@@ -322,7 +328,7 @@ class StatusMetadataLine:
             return truncate_right(hint_text, max(1, max_width), console=console) if show_hint else Text("")
 
         full_metadata_text = _render_right_text(
-            self._metadata_text, console=console, options=line_options, compact=False
+            self._metadata_text, console=console, options=line_options, narrow=False
         )
         if cell_len(full_metadata_text.plain) == 0:
             if not show_hint:
@@ -332,12 +338,12 @@ class StatusMetadataLine:
         if not show_hint:
             if cell_len(full_metadata_text.plain) <= max_width:
                 return full_metadata_text
-            compact_metadata_text = _render_right_text(
-                self._metadata_text, console=console, options=line_options, compact=True
+            narrow_metadata_text = _render_right_text(
+                self._metadata_text, console=console, options=line_options, narrow=True
             )
-            if cell_len(compact_metadata_text.plain) <= max_width:
-                return compact_metadata_text
-            return truncate_right(compact_metadata_text, max(1, max_width), console=console)
+            if cell_len(narrow_metadata_text.plain) <= max_width:
+                return narrow_metadata_text
+            return truncate_right(narrow_metadata_text, max(1, max_width), console=console)
 
         separator = Text(" · ", style=ThemeKey.STATUS_HINT)
         full_with_hint = Text.assemble(full_metadata_text, separator, hint_text)
@@ -346,16 +352,16 @@ class StatusMetadataLine:
         if cell_len(full_metadata_text.plain) <= max_width:
             return full_metadata_text
 
-        compact_metadata_text = _render_right_text(
-            self._metadata_text, console=console, options=line_options, compact=True
+        narrow_metadata_text = _render_right_text(
+            self._metadata_text, console=console, options=line_options, narrow=True
         )
-        if 0 < cell_len(compact_metadata_text.plain) < cell_len(full_metadata_text.plain):
-            compact_with_hint = Text.assemble(compact_metadata_text, separator, hint_text)
-            if cell_len(compact_with_hint.plain) <= max_width:
-                return compact_with_hint
-        if cell_len(compact_metadata_text.plain) <= max_width:
-            return compact_metadata_text
-        return truncate_right(compact_metadata_text, max(1, max_width), console=console)
+        if 0 < cell_len(narrow_metadata_text.plain) < cell_len(full_metadata_text.plain):
+            narrow_with_hint = Text.assemble(narrow_metadata_text, separator, hint_text)
+            if cell_len(narrow_with_hint.plain) <= max_width:
+                return narrow_with_hint
+        if cell_len(narrow_metadata_text.plain) <= max_width:
+            return narrow_metadata_text
+        return truncate_right(narrow_metadata_text, max(1, max_width), console=console)
 
 
 class _StatusShimmerLine:

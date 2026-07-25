@@ -21,6 +21,7 @@ from klaude_code.tui.commands import (
 from klaude_code.tui.components.bash_syntax import summarize_bash_command
 from klaude_code.tui.components.tools.compact import render_compact_tool_activity, render_compact_tool_result
 from klaude_code.tui.renderer import TUICommandRenderer
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _renderer_and_output() -> tuple[TUICommandRenderer, io.StringIO]:
@@ -128,7 +129,7 @@ def test_compact_bash_failure_shows_concise_exit_code() -> None:
 
 def test_expanded_bash_keeps_command_and_output() -> None:
     renderer, output = _renderer_and_output()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
 
     asyncio.run(
         renderer.execute(
@@ -278,7 +279,7 @@ def test_compact_read_hides_offset_preview_but_keeps_call() -> None:
 
 def test_expanded_read_keeps_offset_preview() -> None:
     renderer, output = _renderer_and_output()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     call = events.ToolCallEvent(
         session_id="main",
         tool_call_id="read-1",

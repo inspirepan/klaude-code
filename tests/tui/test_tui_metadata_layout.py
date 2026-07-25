@@ -4,11 +4,12 @@ from klaude_code.protocol import events
 from klaude_code.protocol.models import TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.tui.components.metadata import render_task_metadata
 from klaude_code.tui.components.rich.theme import get_theme
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _render_metadata(event: events.TaskMetadataEvent, *, width: int, compact: bool) -> str:
     console = Console(width=width, record=True, force_terminal=False, theme=get_theme().app_theme)
-    renderable = render_task_metadata(event, compact=compact)
+    renderable = render_task_metadata(event, detail=Detail.COMPACT if compact else Detail.FULL)
     assert renderable is not None
     console.print(renderable)
     return console.export_text(styles=False)
@@ -369,4 +370,4 @@ def test_task_metadata_hides_zero_total_cost_in_both_modes() -> None:
 def test_compact_task_metadata_hides_empty_block() -> None:
     event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem())
 
-    assert render_task_metadata(event, compact=True) is None
+    assert render_task_metadata(event, detail=Detail.COMPACT) is None

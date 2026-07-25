@@ -11,6 +11,7 @@ from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.components.tools import render_generic_tool_result
 from klaude_code.tui.components.user_input import render_interrupt
 from klaude_code.tui.renderer import TUICommandRenderer
+from klaude_code.tui.transcript_detail import Detail
 
 
 def test_interrupt_theme_uses_warn_color() -> None:
@@ -34,7 +35,7 @@ def test_render_interrupt_and_aborted_tool_result_use_interrupt_style() -> None:
 
 def test_renderer_uses_interrupt_style_for_aborted_sub_agent_tool_result(monkeypatch: MonkeyPatch) -> None:
     renderer = TUICommandRenderer()
-    renderer.set_compact_transcript(False)
+    renderer.set_transcript_detail(Detail.FULL)
     output = io.StringIO()
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)

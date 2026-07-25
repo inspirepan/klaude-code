@@ -13,6 +13,20 @@ dynamic UI while an agent task is running:
   status/summary view. `Ctrl+O` toggles the process-local expanded view while
   idle by clearing and replaying the current session; expanded mode preserves
   the legacy full transcript rendering.
+- The detail level itself lives in `tui/transcript_detail.py`, not in a bool on
+  each layer. Rules when touching compact/expanded behavior:
+  - "Does this event print at all" belongs in the `_HIDDEN_IN` table there.
+    `DisplayStateMachine._visible` and `TUICommandRenderer._visible` both ask it;
+    do not add a fresh `if compact and is_sub_agent` guard beside a display method.
+  - "How much does it print" is a `detail: Detail` keyword threaded into the
+    component. Do not add a second `compact: bool` convention or a public
+    `render_compact_*` twin of an existing renderer; `render_compact_*` is only
+    for renderables that have no expanded counterpart at all.
+  - `TranscriptDetail` is one object shared by the machine and the renderer;
+    `TUIDisplay` owns it. Never give the two layers separate copies -- they would
+    drift on toggle and paint a mixed transcript.
+  - `compact` in `components/rich/status.py` is the terminal-*width* axis and is
+    spelled `narrow`. Keep the two axes textually distinct.
 - `MARKDOWN_STREAM_LIVE_REPAINT_ENABLED` is expected to stay `False` for this
   model; do not re-enable Markdown bottom Live to fix spacing or repaint bugs.
 - prompt-toolkit must be the only runtime stdin reader. Do not add background

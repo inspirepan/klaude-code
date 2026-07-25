@@ -119,6 +119,7 @@ from klaude_code.tui.terminal.title import (
     update_blink_params,
     update_terminal_title,
 )
+from klaude_code.tui.transcript_detail import Detail, TranscriptDetail, is_visible
 
 BASH_LIVE_TAIL_MAX_LINES = 5
 _COMPACT_SUB_AGENT_FILE_CHANGE_ACTIONS = {
@@ -219,6 +220,7 @@ class TUICommandRenderer:
         notifier: TerminalNotifier | None = None,
         status_sink: Callable[[tuple[PromptStatusLine, ...], str | None, bool], None] | None = None,
         stream_sink: Callable[[tuple[str, ...], bool], None] | None = None,
+        detail: TranscriptDetail | None = None,
     ) -> None:
         self.themes = get_theme(theme)
         self.console: Console = Console(theme=self.themes.app_theme)
@@ -267,10 +269,26 @@ class TUICommandRenderer:
         self._developer_block_session_id: str | None = None
         self._tool_block_open: bool = False
         self._tool_block_session_id: str | None = None
-        self._compact_transcript = True
+        self._detail = detail if detail is not None else TranscriptDetail()
 
-    def set_compact_transcript(self, compact: bool) -> None:
-        self._compact_transcript = compact
+    def set_transcript_detail(self, detail: Detail) -> None:
+        self._detail.set(detail)
+
+    @property
+    def _compact(self) -> bool:
+        return self._detail.is_compact
+
+    def _visible(self, event: events.Event) -> bool:
+        """Whether this event prints at the current detail level.
+
+        The policy lives in `transcript_detail`; each display method only asks,
+        after any bookkeeping it owns (e.g. session registration) has run.
+        """
+        return is_visible(
+            event,
+            detail=self._detail.current,
+            is_sub_agent=self.is_sub_agent_session(event.session_id),
+        )
 
     def set_replay_mode(self, enabled: bool) -> None:
         """Enable or disable replay rendering mode.
@@ -323,11 +341,7 @@ class TUICommandRenderer:
     def register_session(self, session_id: str, sub_agent_state: SubAgentState | None = None) -> None:
         st = _SessionStatus(sub_agent_state=sub_agent_state)
         if sub_agent_state is not None:
-            if (
-                self._compact_transcript
-                and sub_agent_state.parent_tool_batch_index is not None
-                and self.themes.sub_agent_styles
-            ):
+            if self._compact and sub_agent_state.parent_tool_batch_index is not None and self.themes.sub_agent_styles:
                 color_index = (sub_agent_state.parent_tool_batch_index + 1) % len(self.themes.sub_agent_styles)
                 color = self.themes.sub_agent_styles[color_index]
             else:
@@ -725,7 +739,7 @@ class TUICommandRenderer:
         color = self._get_session_sub_agent_color(session_id)
         fg_only = Style(color=color.color)
 
-        if not self._compact_transcript:
+        if not self._compact:
 
             def _render_expanded() -> Text:
                 if isinstance(text, DynamicText):
@@ -783,9 +797,9 @@ class TUICommandRenderer:
         if text is None:
             return ("none",)
         if isinstance(text, ResponsiveDynamicText):
-            # The compact variant derives from the same state, so fingerprinting
+            # The narrow variant derives from the same state, so fingerprinting
             # the full render is enough to detect content changes.
-            return ("ResponsiveDynamicText", *_text_fingerprint(text.render(compact=False)))
+            return ("ResponsiveDynamicText", *_text_fingerprint(text.render(narrow=False)))
         if isinstance(text, Text):
             return ("Text", *_text_fingerprint(text))
         if isinstance(text, str):
@@ -872,7 +886,7 @@ class TUICommandRenderer:
     # ---------------------------------------------------------------------
 
     def display_tool_call(self, e: events.ToolCallEvent) -> bool:
-        if self._compact_transcript and self.is_sub_agent_session(e.session_id):
+        if not self._visible(e):
             return False
         if c_tools.is_sub_agent_tool(e.tool_name):
             return False
@@ -883,7 +897,7 @@ class TUICommandRenderer:
         return False
 
     def display_tool_call_result(self, e: events.ToolResultEvent, *, is_sub_agent: bool = False) -> bool:
-        if self._compact_transcript and is_sub_agent:
+        if self._compact and is_sub_agent:
             action = _COMPACT_SUB_AGENT_FILE_CHANGE_ACTIONS.get(e.tool_name)
             session = self._sessions.get(e.session_id)
             if action is None or session is None or session.sub_agent_state is None:
@@ -904,7 +918,7 @@ class TUICommandRenderer:
             return False
 
         if (
-            self._compact_transcript
+            self._compact
             and not is_sub_agent
             and e.tool_name == tools.READ
             and isinstance(e.ui_extra, ReadPreviewUIExtra)
@@ -913,7 +927,7 @@ class TUICommandRenderer:
 
         # Fetched page content is bulky and the tool call line already shows the
         # URL, so drop the body in compact transcript mode (same as Read).
-        if self._compact_transcript and not is_sub_agent and e.tool_name == tools.WEB_FETCH and not e.is_error:
+        if self._compact and not is_sub_agent and e.tool_name == tools.WEB_FETCH and not e.is_error:
             return False
 
         if is_sub_agent and e.is_error:
@@ -925,7 +939,7 @@ class TUICommandRenderer:
         if not is_sub_agent and isinstance(e.ui_extra, ImageUIExtra):
             self.display_image(e.ui_extra.file_path)
 
-        renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme, compact=self._compact_transcript)
+        renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme, detail=self._detail.current)
         if renderable is not None:
             self.print(renderable)
             return True
@@ -944,7 +958,7 @@ class TUICommandRenderer:
         )
 
     def display_developer_message(self, e: events.DeveloperMessageEvent) -> bool:
-        if self._compact_transcript and self.is_sub_agent_session(e.session_id):
+        if not self._visible(e):
             return False
         if not c_developer.need_render_developer_message(e):
             return False
@@ -960,14 +974,14 @@ class TUICommandRenderer:
         return True
 
     def display_notice(self, e: events.NoticeEvent) -> None:
-        if self._compact_transcript and self.is_sub_agent_session(e.session_id):
+        if not self._visible(e):
             return
         with self.session_print_context(e.session_id):
             self.print(c_command_output.render_notice(e))
             self.print()
 
     def display_away_summary(self, e: events.AwaySummaryEvent) -> None:
-        if self._compact_transcript and self.is_sub_agent_session(e.session_id):
+        if not self._visible(e):
             return
         with self.session_print_context(e.session_id):
             self.print(c_away_summary.render_away_summary(e))
@@ -975,14 +989,14 @@ class TUICommandRenderer:
             self.print()
 
     def display_session_stats(self, e: events.SessionStatsEvent) -> None:
-        if self._compact_transcript and self.is_sub_agent_session(e.session_id):
+        if not self._visible(e):
             return
         with self.session_print_context(e.session_id):
             self.print(c_command_output.render_session_stats(e))
             self.print()
 
     def display_context_usage(self, e: events.ContextUsageEvent) -> None:
-        if self._compact_transcript and self.is_sub_agent_session(e.session_id):
+        if not self._visible(e):
             return
         with self.session_print_context(e.session_id):
             self.print(c_context_usage.render_context_usage(e))
@@ -1103,18 +1117,21 @@ class TUICommandRenderer:
         self.print()
 
     def display_task_start(self, event: events.TaskStartEvent) -> None:
+        # Registration owns the session's color slot and must happen at every
+        # detail level -- `_visible` also depends on it.
         self.register_session(event.session_id, event.sub_agent_state)
-        if event.sub_agent_state is not None and not self._compact_transcript:
-            with self.session_print_context(event.session_id):
-                self.print(
-                    c_sub_agent.render_sub_agent_call(
-                        event.sub_agent_state,
-                        self._get_session_sub_agent_color(event.session_id),
-                        code_theme=self.themes.code_theme,
-                        effective_model=event.model_id,
-                    )
+        if event.sub_agent_state is None or not self._visible(event):
+            return
+        with self.session_print_context(event.session_id):
+            self.print(
+                c_sub_agent.render_sub_agent_call(
+                    event.sub_agent_state,
+                    self._get_session_sub_agent_color(event.session_id),
+                    code_theme=self.themes.code_theme,
+                    effective_model=event.model_id,
                 )
-                self.print()
+            )
+            self.print()
 
     def display_step_start(self, event: events.StepStartEvent) -> None:
         del event
@@ -1130,36 +1147,35 @@ class TUICommandRenderer:
         print_kitty_image(file_path, file=self.console.file)
 
     def display_task_metadata(self, event: events.TaskMetadataEvent) -> None:
-        if self.is_sub_agent_session(event.session_id):
+        if not self._visible(event):
             return
-        renderable = c_metadata.render_task_metadata(event, compact=self._compact_transcript)
+        renderable = c_metadata.render_task_metadata(event, detail=self._detail.current)
         if renderable is None:
             return
         self.print(renderable)
         self.print()
 
     def display_task_file_change_summary(self, event: events.TaskFileChangeSummaryEvent) -> None:
-        if self.is_sub_agent_session(event.session_id):
+        if not self._visible(event):
             return
         self.print(c_task_file_changes.render_task_file_change_summary(event))
         self.print()
 
     def display_task_finish(self, event: events.TaskFinishEvent) -> None:
-        if self.is_sub_agent_session(event.session_id) and not self._compact_transcript:
-            st = self._sessions[event.session_id]
-            sub_agent_state = st.sub_agent_state
-            if sub_agent_state is None:
-                return
-            description = sub_agent_state.sub_agent_desc
-            with self.session_print_context(event.session_id):
-                self.print(
-                    c_sub_agent.render_sub_agent_result(
-                        event.task_result,
-                        description=description,
-                        sub_agent_color=self._current_sub_agent_color,
-                    )
+        if not self._visible(event):
+            return
+        sub_agent_state = self._sessions[event.session_id].sub_agent_state
+        if sub_agent_state is None:
+            return
+        with self.session_print_context(event.session_id):
+            self.print(
+                c_sub_agent.render_sub_agent_result(
+                    event.task_result,
+                    description=sub_agent_state.sub_agent_desc,
+                    sub_agent_color=self._current_sub_agent_color,
                 )
-                self.print()
+            )
+            self.print()
 
     def display_sub_agent_batch_summary(self, summaries: tuple[SubAgentSummary, ...]) -> None:
         rendered: list[RenderableType] = []
@@ -1193,9 +1209,9 @@ class TUICommandRenderer:
         self.print()
 
     def display_error(self, event: events.ErrorEvent) -> None:
-        if self._compact_transcript and self.is_sub_agent_session(event.session_id):
+        if not self._visible(event):
             return
-        message = event.compact_message if self._compact_transcript and event.compact_message else event.error_message
+        message = event.compact_message if self._compact and event.compact_message else event.error_message
         if event.session_id:
             with self.session_print_context(event.session_id):
                 self.print(c_errors.render_error(Text(message), can_retry=event.can_retry))
@@ -1477,7 +1493,7 @@ class TUICommandRenderer:
                     char_count=char_count,
                     content=content,
                 ):
-                    compact_main_summary = self._compact_transcript and not self.is_sub_agent_session(session_id)
+                    compact_main_summary = self._compact and not self.is_sub_agent_session(session_id)
                     raw_content = content.strip()
                     single_line_content = (
                         self._render_compact_thinking_content(raw_content)

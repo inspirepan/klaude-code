@@ -14,6 +14,7 @@ from klaude_code.tui.machine import DisplayStateMachine, is_cancelled_task_resul
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 from klaude_code.tui.terminal.title import update_terminal_title
+from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
 
 
 class TUIDisplay(DisplayABC):
@@ -30,12 +31,16 @@ class TUIDisplay(DisplayABC):
         on_stream_update: Callable[[tuple[str, ...], bool], None] | None = None,
     ):
         self._notifier = notifier or TerminalNotifier()
-        self._machine = DisplayStateMachine()
+        # One holder, shared: the machine decides which commands to emit and the
+        # renderer decides how to draw them, and a mismatch paints a mixed transcript.
+        self._detail = TranscriptDetail()
+        self._machine = DisplayStateMachine(detail=self._detail)
         self._renderer = TUICommandRenderer(
             theme=theme,
             notifier=self._notifier,
             status_sink=on_status_update,
             stream_sink=on_stream_update,
+            detail=self._detail,
         )
         self._on_prompt_suggestion = on_prompt_suggestion
         self._interrupt_prompt_suggestion_session_id: str | None = None
@@ -45,15 +50,17 @@ class TUIDisplay(DisplayABC):
         self._clear_before_next_replay = False
 
     @property
+    def transcript_detail(self) -> Detail:
+        return self._detail.current
+
+    @property
     def compact_transcript(self) -> bool:
-        return self._machine.compact_transcript
+        return self._detail.is_compact
 
     def toggle_transcript_mode(self) -> bool:
-        compact = not self._machine.compact_transcript
-        self._machine.set_compact_transcript(compact)
-        self._renderer.set_compact_transcript(compact)
+        self._detail.toggle()
         self._clear_before_next_replay = True
-        return compact
+        return self._detail.is_compact
 
     def _create_bg_task(self, coro: Coroutine[Any, Any, None]) -> None:
         task = asyncio.create_task(coro)
