@@ -82,6 +82,7 @@ class TestCacheTrackerBreakDetection:
 
         assert report is not None
         summary_lines = report.summary.splitlines()
+        assert report.compact_summary == "Prompt cache break detected: likely server-side (prompt unchanged, <5min gap)"
         assert summary_lines[0].startswith("Prompt cache break detected: ")
         assert summary_lines[1] == "Cached tokens: 50,000 -> 10,000 (drop: 40,000)"
         assert report.format_message("/tmp/cache-break.txt").splitlines() == [

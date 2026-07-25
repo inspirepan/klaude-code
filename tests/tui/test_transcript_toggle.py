@@ -92,6 +92,32 @@ def test_renderer_switches_task_metadata_between_compact_and_expanded() -> None:
     assert "2 steps" in expanded.getvalue()
 
 
+def test_renderer_switches_error_detail_between_compact_and_expanded() -> None:
+    renderer = TUICommandRenderer()
+    event = events.ErrorEvent(
+        session_id="main",
+        error_message=(
+            "Prompt cache break detected: likely server-side\n"
+            "Cached tokens: 138,752 -> 2,560 (drop: 136,192)\n"
+            "Report: /tmp/cache-break.txt"
+        ),
+        compact_message="Prompt cache break detected: likely server-side",
+        can_retry=True,
+    )
+
+    with renderer.bulk_render_capture() as compact:
+        renderer.display_error(event)
+    assert "Prompt cache break detected: likely server-side" in compact.getvalue()
+    assert "Cached tokens:" not in compact.getvalue()
+    assert "Report:" not in compact.getvalue()
+
+    renderer.set_compact_transcript(False)
+    with renderer.bulk_render_capture() as expanded:
+        renderer.display_error(event)
+    assert "Cached tokens: 138,752 -> 2,560 (drop: 136,192)" in expanded.getvalue()
+    assert "Report: /tmp/cache-break.txt" in expanded.getvalue()
+
+
 def test_display_toggle_is_process_local() -> None:
     display = TUIDisplay()
     assert display.compact_transcript is True

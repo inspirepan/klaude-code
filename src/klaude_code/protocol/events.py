@@ -443,6 +443,7 @@ class WelcomeContextEvent(Event):
 
 class ErrorEvent(Event):
     error_message: str
+    compact_message: str | None = None
     can_retry: bool = False
 
 

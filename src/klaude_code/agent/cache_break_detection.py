@@ -54,10 +54,13 @@ class CacheBreakReport:
     curr_snapshot: _Snapshot
 
     @property
+    def compact_summary(self) -> str:
+        return f"Prompt cache break detected: {self.reason}"
+
+    @property
     def summary(self) -> str:
         return (
-            f"Prompt cache break detected: {self.reason}\n"
-            f"Cached tokens: {self.prev_cached_tokens:,} -> {self.curr_cached_tokens:,} "
+            f"{self.compact_summary}\nCached tokens: {self.prev_cached_tokens:,} -> {self.curr_cached_tokens:,} "
             f"(drop: {self.token_drop:,})"
         )
 

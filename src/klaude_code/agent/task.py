@@ -752,6 +752,7 @@ class TaskExecutor:
                                     yield events.ErrorEvent(
                                         session_id=session_ctx.session_id,
                                         error_message=msg,
+                                        compact_message=cache_break.compact_summary,
                                         can_retry=True,
                                     )
                             case events.ToolResultEvent() as e:

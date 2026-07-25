@@ -1195,11 +1195,12 @@ class TUICommandRenderer:
     def display_error(self, event: events.ErrorEvent) -> None:
         if self._compact_transcript and self.is_sub_agent_session(event.session_id):
             return
+        message = event.compact_message if self._compact_transcript and event.compact_message else event.error_message
         if event.session_id:
             with self.session_print_context(event.session_id):
-                self.print(c_errors.render_error(Text(event.error_message), can_retry=event.can_retry))
+                self.print(c_errors.render_error(Text(message), can_retry=event.can_retry))
         else:
-            self.print(c_errors.render_error(Text(event.error_message), can_retry=event.can_retry))
+            self.print(c_errors.render_error(Text(message), can_retry=event.can_retry))
         self.print()
 
     @staticmethod
