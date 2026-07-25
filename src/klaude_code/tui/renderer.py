@@ -888,6 +888,11 @@ class TUICommandRenderer:
         ):
             return False
 
+        # Fetched page content is bulky and the tool call line already shows the
+        # URL, so drop the body in compact transcript mode (same as Read).
+        if self._compact_transcript and not is_sub_agent and e.tool_name == tools.WEB_FETCH and not e.is_error:
+            return False
+
         if is_sub_agent and e.is_error:
             error_msg = truncate_head(e.result)
             style = ThemeKey.INTERRUPT if e.status == "aborted" else ThemeKey.ERROR
@@ -897,7 +902,7 @@ class TUICommandRenderer:
         if not is_sub_agent and isinstance(e.ui_extra, ImageUIExtra):
             self.display_image(e.ui_extra.file_path)
 
-        renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme)
+        renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme, compact=self._compact_transcript)
         if renderable is not None:
             self.print(renderable)
             return True

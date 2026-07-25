@@ -47,7 +47,9 @@ from klaude_code.tui.components.tools._todo import (
     render_todo_write_tool_call,
 )
 from klaude_code.tui.components.tools._web import (
+    parse_web_search_results,
     render_web_fetch_tool_call,
+    render_web_search_results,
     render_web_search_tool_call,
 )
 from klaude_code.tui.components.tools.compact import render_compact_tool_activity, render_compact_tool_result
@@ -75,6 +77,7 @@ __all__ = [
     "get_tool_active_form",
     "indent_bash_output",
     "is_sub_agent_tool",
+    "parse_web_search_results",
     "render_apply_patch_tool_call",
     "render_ask_user_question_summary",
     "render_ask_user_question_tool_call",
@@ -97,6 +100,7 @@ __all__ = [
     "render_tool_call",
     "render_tool_result",
     "render_web_fetch_tool_call",
+    "render_web_search_results",
     "render_web_search_tool_call",
     "render_write_tool_call",
 ]

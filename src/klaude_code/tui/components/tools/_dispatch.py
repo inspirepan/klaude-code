@@ -41,7 +41,9 @@ from klaude_code.tui.components.tools._rewind import render_rewind_tool_call
 from klaude_code.tui.components.tools._todo import render_todo, render_todo_message
 from klaude_code.tui.components.tools._web import (
     extract_web_result_for_display,
+    parse_web_search_results,
     render_web_fetch_tool_call,
+    render_web_search_results,
     render_web_search_tool_call,
 )
 
@@ -181,6 +183,7 @@ def render_tool_result(
     e: events.ToolResultEvent,
     *,
     code_theme: str = "monokai",
+    compact: bool = True,
 ) -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
@@ -249,7 +252,15 @@ def render_tool_result(
             return render_todo_message(result, status=e.status)
         case tools.BASH:
             return _render_fallback()
-        case tools.WEB_FETCH | tools.WEB_SEARCH:
+        case tools.WEB_SEARCH:
+            search_results = parse_web_search_results(e.result)
+            if search_results:
+                return wrap(render_web_search_results(search_results, compact=compact))
+            display_result = extract_web_result_for_display(e.result)
+            if len(display_result.strip()) == 0:
+                return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
+            return wrap(render_fallback_tool_result(e.tool_name, display_result, status=e.status))
+        case tools.WEB_FETCH:
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
                 return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))

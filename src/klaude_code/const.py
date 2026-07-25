@@ -168,6 +168,7 @@ BASH_MULTILINE_STRING_TRUNCATE_MAX_LINES = (
 )
 URL_TRUNCATE_MAX_LENGTH = 400  # Maximum length for URL truncation in display
 QUERY_DISPLAY_TRUNCATE_LENGTH = 80  # Maximum length for search query display
+WEB_SEARCH_COMPACT_RESULT_LIMIT = 3  # Search result titles listed in compact transcript mode
 NOTIFY_COMPACT_LIMIT = 160  # Maximum length for notification body text
 
 # =============================================================================

@@ -1,13 +1,17 @@
 import json
+import re
+from dataclasses import dataclass
 from typing import Any
 
-from rich.console import RenderableType
+from rich.console import Group, RenderableType
+from rich.table import Table
 from rich.text import Text
 
 from klaude_code.const import (
     INVALID_TOOL_CALL_MAX_LENGTH,
     QUERY_DISPLAY_TRUNCATE_LENGTH,
     URL_TRUNCATE_MAX_LENGTH,
+    WEB_SEARCH_COMPACT_RESULT_LIMIT,
     WEB_SEARCH_DEFAULT_MAX_RESULTS,
 )
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -20,6 +24,10 @@ from klaude_code.tui.components.tools._common import (
 _EXTERNAL_CONTENT_START = "<<<EXTERNAL_UNTRUSTED_CONTENT>>>"
 _EXTERNAL_CONTENT_END = "<<<END_EXTERNAL_UNTRUSTED_CONTENT>>>"
 _WEB_FETCH_SAVED_PATH_PREFIX = "[Full content saved to "
+
+_RESULT_BLOCK_PATTERN = re.compile(r"<result\b[^>]*>(.*?)</result>", re.DOTALL)
+_TITLE_PATTERN = re.compile(r"<title>(.*?)</title>", re.DOTALL)
+_URL_PATTERN = re.compile(r"<url>(.*?)</url>", re.DOTALL)
 
 
 def _truncate_url(url: str, max_length: int = URL_TRUNCATE_MAX_LENGTH) -> str:
@@ -67,6 +75,64 @@ def extract_web_result_for_display(result: str) -> str:
     if saved_path_hint:
         return saved_path_hint
     return content
+
+
+@dataclass
+class WebSearchResultItem:
+    """A single search result extracted from the Web Search tool output."""
+
+    title: str
+    url: str
+
+
+def parse_web_search_results(result: str) -> list[WebSearchResultItem]:
+    """Extract title/url pairs from the `<search_results>` payload of a Web Search result."""
+    items: list[WebSearchResultItem] = []
+    for block in _RESULT_BLOCK_PATTERN.findall(extract_web_result_for_display(result)):
+        url_match = _URL_PATTERN.search(block)
+        if url_match is None:
+            continue
+        url = " ".join(url_match.group(1).split())
+        if not url:
+            continue
+        title_match = _TITLE_PATTERN.search(block)
+        title = " ".join(title_match.group(1).split()) if title_match else ""
+        items.append(WebSearchResultItem(title=title, url=url))
+    return items
+
+
+def render_web_search_results(items: list[WebSearchResultItem], *, compact: bool) -> RenderableType:
+    """Render search results as a numbered list.
+
+    Compact mode lists a few titles only; expanded mode spells out every title
+    with its URL on the next line so it can be selected and copied.
+    """
+    visible = items[:WEB_SEARCH_COMPACT_RESULT_LIMIT] if compact else items
+
+    grid = Table.grid(padding=(0, 1))
+    grid.add_column(no_wrap=True, justify="right")
+    grid.add_column(overflow="ellipsis" if compact else "fold")
+
+    for index, item in enumerate(visible, start=1):
+        number = Text(f"{index}.", ThemeKey.TOOL_RESULT_TRUNCATED)
+        # Style the title as a span, not as the Text base style: a base style
+        # would also paint the cell padding, stretching the underline to the
+        # full terminal width.
+        title = Text(no_wrap=compact, overflow="ellipsis" if compact else "fold")
+        title.append(item.title or item.url, style=ThemeKey.TOOL_RESULT_LINK)
+        grid.add_row(number, title)
+        if not compact and item.title:
+            url = Text(overflow="fold")
+            url.append(item.url, style=ThemeKey.METADATA_DIM)
+            grid.add_row(Text(""), url)
+
+    hidden = len(items) - len(visible)
+    if hidden <= 0:
+        return grid
+    return Group(
+        grid,
+        Text(f"… (more {hidden} results)", ThemeKey.TOOL_RESULT_TRUNCATED, no_wrap=True, overflow="ellipsis"),
+    )
 
 
 def render_web_fetch_tool_call(arguments: str) -> RenderableType:

@@ -200,6 +200,7 @@ class ThemeKey(str, Enum):
     TOOL_PARAM = "tool.param"
     TOOL_PARAM_BOLD = "tool.param.bold"
     TOOL_RESULT = "tool.result"
+    TOOL_RESULT_LINK = "tool.result.link"
     TOOL_RESULT_QUESTION = "tool.result.question"
     TOOL_RESULT_QUESTION_PROMPT = "tool.result.question_prompt"
     TOOL_RESULT_TREE_PREFIX = "tool.result.tree_prefix"
@@ -367,6 +368,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_PARAM.value: palette.green,
                 ThemeKey.TOOL_PARAM_BOLD.value: "bold " + palette.green,
                 ThemeKey.TOOL_RESULT.value: palette.grey_green,
+                ThemeKey.TOOL_RESULT_LINK.value: "underline " + palette.blue,
                 ThemeKey.TOOL_RESULT_QUESTION.value: palette.cyan,
                 ThemeKey.TOOL_RESULT_QUESTION_PROMPT.value: palette.black,
                 ThemeKey.TOOL_RESULT_TREE_PREFIX.value: palette.grey3,
