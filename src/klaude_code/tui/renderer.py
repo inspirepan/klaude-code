@@ -1398,16 +1398,21 @@ class TUICommandRenderer:
     # Notifications
     # ---------------------------------------------------------------------
 
+    @staticmethod
+    def _is_cancelled_task_finish(event: RenderTaskFinish) -> bool:
+        return event.event.task_result.strip().lower() in {"task cancelled", "task canceled"}
+
     def _maybe_notify_task_finish(self, event: RenderTaskFinish) -> None:
         if self._notifier is None:
             return
         if self.is_sub_agent_session(event.event.session_id):
             return
+        if self._is_cancelled_task_finish(event):
+            return
         body = self._compact_result_text(event.event.task_result)
-        normalized_result = event.event.task_result.strip().lower()
         notification = Notification(
             type=NotificationType.AGENT_TASK_COMPLETE,
-            title="Task Cancelled" if normalized_result in {"task cancelled", "task canceled"} else "Task Completed",
+            title="Task Completed",
             body=body,
         )
         self._notifier.notify(notification)
@@ -1539,6 +1544,7 @@ class TUICommandRenderer:
                     if (
                         not self._replay_mode
                         and not self.is_sub_agent_session(cmd_finish.event.session_id)
+                        and not self._is_cancelled_task_finish(cmd_finish)
                         and self._notifier is not None
                         and self._notifier.enabled
                     ):

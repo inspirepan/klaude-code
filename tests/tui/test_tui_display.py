@@ -73,9 +73,10 @@ def test_hide_progress_ui_flushes_open_renderer_blocks() -> None:
     assert output.getvalue().endswith("\n\n")
 
 
-def test_cancelled_task_notification_uses_cancelled_title() -> None:
+def test_cancelled_task_skips_notification(monkeypatch: pytest.MonkeyPatch) -> None:
     notifier = Mock(spec=TerminalNotifier)
     display = TUIDisplay(notifier=notifier)
+    monkeypatch.setattr(renderer_module.asyncio, "sleep", Mock(side_effect=AssertionError("unexpected delay")))
 
     asyncio.run(
         display._renderer.execute(
@@ -90,11 +91,7 @@ def test_cancelled_task_notification_uses_cancelled_title() -> None:
         )
     )
 
-    notifier.notify.assert_called_once()
-    sent = notifier.notify.call_args.args[0]
-    assert isinstance(sent, Notification)
-    assert sent.type == NotificationType.AGENT_TASK_COMPLETE
-    assert sent.title == "Task Cancelled"
+    notifier.notify.assert_not_called()
 
 
 def test_task_notification_follows_final_terminal_title(monkeypatch: pytest.MonkeyPatch) -> None:
