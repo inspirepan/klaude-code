@@ -62,7 +62,7 @@ def get_agent_active_form(arguments: str) -> str:
 
 def render_path(path: str, style: str, is_directory: bool = False) -> Text:
     path = shorten_path(path)
-    if not path.startswith("/") and not path.startswith("."):
+    if not path.startswith(("/", ".", "~")):
         path = "./" + path
     if is_directory:
         path = path.rstrip("/") + "/"

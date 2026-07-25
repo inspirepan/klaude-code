@@ -1,14 +1,49 @@
+from pathlib import Path
+
+import pytest
 from rich.console import Console
 
 from klaude_code.protocol import events, message
 from klaude_code.protocol.models import (
     DeveloperUIExtra,
+    MemoryFileLoaded,
+    MemoryLoadedUIItem,
     SkillActivatedUIItem,
     SkillDiscoveredUIItem,
     SkillListingUIItem,
 )
 from klaude_code.tui.components.developer import render_developer_message
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
+
+
+def test_render_developer_message_memory_paths_preserve_home_prefix(
+    tmp_path: Path,
+    isolated_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    work_dir = tmp_path / "workspace"
+    work_dir.mkdir()
+    monkeypatch.chdir(work_dir)
+    console = Console(width=240, record=False, force_terminal=False, theme=get_theme().app_theme)
+    event = events.DeveloperMessageEvent(
+        session_id="test-session",
+        item=message.DeveloperMessage(
+            parts=[],
+            ui_extra=DeveloperUIExtra(
+                items=[
+                    MemoryLoadedUIItem(
+                        files=[
+                            MemoryFileLoaded(path=str(isolated_home / ".claude" / "CLAUDE.md")),
+                            MemoryFileLoaded(path=str(work_dir / "CLAUDE.md")),
+                        ]
+                    )
+                ]
+            ),
+        ),
+    )
+
+    line = console.render_lines(render_developer_message(event), console.options, pad=False)[0]
+    assert "".join(segment.text for segment in line) == "+ Read memory ~/.claude/CLAUDE.md, ./CLAUDE.md"
 
 
 def test_render_developer_message_skill_name_uses_skill_style() -> None:
