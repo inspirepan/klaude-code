@@ -247,6 +247,9 @@ def test_read_image_inline_success(tmp_path: Path, isolated_home: Path) -> None:
     assert Path(part.file_path).exists()
     assert "[image] tiny.png" in (res.output_text or "")
     assert isinstance(res.ui_extra, ImageUIExtra)
+    assert res.ui_extra.file_path == part.file_path
+    Path(file_path).rename(tmp_path / "moved.png")
+    assert Path(res.ui_extra.file_path).exists()
     # Tracker stores the sha256 of the original image bytes.
     status = session.file_tracker.get(file_path)
     assert status is not None

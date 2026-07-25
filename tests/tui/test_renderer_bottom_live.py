@@ -1,6 +1,7 @@
 # pyright: reportPrivateUsage=false
 
 import io
+from pathlib import Path
 
 from rich.console import Console
 from rich.text import Text
@@ -271,7 +272,7 @@ def test_interactive_status_snapshot_does_not_use_rich_shimmer(monkeypatch) -> N
     renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("Bashing…")),))
 
 
-def test_display_image_prints_caption_then_image(monkeypatch) -> None:
+def test_display_image_prints_caption_then_image(monkeypatch, tmp_path: Path) -> None:
     from klaude_code.tui import renderer as renderer_module
     from klaude_code.tui.renderer import TUICommandRenderer
 
@@ -288,13 +289,31 @@ def test_display_image_prints_caption_then_image(monkeypatch) -> None:
 
     monkeypatch.setattr(renderer_module, "print_kitty_image", _fake_print_kitty_image)
 
-    renderer.display_image("/tmp/demo.png", "Demo")
+    image_path = tmp_path / "demo.png"
+    image_path.write_bytes(b"image")
+    renderer.display_image(str(image_path), "Demo")
 
-    assert called == ["/tmp/demo.png"]
+    assert called == [str(image_path)]
     rendered = output.getvalue()
     assert "\n↓ Demo\n" in rendered
     assert "<image>\n" in rendered
     assert rendered.index("↓ Demo") < rendered.index("<image>\n")
+
+
+def test_display_image_renders_missing_file_as_indented_tool_output(monkeypatch, tmp_path: Path) -> None:
+    from klaude_code.tui.components.rich.theme import ThemeKey
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    rendered: list[Text] = []
+    monkeypatch.setattr(renderer, "print", rendered.append)
+
+    missing_path = tmp_path / "missing.png"
+    renderer.display_image(str(missing_path))
+
+    assert len(rendered) == 1
+    assert rendered[0].plain == f"  Image not found: {missing_path}"
+    assert rendered[0].style == ThemeKey.TOOL_RESULT
 
 
 def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail_lines() -> None:

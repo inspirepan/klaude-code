@@ -79,7 +79,7 @@ async def read_image(
         status="success",
         output_text=output_text,
         parts=[image_part],
-        ui_extra=ImageUIExtra(file_path=file_path),
+        ui_extra=ImageUIExtra(file_path=image_part.file_path),
     )
 
 

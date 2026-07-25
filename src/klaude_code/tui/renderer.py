@@ -9,6 +9,7 @@ from collections import deque
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
+from pathlib import Path
 from typing import Any, cast
 
 from rich import box
@@ -1120,6 +1121,10 @@ class TUICommandRenderer:
                 color_system=cast(Any, self.console.color_system),
             )
             print(caption_text, file=self.console.file, flush=True)
+        path = Path(file_path)
+        if not path.exists():
+            self.print(Text(f"  Image not found: {path}", style=ThemeKey.TOOL_RESULT))
+            return
         print_kitty_image(file_path, file=self.console.file)
 
     def display_task_metadata(self, event: events.TaskMetadataEvent) -> None:
