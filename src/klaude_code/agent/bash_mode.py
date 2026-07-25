@@ -9,7 +9,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import os
-import re
 import secrets
 import shutil
 import signal
@@ -23,28 +22,13 @@ from typing import Any, TextIO
 from klaude_code.const import BASH_MODE_SESSION_OUTPUT_MAX_BYTES, BASH_TERMINATE_TIMEOUT_SEC, TOOL_OUTPUT_TRUNCATION_DIR
 from klaude_code.protocol import events, message
 from klaude_code.session.session import Session
+from klaude_code.tool.core.ansi import strip_ansi
 from klaude_code.tool.core.offload import offload_tool_output
 
 
 @dataclass(frozen=True)
 class _BashModeToolCall:
     tool_name: str = "Bash"
-
-
-_ANSI_ESCAPE_RE = re.compile(
-    r"""
-    \x1B
-    (?:
-        \[[0-?]*[ -/]*[@-~]         |  # CSI sequences
-        \][0-?]*.*?(?:\x07|\x1B\\) |  # OSC sequences
-        P.*?(?:\x07|\x1B\\)       |  # DCS sequences
-        _.*?(?:\x07|\x1B\\)       |  # APC sequences
-        \^.*?(?:\x07|\x1B\\)      |  # PM sequences
-        [@-Z\\-_]                      # 2-char sequences
-    )
-    """,
-    re.VERBOSE | re.DOTALL,
-)
 
 
 def _escape_xml(text: str) -> str:
@@ -105,7 +89,7 @@ async def _emit_clean_chunk(
     if not chunk:
         return
 
-    cleaned = _ANSI_ESCAPE_RE.sub("", chunk)
+    cleaned = strip_ansi(chunk)
     if cleaned:
         await emit_event(events.BashCommandOutputDeltaEvent(session_id=session_id, content=cleaned))
         with contextlib.suppress(Exception):

@@ -26,7 +26,7 @@ def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedF
     return isolated_home
 
 
-class _FakeAgentRunner:
+class _FakeAgentOperationHandler:
     def __init__(self, session: Session) -> None:
         self._agent = SimpleNamespace(session=session)
         self._llm_clients = SimpleNamespace(
@@ -77,7 +77,7 @@ def _build_handler(
         return interaction_response
 
     return runtime_mod.ConfigHandler(
-        agent_runner=cast(Any, _FakeAgentRunner(session)),
+        agent_operation_handler=cast(Any, _FakeAgentOperationHandler(session)),
         model_switcher=cast(Any, object()),
         emit_event=_emit_event,
         request_user_interaction=_request_user_interaction,
@@ -191,7 +191,7 @@ def test_request_model_operation_uses_initial_search_text_for_picker(
     async def _test() -> None:
         session = Session(work_dir=tmp_path)
         emitted: list[events.Event] = []
-        runner = _FakeAgentRunner(session)
+        runner = _FakeAgentOperationHandler(session)
         request_payloads: list[user_interaction.UserInteractionRequestPayload] = []
         match_calls: list[str | None] = []
 
@@ -233,7 +233,7 @@ def test_request_model_operation_uses_initial_search_text_for_picker(
         monkeypatch.setattr(runtime_mod, "match_model_from_config", _match_model)
 
         handler = runtime_mod.ConfigHandler(
-            agent_runner=cast(Any, runner),
+            agent_operation_handler=cast(Any, runner),
             model_switcher=cast(Any, object()),
             emit_event=_emit_event,
             request_user_interaction=_request_user_interaction,
@@ -310,7 +310,7 @@ def test_request_sub_agent_model_operation_selects_fast_model(monkeypatch: pytes
     async def _test() -> None:
         session = Session(work_dir=tmp_path)
         emitted: list[events.Event] = []
-        runner = _FakeAgentRunner(session)
+        runner = _FakeAgentOperationHandler(session)
         request_payloads: list[user_interaction.UserInteractionRequestPayload] = []
         selected_option_ids = iter(["__fast__", "fast-model@openai"])
 
@@ -372,7 +372,7 @@ def test_request_sub_agent_model_operation_selects_fast_model(monkeypatch: pytes
         )
 
         handler = runtime_mod.ConfigHandler(
-            agent_runner=cast(Any, runner),
+            agent_operation_handler=cast(Any, runner),
             model_switcher=cast(Any, object()),
             emit_event=_emit_event,
             request_user_interaction=_request_user_interaction,

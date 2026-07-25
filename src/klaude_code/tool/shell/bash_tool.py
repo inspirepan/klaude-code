@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import os
-import re
 import shlex
 import signal
 import subprocess
@@ -16,32 +15,10 @@ from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_TERMINATE_TIMEOUT_SE
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import BashUIExtra, FileStatus
 from klaude_code.tool.core.abc import ToolABC, load_desc
+from klaude_code.tool.core.ansi import strip_ansi
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
 from klaude_code.tool.shell.command_safety import is_safe_command
-
-# Regex to strip ANSI and terminal control sequences from command output
-#
-# This is intentionally broader than just SGR color codes (e.g. "\x1b[31m").
-# Many interactive or TUI-style programs emit additional escape sequences
-# that move the cursor, clear the screen, or switch screen buffers
-# (CSI/OSC/DCS/APC/PM, etc). If these reach the Rich console, they can
-# corrupt the REPL layout. We therefore remove all of them before
-# rendering the output.
-_ANSI_ESCAPE_RE = re.compile(
-    r"""
-    \x1B
-    (?:
-        \[[0-?]*[ -/]*[@-~]         |  # CSI sequences
-        \][0-?]*.*?(?:\x07|\x1B\\) |  # OSC sequences
-        P.*?(?:\x07|\x1B\\)       |  # DCS sequences
-        _.*?(?:\x07|\x1B\\)       |  # APC sequences
-        \^.*?(?:\x07|\x1B\\)      |  # PM sequences
-        [@-Z\\-_]                      # 2-char sequences
-    )
-    """,
-    re.VERBOSE | re.DOTALL,
-)
 
 _STREAM_POLL_INTERVAL_SEC = 0.05
 
@@ -337,7 +314,7 @@ class BashTool(ToolABC):
             next_offset = temp_file.tell()
             if not data:
                 return "", next_offset
-            return _ANSI_ESCAPE_RE.sub("", data.decode(errors="replace")), next_offset
+            return strip_ansi(data.decode(errors="replace")), next_offset
 
         try:
             # Create a dedicated process group so we can terminate the whole tree.

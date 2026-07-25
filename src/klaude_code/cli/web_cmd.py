@@ -60,14 +60,3 @@ def run_web_server_command(*, host: str, port: int, no_open: bool, debug: bool) 
             debug_type=DebugType.EXECUTION,
         )
         raise typer.Exit(130) from None
-
-
-def register_web_commands(app: typer.Typer) -> None:
-    @app.command("web")
-    def web_command(  # pyright: ignore[reportUnusedFunction]
-        host: str = typer.Option("127.0.0.1", "--host", help="Host to bind web server"),
-        port: int = typer.Option(8765, "--port", help="Port to bind web server"),
-        no_open: bool = typer.Option(False, "--no-open", help="Do not open browser automatically"),
-        debug: bool = typer.Option(False, "--debug", help="Enable debug logs for web server"),
-    ) -> None:
-        run_web_server_command(host=host, port=port, no_open=no_open, debug=debug)

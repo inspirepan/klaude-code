@@ -19,7 +19,7 @@ from prompt_toolkit.output.color_depth import ColorDepth
 
 from klaude_code.config.builtin_config import get_builtin_config
 from klaude_code.config.config import Config
-from klaude_code.tui.input.pt_theme import get_default_picker_style
+from klaude_code.tui.input.pt_theme import get_base_style
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,7 +164,7 @@ def manage_providers_interactive(states: list[ProviderState]) -> dict[str, bool]
     app: Application[dict[str, bool] | None] = Application(
         layout=Layout(HSplit([Window(height=1), header, provider_list]), focused_element=provider_list),
         key_bindings=merge_key_bindings([load_key_bindings(), kb]),
-        style=get_default_picker_style(),
+        style=get_base_style(),
         mouse_support=False,
         full_screen=False,
         erase_when_done=True,

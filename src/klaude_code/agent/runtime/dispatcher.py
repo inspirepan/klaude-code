@@ -9,12 +9,7 @@ from typing import Literal
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import DefaultModelProfileProvider, ModelProfileProvider
-from klaude_code.agent.runtime.agent_ops import (
-    ActiveTask,
-    AgentOperationHandler,
-    AgentRunner,
-    BashRunner,
-)
+from klaude_code.agent.runtime.agent_ops import ActiveTask, AgentOperationHandler
 from klaude_code.agent.runtime.config_ops import ConfigHandler, ModelSwitcher
 from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
@@ -43,26 +38,6 @@ class OperationDispatcherPorts:
     on_child_task_state_change: Callable[[str, str, bool], None]
 
 
-class EventPublisher:
-    def __init__(self, event_bus: EventBus) -> None:
-        self._event_bus = event_bus
-
-    async def publish(
-        self,
-        event: events.Event,
-        *,
-        operation_id: str | None = None,
-        task_id: str | None = None,
-        causation_id: str | None = None,
-    ) -> None:
-        await self._event_bus.publish(
-            event,
-            operation_id=operation_id,
-            task_id=task_id,
-            causation_id=causation_id,
-        )
-
-
 class OperationDispatcher:
     """
     Context object providing shared state and operation handlers.
@@ -81,7 +56,7 @@ class OperationDispatcher:
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
     ):
-        self._event_publisher = EventPublisher(event_bus)
+        self._event_bus = event_bus
         self.llm_clients: LLMClients = llm_clients
         self._ports = ports
 
@@ -104,10 +79,8 @@ class OperationDispatcher:
             request_user_interaction=self.request_user_interaction,
         )
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
-        self._agent_runner = AgentRunner(self._agent_operation_handler)
-        self._bash_runner = BashRunner(self._agent_operation_handler)
         self._config_handler = ConfigHandler(
-            agent_runner=self._agent_runner,
+            agent_operation_handler=self._agent_operation_handler,
             model_switcher=self._model_switcher,
             emit_event=self.emit_event,
             request_user_interaction=self._request_operation_user_interaction,
@@ -186,7 +159,7 @@ class OperationDispatcher:
         causation_id: str | None = None,
     ) -> None:
         """Publish an event to the runtime event bus."""
-        await self._event_publisher.publish(
+        await self._event_bus.publish(
             event,
             operation_id=operation_id,
             task_id=task_id,
@@ -200,21 +173,21 @@ class OperationDispatcher:
         operates on a single interactive session per process.
         """
 
-        return self._agent_runner.current_session_id()
+        return self._agent_operation_handler.current_session_id()
 
     def get_session_llm_clients(self, session_id: str) -> LLMClients:
         """Return the client set owned by an initialized session."""
-        return self._agent_runner.get_session_llm_clients(session_id)
+        return self._agent_operation_handler.get_session_llm_clients(session_id)
 
     @property
     def current_agent(self) -> Agent | None:
         """Return the currently active agent, if any."""
 
-        return self._agent_runner.current_agent
+        return self._agent_operation_handler.current_agent
 
     async def handle_init_agent(self, operation: op.InitAgentOperation) -> None:
         """Initialize an agent for a session and replay history to UI."""
-        await self._agent_runner.init_agent(
+        await self._agent_operation_handler.init_agent(
             operation.session_id,
             work_dir=operation.work_dir,
             defer_welcome_context=operation.defer_welcome_context,
@@ -222,28 +195,28 @@ class OperationDispatcher:
         )
 
     async def replay_session_history(self, session_id: str) -> None:
-        await self._agent_runner.replay_session_history(session_id)
+        await self._agent_operation_handler.replay_session_history(session_id)
 
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
-        await self._agent_runner.run_agent(operation)
+        await self._agent_operation_handler.run_agent(operation)
 
     async def handle_follow_up_agent(self, operation: op.FollowUpAgentOperation) -> None:
-        await self._agent_runner.follow_up_agent(operation)
+        await self._agent_operation_handler.follow_up_agent(operation)
 
     async def handle_run_bash(self, operation: op.RunBashOperation) -> None:
-        await self._bash_runner.run_bash(operation)
+        await self._agent_operation_handler.run_bash(operation)
 
     async def handle_continue_agent(self, operation: op.ContinueAgentOperation) -> None:
-        await self._agent_runner.continue_agent(operation)
+        await self._agent_operation_handler.continue_agent(operation)
 
     async def handle_compact_session(self, operation: op.CompactSessionOperation) -> None:
-        await self._agent_runner.compact_session(operation)
+        await self._agent_operation_handler.compact_session(operation)
 
     async def handle_generate_away_summary(self, operation: op.GenerateAwaySummaryOperation) -> None:
-        await self._agent_runner.generate_away_summary(operation)
+        await self._agent_operation_handler.generate_away_summary(operation)
 
     def cancel_auto_away_summary(self, session_id: str) -> None:
-        self._agent_runner.cancel_auto_away_summary(session_id)
+        self._agent_operation_handler.cancel_auto_away_summary(session_id)
 
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
         await self._config_handler.handle_change_model(operation)
@@ -270,10 +243,10 @@ class OperationDispatcher:
         await self._config_handler.handle_get_context_usage(operation)
 
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
-        await self._agent_runner.clear_session(operation.session_id)
+        await self._agent_operation_handler.clear_session(operation.session_id)
 
     async def handle_fork_and_switch_session(self, operation: op.ForkAndSwitchSessionOperation) -> None:
-        await self._agent_runner.fork_and_switch_session(
+        await self._agent_operation_handler.fork_and_switch_session(
             session_id=operation.session_id,
             new_session_id=operation.new_session_id,
             original_session_short_id=operation.original_session_short_id,
@@ -282,7 +255,7 @@ class OperationDispatcher:
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
-        await self._agent_runner.interrupt(operation.session_id)
+        await self._agent_operation_handler.interrupt(operation.session_id)
         cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
 
@@ -320,13 +293,13 @@ class OperationDispatcher:
     def get_active_task(self, operation_id: str) -> ActiveTask | None:
         """Return the active runtime task for an operation id if present."""
 
-        return self._agent_runner.get_active_task(operation_id)
+        return self._agent_operation_handler.get_active_task(operation_id)
 
     def list_active_tasks(self) -> list[ActiveTask]:
-        return self._agent_runner.list_active_tasks()
+        return self._agent_operation_handler.list_active_tasks()
 
     def clear_active_tasks(self) -> None:
-        self._agent_runner.clear_active_tasks()
+        self._agent_operation_handler.clear_active_tasks()
 
 
 # Static type check: OperationDispatcher must satisfy OperationHandler protocol.

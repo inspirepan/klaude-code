@@ -55,11 +55,6 @@ def is_claude_model(model_name: str | None) -> bool:
     return model_name is not None and model_name.startswith("anthropic/claude")
 
 
-def is_claude_model_any(model_name: str | None) -> bool:
-    """Return True if the model name contains 'claude' (any provider/format)."""
-    return model_name is not None and "claude" in model_name.lower()
-
-
 def model_supports_eager_input_streaming(model_name: str | None) -> bool:
     """Check if the model supports the eager_input_streaming tool parameter.
 

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
-from typing import ClassVar, Literal
+from typing import Any, ClassVar, Literal
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -856,6 +856,53 @@ class _SessionState:
         return f"{status} ({' · '.join(details)})"
 
 
+@dataclass(frozen=True, slots=True)
+class _NoticeSpec:
+    """How a config-change event turns into a single notice line."""
+
+    build_text: Callable[[Any], str]
+    style: str | None = None
+
+
+# Each builder takes its own concrete event type rather than a lambda over `Any`, so renaming or
+# removing a field on one of these events is a type error here instead of a silent format failure.
+def _model_changed_text(e: events.ModelChangedEvent) -> str:
+    return f"Switched to: {e.model_id}{' (saved as default)' if e.saved_as_default else ''}"
+
+
+def _thinking_changed_text(e: events.ThinkingChangedEvent) -> str:
+    return f"Thinking changed: {e.previous} -> {e.current}"
+
+
+def _sub_agent_model_changed_text(e: events.SubAgentModelChangedEvent) -> str:
+    return f"{e.sub_agent_type} model: {e.model_display}"
+
+
+def _compact_model_changed_text(e: events.CompactModelChangedEvent) -> str:
+    return f"Compact model: {e.model_display}"
+
+
+def _fallback_model_config_warn_text(e: events.FallbackModelConfigWarnEvent) -> str:
+    def _display(model: str, provider: str | None) -> str:
+        return f"{model}@{provider}" if provider else model
+
+    label = f"{e.sub_agent_type} model" if e.sub_agent_type else "Model"
+    return (
+        f"{label} fallback: {_display(e.from_model, e.from_provider)} -> "
+        f"{_display(e.to_model, e.to_provider)} ({e.reason})"
+    )
+
+
+# Config-change events that render as one notice line: event type -> notice text (+ style).
+_NOTICE_EVENT_SPECS: dict[type[events.Event], _NoticeSpec] = {
+    events.ModelChangedEvent: _NoticeSpec(_model_changed_text),
+    events.ThinkingChangedEvent: _NoticeSpec(_thinking_changed_text),
+    events.SubAgentModelChangedEvent: _NoticeSpec(_sub_agent_model_changed_text),
+    events.CompactModelChangedEvent: _NoticeSpec(_compact_model_changed_text),
+    events.FallbackModelConfigWarnEvent: _NoticeSpec(_fallback_model_config_warn_text, style="warn"),
+}
+
+
 class DisplayStateMachine:
     """Simplified, session-aware REPL UI state machine.
 
@@ -863,8 +910,8 @@ class DisplayStateMachine:
     boundaries (Start/Delta/End).
     """
 
-    # Event-type -> handler dispatch table, populated after the class body
-    # (see module-level assignment) so entries can reference the methods.
+    # Event-type -> handler dispatch table, derived from the `_handle_<EventName>`
+    # methods after the class body (see module-level assignment).
     _EVENT_HANDLERS: ClassVar[dict[type[events.Event], Callable[..., list[RenderCommand]]]] = {}
 
     def __init__(self) -> None:
@@ -1175,49 +1222,14 @@ class DisplayStateMachine:
             )
         ]
 
-    @staticmethod
-    def _notice_from_model_changed(event: events.ModelChangedEvent) -> events.NoticeEvent:
-        default_note = " (saved as default)" if event.saved_as_default else ""
-        return events.NoticeEvent(
-            session_id=event.session_id,
-            content=f"Switched to: {event.model_id}{default_note}",
-        )
-
-    @staticmethod
-    def _notice_from_thinking_changed(event: events.ThinkingChangedEvent) -> events.NoticeEvent:
-        return events.NoticeEvent(
-            session_id=event.session_id,
-            content=f"Thinking changed: {event.previous} -> {event.current}",
-        )
-
-    @staticmethod
-    def _notice_from_sub_agent_model_changed(event: events.SubAgentModelChangedEvent) -> events.NoticeEvent:
-        return events.NoticeEvent(
-            session_id=event.session_id,
-            content=f"{event.sub_agent_type} model: {event.model_display}",
-        )
-
-    @staticmethod
-    def _notice_from_compact_model_changed(event: events.CompactModelChangedEvent) -> events.NoticeEvent:
-        return events.NoticeEvent(
-            session_id=event.session_id,
-            content=f"Compact model: {event.model_display}",
-        )
-
-    @staticmethod
-    def _notice_from_fallback_model_config_warn(event: events.FallbackModelConfigWarnEvent) -> events.NoticeEvent:
-        def _display(model: str, provider: str | None) -> str:
-            return f"{model}@{provider}" if provider else model
-
-        label = f"{event.sub_agent_type} model" if event.sub_agent_type else "Model"
-        return events.NoticeEvent(
-            session_id=event.session_id,
-            content=(
-                f"{label} fallback: {_display(event.from_model, event.from_provider)} -> "
-                f"{_display(event.to_model, event.to_provider)} ({event.reason})"
-            ),
-            style="warn",
-        )
+    def _render_config_notice(self, e: events.Event, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+        """Handler shared by every event in `_NOTICE_EVENT_SPECS`."""
+        spec = _NOTICE_EVENT_SPECS[type(e)]
+        return [
+            RenderNotice(
+                events.NoticeEvent(session_id=e.session_id, content=spec.build_text(e), style=spec.style),
+            )
+        ]
 
     def show_sigint_exit_toast(self) -> list[RenderCommand]:
         self._spinner.set_toast_status(SIGINT_DOUBLE_PRESS_EXIT_TEXT)
@@ -1560,41 +1572,6 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(RenderContextUsage(e))
-        return cmds
-
-    def _handle_ModelChangedEvent(
-        self, e: events.ModelChangedEvent, *, is_replay: bool, s: _SessionState
-    ) -> list[RenderCommand]:
-        cmds: list[RenderCommand] = []
-        cmds.append(RenderNotice(self._notice_from_model_changed(e)))
-        return cmds
-
-    def _handle_ThinkingChangedEvent(
-        self, e: events.ThinkingChangedEvent, *, is_replay: bool, s: _SessionState
-    ) -> list[RenderCommand]:
-        cmds: list[RenderCommand] = []
-        cmds.append(RenderNotice(self._notice_from_thinking_changed(e)))
-        return cmds
-
-    def _handle_SubAgentModelChangedEvent(
-        self, e: events.SubAgentModelChangedEvent, *, is_replay: bool, s: _SessionState
-    ) -> list[RenderCommand]:
-        cmds: list[RenderCommand] = []
-        cmds.append(RenderNotice(self._notice_from_sub_agent_model_changed(e)))
-        return cmds
-
-    def _handle_CompactModelChangedEvent(
-        self, e: events.CompactModelChangedEvent, *, is_replay: bool, s: _SessionState
-    ) -> list[RenderCommand]:
-        cmds: list[RenderCommand] = []
-        cmds.append(RenderNotice(self._notice_from_compact_model_changed(e)))
-        return cmds
-
-    def _handle_FallbackModelConfigWarnEvent(
-        self, e: events.FallbackModelConfigWarnEvent, *, is_replay: bool, s: _SessionState
-    ) -> list[RenderCommand]:
-        cmds: list[RenderCommand] = []
-        cmds.append(RenderNotice(self._notice_from_fallback_model_config_warn(e)))
         return cmds
 
     def _handle_OperationRejectedEvent(
@@ -2222,53 +2199,31 @@ class DisplayStateMachine:
         return cmds
 
 
-# Event-type -> handler dispatch table (built after class definition to reference methods).
-DisplayStateMachine._EVENT_HANDLERS = {
-    events.WelcomeEvent: DisplayStateMachine._handle_WelcomeEvent,
-    events.WelcomeContextEvent: DisplayStateMachine._handle_WelcomeContextEvent,
-    events.UserMessageEvent: DisplayStateMachine._handle_UserMessageEvent,
-    events.BashCommandStartEvent: DisplayStateMachine._handle_BashCommandStartEvent,
-    events.BashCommandOutputDeltaEvent: DisplayStateMachine._handle_BashCommandOutputDeltaEvent,
-    events.BashCommandEndEvent: DisplayStateMachine._handle_BashCommandEndEvent,
-    events.TaskStartEvent: DisplayStateMachine._handle_TaskStartEvent,
-    events.CompactionStartEvent: DisplayStateMachine._handle_CompactionStartEvent,
-    events.CompactionEndEvent: DisplayStateMachine._handle_CompactionEndEvent,
-    events.ForkCacheHitRateEvent: DisplayStateMachine._handle_ForkCacheHitRateEvent,
-    events.RewindEvent: DisplayStateMachine._handle_RewindEvent,
-    events.DeveloperMessageEvent: DisplayStateMachine._handle_DeveloperMessageEvent,
-    events.SessionTitleChangedEvent: DisplayStateMachine._handle_SessionTitleChangedEvent,
-    events.NoticeEvent: DisplayStateMachine._handle_NoticeEvent,
-    events.AwaySummaryEvent: DisplayStateMachine._handle_AwaySummaryEvent,
-    events.AwaySummaryStartEvent: DisplayStateMachine._handle_AwaySummaryStartEvent,
-    events.AwaySummaryEndEvent: DisplayStateMachine._handle_AwaySummaryEndEvent,
-    events.SessionStatsEvent: DisplayStateMachine._handle_SessionStatsEvent,
-    events.ContextUsageEvent: DisplayStateMachine._handle_ContextUsageEvent,
-    events.ModelChangedEvent: DisplayStateMachine._handle_ModelChangedEvent,
-    events.ThinkingChangedEvent: DisplayStateMachine._handle_ThinkingChangedEvent,
-    events.SubAgentModelChangedEvent: DisplayStateMachine._handle_SubAgentModelChangedEvent,
-    events.CompactModelChangedEvent: DisplayStateMachine._handle_CompactModelChangedEvent,
-    events.FallbackModelConfigWarnEvent: DisplayStateMachine._handle_FallbackModelConfigWarnEvent,
-    events.OperationRejectedEvent: DisplayStateMachine._handle_OperationRejectedEvent,
-    events.StepStartEvent: DisplayStateMachine._handle_StepStartEvent,
-    events.ThinkingStartEvent: DisplayStateMachine._handle_ThinkingStartEvent,
-    events.ThinkingDeltaEvent: DisplayStateMachine._handle_ThinkingDeltaEvent,
-    events.ThinkingEndEvent: DisplayStateMachine._handle_ThinkingEndEvent,
-    events.AssistantTextStartEvent: DisplayStateMachine._handle_AssistantTextStartEvent,
-    events.AssistantTextDeltaEvent: DisplayStateMachine._handle_AssistantTextDeltaEvent,
-    events.AssistantTextEndEvent: DisplayStateMachine._handle_AssistantTextEndEvent,
-    events.ResponseCompleteEvent: DisplayStateMachine._handle_ResponseCompleteEvent,
-    events.ToolCallStartEvent: DisplayStateMachine._handle_ToolCallStartEvent,
-    events.ToolCallEvent: DisplayStateMachine._handle_ToolCallEvent,
-    events.ToolLongRunningEvent: DisplayStateMachine._handle_ToolLongRunningEvent,
-    events.ToolOutputDeltaEvent: DisplayStateMachine._handle_ToolOutputDeltaEvent,
-    events.ToolResultEvent: DisplayStateMachine._handle_ToolResultEvent,
-    events.TaskMetadataEvent: DisplayStateMachine._handle_TaskMetadataEvent,
-    events.TaskFileChangeSummaryEvent: DisplayStateMachine._handle_TaskFileChangeSummaryEvent,
-    events.UsageEvent: DisplayStateMachine._handle_UsageEvent,
-    events.CacheHitRateEvent: DisplayStateMachine._handle_CacheHitRateEvent,
-    events.StepEndEvent: DisplayStateMachine._handle_StepEndEvent,
-    events.TaskFinishEvent: DisplayStateMachine._handle_TaskFinishEvent,
-    events.InterruptEvent: DisplayStateMachine._handle_InterruptEvent,
-    events.ErrorEvent: DisplayStateMachine._handle_ErrorEvent,
-    events.EndEvent: DisplayStateMachine._handle_EndEvent,
-}
+# Event-type -> handler dispatch table, derived from the class's own `_handle_<EventName>` methods
+# so a new handler needs no separate registration step.
+_HANDLER_PREFIX = "_handle_"
+
+
+def _build_event_handlers() -> dict[type[events.Event], Callable[..., list[RenderCommand]]]:
+    """Map every `_handle_<EventName>` method (plus the shared notice handler) to its event class.
+
+    Raises at import time when a handler has no matching `events.<EventName>` class, or when two
+    handlers claim the same event, so a misnamed handler cannot silently never fire.
+    """
+    handlers: dict[type[events.Event], Callable[..., list[RenderCommand]]] = {
+        event_cls: DisplayStateMachine._render_config_notice for event_cls in _NOTICE_EVENT_SPECS
+    }
+    for name, member in vars(DisplayStateMachine).items():
+        if not name.startswith(_HANDLER_PREFIX) or not callable(member):
+            continue
+        event_name = name.removeprefix(_HANDLER_PREFIX)
+        event_cls = getattr(events, event_name, None)
+        if not isinstance(event_cls, type) or not issubclass(event_cls, events.Event):
+            raise RuntimeError(f"DisplayStateMachine.{name} has no matching events.{event_name} event class")
+        if event_cls in handlers:
+            raise RuntimeError(f"duplicate DisplayStateMachine handler for events.{event_name}")
+        handlers[event_cls] = member
+    return handlers
+
+
+DisplayStateMachine._EVENT_HANDLERS = _build_event_handlers()

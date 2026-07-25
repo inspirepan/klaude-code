@@ -16,32 +16,14 @@ from prompt_toolkit.styles import Style
 
 from klaude_code.tui.components.rich.theme import DARK_PALETTE, LIGHT_PALETTE, Palette
 
-# Class tokens for per-fragment tuples. Defining them as constants keeps the
-# call sites self-documenting and prevents typos.
-CLASS_PROMPT = "class:prompt"
-CLASS_PROMPT_BASH = "class:prompt.bash"
+# Class tokens for the per-fragment tuples that are built in Python. Defining
+# them as constants keeps those call sites self-documenting and prevents typos.
+# Class names only referenced from runtime strings live in ``_build_style_rules``.
 CLASS_META = "class:meta"
 CLASS_TOOL_RESULT = "class:tool.result"
 CLASS_METADATA_FOOTER = "class:metadata.footer"
 CLASS_USER_INPUT = "class:user.input"
-CLASS_USER_INPUT_RULE = "class:user.input.rule"
 CLASS_LINES = "class:lines"
-CLASS_MSG = "class:msg"
-CLASS_TEXT = "class:text"
-CLASS_SEPARATOR = "class:separator"
-CLASS_SEPARATOR_HIGHLIGHTED = "class:separator.highlighted"
-CLASS_ASSISTANT = "class:assistant"
-CLASS_ACCENT_RED = "class:accent.red"
-CLASS_ACCENT_GREEN = "class:accent.green"
-CLASS_ACCENT_YELLOW = "class:accent.yellow"
-CLASS_ACCENT_BLUE = "class:accent.blue"
-CLASS_ACCENT_CYAN = "class:accent.cyan"
-CLASS_ACCENT_MAGENTA = "class:accent.magenta"
-CLASS_ACCENT_PURPLE = "class:accent.purple"
-CLASS_ACCENT_ORANGE = "class:accent.orange"
-CLASS_SKILL_PROJECT = "class:skill.project"
-CLASS_SKILL_USER = "class:skill.user"
-CLASS_SKILL_SYSTEM = "class:skill.system"
 
 
 _theme_name: str = "dark"
@@ -187,13 +169,3 @@ def get_base_style() -> Style:
     """Return the shared prompt_toolkit Style for the current theme."""
 
     return Style(_build_style_rules(_palette()))
-
-
-def get_default_picker_style() -> Style:
-    """Alias for ``get_base_style`` used by selector call sites.
-
-    Kept as a separate name so callers that want to layer extra overrides on
-    top (via ``merge_styles``) have a clearly-named base to start from.
-    """
-
-    return get_base_style()

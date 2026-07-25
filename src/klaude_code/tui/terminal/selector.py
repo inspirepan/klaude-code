@@ -25,7 +25,7 @@ from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.styles.base import BaseStyle
 
 from klaude_code.config.formatters import format_model_params
-from klaude_code.tui.input.pt_theme import get_default_picker_style
+from klaude_code.tui.input.pt_theme import get_base_style
 
 
 def _default_picker_style_factory() -> Style:
@@ -37,7 +37,7 @@ def _default_picker_style_factory() -> Style:
     module-level alias that callers can still import.
     """
 
-    return get_default_picker_style()
+    return get_base_style()
 
 
 # Rows reserved above the list for picker chrome (top spacer, header, search
@@ -725,7 +725,7 @@ def select_one[T](
             frame=False,
         )
 
-    base_style = get_default_picker_style()
+    base_style = get_base_style()
     merged_style = merge_styles([base_style, style] if style is not None else [base_style])
 
     root_children: list[Container] = [top_spacer_window, header_window]

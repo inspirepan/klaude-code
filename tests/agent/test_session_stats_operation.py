@@ -24,7 +24,7 @@ def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedF
     return isolated_home
 
 
-class _FakeAgentRunner:
+class _FakeAgentOperationHandler:
     def __init__(self, session: Session) -> None:
         self._agent = SimpleNamespace(session=session)
 
@@ -53,7 +53,7 @@ def test_get_session_stats_operation_emits_status_event(tmp_path: Path) -> None:
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
 
         handler = runtime_mod.ConfigHandler(
-            agent_runner=cast(Any, _FakeAgentRunner(session)),
+            agent_operation_handler=cast(Any, _FakeAgentOperationHandler(session)),
             model_switcher=cast(Any, object()),
             emit_event=_emit_event,
             request_user_interaction=_request_user_interaction,
