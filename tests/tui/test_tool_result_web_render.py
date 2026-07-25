@@ -116,10 +116,7 @@ def test_render_web_search_tool_result_underlines_title_text_only() -> None:
     # paint the cell padding and stretch the underline across the terminal.
     lines = console.render_lines(renderable, console.options, pad=False)
     title_line, title_index = next(
-        (line, index)
-        for line in lines
-        for index, segment in enumerate(line)
-        if segment.text == "Short title"
+        (line, index) for line in lines for index, segment in enumerate(line) if segment.text == "Short title"
     )
     title_style = title_line[title_index].style
     padding_style = title_line[title_index + 1].style

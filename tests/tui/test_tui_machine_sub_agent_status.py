@@ -188,7 +188,7 @@ def test_sub_agent_latest_tool_defers_long_target_truncation_to_renderer() -> No
     )
     commands = machine.transition(events.ThinkingStartEvent(session_id="sub-1"))
 
-    assert _line_plain(_last_spinner_update(commands).status_lines[1]) == f"Reading… {long_path}"
+    assert _line_plain(_last_spinner_update(commands).status_lines[1]) == f"Reading… ./{long_path}"
 
 
 def test_sub_agent_tool_uses_active_form_until_result() -> None:
@@ -214,7 +214,7 @@ def test_sub_agent_tool_uses_active_form_until_result() -> None:
             arguments='{"file_path":"src/output.py","content":"pass"}',
         )
     )
-    assert _line_plain(_last_spinner_update(running).status_lines[1]) == "Writing… src/output.py"
+    assert _line_plain(_last_spinner_update(running).status_lines[1]) == "Writing… ./src/output.py"
 
     completed = machine.transition(
         events.ToolResultEvent(
@@ -225,7 +225,7 @@ def test_sub_agent_tool_uses_active_form_until_result() -> None:
             status="success",
         )
     )
-    assert _line_plain(_last_spinner_update(completed).status_lines[1]) == "Write src/output.py ✓"
+    assert _line_plain(_last_spinner_update(completed).status_lines[1]) == "Write ./src/output.py ✓"
 
 
 def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> None:
@@ -267,8 +267,8 @@ def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> N
     thinking = machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="reviewing"))
     assert [_line_plain(line) for line in _last_spinner_update(thinking).status_lines] == [
         "Finder: tracking usage stats · test-model · 2 tools · Thinking… · 0s",
-        "Read stats.py ✓",
-        "Read stats.py ✓",
+        "Read ./stats.py ✓",
+        "Read ./stats.py ✓",
     ]
 
     machine.transition(events.ThinkingEndEvent(session_id="sub-1"))
@@ -277,8 +277,8 @@ def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> N
 
     assert [_line_plain(line) for line in _last_spinner_update(commands).status_lines] == [
         "Finder: tracking usage stats · test-model · 2 tools · Typing… · 0s",
-        "Read stats.py ✓",
-        "Read stats.py ✓",
+        "Read ./stats.py ✓",
+        "Read ./stats.py ✓",
     ]
 
 
@@ -313,10 +313,10 @@ def test_sub_agent_shows_up_to_four_latest_tool_activity_lines() -> None:
     assert last_update is not None
     assert [_line_plain(line) for line in last_update.status_lines] == [
         "Finder: searching · test-model · 4 tools · Running… · 0s",
-        "Reading… src/0.py",
-        "Reading… src/1.py",
-        "Reading… src/2.py",
-        "Reading… src/3.py",
+        "Reading… ./src/0.py",
+        "Reading… ./src/1.py",
+        "Reading… ./src/2.py",
+        "Reading… ./src/3.py",
     ]
 
 
@@ -352,18 +352,18 @@ def test_sub_agent_summarizes_earlier_tools_and_keeps_history_across_steps() -> 
     assert [_line_plain(line) for line in last_update.status_lines] == [
         "Finder: searching · test-model · 6 tools · Running… · 0s",
         "… (more 3 tools)",
-        "Reading… src/3.py",
-        "Reading… src/4.py",
-        "Reading… src/5.py",
+        "Reading… ./src/3.py",
+        "Reading… ./src/4.py",
+        "Reading… ./src/5.py",
     ]
 
     next_step = machine.transition(events.StepStartEvent(session_id="sub-1"))
     assert [_line_plain(line) for line in _last_spinner_update(next_step).status_lines] == [
         "Finder: searching · test-model · 6 tools · Running… · 0s",
         "… (more 3 tools)",
-        "Reading… src/3.py",
-        "Reading… src/4.py",
-        "Reading… src/5.py",
+        "Reading… ./src/3.py",
+        "Reading… ./src/4.py",
+        "Reading… ./src/5.py",
     ]
 
     next_tool = machine.transition(
@@ -377,9 +377,9 @@ def test_sub_agent_summarizes_earlier_tools_and_keeps_history_across_steps() -> 
     assert [_line_plain(line) for line in _last_spinner_update(next_tool).status_lines] == [
         "Finder: searching · test-model · 7 tools · Running… · 0s",
         "… (more 4 tools)",
-        "Reading… src/4.py",
-        "Reading… src/5.py",
-        "Reading… src/next.py",
+        "Reading… ./src/4.py",
+        "Reading… ./src/5.py",
+        "Reading… ./src/next.py",
     ]
 
 
@@ -647,7 +647,7 @@ def test_finished_summary_uses_actual_status_budget(monkeypatch: pytest.MonkeyPa
         "Four",
         "Finder: task 1 · test-model · 4 tools · Running… · 0s",
         "… (more 3 tools)",
-        "Reading… src/3.py",
+        "Reading… ./src/3.py",
     ]
 
 
@@ -1010,16 +1010,16 @@ def test_sub_agent_status_reduces_to_three_tool_lines_to_keep_nine_agents_visibl
         assert lines[start : start + 4] == [
             f"Finder: searching {agent_index} · test-model · 4 tools · Running… · 0s",
             "… (more 2 tools)",
-            f"Reading… src/{agent_index}-2.py",
-            f"Reading… src/{agent_index}-3.py",
+            f"Reading… ./src/{agent_index}-2.py",
+            f"Reading… ./src/{agent_index}-3.py",
         ]
 
 
 @pytest.mark.parametrize(
     ("terminal_height", "expected_activity_lines"),
     [
-        (15, ["… (more 2 tools)", "Reading… src/0-2.py", "Reading… src/0-3.py"]),
-        (12, ["… (more 3 tools)", "Reading… src/0-3.py"]),
+        (15, ["… (more 2 tools)", "Reading… ./src/0-2.py", "Reading… ./src/0-3.py"]),
+        (12, ["… (more 3 tools)", "Reading… ./src/0-3.py"]),
     ],
 )
 def test_sub_agent_status_dynamically_reduces_tool_line_budget(

@@ -223,19 +223,39 @@ def test_compact_activity_can_defer_truncation_to_parent_renderable() -> None:
     assert rendered.plain == f"Bash {description} echo"
 
 
-def test_compact_activity_does_not_apply_tool_name_bold_to_parameters() -> None:
-    renderer, _ = _renderer_and_output()
-    path = "/Users/test/project/tests/tui/test_example.py"
+def test_compact_read_activity_shortens_path(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del isolated_home
+    monkeypatch.chdir(tmp_path)
+    path = tmp_path / "project" / "tests" / "test_example.py"
+
     rendered = render_compact_tool_activity(
         tools.READ,
-        f'{{"file_path":"{path}"}}',
+        json.dumps({"file_path": str(path)}),
+        max_target_chars=None,
+    )
+
+    assert rendered.plain == "Read ./project/tests/test_example.py"
+
+
+def test_compact_activity_does_not_apply_tool_name_bold_to_parameters(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del isolated_home
+    renderer, _ = _renderer_and_output()
+    monkeypatch.chdir(tmp_path)
+    path = tmp_path / "project" / "tests" / "tui" / "test_example.py"
+    rendered = render_compact_tool_activity(
+        tools.READ,
+        json.dumps({"file_path": str(path)}),
         status="success",
         max_target_chars=None,
     )
 
     segments = [segment for segment in renderer.console.render(rendered) if segment.text]
     tool_segment = next(segment for segment in segments if "Read" in segment.text)
-    path_segment = next(segment for segment in segments if path in segment.text)
+    path_segment = next(segment for segment in segments if "./project/tests/tui/test_example.py" in segment.text)
     assert tool_segment.style is not None and tool_segment.style.bold
     assert path_segment.style is None or not path_segment.style.bold
 

@@ -9,6 +9,7 @@ from rich.style import Style
 if TYPE_CHECKING:
     from rich.console import RenderableType
 
+
 class Quote:
     """Wrapper to add quote prefix to any content"""
 

@@ -43,9 +43,7 @@ class MaxLines:
         style = None
         if clipped and self.ellipsis_style is not None:
             style = (
-                console.get_style(self.ellipsis_style)
-                if isinstance(self.ellipsis_style, str)
-                else self.ellipsis_style
+                console.get_style(self.ellipsis_style) if isinstance(self.ellipsis_style, str) else self.ellipsis_style
             )
         for index, line in enumerate(visible):
             if clipped and index == len(visible) - 1:

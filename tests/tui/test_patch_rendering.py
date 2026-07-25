@@ -27,9 +27,7 @@ def _file_diff(path: str, line: int) -> DiffFileDiff:
 
 
 def test_single_file_patch_shows_path_in_call_and_not_diff() -> None:
-    call = render_apply_patch_tool_call(
-        '{"patch":"*** Begin Patch\\n*** Update File: src/example.py\\n*** End Patch"}'
-    )
+    call = render_apply_patch_tool_call('{"patch":"*** Begin Patch\\n*** Update File: src/example.py\\n*** End Patch"}')
     result = render_tool_result(
         events.ToolResultEvent(
             session_id="main",
@@ -54,10 +52,7 @@ def test_single_file_patch_shows_path_in_call_and_not_diff() -> None:
 
 def test_multi_file_patch_shows_count_and_paths_per_diff() -> None:
     call = render_apply_patch_tool_call(
-        "{\"patch\":\"*** Begin Patch\\n"
-        "*** Update File: src/one.py\\n"
-        "*** Update File: src/two.py\\n"
-        "*** End Patch\"}"
+        '{"patch":"*** Begin Patch\\n*** Update File: src/one.py\\n*** Update File: src/two.py\\n*** End Patch"}'
     )
     result = render_tool_result(
         events.ToolResultEvent(

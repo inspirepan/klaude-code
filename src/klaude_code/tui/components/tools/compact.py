@@ -22,6 +22,7 @@ from klaude_code.tui.components.tools._common import (
     MARK_WEB_SEARCH,
     MARK_WRITE,
     TOOL_SUBJECT_INDENT,
+    render_path,
     render_tool_call_tree,
 )
 
@@ -59,6 +60,12 @@ def _one_line(value: object) -> str:
     return " ".join(str(value).replace("\\\n", " ").split())
 
 
+def _path_target(value: object) -> str:
+    if not isinstance(value, str) or not value:
+        return _one_line(value)
+    return render_path(value, ThemeKey.TOOL_PARAM_FILE_PATH).plain
+
+
 def _clamp_subject(value: str, max_chars: int | None, *, include_mark: bool) -> str:
     if max_chars is None:
         return value
@@ -75,7 +82,7 @@ def _tool_target(tool_name: str, arguments: str) -> tuple[str, str | ThemeKey]:
     target_style: str | ThemeKey = ThemeKey.TOOL_PARAM
 
     if tool_name == tools.READ:
-        target = _one_line(args.get("file_path", ""))
+        target = _path_target(args.get("file_path", ""))
         offset = args.get("offset")
         limit = args.get("limit")
         if target and isinstance(offset, int):
@@ -85,7 +92,7 @@ def _tool_target(tool_name: str, arguments: str) -> tuple[str, str | ThemeKey]:
                 target += f"-{start + limit - 1}"
         target_style = ThemeKey.TOOL_PARAM_FILE_PATH
     elif tool_name in (tools.EDIT, tools.WRITE):
-        target = _one_line(args.get("file_path", ""))
+        target = _path_target(args.get("file_path", ""))
         target_style = ThemeKey.TOOL_PARAM_FILE_PATH
     elif tool_name == tools.BASH:
         description, command_summary = _bash_parts(args)
@@ -99,7 +106,7 @@ def _tool_target(tool_name: str, arguments: str) -> tuple[str, str | ThemeKey]:
     else:
         for key in ("description", "query", "file_path", "path", "url", "command"):
             if args.get(key):
-                target = _one_line(args[key])
+                target = _path_target(args[key]) if key in ("file_path", "path") else _one_line(args[key])
                 break
 
     return target, target_style
