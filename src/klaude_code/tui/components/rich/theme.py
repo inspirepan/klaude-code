@@ -374,7 +374,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
                 ThemeKey.TOOL_TIMEOUT.value: palette.grey2,
                 # BASH SYNTAX
-                ThemeKey.BASH_TOOL_DESCRIPTION.value: "bold " + palette.blue + " on " + palette.blue_sub_background,
+                ThemeKey.BASH_TOOL_DESCRIPTION.value: palette.blue + " on " + palette.blue_sub_background,
                 ThemeKey.BASH_COMMAND.value: "bold " + palette.green,
                 ThemeKey.BASH_ARGUMENT.value: palette.green,
                 ThemeKey.BASH_OPERATOR.value: palette.grey2,
@@ -463,7 +463,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 # THINKING (used for left-side mark in thinking output)
                 ThemeKey.THINKING.value: "italic " + palette.grey2,
                 ThemeKey.THINKING_BOLD.value: "italic " + palette.grey1,
-                "markdown.strong": "bold italic " + palette.grey1,
+                "markdown.strong": "italic " + palette.grey1,
                 "markdown.code": palette.grey1 + " italic on " + palette.code_background,
                 "markdown.code.block": palette.grey2,
                 "markdown.code.fence": palette.grey2,

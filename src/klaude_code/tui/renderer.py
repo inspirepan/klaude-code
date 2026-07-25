@@ -738,6 +738,9 @@ class TUICommandRenderer:
             else:
                 content = Text(str(text))
             if line.sub_agent_continuation:
+                for span in tuple(content.spans):
+                    if span.style == ThemeKey.TOOL_NAME:
+                        content.stylize(Style(bold=False), span.start, span.end)
                 prefix_text = f"    {c_sub_agent.COMPACT_CONTINUATION_PREFIX}"
             elif line.sub_agent_animated:
                 prefix_text = "··· "

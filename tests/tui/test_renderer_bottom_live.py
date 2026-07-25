@@ -166,6 +166,7 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
 def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     from klaude_code.protocol.models import SubAgentState
     from klaude_code.tui.commands import PromptStatusLine, SpinnerStatusLine
+    from klaude_code.tui.components.rich.theme import ThemeKey
     from klaude_code.tui.renderer import TUICommandRenderer
 
     status_updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
@@ -177,10 +178,16 @@ def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     )
     renderer.set_progress_ui_suspended(True)
     renderer.spinner_start()
+    tool_status = Text()
+    tool_status.append("Bash", style=ThemeKey.TOOL_NAME)
+    tool_status.append(" inspect files ✓")
+    transcript_tool_segment = next(segment for segment in renderer.console.render(tool_status) if "Bash" in segment.text)
+    assert transcript_tool_segment.style is not None
+    assert transcript_tool_segment.style.bold is True
     renderer.spinner_update(
         status_lines=(
             SpinnerStatusLine(text=Text("Finder: inspect status · Thinking… · 2s"), session_id="child"),
-            SpinnerStatusLine(text=Text("Bash inspect files ✓"), session_id="child", sub_agent_continuation=True),
+            SpinnerStatusLine(text=tool_status, session_id="child", sub_agent_continuation=True),
         )
     )
 
@@ -193,6 +200,8 @@ def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     assert tool_line.text == "    ↳ Bash inspect files ✓"
     assert tool_line.show_spinner is False
     assert tool_line.inline_spinner_style is None
+    tool_name_style = next(style for style, text in tool_line.fragments if "Bash" in text)
+    assert "bold" not in tool_name_style
 
 
 def test_interactive_status_snapshot_does_not_use_rich_shimmer(monkeypatch) -> None:
