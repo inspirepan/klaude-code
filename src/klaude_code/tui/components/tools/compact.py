@@ -73,6 +73,7 @@ def render_compact_tool_activity(
     tool_name: str,
     arguments: str,
     *,
+    display_name: str | None = None,
     status: str | None = None,
     max_target_chars: int | None = 40,
     include_truncation_mark: bool = True,
@@ -80,7 +81,7 @@ def render_compact_tool_activity(
     """Render one compact tool activity line."""
 
     line = Text()
-    line.append(format_pascal_case(tool_name), style=ThemeKey.TOOL_NAME)
+    line.append(display_name or format_pascal_case(tool_name), style=ThemeKey.TOOL_NAME)
     if tool_name == tools.BASH:
         description, command_summary = _bash_parts(_tool_arguments(arguments))
         target = "  ".join(part for part in (description, command_summary) if part)

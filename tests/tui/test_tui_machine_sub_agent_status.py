@@ -142,7 +142,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == [
         "Finder: searching yyyyy · test-model · Running… · 0s",
-        "Bash",
+        "Bashing…",
     ]
 
     cmds = machine.transition(
@@ -156,7 +156,8 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == [
         "Finder: searching yyyyy · test-model · Running… · 0s",
-        "Bash",
+        "Bashing…",
+        "Bashing…",
     ]
 
 
@@ -186,7 +187,44 @@ def test_sub_agent_latest_tool_defers_long_target_truncation_to_renderer() -> No
     )
     commands = machine.transition(events.ThinkingStartEvent(session_id="sub-1"))
 
-    assert _line_plain(_last_spinner_update(commands).status_lines[1]) == f"Read {long_path}"
+    assert _line_plain(_last_spinner_update(commands).status_lines[1]) == f"Reading… {long_path}"
+
+
+def test_sub_agent_tool_uses_active_form_until_result() -> None:
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id="sub-1",
+            sub_agent_state=SubAgentState(
+                sub_agent_type="general-purpose",
+                sub_agent_desc="updating files",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    running = machine.transition(
+        events.ToolCallEvent(
+            session_id="sub-1",
+            tool_call_id="write-1",
+            tool_name=tools.WRITE,
+            arguments='{"file_path":"src/output.py","content":"pass"}',
+        )
+    )
+    assert _line_plain(_last_spinner_update(running).status_lines[1]) == "Writing… src/output.py"
+
+    completed = machine.transition(
+        events.ToolResultEvent(
+            session_id="sub-1",
+            tool_call_id="write-1",
+            tool_name=tools.WRITE,
+            result="written",
+            status="success",
+        )
+    )
+    assert _line_plain(_last_spinner_update(completed).status_lines[1]) == "Write src/output.py ✓"
 
 
 def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> None:
@@ -229,6 +267,7 @@ def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> N
     assert [_line_plain(line) for line in _last_spinner_update(thinking).status_lines] == [
         "Finder: tracking usage stats · test-model · 2 tools · Thinking… · 0s",
         "Read stats.py ✓",
+        "Read stats.py ✓",
     ]
 
     machine.transition(events.ThinkingEndEvent(session_id="sub-1"))
@@ -238,6 +277,105 @@ def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> N
     assert [_line_plain(line) for line in _last_spinner_update(commands).status_lines] == [
         "Finder: tracking usage stats · test-model · 2 tools · Typing… · 0s",
         "Read stats.py ✓",
+        "Read stats.py ✓",
+    ]
+
+
+def test_sub_agent_step_shows_up_to_four_tool_activity_lines() -> None:
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id="sub-1",
+            sub_agent_state=SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    machine.transition(events.StepStartEvent(session_id="sub-1"))
+
+    last_update: SpinnerUpdate | None = None
+    for index in range(4):
+        commands = machine.transition(
+            events.ToolCallEvent(
+                session_id="sub-1",
+                tool_call_id=f"read-{index}",
+                tool_name=tools.READ,
+                arguments=f'{{"file_path":"src/{index}.py"}}',
+            )
+        )
+        last_update = _last_spinner_update(commands)
+
+    assert last_update is not None
+    assert [_line_plain(line) for line in last_update.status_lines] == [
+        "Finder: searching · test-model · 4 tools · Running… · 0s",
+        "Reading… src/0.py",
+        "Reading… src/1.py",
+        "Reading… src/2.py",
+        "Reading… src/3.py",
+    ]
+
+
+def test_sub_agent_step_summarizes_tools_beyond_four_lines_and_replaces_on_next_tool() -> None:
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id="sub-1",
+            sub_agent_state=SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+    machine.transition(events.StepStartEvent(session_id="sub-1"))
+
+    last_update: SpinnerUpdate | None = None
+    for index in range(6):
+        commands = machine.transition(
+            events.ToolCallEvent(
+                session_id="sub-1",
+                tool_call_id=f"read-{index}",
+                tool_name=tools.READ,
+                arguments=f'{{"file_path":"src/{index}.py"}}',
+            )
+        )
+        last_update = _last_spinner_update(commands)
+
+    assert last_update is not None
+    assert [_line_plain(line) for line in last_update.status_lines] == [
+        "Finder: searching · test-model · 6 tools · Running… · 0s",
+        "Reading… src/0.py",
+        "Reading… src/1.py",
+        "Reading… src/2.py",
+        "… (more 3 tools)",
+    ]
+
+    next_step = machine.transition(events.StepStartEvent(session_id="sub-1"))
+    assert [_line_plain(line) for line in _last_spinner_update(next_step).status_lines] == [
+        "Finder: searching · test-model · 6 tools · Running… · 0s",
+        "Reading… src/0.py",
+        "Reading… src/1.py",
+        "Reading… src/2.py",
+        "… (more 3 tools)",
+    ]
+
+    next_tool = machine.transition(
+        events.ToolCallEvent(
+            session_id="sub-1",
+            tool_call_id="next-read",
+            tool_name=tools.READ,
+            arguments='{"file_path":"src/next.py"}',
+        )
+    )
+    assert [_line_plain(line) for line in _last_spinner_update(next_tool).status_lines] == [
+        "Finder: searching · test-model · 7 tools · Running… · 0s",
+        "Reading… src/next.py",
     ]
 
 
@@ -745,7 +883,11 @@ def test_sub_agent_status_lines_cap_with_more_indicator(monkeypatch: pytest.Monk
     assert lines == [
         "Finder: searching 0 · test-model · Running… · 0s",
         "Initializing…",
-        "… 6 more agents",
+        "Finder: searching 1 · test-model · Running… · 0s",
+        "Initializing…",
+        "Finder: searching 2 · test-model · Running… · 0s",
+        "Initializing…",
+        "… 4 more agents",
     ]
 
     monkeypatch.setattr(machine_module.shutil, "get_terminal_size", lambda fallback: os.terminal_size((120, 6)))
@@ -754,7 +896,107 @@ def test_sub_agent_status_lines_cap_with_more_indicator(monkeypatch: pytest.Monk
     assert [_line_plain(line) for line in _last_spinner_update(short_terminal).status_lines] == [
         "Finder: searching 0 · test-model · Thinking… · 0s",
         "Initializing…",
+        "… 6 more agents",
     ]
+
+
+def test_sub_agent_status_reduces_to_three_tool_lines_to_keep_nine_agents_visible(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(machine_module.shutil, "get_terminal_size", lambda fallback: os.terminal_size((120, 50)))
+    monkeypatch.setattr(machine_module, "_terminal_lines_cache", None)
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+
+    last_update: SpinnerUpdate | None = None
+    for agent_index in range(9):
+        session_id = f"sub-{agent_index}"
+        machine.transition(
+            events.TaskStartEvent(
+                session_id=session_id,
+                sub_agent_state=SubAgentState(
+                    sub_agent_type="finder",
+                    sub_agent_desc=f"searching {agent_index}",
+                    sub_agent_prompt="prompt",
+                ),
+                model_id="test-model",
+            )
+        )
+        for tool_index in range(4):
+            commands = machine.transition(
+                events.ToolCallEvent(
+                    session_id=session_id,
+                    tool_call_id=f"read-{agent_index}-{tool_index}",
+                    tool_name=tools.READ,
+                    arguments=f'{{"file_path":"src/{agent_index}-{tool_index}.py"}}',
+                )
+            )
+            last_update = _last_spinner_update(commands)
+
+    assert last_update is not None
+    lines = [_line_plain(line) for line in last_update.status_lines]
+    assert len(lines) == 36
+    for agent_index in range(9):
+        start = agent_index * 4
+        assert lines[start : start + 4] == [
+            f"Finder: searching {agent_index} · test-model · 4 tools · Running… · 0s",
+            f"Reading… src/{agent_index}-0.py",
+            f"Reading… src/{agent_index}-1.py",
+            "… (more 2 tools)",
+        ]
+
+
+@pytest.mark.parametrize(
+    ("terminal_height", "expected_activity_lines"),
+    [
+        (15, ["Reading… src/0-0.py", "Reading… src/0-1.py", "… (more 2 tools)"]),
+        (12, ["Reading… src/0-0.py", "… (more 3 tools)"]),
+    ],
+)
+def test_sub_agent_status_dynamically_reduces_tool_line_budget(
+    monkeypatch: pytest.MonkeyPatch,
+    terminal_height: int,
+    expected_activity_lines: list[str],
+) -> None:
+    monkeypatch.setattr(
+        machine_module.shutil,
+        "get_terminal_size",
+        lambda fallback: os.terminal_size((120, terminal_height)),
+    )
+    monkeypatch.setattr(machine_module, "_terminal_lines_cache", None)
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+
+    last_update: SpinnerUpdate | None = None
+    for agent_index in range(3):
+        session_id = f"sub-{agent_index}"
+        machine.transition(
+            events.TaskStartEvent(
+                session_id=session_id,
+                sub_agent_state=SubAgentState(
+                    sub_agent_type="finder",
+                    sub_agent_desc=f"searching {agent_index}",
+                    sub_agent_prompt="prompt",
+                ),
+                model_id="test-model",
+            )
+        )
+        for tool_index in range(4):
+            commands = machine.transition(
+                events.ToolCallEvent(
+                    session_id=session_id,
+                    tool_call_id=f"read-{agent_index}-{tool_index}",
+                    tool_name=tools.READ,
+                    arguments=f'{{"file_path":"src/{agent_index}-{tool_index}.py"}}',
+                )
+            )
+            last_update = _last_spinner_update(commands)
+
+    assert last_update is not None
+    lines = [_line_plain(line) for line in last_update.status_lines]
+    group_size = 1 + len(expected_activity_lines)
+    assert len(lines) == group_size * 3
+    assert lines[1:group_size] == expected_activity_lines
 
 
 def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
