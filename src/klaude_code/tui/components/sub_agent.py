@@ -89,7 +89,7 @@ def render_compact_sub_agent_summary(
 def render_compact_file_change(
     *,
     sub_agent_state: SubAgentState,
-    action: str,
+    action: Text,
     change: RenderableType,
     color: Style,
 ) -> RenderableType:
@@ -102,7 +102,7 @@ def render_compact_file_change(
         header.append(": ", style=Style(color=color.color))
         header.append(sub_agent_state.sub_agent_desc, style=Style(color=color.color, italic=True))
     header.append(" · ", style=ThemeKey.METADATA_DIM)
-    header.append(action, style=ThemeKey.TOOL_NAME)
+    header.append_text(action)
     return Group(header, change)
 
 

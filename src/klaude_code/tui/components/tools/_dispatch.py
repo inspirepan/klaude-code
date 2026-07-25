@@ -1,6 +1,7 @@
 import shutil
 
 from rich import box
+from rich.align import Align
 from rich.console import Group, RenderableType
 from rich.padding import Padding
 from rich.panel import Panel
@@ -25,6 +26,7 @@ from klaude_code.tui.components.tools._common import (
     is_sub_agent_tool,
     render_fallback_tool_result,
     render_generic_tool_call,
+    render_path,
 )
 from klaude_code.tui.components.tools._file import (
     render_apply_patch_tool_call,
@@ -46,6 +48,8 @@ from klaude_code.tui.components.tools._web import (
     render_web_search_results,
     render_web_search_tool_call,
 )
+
+_COMPACT_MARKDOWN_PREVIEW_LINES = 5
 
 
 def _tool_result_display_name(tool_name: str) -> str:
@@ -162,11 +166,34 @@ def _extract_markdown_doc(ui_extra: ToolResultUIExtra | None) -> MarkdownDocUIEx
     return None
 
 
-def render_markdown_doc(md_ui: MarkdownDocUIExtra, *, code_theme: str) -> RenderableType:
-    """Render markdown document content in a panel with 2-char left indent and top margin."""
-    # Limit panel width to min(100, terminal_width) minus left indent (2)
+def render_markdown_doc(
+    md_ui: MarkdownDocUIExtra,
+    *,
+    code_theme: str,
+    compact: bool = False,
+    show_file_path: bool = False,
+) -> RenderableType:
+    """Render a Markdown document preview with a 2-character left indent."""
     terminal_width = shutil.get_terminal_size().columns
     panel_width = min(100, terminal_width) - 2
+
+    if compact:
+        lines = md_ui.content.splitlines()
+        hidden_lines = max(0, len(lines) - _COMPACT_MARKDOWN_PREVIEW_LINES)
+        preview: list[RenderableType] = [
+            Text(line, no_wrap=True, overflow="ellipsis") for line in lines[:_COMPACT_MARKDOWN_PREVIEW_LINES]
+        ]
+        if hidden_lines:
+            preview.append(Text(f"\u2026 (more {hidden_lines} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+        title = render_path(md_ui.file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
+        title.no_wrap = True
+        title.overflow = "ellipsis"
+        block = Padding(
+            Group(*([title] if show_file_path else []), *preview),
+            (0, 1),
+            style=ThemeKey.WRITE_MARKDOWN_PANEL,
+        )
+        return Padding(Align(block, width=panel_width, pad=False), (0, 0, 0, 2))
 
     panel = Panel(
         NoInsetMarkdown(md_ui.content, code_theme=code_theme),
@@ -175,8 +202,43 @@ def render_markdown_doc(md_ui: MarkdownDocUIExtra, *, code_theme: str) -> Render
         style=ThemeKey.WRITE_MARKDOWN_PANEL,
         width=panel_width,
     )
-    # (top, right, bottom, left) - 1 line top margin, 2-char left indent
     return Padding(panel, (1, 0, 0, 2))
+
+
+def _file_change_count(ui_extra: ToolResultUIExtra | None) -> int:
+    items = ui_extra.items if isinstance(ui_extra, MultiUIExtra) else [ui_extra]
+    return sum(len(item.files) if isinstance(item, DiffUIExtra) else 1 for item in items if item is not None)
+
+
+def render_compact_file_change_action(e: events.ToolResultEvent, action: str) -> Text:
+    """Render a sub-agent file action with a single target or multi-file count."""
+    rendered = Text()
+    rendered.append(action, style=ThemeKey.TOOL_NAME)
+    items = e.ui_extra.items if isinstance(e.ui_extra, MultiUIExtra) else [e.ui_extra]
+    markdown_docs = [item for item in items if isinstance(item, MarkdownDocUIExtra)]
+    diff_files = [file for item in items if isinstance(item, DiffUIExtra) for file in item.files]
+    file_count = len(markdown_docs) + len(diff_files)
+
+    if file_count == 1:
+        file_path = markdown_docs[0].file_path if markdown_docs else diff_files[0].file_path
+        rendered.append(" ")
+        rendered.append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
+        if diff_files:
+            file_diff = diff_files[0]
+            stats = Text()
+            if file_diff.stats_add:
+                stats.append(f"+{file_diff.stats_add}", style=ThemeKey.DIFF_STATS_ADD)
+            if file_diff.stats_remove:
+                if stats:
+                    stats.append(" ")
+                stats.append(f"-{file_diff.stats_remove}", style=ThemeKey.DIFF_STATS_REMOVE)
+            if stats:
+                rendered.append(" (")
+                rendered.append_text(stats)
+                rendered.append(")")
+    elif file_count > 1:
+        rendered.append(f" · {file_count} files", style=ThemeKey.METADATA_DIM)
+    return rendered
 
 
 def render_tool_result(
@@ -212,7 +274,15 @@ def render_tool_result(
         for item in e.ui_extra.items:
             if isinstance(item, MarkdownDocUIExtra):
                 # Markdown docs render without TreeQuote wrap (already has 2-char indent)
-                rendered.append(render_markdown_doc(item, code_theme=code_theme))
+                show_file_path = compact and e.tool_name == tools.APPLY_PATCH and _file_change_count(e.ui_extra) > 1
+                rendered.append(
+                    render_markdown_doc(
+                        item,
+                        code_theme=code_theme,
+                        compact=compact,
+                        show_file_path=show_file_path,
+                    )
+                )
             elif isinstance(item, DiffUIExtra):
                 show_file_name = e.tool_name == tools.APPLY_PATCH
                 rendered.append(wrap(r_diffs.render_structured_diff(item, show_file_name=show_file_name)))
@@ -236,12 +306,12 @@ def render_tool_result(
         case tools.WRITE:
             if md_ui:
                 # Markdown docs render without TreeQuote wrap (already has 2-char indent)
-                return render_markdown_doc(md_ui, code_theme=code_theme)
+                return render_markdown_doc(md_ui, code_theme=code_theme, compact=compact)
             return wrap(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
         case tools.APPLY_PATCH:
             if md_ui:
                 # Markdown docs render without TreeQuote wrap (already has 2-char indent)
-                return render_markdown_doc(md_ui, code_theme=code_theme)
+                return render_markdown_doc(md_ui, code_theme=code_theme, compact=compact)
             if diff_ui:
                 return wrap(r_diffs.render_structured_diff(diff_ui, show_file_name=True))
             return _render_fallback()
@@ -283,12 +353,20 @@ def render_compact_file_change(
     """Render diffs and new Markdown documents from a compact sub-agent result."""
 
     items = e.ui_extra.items if isinstance(e.ui_extra, MultiUIExtra) else [e.ui_extra]
+    show_file_names = _file_change_count(e.ui_extra) > 1
     rendered: list[RenderableType] = []
     for item in items:
         if isinstance(item, DiffUIExtra):
-            rendered.append(r_diffs.render_structured_diff(item, show_file_name=True))
-        elif e.tool_name == tools.WRITE and isinstance(item, MarkdownDocUIExtra):
-            rendered.append(render_markdown_doc(item, code_theme=code_theme))
+            rendered.append(r_diffs.render_structured_diff(item, show_file_name=show_file_names))
+        elif e.tool_name in (tools.WRITE, tools.APPLY_PATCH) and isinstance(item, MarkdownDocUIExtra):
+            rendered.append(
+                render_markdown_doc(
+                    item,
+                    code_theme=code_theme,
+                    compact=True,
+                    show_file_path=show_file_names,
+                )
+            )
     if not rendered:
         return None
     return Group(*rendered)

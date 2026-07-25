@@ -891,7 +891,7 @@ class TUICommandRenderer:
             self.print(
                 c_sub_agent.render_compact_file_change(
                     sub_agent_state=session.sub_agent_state,
-                    action=action,
+                    action=c_tools.render_compact_file_change_action(e, action),
                     change=change,
                     color=self._get_session_sub_agent_color(e.session_id),
                 )
