@@ -224,7 +224,6 @@ class SpinnerStatusLine:
     session_id: str | None = None
     sub_agent_continuation: bool = False
     sub_agent_animated: bool = True
-    is_sub_agent: bool = False
     # False on the wrapped remainder of a continuation, which aligns under the
     # "↳ " marker rather than repeating it.
     continuation_leading: bool = True

@@ -16,7 +16,7 @@ from klaude_code.tui.components.rich.markdown import MarkdownStream
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
 
 
-def _make_stream(*, width: int = 80) -> MarkdownStream:
+def _make_stream(*, width: int = 80, scrollback_write_sink: Any = None) -> MarkdownStream:
     theme = Theme(
         {
             "markdown.code.border": "dim",
@@ -29,7 +29,14 @@ def _make_stream(*, width: int = 80) -> MarkdownStream:
         }
     )
     console = Console(file=io.StringIO(), force_terminal=True, width=width, theme=theme)
-    return MarkdownStream(console=console, theme=theme, left_margin=2, mark=">", mark_style="bold")
+    return MarkdownStream(
+        console=console,
+        theme=theme,
+        left_margin=2,
+        mark=">",
+        mark_style="bold",
+        scrollback_write_sink=scrollback_write_sink,
+    )
 
 
 def test_candidate_stable_line_incomplete_fence_is_zero() -> None:
@@ -80,6 +87,15 @@ def test_message_starting_with_list_has_no_rendered_leading_blank_line() -> None
 
     assert plain.splitlines()[0].startswith("> ")
     assert "• first" in plain.splitlines()[0]
+
+
+def test_stable_scrollback_write_invokes_sink() -> None:
+    writes: list[None] = []
+    stream = _make_stream(scrollback_write_sink=lambda: writes.append(None))
+
+    stream.update("hello", final=True)
+
+    assert writes == [None]
 
 
 def test_split_source_keeps_multiline_list_item_live_until_next_item() -> None:

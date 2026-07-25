@@ -61,7 +61,7 @@ def _metadata(text: str) -> PromptStatusLine:
     return PromptStatusLine(text, "metadata")
 
 
-def _sub_agent_status(text: str, *, suppress_top_spacer: bool = False) -> PromptStatusLine:
+def _boundary_status(text: str, *, suppress_top_spacer: bool = False) -> PromptStatusLine:
     return PromptStatusLine(
         text,
         "status",
@@ -227,7 +227,7 @@ def test_status_reserved_height_shrinks_with_remaining_status_rows() -> None:
     ]
 
 
-def test_only_sub_agent_with_stream_boundary_suppresses_top_spacer() -> None:
+def test_only_status_with_scrollback_boundary_suppresses_top_spacer() -> None:
     prompt_input = _build_input("")
     bar = prompt_input._bottom_bar
 
@@ -237,10 +237,13 @@ def test_only_sub_agent_with_stream_boundary_suppresses_top_spacer() -> None:
     prompt_input.set_status_lines((_status("Bashing…"),))
     assert bar.reserved_layout_rows() == 2
 
-    prompt_input.set_status_lines((_sub_agent_status("Finder: searching"),))
+    prompt_input.set_status_lines((_boundary_status("Bashing…"),))
     assert bar.reserved_layout_rows() == 2
 
-    prompt_input.set_status_lines((_sub_agent_status("Finder: searching", suppress_top_spacer=True),))
+    prompt_input.set_status_lines((_boundary_status("Bashing…", suppress_top_spacer=True),))
+    assert bar.reserved_layout_rows() == 1
+
+    prompt_input.set_status_lines((PromptStatusLine("in 1k", "metadata", suppress_top_spacer=True),))
     assert bar.reserved_layout_rows() == 1
 
 

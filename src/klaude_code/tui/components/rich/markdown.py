@@ -322,6 +322,7 @@ class MarkdownStream:
         right_margin: int = 0,
         markdown_class: Callable[..., Markdown] | None = None,
         image_callback: Callable[[str, str | None], None] | None = None,
+        scrollback_write_sink: Callable[[], None] | None = None,
     ) -> None:
         """Initialize the markdown stream.
 
@@ -335,6 +336,7 @@ class MarkdownStream:
             right_margin (int, optional): Number of columns to reserve on the right side
             markdown_class: Markdown class to use for rendering (defaults to NoInsetMarkdown)
             image_callback: Callback to display local images (called with file path and optional caption)
+            scrollback_write_sink: Callback invoked before stable content is written to scrollback
         """
         self._stable_rendered_lines: list[str] = []
         self._stable_source_line_count: int = 0
@@ -346,6 +348,7 @@ class MarkdownStream:
 
         self._live_sink = live_sink
         self._image_callback = image_callback
+        self._scrollback_write_sink = scrollback_write_sink
         self._displayed_images: set[str] = set()
 
         # Streaming control
@@ -809,6 +812,8 @@ class MarkdownStream:
                 self._live_sink(live_text_to_set)
 
             if stable_chunk_to_print:
+                if self._scrollback_write_sink is not None:
+                    self._scrollback_write_sink()
                 end = "\n" if stable_chunk_to_print.endswith("\n") else ""
                 stable_text = stable_chunk_to_print[:-1] if end else stable_chunk_to_print
                 self.console.print(Text.from_ansi(stable_text), end=end)

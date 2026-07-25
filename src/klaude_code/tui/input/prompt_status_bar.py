@@ -301,7 +301,7 @@ class PromptBottomBar:
         return tuple(line for line in self._status_lines if line.kind != "metadata")
 
     def _top_spacer_visible(self) -> bool:
-        return not any(line.suppress_top_spacer for line in self._visible_status_lines())
+        return not any(line.suppress_top_spacer for line in self._status_lines)
 
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []

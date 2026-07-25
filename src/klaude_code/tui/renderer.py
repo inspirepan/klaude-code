@@ -142,7 +142,7 @@ SPINNER_UPDATE_MIN_INTERVAL_S = 1 / 10
 
 # Dedup key for spinner updates. `reset_bottom_height` only participates in
 # the key; it carries no rendering state of its own.
-_SpinnerUpdateKey = tuple[object, object, object, object, object, object]
+_SpinnerUpdateKey = tuple[object, object, object, object, object, object, object]
 
 
 def _text_fingerprint(text: Text) -> tuple[str, str, tuple[tuple[int, int, str], ...]]:
@@ -246,7 +246,7 @@ class TUICommandRenderer:
         )
         self._status_line_specs: tuple[SpinnerStatusLine, ...] = ()
         self._notifier = notifier
-        self._assistant_boundary_printed = False
+        self._scrollback_boundary_printed = False
         self._status_sink = status_sink
         self._stream_sink = stream_sink
         self._assistant_stream = _StreamState()
@@ -394,13 +394,22 @@ class TUICommandRenderer:
     def print(self, *objects: Any, style: StyleType | None = None, end: str = "\n") -> None:
         if self._current_sub_agent_color:
             if objects:
+                self._set_scrollback_boundary(False)
                 content = objects[0] if len(objects) == 1 else objects
                 self.console.print(
                     Quote(content, style=Style(color=self._current_sub_agent_color.color), prefix="▌ "),
                     overflow="ellipsis",
                 )
             return
+        self._set_scrollback_boundary(not objects)
         self.console.print(*objects, style=style, end=end, overflow="ellipsis")
+
+    def _set_scrollback_boundary(self, printed: bool) -> None:
+        if self._scrollback_boundary_printed == printed:
+            return
+        self._scrollback_boundary_printed = printed
+        if self._progress_ui_suspended and self._spinner_visible:
+            self._emit_prompt_status()
 
     def _clear_open_blocks(self) -> None:
         self._developer_block_open = False
@@ -412,6 +421,7 @@ class TUICommandRenderer:
         if session_id is not None and self.is_sub_agent_session(session_id):
             with self.session_print_context(session_id):
                 self.print(Text(""))
+            self._set_scrollback_boundary(True)
         else:
             self.print()
 
@@ -508,6 +518,7 @@ class TUICommandRenderer:
             update.reset_bottom_height,
             update.leading_blank_line,
             update.top_blank_line,
+            self._scrollback_boundary_printed,
         )
 
     def _apply_spinner_update(self, update: SpinnerUpdate) -> bool:
@@ -628,7 +639,6 @@ class TUICommandRenderer:
             inline_spinner_style: str | None = None
             show_spinner = True
             spec = self._status_line_specs[status_index] if status_index < len(self._status_line_specs) else None
-            is_sub_agent = spec.is_sub_agent if spec is not None else False
             if spec is not None:
                 status_index += 1
                 if spec.sub_agent_continuation:
@@ -645,7 +655,7 @@ class TUICommandRenderer:
                     fragments,
                     show_spinner,
                     inline_spinner_style,
-                    is_sub_agent and self._assistant_boundary_printed,
+                    self._scrollback_boundary_printed,
                 )
             )
         if self._status_metadata_text is not None:
@@ -714,7 +724,15 @@ class TUICommandRenderer:
             return ()
         rendered = self.console.render_lines(self._status_metadata_text, self.console.options, pad=False)
         lines = tuple("".join(segment.text for segment in line if not segment.control).rstrip() for line in rendered)
-        return tuple(PromptStatusLine(line, "metadata") for line in lines if line)
+        return tuple(
+            PromptStatusLine(
+                line,
+                "metadata",
+                suppress_top_spacer=self._scrollback_boundary_printed,
+            )
+            for line in lines
+            if line
+        )
 
     def _emit_prompt_stream(
         self,
@@ -842,6 +860,7 @@ class TUICommandRenderer:
             left_margin=MARKDOWN_LEFT_MARGIN,
             right_margin=MARKDOWN_RIGHT_MARGIN,
             markdown_class=ThinkingMarkdown,
+            scrollback_write_sink=self._mark_scrollback_content,
         )
 
     def _new_assistant_mdstream(self) -> MarkdownStream:
@@ -855,7 +874,11 @@ class TUICommandRenderer:
             left_margin=MARKDOWN_LEFT_MARGIN,
             right_margin=MARKDOWN_RIGHT_MARGIN,
             image_callback=self.display_image,
+            scrollback_write_sink=self._mark_scrollback_content,
         )
+
+    def _mark_scrollback_content(self) -> None:
+        self._set_scrollback_boundary(False)
 
     def _flush_thinking(self) -> None:
         self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
@@ -1449,8 +1472,10 @@ class TUICommandRenderer:
                 case RenderWelcomeContext(event=event):
                     self.display_welcome_context(event)
                 case RenderUserMessage(event=event):
-                    self._assistant_boundary_printed = False
                     self.display_user_message(event)
+                    # prompt-toolkit repaints over the user turn's trailing row;
+                    # the next task still needs the fixed top spacer.
+                    self._set_scrollback_boundary(False)
                 case RenderTimeMarker(label=label):
                     self.display_time_marker(label)
                 case RenderTaskStart(event=event):
@@ -1510,7 +1535,6 @@ class TUICommandRenderer:
                     finalized = self._assistant_stream.finalize()
                     if finalized and had_content:
                         self.print()
-                        self._assistant_boundary_printed = True
                 case RenderToolCall(event=event):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call(event)

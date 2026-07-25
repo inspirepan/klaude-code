@@ -958,7 +958,6 @@ def test_sub_agent_status_lines_cap_with_more_indicator(monkeypatch: pytest.Monk
         "Initializing…",
         "… 4 more agents",
     ]
-    assert all(line.is_sub_agent for line in last_update.status_lines)
 
     monkeypatch.setattr(machine_module.shutil, "get_terminal_size", lambda fallback: os.terminal_size((120, 6)))
     monkeypatch.setattr(machine_module, "_terminal_lines_cache", None)
@@ -969,7 +968,6 @@ def test_sub_agent_status_lines_cap_with_more_indicator(monkeypatch: pytest.Monk
         "Initializing…",
         "… 6 more agents",
     ]
-    assert all(line.is_sub_agent for line in short_update.status_lines)
 
 
 def test_sub_agent_status_reduces_to_three_tool_lines_to_keep_nine_agents_visible(
