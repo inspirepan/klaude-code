@@ -57,7 +57,7 @@ def test_compact_mode_never_emits_time_markers() -> None:
 
 def test_status_only_commands_do_not_trigger_time_markers() -> None:
     machine = _expanded_machine()
-    # StepStartEvent only yields FlushOpenBlocks during replay: no visible block.
+    # StepStartEvent yields no commands during replay: no visible block.
     cmds = machine.transition_replay(
         events.StepStartEvent(session_id="main", timestamp=_ts(datetime(2026, 7, 25, 19, 10)))
     )

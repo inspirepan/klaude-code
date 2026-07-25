@@ -79,6 +79,8 @@ def test_compact_sub_agent_file_tools_render_identity_and_full_diff(tool_name: s
     assert "src/demo.py (+1)" in plain
     assert plain.count("src/demo.py") == 1
     assert "new_value = 1" in plain
+    assert "╭" in plain
+    assert "╰" in plain
 
 
 def test_compact_sub_agent_file_action_does_not_bold_path() -> None:
@@ -128,6 +130,8 @@ def test_compact_sub_agent_replay_write_keeps_markdown_preview_and_diff() -> Non
     plain = output.getvalue()
     assert "new_value = 1" in plain
     assert "markdown preview should stay hidden" in plain
+    assert plain.count("╭") == 2
+    assert plain.count("╰") == 2
 
 
 def test_compact_sub_agent_multi_file_patch_keeps_paths_with_each_change() -> None:

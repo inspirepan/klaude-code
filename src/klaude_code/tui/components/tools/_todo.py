@@ -65,8 +65,6 @@ def render_todo(tr: events.ToolResultEvent) -> RenderableType:
 
     return Panel(
         Padding(todo_grid, (0, 0, 0, 1)),
-        title=Text("Update To-Dos", style="default bold"),
-        title_align="left",
         box=box.ROUNDED,
         border_style=ThemeKey.LINES,
         expand=False,
@@ -77,8 +75,6 @@ def render_todo_message(result: str, *, status: ToolResultStatus = "success") ->
     style = tool_result_style(status)
     return Panel(
         Padding(Text(result.expandtabs(TAB_EXPAND_WIDTH), style=style, overflow="fold"), (0, 0, 0, 1)),
-        title=Text("Update To-Dos", style="default bold"),
-        title_align="left",
         box=box.ROUNDED,
         border_style=ThemeKey.LINES,
         expand=False,

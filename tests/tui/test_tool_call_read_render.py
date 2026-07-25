@@ -70,7 +70,7 @@ def test_render_read_skill_path_segment_styles() -> None:
 
 
 def test_render_read_tool_call_long_path_folds_without_ellipsis() -> None:
-    console = Console(width=40, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console = Console(width=48, record=True, force_terminal=False, theme=get_theme().app_theme)
     arguments = json.dumps(
         {
             "file_path": "/tmp/very/long/path/for/read/tool/call/that/should/fold/instead/of/truncate/output.txt",

@@ -26,6 +26,7 @@ def test_render_interrupt_and_aborted_tool_result_use_interrupt_style() -> None:
     error = render_generic_tool_result("failed", status="error")
 
     assert isinstance(interrupt, Text)
+    assert interrupt.plain == "● Interrupted by user"
     assert interrupt.style == ThemeKey.INTERRUPT
     assert isinstance(aborted, Text)
     assert aborted.style == ThemeKey.INTERRUPT

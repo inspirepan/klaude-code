@@ -35,9 +35,7 @@ from klaude_code.tui.commands import (
     DynamicSeparatorText,
     EndAssistantStream,
     EndThinkingStream,
-    FlushOpenBlocks,
     PrintBlankLine,
-    PrintRuleLine,
     RenderAwaySummary,
     RenderBashCommandEnd,
     RenderBashCommandStart,
@@ -769,11 +767,11 @@ class _SessionState:
 
     def status_phase_text(self) -> Text | None:
         if self.thinking_stream_active:
-            return Text(STATUS_THINKING_TEXT, style=ThemeKey.THINKING)
+            return Text(STATUS_THINKING_TEXT, style=ThemeKey.STATUS_TEXT)
         if self.status_composing:
             return Text(STATUS_COMPOSING_TEXT, style=ThemeKey.STATUS_TEXT)
         if self.task_active:
-            return Text(STATUS_RUNNING_TEXT, style=ThemeKey.THINKING)
+            return Text(STATUS_RUNNING_TEXT, style=ThemeKey.STATUS_TEXT)
         return None
 
     def set_tool_activity(self, tool_call_id: str, tool_name: str, arguments: str = "") -> None:
@@ -793,7 +791,7 @@ class _SessionState:
         activity.status = status
 
     def compact_tool_activity_lines(self, max_lines: int = SUB_AGENT_TOOL_ACTIVITY_MAX_LINES) -> list[Text]:
-        activities = list(reversed(self.tool_activities.values()))
+        activities = list(self.tool_activities.values())
         if not activities:
             return [Text("Initializing…", style=ThemeKey.STATUS_HINT)]
         if len(activities) <= max_lines:
@@ -802,7 +800,7 @@ class _SessionState:
         hidden_count = len(activities) - visible_count
         return [
             Text(f"… (more {hidden_count} tools)", style=ThemeKey.STATUS_HINT),
-            *(activity.render() for activity in activities[:visible_count]),
+            *(activity.render() for activity in activities[-visible_count:]),
         ]
 
     def expanded_status_activity_text(self) -> str | None:
@@ -913,7 +911,7 @@ class DisplayStateMachine:
         self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
         self._bash_mode_output_chunks_by_session: dict[str, list[str]] = {}
         self._has_rendered_user_message = False
-        self._skip_next_user_message_rule = False
+        self._skip_next_user_message_gap = False
         self._detail = detail if detail is not None else TranscriptDetail()
         self._pending_sub_agent_results: dict[str, events.ToolResultEvent] = {}
         self._unspawned_sub_agents_by_batch: dict[str, int] = {}
@@ -959,7 +957,7 @@ class DisplayStateMachine:
         self._pending_bash_tool_outputs = {}
         self._bash_mode_output_chunks_by_session = {}
         self._has_rendered_user_message = False
-        self._skip_next_user_message_rule = False
+        self._skip_next_user_message_gap = False
         self._pending_sub_agent_results = {}
         self._unspawned_sub_agents_by_batch = {}
         self._last_time_marker_ts = None
@@ -1024,10 +1022,22 @@ class DisplayStateMachine:
         ]
         terminal_lines = _terminal_lines()
         max_lines = max(2, int(terminal_lines * SUB_AGENT_STATUS_MAX_HEIGHT_RATIO))
+        terminal_summary_lines = {
+            session.session_id: (
+                c_sub_agent.format_compact_result_summary(session.result_summary).splitlines()[
+                    : c_sub_agent.COMPACT_RESULT_MAX_LINES
+                ]
+                or [""]
+            )
+            for session in sessions
+            if session.terminal_status is not None
+        }
         tool_line_limit = 2
         for candidate in range(SUB_AGENT_TOOL_ACTIVITY_MAX_LINES, 1, -1):
             required_lines = sum(
-                2 if session.terminal_status is not None else 1 + len(session.compact_tool_activity_lines(candidate))
+                1 + len(terminal_summary_lines[session.session_id])
+                if session.terminal_status is not None
+                else 1 + len(session.compact_tool_activity_lines(candidate))
                 for session in sessions
             )
             if required_lines <= max_lines:
@@ -1044,22 +1054,22 @@ class DisplayStateMachine:
                 )
             ]
             if session.terminal_status is not None:
-                continuation = r_status.DynamicText(
-                    lambda session=session: Text(
-                        c_sub_agent.format_compact_result_summary(
-                            session.result_summary,
-                        ),
-                        style=ThemeKey.TOOL_RESULT,
-                        no_wrap=True,
-                        overflow="ellipsis",
-                    )
-                )
-                group.append(
+                # The result is final here, so its line count is known: give each
+                # line its own status row, with only the first carrying the marker.
+                summary_lines = terminal_summary_lines[session.session_id]
+                group.extend(
                     SpinnerStatusLine(
-                        text=continuation,
+                        text=Text(
+                            summary_line,
+                            style=ThemeKey.TOOL_RESULT,
+                            no_wrap=True,
+                            overflow="ellipsis",
+                        ),
                         session_id=session.session_id,
                         sub_agent_continuation=True,
+                        continuation_leading=index == 0,
                     )
+                    for index, summary_line in enumerate(summary_lines)
                 )
             else:
                 group.extend(
@@ -1305,12 +1315,11 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             return []
-        if self._has_rendered_user_message and not self._skip_next_user_message_rule:
-            cmds.append(PrintRuleLine())
+        if self._has_rendered_user_message and not self._skip_next_user_message_gap:
             cmds.append(PrintBlankLine())
         cmds.append(RenderUserMessage(e))
         self._has_rendered_user_message = True
-        self._skip_next_user_message_rule = False
+        self._skip_next_user_message_gap = False
         return cmds
 
     def _handle_BashCommandStartEvent(
@@ -1592,7 +1601,6 @@ class DisplayStateMachine:
         self, e: events.StepStartEvent, *, is_replay: bool, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
-        cmds.append(FlushOpenBlocks())
         if s.is_sub_agent:
             s.step_count += 1
             s.reset_thinking()
@@ -2129,7 +2137,7 @@ class DisplayStateMachine:
         if e.show_notice:
             cmds.append(RenderInterrupt())
         if not s.is_sub_agent:
-            self._skip_next_user_message_rule = True
+            self._skip_next_user_message_gap = True
         return cmds
 
     def _handle_ErrorEvent(self, e: events.ErrorEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:

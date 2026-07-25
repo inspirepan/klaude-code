@@ -135,7 +135,6 @@ class ThemeKey(str, Enum):
 
     # PANEL
     SUB_AGENT_RESULT_PANEL = "panel.sub_agent_result"
-    WRITE_MARKDOWN_PANEL = "panel.write_markdown"
     COMPACTION_SUMMARY_PANEL = "panel.compaction_summary"
     # DIFF
     DIFF_FILE_NAME = "diff.file_name"
@@ -180,7 +179,6 @@ class ThemeKey(str, Enum):
     STATUS_HINT = "status.hint"
     # USER_INPUT
     USER_INPUT = "user.input"
-    USER_INPUT_RULE = "user.input.rule"
     USER_INPUT_AT_PATTERN = "user.at_pattern"
     USER_INPUT_SLASH_COMMAND = "user.slash_command"
     USER_INPUT_SKILL = "user.skill"
@@ -301,7 +299,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.CODE_BACKGROUND.value: f"on {palette.code_background}",
                 # PANEL
                 ThemeKey.SUB_AGENT_RESULT_PANEL.value: f"on {palette.blue_grey_background}",
-                ThemeKey.WRITE_MARKDOWN_PANEL.value: f"on {palette.green_background}",
                 ThemeKey.COMPACTION_SUMMARY_PANEL.value: f"on {palette.blue_grey_background}",
                 # DIFF
                 ThemeKey.DIFF_FILE_NAME.value: palette.blue,
@@ -321,7 +318,6 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.INTERRUPT.value: palette.yellow,
                 # USER_INPUT
                 ThemeKey.USER_INPUT.value: f"{palette.magenta} on {palette.user_message_background}",
-                ThemeKey.USER_INPUT_RULE.value: f"bold {palette.grey2}",
                 ThemeKey.USER_INPUT_AT_PATTERN.value: f"italic {palette.purple} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_SLASH_COMMAND.value: f"bold {palette.purple} on {palette.user_message_background}",
                 ThemeKey.USER_INPUT_SKILL.value: f"bold {palette.purple} on {palette.user_message_background}",
@@ -358,7 +354,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.RECAP_TEXT.value: "italic " + palette.yellow,
                 # TOOL
                 ThemeKey.INVALID_TOOL_CALL_ARGS.value: palette.yellow,
-                ThemeKey.TOOL_NAME.value: "bold",
+                ThemeKey.TOOL_NAME.value: "bold " + palette.grey1,
                 ThemeKey.TOOL_PARAM_FILE_PATH.value: palette.green,
                 ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_NAME.value: "bold "
                 + palette.blue
@@ -385,12 +381,14 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.CONTEXT_MESSAGES.value: palette.green,
                 ThemeKey.CONTEXT_RESERVE.value: palette.grey3,
                 ThemeKey.CONTEXT_FREE.value: palette.dim_grey1,
-                ThemeKey.TOOL_MARK.value: "bold",
+                ThemeKey.TOOL_MARK.value: palette.grey2,
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",
                 ThemeKey.TOOL_TIMEOUT.value: palette.grey2,
                 # BASH SYNTAX
-                ThemeKey.BASH_TOOL_DESCRIPTION.value: palette.blue + " on " + palette.blue_sub_background,
+                # The description is the model's own gloss: keep it quiet. The command
+                # is the fact, so it carries the colour.
+                ThemeKey.BASH_TOOL_DESCRIPTION.value: palette.grey1,
                 ThemeKey.BASH_COMMAND.value: "bold " + palette.green,
                 ThemeKey.BASH_ARGUMENT.value: palette.green,
                 ThemeKey.BASH_OPERATOR.value: palette.grey2,

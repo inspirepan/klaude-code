@@ -223,6 +223,9 @@ class SpinnerStatusLine:
     session_id: str | None = None
     sub_agent_continuation: bool = False
     sub_agent_animated: bool = True
+    # False on the wrapped remainder of a continuation, which aligns under the
+    # "↳ " marker rather than repeating it.
+    continuation_leading: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,11 +241,6 @@ class SpinnerUpdate(RenderCommand):
 @dataclass(frozen=True, slots=True)
 class PrintBlankLine(RenderCommand):
     session_id: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class PrintRuleLine(RenderCommand):
-    pass
 
 
 @dataclass(frozen=True, slots=True)

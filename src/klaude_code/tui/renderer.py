@@ -46,7 +46,6 @@ from klaude_code.tui.commands import (
     EndThinkingStream,
     FlushOpenBlocks,
     PrintBlankLine,
-    PrintRuleLine,
     PromptStatusLine,
     RenderAwaySummary,
     RenderBashCommandEnd,
@@ -444,12 +443,8 @@ class TUICommandRenderer:
                 | AppendBashCommandOutput()
                 | RenderBashCommandEnd()
             ):
-                if self._developer_block_open:
-                    self._flush_open_blocks()
                 return
             case RenderDeveloperMessage():
-                if self._tool_block_open:
-                    self._flush_open_blocks()
                 return
             case _:
                 self._flush_open_blocks()
@@ -766,7 +761,12 @@ class TUICommandRenderer:
                 for span in tuple(content.spans):
                     if span.style == ThemeKey.TOOL_NAME:
                         content.stylize(Style(bold=False), span.start, span.end)
-                prefix_text = f"      {c_sub_agent.COMPACT_CONTINUATION_PREFIX}"
+                marker = (
+                    c_sub_agent.COMPACT_CONTINUATION_PREFIX
+                    if line.continuation_leading
+                    else c_sub_agent.COMPACT_CONTINUATION_INDENT
+                )
+                prefix_text = f"      {marker}"
             elif line.sub_agent_animated:
                 prefix_text = "··· "
             else:
@@ -890,6 +890,11 @@ class TUICommandRenderer:
                     color=self._get_session_sub_agent_color(e.session_id),
                 )
             )
+            # These panels have no tool call line of their own, so without this they
+            # each look like an isolated result and get a trailing blank line. The
+            # panel border already separates them.
+            self._tool_block_open = True
+            self._tool_block_session_id = e.session_id
             return True
         if c_tools.is_sub_agent_tool(e.tool_name):
             return False
@@ -1123,7 +1128,12 @@ class TUICommandRenderer:
             print(caption_text, file=self.console.file, flush=True)
         path = Path(file_path)
         if not path.exists():
-            self.print(Text(f"  Image not found: {path}", style=ThemeKey.TOOL_RESULT))
+            self.print(
+                c_tools.AdaptiveIndent(
+                    Text(f"Image not found: {path}", style=ThemeKey.TOOL_RESULT, overflow="ellipsis", no_wrap=True),
+                    c_tools.TOOL_SUBJECT_INDENT,
+                )
+            )
             return
         print_kitty_image(file_path, file=self.console.file)
 
@@ -1499,7 +1509,10 @@ class TUICommandRenderer:
                 case RenderToolResult(event=event, is_sub_agent_session=is_sub_agent_session):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call_result(event, is_sub_agent=is_sub_agent_session)
-                    if rendered and not self._tool_block_open:
+                    continues_tool_block = (
+                        event.tool_name == tools.TODO_WRITE or self._developer_block_open or self._tool_block_open
+                    )
+                    if rendered and not continues_tool_block:
                         self._print_blank_line(event.session_id)
                     elif rendered:
                         self._tool_block_open = True
@@ -1586,8 +1599,6 @@ class TUICommandRenderer:
                 case PrintBlankLine(session_id=session_id):
                     self._clear_open_blocks()
                     self._print_blank_line(session_id)
-                case PrintRuleLine():
-                    self.console.print(Rule(characters="─", style=ThemeKey.USER_INPUT_RULE))
                 case TaskClockStart():
                     set_task_start()
                 case TaskClockClear():

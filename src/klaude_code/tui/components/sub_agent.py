@@ -14,23 +14,41 @@ from klaude_code.tui.components.common import (
     format_more_lines_indicator,
     format_pascal_case,
 )
+from klaude_code.tui.components.rich.clip import MaxLines
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
+from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 _SUB_AGENT_PROMPT_MAX_LINES = 20
 _MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 _MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s*)")
 COMPACT_CONTINUATION_PREFIX = "↳ "
+# Continuation lines align under the arrow instead of restating it.
+COMPACT_CONTINUATION_INDENT = " " * len(COMPACT_CONTINUATION_PREFIX)
+# A one-line summary ellipsised mid-sentence says very little; a few wrapped
+# lines usually carry the whole conclusion.
+COMPACT_RESULT_MAX_LINES = 4
 
 
 def extract_result_summary(result: str) -> str:
-    """Normalize a complete Markdown result into one plain line."""
+    """Strip Markdown syntax from a result, keeping its line structure.
 
-    lines = [line.strip() for line in result.splitlines() if line.strip()]
-    text = " ".join(_MARKDOWN_PREFIX_RE.sub("", _MARKDOWN_HEADING_RE.sub("", line)) for line in lines)
-    text = re.sub(r"!?(?:\[([^]]+)\])\([^)]+\)", r"\1", text)
-    text = re.sub(r"[*_`~]+", "", text)
-    return " ".join(text.split())
+    Blank lines are dropped, but real line breaks survive: the renderer shows a
+    few lines now, so the author's own structure reads better than one run-on line.
+    """
+
+    cleaned: list[str] = []
+    for raw_line in result.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        text = _MARKDOWN_PREFIX_RE.sub("", _MARKDOWN_HEADING_RE.sub("", line))
+        text = re.sub(r"!?(?:\[([^]]+)\])\([^)]+\)", r"\1", text)
+        text = re.sub(r"[*_`~]+", "", text)
+        text = " ".join(text.split())
+        if text:
+            cleaned.append(text)
+    return "\n".join(cleaned)
 
 
 def format_compact_result_summary(result_summary: str) -> str:
@@ -79,11 +97,32 @@ def render_compact_sub_agent_summary(
     if metrics:
         first.append(f" · {' · '.join(metrics)}", style=ThemeKey.METADATA_DIM)
 
-    displayed_result = format_compact_result_summary(result_summary)
-    second = Text(no_wrap=True, overflow="ellipsis")
-    second.append(COMPACT_CONTINUATION_PREFIX, style=Style(color=color.color))
-    second.append(displayed_result, style=ThemeKey.TOOL_RESULT)
-    return Group(first, second)
+    return Group(first, render_compact_result_body(result_summary, color=color))
+
+
+def render_compact_result_body(result_summary: str, *, color: Style) -> RenderableType:
+    """Render a sub-agent result as a few wrapped lines hanging off the ↳ marker."""
+
+    # One source line per rendered line: wrapping a long path would spend the
+    # whole budget on one value instead of showing several points.
+    body = Text(
+        format_compact_result_summary(result_summary),
+        style=ThemeKey.TOOL_RESULT,
+        no_wrap=True,
+        overflow="ellipsis",
+    )
+    return MaxLines(
+        TreeQuote(
+            body,
+            prefix_first=COMPACT_CONTINUATION_PREFIX,
+            prefix_middle=COMPACT_CONTINUATION_INDENT,
+            prefix_last=COMPACT_CONTINUATION_INDENT,
+            style=Style(color=color.color),
+            style_first=Style(color=color.color),
+        ),
+        COMPACT_RESULT_MAX_LINES,
+        ellipsis_style=ThemeKey.TOOL_RESULT_TRUNCATED,
+    )
 
 
 def render_compact_file_change(

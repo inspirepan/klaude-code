@@ -1,4 +1,5 @@
 from rich.console import Group, RenderableType
+from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.protocol import events
@@ -16,7 +17,7 @@ from klaude_code.protocol.models import (
 )
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.tui.components.tools import render_path
+from klaude_code.tui.components.tools import TOOL_GROUP_INDENT, render_path
 
 ATTACHMENT_BULLET = "+"
 
@@ -183,4 +184,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
         )
         parts.append(grid)
 
-    return Group(*parts) if parts else Text("")
+    if not parts:
+        return Text("")
+    # Developer notes are peers of tool calls, so they share the tool-group indent.
+    return Padding(Group(*parts), (0, 0, 0, TOOL_GROUP_INDENT), expand=False)

@@ -69,29 +69,29 @@ def test_welcome_with_new_session_id_resets_then_renders() -> None:
 
 
 # ---------------------------------------------------------------------------
-# User messages + rule-line insertion
+# User message spacing
 # ---------------------------------------------------------------------------
 
 
-def test_first_user_message_has_no_rule_line() -> None:
+def test_first_user_message_has_no_leading_gap() -> None:
     m = DisplayStateMachine()
     cmds = m.transition(events.UserMessageEvent(session_id="s1", content="hello"))
 
     assert _types(cmds) == ["RenderUserMessage"]
 
 
-def test_second_user_message_prepends_rule_and_blank() -> None:
+def test_second_user_message_prepends_blank() -> None:
     m = DisplayStateMachine()
     _ = m.transition(events.UserMessageEvent(session_id="s1", content="first"))
     cmds = m.transition(events.UserMessageEvent(session_id="s1", content="second"))
 
-    assert _types(cmds) == ["PrintRuleLine", "PrintBlankLine", "RenderUserMessage"]
+    assert _types(cmds) == ["PrintBlankLine", "RenderUserMessage"]
 
 
-def test_user_message_rule_skipped_after_interrupt() -> None:
+def test_user_message_gap_skipped_after_interrupt() -> None:
     m = DisplayStateMachine()
     _ = m.transition(events.UserMessageEvent(session_id="s1", content="first"))
-    # InterruptEvent sets _skip_next_user_message_rule for the next user message.
+    # InterruptEvent suppresses the next user-message gap.
     _ = m.transition(events.InterruptEvent(session_id="s1"))
     cmds = m.transition(events.UserMessageEvent(session_id="s1", content="second"))
 
@@ -214,13 +214,12 @@ def test_assistant_stream_sequence_primary() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_step_start_flushes_open_blocks_then_spinner_update() -> None:
+def test_step_start_only_updates_spinner() -> None:
     m = DisplayStateMachine()
     _ = m.transition(events.TaskStartEvent(session_id="s1", model_id="test-model"))
     cmds = m.transition(events.StepStartEvent(session_id="s1"))
 
-    assert _types(cmds) == ["FlushOpenBlocks", "SpinnerUpdate"]
-    assert isinstance(cmds[0], c.FlushOpenBlocks)
+    assert _types(cmds) == ["SpinnerUpdate"]
 
 
 def test_step_end_emits_nothing() -> None:

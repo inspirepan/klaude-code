@@ -74,23 +74,13 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
             elif line.startswith("*** Delete File:"):
                 delete_files.append(line[len("*** Delete File:") :].strip())
 
-        summary = Text("", ThemeKey.TOOL_PARAM)
-        if update_files:
-            summary.append(f"Edit \u00d7 {len(update_files)}")
-        if add_files:
-            if summary.plain:
-                summary.append(", ")
-            # For single .md file addition, show filename in parentheses
-            if len(add_files) == 1 and add_files[0].endswith(".md"):
-                summary.append("Create ")
-                summary.append_text(render_path(add_files[0], ThemeKey.TOOL_PARAM_FILE_PATH))
-            else:
-                summary.append(f"Create \u00d7 {len(add_files)}")
-        if delete_files:
-            if summary.plain:
-                summary.append(", ")
-            summary.append(f"Delete \u00d7 {len(delete_files)}")
-        details = summary
+        file_paths = update_files + add_files + delete_files
+        if len(file_paths) == 1:
+            details = render_path(file_paths[0], ThemeKey.TOOL_PARAM_FILE_PATH)
+        elif file_paths:
+            details = Text(f"{len(file_paths)} files", ThemeKey.TOOL_PARAM)
+        else:
+            details = Text("", ThemeKey.TOOL_PARAM)
     else:
         details = Text(
             str(patch_content)[:INVALID_TOOL_CALL_MAX_LENGTH],

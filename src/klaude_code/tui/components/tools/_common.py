@@ -1,7 +1,9 @@
 import json
 from typing import Any, Literal, cast
 
-from rich.console import RenderableType
+from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
+from rich.measure import Measurement
+from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
@@ -22,11 +24,50 @@ MARK_WEB_SEARCH = "\u2731"
 MARK_REWIND = "\u21b6"
 MARK_QUESTION = "\u25c9"
 
-BASH_OUTPUT_LEFT_PADDING = 7
 BASH_TOOL_CALL_DIVIDER_THRESHOLD = 10
 BASH_TOOL_CALL_DIVIDER_WIDTH = 12
 
+# The tool block sits one level below the assistant narration: the assistant's
+# bullet occupies column 0 and its prose column 2, so tool marks start at column 2.
+TOOL_GROUP_INDENT = 2
+# Pads short tool names ("Bash", "Read") so the subject column lines up across rows.
+# Longer names ("Update To-Dos") simply push their own subject right.
+TOOL_NAME_COLUMN_WIDTH = 6
+# Column where a tool's subject (command, path, query) starts: group indent, the
+# "$ " mark, the name column, and the grid's cell padding. Textual tool output
+# lines up here too, directly under the arguments it came from.
+TOOL_SUBJECT_INDENT = TOOL_GROUP_INDENT + 2 + TOOL_NAME_COLUMN_WIDTH + 2
+# Block-level results (panels) stay shallower: their border already sets them
+# apart, and a deep indent would just eat width.
+TOOL_RESULT_INDENT = TOOL_GROUP_INDENT + 2
+BASH_OUTPUT_LEFT_PADDING = TOOL_SUBJECT_INDENT
+# Below this, the indent gives way rather than squeezing content to nothing.
+MIN_INDENTED_CONTENT_WIDTH = 8
+
 ToolResultStatus = Literal["success", "error", "aborted"]
+
+
+class AdaptiveIndent:
+    """Left indent that yields on narrow terminals instead of crushing the content."""
+
+    def __init__(self, renderable: RenderableType, indent: int) -> None:
+        self.renderable = renderable
+        self.indent = indent
+
+    def _effective_indent(self, max_width: int) -> int:
+        return max(0, min(self.indent, max_width - MIN_INDENTED_CONTENT_WIDTH))
+
+    def __rich_console__(self, console: "Console", options: "ConsoleOptions") -> "RenderResult":
+        padded = Padding(self.renderable, (0, 0, 0, self._effective_indent(options.max_width)), expand=False)
+        yield from console.render(padded, options)
+
+    def __rich_measure__(self, console: "Console", options: "ConsoleOptions") -> Measurement:
+        indent = self._effective_indent(options.max_width)
+        inner = Measurement.get(console, options.update(width=max(1, options.max_width - indent)), self.renderable)
+        return Measurement(
+            min(options.max_width, inner.minimum + indent),
+            min(options.max_width, inner.maximum + indent),
+        )
 
 
 def is_sub_agent_tool(tool_name: str) -> bool:
@@ -76,17 +117,21 @@ def render_tool_call_tree(
     details: RenderableType | None,
     overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "ellipsis",
 ) -> RenderableType:
-    grid = create_grid(overflow=overflow)
+    grid = create_grid(overflow=overflow, label_min_width=TOOL_NAME_COLUMN_WIDTH)
     grid.add_row(
         Text(tool_name, style=ThemeKey.TOOL_NAME),
         details if details is not None else Text(""),
     )
 
-    return TreeQuote.for_tool_call(
-        grid,
-        mark=mark,
-        style=ThemeKey.TOOL_RESULT_TREE_PREFIX,
-        style_first=ThemeKey.TOOL_MARK,
+    return Padding(
+        TreeQuote.for_tool_call(
+            grid,
+            mark=mark,
+            style=ThemeKey.TOOL_RESULT_TREE_PREFIX,
+            style_first=ThemeKey.TOOL_MARK,
+        ),
+        (0, 0, 0, TOOL_GROUP_INDENT),
+        expand=False,
     )
 
 

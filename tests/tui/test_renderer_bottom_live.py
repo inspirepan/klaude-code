@@ -3,7 +3,7 @@
 import io
 from pathlib import Path
 
-from rich.console import Console
+from rich.console import Console, RenderableType
 from rich.text import Text
 
 from klaude_code.protocol import events
@@ -302,18 +302,29 @@ def test_display_image_prints_caption_then_image(monkeypatch, tmp_path: Path) ->
 
 def test_display_image_renders_missing_file_as_indented_tool_output(monkeypatch, tmp_path: Path) -> None:
     from klaude_code.tui.components.rich.theme import ThemeKey
+    from klaude_code.tui.components.tools import TOOL_SUBJECT_INDENT, AdaptiveIndent
     from klaude_code.tui.renderer import TUICommandRenderer
 
     renderer = TUICommandRenderer()
-    rendered: list[Text] = []
+    rendered: list[RenderableType] = []
     monkeypatch.setattr(renderer, "print", rendered.append)
 
     missing_path = tmp_path / "missing.png"
     renderer.display_image(str(missing_path))
 
     assert len(rendered) == 1
-    assert rendered[0].plain == f"  Image not found: {missing_path}"
-    assert rendered[0].style == ThemeKey.TOOL_RESULT
+    padded = rendered[0]
+    assert isinstance(padded, AdaptiveIndent)
+    assert padded.indent == TOOL_SUBJECT_INDENT
+    inner = padded.renderable
+    assert isinstance(inner, Text)
+    assert inner.plain == f"Image not found: {missing_path}"
+    assert inner.style == ThemeKey.TOOL_RESULT
+
+    output = io.StringIO()
+    console = Console(file=output, width=12, force_terminal=False, theme=renderer.themes.app_theme)
+    console.print(padded)
+    assert output.getvalue().strip().startswith("Image")
 
 
 def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail_lines() -> None:

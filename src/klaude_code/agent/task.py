@@ -396,7 +396,7 @@ class TaskExecutor:
         return new_profile, event
 
     def on_interrupt(self) -> list[events.Event]:
-        """Handle an interrupt by finalizing the current step and emitting partial metadata.
+        """Handle an interrupt by finalizing the current step and persisting partial metadata.
 
         This method synthesizes best-effort UI/history events for an interrupted
         task, but it does not cancel the outer asyncio task.
@@ -432,14 +432,13 @@ class TaskExecutor:
         if not had_aborted_assistant_message:
             self._context.session_ctx.append_history([message.InterruptEntry(show_notice=show_notice)])
 
-        # Emit partial metadata on cancellation
+        # Preserve usage for session statistics without rendering interrupted
+        # task metadata in the transcript.
         if self._metadata_accumulator is not None and self._started_at > 0:
             task_duration_s = time.perf_counter() - self._started_at
             accumulated = self._metadata_accumulator.get_partial_item(task_duration_s)
             if accumulated is not None:
                 accumulated.is_partial = True
-                session_id = self._context.session_ctx.session_id
-                ui_events.append(events.TaskMetadataEvent(metadata=accumulated, session_id=session_id, is_partial=True))
                 self._context.session_ctx.append_history([accumulated])
 
         return ui_events

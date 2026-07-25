@@ -101,7 +101,7 @@ def test_render_web_search_tool_result_expanded_lists_every_title_with_url() -> 
 
 
 def test_render_web_search_tool_result_underlines_title_text_only() -> None:
-    console = Console(width=80, force_terminal=True, theme=get_theme().app_theme)
+    console = Console(width=80, theme=get_theme().app_theme)
     renderable = render_tool_result(
         _web_search_event(
             _wrap_search_results(
@@ -111,15 +111,20 @@ def test_render_web_search_tool_result_underlines_title_text_only() -> None:
         )
     )
     assert renderable is not None
-    with console.capture() as capture:
-        console.print(renderable)
-    rendered = capture.get()
 
     # The underline must stop right at the title; a base-styled Text would also
     # paint the cell padding and stretch the underline across the terminal.
-    before, after = rendered.split("Short title")
-    assert before.rsplit("\x1b[", 1)[-1].startswith("4;")
-    assert after.startswith("\x1b[0m")
+    lines = console.render_lines(renderable, console.options, pad=False)
+    title_line, title_index = next(
+        (line, index)
+        for line in lines
+        for index, segment in enumerate(line)
+        if segment.text == "Short title"
+    )
+    title_style = title_line[title_index].style
+    padding_style = title_line[title_index + 1].style
+    assert title_style is not None and title_style.underline
+    assert padding_style is None or not padding_style.underline
 
 
 def test_render_web_search_tool_result_falls_back_when_unparsable() -> None:

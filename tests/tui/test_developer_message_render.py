@@ -43,7 +43,7 @@ def test_render_developer_message_memory_paths_preserve_home_prefix(
     )
 
     line = console.render_lines(render_developer_message(event), console.options, pad=False)[0]
-    assert "".join(segment.text for segment in line) == "+ Read memory ~/.claude/CLAUDE.md, ./CLAUDE.md"
+    assert "".join(segment.text for segment in line) == "  + Read memory ~/.claude/CLAUDE.md, ./CLAUDE.md"
 
 
 def test_render_developer_message_skill_name_uses_skill_style() -> None:
@@ -91,7 +91,7 @@ def test_render_developer_message_discovered_skills_are_grouped_without_skill_st
     line = console.render_lines(render_developer_message(event), console.options, pad=False)[0]
     parts: list[tuple[str, object]] = [(segment.text, segment.style) for segment in line]
     full_text = "".join(text for text, _ in parts)
-    assert full_text == "+ Discovered skills commit, submit-pr"
+    assert full_text == "  + Discovered skills commit, submit-pr"
     skill_name_start = full_text.index("commit")
     second_skill_start = full_text.index("submit-pr")
 
@@ -121,7 +121,7 @@ def test_render_developer_message_available_skills_use_skill_style() -> None:
     line = console.render_lines(render_developer_message(event), console.options, pad=False)[0]
     parts: list[tuple[str, object]] = [(segment.text, segment.style) for segment in line]
     full_text = "".join(text for text, _ in parts)
-    assert full_text == "+ 2 available skills"
+    assert full_text == "  + 2 available skills"
     assert all(style == console.get_style(ThemeKey.ATTACHMENT) for _, style in parts if _.strip())
 
 
@@ -138,5 +138,5 @@ def test_render_developer_message_incremental_available_skills_lists_names() -> 
     line = console.render_lines(render_developer_message(event), console.options, pad=False)[0]
     parts: list[tuple[str, object]] = [(segment.text, segment.style) for segment in line]
     full_text = "".join(text for text, _ in parts)
-    assert full_text == "+ Updated available skills commit, submit-pr"
+    assert full_text == "  + Updated available skills commit, submit-pr"
     assert all(style == console.get_style(ThemeKey.ATTACHMENT) for _, style in parts if _.strip())

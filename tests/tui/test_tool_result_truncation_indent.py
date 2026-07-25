@@ -1,3 +1,4 @@
+import pytest
 from rich.console import Console
 
 from klaude_code.const import DIFF_MAX_RENDER_WIDTH
@@ -16,7 +17,7 @@ def _render_event_to_text(event: events.ToolResultEvent) -> str:
     return console.export_text()
 
 
-def test_web_search_truncation_indicator_uses_tool_name_indent() -> None:
+def test_web_search_truncation_indicator_uses_result_padding() -> None:
     result = "\n".join(f"line-{idx}" for idx in range(12))
     event = events.ToolResultEvent(
         session_id="s1",
@@ -29,10 +30,10 @@ def test_web_search_truncation_indicator_uses_tool_name_indent() -> None:
 
     output = _render_event_to_text(event)
 
-    assert "│            … (more 6 lines)" in output
+    assert "  … (more 6 lines)" in output
 
 
-def test_bash_truncation_indicator_keeps_existing_padding() -> None:
+def test_bash_truncation_indicator_uses_result_padding() -> None:
     result = "\n".join(f"line-{idx}" for idx in range(12))
     event = events.ToolResultEvent(
         session_id="s1",
@@ -45,14 +46,15 @@ def test_bash_truncation_indicator_keeps_existing_padding() -> None:
 
     output = _render_event_to_text(event)
 
-    assert "│      … (more 6 lines)" in output
+    assert "  … (more 6 lines)" in output
 
 
-def test_edit_diff_result_uses_tool_name_indent_in_tree_wrap() -> None:
+@pytest.mark.parametrize("tool_name", [tools.EDIT, tools.WRITE])
+def test_file_diff_result_renders_in_panel(tool_name: str) -> None:
     event = events.ToolResultEvent(
         session_id="s1",
         tool_call_id="tc1",
-        tool_name=tools.EDIT,
+        tool_name=tool_name,
         result="",
         status="success",
         is_last_in_step=True,
@@ -74,11 +76,11 @@ def test_edit_diff_result_uses_tool_name_indent_in_tree_wrap() -> None:
     )
 
     output = _render_event_to_text(event)
-    line = output.splitlines()[0]
+    lines = output.splitlines()
 
-    assert line.startswith("└ ")
-    assert line[2:7] == "     "
-    assert line.rstrip().endswith("1 +alpha")
+    assert lines[0].startswith("    ╭")
+    assert lines[-1].startswith("    ╰")
+    assert "1 +alpha" in lines[1]
 
 
 def test_edit_diff_result_shows_old_line_number_for_remove() -> None:
@@ -108,7 +110,7 @@ def test_edit_diff_result_shows_old_line_number_for_remove() -> None:
 
     output = _render_event_to_text(event)
 
-    assert output.splitlines()[0].rstrip().endswith("7 -alpha")
+    assert "7 -alpha" in output.splitlines()[1]
 
 
 def test_structured_diff_highlight_width_is_capped() -> None:

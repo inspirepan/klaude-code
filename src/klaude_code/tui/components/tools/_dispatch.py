@@ -1,8 +1,6 @@
-import shutil
-
 from rich import box
-from rich.align import Align
 from rich.console import Group, RenderableType
+from rich.constrain import Constrain
 from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
@@ -19,10 +17,12 @@ from klaude_code.protocol.models import (
 )
 from klaude_code.tui.components import diffs as r_diffs
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
-from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._bash import render_bash_tool_call
 from klaude_code.tui.components.tools._common import (
+    TOOL_RESULT_INDENT,
+    TOOL_SUBJECT_INDENT,
+    AdaptiveIndent,
     is_sub_agent_tool,
     render_fallback_tool_result,
     render_generic_tool_call,
@@ -51,38 +51,9 @@ from klaude_code.tui.components.tools._web import (
 from klaude_code.tui.transcript_detail import Detail
 
 _COMPACT_MARKDOWN_PREVIEW_LINES = 5
-
-
-def _tool_result_display_name(tool_name: str) -> str:
-    match tool_name:
-        case tools.BASH:
-            return "Bash"
-        case tools.APPLY_PATCH:
-            return "Patch"
-        case tools.EDIT:
-            return "Edit"
-        case tools.READ:
-            return "Read"
-        case tools.WRITE:
-            return "Write"
-        case tools.TODO_WRITE:
-            return "Update To-Dos"
-        case tools.WEB_FETCH:
-            return "Fetch Web"
-        case tools.WEB_SEARCH:
-            return "Search Web"
-        case tools.REWIND:
-            return "Rewind"
-        case tools.ASK_USER_QUESTION:
-            return "Agent has a question for you"
-        case _:
-            return tool_name
-
-
-def _tool_result_content_indent(tool_name: str) -> int:
-    if tool_name in {tools.TODO_WRITE, tools.ASK_USER_QUESTION}:
-        return 0
-    return len(_tool_result_display_name(tool_name)) + 1
+# Upper bound on result panels, so they read as one consistent column instead
+# of each box sizing itself to its longest line.
+RESULT_PANEL_MAX_WIDTH = 100
 
 
 # Tool name to active form mapping (for spinner status)
@@ -167,16 +138,46 @@ def _extract_markdown_doc(ui_extra: ToolResultUIExtra | None) -> MarkdownDocUIEx
     return None
 
 
+def _render_result_panel(
+    content: RenderableType,
+    *,
+    title: Text | None = None,
+    indent: int = TOOL_RESULT_INDENT,
+) -> RenderableType:
+    """The one box used for every block-level tool result (diffs, docs, search)."""
+    # Constrain, not fix: the panel still shrinks to short content, but one long
+    # line (a deep path, say) can no longer stretch it across the whole terminal
+    # and leave the rest of the box looking empty.
+    return Padding(
+        Constrain(
+            Panel(
+                content,
+                title=title,
+                title_align="left",
+                box=box.ROUNDED,
+                border_style=ThemeKey.LINES,
+                expand=False,
+            ),
+            RESULT_PANEL_MAX_WIDTH,
+        ),
+        (0, 0, 0, indent),
+        expand=False,
+    )
+
+
 def render_markdown_doc(
     md_ui: MarkdownDocUIExtra,
     *,
     code_theme: str,
     detail: Detail = Detail.FULL,
     show_file_path: bool = False,
+    indent: int = TOOL_RESULT_INDENT,
 ) -> RenderableType:
-    """Render a Markdown document preview with a 2-character left indent."""
-    terminal_width = shutil.get_terminal_size().columns
-    panel_width = min(100, terminal_width) - 2
+    """Render a Markdown document preview in the file-change panel."""
+    title = render_path(md_ui.file_path, ThemeKey.TOOL_PARAM_FILE_PATH) if show_file_path else None
+    if title is not None:
+        title.no_wrap = True
+        title.overflow = "ellipsis"
 
     if detail.is_compact:
         lines = md_ui.content.splitlines()
@@ -187,24 +188,13 @@ def render_markdown_doc(
         ]
         if hidden_lines:
             preview.append(Text(f"\u2026 (more {hidden_lines} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED))
-        title = render_path(md_ui.file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
-        title.no_wrap = True
-        title.overflow = "ellipsis"
-        block = Padding(
-            Group(*([title] if show_file_path else []), *preview),
-            (0, 1),
-            style=ThemeKey.WRITE_MARKDOWN_PANEL,
-        )
-        return Padding(Align(block, width=panel_width, pad=False), (0, 0, 0, 2))
+        return _render_result_panel(Group(*preview), title=title, indent=indent)
 
-    panel = Panel(
+    return _render_result_panel(
         NoInsetMarkdown(md_ui.content, code_theme=code_theme, style=ThemeKey.TOOL_RESULT),
-        box=box.SIMPLE,
-        border_style=ThemeKey.LINES,
-        style=ThemeKey.WRITE_MARKDOWN_PANEL,
-        width=panel_width,
+        title=title,
+        indent=indent,
     )
-    return Padding(panel, (1, 0, 0, 2))
 
 
 def _file_change_count(ui_extra: ToolResultUIExtra | None) -> int:
@@ -253,97 +243,98 @@ def render_tool_result(
 
     Returns a Rich Renderable or None if the tool result should not be rendered.
     """
-    compact = detail.is_compact
     if is_sub_agent_tool(e.tool_name):
         return None
 
-    def wrap(content: RenderableType) -> TreeQuote:
-        return TreeQuote.for_tool_result(
-            content,
-            is_last=e.is_last_in_step,
-            content_indent=_tool_result_content_indent(e.tool_name),
-        )
+    def pad_result(content: RenderableType) -> RenderableType:
+        # To-Do lists have no call line of their own, so render them at the
+        # block-result level. Everything else lines up under its arguments.
+        indent = TOOL_RESULT_INDENT if e.tool_name == tools.TODO_WRITE else TOOL_SUBJECT_INDENT
+        return AdaptiveIndent(content, indent)
 
     # Handle error case
     if e.is_error and e.ui_extra is None:
         if e.tool_name == tools.TODO_WRITE:
             result = e.result if len(e.result.strip()) > 0 else "(no content)"
-            return render_todo_message(result, status=e.status)
-        return wrap(render_fallback_tool_result(e.tool_name, e.result, status=e.status))
+            return pad_result(render_todo_message(result, status=e.status))
+        return pad_result(render_fallback_tool_result(e.tool_name, e.result, status=e.status))
 
     # Render multiple ui blocks if present
     if isinstance(e.ui_extra, MultiUIExtra) and e.ui_extra.items:
         rendered: list[RenderableType] = []
+        show_patch_file_names = e.tool_name == tools.APPLY_PATCH and _file_change_count(e.ui_extra) > 1
         for item in e.ui_extra.items:
             if isinstance(item, MarkdownDocUIExtra):
-                # Markdown docs render without TreeQuote wrap (already has 2-char indent)
-                show_file_path = compact and e.tool_name == tools.APPLY_PATCH and _file_change_count(e.ui_extra) > 1
+                # Markdown docs already include their own 2-character indent.
                 rendered.append(
                     render_markdown_doc(
                         item,
                         code_theme=code_theme,
                         detail=detail,
-                        show_file_path=show_file_path,
+                        show_file_path=show_patch_file_names,
                     )
                 )
             elif isinstance(item, DiffUIExtra):
-                show_file_name = e.tool_name == tools.APPLY_PATCH
-                rendered.append(wrap(r_diffs.render_structured_diff(item, show_file_name=show_file_name)))
+                rendered.append(
+                    _render_result_panel(r_diffs.render_structured_diff(item, show_file_name=show_patch_file_names))
+                )
         return Group(*rendered) if rendered else None
 
     diff_ui = _extract_diff(e.ui_extra)
     md_ui = _extract_markdown_doc(e.ui_extra)
 
-    def _render_fallback() -> TreeQuote:
+    def _render_fallback() -> RenderableType:
         if len(e.result.strip()) == 0:
-            return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
-        return wrap(render_fallback_tool_result(e.tool_name, e.result, status=e.status))
+            return pad_result(render_fallback_tool_result(e.tool_name, "(no content)"))
+        return pad_result(render_fallback_tool_result(e.tool_name, e.result, status=e.status))
 
     match e.tool_name:
         case tools.READ:
             if isinstance(e.ui_extra, ReadPreviewUIExtra):
-                return wrap(render_read_preview(e.ui_extra))
+                return pad_result(render_read_preview(e.ui_extra))
             return None
         case tools.EDIT:
-            return wrap(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
+            return _render_result_panel(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
         case tools.WRITE:
             if md_ui:
-                # Markdown docs render without TreeQuote wrap (already has 2-char indent)
+                # Markdown docs already include their own 2-character indent.
                 return render_markdown_doc(md_ui, code_theme=code_theme, detail=detail)
-            return wrap(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
+            return _render_result_panel(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
         case tools.APPLY_PATCH:
             if md_ui:
-                # Markdown docs render without TreeQuote wrap (already has 2-char indent)
+                # Markdown docs already include their own 2-character indent.
                 return render_markdown_doc(md_ui, code_theme=code_theme, detail=detail)
             if diff_ui:
-                return wrap(r_diffs.render_structured_diff(diff_ui, show_file_name=True))
+                return _render_result_panel(
+                    r_diffs.render_structured_diff(diff_ui, show_file_name=len(diff_ui.files) > 1)
+                )
             return _render_fallback()
         case tools.TODO_WRITE:
             if isinstance(e.ui_extra, TodoListUIExtra):
-                return render_todo(e)
+                return pad_result(render_todo(e))
             result = e.result if len(e.result.strip()) > 0 else "(no content)"
-            return render_todo_message(result, status=e.status)
+            return pad_result(render_todo_message(result, status=e.status))
         case tools.BASH:
             return _render_fallback()
         case tools.WEB_SEARCH:
             search_results = parse_web_search_results(e.result)
             if search_results:
-                return wrap(render_web_search_results(search_results, detail=detail))
+                return _render_result_panel(render_web_search_results(search_results, detail=detail))
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
-                return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
-            return wrap(render_fallback_tool_result(e.tool_name, display_result, status=e.status))
+                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)"))
+            return pad_result(render_fallback_tool_result(e.tool_name, display_result, status=e.status))
         case tools.WEB_FETCH:
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
-                return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
-            return wrap(render_fallback_tool_result(e.tool_name, display_result, status=e.status))
+                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)"))
+            return pad_result(render_fallback_tool_result(e.tool_name, display_result, status=e.status))
         case tools.ASK_USER_QUESTION:
             if isinstance(e.ui_extra, AskUserQuestionSummaryUIExtra):
-                return render_ask_user_question_summary(e.ui_extra)
+                return pad_result(render_ask_user_question_summary(e.ui_extra))
             if len(e.result.strip()) == 0:
-                return wrap(render_fallback_tool_result(e.tool_name, "(no content)"))
-            return wrap(render_ask_user_question_tool_result(e.result, status=e.status))
+                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)"))
+            return pad_result(render_ask_user_question_tool_result(e.result, status=e.status))
         case _:
             return _render_fallback()
 
@@ -359,8 +350,15 @@ def render_compact_file_change(
     show_file_names = _file_change_count(e.ui_extra) > 1
     rendered: list[RenderableType] = []
     for item in items:
+        # Flush with the sub-agent header: the block's gutter and the panel border
+        # already mark the nesting, so an extra indent would be a third boundary.
         if isinstance(item, DiffUIExtra):
-            rendered.append(r_diffs.render_structured_diff(item, show_file_name=show_file_names))
+            rendered.append(
+                _render_result_panel(
+                    r_diffs.render_structured_diff(item, show_file_name=show_file_names),
+                    indent=0,
+                )
+            )
         elif e.tool_name in (tools.WRITE, tools.APPLY_PATCH) and isinstance(item, MarkdownDocUIExtra):
             rendered.append(
                 render_markdown_doc(
@@ -368,6 +366,7 @@ def render_compact_file_change(
                     code_theme=code_theme,
                     detail=Detail.COMPACT,
                     show_file_path=show_file_names,
+                    indent=0,
                 )
             )
     if not rendered:

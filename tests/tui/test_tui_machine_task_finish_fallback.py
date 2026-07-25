@@ -5,7 +5,6 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     EndAssistantStream,
     PrintBlankLine,
-    PrintRuleLine,
     RenderUserMessage,
     StartAssistantStream,
 )
@@ -78,7 +77,7 @@ def test_task_start_updates_primary_session_after_session_change() -> None:
     assert any(isinstance(c, StartAssistantStream) for c in cmds)
 
 
-def test_task_finish_does_not_render_separator() -> None:
+def test_task_finish_does_not_render_user_message_gap() -> None:
     m = DisplayStateMachine()
     session_id = "s1"
 
@@ -86,10 +85,10 @@ def test_task_finish_does_not_render_separator() -> None:
 
     cmds = m.transition(events.TaskFinishEvent(session_id=session_id, task_result="done"))
 
-    assert not any(isinstance(c, PrintRuleLine) for c in cmds)
+    assert not any(isinstance(c, PrintBlankLine) for c in cmds)
 
 
-def test_separator_renders_before_second_user_message() -> None:
+def test_gap_renders_before_second_user_message() -> None:
     m = DisplayStateMachine()
     session_id = "s1"
 
@@ -97,10 +96,10 @@ def test_separator_renders_before_second_user_message() -> None:
     second = m.transition(events.UserMessageEvent(session_id=session_id, content="second"))
 
     assert [type(c) for c in first] == [RenderUserMessage]
-    assert [type(c) for c in second] == [PrintRuleLine, PrintBlankLine, RenderUserMessage]
+    assert [type(c) for c in second] == [PrintBlankLine, RenderUserMessage]
 
 
-def test_interrupt_suppresses_next_user_message_separator() -> None:
+def test_interrupt_suppresses_next_user_message_gap() -> None:
     m = DisplayStateMachine()
     session_id = "s1"
 
@@ -110,4 +109,4 @@ def test_interrupt_suppresses_next_user_message_separator() -> None:
     later = m.transition(events.UserMessageEvent(session_id=session_id, content="later"))
 
     assert [type(c) for c in after_interrupt] == [RenderUserMessage]
-    assert [type(c) for c in later] == [PrintRuleLine, PrintBlankLine, RenderUserMessage]
+    assert [type(c) for c in later] == [PrintBlankLine, RenderUserMessage]

@@ -61,14 +61,15 @@ def test_render_todo_result_only_shows_todos() -> None:
 
     output = _render_tool_result_to_text(event)
 
-    assert "Update To-Dos" in output
+    assert output.startswith("    ╭")
+    assert "Update To-Dos" not in output
     assert todo_content in output
     assert "└" not in output
     assert "╭" in output
     assert "│  ◉" in output
 
 
-def test_render_todo_error_result_keeps_update_todos_context() -> None:
+def test_render_todo_error_result_has_no_panel_title() -> None:
     event = events.ToolResultEvent(
         session_id="s1",
         tool_call_id="tc1",
@@ -80,7 +81,8 @@ def test_render_todo_error_result_keeps_update_todos_context() -> None:
 
     output = _render_tool_result_to_text(event)
 
-    assert "Update To-Dos" in output
+    assert output.startswith("    ╭")
+    assert "Update To-Dos" not in output
     assert "invalid todos payload" in output
     assert "└" not in output
 
@@ -97,7 +99,7 @@ def test_render_bash_tool_result_adds_left_padding() -> None:
 
     output = _render_tool_result_to_text(event)
 
-    assert output.rstrip("\n").rstrip() == "└      hi"
+    assert output.rstrip("\n").rstrip() == "            hi"
 
 
 def test_render_bash_tool_result_shows_no_content_for_empty_output() -> None:
@@ -112,7 +114,7 @@ def test_render_bash_tool_result_shows_no_content_for_empty_output() -> None:
 
     output = _render_tool_result_to_text(event)
 
-    assert output.rstrip("\n").rstrip() == "└      (no content)"
+    assert output.rstrip("\n").rstrip() == "            (no content)"
 
 
 def test_render_bash_tool_call_shows_description_callout() -> None:

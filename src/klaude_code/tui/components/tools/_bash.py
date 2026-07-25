@@ -13,6 +13,7 @@ from klaude_code.tui.components.tools._common import (
     BASH_TOOL_CALL_DIVIDER_THRESHOLD,
     BASH_TOOL_CALL_DIVIDER_WIDTH,
     MARK_BASH,
+    AdaptiveIndent,
     render_tool_call_tree,
 )
 
@@ -57,4 +58,4 @@ def render_bash_tool_call(arguments: str) -> RenderableType:
 
 
 def indent_bash_output(content: RenderableType) -> RenderableType:
-    return Padding(content, (0, 0, 0, BASH_OUTPUT_LEFT_PADDING))
+    return AdaptiveIndent(content, BASH_OUTPUT_LEFT_PADDING)

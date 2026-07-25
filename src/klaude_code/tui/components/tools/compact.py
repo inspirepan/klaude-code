@@ -1,14 +1,50 @@
 import json
 from typing import Any, cast
 
-from rich.console import RenderableType
+from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
+from rich.measure import Measurement
+from rich.table import Table
 from rich.text import Text
 
 from klaude_code.protocol import tools
 from klaude_code.tui.components.bash_syntax import summarize_bash_command
 from klaude_code.tui.components.common import format_pascal_case
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.tui.components.tools._common import MARK_BASH, MARK_GENERIC, render_tool_call_tree
+from klaude_code.tui.components.tools._common import (
+    MARK_BASH,
+    MARK_EDIT,
+    MARK_GENERIC,
+    MARK_PLAN,
+    MARK_QUESTION,
+    MARK_READ,
+    MARK_REWIND,
+    MARK_WEB_FETCH,
+    MARK_WEB_SEARCH,
+    MARK_WRITE,
+    TOOL_SUBJECT_INDENT,
+    render_tool_call_tree,
+)
+
+# Width of the Bash description column, in cells (~12 CJK glyphs). Fixed so the
+# command column starts at the same offset on every row.
+BASH_DESCRIPTION_COLUMN_WIDTH = 24
+BASH_COMMAND_MIN_WIDTH = 8
+BASH_DESCRIPTION_MIN_TERMINAL_WIDTH = TOOL_SUBJECT_INDENT + BASH_DESCRIPTION_COLUMN_WIDTH + 1 + BASH_COMMAND_MIN_WIDTH
+
+# Compact rows keep the same marks as their expanded tool calls, so a mixed
+# block reads as one vocabulary.
+_COMPACT_MARKS: dict[str, str] = {
+    tools.BASH: MARK_BASH,
+    tools.READ: MARK_READ,
+    tools.EDIT: MARK_EDIT,
+    tools.APPLY_PATCH: MARK_EDIT,
+    tools.WRITE: MARK_WRITE,
+    tools.TODO_WRITE: MARK_PLAN,
+    tools.WEB_FETCH: MARK_WEB_FETCH,
+    tools.WEB_SEARCH: MARK_WEB_SEARCH,
+    tools.REWIND: MARK_REWIND,
+    tools.ASK_USER_QUESTION: MARK_QUESTION,
+}
 
 
 def _tool_arguments(arguments: str) -> dict[str, object]:
@@ -120,13 +156,10 @@ def render_compact_tool_result(
     """Render one stable compact tool result line."""
 
     details = Text(no_wrap=True, overflow="ellipsis")
+    description = ""
     if tool_name == tools.BASH:
         description, command_summary = _bash_parts(_tool_arguments(arguments))
-        if description:
-            details.append(description, style=ThemeKey.BASH_TOOL_DESCRIPTION)
         if command_summary:
-            if details.plain:
-                details.append(" ")
             details.append(command_summary, style=ThemeKey.BASH_ARGUMENT)
     else:
         target, target_style = _tool_target(tool_name, arguments)
@@ -143,10 +176,36 @@ def render_compact_tool_result(
             details.append(error, style=ThemeKey.ERROR)
 
     return render_tool_call_tree(
-        mark=MARK_BASH if tool_name == tools.BASH else MARK_GENERIC,
+        mark=_COMPACT_MARKS.get(tool_name, MARK_GENERIC),
         tool_name=format_pascal_case(tool_name),
-        details=details,
+        details=_with_description_column(description, details) if tool_name == tools.BASH else details,
     )
+
+
+class _BashDetails:
+    def __init__(self, description: str, subject: Text) -> None:
+        self.description = description
+        self.subject = subject
+
+    def _renderable(self, terminal_width: int) -> RenderableType:
+        if terminal_width < BASH_DESCRIPTION_MIN_TERMINAL_WIDTH:
+            return self.subject
+        grid = Table.grid(padding=(0, 1))
+        grid.add_column(width=BASH_DESCRIPTION_COLUMN_WIDTH, no_wrap=True, overflow="ellipsis")
+        grid.add_column(overflow="ellipsis")
+        grid.add_row(Text(self.description, style=ThemeKey.BASH_TOOL_DESCRIPTION), self.subject)
+        return grid
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        yield from console.render(self._renderable(console.width), options)
+
+    def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
+        return Measurement.get(console, options, self._renderable(console.width))
+
+
+def _with_description_column(description: str, subject: Text) -> RenderableType:
+    """Align Bash descriptions while preserving commands on narrow terminals."""
+    return _BashDetails(description, subject) if description else subject
 
 
 def _bash_parts(args: dict[str, object]) -> tuple[str, str]:
@@ -172,7 +231,8 @@ def _append_compact_bash_target(line: Text, target: str, description: str) -> No
 def _append_status(line: Text, status: str | None) -> None:
     if status == "success":
         line.append(" ")
-        line.append("✓", style=ThemeKey.METADATA_GREEN)
+        # Success is the common case: keep it quiet so failures are the only thing that jumps.
+        line.append("✓", style=ThemeKey.METADATA_GREEN_DIM)
     elif status == "error":
         line.append(" ")
         line.append("✗", style=ThemeKey.ERROR_BOLD)

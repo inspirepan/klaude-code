@@ -79,9 +79,14 @@ def format_compact_count(count: int) -> str:
     return format_number(count).replace("k", "K")
 
 
-def create_grid(*, overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "fold") -> Table:
+def create_grid(
+    *,
+    overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "fold",
+    label_min_width: int = 0,
+) -> Table:
+    """Two-column grid. `label_min_width` pads the label column so the second column aligns."""
     grid = Table.grid(padding=(0, 1))
-    grid.add_column(no_wrap=True)
+    grid.add_column(no_wrap=True, min_width=label_min_width or None)
     grid.add_column(overflow=overflow)
     return grid
 

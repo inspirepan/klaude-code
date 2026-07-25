@@ -109,7 +109,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
         for span in first_line.spans
     )
     assert any(
-        span.style == ThemeKey.THINKING and first_line.plain[span.start : span.end] == "Running…"
+        span.style == ThemeKey.STATUS_TEXT and first_line.plain[span.start : span.end] == "Running…"
         for span in first_line.spans
     )
 
@@ -313,10 +313,10 @@ def test_sub_agent_shows_up_to_four_latest_tool_activity_lines() -> None:
     assert last_update is not None
     assert [_line_plain(line) for line in last_update.status_lines] == [
         "Finder: searching · test-model · 4 tools · Running… · 0s",
-        "Reading… src/3.py",
-        "Reading… src/2.py",
-        "Reading… src/1.py",
         "Reading… src/0.py",
+        "Reading… src/1.py",
+        "Reading… src/2.py",
+        "Reading… src/3.py",
     ]
 
 
@@ -352,18 +352,18 @@ def test_sub_agent_summarizes_earlier_tools_and_keeps_history_across_steps() -> 
     assert [_line_plain(line) for line in last_update.status_lines] == [
         "Finder: searching · test-model · 6 tools · Running… · 0s",
         "… (more 3 tools)",
-        "Reading… src/5.py",
-        "Reading… src/4.py",
         "Reading… src/3.py",
+        "Reading… src/4.py",
+        "Reading… src/5.py",
     ]
 
     next_step = machine.transition(events.StepStartEvent(session_id="sub-1"))
     assert [_line_plain(line) for line in _last_spinner_update(next_step).status_lines] == [
         "Finder: searching · test-model · 6 tools · Running… · 0s",
         "… (more 3 tools)",
-        "Reading… src/5.py",
-        "Reading… src/4.py",
         "Reading… src/3.py",
+        "Reading… src/4.py",
+        "Reading… src/5.py",
     ]
 
     next_tool = machine.transition(
@@ -377,9 +377,9 @@ def test_sub_agent_summarizes_earlier_tools_and_keeps_history_across_steps() -> 
     assert [_line_plain(line) for line in _last_spinner_update(next_tool).status_lines] == [
         "Finder: searching · test-model · 7 tools · Running… · 0s",
         "… (more 4 tools)",
-        "Reading… src/next.py",
-        "Reading… src/5.py",
         "Reading… src/4.py",
+        "Reading… src/5.py",
+        "Reading… src/next.py",
     ]
 
 
@@ -433,10 +433,19 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: py
 
     machine.transition(events.AssistantTextStartEvent(session_id=sub_session))
     typing = machine.transition(events.AssistantTextDeltaEvent(session_id=sub_session, content="y" * 2345))
-    assert [_line_plain(line) for line in _last_spinner_update(typing).status_lines] == [
+    typing_update = _last_spinner_update(typing)
+    assert [_line_plain(line) for line in typing_update.status_lines] == [
         "GeneralPurpose: compressing context · test-model · Typing… · 25s",
         "Initializing…",
     ]
+    typing_line = typing_update.status_lines[0].text
+    if isinstance(typing_line, DynamicText):
+        typing_line = typing_line.snapshot()
+    assert isinstance(typing_line, Text)
+    assert any(
+        span.style == ThemeKey.STATUS_TEXT and typing_line.plain[span.start : span.end] == "Typing…"
+        for span in typing_line.spans
+    )
 
     composed = machine.transition(events.AssistantTextEndEvent(session_id=sub_session))
     assert [_line_plain(line) for line in _last_spinner_update(composed).status_lines] == [
@@ -570,7 +579,9 @@ def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pyte
     first_status = _last_spinner_update(first_finished)
     assert [_line_plain(line) for line in first_status.status_lines] == [
         "Finder: task 0 · test-model · 1 tool ✓ · 5s",
-        "Result Found the replay path. Also checked the renderer tests.",
+        "Result",
+        "Found the replay path.",
+        "Also checked the renderer tests.",
         "Finder: task 1 · test-model · Running… · 4s",
         "Initializing…",
     ]
@@ -581,11 +592,63 @@ def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pyte
     )
     batch = next(command for command in second_finished if isinstance(command, RenderSubAgentBatchSummary))
     assert [summary.session_id for summary in batch.summaries] == ["sub-a", "sub-b"]
-    assert batch.summaries[0].result_summary == "Result Found the replay path. Also checked the renderer tests."
+    assert batch.summaries[0].result_summary == "Result\nFound the replay path.\nAlso checked the renderer tests."
     assert batch.summaries[0].model_id == "test-model"
     assert batch.summaries[0].tool_count == 1
     assert batch.summaries[0].token_count == 120
     assert _last_spinner_update(second_finished).reset_bottom_height is True
+
+
+def test_finished_summary_uses_actual_status_budget(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(machine_module.shutil, "get_terminal_size", lambda fallback: os.terminal_size((120, 11)))
+    monkeypatch.setattr(machine_module, "_terminal_lines_cache", None)
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+
+    for index, session_id in enumerate(("sub-a", "sub-b")):
+        machine.transition(
+            events.TaskStartEvent(
+                session_id=session_id,
+                parent_session_id="main",
+                sub_agent_state=SubAgentState(
+                    sub_agent_type="finder",
+                    sub_agent_desc=f"task {index}",
+                    sub_agent_prompt="prompt",
+                    parent_tool_batch_id="response-1",
+                    parent_tool_batch_index=index,
+                    parent_tool_batch_size=2,
+                ),
+                model_id="test-model",
+            )
+        )
+
+    for tool_index in range(4):
+        machine.transition(
+            events.ToolCallEvent(
+                session_id="sub-b",
+                tool_call_id=f"read-{tool_index}",
+                tool_name=tools.READ,
+                arguments=f'{{"file_path":"src/{tool_index}.py"}}',
+            )
+        )
+
+    finished = machine.transition(
+        events.TaskFinishEvent(
+            session_id="sub-a",
+            task_result="One\nTwo\nThree\nFour",
+        )
+    )
+
+    assert [_line_plain(line) for line in _last_spinner_update(finished).status_lines] == [
+        "Finder: task 0 · test-model ✓ · 0s",
+        "One",
+        "Two",
+        "Three",
+        "Four",
+        "Finder: task 1 · test-model · 4 tools · Running… · 0s",
+        "… (more 3 tools)",
+        "Reading… src/3.py",
+    ]
 
 
 def test_sub_agent_batch_closes_when_sibling_never_spawns() -> None:
@@ -947,15 +1010,15 @@ def test_sub_agent_status_reduces_to_three_tool_lines_to_keep_nine_agents_visibl
         assert lines[start : start + 4] == [
             f"Finder: searching {agent_index} · test-model · 4 tools · Running… · 0s",
             "… (more 2 tools)",
-            f"Reading… src/{agent_index}-3.py",
             f"Reading… src/{agent_index}-2.py",
+            f"Reading… src/{agent_index}-3.py",
         ]
 
 
 @pytest.mark.parametrize(
     ("terminal_height", "expected_activity_lines"),
     [
-        (15, ["… (more 2 tools)", "Reading… src/0-3.py", "Reading… src/0-2.py"]),
+        (15, ["… (more 2 tools)", "Reading… src/0-2.py", "Reading… src/0-3.py"]),
         (12, ["… (more 3 tools)", "Reading… src/0-3.py"]),
     ],
 )

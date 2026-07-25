@@ -1,4 +1,5 @@
 from rich.console import Group, RenderableType
+from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.const import TAB_EXPAND_WIDTH
@@ -111,15 +112,20 @@ def render_user_input(content: str) -> RenderableType:
     if not renderables:
         return Text("", style=ThemeKey.USER_INPUT)
 
-    return TreeQuote(
-        Group(*renderables),
-        prefix_first=USER_MESSAGE_MARK,
-        prefix_middle=" " * len(USER_MESSAGE_MARK),
-        prefix_last=" " * len(USER_MESSAGE_MARK),
+    return Padding(
+        TreeQuote(
+            Group(*renderables),
+            prefix_first=USER_MESSAGE_MARK,
+            prefix_middle=" " * len(USER_MESSAGE_MARK),
+            prefix_last=" " * len(USER_MESSAGE_MARK),
+            style=ThemeKey.USER_INPUT,
+            style_first=ThemeKey.USER_INPUT,
+        ),
+        (1, 0),
         style=ThemeKey.USER_INPUT,
-        style_first=ThemeKey.USER_INPUT,
+        expand=False,
     )
 
 
 def render_interrupt() -> RenderableType:
-    return Text("Interrupted by user", style=ThemeKey.INTERRUPT)
+    return Text("● Interrupted by user", style=ThemeKey.INTERRUPT)
