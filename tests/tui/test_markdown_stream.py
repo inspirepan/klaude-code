@@ -72,6 +72,16 @@ def test_split_source_stabilizes_completed_ordered_items_before_live_item() -> N
     assert stable_source + live_source == text
 
 
+def test_message_starting_with_list_has_no_rendered_leading_blank_line() -> None:
+    stream = _make_stream()
+
+    ansi, _ = stream.render_stable_ansi("- first\n- second", has_live_suffix=False, final=True)
+    plain = _ANSI_ESCAPE_RE.sub("", ansi)
+
+    assert plain.splitlines()[0].startswith("> ")
+    assert "• first" in plain.splitlines()[0]
+
+
 def test_split_source_keeps_multiline_list_item_live_until_next_item() -> None:
     stream = _make_stream()
     unfinished_text = "- first\n  continuation"

@@ -170,7 +170,7 @@ class PromptBottomBar:
             self._metadata_footer_lines = metadata_footer_lines
         self._running_separator_label = separator_text
         if visible_status_lines or self._startup_loading:
-            self._status_reserved_line_count = max(self._status_reserved_line_count, len(visible_status_lines))
+            self._status_reserved_line_count = max(1, len(visible_status_lines))
             self._ensure_status_spinner()
         else:
             self._cancel_status_spinner()
@@ -243,7 +243,7 @@ class PromptBottomBar:
     def reserved_layout_rows(self) -> int:
         """Return the current number of rows reserved by build_containers()."""
 
-        rows = max(0, self._stream_reserved_line_count) + 1
+        rows = max(0, self._stream_reserved_line_count) + int(self._top_spacer_visible())
         rows += self._status_window_height()
         if self._pending_messages:
             rows += len(self._pending_messages) + 2
@@ -270,7 +270,7 @@ class PromptBottomBar:
 
         stream_visible = Condition(lambda: self._stream_reserved_line_count > 0)
         return [
-            _spacer(),
+            ConditionalContainer(_spacer(), filter=Condition(self._top_spacer_visible)),
             status_window,
             ConditionalContainer(stream_window, filter=stream_visible),
             ConditionalContainer(queue_window, filter=Condition(lambda: bool(self._pending_messages))),
@@ -299,6 +299,9 @@ class PromptBottomBar:
 
     def _visible_status_lines(self) -> tuple[PromptStatusLine, ...]:
         return tuple(line for line in self._status_lines if line.kind != "metadata")
+
+    def _top_spacer_visible(self) -> bool:
+        return not any(line.suppress_top_spacer for line in self._visible_status_lines())
 
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []

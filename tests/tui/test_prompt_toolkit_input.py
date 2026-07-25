@@ -61,6 +61,14 @@ def _metadata(text: str) -> PromptStatusLine:
     return PromptStatusLine(text, "metadata")
 
 
+def _sub_agent_status(text: str, *, suppress_top_spacer: bool = False) -> PromptStatusLine:
+    return PromptStatusLine(
+        text,
+        "status",
+        suppress_top_spacer=suppress_top_spacer,
+    )
+
+
 def test_set_next_prefill_stores_text() -> None:
     prompt_input: Any = _build_input("hello")
     prompt_input._next_prefill_text = None
@@ -199,7 +207,7 @@ def test_status_window_height_resets_after_sub_agent_rows_disappear() -> None:
     assert bar._status_window_height() == 1
 
 
-def test_status_reserved_height_pads_above_remaining_status_rows() -> None:
+def test_status_reserved_height_shrinks_with_remaining_status_rows() -> None:
     prompt_input = _build_input("")
     bar = prompt_input._bottom_bar
 
@@ -212,12 +220,28 @@ def test_status_reserved_height_pads_above_remaining_status_rows() -> None:
     )
     prompt_input.set_status_lines((_status("Loading…"),))
 
-    assert bar._status_window_height() == 3
+    assert bar._status_window_height() == 1
     assert bar._get_status_fragments() == [
-        ("", "\n\n"),
         ("class:meta", "·   "),
         ("class:meta", "Loading…"),
     ]
+
+
+def test_only_sub_agent_with_stream_boundary_suppresses_top_spacer() -> None:
+    prompt_input = _build_input("")
+    bar = prompt_input._bottom_bar
+
+    prompt_input.set_status_lines((_status("Loading…"),))
+    assert bar.reserved_layout_rows() == 2
+
+    prompt_input.set_status_lines((_status("Bashing…"),))
+    assert bar.reserved_layout_rows() == 2
+
+    prompt_input.set_status_lines((_sub_agent_status("Finder: searching"),))
+    assert bar.reserved_layout_rows() == 2
+
+    prompt_input.set_status_lines((_sub_agent_status("Finder: searching", suppress_top_spacer=True),))
+    assert bar.reserved_layout_rows() == 1
 
 
 def test_status_clear_defers_height_collapse_under_loop() -> None:

@@ -630,6 +630,9 @@ class MarkdownStream:
         collected_images = getattr(markdown, "collected_images", [])
 
         lines = output.splitlines(keepends=True)
+        if apply_mark:
+            while lines and not lines[0].strip():
+                lines.pop(0)
         use_mark = apply_mark and bool(self.mark) and self.left_margin >= 2
 
         # Fast path: no margin, no mark -> just rstrip each line

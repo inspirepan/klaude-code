@@ -541,6 +541,44 @@ def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
     assert "Child failed…" not in rendered
 
 
+def test_compact_sub_agent_summary_before_list_has_one_blank_line() -> None:
+    renderer, output = _renderer_and_output()
+    renderer.register_session(
+        "sub-success",
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="search", sub_agent_prompt="prompt"),
+    )
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderSubAgentBatchSummary(
+                    summaries=(
+                        SubAgentSummary(
+                            session_id="sub-success",
+                            title="Finder",
+                            description="search",
+                            status="success",
+                            model_id="gpt-5.6-luna",
+                            duration_s=1.0,
+                            tool_count=1,
+                            token_count=100,
+                            result_summary="Found it.",
+                        ),
+                    )
+                ),
+                StartAssistantStream(session_id="main"),
+                AppendAssistant(session_id="main", content="- first\n- second"),
+                EndAssistantStream(session_id="main"),
+            ]
+        )
+    )
+
+    lines = output.getvalue().splitlines()
+    summary_index = next(index for index, line in enumerate(lines) if "Found it." in line)
+    assistant_index = next(index for index, line in enumerate(lines) if "first" in line)
+    assert lines[summary_index + 1 : assistant_index] == [""]
+
+
 def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:
     renderer, output = _renderer_and_output()
     renderer.set_replay_mode(True)

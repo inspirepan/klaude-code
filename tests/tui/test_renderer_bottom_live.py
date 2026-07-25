@@ -166,8 +166,14 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
                 text=status,
                 session_id="child",
                 sub_agent_animated=False,
+                is_sub_agent=True,
             ),
-            SpinnerStatusLine(text=Text("Found the issue…"), session_id="child", sub_agent_continuation=True),
+            SpinnerStatusLine(
+                text=Text("Found the issue…"),
+                session_id="child",
+                sub_agent_continuation=True,
+                is_sub_agent=True,
+            ),
         )
     )
 
@@ -175,6 +181,7 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert line.text == " ●  Finder: inspect status ✓ · 2s"
     assert line.fragments
     assert line.show_spinner is False
+    assert line.suppress_top_spacer is False
     assert "".join(text for _, text in line.fragments) == line.text
     assert line.inline_spinner_style is None
     assert line.fragments[0][0].startswith("fg:#")
@@ -194,6 +201,51 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert line.fragments[success_index - 1] == ("class:meta", " ")
     assert result_line.text == "      ↳ Found the issue…"
     assert result_line.show_spinner is False
+    assert result_line.suppress_top_spacer is False
+
+
+def test_sub_agent_status_reuses_assistant_stream_boundary() -> None:
+    import asyncio
+
+    from rich.text import Text
+
+    from klaude_code.protocol.models import SubAgentState
+    from klaude_code.tui.commands import (
+        AppendAssistant,
+        EndAssistantStream,
+        PromptStatusLine,
+        SpinnerStatusLine,
+        StartAssistantStream,
+    )
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    status_updates: list[tuple[PromptStatusLine, ...]] = []
+    renderer = TUICommandRenderer(
+        status_sink=lambda lines, _separator, _reset: status_updates.append(lines)
+    )
+    _renderer_console(renderer)
+    renderer.register_session(
+        "child",
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="search", sub_agent_prompt="prompt"),
+    )
+    renderer.set_progress_ui_suspended(True)
+    renderer.spinner_start()
+    asyncio.run(
+        renderer.execute(
+            [
+                StartAssistantStream(session_id="main"),
+                AppendAssistant(session_id="main", content="Starting finder."),
+                EndAssistantStream(session_id="main"),
+            ]
+        )
+    )
+
+    renderer._spinner_last_apply_at = 0.0
+    renderer.spinner_update(
+        status_lines=(SpinnerStatusLine(text=Text("Finder: search"), session_id="child", is_sub_agent=True),)
+    )
+
+    assert status_updates[-1][0].suppress_top_spacer is True
 
 
 def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:

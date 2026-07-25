@@ -1003,6 +1003,7 @@ class DisplayStateMachine:
                 SpinnerStatusLine(
                     text=r_status.DynamicText(lambda session=session: self._expanded_sub_agent_status_line(session)),
                     session_id=session.session_id,
+                    is_sub_agent=True,
                 )
                 for session in self._sessions.values()
                 if session.is_sub_agent and session.task_active
@@ -1013,7 +1014,10 @@ class DisplayStateMachine:
             return tuple(
                 [
                     *lines[:SUB_AGENT_STATUS_MAX_LINES],
-                    SpinnerStatusLine(text=Text(format_more_lines_indicator(hidden), style=ThemeKey.STATUS_HINT)),
+                    SpinnerStatusLine(
+                        text=Text(format_more_lines_indicator(hidden), style=ThemeKey.STATUS_HINT),
+                        is_sub_agent=True,
+                    ),
                 ]
             )
 
@@ -1051,6 +1055,7 @@ class DisplayStateMachine:
                     text=r_status.DynamicText(lambda session=session: self._sub_agent_status_line(session)),
                     session_id=session.session_id,
                     sub_agent_animated=session.terminal_status is None,
+                    is_sub_agent=True,
                 )
             ]
             if session.terminal_status is not None:
@@ -1068,6 +1073,7 @@ class DisplayStateMachine:
                         session_id=session.session_id,
                         sub_agent_continuation=True,
                         continuation_leading=index == 0,
+                        is_sub_agent=True,
                     )
                     for index, summary_line in enumerate(summary_lines)
                 )
@@ -1077,6 +1083,7 @@ class DisplayStateMachine:
                         text=activity,
                         session_id=session.session_id,
                         sub_agent_continuation=True,
+                        is_sub_agent=True,
                     )
                     for activity in session.compact_tool_activity_lines(tool_line_limit)
                 )
@@ -1099,7 +1106,12 @@ class DisplayStateMachine:
             visible_groups += 1
         hidden = len(groups) - visible_groups
         if hidden and len(visible) < max_lines:
-            visible.append(SpinnerStatusLine(text=Text(f"… {hidden} more agents", style=ThemeKey.STATUS_HINT)))
+            visible.append(
+                SpinnerStatusLine(
+                    text=Text(f"… {hidden} more agents", style=ThemeKey.STATUS_HINT),
+                    is_sub_agent=True,
+                )
+            )
         return tuple(visible)
 
     @staticmethod

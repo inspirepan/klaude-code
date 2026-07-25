@@ -246,6 +246,7 @@ class TUICommandRenderer:
         )
         self._status_line_specs: tuple[SpinnerStatusLine, ...] = ()
         self._notifier = notifier
+        self._assistant_boundary_printed = False
         self._status_sink = status_sink
         self._stream_sink = stream_sink
         self._assistant_stream = _StreamState()
@@ -627,6 +628,7 @@ class TUICommandRenderer:
             inline_spinner_style: str | None = None
             show_spinner = True
             spec = self._status_line_specs[status_index] if status_index < len(self._status_line_specs) else None
+            is_sub_agent = spec.is_sub_agent if spec is not None else False
             if spec is not None:
                 status_index += 1
                 if spec.sub_agent_continuation:
@@ -643,6 +645,7 @@ class TUICommandRenderer:
                     fragments,
                     show_spinner,
                     inline_spinner_style,
+                    is_sub_agent and self._assistant_boundary_printed,
                 )
             )
         if self._status_metadata_text is not None:
@@ -652,6 +655,7 @@ class TUICommandRenderer:
                 result[-1].fragments,
                 result[-1].show_spinner,
                 result[-1].inline_spinner_style,
+                result[-1].suppress_top_spacer,
             )
         return tuple(result)
 
@@ -1445,6 +1449,7 @@ class TUICommandRenderer:
                 case RenderWelcomeContext(event=event):
                     self.display_welcome_context(event)
                 case RenderUserMessage(event=event):
+                    self._assistant_boundary_printed = False
                     self.display_user_message(event)
                 case RenderTimeMarker(label=label):
                     self.display_time_marker(label)
@@ -1505,6 +1510,7 @@ class TUICommandRenderer:
                     finalized = self._assistant_stream.finalize()
                     if finalized and had_content:
                         self.print()
+                        self._assistant_boundary_printed = True
                 case RenderToolCall(event=event):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call(event)
