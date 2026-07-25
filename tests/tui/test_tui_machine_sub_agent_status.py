@@ -1121,6 +1121,31 @@ def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> N
     assert _line_plain(update.status_lines[0]).startswith("Running Task")
 
 
+@pytest.mark.parametrize(
+    ("tool_name", "active_form"),
+    [
+        (tools.READ, "Reading"),
+        (tools.EDIT, "Editing"),
+        (tools.WRITE, "Writing"),
+        (tools.APPLY_PATCH, "Patching"),
+    ],
+)
+def test_main_file_tool_call_shows_active_form_while_arguments_stream(tool_name: str, active_form: str) -> None:
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+
+    commands = machine.transition(
+        events.ToolCallStartEvent(
+            session_id="main",
+            tool_call_id="file-tool-1",
+            tool_name=tool_name,
+        )
+    )
+
+    update = _last_spinner_update(commands)
+    assert _line_plain(update.status_lines[0]).startswith(active_form)
+
+
 def test_main_bash_tool_call_adds_blank_line_before_stream_starts() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
@@ -1141,10 +1166,10 @@ def test_main_bash_tool_call_adds_blank_line_before_stream_starts() -> None:
     assert _line_plain(update.status_lines[0]).startswith("Bashing")
 
 
-def test_main_bash_compact_status_prefers_clamped_description() -> None:
+def test_main_bash_compact_status_shows_description_and_raw_first_command_line() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
-    description = "x" * 50
+    description = "运行测试"
 
     machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
     machine.transition(
@@ -1159,12 +1184,22 @@ def test_main_bash_compact_status_prefers_clamped_description() -> None:
             session_id=main_session,
             tool_call_id="tc-bash-1",
             tool_name=tools.BASH,
-            arguments=f'{{"command":"echo hi","description":"{description}"}}',
+            arguments=f'{{"command":"pnpm test --runInBand\\npnpm lint","description":"{description}"}}',
         )
     )
 
     update = _last_spinner_update(commands)
-    assert _line_plain(update.status_lines[0]) == f"Bash {'x' * 39}…"
+    status = update.status_lines[0].text
+    assert isinstance(status, Text)
+    assert status.plain.rstrip("…") == "Bash 运行测试  pnpm test --runInBand"
+    assert any(
+        span.style == ThemeKey.BASH_TOOL_DESCRIPTION and status.plain[span.start : span.end] == "运行测试"
+        for span in status.spans
+    )
+    assert any(
+        span.style == ThemeKey.BASH_ARGUMENT and status.plain[span.start : span.end] == "pnpm test --runInBand"
+        for span in status.spans
+    )
 
     result_commands = machine.transition(
         events.ToolResultEvent(
@@ -1177,7 +1212,7 @@ def test_main_bash_compact_status_prefers_clamped_description() -> None:
         )
     )
     compact = next(command for command in result_commands if isinstance(command, RenderCompactToolResult))
-    assert compact.arguments == f'{{"command":"echo hi","description":"{description}"}}'
+    assert compact.arguments == (f'{{"command":"pnpm test --runInBand\\npnpm lint","description":"{description}"}}')
     assert not any(isinstance(command, RenderToolResult) for command in result_commands)
 
 

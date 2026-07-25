@@ -77,14 +77,22 @@ def render_compact_tool_activity(
     status: str | None = None,
     max_target_chars: int | None = 40,
     include_truncation_mark: bool = True,
+    summarize_bash: bool = True,
 ) -> Text:
     """Render one compact tool activity line."""
 
-    line = Text()
+    line = Text(no_wrap=True, overflow="ellipsis")
     line.append(display_name or format_pascal_case(tool_name), style=ThemeKey.TOOL_NAME)
     if tool_name == tools.BASH:
-        description, command_summary = _bash_parts(_tool_arguments(arguments))
-        target = "  ".join(part for part in (description, command_summary) if part)
+        args = _tool_arguments(arguments)
+        description = _one_line(args.get("description", ""))
+        command = str(args.get("command", ""))
+        command_lines = command.splitlines()
+        if summarize_bash:
+            command_display = summarize_bash_command(command)
+        else:
+            command_display = command_lines[0].strip() if command_lines else ""
+        target = "  ".join(part for part in (description, command_display) if part)
         target = _clamp_subject(target, max_target_chars, include_mark=include_truncation_mark)
         if target:
             line.append(" ")

@@ -217,13 +217,14 @@ class ActivityState:
     def __init__(self) -> None:
         self._tool_calls: dict[str, int] = {}
         self._tool_calls_by_id: dict[str, str] = {}
+        self._tool_call_texts: dict[str, Text] = {}
         self._tool_kinds_by_id: dict[str, str] = {}
         self._sub_agent_tool_calls: dict[str, int] = {}
         self._sub_agent_tool_calls_by_id: dict[str, str] = {}
 
     def add_tool_call(
         self,
-        tool_name: str,
+        tool_name: str | Text,
         tool_call_id: str | None = None,
         *,
         tool_kind: str | None = None,
@@ -233,14 +234,20 @@ class ActivityState:
             if tool_kind is not None:
                 self._tool_kinds_by_id[tool_call_id] = tool_kind
             return
-        self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
+        label = tool_name.plain if isinstance(tool_name, Text) else tool_name
+        self._tool_calls[label] = self._tool_calls.get(label, 0) + 1
+        if isinstance(tool_name, Text):
+            self._tool_call_texts[label] = tool_name.copy()
 
-    def _set_tool_call_label(self, tool_call_id: str, tool_name: str) -> None:
+    def _set_tool_call_label(self, tool_call_id: str, tool_name: str | Text) -> None:
         existing_tool_name = self._tool_calls_by_id.get(tool_call_id)
         if existing_tool_name is not None:
             self._decrement_tool_call(existing_tool_name)
-        self._tool_calls_by_id[tool_call_id] = tool_name
-        self._tool_calls[tool_name] = self._tool_calls.get(tool_name, 0) + 1
+        label = tool_name.plain if isinstance(tool_name, Text) else tool_name
+        self._tool_calls_by_id[tool_call_id] = label
+        self._tool_calls[label] = self._tool_calls.get(label, 0) + 1
+        if isinstance(tool_name, Text):
+            self._tool_call_texts[label] = tool_name.copy()
 
     def finish_tool_call(self, tool_call_id: str) -> None:
         self._tool_kinds_by_id.pop(tool_call_id, None)
@@ -252,6 +259,7 @@ class ActivityState:
         current = self._tool_calls.get(tool_name, 0)
         if current <= 1:
             self._tool_calls.pop(tool_name, None)
+            self._tool_call_texts.pop(tool_name, None)
         else:
             self._tool_calls[tool_name] = current - 1
 
@@ -279,16 +287,19 @@ class ActivityState:
     def clear_tool_calls(self) -> None:
         self._tool_calls = {}
         self._tool_calls_by_id = {}
+        self._tool_call_texts = {}
         self._tool_kinds_by_id = {}
 
     def clear_for_new_step(self) -> None:
         self._tool_calls = {}
         self._tool_calls_by_id = {}
+        self._tool_call_texts = {}
         self._tool_kinds_by_id = {}
 
     def reset(self) -> None:
         self._tool_calls = {}
         self._tool_calls_by_id = {}
+        self._tool_call_texts = {}
         self._tool_kinds_by_id = {}
         self._sub_agent_tool_calls = {}
         self._sub_agent_tool_calls_by_id = {}
@@ -297,12 +308,13 @@ class ActivityState:
         if self._tool_calls or self._sub_agent_tool_calls:
             activity_text = Text()
 
-            def _append_counts(counts: dict[str, int]) -> None:
+            def _append_counts(counts: dict[str, int], styled_labels: dict[str, Text] | None = None) -> None:
                 first = True
                 for name, count in counts.items():
                     if not first:
                         activity_text.append(", ", style=ThemeKey.STATUS_TEXT)
-                    activity_text.append(Text(name, style=ThemeKey.STATUS_TEXT))
+                    label = styled_labels.get(name) if styled_labels is not None else None
+                    activity_text.append(label.copy() if label is not None else Text(name, style=ThemeKey.STATUS_TEXT))
                     if count > 1:
                         activity_text.append(f" x {count}", style=ThemeKey.STATUS_TEXT)
                     first = False
@@ -313,7 +325,7 @@ class ActivityState:
                     activity_text.append(", ", style=ThemeKey.STATUS_TEXT)
 
             if self._tool_calls:
-                _append_counts(self._tool_calls)
+                _append_counts(self._tool_calls, self._tool_call_texts)
 
             return activity_text
         return None
@@ -433,7 +445,7 @@ class SpinnerStatusState:
 
     def add_tool_call(
         self,
-        tool_name: str,
+        tool_name: str | Text,
         tool_call_id: str | None = None,
         *,
         tool_kind: str | None = None,
@@ -1865,10 +1877,10 @@ class DisplayStateMachine:
             activity = c_tools.render_compact_tool_activity(
                 e.tool_name,
                 e.arguments,
-                max_target_chars=39,
-                include_truncation_mark=False,
+                max_target_chars=None,
+                summarize_bash=False,
             )
-            self._spinner.add_tool_call(activity.plain, e.tool_call_id, tool_kind=e.tool_name)
+            self._spinner.add_tool_call(activity, e.tool_call_id, tool_kind=e.tool_name)
             cmds.extend(self._spinner_update_commands())
 
         if not is_replay:

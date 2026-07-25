@@ -21,7 +21,7 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 
 from klaude_code.const import STATUS_WAITING_TEXT
 from klaude_code.tui.commands import PromptStatusLine
-from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_USER_INPUT
+from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_TOOL_RESULT, CLASS_USER_INPUT
 from klaude_code.tui.terminal.tty_state import stdout_writable
 
 _STATUS_SPINNER_FRAMES = ("·  ", "·· ", "···", " ··", "  ·", "   ")
@@ -74,11 +74,14 @@ class PromptBottomBar:
 
     def set_stream_lines(self, lines: tuple[str, ...], *, end_of_stream: bool = False) -> None:
         stream_lines = tuple(line for line in lines if line.strip())
+        starts_after_ended_stream = bool(stream_lines) and self._stream_collapse_handle is not None
 
         # Any new state cancels a pending delayed collapse — either we're
         # going to collapse anyway, or we have new content that resets the
         # debounce.
         self._cancel_pending_stream_collapse()
+        if starts_after_ended_stream:
+            self._stream_reserved_line_count = 0
 
         # End-of-stream: clear the visible content immediately but defer the
         # height collapse so adjacent post-stream events (TaskMetadata,
@@ -259,10 +262,9 @@ class PromptBottomBar:
 
         stream_visible = Condition(lambda: self._stream_reserved_line_count > 0)
         return [
-            ConditionalContainer(stream_window, filter=stream_visible),
-            ConditionalContainer(_spacer(), filter=stream_visible),
-            ConditionalContainer(_spacer(), filter=Condition(lambda: self._stream_reserved_line_count == 0)),
+            _spacer(),
             status_window,
+            ConditionalContainer(stream_window, filter=stream_visible),
             ConditionalContainer(queue_window, filter=Condition(lambda: bool(self._pending_messages))),
             ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._pending_messages))),
         ]
@@ -281,7 +283,7 @@ class PromptBottomBar:
         for index, line in enumerate(self._stream_lines):
             if index:
                 fragments.append(("", "\n"))
-            fragments.append((CLASS_META, line))
+            fragments.append((CLASS_TOOL_RESULT, line))
         return fragments
 
     def _status_window_height(self) -> int:

@@ -492,9 +492,9 @@ def test_stream_lines_render_above_status() -> None:
     bar = prompt_input._bottom_bar
     assert bar._stream_lines == ("  line one", "  line two")
     assert bar._get_stream_fragments() == [
-        ("class:meta", "  line one"),
+        ("class:tool.result", "  line one"),
         ("", "\n"),
-        ("class:meta", "  line two"),
+        ("class:tool.result", "  line two"),
     ]
 
 
@@ -563,10 +563,11 @@ def test_stream_lines_end_of_stream_defers_height_collapse_under_loop() -> None:
         assert bar._stream_reserved_line_count == 3
         assert bar._stream_collapse_handle is not None
 
-        # A new chunk before the timer fires cancels the collapse.
+        # A new stream before the timer fires cancels the delayed collapse
+        # without inheriting the ended stream's high-water reservation.
         prompt_input.set_stream_lines(("d",))
         assert bar._stream_collapse_handle is None
-        assert bar._stream_reserved_line_count == 3
+        assert bar._stream_reserved_line_count == 1
         assert bar._stream_lines == ("d",)
 
     asyncio.run(_scenario())
