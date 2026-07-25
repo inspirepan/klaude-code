@@ -388,3 +388,24 @@ def test_entries_fall_back_to_an_even_split_when_unlocatable() -> None:
     tokens = sorted(entry.tokens for entry in section.entries)
     assert tokens[0] > 0
     assert tokens[1] - tokens[0] <= 1
+
+
+def test_tool_details_are_itemized_per_tool() -> None:
+    """`/context` should show which tool definitions cost what, not just a total."""
+    session = Session(work_dir=Path("."))
+
+    usage = _run(
+        session=session,
+        system_prompt="",
+        tools=[_tool("Big", "a very long description " * 40), _tool("Small", "short")],
+        llm_config=_llm_config(),
+        model_name="test-model",
+    )
+
+    section = next(section for section in usage.details if section.key == "system_tools")
+    by_name = {entry.name: entry.tokens for entry in section.entries}
+    assert by_name["Big"] > by_name["Small"] * 5
+    tools_total = next(c.tokens for c in usage.categories if c.key == "system_tools")
+    assert sum(by_name.values()) == tools_total
+    # Largest first, so the expensive definitions are what you see.
+    assert [entry.name for entry in section.entries] == ["Big", "Small"]

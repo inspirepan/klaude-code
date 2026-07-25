@@ -347,6 +347,7 @@ async def analyze_context_usage(
 
     details: list[ContextDetailSection] = []
     detail_sources: tuple[tuple[ContextCategoryKey, _Bucket, str], ...] = (
+        ("system_tools", tool_bucket, "tool"),
         ("memory", buckets["memory"], "file"),
         ("skills", buckets["skills"], "skill"),
     )

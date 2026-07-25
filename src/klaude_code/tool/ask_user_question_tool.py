@@ -50,7 +50,7 @@ class AskUserQuestionTool(ToolABC):
                 "type": "object",
                 "properties": {
                     "questions": {
-                        "description": "Questions to ask the user (1-4 questions)",
+                        "description": "Questions to ask the user.",
                         "minItems": 1,
                         "maxItems": 4,
                         "type": "array",
@@ -58,23 +58,16 @@ class AskUserQuestionTool(ToolABC):
                             "type": "object",
                             "properties": {
                                 "question": {
-                                    "description": (
-                                        "The complete question to ask the user. Should be clear, specific, "
-                                        "and end with a question mark. If multiSelect is true, phrase it to "
-                                        "invite more than one answer."
-                                    ),
+                                    "description": "The full question, specific and ending with a question mark.",
                                     "type": "string",
                                 },
                                 "header": {
-                                    "description": "Very short label displayed as a chip/tag (max 12 chars).",
+                                    "description": "Very short chip label, at most 12 characters.",
                                     "type": "string",
                                 },
                                 "options": {
                                     "description": (
-                                        "The available choices for this question. Must have 2-4 options. "
-                                        "Each option should be a distinct, mutually exclusive choice "
-                                        "(unless multiSelect is enabled). There should be no 'Other' option, "
-                                        "that will be provided automatically."
+                                        "The choices. Do not add an 'Other' option -- one is always offered."
                                     ),
                                     "type": "array",
                                     "minItems": 2,
@@ -83,26 +76,20 @@ class AskUserQuestionTool(ToolABC):
                                         "type": "object",
                                         "properties": {
                                             "label": {
-                                                "description": (
-                                                    "The display text for this option that the user will see and "
-                                                    "select. Should be concise (1-5 words) and clearly describe "
-                                                    "the choice."
-                                                ),
+                                                "description": "Shown to the user; 1-5 words.",
                                                 "type": "string",
                                             },
                                             "description": {
                                                 "description": (
-                                                    "Explanation of what this option means or what will happen "
-                                                    "if chosen. Useful for providing context about trade-offs "
-                                                    "or implications."
+                                                    "What this option means or what happens if chosen, including "
+                                                    "its tradeoffs."
                                                 ),
                                                 "type": "string",
                                             },
                                             "markdown": {
                                                 "description": (
-                                                    "Optional markdown preview shown when this option is focused. "
-                                                    "Use for mockups, code snippets, or structured comparisons "
-                                                    "that help the user decide between single-select options."
+                                                    "Richer preview rendered while this option is focused -- a "
+                                                    "mockup, code snippet, or comparison. Single-select only."
                                                 ),
                                                 "type": "string",
                                             },
@@ -113,8 +100,8 @@ class AskUserQuestionTool(ToolABC):
                                 },
                                 "multiSelect": {
                                     "description": (
-                                        "Set to true to allow the user to select multiple options instead "
-                                        "of just one. Use when choices are not mutually exclusive."
+                                        "Allow selecting more than one option. Use when the choices are not "
+                                        "mutually exclusive, and phrase `question` to invite multiple answers."
                                     ),
                                     "type": "boolean",
                                     "default": False,

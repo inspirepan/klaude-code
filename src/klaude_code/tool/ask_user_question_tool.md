@@ -1,12 +1,6 @@
-Use this tool when you need to ask the user questions during execution. This allows you to:
-1. Gather user preferences or requirements
-2. Clarify ambiguous instructions
-3. Get decisions on implementation choices as you work
-4. Offer choices to the user about what direction to take.
+Ask the user to make a decision that is genuinely theirs: an ambiguous instruction, a preference you cannot infer from the code, or a choice between approaches with real tradeoffs.
 
 Usage notes:
-- Use multiSelect: true to allow multiple answers to be selected for a question
-- If you recommend a specific option, make that the first option in the list and add "(Recommended)" at the end of the label
-- Use the same language as the user
-- For single-select questions, an option may include `markdown` to show a richer preview while the user is deciding
-- Keep `markdown` previews concise. In the TUI they render in a compact preview box and may be truncated to fit the current terminal height, so put the most important content first
+- Write questions and options in the same language the user is using.
+- If you recommend an option, put it first and append "(Recommended)" to its label.
+- Keep `markdown` previews short and front-load what matters: the TUI renders them in a compact box and truncates them to fit the terminal height.
