@@ -182,7 +182,8 @@ def render_markdown_doc(
         lines = md_ui.content.splitlines()
         hidden_lines = max(0, len(lines) - _COMPACT_MARKDOWN_PREVIEW_LINES)
         preview: list[RenderableType] = [
-            Text(line, no_wrap=True, overflow="ellipsis") for line in lines[:_COMPACT_MARKDOWN_PREVIEW_LINES]
+            Text(line, style=ThemeKey.TOOL_RESULT, no_wrap=True, overflow="ellipsis")
+            for line in lines[:_COMPACT_MARKDOWN_PREVIEW_LINES]
         ]
         if hidden_lines:
             preview.append(Text(f"\u2026 (more {hidden_lines} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED))
@@ -197,7 +198,7 @@ def render_markdown_doc(
         return Padding(Align(block, width=panel_width, pad=False), (0, 0, 0, 2))
 
     panel = Panel(
-        NoInsetMarkdown(md_ui.content, code_theme=code_theme),
+        NoInsetMarkdown(md_ui.content, code_theme=code_theme, style=ThemeKey.TOOL_RESULT),
         box=box.SIMPLE,
         border_style=ThemeKey.LINES,
         style=ThemeKey.WRITE_MARKDOWN_PANEL,
