@@ -92,7 +92,7 @@ def render_compact_tool_activity(
             command_display = summarize_bash_command(command)
         else:
             command_display = command_lines[0].strip() if command_lines else ""
-        target = "  ".join(part for part in (description, command_display) if part)
+        target = " ".join(part for part in (description, command_display) if part)
         target = _clamp_subject(target, max_target_chars, include_mark=include_truncation_mark)
         if target:
             line.append(" ")
@@ -126,7 +126,7 @@ def render_compact_tool_result(
             details.append(description, style=ThemeKey.BASH_TOOL_DESCRIPTION)
         if command_summary:
             if details.plain:
-                details.append("  ")
+                details.append(" ")
             details.append(command_summary, style=ThemeKey.BASH_ARGUMENT)
     else:
         target, target_style = _tool_target(tool_name, arguments)

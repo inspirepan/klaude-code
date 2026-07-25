@@ -1197,7 +1197,7 @@ def test_main_bash_compact_status_shows_description_and_raw_first_command_line()
     update = _last_spinner_update(commands)
     status = update.status_lines[0].text
     assert isinstance(status, Text)
-    assert status.plain.rstrip("…") == "Bash 运行测试  pnpm test --runInBand"
+    assert status.plain.rstrip("…") == "Bash 运行测试 pnpm test --runInBand"
     assert any(
         span.style == ThemeKey.BASH_TOOL_DESCRIPTION and status.plain[span.start : span.end] == "运行测试"
         for span in status.spans

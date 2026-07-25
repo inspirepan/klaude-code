@@ -676,6 +676,35 @@ def test_openai_compatible_stream_state_manager_full_sequence() -> None:
     ]
 
 
+def test_openai_compatible_tool_start_waits_for_provider_call_id() -> None:
+    param = _param(model_id="gpt-4.1-mini")
+    tc0_name = SimpleNamespace(index=0, id=None, function=SimpleNamespace(name="Bash", arguments=""))
+    tc0_args = SimpleNamespace(index=0, id=None, function=SimpleNamespace(name=None, arguments='{"command":"pwd"}'))
+    tc0_id = SimpleNamespace(index=0, id="call_1", function=SimpleNamespace(name=None, arguments=None))
+    events: list[object] = [
+        SimpleNamespace(id="resp_openai", choices=[SimpleNamespace(delta=SimpleNamespace(tool_calls=[tc0_name]))]),
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(tool_calls=[tc0_args]))]),
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(tool_calls=[tc0_id]))]),
+        SimpleNamespace(choices=[SimpleNamespace(delta=SimpleNamespace(), finish_reason="tool_calls")]),
+    ]
+
+    stream = OpenAILLMStream(
+        cast(AsyncStream[ChatCompletionChunk], _ListAsyncIterator(events)),
+        param=param,
+        metadata_tracker=MetadataTracker(),
+        reasoning_handler=DefaultReasoningHandler(param_model=str(param.model_id), response_id=None),
+        on_event=None,
+    )
+    items = _collect(cast(AsyncIterator[message.LLMStreamItem], stream))
+
+    starts = [item for item in items if isinstance(item, message.ToolCallStartDelta)]
+    assert [(item.call_id, item.name) for item in starts] == [("call_1", "Bash")]
+    final = _final(items)
+    tool = next(part for part in final.parts if isinstance(part, message.ToolCallPart))
+    assert tool.call_id == starts[0].call_id
+    assert tool.arguments_json == '{"command":"pwd"}'
+
+
 # --------------------------------------------------------------------------
 # OpenAI Responses
 # --------------------------------------------------------------------------

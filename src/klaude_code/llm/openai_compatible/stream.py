@@ -127,12 +127,22 @@ class StreamStateManager:
         if arguments:
             existing.arguments_json += arguments
 
-    def mark_tool_start_emitted(self, tc_index: int) -> bool:
-        """Return True if this is the first time we emit ToolCallStartDelta for this index."""
+    def take_tool_call_start(self, tc_index: int) -> message.ToolCallStartDelta | None:
+        """Return the tool start once both its provider ID and name are known."""
         if tc_index in self._emitted_tool_start_indices:
-            return False
+            return None
+        part_index = self._tool_part_index_by_tc_index.get(tc_index)
+        if part_index is None:
+            return None
+        part = self.assistant_parts[part_index]
+        if not isinstance(part, message.ToolCallPart) or not part.call_id or not part.tool_name:
+            return None
         self._emitted_tool_start_indices.add(tc_index)
-        return True
+        return message.ToolCallStartDelta(
+            response_id=self.response_id,
+            call_id=part.call_id,
+            name=part.tool_name,
+        )
 
     def get_partial_parts(self) -> list[message.Part]:
         """Get accumulated parts for error/interrupt recovery, excluding tool calls and thinking."""
@@ -394,18 +404,14 @@ async def parse_chat_completions_stream(
                     fn_args = getattr(fn, "arguments", None) if fn is not None else None
                     tc_id = getattr(tc, "id", None)
 
-                    if fn_name and state.mark_tool_start_emitted(tc_index):
-                        yield message.ToolCallStartDelta(
-                            response_id=state.response_id,
-                            call_id=str(tc_id or ""),
-                            name=str(fn_name),
-                        )
                     state.upsert_tool_call(
                         tc_index=tc_index,
                         call_id=str(tc_id) if isinstance(tc_id, str) else None,
                         name=str(fn_name) if isinstance(fn_name, str) else None,
                         arguments=str(fn_args) if isinstance(fn_args, str) else None,
                     )
+                    if tool_start := state.take_tool_call_start(tc_index):
+                        yield tool_start
     except (openai.OpenAIError, httpx.HTTPError) as e:
         yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
         state.stop_reason = "error"

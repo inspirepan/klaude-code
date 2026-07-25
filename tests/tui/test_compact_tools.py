@@ -72,7 +72,7 @@ def test_compact_bash_prefers_description_and_hides_command_output() -> None:
     )
 
     rendered = output.getvalue()
-    assert rendered == "$ Bash 确认提交后工作区为空  jj status · jj diff ✓\n\n"
+    assert rendered == "$ Bash 确认提交后工作区为空 jj status · jj diff ✓\n\n"
     assert "jj status &&" not in rendered
     assert "working copy" not in rendered
 
@@ -123,7 +123,7 @@ def test_compact_bash_failure_shows_concise_exit_code() -> None:
     )
 
     rendered = output.getvalue()
-    assert rendered == "$ Bash 运行测试  uv run pytest ✗ exit 1\n\n"
+    assert rendered == "$ Bash 运行测试 uv run pytest ✗ exit 1\n\n"
     assert "failed test details" not in rendered
 
 
@@ -166,7 +166,7 @@ def test_compact_bash_live_tail_is_transient() -> None:
 
     assert any(lines == ("       live output",) and not end for lines, end in stream_updates)
     assert stream_updates[-1] == ((), True)
-    assert output.getvalue() == "$ Bash 运行长命令  long ✓\n\n"
+    assert output.getvalue() == "$ Bash 运行长命令 long ✓\n\n"
 
 
 def test_compact_bash_results_in_same_step_have_no_blank_line_between_them() -> None:
@@ -176,7 +176,7 @@ def test_compact_bash_results_in_same_step_have_no_blank_line_between_them() -> 
 
     asyncio.run(renderer.execute([first, second, FlushOpenBlocks()]))
 
-    assert output.getvalue() == "$ Bash 查看目录  pwd ✓\n$ Bash 检查状态  jj status ✓\n\n"
+    assert output.getvalue() == "$ Bash 查看目录 pwd ✓\n$ Bash 检查状态 jj status ✓\n\n"
 
 
 def test_compact_activity_clamps_description_to_forty_characters() -> None:
@@ -199,7 +199,7 @@ def test_compact_activity_can_defer_truncation_to_parent_renderable() -> None:
         max_target_chars=None,
     )
 
-    assert rendered.plain == f"Bash {description}  echo"
+    assert rendered.plain == f"Bash {description} echo"
 
 
 def test_compact_activity_does_not_apply_tool_name_bold_to_parameters() -> None:
