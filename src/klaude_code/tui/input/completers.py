@@ -129,11 +129,7 @@ def _path_match_rank(path: str, query: str) -> _PathMatchRank | None:
         return (
             index == 0
             or path_lower[index - 1] in "/\\._- "
-            or (
-                preserves_indices
-                and normalized[index].isupper()
-                and normalized[index - 1].islower()
-            )
+            or (preserves_indices and normalized[index].isupper() and normalized[index - 1].islower())
         )
 
     # For every endpoint, retain the best partial subsequence ending there.

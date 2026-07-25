@@ -514,7 +514,8 @@ def test_compact_main_single_line_thinking_renders_markdown() -> None:
     assert output.getvalue().splitlines() == ["∵ Reviewing prompt toolkit tests", ""]
     expected_style = renderer.themes.thinking_markdown_theme.styles["markdown.strong"]
     assert rendered_content.get_style_at_offset(renderer.console, 0) == expected_style
-    assert rendered_content.get_style_at_offset(renderer.console, 0).bold is True
+    # Thinking markdown emphasis is italic, not bold (see "reduce bold status styling").
+    assert rendered_content.get_style_at_offset(renderer.console, 0).italic is True
 
 
 def test_compact_main_single_line_thinking_truncates_with_ellipsis() -> None:

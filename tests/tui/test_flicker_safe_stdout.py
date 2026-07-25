@@ -549,7 +549,7 @@ def test_write_scrollback_bulk_lands_after_queued_proxy_writes() -> None:
 
     proxy = FlickerSafeStdoutProxy(sleep_between_writes=0.01, raw=True)
     written: list[str] = []
-    proxy._output = SimpleNamespace(  # type: ignore[assignment]
+    proxy._output = SimpleNamespace(  # ty: ignore[invalid-assignment] # type: ignore[assignment]
         enable_autowrap=lambda: None,
         write_raw=written.append,
         write=written.append,

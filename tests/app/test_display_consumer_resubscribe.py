@@ -36,7 +36,7 @@ def test_display_consumer_resubscribes_after_overflow() -> None:
         display = _RecordingDisplay()
 
         consumer = asyncio.create_task(
-            _consume_display_from_subscription(bus, holder, display)  # pyright: ignore[reportArgumentType]
+            _consume_display_from_subscription(bus, holder, display)  # ty: ignore[invalid-argument-type] # pyright: ignore[reportArgumentType]
         )
         # Overflow before the consumer drains: fill to maxsize, then one more
         # publish disconnects the subscriber.
