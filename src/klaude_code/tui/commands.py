@@ -184,10 +184,11 @@ class EndThinkingStream(RenderCommand):
 
 @dataclass(frozen=True, slots=True)
 class RenderThinkingSummary(RenderCommand):
+    """One-line stand-in for a sub-agent's thinking in the expanded transcript."""
+
     session_id: str
     duration_s: float | None
     char_count: int
-    content: str = ""
 
 
 @dataclass(frozen=True, slots=True)

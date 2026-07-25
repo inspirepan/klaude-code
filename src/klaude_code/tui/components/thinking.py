@@ -30,28 +30,15 @@ def normalize_thinking_content(content: str) -> str:
     return text
 
 
-def render_thinking_summary(
-    duration_s: float | None,
-    char_count: int,
-    *,
-    include_mark: bool = False,
-    single_line_content: Text | None = None,
-) -> Text:
-    """Render a compact summary for hidden thinking."""
+def render_thinking_summary(duration_s: float | None, char_count: int) -> Text:
+    """Render the one-line stand-in for thinking that is not shown in full."""
     if duration_s is None:
         duration = ""
     elif duration_s < 1:
         duration = " for a moment"
     else:
         duration = f" for {format_elapsed_compact(duration_s)}"
-    summary = Text()
-    if include_mark:
-        summary.append("∵ ", style=ThemeKey.THINKING)
-    if single_line_content:
-        summary.append_text(single_line_content)
-        return summary
-    summary.append(
+    return Text(
         f"Thought{duration} · {format_compact_count(char_count)} chars",
         style=ThemeKey.METADATA_DIM,
     )
-    return summary

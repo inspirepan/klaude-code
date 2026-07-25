@@ -476,33 +476,35 @@ def test_sub_agent_new_step_clears_interrupted_thinking() -> None:
     ]
 
 
-def test_main_agent_replay_summary_omits_unrecoverable_duration() -> None:
+def test_sub_agent_replay_summary_omits_unrecoverable_duration() -> None:
     machine = DisplayStateMachine()
-    main_session = "main"
-    machine.transition_replay(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
-    machine.transition_replay(events.ThinkingStartEvent(session_id=main_session, timestamp=100.0))
-    machine.transition_replay(events.ThinkingDeltaEvent(session_id=main_session, content="你好，世界", timestamp=100.0))
+    machine.set_transcript_detail(Detail.FULL)
+    machine.transition_replay(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    _spawn_sub_agent(machine, "sub-1", replay=True)
+    machine.transition_replay(events.ThinkingStartEvent(session_id="sub-1", timestamp=100.0))
+    machine.transition_replay(events.ThinkingDeltaEvent(session_id="sub-1", content="你好，世界", timestamp=100.0))
 
-    ended = machine.transition_replay(events.ThinkingEndEvent(session_id=main_session, timestamp=100.0))
+    ended = machine.transition_replay(events.ThinkingEndEvent(session_id="sub-1", timestamp=100.0))
 
+    # Replay cannot derive a wall-clock duration, and must not invent one.
     summary = next(cmd for cmd in ended if isinstance(cmd, RenderThinkingSummary))
     assert summary.duration_s is None
     assert summary.char_count == 5
 
 
-def test_main_agent_compact_thinking_uses_persisted_duration() -> None:
+def test_sub_agent_thinking_summary_uses_persisted_duration() -> None:
     machine = DisplayStateMachine()
-    session_id = "main"
-    machine.transition(events.TaskStartEvent(session_id=session_id, model_id="test-model", timestamp=100.0))
-    machine.transition(events.ThinkingStartEvent(session_id=session_id, timestamp=101.0))
-    machine.transition(events.ThinkingDeltaEvent(session_id=session_id, content="reasoning", timestamp=102.0))
+    machine.set_transcript_detail(Detail.FULL)
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model", timestamp=100.0))
+    _spawn_sub_agent(machine, "sub-1")
+    machine.transition(events.ThinkingStartEvent(session_id="sub-1", timestamp=101.0))
+    machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="reasoning", timestamp=102.0))
 
-    commands = machine.transition(events.ThinkingEndEvent(session_id=session_id, timestamp=103.0, duration_s=1.5))
+    commands = machine.transition(events.ThinkingEndEvent(session_id="sub-1", timestamp=103.0, duration_s=1.5))
 
     summary = next(command for command in commands if isinstance(command, RenderThinkingSummary))
     assert summary.duration_s == 1.5
     assert summary.char_count == 9
-    assert summary.content == "reasoning"
 
 
 def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1433,44 +1435,45 @@ def test_spinner_update_separates_elapsed_interrupt_hint(monkeypatch: pytest.Mon
     assert update.separator_text.render() == "1m51s · esc to interrupt"
 
 
-def _spawn_sub_agent(machine: DisplayStateMachine, session_id: str) -> None:
-    machine.transition(
-        events.TaskStartEvent(
-            session_id=session_id,
-            sub_agent_state=SubAgentState(
-                sub_agent_type="general-purpose",
-                sub_agent_desc="do research",
-                sub_agent_prompt="prompt",
-            ),
-            parent_session_id="main",
-        )
+def _spawn_sub_agent(machine: DisplayStateMachine, session_id: str, *, replay: bool = False) -> None:
+    start = events.TaskStartEvent(
+        session_id=session_id,
+        sub_agent_state=SubAgentState(
+            sub_agent_type="general-purpose",
+            sub_agent_desc="do research",
+            sub_agent_prompt="prompt",
+        ),
+        parent_session_id="main",
     )
-    machine.transition(events.ThinkingStartEvent(session_id=session_id))
+    if replay:
+        machine.transition_replay(start)
+    else:
+        machine.transition(start)
 
 
-def test_compact_mode_skips_sub_agent_thinking_content_accumulation() -> None:
+def test_compact_mode_keeps_thinking_out_of_the_transcript_entirely() -> None:
+    """Compact mode reports thinking only on the live status line, never in scrollback."""
+    from klaude_code.tui.commands import AppendThinking, EndThinkingStream, StartThinkingStream
+
     machine = DisplayStateMachine()
     machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
     _spawn_sub_agent(machine, "sub-1")
 
-    machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="deep thoughts "))
+    transcript_commands = (RenderThinkingSummary, StartThinkingStream, AppendThinking, EndThinkingStream)
+    for session_id in ("main", "sub-1"):
+        started = machine.transition(events.ThinkingStartEvent(session_id=session_id, timestamp=100.0))
+        delta = machine.transition(
+            events.ThinkingDeltaEvent(session_id=session_id, content="deep thoughts ", timestamp=101.0)
+        )
+        ended = machine.transition(events.ThinkingEndEvent(session_id=session_id, timestamp=102.0, duration_s=2.0))
 
-    state = machine._sessions["sub-1"]
-    assert state.thinking_char_count == len("deep thoughts ")
-    assert state.thinking_content == ""
+        for command in (*started, *delta, *ended):
+            assert not isinstance(command, transcript_commands), (session_id, command)
 
-
-def test_expanded_mode_accumulates_sub_agent_thinking_content() -> None:
-    machine = DisplayStateMachine()
-    machine.set_transcript_detail(Detail.FULL)
-    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
-    _spawn_sub_agent(machine, "sub-1")
-
-    machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="deep thoughts "))
-
-    state = machine._sessions["sub-1"]
-    assert state.thinking_char_count == len("deep thoughts ")
-    assert state.thinking_content == "deep thoughts "
+    # The char count still feeds the status line, so it is tracked even unrendered.
+    machine.transition(events.ThinkingStartEvent(session_id="sub-1", timestamp=103.0))
+    machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="more", timestamp=103.0))
+    assert machine._sessions["sub-1"].thinking_char_count == len("more")
 
 
 def test_terminal_lines_lookup_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:

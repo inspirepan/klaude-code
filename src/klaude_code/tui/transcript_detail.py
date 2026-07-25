@@ -54,6 +54,7 @@ class Quadrant(StrEnum):
 
 
 EVERY_QUADRANT = frozenset(Quadrant)
+COMPACT = frozenset({Quadrant.COMPACT_MAIN, Quadrant.COMPACT_SUB_AGENT})
 SUB_AGENT = frozenset({Quadrant.COMPACT_SUB_AGENT, Quadrant.FULL_SUB_AGENT})
 COMPACT_SUB_AGENT = frozenset({Quadrant.COMPACT_SUB_AGENT})
 ONLY_FULL_SUB_AGENT = EVERY_QUADRANT - {Quadrant.FULL_SUB_AGENT}
@@ -80,10 +81,12 @@ _HIDDEN_IN: Mapping[type[events.Event], frozenset[Quadrant]] = {
     events.TaskFileChangeSummaryEvent: SUB_AGENT,
     # These two are asked at the state-machine layer rather than the renderer:
     # they reach the renderer as commands carrying only a summary, with no event
-    # left to consult. The other quadrants still render something (a summary line
-    # for compact, a panel or a live stream for full).
+    # left to consult.
     events.CompactionEndEvent: COMPACT_SUB_AGENT,
-    events.ThinkingEndEvent: COMPACT_SUB_AGENT,
+    # Compact mode keeps thinking out of the scrollback entirely -- the live status
+    # line already reports that the model is reasoning, and its char count. Expanded
+    # mode streams it for the main agent and summarizes it in one line per sub-agent.
+    events.ThinkingEndEvent: COMPACT,
 }
 
 

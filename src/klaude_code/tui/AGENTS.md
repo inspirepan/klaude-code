@@ -8,11 +8,13 @@ dynamic UI while an agent task is running:
 - Rich prints stable scrollback content above the prompt.
 - prompt-toolkit renders live output, running status, queued follow-up block,
   and input editor in one bottom layout.
-- Interactive sessions default to compact transcript rendering: main-agent
-  thinking is summarized and sub-agent internals are represented by a batched
-  status/summary view. `Ctrl+O` toggles the process-local expanded view while
-  idle by clearing and replaying the current session; expanded mode preserves
-  the legacy full transcript rendering.
+- Interactive sessions default to compact transcript rendering: thinking is kept
+  out of the scrollback entirely (the live status line already reports that the
+  model is reasoning, and its char count) and sub-agent internals are represented
+  by a batched status/summary view. `Ctrl+O` toggles the process-local expanded
+  view while idle by clearing and replaying the current session; expanded mode
+  preserves the legacy full transcript rendering — a live markdown stream for the
+  main agent, a one-line `Thought for Xs · N chars` per sub-agent.
 - The detail level itself lives in `tui/transcript_detail.py`, not in a bool on
   each layer. Rules when touching compact/expanded behavior:
   - "Does this event print at all" belongs in the `_HIDDEN_IN` table there.

@@ -4,7 +4,6 @@ import asyncio
 import io
 
 from rich.console import Console
-from rich.style import Style
 
 from klaude_code.protocol import events, message, tools
 from klaude_code.protocol.models import DeveloperUIExtra, SkillActivatedUIItem, SubAgentState
@@ -449,101 +448,6 @@ def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
     assert "gpt-5.6-luna · 12s · 3 tools · 1.2K tokens" in rendered
     assert "▌ ↳ Found the path." in rendered
     assert "Child failed…" not in rendered
-
-
-def test_compact_main_thinking_summary_uses_mark_and_blank_line() -> None:
-    renderer, output = _renderer_and_output()
-
-    asyncio.run(
-        renderer.execute(
-            [
-                RenderThinkingSummary(session_id="main", duration_s=20.0, char_count=1234),
-                RenderToolCall(
-                    event=events.ToolCallEvent(
-                        session_id="main",
-                        tool_call_id="tool-1",
-                        tool_name=tools.READ,
-                        arguments='{"file_path":"README.md"}',
-                    )
-                ),
-            ]
-        )
-    )
-
-    assert "∵ Thought for 20s · 1.2K chars\n\n→ Read ./README.md" in output.getvalue()
-
-
-def test_compact_main_single_line_thinking_shows_content() -> None:
-    renderer, output = _renderer_and_output()
-
-    asyncio.run(
-        renderer.execute(
-            [
-                RenderThinkingSummary(
-                    session_id="main",
-                    duration_s=1.0,
-                    char_count=24,
-                    content="Checking the current path",
-                ),
-                RenderToolCall(
-                    event=events.ToolCallEvent(
-                        session_id="main",
-                        tool_call_id="tool-1",
-                        tool_name=tools.READ,
-                        arguments='{"file_path":"README.md"}',
-                    )
-                ),
-            ]
-        )
-    )
-
-    rendered = output.getvalue()
-    assert "∵ Checking the current path\n\n→ Read ./README.md" in rendered
-    assert "Thought for" not in rendered
-
-
-def test_compact_main_single_line_thinking_renders_markdown() -> None:
-    renderer, output = _renderer_and_output()
-    source = "**Reviewing prompt toolkit tests**"
-
-    rendered_content = renderer._render_compact_thinking_content(source)
-    asyncio.run(
-        renderer.execute(
-            [RenderThinkingSummary(session_id="main", duration_s=1.0, char_count=len(source), content=source)]
-        )
-    )
-
-    # The ** markers are consumed rather than printed literally.
-    assert output.getvalue().splitlines() == ["∵ Reviewing prompt toolkit tests", ""]
-    # Emphasis must come from the thinking theme, and must not fall through to plain text.
-    # Deliberately assert against the theme instead of a specific attribute: whether that
-    # emphasis is bold, italic or a colour shift is a design choice that has already changed
-    # once (bold was dropped in "reduce bold status styling"), and pinning one attribute here
-    # only re-states the theme's own value while breaking on every restyle.
-    expected_style = renderer.themes.thinking_markdown_theme.styles["markdown.strong"]
-    actual_style = rendered_content.get_style_at_offset(renderer.console, 0)
-    assert actual_style == expected_style
-    assert actual_style != Style()
-
-
-def test_compact_main_single_line_thinking_truncates_with_ellipsis() -> None:
-    renderer, output = _renderer_and_output()
-    renderer.console.width = 30
-
-    asyncio.run(
-        renderer.execute(
-            [
-                RenderThinkingSummary(
-                    session_id="main",
-                    duration_s=1.0,
-                    char_count=100,
-                    content="This is a deliberately long single-line thought that must not wrap",
-                )
-            ]
-        )
-    )
-
-    assert output.getvalue().splitlines() == ["∵ This is a deliberately long…", ""]
 
 
 def test_replay_stream_end_emits_single_blank_line_before_tool_call() -> None:

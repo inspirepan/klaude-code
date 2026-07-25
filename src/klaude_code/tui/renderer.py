@@ -103,7 +103,7 @@ from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.common import format_more_lines_indicator, truncate_head
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
-from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText, truncate_right
+from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.status_runtime import clear_task_start, set_task_start
 from klaude_code.tui.terminal.image import print_kitty_image
@@ -838,30 +838,6 @@ class TUICommandRenderer:
             markdown_class=ThinkingMarkdown,
         )
 
-    def _render_compact_thinking_content(self, content: str) -> Text:
-        source = " ".join(content.split())
-        markdown = ThinkingMarkdown(
-            source,
-            code_theme=self.themes.code_theme,
-            style=ThemeKey.THINKING,
-        )
-        options = self.console.options.update(
-            max_width=max(self.console.options.max_width, Text(source).cell_len + 8),
-            no_wrap=True,
-            overflow="ignore",
-        )
-        with self.console.use_theme(self.themes.thinking_markdown_theme):
-            lines = self.console.render_lines(markdown, options, pad=False)
-
-        rendered = Text()
-        for line_index, line in enumerate(lines):
-            if line_index:
-                rendered.append(" ", style=ThemeKey.THINKING)
-            for segment in line:
-                if not segment.control:
-                    rendered.append(segment.text, style=segment.style)
-        return rendered
-
     def _new_assistant_mdstream(self) -> MarkdownStream:
         live_sink = None if self._replay_mode else self.set_stream_renderable
         return MarkdownStream(
@@ -1491,31 +1467,9 @@ class TUICommandRenderer:
                     session_id=session_id,
                     duration_s=duration_s,
                     char_count=char_count,
-                    content=content,
                 ):
-                    compact_main_summary = self._compact and not self.is_sub_agent_session(session_id)
-                    raw_content = content.strip()
-                    single_line_content = (
-                        self._render_compact_thinking_content(raw_content)
-                        if compact_main_summary and raw_content and len(raw_content.splitlines()) == 1
-                        else None
-                    )
                     with self.session_print_context(session_id):
-                        summary = c_thinking.render_thinking_summary(
-                            duration_s,
-                            char_count,
-                            include_mark=compact_main_summary,
-                            single_line_content=single_line_content,
-                        )
-                        if single_line_content:
-                            summary = truncate_right(
-                                summary,
-                                max(1, self.console.options.max_width),
-                                console=self.console,
-                            )
-                        self.print(summary)
-                        if compact_main_summary:
-                            self.print()
+                        self.print(c_thinking.render_thinking_summary(duration_s, char_count))
                 case StartAssistantStream(session_id=_):
                     if not self._assistant_stream.is_active:
                         self._assistant_stream.start(self._new_assistant_mdstream())

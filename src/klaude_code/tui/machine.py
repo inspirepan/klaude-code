@@ -684,7 +684,6 @@ class _SessionState:
     thinking_stream_active: bool = False
     assistant_char_count: int = 0
     thinking_char_count: int = 0
-    thinking_content: str = ""
     thinking_started_at: float | None = None
     task_started_at: float | None = None
     task_finished_at: float | None = None
@@ -730,18 +729,14 @@ class _SessionState:
     def start_thinking(self, timestamp: float) -> None:
         self.thinking_stream_active = True
         self.thinking_char_count = 0
-        self.thinking_content = ""
         self.thinking_started_at = timestamp
 
-    def append_thinking(self, content: str, *, keep_content: bool = True) -> None:
+    def append_thinking(self, content: str) -> None:
         self.thinking_char_count += len(content)
-        if keep_content:
-            self.thinking_content += content
 
     def reset_thinking(self) -> None:
         self.thinking_stream_active = False
         self.thinking_char_count = 0
-        self.thinking_content = ""
         self.thinking_started_at = None
 
     def add_status_tool_call(self, tool_call_id: str, tool_name: str) -> None:
@@ -1646,9 +1641,7 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            # Compact mode never renders sub-agent thinking content (only the
-            # char count), so skip accumulating the full text.
-            s.append_thinking(e.content, keep_content=not self._compact)
+            s.append_thinking(e.content)
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
             return cmds
@@ -1673,27 +1666,20 @@ class DisplayStateMachine:
             if duration_s is None and not is_replay and s.thinking_started_at is not None:
                 duration_s = max(0.0, e.timestamp - s.thinking_started_at)
             char_count = s.thinking_char_count
-            content = s.thinking_content
             s.reset_thinking()
             if self._visible(e, s) and char_count > 0:
-                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count, content))
+                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count))
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
             return cmds
         if not self._is_primary(e.session_id):
             return []
-        duration_s = e.duration_s
-        if duration_s is None and not is_replay and s.thinking_started_at is not None:
-            duration_s = max(0.0, e.timestamp - s.thinking_started_at)
-        char_count = s.thinking_char_count
-        content = s.thinking_content
         s.reset_thinking()
         if not is_replay:
             self._spinner.clear_default_reasoning_status()
-        if self._compact:
-            if char_count > 0:
-                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count, content))
-        else:
+        # Pairs with the StartThinkingStream gate: compact mode never opens a
+        # thinking stream, and leaves nothing behind in the transcript either.
+        if not self._compact:
             cmds.append(EndThinkingStream(session_id=e.session_id))
         if not is_replay:
             cmds.append(SpinnerStart())
