@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import os
-import shlex
 import signal
 import subprocess
 import tempfile
@@ -13,12 +12,13 @@ from pydantic import BaseModel
 
 from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_TERMINATE_TIMEOUT_SEC
 from klaude_code.protocol import llm_param, message, tools
-from klaude_code.protocol.models import BashUIExtra, FileStatus
+from klaude_code.protocol.models import BashUIExtra
 from klaude_code.tool.core.abc import ToolABC, load_desc
 from klaude_code.tool.core.ansi import strip_ansi
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
 from klaude_code.tool.shell.command_safety import is_safe_command
+from klaude_code.tool.shell.file_tracking import ShellFileTracker
 
 _STREAM_POLL_INTERVAL_SEC = 0.05
 
@@ -126,152 +126,8 @@ class BashTool(ToolABC):
             }
         )
 
-        file_tracker = context.file_tracker
         emit_tool_output_delta = context.emit_tool_output_delta
-
-        def _hash_file_content_sha256(file_path: str) -> str | None:
-            try:
-                import hashlib
-
-                suffix = Path(file_path).suffix.lower()
-                if suffix in {".png", ".jpg", ".jpeg", ".gif", ".webp"}:
-                    with open(file_path, "rb") as f:
-                        return hashlib.sha256(f.read()).hexdigest()
-
-                hasher = hashlib.sha256()
-                with open(file_path, encoding="utf-8", errors="replace") as f:
-                    for line in f:
-                        hasher.update(line.encode("utf-8"))
-                return hasher.hexdigest()
-            except (FileNotFoundError, IsADirectoryError, OSError, PermissionError, UnicodeDecodeError):
-                return None
-
-        def _resolve_in_dir(base_dir: str, path: str) -> str:
-            if os.path.isabs(path):
-                return os.path.abspath(path)
-            return os.path.abspath(os.path.join(base_dir, path))
-
-        def _track_files_read(file_paths: list[str], *, base_dir: str) -> None:
-            for p in file_paths:
-                abs_path = _resolve_in_dir(base_dir, p)
-                if not os.path.exists(abs_path) or os.path.isdir(abs_path):
-                    continue
-                sha = _hash_file_content_sha256(abs_path)
-                if sha is None:
-                    continue
-                existing = file_tracker.get(abs_path)
-                is_mem = existing.is_memory if existing else False
-                is_skill = existing.is_skill if existing else False
-                is_dir = existing.is_directory if existing else False
-                with contextlib.suppress(Exception):
-                    file_tracker[abs_path] = FileStatus(
-                        mtime=Path(abs_path).stat().st_mtime,
-                        content_sha256=sha,
-                        is_memory=is_mem,
-                        is_skill=is_skill,
-                        skill_attachment_source=None,
-                        is_directory=is_dir,
-                    )
-
-        def _track_files_written(file_paths: list[str], *, base_dir: str) -> None:
-            # Same as read tracking, but intentionally kept separate for clarity.
-            _track_files_read(file_paths, base_dir=base_dir)
-
-        def _track_mv(src_paths: list[str], dest_path: str, *, base_dir: str) -> None:
-            abs_dest = _resolve_in_dir(base_dir, dest_path)
-            dest_is_dir = os.path.isdir(abs_dest)
-
-            for src in src_paths:
-                abs_src = _resolve_in_dir(base_dir, src)
-                abs_new = os.path.join(abs_dest, os.path.basename(abs_src)) if dest_is_dir else abs_dest
-
-                # Remove old entry if present.
-                existing = file_tracker.pop(abs_src, None)
-                is_mem = existing.is_memory if existing else False
-                is_skill = existing.is_skill if existing else False
-                is_dir = existing.is_directory if existing else False
-
-                if not os.path.exists(abs_new) or os.path.isdir(abs_new):
-                    continue
-
-                sha = _hash_file_content_sha256(abs_new)
-                if sha is None:
-                    continue
-                with contextlib.suppress(Exception):
-                    file_tracker[abs_new] = FileStatus(
-                        mtime=Path(abs_new).stat().st_mtime,
-                        content_sha256=sha,
-                        is_memory=is_mem,
-                        is_skill=is_skill,
-                        skill_attachment_source=None,
-                        is_directory=is_dir,
-                    )
-
-        def _best_effort_update_file_tracker(command: str) -> None:
-            # Best-effort heuristics for common shell tools that access/modify files.
-            # We intentionally do not try to interpret complex shell scripts here.
-            try:
-                argv = shlex.split(command, posix=True)
-            except ValueError:
-                return
-            if not argv:
-                return
-
-            # Handle common patterns like: cd subdir && cat file
-            base_dir = str(context.work_dir)
-            while len(argv) >= 4 and argv[0] == "cd" and argv[2] == "&&":
-                dest = argv[1]
-                if dest != "-":
-                    base_dir = _resolve_in_dir(base_dir, dest)
-                argv = argv[3:]
-                if not argv:
-                    return
-
-            cmd0 = argv[0]
-            if cmd0 == "cat":
-                paths = [a for a in argv[1:] if a and not a.startswith("-") and a != "-"]
-                _track_files_read(paths, base_dir=base_dir)
-                return
-
-            if cmd0 == "sed":
-                # Support: sed [-i ...] 's/old/new/' file1 [file2 ...]
-                # and: sed -n 'Np' file
-                saw_script = False
-                file_paths: list[str] = []
-                for a in argv[1:]:
-                    if not a:
-                        continue
-                    if a == "--":
-                        continue
-                    if a.startswith("-") and not saw_script:
-                        continue
-                    if not saw_script and (a.startswith("s/") or a.startswith("s|") or a.endswith("p")):
-                        saw_script = True
-                        continue
-                    if saw_script and not a.startswith("-"):
-                        file_paths.append(a)
-
-                if file_paths:
-                    _track_files_written(file_paths, base_dir=base_dir)
-                return
-
-            if cmd0 == "mv":
-                # Support: mv [opts] src... dest
-                operands: list[str] = []
-                end_of_opts = False
-                for a in argv[1:]:
-                    if not end_of_opts and a == "--":
-                        end_of_opts = True
-                        continue
-                    if not end_of_opts and a.startswith("-"):
-                        continue
-                    operands.append(a)
-                if len(operands) < 2:
-                    return
-                srcs = operands[:-1]
-                dest = operands[-1]
-                _track_mv(srcs, dest, base_dir=base_dir)
-                return
+        shell_file_tracker = ShellFileTracker(context.file_tracker, context.work_dir)
 
         async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
             # Best-effort termination. Ensure we don't hang on cancellation.
@@ -449,7 +305,7 @@ class BashTool(ToolABC):
                 if stderr.strip():
                     output = (output + ("\n" if output else "")) + f"[stderr]\n{stderr}"
 
-                _best_effort_update_file_tracker(args.command)
+                shell_file_tracker.update_from_command(args.command)
                 return message.ToolResultMessage(
                     status="success",
                     # Preserve leading whitespace for tools like `nl -ba`.
