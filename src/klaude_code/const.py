@@ -119,7 +119,7 @@ WEB_CACHE_MAX_ENTRIES = 100  # Maximum entries in web cache
 # =============================================================================
 
 DIFF_MAX_LINE_LENGTH_FOR_CHAR_DIFF = 2000  # Maximum line length for character-level diff
-DIFF_DEFAULT_CONTEXT_LINES = 3  # Default number of context lines in diff output
+DIFF_DEFAULT_CONTEXT_LINES = 2  # Default number of context lines in diff output
 
 # =============================================================================
 # Tool - Output Truncation

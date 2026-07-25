@@ -55,6 +55,19 @@ def test_delete_lines_have_old_line_numbers() -> None:
     assert [line.new_line_no for line in remove_lines] == [None, None]
 
 
+def test_diff_includes_two_context_lines_around_change() -> None:
+    before = "\n".join(f"line {line_no}" for line_no in range(1, 8))
+    after = before.replace("line 4", "changed")
+
+    diff = build_structured_diff(before, after, file_path="test.txt")
+
+    context = [line.spans[0].text for line in diff.files[0].lines if line.kind == "ctx"]
+    assert context == ["line 2", "line 3", "line 5", "line 6"]
+    assert diff.raw_unified_diff is not None
+    assert " line 1" not in diff.raw_unified_diff
+    assert " line 7" not in diff.raw_unified_diff
+
+
 def test_eof_newline_only_change_is_visible() -> None:
     before = "hello"
     after = "hello\n"

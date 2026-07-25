@@ -122,7 +122,7 @@ def _make_structured_prefix(line: DiffLine, width: int) -> str:
 def _render_structured_line(line: DiffLine) -> Text:
     if line.kind == "gap":
         return Text("")
-    text = Text()
+    text = Text(overflow="ellipsis", no_wrap=True) if line.kind == "ctx" else Text()
     for span in line.spans:
         content = span.text.expandtabs(TAB_EXPAND_WIDTH)
         text.append(content, style=_span_style(line.kind, span.op))

@@ -167,6 +167,38 @@ def test_structured_diff_wraps_to_narrow_width() -> None:
     assert "kappa" in output
 
 
+def test_structured_diff_truncates_context_line_with_ellipsis() -> None:
+    ui_extra = DiffUIExtra(
+        files=[
+            DiffFileDiff(
+                file_path="demo.txt",
+                lines=[
+                    DiffLine(
+                        kind="ctx",
+                        old_line_no=1,
+                        new_line_no=1,
+                        spans=[
+                            DiffSpan(
+                                op="equal",
+                                text="alpha beta gamma delta epsilon zeta eta theta iota kappa",
+                            )
+                        ],
+                    )
+                ],
+            )
+        ]
+    )
+
+    console = Console(width=40, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_structured_diff(ui_extra))
+    output = console.export_text()
+
+    lines = output.splitlines()
+    assert len(lines) == 1
+    assert len(lines[0]) == 40
+    assert lines[0].endswith("…")
+
+
 def test_structured_diff_keeps_large_line_number_prefix() -> None:
     ui_extra = DiffUIExtra(
         files=[
