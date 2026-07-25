@@ -122,6 +122,7 @@ from klaude_code.tui.terminal.title import (
 from klaude_code.tui.transcript_detail import Detail, TranscriptDetail, is_visible
 
 BASH_LIVE_TAIL_MAX_LINES = 5
+TASK_NOTIFICATION_DELAY_S = 0.3
 _COMPACT_SUB_AGENT_FILE_CHANGE_ACTIONS = {
     tools.EDIT: "Edit",
     tools.WRITE: "Write",
@@ -1535,7 +1536,12 @@ class TUICommandRenderer:
                     self.display_sub_agent_batch_summary(summaries)
                 case RenderTaskFinish() as cmd_finish:
                     self.display_task_finish(cmd_finish.event)
-                    if not self._replay_mode:
+                    if (
+                        not self._replay_mode
+                        and not self.is_sub_agent_session(cmd_finish.event.session_id)
+                        and self._notifier is not None
+                        and self._notifier.enabled
+                    ):
                         finished_tasks_to_notify.append(cmd_finish)
                 case RenderInterrupt():
                     self.display_interrupt()
@@ -1616,9 +1622,11 @@ class TUICommandRenderer:
                 case _:
                     continue
 
-        # Terminal emulators include the current window title in desktop
-        # notifications. Wait until this command batch has replaced the active
-        # spinner title with its final ✅/❌ state before emitting the notice.
+        if finished_tasks_to_notify:
+            # Ghostty applies title changes through a 75ms coalescing timer.
+            # Leave room for one 80ms title retry plus that timer before it
+            # snapshots the title into the desktop notification.
+            await asyncio.sleep(TASK_NOTIFICATION_DELAY_S)
         for cmd_finish in finished_tasks_to_notify:
             self._maybe_notify_task_finish(cmd_finish)
 

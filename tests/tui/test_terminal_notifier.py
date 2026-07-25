@@ -26,6 +26,7 @@ def test_notifier_disabled_skips(monkeypatch: pytest.MonkeyPatch) -> None:
     sent = notifier.notify(_notification())
 
     assert sent is False
+    assert notifier.enabled is False
     assert stream.getvalue() == ""
 
 

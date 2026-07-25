@@ -59,6 +59,10 @@ class TerminalNotifier:
     def __init__(self, config: TerminalNotifierConfig | None = None) -> None:
         self.config = config or TerminalNotifierConfig.from_env()
 
+    @property
+    def enabled(self) -> bool:
+        return self.config.enabled
+
     def notify(self, notification: Notification) -> bool:
         if not self.config.enabled:
             log_debug(

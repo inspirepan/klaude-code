@@ -105,6 +105,12 @@ def test_task_notification_follows_final_terminal_title(monkeypatch: pytest.Monk
 
     monkeypatch.setattr(renderer_module, "is_title_blinking", lambda: False)
     monkeypatch.setattr(renderer_module, "stop_terminal_title_blink", lambda: calls.append("stop"))
+
+    async def _sleep(delay: float) -> None:
+        assert delay == pytest.approx(0.3)
+        calls.append("wait")
+
+    monkeypatch.setattr(renderer_module.asyncio, "sleep", _sleep)
     monkeypatch.setattr(
         renderer_module,
         "update_terminal_title",
@@ -121,7 +127,7 @@ def test_task_notification_follows_final_terminal_title(monkeypatch: pytest.Monk
         )
     )
 
-    assert calls == ["stop", "title:✅", "notify"]
+    assert calls == ["stop", "title:✅", "wait", "notify"]
 
 
 def test_interrupt_cancelled_task_suggests_continue() -> None:
