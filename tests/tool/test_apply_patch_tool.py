@@ -106,6 +106,26 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertTrue(any("".join(span.text for span in line.spans) == "new line" for line in added_lines))
         self.assertEqual(Path("data.txt").read_text(), "new line\nkeep\n")
 
+    def test_apply_patch_delete_file_does_not_render_diff(self) -> None:
+        Path("obsolete.txt").write_text("removed\ncontent\n", encoding="utf-8")
+        context = _tool_context()
+        patch_content = "\n".join(
+            [
+                "*** Begin Patch",
+                "*** Delete File: obsolete.txt",
+                "*** End Patch",
+            ]
+        )
+
+        result = arun(ApplyPatchTool.call(json.dumps({"patch": patch_content}), context))
+
+        self.assertEqual(result.status, "success")
+        self.assertEqual(result.output_text, "Done!")
+        self.assertIsNone(result.ui_extra)
+        self.assertFalse(Path("obsolete.txt").exists())
+        self.assertEqual(context.file_change_summary.deleted_files, [str(Path("obsolete.txt").resolve())])
+        self.assertEqual(context.file_change_summary.diff_lines_removed, 2)
+
     def test_apply_patch_add_file_absolute_path(self) -> None:
         absolute_path = os.path.join(self._tmp.name, "absolute.txt")
         patch_content = "\n".join(

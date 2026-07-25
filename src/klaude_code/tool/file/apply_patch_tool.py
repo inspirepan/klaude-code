@@ -185,11 +185,6 @@ class ApplyPatchHandler:
                 raw = build_unified_diff_text("", change.new_content or "", from_file="/dev/null", to_file=path)
                 if raw:
                     raw_chunks.append(raw)
-            elif change.type == apply_patch_module.ActionType.DELETE:
-                files.append(build_structured_file_diff(change.old_content or "", "", file_path=path))
-                raw = build_unified_diff_text(change.old_content or "", "", from_file=path, to_file="/dev/null")
-                if raw:
-                    raw_chunks.append(raw)
             elif change.type == apply_patch_module.ActionType.UPDATE:
                 display_path = path
                 to_path = path
