@@ -331,7 +331,7 @@ def render_tool_result(
             return pad_result(render_fallback_tool_result(e.tool_name, display_result, status=e.status))
         case tools.ASK_USER_QUESTION:
             if isinstance(e.ui_extra, AskUserQuestionSummaryUIExtra):
-                return pad_result(render_ask_user_question_summary(e.ui_extra))
+                return AdaptiveIndent(render_ask_user_question_summary(e.ui_extra), TOOL_RESULT_INDENT)
             if len(e.result.strip()) == 0:
                 return pad_result(render_fallback_tool_result(e.tool_name, "(no content)"))
             return pad_result(render_ask_user_question_tool_result(e.result, status=e.status))

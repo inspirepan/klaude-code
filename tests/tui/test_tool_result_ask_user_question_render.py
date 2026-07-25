@@ -3,7 +3,7 @@ from rich.console import Console
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import AskUserQuestionSummaryItem, AskUserQuestionSummaryUIExtra
 from klaude_code.tui.components.rich.theme import get_theme
-from klaude_code.tui.components.tools import render_tool_result
+from klaude_code.tui.components.tools import TOOL_RESULT_INDENT, render_tool_result
 
 
 def _render_event_to_text(event: events.ToolResultEvent) -> str:
@@ -66,6 +66,8 @@ def test_render_ask_user_question_tool_result_uses_structured_summary_ui_extra()
     output = _render_event_to_text(event)
 
     assert "╭" in output
+    panel_border = next(line for line in output.splitlines() if "╭" in line)
+    assert panel_border.startswith(f"{' ' * TOOL_RESULT_INDENT}╭")
     assert "---" not in output
     assert "● Which stack should we use?" in output
     assert "  → A · FastAPI, PostgreSQL" in output
