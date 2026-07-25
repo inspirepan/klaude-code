@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
+from rich.color import Color
+
 from klaude_code.protocol import events
 from klaude_code.tui.commands import RenderTimeMarker, RenderUserMessage
+from klaude_code.tui.components.rich.theme import DARK_PALETTE, ThemeKey
 from klaude_code.tui.machine import DisplayStateMachine, _format_time_marker_label
 from klaude_code.tui.renderer import TUICommandRenderer
 
@@ -88,4 +91,7 @@ def test_renderer_outputs_clock_label_followed_by_blank_line() -> None:
     renderer = TUICommandRenderer()
     with renderer.bulk_render_capture() as buf:
         renderer.display_time_marker("19:10")
-    assert "⏱ 19:10\n\n" in buf.getvalue()
+    assert " ⏱ 19:10 \n\n" in buf.getvalue()
+    style = renderer.console.get_style(ThemeKey.TIME_MARKER)
+    assert style.color == Color.parse(DARK_PALETTE.magenta)
+    assert style.reverse is True

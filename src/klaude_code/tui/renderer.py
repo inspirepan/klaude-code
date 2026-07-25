@@ -1059,7 +1059,7 @@ class TUICommandRenderer:
         self.print()
 
     def display_time_marker(self, label: str) -> None:
-        self.print(Text(f"⏱ {label}"))
+        self.print(Text(f" ⏱ {label} ", style=ThemeKey.TIME_MARKER))
         self.print()
 
     def display_task_start(self, event: events.TaskStartEvent) -> None:

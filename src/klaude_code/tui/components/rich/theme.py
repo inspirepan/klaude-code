@@ -169,6 +169,7 @@ class ThemeKey(str, Enum):
     METADATA_SUB_AGENT_NAME_COMPACT = "metadata.sub_agent_name.compact"
     METADATA_GREEN = "metadata.green"
     METADATA_GREEN_DIM = "metadata.green.dim"
+    TIME_MARKER = "time_marker"
     # SPINNER_STATUS
     STATUS_SPINNER = "spinner.status"
     STATUS_TEXT = "spinner.status.text"
@@ -334,6 +335,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.METADATA_SUB_AGENT_NAME_COMPACT.value: "bold " + palette.purple,
                 ThemeKey.METADATA_GREEN.value: palette.green,
                 ThemeKey.METADATA_GREEN_DIM.value: palette.grey_green,
+                ThemeKey.TIME_MARKER.value: palette.magenta + " reverse",
                 # STATUS
                 ThemeKey.STATUS_SPINNER.value: palette.grey1,
                 ThemeKey.STATUS_TEXT.value: palette.grey1,
