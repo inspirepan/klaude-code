@@ -22,6 +22,7 @@ from klaude_code.tui.components.tools._common import (
 )
 from klaude_code.tui.components.tools._dispatch import (
     get_tool_active_form,
+    render_compact_file_change,
     render_markdown_doc,
     render_tool_call,
     render_tool_result,
@@ -83,6 +84,7 @@ __all__ = [
     "render_ask_user_question_tool_call",
     "render_ask_user_question_tool_result",
     "render_bash_tool_call",
+    "render_compact_file_change",
     "render_compact_tool_activity",
     "render_compact_tool_result",
     "render_edit_tool_call",

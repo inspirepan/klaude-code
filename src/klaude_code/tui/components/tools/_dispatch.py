@@ -273,3 +273,22 @@ def render_tool_result(
             return wrap(render_ask_user_question_tool_result(e.result, status=e.status))
         case _:
             return _render_fallback()
+
+
+def render_compact_file_change(
+    e: events.ToolResultEvent,
+    *,
+    code_theme: str = "monokai",
+) -> RenderableType | None:
+    """Render diffs and new Markdown documents from a compact sub-agent result."""
+
+    items = e.ui_extra.items if isinstance(e.ui_extra, MultiUIExtra) else [e.ui_extra]
+    rendered: list[RenderableType] = []
+    for item in items:
+        if isinstance(item, DiffUIExtra):
+            rendered.append(r_diffs.render_structured_diff(item, show_file_name=True))
+        elif e.tool_name == tools.WRITE and isinstance(item, MarkdownDocUIExtra):
+            rendered.append(render_markdown_doc(item, code_theme=code_theme))
+    if not rendered:
+        return None
+    return Group(*rendered)

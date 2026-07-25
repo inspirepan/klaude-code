@@ -86,6 +86,26 @@ def render_compact_sub_agent_summary(
     return Group(first, second)
 
 
+def render_compact_file_change(
+    *,
+    sub_agent_state: SubAgentState,
+    action: str,
+    change: RenderableType,
+    color: Style,
+) -> RenderableType:
+    """Render a compact sub-agent identity header followed by a file diff."""
+
+    title = format_pascal_case(sub_agent_state.sub_agent_type)
+    header = Text(no_wrap=True, overflow="ellipsis")
+    header.append(title, style=Style(color=color.color, bold=True))
+    if sub_agent_state.sub_agent_desc:
+        header.append(": ", style=Style(color=color.color))
+        header.append(sub_agent_state.sub_agent_desc, style=Style(color=color.color, italic=True))
+    header.append(" · ", style=ThemeKey.METADATA_DIM)
+    header.append(action, style=ThemeKey.TOOL_NAME)
+    return Group(header, change)
+
+
 def render_sub_agent_call(
     e: SubAgentState,
     style: Style | None = None,

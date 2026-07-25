@@ -1053,7 +1053,8 @@ class DisplayStateMachine:
     def _sub_agent_status_line(session: _SessionState) -> Text:
         title = session.status_title()
         description = session.status_description()
-        line = Text(title, style=ThemeKey.STATUS_TEXT, no_wrap=True, overflow="ellipsis")
+        line = Text(no_wrap=True, overflow="ellipsis")
+        line.append(title, style=ThemeKey.STATUS_TEXT_BOLD)
         if description:
             line.append(": ", style=ThemeKey.STATUS_TEXT)
             description_start = len(line)

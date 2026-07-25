@@ -121,6 +121,11 @@ from klaude_code.tui.terminal.title import (
 )
 
 BASH_LIVE_TAIL_MAX_LINES = 5
+_COMPACT_SUB_AGENT_FILE_CHANGE_ACTIONS = {
+    tools.EDIT: "Edit",
+    tools.WRITE: "Write",
+    tools.APPLY_PATCH: "Patch",
+}
 
 # A fast-spewing command can deliver hundreds of output deltas per second;
 # rendering the tail through Rich for each one wastes event-loop time. Cap
@@ -755,7 +760,7 @@ class TUICommandRenderer:
                     index for marker in (" · ", " ✓", " ✗", " cancelled") if (index := content.plain.find(marker)) >= 0
                 ]
                 identity_end = min(boundaries, default=len(content))
-                rendered.stylize(fg_only + Style(bold=True), 0, len(prefix) + identity_end)
+                rendered.stylize(fg_only, 0, len(prefix) + identity_end)
             return rendered
 
         return DynamicText(_render) if isinstance(text, DynamicText) else _render()
@@ -876,7 +881,22 @@ class TUICommandRenderer:
 
     def display_tool_call_result(self, e: events.ToolResultEvent, *, is_sub_agent: bool = False) -> bool:
         if self._compact_transcript and is_sub_agent:
-            return False
+            action = _COMPACT_SUB_AGENT_FILE_CHANGE_ACTIONS.get(e.tool_name)
+            session = self._sessions.get(e.session_id)
+            if action is None or session is None or session.sub_agent_state is None:
+                return False
+            change = c_tools.render_compact_file_change(e, code_theme=self.themes.code_theme)
+            if change is None:
+                return False
+            self.print(
+                c_sub_agent.render_compact_file_change(
+                    sub_agent_state=session.sub_agent_state,
+                    action=action,
+                    change=change,
+                    color=self._get_session_sub_agent_color(e.session_id),
+                )
+            )
+            return True
         if c_tools.is_sub_agent_tool(e.tool_name):
             return False
 

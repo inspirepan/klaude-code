@@ -131,7 +131,12 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     )
     renderer.set_progress_ui_suspended(True)
     renderer.spinner_start()
-    status = Text("Finder: inspect status")
+    status = Text()
+    status.append("Finder", style=ThemeKey.STATUS_TEXT_BOLD)
+    status.append(": ", style=ThemeKey.STATUS_TEXT)
+    description_start = len(status)
+    status.append("inspect status", style=ThemeKey.STATUS_TEXT)
+    status.stylize("italic", description_start, len(status))
     status.append(" ")
     status.append("✓", style=ThemeKey.METADATA_GREEN)
     status.append(" · 2s", style=ThemeKey.STATUS_HINT)
@@ -153,10 +158,18 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert "".join(text for _, text in line.fragments) == line.text
     assert line.inline_spinner_style is None
     assert line.fragments[0][0].startswith("fg:#")
+    title_style = next(style for style, text in line.fragments if "Finder" in text)
+    colon_style = next(style for style, text in line.fragments if ": " in text)
+    description_style = next(style for style, text in line.fragments if "inspect status" in text)
+    assert "bold" in title_style
+    assert "bold" not in colon_style
+    assert "italic" not in colon_style
+    assert "bold" not in description_style
+    assert "italic" in description_style
     success_index = next(index for index, (_, text) in enumerate(line.fragments) if "✓" in text)
     success_style = line.fragments[success_index][0]
     assert success_style.startswith("fg:#")
-    assert success_style != line.fragments[0][0]
+    assert "bold" not in success_style
     assert "reverse" not in success_style
     assert line.fragments[success_index - 1] == ("class:meta", " ")
     assert result_line.text == "    ↳ Found the issue…"
@@ -181,12 +194,21 @@ def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     tool_status = Text()
     tool_status.append("Bash", style=ThemeKey.TOOL_NAME)
     tool_status.append(" inspect files ✓")
-    transcript_tool_segment = next(segment for segment in renderer.console.render(tool_status) if "Bash" in segment.text)
+    transcript_tool_segment = next(
+        segment for segment in renderer.console.render(tool_status) if "Bash" in segment.text
+    )
     assert transcript_tool_segment.style is not None
     assert transcript_tool_segment.style.bold is True
+    active_status = Text()
+    active_status.append("Finder", style=ThemeKey.STATUS_TEXT_BOLD)
+    active_status.append(": ", style=ThemeKey.STATUS_TEXT)
+    description_start = len(active_status)
+    active_status.append("inspect status", style=ThemeKey.STATUS_TEXT)
+    active_status.stylize("italic", description_start, len(active_status))
+    active_status.append(" · Thinking… · 2s", style=ThemeKey.STATUS_HINT)
     renderer.spinner_update(
         status_lines=(
-            SpinnerStatusLine(text=Text("Finder: inspect status · Thinking… · 2s"), session_id="child"),
+            SpinnerStatusLine(text=active_status, session_id="child"),
             SpinnerStatusLine(text=tool_status, session_id="child", sub_agent_continuation=True),
         )
     )
@@ -197,6 +219,14 @@ def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     assert line.inline_spinner_style is not None
     assert line.inline_spinner_style.startswith("fg:#")
     assert "".join(text for _, text in line.fragments) == "Finder: inspect status · Thinking… · 2s"
+    title_style = next(style for style, text in line.fragments if "Finder" in text)
+    colon_style = next(style for style, text in line.fragments if ": " in text)
+    description_style = next(style for style, text in line.fragments if "inspect status" in text)
+    assert "bold" in title_style
+    assert "bold" not in colon_style
+    assert "italic" not in colon_style
+    assert "bold" not in description_style
+    assert "italic" in description_style
     assert tool_line.text == "    ↳ Bash inspect files ✓"
     assert tool_line.show_spinner is False
     assert tool_line.inline_spinner_style is None
