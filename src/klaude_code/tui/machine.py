@@ -150,7 +150,7 @@ def _format_char_count(char_count: int) -> str:
 
 STATUS_LEFT_MIN_WIDTH_CELLS = 10
 SUB_AGENT_STATUS_MAX_LINES = 5
-SUB_AGENT_STEP_TOOL_MAX_LINES = 4
+SUB_AGENT_TOOL_ACTIVITY_MAX_LINES = 4
 SUB_AGENT_STATUS_MAX_HEIGHT_RATIO = 0.8
 BASH_STREAM_DELAY_SEC = 3.0
 
@@ -692,8 +692,7 @@ class _SessionState:
     status_composing: bool = False
     status_tool_calls: dict[str, int] = field(default_factory=_empty_status_tool_counts)
     status_tool_calls_by_id: dict[str, str] = field(default_factory=_empty_status_tool_ids)
-    step_tool_activities: dict[str, _SubAgentToolActivity] = field(default_factory=dict)
-    step_tool_activities_pending_reset: bool = False
+    tool_activities: dict[str, _SubAgentToolActivity] = field(default_factory=dict)
     tool_call_ids: set[str] = field(default_factory=set)
     task_metadata: TaskMetadata | None = None
     task_result: str = ""
@@ -717,14 +716,12 @@ class _SessionState:
         self.status_composing = False
         self.status_tool_calls = {}
         self.status_tool_calls_by_id = {}
-        self.step_tool_activities = {}
-        self.step_tool_activities_pending_reset = False
+        self.tool_activities = {}
 
     def start_status_step(self) -> None:
         self.status_composing = False
         self.status_tool_calls = {}
         self.status_tool_calls_by_id = {}
-        self.step_tool_activities_pending_reset = bool(self.step_tool_activities)
 
     def start_thinking(self, timestamp: float) -> None:
         self.thinking_stream_active = True
@@ -779,30 +776,24 @@ class _SessionState:
             return Text(STATUS_RUNNING_TEXT, style=ThemeKey.THINKING)
         return None
 
-    def set_step_tool_activity(self, tool_call_id: str, tool_name: str, arguments: str = "") -> None:
-        if self.step_tool_activities_pending_reset:
-            self.step_tool_activities = {}
-            self.step_tool_activities_pending_reset = False
-        activity = self.step_tool_activities.get(tool_call_id)
+    def set_tool_activity(self, tool_call_id: str, tool_name: str, arguments: str = "") -> None:
+        activity = self.tool_activities.get(tool_call_id)
         if activity is None:
-            self.step_tool_activities[tool_call_id] = _SubAgentToolActivity(tool_name=tool_name, arguments=arguments)
+            self.tool_activities[tool_call_id] = _SubAgentToolActivity(tool_name=tool_name, arguments=arguments)
             return
         activity.tool_name = tool_name
         activity.arguments = arguments
         activity.status = None
 
-    def finish_step_tool_activity(self, tool_call_id: str, tool_name: str, status: str) -> None:
-        if self.step_tool_activities_pending_reset:
-            self.step_tool_activities = {}
-            self.step_tool_activities_pending_reset = False
-        activity = self.step_tool_activities.get(tool_call_id)
+    def finish_tool_activity(self, tool_call_id: str, tool_name: str, status: str) -> None:
+        activity = self.tool_activities.get(tool_call_id)
         if activity is None:
             activity = _SubAgentToolActivity(tool_name=tool_name)
-            self.step_tool_activities[tool_call_id] = activity
+            self.tool_activities[tool_call_id] = activity
         activity.status = status
 
-    def compact_tool_activity_lines(self, max_lines: int = SUB_AGENT_STEP_TOOL_MAX_LINES) -> list[Text]:
-        activities = list(self.step_tool_activities.values())
+    def compact_tool_activity_lines(self, max_lines: int = SUB_AGENT_TOOL_ACTIVITY_MAX_LINES) -> list[Text]:
+        activities = list(reversed(self.tool_activities.values()))
         if not activities:
             return [Text("Initializing…", style=ThemeKey.STATUS_HINT)]
         if len(activities) <= max_lines:
@@ -810,8 +801,8 @@ class _SessionState:
         visible_count = max_lines - 1
         hidden_count = len(activities) - visible_count
         return [
-            *(activity.render() for activity in activities[:visible_count]),
             Text(f"… (more {hidden_count} tools)", style=ThemeKey.STATUS_HINT),
+            *(activity.render() for activity in activities[:visible_count]),
         ]
 
     def expanded_status_activity_text(self) -> str | None:
@@ -1034,7 +1025,7 @@ class DisplayStateMachine:
         terminal_lines = _terminal_lines()
         max_lines = max(2, int(terminal_lines * SUB_AGENT_STATUS_MAX_HEIGHT_RATIO))
         tool_line_limit = 2
-        for candidate in range(SUB_AGENT_STEP_TOOL_MAX_LINES, 1, -1):
+        for candidate in range(SUB_AGENT_TOOL_ACTIVITY_MAX_LINES, 1, -1):
             required_lines = sum(
                 2 if session.terminal_status is not None else 1 + len(session.compact_tool_activity_lines(candidate))
                 for session in sessions
@@ -1801,7 +1792,7 @@ class DisplayStateMachine:
         if not is_replay:
             if s.is_sub_agent:
                 s.status_composing = False
-                s.set_step_tool_activity(e.tool_call_id, e.tool_name)
+                s.set_tool_activity(e.tool_call_id, e.tool_name)
             else:
                 self._spinner.set_composing(False)
 
@@ -1836,7 +1827,7 @@ class DisplayStateMachine:
                 cmds.append(EndThinkingStream(session_id=primary.session_id))
 
         if s.is_sub_agent:
-            s.set_step_tool_activity(e.tool_call_id, e.tool_name, e.arguments)
+            s.set_tool_activity(e.tool_call_id, e.tool_name, e.arguments)
             s.tool_call_ids.add(e.tool_call_id)
             s.status_composing = False
             s.reset_thinking()
@@ -1934,7 +1925,7 @@ class DisplayStateMachine:
         pending = self._pending_bash_tool_outputs.pop(e.tool_call_id, None)
         if not is_replay and s.is_sub_agent:
             s.finish_status_tool_call(e.tool_call_id)
-            s.finish_step_tool_activity(e.tool_call_id, e.tool_name, e.status)
+            s.finish_tool_activity(e.tool_call_id, e.tool_name, e.status)
             cmds.extend(self._spinner_update_commands())
         elif not is_replay and is_sub_agent_tool(e.tool_name):
             self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
