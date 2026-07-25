@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from klaude_code.protocol import llm_param, message, user_interaction
 from klaude_code.protocol.models import (
+    ContextUsageUIExtra,
     SessionStatsUIExtra,
     SubAgentState,
     TaskMetadata,
@@ -33,6 +34,7 @@ __all__ = [
     "CompactModelChangedEvent",
     "CompactionEndEvent",
     "CompactionStartEvent",
+    "ContextUsageEvent",
     "DeveloperMessageEvent",
     "EndEvent",
     "ErrorEvent",
@@ -237,6 +239,10 @@ class FallbackModelConfigWarnEvent(Event):
 
 class SessionStatsEvent(Event):
     stats: SessionStatsUIExtra
+
+
+class ContextUsageEvent(Event):
+    usage: ContextUsageUIExtra
 
 
 class SessionTitleChangedEvent(Event):

@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
+from klaude_code.agent.context_usage import analyze_context_usage
 from klaude_code.agent.runtime.agent_ops import AgentRunner
 from klaude_code.agent.runtime.llm import FallbackLLMClient, create_llm_client_for_candidates
 from klaude_code.agent.session_stats import build_session_stats_ui_extra
@@ -556,5 +557,23 @@ class ConfigHandler:
             events.SessionStatsEvent(
                 session_id=agent.session.id,
                 stats=build_session_stats_ui_extra(agent.session),
+            )
+        )
+
+    async def handle_get_context_usage(self, operation: op.GetContextUsageOperation) -> None:
+        self._agent_runner.cancel_auto_away_summary(operation.session_id)
+        agent = await self._agent_runner.ensure_agent(operation.session_id)
+        profile = agent.profile
+        llm_client = profile.llm_client
+        await self._emit_event(
+            events.ContextUsageEvent(
+                session_id=agent.session.id,
+                usage=await analyze_context_usage(
+                    session=agent.session,
+                    system_prompt=profile.system_prompt,
+                    tools=profile.tools,
+                    llm_config=llm_client.get_llm_config(),
+                    model_name=llm_client.model_name,
+                ),
             )
         )

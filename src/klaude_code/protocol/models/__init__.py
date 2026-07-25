@@ -6,6 +6,13 @@ from klaude_code.protocol.models.common import (
     TodoStatusType,
     ToolStatus,
 )
+from klaude_code.protocol.models.context_usage import (
+    ContextCategory,
+    ContextCategoryKey,
+    ContextDetailEntry,
+    ContextDetailSection,
+    ContextUsageUIExtra,
+)
 from klaude_code.protocol.models.developer_ui import (
     AtFileImagesUIItem,
     AtFileOp,
@@ -65,6 +72,11 @@ __all__ = [
     "AtFileOp",
     "AtFileOpsUIItem",
     "BashUIExtra",
+    "ContextCategory",
+    "ContextCategoryKey",
+    "ContextDetailEntry",
+    "ContextDetailSection",
+    "ContextUsageUIExtra",
     "DeveloperUIExtra",
     "DeveloperUIItem",
     "DiffFileDiff",

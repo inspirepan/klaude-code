@@ -44,6 +44,7 @@ from klaude_code.tui.commands import (
     RenderCommand,
     RenderCompactionSummary,
     RenderCompactToolResult,
+    RenderContextUsage,
     RenderDeveloperMessage,
     RenderError,
     RenderForkCacheHitRate,
@@ -1472,6 +1473,13 @@ class DisplayStateMachine:
         cmds.append(RenderSessionStats(e))
         return cmds
 
+    def _handle_ContextUsageEvent(
+        self, e: events.ContextUsageEvent, *, is_replay: bool, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        cmds.append(RenderContextUsage(e))
+        return cmds
+
     def _handle_ModelChangedEvent(
         self, e: events.ModelChangedEvent, *, is_replay: bool, s: _SessionState
     ) -> list[RenderCommand]:
@@ -2170,6 +2178,7 @@ DisplayStateMachine._EVENT_HANDLERS = {
     events.AwaySummaryStartEvent: DisplayStateMachine._handle_AwaySummaryStartEvent,
     events.AwaySummaryEndEvent: DisplayStateMachine._handle_AwaySummaryEndEvent,
     events.SessionStatsEvent: DisplayStateMachine._handle_SessionStatsEvent,
+    events.ContextUsageEvent: DisplayStateMachine._handle_ContextUsageEvent,
     events.ModelChangedEvent: DisplayStateMachine._handle_ModelChangedEvent,
     events.ThinkingChangedEvent: DisplayStateMachine._handle_ThinkingChangedEvent,
     events.SubAgentModelChangedEvent: DisplayStateMachine._handle_SubAgentModelChangedEvent,

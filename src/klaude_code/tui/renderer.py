@@ -53,6 +53,7 @@ from klaude_code.tui.commands import (
     RenderCommand,
     RenderCompactionSummary,
     RenderCompactToolResult,
+    RenderContextUsage,
     RenderDeveloperMessage,
     RenderError,
     RenderForkCacheHitRate,
@@ -89,6 +90,7 @@ from klaude_code.tui.commands import (
 )
 from klaude_code.tui.components import away_summary as c_away_summary
 from klaude_code.tui.components import command_output as c_command_output
+from klaude_code.tui.components import context_usage as c_context_usage
 from klaude_code.tui.components import developer as c_developer
 from klaude_code.tui.components import errors as c_errors
 from klaude_code.tui.components import metadata as c_metadata
@@ -951,6 +953,13 @@ class TUICommandRenderer:
             self.print(c_command_output.render_session_stats(e))
             self.print()
 
+    def display_context_usage(self, e: events.ContextUsageEvent) -> None:
+        if self._compact_transcript and self.is_sub_agent_session(e.session_id):
+            return
+        with self.session_print_context(e.session_id):
+            self.print(c_context_usage.render_context_usage(e))
+            self.print()
+
     def display_bash_command_start(self, e: events.BashCommandStartEvent) -> None:
         # The user input line already shows `!cmd`; bash output is streamed as it arrives.
         # We keep minimal rendering here to avoid adding noise.
@@ -1410,6 +1419,8 @@ class TUICommandRenderer:
                     self.display_away_summary(event)
                 case RenderSessionStats(event=event):
                     self.display_session_stats(event)
+                case RenderContextUsage(event=event):
+                    self.display_context_usage(event)
                 case RenderBashCommandStart(event=event):
                     self.display_bash_command_start(event)
                 case AppendBashCommandOutput(event=event):

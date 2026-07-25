@@ -26,6 +26,7 @@ class CommandName(str, Enum):
     REFRESH_TERMINAL = "refresh-terminal"
     NEW = "new"
     STATUS = "status"
+    CONTEXT = "context"
     FORK_SESSION = "fork-session"
     COPY = "copy"
     CONTINUE = "continue"

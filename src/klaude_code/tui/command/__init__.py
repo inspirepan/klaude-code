@@ -30,6 +30,7 @@ def ensure_commands_loaded() -> None:
 
     # Import and register commands in display order
     from .compact_cmd import CompactCommand
+    from .context_cmd import ContextCommand
     from .continue_cmd import ContinueCommand
     from .copy_cmd import CopyCommand
     from .debug_cmd import DebugCommand
@@ -60,6 +61,7 @@ def ensure_commands_loaded() -> None:
     register(ManageProvidersCommand())
     register(SubAgentModelCommand())
     register(StatusCommand())
+    register(ContextCommand())
     register(LoginCommand())
     register(LogoutCommand())
     register(SwitchCommand())

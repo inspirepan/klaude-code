@@ -54,6 +54,7 @@ class CommandResult(BaseModel):
             | protocol_events.WelcomeEvent
             | protocol_events.ReplayHistoryEvent
             | protocol_events.SessionStatsEvent
+            | protocol_events.ContextUsageEvent
             | protocol_events.ModelChangedEvent
             | protocol_events.ThinkingChangedEvent
             | protocol_events.SubAgentModelChangedEvent

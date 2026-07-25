@@ -21,6 +21,7 @@ if TYPE_CHECKING:
         FollowUpAgentOperation,
         ForkAndSwitchSessionOperation,
         GenerateAwaySummaryOperation,
+        GetContextUsageOperation,
         GetSessionStatsOperation,
         InitAgentOperation,
         InterruptOperation,
@@ -81,6 +82,10 @@ class OperationHandler(Protocol):
 
     async def handle_get_session_stats(self, operation: GetSessionStatsOperation) -> None:
         """Handle a get session stats operation."""
+        ...
+
+    async def handle_get_context_usage(self, operation: GetContextUsageOperation) -> None:
+        """Handle a get context usage operation."""
         ...
 
     async def handle_clear_session(self, operation: ClearSessionOperation) -> None:

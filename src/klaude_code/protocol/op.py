@@ -37,6 +37,7 @@ class OperationType(Enum):
     REQUEST_MODEL = "request_model"
     REQUEST_SUB_AGENT_MODEL = "request_sub_agent_model"
     GET_SESSION_STATS = "get_session_stats"
+    GET_CONTEXT_USAGE = "get_context_usage"
     CLEAR_SESSION = "clear_session"
     FORK_AND_SWITCH_SESSION = "fork_and_switch_session"
     INTERRUPT = "interrupt"
@@ -208,6 +209,16 @@ class GetSessionStatsOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_get_session_stats(self)
+
+
+class GetContextUsageOperation(Operation):
+    """Operation for querying estimated context-window usage by category."""
+
+    type: OperationType = OperationType.GET_CONTEXT_USAGE
+    session_id: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_get_context_usage(self)
 
 
 class ClearSessionOperation(Operation):

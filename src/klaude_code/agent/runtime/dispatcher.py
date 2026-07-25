@@ -266,6 +266,9 @@ class OperationDispatcher:
     async def handle_get_session_stats(self, operation: op.GetSessionStatsOperation) -> None:
         await self._config_handler.handle_get_session_stats(operation)
 
+    async def handle_get_context_usage(self, operation: op.GetContextUsageOperation) -> None:
+        await self._config_handler.handle_get_context_usage(operation)
+
     async def handle_clear_session(self, operation: op.ClearSessionOperation) -> None:
         await self._agent_runner.clear_session(operation.session_id)
 

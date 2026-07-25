@@ -209,6 +209,13 @@ class ThemeKey(str, Enum):
     FORK_NOTICE = "fork.notice"
     SESSION_STATUS = "session.status"
     SESSION_STATUS_BOLD = "session.status.bold"
+    CONTEXT_SYSTEM_PROMPT = "context.system_prompt"
+    CONTEXT_SYSTEM_TOOLS = "context.system_tools"
+    CONTEXT_MEMORY = "context.memory"
+    CONTEXT_SKILLS = "context.skills"
+    CONTEXT_MESSAGES = "context.messages"
+    CONTEXT_RESERVE = "context.reserve"
+    CONTEXT_FREE = "context.free"
     TOOL_MARK = "tool.mark"
     TOOL_APPROVED = "tool.approved"
     TOOL_REJECTED = "tool.rejected"
@@ -369,6 +376,13 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.FORK_NOTICE.value: "bold " + palette.blue,
                 ThemeKey.SESSION_STATUS.value: palette.grey1,
                 ThemeKey.SESSION_STATUS_BOLD.value: "bold " + palette.grey1,
+                ThemeKey.CONTEXT_SYSTEM_PROMPT.value: palette.blue,
+                ThemeKey.CONTEXT_SYSTEM_TOOLS.value: palette.cyan,
+                ThemeKey.CONTEXT_MEMORY.value: palette.orange,
+                ThemeKey.CONTEXT_SKILLS.value: palette.purple,
+                ThemeKey.CONTEXT_MESSAGES.value: palette.green,
+                ThemeKey.CONTEXT_RESERVE.value: palette.grey3,
+                ThemeKey.CONTEXT_FREE.value: palette.dim_grey1,
                 ThemeKey.TOOL_MARK.value: "bold",
                 ThemeKey.TOOL_APPROVED.value: palette.green + " bold reverse",
                 ThemeKey.TOOL_REJECTED.value: palette.red + " bold reverse",

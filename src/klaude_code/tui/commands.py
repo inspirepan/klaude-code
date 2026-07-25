@@ -87,6 +87,11 @@ class RenderSessionStats(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderContextUsage(RenderCommand):
+    event: events.ContextUsageEvent
+
+
+@dataclass(frozen=True, slots=True)
 class RenderBashCommandStart(RenderCommand):
     event: events.BashCommandStartEvent
 
