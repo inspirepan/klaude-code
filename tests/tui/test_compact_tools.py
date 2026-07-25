@@ -226,9 +226,61 @@ def test_bash_command_summary_keeps_auditable_scope() -> None:
     assert summarize_bash_command("jj status && jj diff --git") == "jj status · jj diff"
 
 
+def test_bash_command_summary_handles_quoted_redirect_characters() -> None:
+    command = "rg -o '<svg[^>]*' andon-dronebench.html | head -8"
+
+    assert summarize_bash_command(command) == "rg andon-dronebench.html"
+    assert summarize_bash_command("rg -n '^##|```' SKILL.md | head -30") == "rg SKILL.md"
+    assert summarize_bash_command("python3 -c \"print('<title>(text)')\"") == "python3"
+
+
+def test_bash_command_summary_distinguishes_statements_from_pipeline_helpers() -> None:
+    command = "cd /tmp && sed -n '1,20p' first.md && echo === && sed -n '2,30p' second.md"
+
+    assert summarize_bash_command(command) == "sed first.md · sed second.md"
+
+
+def test_bash_command_summary_handles_redirects_without_losing_file_writes() -> None:
+    assert summarize_bash_command("uv run python check.py article.md 2>&1 | tail -20") == "uv run python check.py"
+    assert summarize_bash_command("rg needle src > matches.txt") == "rg src → matches.txt"
+    assert summarize_bash_command("diff 1 2 > result.txt") == "diff 1 2 → result.txt"
+
+
+def test_bash_command_summary_handles_command_specific_targets() -> None:
+    assert summarize_bash_command("diff before.md after.md | head -120") == "diff before.md after.md"
+    assert summarize_bash_command("sed -n '86,116p' article.md") == "sed article.md"
+    assert summarize_bash_command("sed -e 's/a/b/' article.md") == "sed article.md"
+    assert summarize_bash_command("grep -r needle src") == "grep src"
+    assert (
+        summarize_bash_command("npx -y bun scripts/main.ts article.md --theme tutorial 2>&1 | tail -8")
+        == "npx bun scripts/main.ts"
+    )
+
+
+def test_bash_command_summary_skips_rg_replace_value_and_shell_loop() -> None:
+    command = "rg --no-line-number -o 'imgs/[^)]+' -r '$1' article.md | while read path; do test -f \"$path\"; done"
+
+    assert summarize_bash_command(command) == "rg article.md · test"
+
+
+def test_bash_command_summary_ignores_heredoc_body() -> None:
+    command = "python3 - <<'EOF'\nprint('generated')\nEOF"
+
+    assert summarize_bash_command(command) == "python3"
+    assert summarize_bash_command('echo "literal <<EOF text"') == "echo"
+    assert (
+        summarize_bash_command("python3 - <<'EOF' > generated.py\nprint('generated')\nEOF\nrm temporary.py")
+        == "python3 → generated.py · rm"
+    )
+
+
+def test_bash_command_summary_keeps_commands_after_control_keywords() -> None:
+    assert summarize_bash_command('for file in *.tmp; do rm "$file"; done') == "for · rm"
+    assert summarize_bash_command("echo secret > .env && pytest") == "echo → .env · pytest"
+
+
 def test_bash_command_summary_falls_back_for_unsafe_shell_syntax() -> None:
     assert summarize_bash_command("echo $(pwd)") == "echo $(pwd)"
-    assert summarize_bash_command("rg needle src > matches.txt") == "rg needle src > matches.txt"
 
 
 def test_bash_command_summary_shortens_paths_under_working_directory(
