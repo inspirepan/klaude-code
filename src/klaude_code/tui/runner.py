@@ -214,7 +214,7 @@ async def toggle_transcript_view(
         await runtime.emit_event(
             events.NoticeEvent(
                 session_id=session_id,
-                content="Ctrl+O is available when the agent is idle.",
+                content="ctrl-o is available when the agent is idle.",
             )
         )
         return False

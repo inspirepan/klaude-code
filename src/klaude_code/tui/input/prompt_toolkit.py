@@ -405,19 +405,19 @@ class PromptToolkitInput(InputProviderABC):
         """Build placeholder showing repo/directory name, Git branch, and model.
 
         When a prompt suggestion is pending, show it with an accept hint.
-        When an image is detected on the system clipboard, also show a ctrl+v
+        When an image is detected on the system clipboard, also show a ctrl-v
         paste reminder.
         """
         if self._is_agent_running():
             text = "   Queue a follow-up"
             if self._clipboard_has_image:
-                text = f"{text} · ctrl+v to paste image"
+                text = f"{text} · ctrl-v to paste image"
             return FormattedText([("class:placeholder", text)])
 
         if self._prompt_suggestion:
             hint = "[enter send · tab edit]"
             if self._clipboard_has_image:
-                hint = f"{hint} · ctrl+v to paste image"
+                hint = f"{hint} · ctrl-v to paste image"
             suggestion = self._prompt_suggestion
             try:
                 cols = get_app().output.get_size().columns
@@ -434,7 +434,7 @@ class PromptToolkitInput(InputProviderABC):
             return FormattedText(parts)
 
         if self._clipboard_has_image:
-            return FormattedText([("class:placeholder", "   ctrl+v to paste image")])
+            return FormattedText([("class:placeholder", "   ctrl-v to paste image")])
 
         return FormattedText([])
 

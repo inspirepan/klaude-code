@@ -151,7 +151,7 @@ def test_toggle_transcript_is_rejected_while_running(monkeypatch: Any) -> None:
         runtime.replay_session_history.assert_not_awaited()
         emitted = runtime.emit_event.await_args.args[0]
         assert isinstance(emitted, events.NoticeEvent)
-        assert emitted.content == "Ctrl+O is available when the agent is idle."
+        assert emitted.content == "ctrl-o is available when the agent is idle."
         settle.assert_not_awaited()
 
     asyncio.run(_test())

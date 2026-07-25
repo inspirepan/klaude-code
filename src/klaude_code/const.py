@@ -203,7 +203,7 @@ STATUS_RUNNING_TEXT = "Running…"
 
 # Backwards-compatible alias for the default spinner status text.
 STATUS_DEFAULT_TEXT = STATUS_WAITING_TEXT
-SIGINT_DOUBLE_PRESS_EXIT_TEXT = "Press ctrl+c again to exit"  # Toast shown on first Ctrl+C during task waits
+SIGINT_DOUBLE_PRESS_EXIT_TEXT = "Press ctrl-c again to exit"  # Toast shown on first Ctrl+C during task waits
 SPINNER_BREATH_PERIOD_SECONDS: float = 2.0  # Spinner breathing animation period (seconds)
 STATUS_SHIMMER_ENABLED = True  # Enable shimmer effect on status text
 STATUS_SHIMMER_PADDING = 10  # Horizontal padding for shimmer band position

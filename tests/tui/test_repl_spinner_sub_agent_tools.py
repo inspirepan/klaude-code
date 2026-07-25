@@ -271,11 +271,11 @@ def test_default_status_keeps_min_thinking_width() -> None:
 def test_toast_has_highest_priority() -> None:
     state = SpinnerStatusState()
     state.add_tool_call("Finding")
-    state.set_toast_status("Press ctrl+c again to exit")
+    state.set_toast_status("Press ctrl-c again to exit")
 
     status = state.get_status()
 
-    assert status.plain == "Press ctrl+c again to exit"
+    assert status.plain == "Press ctrl-c again to exit"
 
 
 def test_right_text_shows_context_limit_format() -> None:
