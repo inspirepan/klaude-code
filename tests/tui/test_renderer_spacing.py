@@ -4,6 +4,7 @@ import asyncio
 import io
 
 from rich.console import Console
+from rich.style import Style
 
 from klaude_code.protocol import events, message, tools
 from klaude_code.protocol.models import DeveloperUIExtra, SkillActivatedUIItem, SubAgentState
@@ -511,11 +512,17 @@ def test_compact_main_single_line_thinking_renders_markdown() -> None:
         )
     )
 
+    # The ** markers are consumed rather than printed literally.
     assert output.getvalue().splitlines() == ["∵ Reviewing prompt toolkit tests", ""]
+    # Emphasis must come from the thinking theme, and must not fall through to plain text.
+    # Deliberately assert against the theme instead of a specific attribute: whether that
+    # emphasis is bold, italic or a colour shift is a design choice that has already changed
+    # once (bold was dropped in "reduce bold status styling"), and pinning one attribute here
+    # only re-states the theme's own value while breaking on every restyle.
     expected_style = renderer.themes.thinking_markdown_theme.styles["markdown.strong"]
-    assert rendered_content.get_style_at_offset(renderer.console, 0) == expected_style
-    # Thinking markdown emphasis is italic, not bold (see "reduce bold status styling").
-    assert rendered_content.get_style_at_offset(renderer.console, 0).italic is True
+    actual_style = rendered_content.get_style_at_offset(renderer.console, 0)
+    assert actual_style == expected_style
+    assert actual_style != Style()
 
 
 def test_compact_main_single_line_thinking_truncates_with_ellipsis() -> None:
