@@ -6,10 +6,12 @@ import asyncio
 import io
 from unittest.mock import Mock
 
+import pytest
 from rich.console import Console
 
 from klaude_code.protocol import events, tools
-from klaude_code.tui.commands import RenderTaskFinish, RenderToolCall
+from klaude_code.tui import renderer as renderer_module
+from klaude_code.tui.commands import RenderTaskFinish, RenderToolCall, StopTitleBlink, UpdateTerminalTitlePrefix
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
 from klaude_code.tui.transcript_detail import Detail
@@ -93,6 +95,33 @@ def test_cancelled_task_notification_uses_cancelled_title() -> None:
     assert isinstance(sent, Notification)
     assert sent.type == NotificationType.AGENT_TASK_COMPLETE
     assert sent.title == "Task Cancelled"
+
+
+def test_task_notification_follows_final_terminal_title(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    notifier = Mock(spec=TerminalNotifier)
+    notifier.notify.side_effect = lambda _notification: calls.append("notify")
+    display = TUIDisplay(notifier=notifier)
+
+    monkeypatch.setattr(renderer_module, "is_title_blinking", lambda: False)
+    monkeypatch.setattr(renderer_module, "stop_terminal_title_blink", lambda: calls.append("stop"))
+    monkeypatch.setattr(
+        renderer_module,
+        "update_terminal_title",
+        lambda *_args, **kwargs: calls.append(f"title:{kwargs['prefix']}"),
+    )
+
+    asyncio.run(
+        display._renderer.execute(
+            [
+                RenderTaskFinish(event=events.TaskFinishEvent(session_id="main", task_result="done")),
+                StopTitleBlink(),
+                UpdateTerminalTitlePrefix(prefix="✅", model_name="gpt-5", session_title="Task"),
+            ]
+        )
+    )
+
+    assert calls == ["stop", "title:✅", "notify"]
 
 
 def test_interrupt_cancelled_task_suggests_continue() -> None:

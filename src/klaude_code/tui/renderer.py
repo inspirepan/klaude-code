@@ -1425,6 +1425,7 @@ class TUICommandRenderer:
     # ---------------------------------------------------------------------
 
     async def execute(self, commands: list[RenderCommand]) -> None:
+        finished_tasks_to_notify: list[RenderTaskFinish] = []
         for cmd in commands:
             self._flush_open_blocks_before(cmd)
             log_debug(
@@ -1535,7 +1536,7 @@ class TUICommandRenderer:
                 case RenderTaskFinish() as cmd_finish:
                     self.display_task_finish(cmd_finish.event)
                     if not self._replay_mode:
-                        self._maybe_notify_task_finish(cmd_finish)
+                        finished_tasks_to_notify.append(cmd_finish)
                 case RenderInterrupt():
                     self.display_interrupt()
                 case RenderError(event=event):
@@ -1614,6 +1615,12 @@ class TUICommandRenderer:
                     stop_terminal_title_blink()
                 case _:
                     continue
+
+        # Terminal emulators include the current window title in desktop
+        # notifications. Wait until this command batch has replaced the active
+        # spinner title with its final ✅/❌ state before emitting the notice.
+        for cmd_finish in finished_tasks_to_notify:
+            self._maybe_notify_task_finish(cmd_finish)
 
     async def stop(self) -> None:
         self._cancel_bash_live_flush()
