@@ -31,68 +31,31 @@ COMMAND_DESCRIPTIONS: dict[str, str] = {
     "jj": "jujutsu - Git-compatible version control system",
 }
 
+#
+# Guidance that belongs to a single tool lives in that tool's own description, not here.
+# This section is only for cross-tool orchestration: which tool to reach for, and what to
+# do after a tool returns.
+#
+
 PARALLEL_TOOL_CALLS_INST = """- Parallelize independent tool calls in a single message whenever possible."""
 
-STOPPING_CONDITION_INST = (
-    "- After each tool result, ask: can I now correctly answer the user's core request with the evidence in hand? "
-    "If yes, stop calling tools and answer. Persistence means finishing the task, not maximizing tool loops."
+PREFER_TOOL_OVER_SPECULATION_INST = (
+    "- Never propose changes to or answer questions about code you haven't read. When your information about "
+    "the codebase is incomplete, open a file or run a tool instead of speculating."
 )
 
 BASH_SPECIALIZED_TOOL_INST = """- Use specialized file tools for reads/edits instead of Bash fallbacks."""
-BASH_RG_SEARCH_INST = """- For file and text search in Bash, prefer `rg` and `rg --files`."""
-BASH_NO_PYTHON_IO_INST = """- Do not use Python for simple file read/write operations."""
-BASH_NO_CHAINED_SEPARATORS_INST = """- Do not chain unrelated bash commands with separator prints like `echo "===";` -- the merged output renders poorly. Run them as separate calls (in parallel when independent)."""
-BASH_GIT_HISTORY_INST = (
-    """- Use `git log` and `git blame` to search codebase history when additional context is required."""
-)
-
-READ_BEFORE_EDIT_INST = """- NEVER propose changes to or answer questions about code you haven't read. Investigate by reading relevant files before responding. If the user references a specific file, read it first -- do not speculate."""
-
-PREFER_TOOL_OVER_SPECULATION_INST = (
-    """- When information about the codebase is incomplete, prefer opening a file or running a tool over speculating."""
-)
 
 AGENT_FINDER_INST = (
     "- For broad codebase exploration, cross-directory tracing, concept-based searches, or when you "
     'would otherwise chain multiple search steps, use `Agent` with `type="finder"` instead of '
     "doing all searches yourself."
 )
-AGENT_FINDER_PARALLEL_INST = """- Launch multiple finder sub-agents in parallel when tasks are independent."""
-AGENT_REVIEW_PARALLEL_INST = (
-    "- For non-trivial code review requests, launch `code-reviewer` and `code-maintenance-reviewer` "
-    "in parallel, then synthesize their findings yourself. Use additional review agents only when the user "
-    "explicitly asks for high-effort or multi-angle review. This applies to the initial review only. After fixing "
-    "review findings, validate the fixes yourself with targeted tests and direct diff inspection; do not launch a "
-    "follow-up reviewer by default. Launch only the reviewer responsible for a finding when the fix is high-risk, "
-    "cannot be verified confidently, or the user explicitly requests another review."
-)
 
-TODO_FREQUENT_USAGE_INST = """- Use `TodoWrite` frequently for planning and tracking progress on multi-step tasks."""
-TODO_COMPLETE_IMMEDIATELY_INST = """- Mark todos completed immediately when finished. Do not batch-complete later."""
-
-ASK_USER_QUESTION_USAGE_INST = (
-    """- Use the AskUserQuestion tool to ask questions, clarify and gather information as needed."""
-)
-
-EDIT_WRITE_PREFERENCE_INST = """- Prefer `edit` for existing files. Use `write` only for new files, or after reading an existing file and deciding to replace it end-to-end because most of it is changing."""
-EDIT_PARALLELIZE_INST = """- Parallelize independent work when safe, such as reads, searches, checks, or disjoint `edit` calls, including disjoint sections of the same file."""
 EDIT_VALIDATION_LOOP_INST = (
     "- After making changes, run the most relevant validation available: targeted unit tests for the changed behavior, "
     "type checks or linters when applicable, build checks for affected packages, or a minimal smoke command when full "
     "validation is too expensive. If validation cannot be run in this environment, say so and describe the next best check."
-)
-
-WRITE_CREATE_WHEN_NEEDED_INST = """- NEVER create files unless necessary for the task. Prefer editing existing files."""
-
-WRITE_SMALL_PAYLOAD_INST = (
-    "- Avoid writing an entire large file in one `Write` call. "
-    "For existing files, prefer multiple targeted `Edit` calls over a single `Write` that replaces the whole file. "
-    "When creating a new large file, split the work into an initial `Write` of the skeleton followed by `Edit` calls to fill in sections."
-)
-
-APPLY_PATCH_SMALL_PAYLOAD_INST = (
-    "- Avoid giant patches. Split large multi-file patches into several smaller `apply_patch` calls "
-    "rather than one massive patch. Each call should cover a small, cohesive set of changes."
 )
 
 REWIND_CHECKPOINT_INST = """- After each new user message, the system automatically injects a `<system-reminder>Checkpoint N</system-reminder>` marker into the conversation. These markers are rewind targets -- use the `Rewind` tool with a checkpoint ID to roll back conversation history to that point."""
@@ -125,56 +88,18 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
 
     strategy_lines: list[str] = [
         PARALLEL_TOOL_CALLS_INST,
-        STOPPING_CONDITION_INST,
         PREFER_TOOL_OVER_SPECULATION_INST,
         EXTERNAL_REFS_INST,
     ]
 
     if tools.BASH in tool_name_set:
-        strategy_lines.extend(
-            [
-                BASH_SPECIALIZED_TOOL_INST,
-                BASH_RG_SEARCH_INST,
-                BASH_NO_PYTHON_IO_INST,
-                BASH_NO_CHAINED_SEPARATORS_INST,
-                BASH_GIT_HISTORY_INST,
-            ]
-        )
-
-    if tools.READ in tool_name_set and (
-        tools.APPLY_PATCH in tool_name_set or tools.EDIT in tool_name_set or tools.WRITE in tool_name_set
-    ):
-        strategy_lines.append(READ_BEFORE_EDIT_INST)
+        strategy_lines.append(BASH_SPECIALIZED_TOOL_INST)
 
     if tools.AGENT in tool_name_set:
-        strategy_lines.extend(
-            [
-                AGENT_FINDER_INST,
-                AGENT_FINDER_PARALLEL_INST,
-                AGENT_REVIEW_PARALLEL_INST,
-            ]
-        )
-
-    if tools.TODO_WRITE in tool_name_set:
-        strategy_lines.extend([TODO_FREQUENT_USAGE_INST, TODO_COMPLETE_IMMEDIATELY_INST])
-
-    if tools.ASK_USER_QUESTION in tool_name_set:
-        strategy_lines.append(ASK_USER_QUESTION_USAGE_INST)
-
-    if tools.EDIT in tool_name_set and tools.WRITE in tool_name_set:
-        strategy_lines.extend([EDIT_WRITE_PREFERENCE_INST, EDIT_PARALLELIZE_INST])
+        strategy_lines.append(AGENT_FINDER_INST)
 
     if tools.EDIT in tool_name_set or tools.WRITE in tool_name_set or tools.APPLY_PATCH in tool_name_set:
         strategy_lines.append(EDIT_VALIDATION_LOOP_INST)
-
-    if tools.WRITE in tool_name_set:
-        strategy_lines.append(WRITE_CREATE_WHEN_NEEDED_INST)
-
-    if tools.WRITE in tool_name_set:
-        strategy_lines.append(WRITE_SMALL_PAYLOAD_INST)
-
-    if tools.APPLY_PATCH in tool_name_set:
-        strategy_lines.append(APPLY_PATCH_SMALL_PAYLOAD_INST)
 
     if tools.REWIND in tool_name_set:
         strategy_lines.append(REWIND_CHECKPOINT_INST)
@@ -244,7 +169,7 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     env_lines: list[str] = [
         "",
         "",
-        "# Enviroment",
+        "# Environment",
         "Here is useful information about the environment you are running in:",
         "<env>",
         f"Working directory: {cwd_display}",
@@ -292,19 +217,9 @@ def load_system_prompt(
     base_prompt = build_main_system_prompt(model_name, available_tools or [])
     git_hygiene_prompt = "\n\n" + load_prompt_by_path("prompts/system/git-workspace-hygiene-prompt.md")
     conventions_prompt = "\n\n" + load_prompt_by_path("prompts/system/following-conventions-prompt.md")
-    extended_thinking_prompt = (
-        "\n\n" + load_prompt_by_path("prompts/system/extended-thinking-prompt.md")
-        if model_id.supports_adaptive_thinking(model_name)
-        else ""
-    )
     # auto_memory_prompt = _build_auto_memory_prompt(work_dir)
     dynamic_prompt = _build_env_info(model_name, work_dir)
 
     return (
-        base_prompt
-        + git_hygiene_prompt
-        + conventions_prompt
-        + extended_thinking_prompt
-        + f"\n\n{SYSTEM_PROMPT_DYNAMIC_BOUNDARY}"
-        + dynamic_prompt
+        base_prompt + git_hygiene_prompt + conventions_prompt + f"\n\n{SYSTEM_PROMPT_DYNAMIC_BOUNDARY}" + dynamic_prompt
     )

@@ -39,7 +39,7 @@ def test_agent_tool_schema(isolated_home: Path) -> None:
     assert "model" in schema.parameters["properties"]
     assert "general-purpose" in schema.parameters["properties"]["type"]["enum"]
     assert "resume" not in schema.parameters["properties"]
-    assert "Available models (id and providers)" in schema.description
+    assert "Available models:" in schema.description
 
 
 def test_agent_tool_call_invalid_json() -> None:

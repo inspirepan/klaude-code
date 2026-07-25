@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from klaude_code.agent.agent_profile import load_agent_tools
 from klaude_code.agent.system_prompt import (
     SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
     _build_env_info,  # pyright: ignore[reportPrivateUsage]
@@ -85,7 +86,7 @@ def test_load_system_prompt_inserts_dynamic_boundary_before_env_info(tmp_path: P
 
     assert SYSTEM_PROMPT_DYNAMIC_BOUNDARY in prompt
     assert static_prompt is not None and "# auto memory" not in static_prompt
-    assert dynamic_prompt is not None and dynamic_prompt.startswith("# Enviroment")
+    assert dynamic_prompt is not None and dynamic_prompt.startswith("# Environment")
     assert "# auto memory" not in dynamic_prompt
 
 
@@ -95,27 +96,34 @@ def test_strip_system_prompt_boundary_restores_plain_prompt_text() -> None:
     assert strip_system_prompt_boundary(prompt) == "static\n\ndynamic"
 
 
-def test_load_system_prompt_includes_extended_thinking_for_adaptive_models(tmp_path: Path) -> None:
-    opus47_prompt = load_system_prompt("claude-opus-4-7", available_tools=[], work_dir=tmp_path)
-    assert "# Extended Thinking" in opus47_prompt
-
-    opus46_prompt = load_system_prompt("claude-opus-4-6", available_tools=[], work_dir=tmp_path)
-    assert "# Extended Thinking" in opus46_prompt
-
-    sonnet_prompt = load_system_prompt("claude-sonnet-4-6", available_tools=[], work_dir=tmp_path)
-    assert "# Extended Thinking" in sonnet_prompt
-
-
-def test_load_system_prompt_excludes_extended_thinking_for_non_adaptive_models(tmp_path: Path) -> None:
-    prompt = load_system_prompt("gpt-5.4", available_tools=[], work_dir=tmp_path)
-    assert "# Extended Thinking" not in prompt
-
-
 def test_load_system_prompt_does_not_embed_available_skills_listing(tmp_path: Path) -> None:
     prompt = load_system_prompt("claude-opus-4.7", available_tools=[], work_dir=tmp_path)
 
     assert "<available_skills>" not in prompt
     assert "Skills are optional task-specific instructions stored as `SKILL.md` files." not in prompt
+
+
+def test_single_tool_guidance_is_not_restated_in_the_system_prompt(tmp_path: Path) -> None:
+    """Per-tool mechanics belong in the tool description, not the system prompt.
+
+    These phrases each used to appear in both places (and the review-orchestration rule in
+    four places at once), forcing the model to reconcile duplicated instructions.
+    """
+    agent_tools = load_agent_tools("claude-opus-4.7")
+    prompt = load_system_prompt("claude-opus-4.7", available_tools=agent_tools, work_dir=tmp_path)
+    tool_descriptions = "\n".join(tool.description or "" for tool in agent_tools)
+
+    for phrase in (
+        "code-maintenance-reviewer",  # review orchestration
+        "prefer multiple targeted",  # Write payload size
+        "Mark todos completed immediately",  # TodoWrite hygiene
+        "at least once in the conversation before editing",  # Edit read-before-write
+    ):
+        assert phrase not in prompt, f"{phrase!r} should live only in a tool description"
+
+    # ...and the surviving copy is still reaching the model.
+    assert "code-maintenance-reviewer" in tool_descriptions
+    assert tool_descriptions.count("For non-trivial code review requests") == 1
 
 
 def test_dynamic_tool_strategy_prompt_prefers_finder_for_multi_step_search() -> None:

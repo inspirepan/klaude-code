@@ -63,6 +63,10 @@ class TodoWriteTool(ToolABC):
                                 "status": {
                                     "type": "string",
                                     "enum": ["pending", "in_progress", "completed"],
+                                    "description": (
+                                        "Keep exactly one item `in_progress` at a time, and move an item to "
+                                        "`completed` as soon as it is finished rather than batching updates."
+                                    ),
                                 },
                             },
                             "required": ["content", "status"],

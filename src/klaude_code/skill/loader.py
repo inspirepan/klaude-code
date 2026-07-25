@@ -13,6 +13,14 @@ import yaml
 from klaude_code.log import log_debug
 
 SKILL_XML_ENTRY_PATTERN = re.compile(
+    r"""<skill\s[^>]*?name="(?P<name>[^"]*)"[^>]*?path="(?P<location>[^"]*)\"""",
+    re.DOTALL,
+)
+
+# Sessions persisted before the listing became one line per skill still hold the nested
+# element form. Resuming one of those must not lose skill-listing state, or the whole
+# listing gets re-injected.
+_LEGACY_SKILL_XML_ENTRY_PATTERN = re.compile(
     r"<skill>.*?<name>(?P<name>.*?)</name>.*?<location>(?P<location>.*?)</location>.*?</skill>",
     re.DOTALL,
 )
@@ -20,10 +28,10 @@ SKILL_XML_ENTRY_PATTERN = re.compile(
 
 def extract_skill_listing_paths_from_xml(skills_xml: str) -> dict[str, str]:
     """Extract skill-name to skill-path mappings from serialized skill listing XML."""
-    return {
-        html.unescape(match.group("name")): html.unescape(match.group("location"))
-        for match in SKILL_XML_ENTRY_PATTERN.finditer(skills_xml)
-    }
+    matches = list(SKILL_XML_ENTRY_PATTERN.finditer(skills_xml)) or list(
+        _LEGACY_SKILL_XML_ENTRY_PATTERN.finditer(skills_xml)
+    )
+    return {html.unescape(match.group("name")): html.unescape(match.group("location")) for match in matches}
 
 
 def _find_git_repo_root(start: Path) -> Path | None:
@@ -394,6 +402,10 @@ class SkillLoader:
     def get_skills_xml(self) -> str:
         """Generate skill metadata in XML-like format for system prompt.
 
+        One line per skill. ``base_dir`` is normally the directory holding SKILL.md, so it is
+        emitted only when it differs (SKILL.md reached through a symlink) -- this listing is
+        always in context, and one attribute per skill adds up across dozens of them.
+
         Returns:
             XML-like string with all skill metadata entries.
         """
@@ -402,16 +414,11 @@ class SkillLoader:
         for skill in sorted(self.loaded_skills.values(), key=lambda s: location_order.get(s.location, 3)):
             name = escape(skill.name)
             description = escape(skill.description.replace("\n", " ").strip())
-            location = escape(str(skill.skill_path))
-            base_dir = escape(str(skill.base_dir))
-            xml_parts.append(
-                "  <skill>\n"
-                f"    <name>{name}</name>\n"
-                f"    <description>{description}</description>\n"
-                f"    <location>{location}</location>\n"
-                f"    <base_dir>{base_dir}</base_dir>\n"
-                "  </skill>"
+            path = escape(str(skill.skill_path))
+            base_dir_attr = (
+                f' base_dir="{escape(str(skill.base_dir))}"' if skill.base_dir != skill.skill_path.parent else ""
             )
+            xml_parts.append(f'  <skill name="{name}" path="{path}"{base_dir_attr}>{description}</skill>')
         return "\n".join(xml_parts)
 
     def get_skills_yaml(self) -> str:

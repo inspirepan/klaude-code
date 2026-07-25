@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from klaude_code.config import format_model_preference, load_config
+from klaude_code.config import load_config
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState
 from klaude_code.protocol.sub_agent import (
@@ -18,14 +18,12 @@ from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy, ToolMetada
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
 
-_DEFAULT_MODEL_DECISION_TREE = """- For specialized agents such as `finder`, `code-reviewer`, and `code-maintenance-reviewer`, omit `model` in most cases; their configured defaults are selected for their roles.
-- Choose a model based on task characteristics only for `general-purpose` and `general-purpose-fork-context` agents.
-- If the user asks for a specific model or provider, pass that selector exactly.
-- For general-purpose image or other multimodal reading and analysis, prefer Gemini models: `gemini-pro` or `gemini-flash`.
-- For general-purpose frontend tasks (UI, React, CSS, styling, design), prefer `opus`.
-- For general-purpose Chinese-language writing and proofreading/review, prefer `deepseek` or `kimi`.
-- For general or simple tasks delegated to a general-purpose agent, prefer the unqualified model selector `gpt-5.6-terra`.
-- Use provider-qualified selectors like `sonnet@openrouter` only when provider routing matters; otherwise use the unqualified model name."""
+# The real decision tree ships in `config/assets/builtin_config.yaml` under
+# `sub_agent_model_decision_tree`, so users can override it. This is only the degraded path,
+# used when that key is missing or the config cannot be loaded at all -- in which case the
+# available-model list is unknown too, so it deliberately names no specific model.
+_FALLBACK_MODEL_DECISION_TREE = """- Omit `model` for specialized agents; their configured defaults are chosen for their roles. Pick a model only for `general-purpose` and `general-purpose-fork-context`.
+- If the user asks for a specific model or provider, pass that selector exactly."""
 
 
 # Single-slot cache keyed on the loaded Config object's identity. `load_config()`
@@ -45,7 +43,7 @@ def _model_selection_guide() -> str:
             "or `sonnet@openrouter`.\n"
             f"- Current model list unavailable while loading config: {exc}\n\n"
             "Decision tree:\n"
-            f"{_DEFAULT_MODEL_DECISION_TREE}"
+            f"{_FALLBACK_MODEL_DECISION_TREE}"
         )
 
     cached = _GUIDE_CACHE
@@ -63,32 +61,39 @@ def _build_model_selection_guide(config: Any) -> str:
     for entry in entries:
         providers_by_model.setdefault(entry.model_name, set()).add(entry.provider)
 
-    model_lines = [
-        f"- `{model_name}` ({', '.join(sorted(providers_by_model[model_name]))})"
-        for model_name in sorted(providers_by_model)
-    ]
-    if not model_lines:
-        model_lines = ["- No currently available configured models were found."]
+    if providers_by_model:
+        available_line = ", ".join(f"`{name}`" for name in sorted(providers_by_model))
+    else:
+        available_line = "(no currently available configured models were found)"
 
-    default_lines: list[str] = []
-    main_model = format_model_preference(config.main_model) or "the current main model"
-    for profile in iter_sub_agent_profiles():
-        model_pref = config.sub_agent_models.get(profile.name)
-        default = format_model_preference(model_pref) if model_pref is not None else f"inherits {main_model}"
-        default_lines.append(f"- `{profile.name}`: {default}")
+    # Only models served by more than one provider are worth qualifying with `@provider`.
+    # Group them by provider set so a shared tuple is spelled out once instead of per model.
+    models_by_provider_set: dict[tuple[str, ...], list[str]] = {}
+    for name, providers in providers_by_model.items():
+        if len(providers) > 1:
+            models_by_provider_set.setdefault(tuple(sorted(providers)), []).append(name)
 
-    decision_tree = (config.sub_agent_model_decision_tree or _DEFAULT_MODEL_DECISION_TREE).strip()
+    multi_provider_line = (
+        "\n\nModels served by multiple providers: "
+        + "; ".join(
+            f"{', '.join(f'`{name}`' for name in sorted(models_by_provider_set[provider_set]))} "
+            f"({', '.join(provider_set)})"
+            for provider_set in sorted(models_by_provider_set)
+        )
+        if models_by_provider_set
+        else ""
+    )
+
+    decision_tree = (config.sub_agent_model_decision_tree or _FALLBACK_MODEL_DECISION_TREE).strip()
 
     return (
         "Model override:\n"
-        "- Optional `model` may be any configured model selector. Use an unqualified name such as "
-        "`sonnet`, or a provider-qualified selector such as `sonnet@openrouter` to force a provider.\n"
-        "- If omitted, the sub-agent uses the configured default below; if no default exists, it inherits "
-        "the main agent model.\n\n"
-        "Configured sub-agent defaults:\n"
-        f"{chr(10).join(default_lines)}\n\n"
-        "Available models (id and providers):\n"
-        f"{chr(10).join(model_lines)}\n\n"
+        "- Optional `model` may be any selector below. Use an unqualified name such as `sonnet`; append "
+        "`@provider` only when provider routing matters.\n"
+        "- If omitted, the sub-agent uses its configured default, or inherits the main agent model when it "
+        "has none.\n\n"
+        f"Available models: {available_line}"
+        f"{multi_provider_line}\n\n"
         "Decision tree:\n"
         f"{decision_tree}"
     )

@@ -1,7 +1,6 @@
 # Following Conventions
 
-- When making changes to files, first understand the file's code conventions. Mimic code style, use existing libraries and utilities, and follow existing patterns.
+- Before editing or adding code, read the surrounding context -- especially imports and neighboring files -- and make the change in the most idiomatic way for that code. Write code that reads like the code around it: match its comment density, naming, typing, and idiom.
 - NEVER assume a given library is available. Before using a library or framework, check that this codebase already uses it (e.g., check neighboring files, `package.json`, `cargo.toml`, `pyproject.toml`, etc.).
-- When creating a new component, first look at existing components to see how they're written; then follow framework choice, naming conventions, typing, and other conventions.
-- When editing code, first look at the surrounding context (especially imports) to understand the code's choice of frameworks and libraries. Make changes in the most idiomatic way.
+- Do not add emojis to files unless the user asks for them or the file already uses them.
 - Always follow security best practices. Never introduce code that exposes or logs secrets and keys.

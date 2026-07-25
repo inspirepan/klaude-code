@@ -74,19 +74,13 @@ DYNAMIC_AVAILABLE_SKILLS_TEMPLATE = """The following skills are available from d
 
 AVAILABLE_SKILLS_TEMPLATE = """# Skills
 
-Skills are optional task-specific instructions stored as `SKILL.md` files.
+Skills are optional task-specific instructions stored as `SKILL.md` files. Each entry below is metadata only -- the tag body is the skill's description and `path` points at the full instructions.
 
 How to use skills:
-- Use the metadata in <available_skills> to decide whether a skill applies.
-- When the task matches a skill's description, use the `Read` tool to load the `SKILL.md` at the given <location>.
-- Treat the skill <base_dir> as the working directory when following the skill instructions.
-- Resolve any relative paths in SKILL.md (such as `scripts/...`, `references/...`, `assets/...`) against that <base_dir>.
-
-Important:
-- Only use skills listed in <available_skills> below.
+- Use the descriptions to decide whether a skill applies, and only use skills listed here.
+- When the task matches one, `Read` its `path` to load the instructions.
+- Treat the directory containing that SKILL.md as the working directory, and resolve relative paths inside it (`scripts/...`, `references/...`, `assets/...`) against that directory. A `base_dir` attribute, when present, overrides it.
 - Keep context small: do NOT load skill files unless needed.
-
-The list below is metadata only. The full instructions live in the referenced file.
 
 <available_skills>
 {skills_xml}
@@ -136,19 +130,4 @@ PASTE_FILE_HINT_TEMPLATE = (
     "{mapping}\n\n"
     "When you need to execute the pasted content in Bash or write it into a code file, "
     "use Bash commands (cp, mv, cat, etc.) to operate on the file directly instead of repeating it."
-)
-
-# ---------------------------------------------------------------------------
-# Todo
-# ---------------------------------------------------------------------------
-
-TODO_ITEMS_TEMPLATE = "\n\nHere are the existing contents of your todo list:\n\n[{todo_items_str}]"
-
-TODO_NUDGE_TEMPLATE = (
-    "The TodoWrite tool hasn't been used recently. If you're working on tasks that would benefit "
-    "from tracking progress, consider using the TodoWrite tool to track progress. Also consider "
-    "cleaning up the todo list if it has become stale and no longer matches what you are working on. "
-    "Only use it if it's relevant to the current work. This is just a gentle reminder - ignore if "
-    "not applicable. Make sure that you NEVER mention this reminder to the user"
-    "{todo_str}"
 )

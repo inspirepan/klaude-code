@@ -277,8 +277,8 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
     first_text = message.join_text_parts(first_attachment.parts)
     assert "# Skills" in first_text
     assert "<available_skills>" in first_text
-    assert "<name>submit-pr</name>" in first_text
-    assert "<name>commit</name>" in first_text
+    assert 'name="submit-pr"' in first_text
+    assert 'name="commit"' in first_text
     assert any(status.is_skill_listing for status in session.file_tracker.values())
 
     assert _arun(skill_attachments.available_skills_attachment(session)) is None
@@ -302,7 +302,7 @@ def test_available_skills_attachment_hot_reloads_only_new_skills(
     first_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert first_attachment is not None
     first_text = message.join_text_parts(first_attachment.parts)
-    assert "<name>commit</name>" in first_text
+    assert 'name="commit"' in first_text
 
     skills[0] = _make_skill("commit", root=tmp_path, location="system", description="updated commit skill")
     assert _arun(skill_attachments.available_skills_attachment(session)) is None
@@ -316,8 +316,8 @@ def test_available_skills_attachment_hot_reloads_only_new_skills(
     assert listing == [SkillListingUIItem(names=["publish"], incremental=True)]
     second_text = message.join_text_parts(second_attachment.parts)
     assert "The available skill metadata changed" in second_text
-    assert "<name>publish</name>" in second_text
-    assert "<name>commit</name>" not in second_text
+    assert 'name="publish"' in second_text
+    assert 'name="commit"' not in second_text
 
     assert _arun(skill_attachments.available_skills_attachment(session)) is None
 
@@ -335,7 +335,7 @@ def test_available_skills_attachment_reannounces_skill_when_path_changes(
 
     first_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert first_attachment is not None
-    assert "<name>commit</name>" in message.join_text_parts(first_attachment.parts)
+    assert 'name="commit"' in message.join_text_parts(first_attachment.parts)
 
     skills[0] = _make_skill("commit", root=override_root, location="project", description="override commit skill")
 
@@ -346,7 +346,7 @@ def test_available_skills_attachment_reannounces_skill_when_path_changes(
     assert listing == [SkillListingUIItem(names=["commit"], incremental=True)]
     second_text = message.join_text_parts(second_attachment.parts)
     assert "The available skill metadata changed" in second_text
-    assert "<name>commit</name>" in second_text
+    assert 'name="commit"' in second_text
     assert str(override_root / "commit" / "SKILL.md") in second_text
 
 
@@ -418,7 +418,7 @@ def test_available_skills_attachment_reinjects_after_attachment_flags_reset_even
     assert second_attachment is not None
     second_text = message.join_text_parts(second_attachment.parts)
     assert "<available_skills>" in second_text
-    assert "<name>commit</name>" in second_text
+    assert 'name="commit"' in second_text
 
 
 def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Path) -> None:
@@ -447,8 +447,8 @@ def test_last_path_skill_attachment_discovers_nested_project_skill(tmp_path: Pat
 
     text = message.join_text_parts(attachment.parts)
     assert "<available_skills>" in text
-    assert "<name>local-skill</name>" in text
-    assert "<description>nested skill</description>" in text
+    assert 'name="local-skill"' in text
+    assert ">nested skill</skill>" in text
     assert "# Local skill" not in text
 
     tracked = session.file_tracker[str(skill_path.resolve())]
@@ -479,7 +479,7 @@ def test_last_path_skill_attachment_same_directory_second_file_does_not_repeat(t
     first_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert first_attachment is not None
     first_text = message.join_text_parts(first_attachment.parts)
-    assert "<name>build</name>" in first_text
+    assert 'name="build"' in first_text
 
     session.file_tracker[str(file2.resolve())] = FileStatus(
         mtime=file2.stat().st_mtime,
@@ -523,8 +523,8 @@ def test_last_path_skill_attachment_prefers_deeper_skill_with_same_name(tmp_path
 
     assert attachment is not None
     text = message.join_text_parts(attachment.parts)
-    assert "<description>deep</description>" in text
-    assert "<description>shallow</description>" not in text
+    assert ">deep</skill>" in text
+    assert ">shallow</skill>" not in text
     assert "# Deep" not in text
 
 
@@ -548,7 +548,7 @@ def test_last_path_skill_attachment_reloads_when_skill_changes(tmp_path: Path) -
     first_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert first_attachment is not None
     first_text = message.join_text_parts(first_attachment.parts)
-    assert "<description>v1</description>" in first_text
+    assert ">v1</skill>" in first_text
     assert "version one" not in first_text
 
     assert _arun(skill_attachments.last_path_skill_attachment(session)) is None
@@ -558,7 +558,7 @@ def test_last_path_skill_attachment_reloads_when_skill_changes(tmp_path: Path) -
     second_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert second_attachment is not None
     second_text = message.join_text_parts(second_attachment.parts)
-    assert "<description>v2</description>" in second_text
+    assert ">v2</skill>" in second_text
     assert "version two" not in second_text
 
 
@@ -587,7 +587,7 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
 
     first_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert first_attachment is not None
-    assert "<description>first</description>" in message.join_text_parts(first_attachment.parts)
+    assert ">first</skill>" in message.join_text_parts(first_attachment.parts)
 
     session.file_tracker[str(second_file.resolve())] = FileStatus(
         mtime=second_file.stat().st_mtime,
@@ -597,7 +597,7 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
     second_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert second_attachment is not None
     second_text = message.join_text_parts(second_attachment.parts)
-    assert "<description>second</description>" in second_text
+    assert ">second</skill>" in second_text
     assert str(second_skill.resolve()) in session.file_tracker
 
 
@@ -626,7 +626,7 @@ def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
     assert first_attachment is not None
     first_text = message.join_text_parts(first_attachment.parts)
     assert "<available_skills>" in first_text
-    assert "<name>local-dir-skill</name>" in first_text
+    assert 'name="local-dir-skill"' in first_text
     assert "# Dir skill" not in first_text
     assert str(target_dir.resolve()) in session.file_tracker
     assert session.file_tracker[str(target_dir.resolve())].is_directory is True
@@ -635,7 +635,7 @@ def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
 
     second_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert second_attachment is not None
-    assert "<name>local-dir-skill</name>" in message.join_text_parts(second_attachment.parts)
+    assert 'name="local-dir-skill"' in message.join_text_parts(second_attachment.parts)
 
 
 def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
@@ -810,8 +810,8 @@ def test_last_path_skill_attachment_discovers_external_repo_root_skill(tmp_path:
 
     assert attachment is not None
     text = message.join_text_parts(attachment.parts)
-    assert "<name>writer</name>" in text
-    assert "<description>external writer skill</description>" in text
+    assert 'name="writer"' in text
+    assert ">external writer skill</skill>" in text
     assert "# Writer" not in text
 
 

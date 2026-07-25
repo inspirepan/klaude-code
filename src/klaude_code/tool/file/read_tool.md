@@ -13,5 +13,5 @@ Usage:
 - Total output is capped at ${max_chars} characters
 - Results are returned using cat -n format, with line numbers starting at 1
 - This tool can only read files, not directories. To read a directory, use an ls command via the Bash tool.
-- You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful. 
+- Reading is cheap: batch potentially useful files into a single response speculatively rather than reading them one at a time.
 - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.

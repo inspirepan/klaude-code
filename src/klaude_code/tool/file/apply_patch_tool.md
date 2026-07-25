@@ -21,3 +21,4 @@ Rules:
 - Add File: create a new file. Every content line must start with `+`.
 - Delete File: remove an existing file entirely. No content lines.
 - Update File supports `*** Move to: new/path` on the next line to rename/move a file.
+- Avoid giant patches. Split a large multi-file change into several smaller calls, each covering a cohesive set of edits.

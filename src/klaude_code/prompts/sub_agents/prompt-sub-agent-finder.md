@@ -36,16 +36,4 @@ Find files and line ranges relevant to the user's query (provided in the first m
 - **Use generous ranges**: When including ranges, extend them to capture complete logical units
   (full functions, classes, or blocks). Add 5-10 lines of buffer above and below the match to
   ensure context is included.
-
-### Example (assuming workspace root is /Users/alice/project):
-User: Find how JWT authentication works in the codebase.
-Response: JWT tokens are created in `auth.ts` middleware using `jsonwebtoken.sign()` with a
-configurable expiry. Validation happens in `token-service.ts` which decodes the token, checks
-expiry, and extracts the user ID. Authenticated sessions are cached in Redis with a TTL matching
-the token lifetime. The `Auth` type definitions cover both access and refresh token shapes.
-
-Relevant files:
-- [src/middleware/auth.ts#L45-L82](file:///Users/alice/project/src/middleware/auth.ts#L45-L82)
-- [src/services/token-service.ts#L12-L58](file:///Users/alice/project/src/services/token-service.ts#L12-L58)
-- [src/cache/redis-session.ts#L23-L41](file:///Users/alice/project/src/cache/redis-session.ts#L23-L41)
-- [src/types/auth.d.ts#L1-L15](file:///Users/alice/project/src/types/auth.d.ts#L1-L15)
+- Paths in the link text are relative to the workspace root; paths in the `file://` URI are absolute.

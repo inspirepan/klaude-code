@@ -19,12 +19,8 @@ Execution model:
 - If you need to iterate on an agent's output, launch a new agent with an updated prompt that includes the previous result.
 
 Usage notes:
-- Always include a short description (3-5 words) summarizing what the agent will do
-- Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
-- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, etc.), since it is not aware of the user's intent
-- Provide clear, detailed prompts so the agent can work autonomously and return exactly the information you need.
+- Launch independent agents concurrently by putting multiple Agent tool calls in a single message.
+- The agent cannot see the conversation or infer the user's intent. Give it a self-contained prompt: the goal, whether you want code written or just research, the deliverables, and how to validate them.
 - When asking a sub-agent to execute a skill, include the skill's full `location` and `base_dir` in your prompt. Do not assume the skill content is already loaded; the sub-agent still needs the concrete path context to read and apply it.
-- If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
-- For non-trivial code review requests, launch `code-reviewer` and `code-maintenance-reviewer` concurrently, then synthesize their findings yourself. This applies to the initial review only. After fixing review findings, validate the fixes yourself with targeted tests and direct diff inspection; do not launch a follow-up reviewer by default. Launch only the reviewer responsible for a finding when the fix is high-risk, cannot be verified confidently, or the user explicitly requests another review. Use more review agents only when the user explicitly asks for high-effort or multi-angle review.
-- If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple Agent tool use content blocks. For example, if you need to launch both a code-reviewer agent and a test-runner agent in parallel, send a single message with both tool calls.
+- For non-trivial code review requests, launch `code-reviewer` and `code-maintenance-reviewer` concurrently, then synthesize their findings yourself. This applies to the initial review only. After fixing review findings, validate the fixes yourself with targeted tests and direct diff inspection rather than launching a follow-up reviewer; re-run only the reviewer responsible for a finding when the fix is high-risk or hard to verify.
 

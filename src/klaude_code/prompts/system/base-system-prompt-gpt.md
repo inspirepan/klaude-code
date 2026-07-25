@@ -63,9 +63,6 @@ Be cautious with any command or API call that deletes, overwrites, publishes, or
 
 - Confirm that it is clearly within the user's request.
 - Resolve the exact targets with read-only checks when necessary.
-- Use explicit, validated paths. Do not rely on unresolved variables, globs, or command substitutions to identify destructive targets.
-- Never target a home directory, filesystem root, workspace root, or similarly broad directory with a recursive destructive command.
-- Use task-specific variable names rather than repurposing common environment variables such as `HOME`.
 - Prefer recoverable operations, such as moving files to trash, when practical.
 - If the target or scope is unclear, stop and ask the user.
 
@@ -74,8 +71,6 @@ After deleting or overwriting material data, briefly report what changed and whe
 ## Editing Constraints
 
 Default to ASCII when editing or creating files. Introduce non-ASCII text only when justified by the content or the file's existing character set.
-
-Add concise comments only where the code is not self-explanatory. Comments should explain intent or constraints, not narrate obvious operations.
 
 ## Special User Requests
 

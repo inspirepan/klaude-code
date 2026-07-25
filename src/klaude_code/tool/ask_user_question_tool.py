@@ -60,18 +60,13 @@ class AskUserQuestionTool(ToolABC):
                                 "question": {
                                     "description": (
                                         "The complete question to ask the user. Should be clear, specific, "
-                                        "and end with a question mark. "
-                                        'Example: "Which library should we use for date formatting?" '
-                                        "If multiSelect is true, phrase it accordingly, "
-                                        'e.g. "Which features do you want to enable?"'
+                                        "and end with a question mark. If multiSelect is true, phrase it to "
+                                        "invite more than one answer."
                                     ),
                                     "type": "string",
                                 },
                                 "header": {
-                                    "description": (
-                                        "Very short label displayed as a chip/tag (max 12 chars). "
-                                        'Examples: "Auth method", "Library", "Approach".'
-                                    ),
+                                    "description": "Very short label displayed as a chip/tag (max 12 chars).",
                                     "type": "string",
                                 },
                                 "options": {

@@ -1282,14 +1282,9 @@ provider_list:
     cost: { input: 1.4, output: 4.4, cache_read: 0.26 }
 
 sub_agent_model_decision_tree: |
-  - For specialized agents such as `finder`, `code-reviewer`, and `code-maintenance-reviewer`, omit `model` in most cases; their configured defaults are selected for their roles.
-  - Choose a model based on task characteristics only for `general-purpose` and `general-purpose-fork-context` agents.
+  - Omit `model` for specialized agents (`finder`, `code-reviewer`, `code-maintenance-reviewer`); their configured defaults are chosen for their roles. Pick a model only for `general-purpose` and `general-purpose-fork-context`.
   - If the user asks for a specific model or provider, pass that selector exactly.
-  - For general-purpose image or other multimodal reading and analysis, prefer Gemini models: `gemini-pro` or `gemini-flash`.
-  - For general-purpose frontend tasks (UI, React, CSS, styling, design), prefer `opus`.
-  - For general-purpose Chinese-language writing and proofreading/review, prefer `deepseek` or `kimi`.
-  - For general or simple tasks delegated to a general-purpose agent, prefer the unqualified model selector `gpt-5.6-terra`.
-  - Use provider-qualified selectors like `sonnet@openrouter` only when provider routing matters; otherwise use the unqualified model name.
+  - Otherwise, for general-purpose work: `gemini-pro` or `gemini-flash` for image and other multimodal analysis, `opus` for frontend (UI, React, CSS, styling, design), `deepseek` or `kimi` for Chinese-language writing and proofreading, `gpt-5.6-terra` for everything else.
 
 sub_agent_models:
   finder:
