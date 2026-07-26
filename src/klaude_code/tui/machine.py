@@ -315,10 +315,23 @@ class ActivityState:
                     activity_text.append(", ", style=ThemeKey.STATUS_TEXT)
 
             if self._tool_calls:
-                _append_counts(self._tool_calls, self._tool_call_texts)
+                detailed_calls = {
+                    name: count for name, count in self._tool_calls.items() if name in self._tool_call_texts
+                }
+                pending_calls = {
+                    name: count for name, count in self._tool_calls.items() if name not in self._tool_call_texts
+                }
+                if detailed_calls:
+                    _append_counts(detailed_calls, self._tool_call_texts)
+                    pending_count = sum(pending_calls.values())
+                    if pending_count:
+                        activity_text.append(f" · {pending_count} pending", style=ThemeKey.STATUS_HINT)
+                else:
+                    _append_counts(pending_calls)
 
             return activity_text
         return None
+
 
 class SpinnerStatusState:
     """State machine for spinner status plus task/session metadata."""

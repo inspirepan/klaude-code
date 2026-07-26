@@ -1281,6 +1281,39 @@ def test_main_bash_compact_status_shows_description_and_raw_first_command_line()
     assert not any(isinstance(command, RenderToolResult) for command in result_commands)
 
 
+def test_main_bash_status_marks_unstarted_calls_as_pending_once_execution_begins() -> None:
+    machine = DisplayStateMachine()
+    main_session = "main"
+
+    machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
+    commands = []
+    for index in range(3):
+        commands = machine.transition(
+            events.ToolCallStartEvent(
+                session_id=main_session,
+                tool_call_id=f"tc-bash-{index}",
+                tool_name=tools.BASH,
+            )
+        )
+
+    streaming_update = _last_spinner_update(commands)
+    assert _line_plain(streaming_update.status_lines[0]).startswith("Bashing x 3")
+
+    commands = machine.transition(
+        events.ToolCallEvent(
+            session_id=main_session,
+            tool_call_id="tc-bash-0",
+            tool_name=tools.BASH,
+            arguments='{"command":"make test","description":"运行完整测试"}',
+        )
+    )
+
+    running_update = _last_spinner_update(commands)
+    running_status = _line_plain(running_update.status_lines[0])
+    assert running_status.startswith("Bash 运行完整测试 make test · 2 pending")
+    assert "Bashing" not in running_status
+
+
 def test_main_session_composing_keeps_sub_agent_activity_priority() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
