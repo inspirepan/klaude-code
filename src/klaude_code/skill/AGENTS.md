@@ -25,4 +25,4 @@ Edit `loader.py`, `manager.py`, or `system_skills.py` only for skill loading/ins
 - Ensure submodules are initialized before testing:
   - `git submodule update --init --recursive`
 - Run focused tests for skill behavior:
-  - `uv run pytest tests/test_skill_loader* tests/test_skill_loader_metadata_format.py tests/test_welcome_skill_warnings.py`
+  - `uv run pytest tests/skill tests/tui/test_welcome_skill_warnings.py -q --tb=short`

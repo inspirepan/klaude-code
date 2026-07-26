@@ -139,7 +139,7 @@ class TestSaveLoadRoundTrip:
 
         arun(_test())
 
-    def test_load_meta_omits_history_but_keeps_user_messages(
+    def test_load_meta_omits_history_while_persisted_meta_keeps_user_messages(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         project_dir = tmp_path / "proj"

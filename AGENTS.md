@@ -29,8 +29,9 @@ Layering is enforced by import-linter (`[tool.importlinter]` in `pyproject.toml`
 cli > tui/web > app > agent > tool/control > skill > session > config > llm > protocol > auth > log > prompts/const
 ```
 
-- `prompts` is a bottom-layer pure-text package: text resources only, no logic. The system
-  prompt is assembled in `agent/system_prompt.py`.
+- `prompts` is a bottom-layer package for model-facing text and small, dependency-free
+  formatting helpers. Keep runtime orchestration out of it. The system prompt is assembled in
+  `agent/system_prompt.py`.
 - Tools must not import from `agent`, `app`, `tui`, or `web`; they receive everything through
   `ToolContext`.
 - Sub-agent profiles are declared in `protocol/sub_agent/` (bottom-up registration) while their

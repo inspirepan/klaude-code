@@ -68,10 +68,12 @@ All tools are stateless classmethods:
 Tools receive a `ToolContext` with:
 - `work_dir` - Current working directory
 - `file_tracker` - Tracks file read/write state for dedup and external change detection
-- `todo` - Todo list context
+- `todo_context` - Restricted read/replace access to the current todo list
+- `session_id` - Session that owns the tool call
 - `request_user_interaction` - Callback for asking the user questions
 - `run_subtask` - Callback for spawning sub-agent tasks
-- `request_handoff` / `request_rewind` - Callbacks for session control
+- `handoff_manager` / `rewind_manager` - Session-control interfaces
+- `emit_tool_output_delta` - Optional callback for streaming tool output
 
 Tools should NOT import from `agent`, `app`, `tui`, or `web` layers (enforced by import-linter).
 

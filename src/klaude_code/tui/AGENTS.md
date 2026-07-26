@@ -68,8 +68,10 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   rendered as a normal user turn only when it actually begins execution.
 - Plain `Up` on an empty editor with queued messages dequeues all queued
   messages at once, clears the queue, and writes them back into the editor
-  separated by blank lines. `Alt+Up` / `Esc Up` keeps the same dequeue behavior
-  as a fallback. Plain `Up` remains history navigation when the queue is empty.
+  separated by standalone `--- split ---` lines. Queue-edit parsing also
+  accepts standalone `---` lines. `Alt+Up` / `Esc Up` keeps the same dequeue
+  behavior as a fallback. Plain `Up` remains history navigation when the queue
+  is empty.
 
 ### Live output flow
 

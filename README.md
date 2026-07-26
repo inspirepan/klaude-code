@@ -7,13 +7,13 @@ Minimal code agent CLI.
 - **Keep reasoning item in context**: Interleaved thinking support
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
 - **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
-- **Sub-agents**: General Purpose, Finder, Code Reviewer, Code Simplifier (+ fork-context variant)
+- **Sub-agents**: General Purpose, Finder, Code Reviewer, Code Maintenance Reviewer (+ fork-context variant)
 - **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
 - **External file sync**: Monitoring for external edits (linter, manual)
 - **Interrupt handling**: Ctrl+C preserves partial responses and synthesizes tool cancellation results
 - **Output truncation**: Large outputs saved to file system with snapshot links
 - **Agent Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `//skill` or `/skill`)
-- **Prompt caching**: Append-only message history maximizes prefix cache hits (cached tokens cost 10% of base input)
+- **Prompt caching**: Append-only persisted history and stable request prefixes maximize cache hits
 - **Context management**: Auto-compaction, Rewind (rollback to checkpoint), Handoff (compress and continue in fresh context)
 - **Auto memory**: Persistent cross-session memory per project (`~/.klaude/projects/<project>/memory/`)
 - **Web UI**: Browser-based interface via `klaude web` or `/web` slash command
@@ -94,9 +94,12 @@ Klaude comes with built-in provider configurations. Just set an API key environm
 export ANTHROPIC_API_KEY=sk-ant-xxx      # Claude models
 export OPENAI_API_KEY=sk-xxx             # GPT models
 export OPENROUTER_API_KEY=sk-or-xxx      # OpenRouter (multi-provider)
+export YOUTU_API_KEY=xxx                  # Youtu gateway (multi-provider)
 export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models
 export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
 export MINIMAX_API_KEY=xxx               # MiniMax models
+export CEREBRAS_API_KEY=xxx               # Cerebras models
+export ARK_API_KEY=xxx                    # Volcengine ARK Coding Plan
 export GOOGLE_API_KEY=xxx                # Google Gemini models (or GEMINI_API_KEY)
 export EXA_API_KEY=exa-xxx               # Exa Search (optional, WebSearch provider, preferred)
 export BRAVE_API_KEY=BSA-xxx             # Brave Search (optional, WebSearch provider, fallback)
@@ -131,21 +134,23 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 
 #### Built-in Providers
 
-| Provider         | Env Variable                                                                 | Models                                                                                                   |
-|------------------|------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
-| anthropic        | `ANTHROPIC_API_KEY`                                                          | sonnet, sonnet-no-thinking, opus, haiku                                                                 |
-| openai           | `OPENAI_API_KEY`                                                             | gpt-5.4-high, gpt-5.4-xhigh, gpt-5.3-codex, gpt-5.3-codex-xhigh                                         |
-| openrouter       | `OPENROUTER_API_KEY`                                                         | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh, kimi, haiku, sonnet, sonnet-no-thinking, opus, gemini-pro, gemini-flash, grok, minimax, glm |
-| google           | `GOOGLE_API_KEY` or `GEMINI_API_KEY`                                         | gemini-pro, gemini-flash                                                                                |
-| google-vertex    | `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | gemini-pro, gemini-flash                                                                                |
-| deepseek         | `DEEPSEEK_API_KEY`                                                           | deepseek                                                                                                 |
-| moonshot         | `MOONSHOT_API_KEY`                                                           | kimi                                                                                                     |
-| minimax          | `MINIMAX_API_KEY`                                                            | m2.7, m2.7:highspeed                                                                                     |
-| cerebras         | `CEREBRAS_API_KEY`                                                           | glm                                                                                                      |
-| claude-max       | N/A (OAuth)                                             | sonnet, sonnet-no-thinking, opus, haiku                                                                 |
-| codex            | N/A (OAuth)                                                                  | gpt-5.3-codex, gpt-5.3-codex-xhigh, gpt-5.4-high, gpt-5.4-xhigh   |
-| ark-api          | `ARK_API_KEY`                                                                | seed-pro, seed-code                                                                                      |
-| ark-coding-plan  | `ARK_API_KEY`                                                                | seed-code, kimi                                                                                          |
+| Provider(s) | Credentials |
+|-------------|-------------|
+| `youtu-anthropic`, `youtu-openai`, `youtu-openai-chat`, `youtu-gemini` | `YOUTU_API_KEY` |
+| `anthropic` | `ANTHROPIC_API_KEY` |
+| `aws-bedrock` | `AWS_BEDROCK_ACCESS_KEY_ID` + `AWS_BEDROCK_SECRET_ACCESS_KEY` + `AWS_BEDROCK_REGION` (standard `AWS_*` fallbacks are also accepted) |
+| `openai` | `OPENAI_API_KEY` |
+| `azure-openai-responses` | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT` (or `AZURE_OPENAI_BASE_URL`) |
+| `google` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
+| `google-vertex` | `GOOGLE_APPLICATION_CREDENTIALS` + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION` |
+| `deepseek` | `DEEPSEEK_API_KEY` |
+| `moonshot-cn`, `moonshot-ai` | `MOONSHOT_API_KEY` |
+| `minimax` | `MINIMAX_API_KEY` |
+| `cerebras` | `CEREBRAS_API_KEY` |
+| `opencode-go`, `opencode-go-anthropic` | `OPENCODE_API_KEY` |
+| `codex` | OAuth via `klaude auth login codex` |
+| `ark-coding-plan` | `ARK_API_KEY` |
+| `openrouter` | `OPENROUTER_API_KEY` |
 
 List all configured providers and models:
 
@@ -153,9 +158,9 @@ List all configured providers and models:
 klaude list
 ```
 
-Models from providers without valid credentials are shown as dimmed/unavailable.
-
-Bedrock is supported as a custom provider rather than a built-in one. See `docs/bedrock-setup.md`.
+Models from providers without valid credentials are shown as dimmed/unavailable. The built-in
+model catalog changes more frequently than this README; use `klaude list` for the authoritative
+provider/model list.
 
 #### Authentication
 
@@ -172,7 +177,9 @@ klaude auth login google      # Set GOOGLE_API_KEY
 klaude auth login openrouter  # Set OPENROUTER_API_KEY
 klaude auth login deepseek    # Set DEEPSEEK_API_KEY
 klaude auth login moonshot    # Set MOONSHOT_API_KEY
-klaude auth login minimax    # Set MINIMAX_API_KEY
+klaude auth login minimax     # Set MINIMAX_API_KEY
+klaude auth login aws-bedrock    # Configure AWS Bedrock credentials
+klaude auth login google-vertex  # Configure Google Vertex credentials
 
 # OAuth login for subscription-based providers
 klaude auth login codex       # ChatGPT Pro subscription
@@ -256,7 +263,7 @@ provider_list:
 - `general-purpose-fork-context` - Same as above but inherits parent conversation history
 - `finder` - Fast codebase search and exploration
 - `code-reviewer` - Identifies bugs in proposed changes
-- `code-simplifier` - Refines code for clarity and consistency
+- `code-maintenance-reviewer` - Reviews maintainability, reuse, layering, and unnecessary complexity
 
 If a sub-agent type is not configured, it falls back to the main agent model. Each key also accepts a list for fallback ordering.
 
@@ -279,8 +286,6 @@ sub_agent_models:
 - `google` - Google Gemini API
 - `google_vertex` - Google Vertex AI (uses GCP credentials)
 - `bedrock` - AWS Bedrock for Claude (uses AWS credentials instead of api_key)
-
-For a working Bedrock provider example, see `docs/bedrock-setup.md`.
 
 List configured providers and models:
 
@@ -348,7 +353,7 @@ The main agent can spawn specialized sub-agents for specific tasks:
 | **General Purpose (Fork Context)** | Same as above, but inherits the parent agent's full conversation history |
 | **Finder** | Fast codebase exploration - find files, search code, answer questions about the codebase |
 | **Code Reviewer** | Identify real bugs in proposed changes |
-| **Code Simplifier** | Refine recently changed code for clarity and consistency |
+| **Code Maintenance Reviewer** | Review maintainability, reuse, layering, and unnecessary complexity |
 
 ### Web UI
 
@@ -366,15 +371,19 @@ You can also switch from TUI to web mid-session with the `/web` slash command. T
 
 ### Prompt Caching
 
-Klaude is designed to maximize prefix cache hit rates across LLM API calls. Cached tokens are priced at ~10% of base input tokens, so high cache hit rates significantly reduce cost.
+Klaude is designed to maximize prefix cache hit rates across LLM API calls. Cache pricing varies by
+provider and model, but cache hits generally reduce input cost and latency.
 
-**Append-only message history.** The conversation history is strictly append-only. New messages, tool results, and attachments are always appended to the end of the message array, never inserted or modified in the middle. Any mutation to the head of the messages array (compressing old tool results, replacing images, reordering tool definitions) would invalidate the prefix cache and force a full re-tokenization.
+**Append-only persisted history.** New messages, tool results, compaction entries, and rewind entries
+are appended to `events.jsonl`. The active LLM-facing view may omit or summarize earlier events,
+but ordinary consecutive requests keep unchanged prefixes byte-identical whenever possible.
 
 Design choices that preserve prefix stability:
 - **Stable system prompt**: The system prompt is composed of a static base prompt + stable tool strategy block + environment info, avoiding per-step variation.
 - **Stable JSON serialization**: Tool schemas and provider payloads use `canonicalize_json()` for deterministic key ordering across calls.
 - **Cache control markers**: For Anthropic and OpenRouter (Claude models), `cache_control: {"type": "ephemeral"}` is placed on the system prompt and the last message part to hint the provider's caching boundary.
-- **Compaction preserves prefix**: When context is compacted, the summary is prepended as a new first message while keeping the retained tail intact -- no existing message bytes are modified.
+- **Cache-aware compaction**: Compatible main/compact models can reuse the original request prefix
+  while generating the summary; the next request uses the summary plus the retained tail.
 - **Fork-context sub-agents**: Sub-agents with `fork_context=True` inherit the parent's full system prompt and tool list to maximize prefix cache sharing.
 
 The TUI displays cache hit rate per step in the metadata line (e.g. `cache 12.5k (98%)`). Rates below 90% are highlighted as a warning.
@@ -383,7 +392,9 @@ The TUI displays cache hit rate per step in the metadata line (e.g. `cache 12.5k
 
 The agent automatically manages context window limits:
 
-- **Auto-compaction**: When the conversation approaches the model's context limit, older messages are summarized and replaced with a compact summary. The agent also recovers from context overflow errors by compacting and retrying.
+- **Auto-compaction**: When the conversation approaches the model's context limit, the LLM-facing
+  view replaces older messages with a compact summary while persisted events remain append-only.
+  The agent also recovers from context overflow errors by compacting and retrying.
 - **Rewind**: The agent can roll back the conversation to a previous checkpoint (automatically inserted at key points). File system changes are preserved; only conversation history is rewound.
 - **Handoff**: The agent can compress the current conversation into a summary and continue in a fresh context. Useful for very long sessions where context quality degrades.
 

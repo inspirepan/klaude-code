@@ -1,14 +1,14 @@
 # LLM Multimodal Input Notes
 
-These notes summarize the local policy and the Claude Code reference design for multimodal image data. The important distinction is that token context and request byte size are separate limits: base64 images can overflow the HTTP payload while token usage still looks healthy.
+These notes summarize the local policy for multimodal image data. The important distinction is
+that token context and request byte size are separate limits: base64 images can overflow the HTTP
+payload while token usage still looks healthy.
 
-## Claude Code Reference
+## Design Principle
 
-Claude Code avoids making inline image base64 part of durable prompt history. In the reference implementation, prompt history filters image pasted content because images are stored separately in an image cache (`src/history.ts`). Images are compressed before API use (`src/utils/imageResizer.ts`) with several fallbacks: dimension downscaling, PNG compression, JPEG quality reduction, and final aggressive resize. API-facing constants live in `src/constants/apiLimits.ts`, including 5 MB max base64 image size and 2000 px image dimensions.
-
-Claude Code still has request-time fallbacks. `stripExcessMediaItems()` in `src/services/api/claude.ts` drops the oldest media items when the API media count limit would be exceeded, preserving recent media. Compaction uses `stripImagesFromMessages()` in `src/services/compact/compact.ts` to replace image/document blocks with `[image]` / `[document]` text markers before summarization, so compaction itself does not resend historical binary payloads.
-
-The cache lesson from Claude Code is: keep durable history stable and lightweight, and treat media hydration as a provider-boundary concern. Do not repeatedly rewrite old prompt prefixes with changing inline base64 decisions unless there is no better fallback.
+Keep durable history stable and lightweight, and treat media hydration as a provider-boundary
+concern. Do not repeatedly rewrite old prompt prefixes with changing inline base64 decisions unless
+there is no better fallback.
 
 ## Image History Storage
 
@@ -18,11 +18,14 @@ This keeps `events.jsonl` small, avoids replaying large blobs through every step
 
 ## Request-Time Hydration
 
-Provider adapters may convert `ImageFilePart` to provider-specific image blocks using `image_file_to_data_url()`. Keep this conversion deterministic for the same file bytes. Before base64 encoding, use Pillow-based optimization to keep single-image payloads under provider limits: downscale large dimensions, optimize PNG/JPEG/WebP encodings, and fall back to JPEG quality steps when lossless output remains too large. If request payload limits are still approached, trim old media only as a fallback in the provider input layer; prefer preserving the most recent contiguous media suffix.
+Provider adapters convert `ImageFilePart` to provider-specific image blocks through helpers in `llm/image.py` and `llm/input_common.py`. Keep this conversion deterministic for the same file bytes. Before base64 encoding, use the shared Pillow-based optimization and request budget rather than adding provider-local image rewriting. When the media budget is exceeded, `apply_inline_image_budget()` preserves the most recent contiguous media suffix and inserts omitted-image text for dropped or missing images.
 
 ## Compaction And Summaries
 
-Compaction or summarization requests should not resend full historical images unless the summary task explicitly needs visual content. Replace images/documents with short text markers such as `[image]` or an omitted-image note so the model knows media existed without carrying the binary payload.
+The fallback serializer in `agent/compaction/compaction.py` records image file paths or URLs in an
+`image: ...` text line rather than carrying binary payloads. The cache-sharing fork compaction path
+uses the actual LLM-facing prefix, so images on that path still rely on the normal provider request
+budget and omitted-image fallback.
 
 ## Cache And Payload Limits
 
