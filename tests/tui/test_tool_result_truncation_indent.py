@@ -126,7 +126,7 @@ def test_file_diff_result_renders_in_panel(tool_name: str) -> None:
     assert lines[0].startswith("    ╭")
     assert lines[-1].startswith("    ╰")
     assert "1 +alpha" in lines[1]
-    assert len(lines[1].lstrip()) == DIFF_MAX_RENDER_WIDTH + 4
+    assert len(lines[1].lstrip()) == len("│    1 +alpha │")
 
 
 def test_edit_diff_result_shows_old_line_number_for_remove() -> None:
@@ -168,7 +168,7 @@ def test_structured_diff_highlight_width_is_capped() -> None:
                     DiffLine(
                         kind="add",
                         new_line_no=1,
-                        spans=[DiffSpan(op="insert", text="alpha")],
+                        spans=[DiffSpan(op="insert", text="x" * (DIFF_MAX_RENDER_WIDTH + 20))],
                     )
                 ],
                 stats_add=1,
@@ -181,6 +181,30 @@ def test_structured_diff_highlight_width_is_capped() -> None:
     output = console.export_text()
 
     assert len(output.splitlines()[0]) == DIFF_MAX_RENDER_WIDTH
+
+
+def test_structured_diff_shrinks_to_content_width() -> None:
+    ui_extra = DiffUIExtra(
+        files=[
+            DiffFileDiff(
+                file_path="demo.txt",
+                lines=[
+                    DiffLine(
+                        kind="add",
+                        new_line_no=1,
+                        spans=[DiffSpan(op="insert", text="alpha")],
+                    )
+                ],
+                stats_add=1,
+            )
+        ]
+    )
+
+    console = Console(width=DIFF_MAX_RENDER_WIDTH + 20, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_structured_diff(ui_extra))
+    output = console.export_text()
+
+    assert output.splitlines() == ["   1 +alpha"]
 
 
 def test_structured_diff_wraps_to_narrow_width() -> None:

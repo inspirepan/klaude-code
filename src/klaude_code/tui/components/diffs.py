@@ -32,19 +32,25 @@ class _StructuredDiff:
         self.prefix_width = _prefix_width(files)
 
     def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
-        del console
-        width = min(DIFF_MAX_RENDER_WIDTH, options.max_width)
-        return Measurement(width, width)
-
-    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        del console
-        yield _render_structured_diff_grid(
+        max_width = min(DIFF_MAX_RENDER_WIDTH, options.max_width)
+        grid = _render_structured_diff_grid(
             self.files,
             self.prefix_width,
             self.show_headers,
             self.detail,
-            max_width=options.max_width,
         )
+        return console.measure(grid, options=options.update_width(max_width))
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        max_width = min(DIFF_MAX_RENDER_WIDTH, options.max_width)
+        grid = _render_structured_diff_grid(
+            self.files,
+            self.prefix_width,
+            self.show_headers,
+            self.detail,
+        )
+        grid.width = console.measure(grid, options=options.update_width(max_width)).maximum
+        yield grid
 
 
 def _render_structured_diff_grid(
@@ -52,10 +58,8 @@ def _render_structured_diff_grid(
     prefix_width: int,
     show_headers: bool,
     detail: Detail,
-    *,
-    max_width: int,
 ) -> Table:
-    grid = _create_diff_grid(prefix_width, max_width=max_width)
+    grid = _create_diff_grid(prefix_width)
 
     for idx, file_diff in enumerate(files):
         if idx > 0:
@@ -100,11 +104,10 @@ def _prefix_width(files: list[DiffFileDiff]) -> int:
     return max(DIFF_PREFIX_WIDTH, len(str(max_line_no)))
 
 
-def _create_diff_grid(prefix_width: int, *, max_width: int) -> Table:
-    grid = Table.grid(padding=(0, 0), expand=True)
-    grid.width = min(DIFF_MAX_RENDER_WIDTH, max_width)
+def _create_diff_grid(prefix_width: int) -> Table:
+    grid = Table.grid(padding=(0, 0))
     grid.add_column(no_wrap=True, width=prefix_width + 2)
-    grid.add_column(ratio=1, overflow="fold")
+    grid.add_column(overflow="fold")
     return grid
 
 
