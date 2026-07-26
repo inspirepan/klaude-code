@@ -5,6 +5,7 @@ from rich.padding import Padding
 from rich.panel import Panel
 from rich.text import Text
 
+from klaude_code.const import DIFF_MAX_RENDER_WIDTH
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import (
     AskUserQuestionSummaryUIExtra,
@@ -20,6 +21,7 @@ from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._bash import render_bash_tool_call
 from klaude_code.tui.components.tools._common import (
+    FULL_TOOL_RESULT_MAX_LINES,
     TOOL_RESULT_INDENT,
     TOOL_SUBJECT_INDENT,
     AdaptiveIndent,
@@ -53,7 +55,8 @@ from klaude_code.tui.transcript_detail import Detail
 _COMPACT_MARKDOWN_PREVIEW_LINES = 5
 # Upper bound on result panels, so they read as one consistent column instead
 # of each box sizing itself to its longest line.
-RESULT_PANEL_MAX_WIDTH = 100
+# Include the panel's borders and horizontal padding around diff content.
+RESULT_PANEL_MAX_WIDTH = DIFF_MAX_RENDER_WIDTH + 4
 
 
 def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
@@ -210,6 +213,7 @@ def render_tool_result(
     *,
     code_theme: str = "monokai",
     detail: Detail = Detail.COMPACT,
+    max_lines: int = FULL_TOOL_RESULT_MAX_LINES,
 ) -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
@@ -229,7 +233,15 @@ def render_tool_result(
         if e.tool_name == tools.TODO_WRITE:
             result = e.result if len(e.result.strip()) > 0 else "(no content)"
             return pad_result(render_todo_message(result, status=e.status))
-        return pad_result(render_fallback_tool_result(e.tool_name, e.result, status=e.status, detail=detail))
+        return pad_result(
+            render_fallback_tool_result(
+                e.tool_name,
+                e.result,
+                status=e.status,
+                detail=detail,
+                max_lines=max_lines,
+            )
+        )
 
     # Render multiple ui blocks if present
     if isinstance(e.ui_extra, MultiUIExtra) and e.ui_extra.items:
@@ -263,8 +275,18 @@ def render_tool_result(
 
     def _render_fallback() -> RenderableType:
         if len(e.result.strip()) == 0:
-            return pad_result(render_fallback_tool_result(e.tool_name, "(no content)", detail=detail))
-        return pad_result(render_fallback_tool_result(e.tool_name, e.result, status=e.status, detail=detail))
+            return pad_result(
+                render_fallback_tool_result(e.tool_name, "(no content)", detail=detail, max_lines=max_lines)
+            )
+        return pad_result(
+            render_fallback_tool_result(
+                e.tool_name,
+                e.result,
+                status=e.status,
+                detail=detail,
+                max_lines=max_lines,
+            )
+        )
 
     match e.tool_name:
         case tools.READ:
@@ -304,18 +326,40 @@ def render_tool_result(
                 return _render_result_panel(render_web_search_results(search_results, detail=detail))
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
-                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)", detail=detail))
-            return pad_result(render_fallback_tool_result(e.tool_name, display_result, status=e.status, detail=detail))
+                return pad_result(
+                    render_fallback_tool_result(e.tool_name, "(no content)", detail=detail, max_lines=max_lines)
+                )
+            return pad_result(
+                render_fallback_tool_result(
+                    e.tool_name,
+                    display_result,
+                    status=e.status,
+                    detail=detail,
+                    max_lines=max_lines,
+                )
+            )
         case tools.WEB_FETCH:
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
-                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)", detail=detail))
-            return pad_result(render_fallback_tool_result(e.tool_name, display_result, status=e.status, detail=detail))
+                return pad_result(
+                    render_fallback_tool_result(e.tool_name, "(no content)", detail=detail, max_lines=max_lines)
+                )
+            return pad_result(
+                render_fallback_tool_result(
+                    e.tool_name,
+                    display_result,
+                    status=e.status,
+                    detail=detail,
+                    max_lines=max_lines,
+                )
+            )
         case tools.ASK_USER_QUESTION:
             if isinstance(e.ui_extra, AskUserQuestionSummaryUIExtra):
                 return AdaptiveIndent(render_ask_user_question_summary(e.ui_extra), TOOL_RESULT_INDENT)
             if len(e.result.strip()) == 0:
-                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)", detail=detail))
+                return pad_result(
+                    render_fallback_tool_result(e.tool_name, "(no content)", detail=detail, max_lines=max_lines)
+                )
             return pad_result(render_ask_user_question_tool_result(e.result, status=e.status))
         case _:
             return _render_fallback()

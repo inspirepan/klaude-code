@@ -18,9 +18,9 @@ from klaude_code.tui.commands import (
     RenderError,
     RenderNotice,
     RenderSubAgentBatchSummary,
+    RenderSubAgentThinking,
     RenderTaskFinish,
     RenderTaskStart,
-    RenderThinkingSummary,
     RenderToolCall,
     RenderToolResult,
     RenderUserMessage,
@@ -552,7 +552,7 @@ def test_stream_end_emits_single_blank_line_in_interactive_mode() -> None:
     assert "● hello\n\n\n∵ thinking" not in rendered
 
 
-def test_sub_agent_thinking_summary_uses_scoped_quote() -> None:
+def test_sub_agent_thinking_content_uses_scoped_quote() -> None:
     renderer, output = _renderer_and_output()
     session_id = "sub-1"
     renderer.register_session(
@@ -563,16 +563,19 @@ def test_sub_agent_thinking_summary_uses_scoped_quote() -> None:
     asyncio.run(
         renderer.execute(
             [
-                RenderThinkingSummary(session_id=session_id, duration_s=20.0, char_count=1234),
-                RenderThinkingSummary(session_id=session_id, duration_s=0.2, char_count=13),
-                RenderThinkingSummary(session_id=session_id, duration_s=None, char_count=2345),
+                RenderSubAgentThinking(
+                    session_id=session_id,
+                    content="Full reasoning\n\n- first detail\n- second detail",
+                ),
             ]
         )
     )
 
-    assert output.getvalue() == (
-        "▌ Thought for 20s · 1.2K chars\n▌ Thought for a moment · 13 chars\n▌ Thought · 2.3K chars\n"
-    )
+    rendered = output.getvalue()
+    assert "▌ Full reasoning" in rendered
+    assert "▌  • first detail" in rendered
+    assert "▌  • second detail" in rendered
+    assert "Thought for" not in rendered
 
 
 def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:

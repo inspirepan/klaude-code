@@ -79,13 +79,12 @@ _HIDDEN_IN: Mapping[type[events.Event], frozenset[Quadrant]] = {
     # Usage and file-change totals are reported once, by the parent task.
     events.TaskMetadataEvent: SUB_AGENT,
     events.TaskFileChangeSummaryEvent: SUB_AGENT,
-    # These two are asked at the state-machine layer rather than the renderer:
-    # they reach the renderer as commands carrying only a summary, with no event
-    # left to consult.
+    # Asked at the state-machine layer because the renderer command carries only
+    # the summary string, with no event left to consult.
     events.CompactionEndEvent: COMPACT_SUB_AGENT,
     # Compact mode keeps thinking out of the scrollback entirely -- the live status
     # line already reports that the model is reasoning, and its char count. Expanded
-    # mode streams it for the main agent and summarizes it in one line per sub-agent.
+    # mode streams it for the main agent and prints each completed sub-agent block.
     events.ThinkingEndEvent: COMPACT,
 }
 

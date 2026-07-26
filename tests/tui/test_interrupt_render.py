@@ -48,8 +48,9 @@ def test_renderer_uses_interrupt_style_for_aborted_sub_agent_tool_result(monkeyp
         *,
         style: str | Style = ThemeKey.ERROR,
         detail: Detail = Detail.COMPACT,
+        max_lines: int | None = None,
     ) -> Text:
-        del detail
+        del detail, max_lines
         seen["style"] = style
         return Text(error_msg, style=style)
 

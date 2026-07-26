@@ -52,11 +52,11 @@ from klaude_code.tui.commands import (
     RenderRewind,
     RenderSessionStats,
     RenderSubAgentBatchSummary,
+    RenderSubAgentThinking,
     RenderTaskFileChangeSummary,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
-    RenderThinkingSummary,
     RenderTimeMarker,
     RenderToolCall,
     RenderToolResult,
@@ -124,7 +124,7 @@ _TIME_MARKER_TRIGGER_COMMANDS: tuple[type[RenderCommand], ...] = (
     RenderBashCommandStart,
     RenderToolCall,
     StartThinkingStream,
-    RenderThinkingSummary,
+    RenderSubAgentThinking,
     StartAssistantStream,
     RenderInterrupt,
     RenderError,
@@ -671,6 +671,7 @@ class _SessionState:
     thinking_stream_active: bool = False
     assistant_char_count: int = 0
     thinking_char_count: int = 0
+    thinking_content: list[str] = field(default_factory=list)
     thinking_started_at: float | None = None
     task_started_at: float | None = None
     task_finished_at: float | None = None
@@ -713,15 +714,24 @@ class _SessionState:
     def start_thinking(self, timestamp: float) -> None:
         self.thinking_stream_active = True
         self.thinking_char_count = 0
+        self.thinking_content = []
         self.thinking_started_at = timestamp
 
-    def append_thinking(self, content: str) -> None:
+    def append_thinking(self, content: str, *, retain_content: bool = False) -> None:
         self.thinking_char_count += len(content)
+        if retain_content:
+            self.thinking_content.append(content)
 
     def reset_thinking(self) -> None:
         self.thinking_stream_active = False
         self.thinking_char_count = 0
+        self.thinking_content = []
         self.thinking_started_at = None
+
+    def finish_thinking(self) -> str:
+        content = "".join(self.thinking_content)
+        self.reset_thinking()
+        return content
 
     def add_status_tool_call(self, tool_call_id: str, tool_name: str) -> None:
         if tool_call_id in self.status_tool_calls_by_id:
@@ -969,6 +979,7 @@ class DisplayStateMachine:
         result: str,
     ) -> list[RenderCommand]:
         active = [session for session in self._sessions.values() if session.is_sub_agent and session.task_active]
+        commands: list[RenderCommand] = []
         for session in active:
             session.task_active = False
             session.task_finished_at = timestamp
@@ -976,8 +987,9 @@ class DisplayStateMachine:
             session.task_result = result
             session.result_summary = c_sub_agent.extract_result_summary(result)
             session.clear_status_activity()
-            session.reset_thinking()
-        commands: list[RenderCommand] = []
+            content = session.finish_thinking()
+            if content.strip():
+                commands.append(RenderSubAgentThinking(session.session_id, content))
         for session in active:
             commands.extend(self._maybe_finish_sub_agent_batch(session))
         return commands
@@ -1624,7 +1636,7 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            s.append_thinking(e.content)
+            s.append_thinking(e.content, retain_content=not self._compact)
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
             return cmds
@@ -1645,13 +1657,9 @@ class DisplayStateMachine:
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            duration_s = e.duration_s
-            if duration_s is None and not is_replay and s.thinking_started_at is not None:
-                duration_s = max(0.0, e.timestamp - s.thinking_started_at)
-            char_count = s.thinking_char_count
-            s.reset_thinking()
-            if self._visible(e, s) and char_count > 0:
-                cmds.append(RenderThinkingSummary(e.session_id, duration_s, char_count))
+            content = s.finish_thinking()
+            if self._visible(e, s) and content.strip():
+                cmds.append(RenderSubAgentThinking(e.session_id, content))
             if not is_replay:
                 cmds.extend(self._spinner_update_commands())
             return cmds
@@ -2032,6 +2040,10 @@ class DisplayStateMachine:
         s.result_summary = c_sub_agent.extract_result_summary(e.task_result)
         s.terminal_status = "aborted" if is_cancelled_task_result(e.task_result) else "success"
         s.clear_status_activity()
+        if s.is_sub_agent:
+            content = s.finish_thinking()
+            if content.strip():
+                cmds.append(RenderSubAgentThinking(e.session_id, content))
         cmds.append(RenderTaskFinish(e))
         if s.is_sub_agent:
             if self._compact:
@@ -2090,8 +2102,12 @@ class DisplayStateMachine:
             cmds.append(SpinnerStop())
         s.task_active = False
         s.clear_status_activity()
-        s.reset_thinking()
-        if not s.is_sub_agent:
+        if s.is_sub_agent:
+            content = s.finish_thinking()
+            if content.strip():
+                cmds.append(RenderSubAgentThinking(e.session_id, content))
+        else:
+            s.reset_thinking()
             self._terminal_title_prefix = None
             cmds.extend(
                 self._abort_active_sub_agent_sessions(
@@ -2123,6 +2139,9 @@ class DisplayStateMachine:
             s.task_active = False
             s.clear_status_activity()
             if s.is_sub_agent:
+                content = s.finish_thinking()
+                if content.strip():
+                    cmds.append(RenderSubAgentThinking(e.session_id, content))
                 s.task_finished_at = e.timestamp
                 s.terminal_status = "error"
                 s.task_result = e.error_message

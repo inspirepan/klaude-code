@@ -6,6 +6,7 @@ from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import SubAgentState
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.sub_agent import render_sub_agent_call, render_sub_agent_result
+from klaude_code.tui.components.tools import SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.transcript_detail import Detail
 
@@ -34,13 +35,16 @@ def test_full_sub_agent_prompt_and_result_keep_all_lines() -> None:
     assert "more" not in full_result
 
 
-def test_full_sub_agent_error_keeps_all_lines() -> None:
+def test_full_sub_agent_error_keeps_configured_lines() -> None:
     renderer = TUICommandRenderer()
     renderer.set_transcript_detail(Detail.FULL)
     output = io.StringIO()
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)
-    result = "\n".join(f"error line {index}" for index in range(6))
+    total_lines = SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES + 10
+    head_count = SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES // 2
+    tail_start = total_lines - (SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES - head_count)
+    result = "\n".join(f"error line {index}" for index in range(total_lines))
     event = events.ToolResultEvent(
         session_id="sub-1",
         tool_call_id="bash-1",
@@ -53,5 +57,37 @@ def test_full_sub_agent_error_keeps_all_lines() -> None:
 
     rendered = output.getvalue()
     assert "error line 0" in rendered
-    assert "error line 5" in rendered
-    assert "more" not in rendered
+    assert f"error line {head_count - 1}" in rendered
+    assert f"error line {head_count}" not in rendered
+    assert f"error line {tail_start - 1}" not in rendered
+    assert f"error line {tail_start}" in rendered
+    assert f"error line {total_lines - 1}" in rendered
+    assert "… (more 10 lines)" in rendered
+
+
+def test_full_sub_agent_tool_result_keeps_configured_lines_with_head_and_tail() -> None:
+    renderer = TUICommandRenderer()
+    renderer.set_transcript_detail(Detail.FULL)
+    output = io.StringIO()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
+    total_lines = SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES + 10
+    head_count = SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES // 2
+    tail_start = total_lines - (SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES - head_count)
+    result = "\n".join(f"line-{index}" for index in range(total_lines))
+    event = events.ToolResultEvent(
+        session_id="sub-1",
+        tool_call_id="bash-1",
+        tool_name=tools.BASH,
+        result=result,
+        status="success",
+    )
+
+    assert renderer.display_tool_call_result(event, is_sub_agent=True) is True
+
+    rendered = output.getvalue()
+    assert f"line-{head_count - 1}" in rendered
+    assert f"line-{head_count}" not in rendered
+    assert f"line-{tail_start - 1}" not in rendered
+    assert f"line-{tail_start}" in rendered
+    assert f"line-{total_lines - 1}" in rendered
+    assert "… (more 10 lines)" in rendered

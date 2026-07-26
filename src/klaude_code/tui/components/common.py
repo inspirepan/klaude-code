@@ -95,6 +95,29 @@ def format_more_lines_indicator(hidden_lines: int, *, indent: int = 0) -> str:
     return f"{' ' * max(0, indent)}… (more {hidden_lines} lines)"
 
 
+def truncate_middle_lines(
+    text: str,
+    *,
+    max_lines: int,
+    base_style: str | Style | None = None,
+) -> Text:
+    """Keep source formatting while limiting output to equally split head and tail lines."""
+    style = base_style if base_style is not None else ""
+    lines = text.splitlines()
+    if len(lines) <= max_lines:
+        return Text(text, style=style, overflow="fold")
+
+    head_count = max_lines // 2
+    tail_count = max_lines - head_count
+    hidden_count = len(lines) - max_lines
+    out = Text("\n".join(lines[:head_count]), style=style, overflow="fold")
+    out.append("\n")
+    out.append(format_more_lines_indicator(hidden_count), style=ThemeKey.TOOL_RESULT_TRUNCATED)
+    out.append("\n")
+    out.append("\n".join(lines[-tail_count:]), style=style)
+    return out
+
+
 def truncate_middle(
     text: str,
     max_lines: int = TRUNCATE_DISPLAY_MAX_LINES,

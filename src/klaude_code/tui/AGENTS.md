@@ -13,8 +13,8 @@ dynamic UI while an agent task is running:
   model is reasoning, and its char count) and sub-agent internals are represented
   by a batched status/summary view. `Ctrl+O` toggles the process-local expanded
   view while idle by clearing and replaying the current session; expanded mode
-  preserves the legacy full transcript rendering — a live markdown stream for the
-  main agent, a one-line `Thought for Xs · N chars` per sub-agent.
+  preserves the full transcript rendering — a live markdown stream for the main
+  agent and a complete thinking block per sub-agent once that block finishes.
 - The detail level itself lives in `tui/transcript_detail.py`, not in a bool on
   each layer. Rules when touching compact/expanded behavior:
   - "Does this event print at all" belongs in the `_HIDDEN_IN` table there.

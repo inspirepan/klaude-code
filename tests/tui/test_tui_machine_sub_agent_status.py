@@ -27,8 +27,8 @@ from klaude_code.tui.commands import (
     RenderCommand,
     RenderCompactToolResult,
     RenderSubAgentBatchSummary,
+    RenderSubAgentThinking,
     RenderTaskFinish,
-    RenderThinkingSummary,
     RenderToolResult,
     SpinnerStatusLine,
     SpinnerUpdate,
@@ -424,7 +424,7 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: py
     ]
 
     ended = machine.transition(events.ThinkingEndEvent(session_id=sub_session, timestamp=120.0))
-    assert not any(isinstance(cmd, RenderThinkingSummary) for cmd in ended)
+    assert not any(isinstance(cmd, RenderSubAgentThinking) for cmd in ended)
     assert [_line_plain(line) for line in _last_spinner_update(ended).status_lines] == [
         "GeneralPurpose: compressing context · test-model · Running… · 25s",
         "Initializing…",
@@ -487,7 +487,7 @@ def test_sub_agent_new_step_clears_interrupted_thinking() -> None:
     ]
 
 
-def test_sub_agent_replay_summary_omits_unrecoverable_duration() -> None:
+def test_sub_agent_replay_renders_complete_thinking() -> None:
     machine = DisplayStateMachine()
     machine.set_transcript_detail(Detail.FULL)
     machine.transition_replay(events.TaskStartEvent(session_id="main", model_id="test-model"))
@@ -497,13 +497,11 @@ def test_sub_agent_replay_summary_omits_unrecoverable_duration() -> None:
 
     ended = machine.transition_replay(events.ThinkingEndEvent(session_id="sub-1", timestamp=100.0))
 
-    # Replay cannot derive a wall-clock duration, and must not invent one.
-    summary = next(cmd for cmd in ended if isinstance(cmd, RenderThinkingSummary))
-    assert summary.duration_s is None
-    assert summary.char_count == 5
+    rendered = next(cmd for cmd in ended if isinstance(cmd, RenderSubAgentThinking))
+    assert rendered.content == "你好，世界"
 
 
-def test_sub_agent_thinking_summary_uses_persisted_duration() -> None:
+def test_sub_agent_full_thinking_ignores_summary_metadata() -> None:
     machine = DisplayStateMachine()
     machine.set_transcript_detail(Detail.FULL)
     machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model", timestamp=100.0))
@@ -513,9 +511,8 @@ def test_sub_agent_thinking_summary_uses_persisted_duration() -> None:
 
     commands = machine.transition(events.ThinkingEndEvent(session_id="sub-1", timestamp=103.0, duration_s=1.5))
 
-    summary = next(command for command in commands if isinstance(command, RenderThinkingSummary))
-    assert summary.duration_s == 1.5
-    assert summary.char_count == 9
+    rendered = next(command for command in commands if isinstance(command, RenderSubAgentThinking))
+    assert rendered.content == "reasoning"
 
 
 def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -700,7 +697,7 @@ def test_expanded_mode_keeps_full_thinking_stream_commands() -> None:
     assert any(isinstance(command, StartThinkingStream) for command in started)
     assert any(isinstance(command, AppendThinking) for command in delta)
     assert any(isinstance(command, EndThinkingStream) for command in ended)
-    assert not any(isinstance(command, RenderThinkingSummary) for command in ended)
+    assert not any(isinstance(command, RenderSubAgentThinking) for command in ended)
 
 
 def test_main_session_bash_tool_streams_append_only_and_keeps_success_result(
@@ -1430,6 +1427,27 @@ def test_sub_agent_non_retry_error_clears_status_lines() -> None:
     assert "Finder" not in _line_plain(update.status_lines[0])
 
 
+def test_sub_agent_non_retry_error_flushes_full_thinking() -> None:
+    machine = DisplayStateMachine()
+    machine.set_transcript_detail(Detail.FULL)
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    _spawn_sub_agent(machine, "sub-1")
+    machine.transition(events.ThinkingStartEvent(session_id="sub-1"))
+    machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="reasoning before failure"))
+
+    commands = machine.transition(
+        events.ErrorEvent(
+            session_id="sub-1",
+            error_message="sub-agent failed",
+            can_retry=False,
+        )
+    )
+
+    rendered = next(command for command in commands if isinstance(command, RenderSubAgentThinking))
+    assert rendered.content == "reasoning before failure"
+    assert machine._sessions["sub-1"].thinking_content == []
+
+
 def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
@@ -1585,7 +1603,7 @@ def test_compact_mode_keeps_thinking_out_of_the_transcript_entirely() -> None:
     machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
     _spawn_sub_agent(machine, "sub-1")
 
-    transcript_commands = (RenderThinkingSummary, StartThinkingStream, AppendThinking, EndThinkingStream)
+    transcript_commands = (RenderSubAgentThinking, StartThinkingStream, AppendThinking, EndThinkingStream)
     for session_id in ("main", "sub-1"):
         started = machine.transition(events.ThinkingStartEvent(session_id=session_id, timestamp=100.0))
         delta = machine.transition(
@@ -1600,6 +1618,7 @@ def test_compact_mode_keeps_thinking_out_of_the_transcript_entirely() -> None:
     machine.transition(events.ThinkingStartEvent(session_id="sub-1", timestamp=103.0))
     machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="more", timestamp=103.0))
     assert machine._sessions["sub-1"].thinking_char_count == len("more")
+    assert machine._sessions["sub-1"].thinking_content == []
 
 
 def test_terminal_lines_lookup_is_cached(monkeypatch: pytest.MonkeyPatch) -> None:

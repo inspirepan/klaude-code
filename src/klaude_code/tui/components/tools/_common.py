@@ -8,7 +8,7 @@ from rich.text import Text
 
 from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
-from klaude_code.tui.components.common import create_grid, shorten_path, truncate_middle
+from klaude_code.tui.components.common import create_grid, shorten_path, truncate_middle, truncate_middle_lines
 from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.transcript_detail import Detail
@@ -27,6 +27,8 @@ MARK_QUESTION = "\u25c9"
 
 BASH_TOOL_CALL_DIVIDER_THRESHOLD = 10
 BASH_TOOL_CALL_DIVIDER_WIDTH = 12
+FULL_TOOL_RESULT_MAX_LINES = 10
+SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES = 6
 
 # The tool block sits one level below the assistant narration: the assistant's
 # bullet occupies column 0 and its prose column 2, so tool marks start at column 2.
@@ -179,11 +181,12 @@ def render_generic_tool_result(
     *,
     status: ToolResultStatus = "success",
     detail: Detail = Detail.COMPACT,
+    max_lines: int = FULL_TOOL_RESULT_MAX_LINES,
 ) -> RenderableType:
     """Render a generic tool result at the requested transcript detail."""
     style = tool_result_style(status)
     if not detail.is_compact:
-        return Text(result, style=style, overflow="fold")
+        return truncate_middle_lines(result, max_lines=max_lines, base_style=style)
 
     text = truncate_middle(result, base_style=style)
     # Tool results should not reflow/wrap; use ellipsis when exceeding terminal width.
@@ -198,6 +201,7 @@ def render_fallback_tool_result(
     *,
     status: ToolResultStatus = "success",
     detail: Detail = Detail.COMPACT,
+    max_lines: int = FULL_TOOL_RESULT_MAX_LINES,
 ) -> RenderableType:
     del tool_name
-    return render_generic_tool_result(result, status=status, detail=detail)
+    return render_generic_tool_result(result, status=status, detail=detail, max_lines=max_lines)

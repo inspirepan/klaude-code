@@ -1,8 +1,8 @@
 import re
 
-from rich.text import Text
+from rich.console import RenderableType
 
-from klaude_code.tui.components.common import format_compact_count, format_elapsed_compact
+from klaude_code.tui.components.rich.markdown import ThinkingMarkdown
 from klaude_code.tui.components.rich.theme import ThemeKey
 
 
@@ -30,15 +30,10 @@ def normalize_thinking_content(content: str) -> str:
     return text
 
 
-def render_thinking_summary(duration_s: float | None, char_count: int) -> Text:
-    """Render the one-line stand-in for thinking that is not shown in full."""
-    if duration_s is None:
-        duration = ""
-    elif duration_s < 1:
-        duration = " for a moment"
-    else:
-        duration = f" for {format_elapsed_compact(duration_s)}"
-    return Text(
-        f"Thought{duration} · {format_compact_count(char_count)} chars",
-        style=ThemeKey.METADATA_DIM,
+def render_sub_agent_thinking(content: str, *, code_theme: str) -> RenderableType:
+    """Render a completed sub-agent thinking block."""
+    return ThinkingMarkdown(
+        normalize_thinking_content(content),
+        code_theme=code_theme,
+        style=ThemeKey.THINKING,
     )

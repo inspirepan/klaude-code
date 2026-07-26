@@ -6,7 +6,7 @@ from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import DiffFileDiff, DiffLine, DiffSpan, DiffUIExtra
 from klaude_code.tui.components.diffs import render_structured_diff
 from klaude_code.tui.components.rich.theme import get_theme
-from klaude_code.tui.components.tools import render_tool_result
+from klaude_code.tui.components.tools import FULL_TOOL_RESULT_MAX_LINES, render_tool_result
 from klaude_code.tui.transcript_detail import Detail
 
 
@@ -51,7 +51,9 @@ def test_bash_truncation_indicator_uses_result_padding() -> None:
 
 
 def test_full_bash_result_keeps_all_lines_and_wraps_long_content() -> None:
-    result = "\n".join([*(f"line-{idx}" for idx in range(12)), f"tail-{'x' * 80}-END"])
+    result = "\n".join(
+        [*(f"line-{idx}" for idx in range(FULL_TOOL_RESULT_MAX_LINES - 1)), f"tail-{'x' * 80}-END"]
+    )
     event = events.ToolResultEvent(
         session_id="s1",
         tool_call_id="tc1",
@@ -63,9 +65,33 @@ def test_full_bash_result_keeps_all_lines_and_wraps_long_content() -> None:
     output = _render_event_to_text(event, detail=Detail.FULL, width=40)
 
     assert "line-0" in output
-    assert "line-11" in output
+    assert f"line-{FULL_TOOL_RESULT_MAX_LINES - 2}" in output
     assert "END" in output
     assert "more" not in output
+
+
+def test_full_bash_result_keeps_configured_lines_with_head_and_tail() -> None:
+    total_lines = FULL_TOOL_RESULT_MAX_LINES + 10
+    head_count = FULL_TOOL_RESULT_MAX_LINES // 2
+    tail_start = total_lines - (FULL_TOOL_RESULT_MAX_LINES - head_count)
+    result = "\n".join(f"line-{idx}" for idx in range(total_lines))
+    event = events.ToolResultEvent(
+        session_id="s1",
+        tool_call_id="tc1",
+        tool_name=tools.BASH,
+        result=result,
+        status="success",
+    )
+
+    output = _render_event_to_text(event, detail=Detail.FULL)
+
+    assert "line-0" in output
+    assert f"line-{head_count - 1}" in output
+    assert f"line-{head_count}" not in output
+    assert f"line-{tail_start - 1}" not in output
+    assert f"line-{tail_start}" in output
+    assert f"line-{total_lines - 1}" in output
+    assert "… (more 10 lines)" in output
 
 
 @pytest.mark.parametrize("tool_name", [tools.EDIT, tools.WRITE])
@@ -94,12 +120,13 @@ def test_file_diff_result_renders_in_panel(tool_name: str) -> None:
         ),
     )
 
-    output = _render_event_to_text(event)
+    output = _render_event_to_text(event, width=DIFF_MAX_RENDER_WIDTH + 30)
     lines = output.splitlines()
 
     assert lines[0].startswith("    ╭")
     assert lines[-1].startswith("    ╰")
     assert "1 +alpha" in lines[1]
+    assert len(lines[1].lstrip()) == DIFF_MAX_RENDER_WIDTH + 4
 
 
 def test_edit_diff_result_shows_old_line_number_for_remove() -> None:
@@ -149,7 +176,7 @@ def test_structured_diff_highlight_width_is_capped() -> None:
         ]
     )
 
-    console = Console(width=140, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console = Console(width=DIFF_MAX_RENDER_WIDTH + 20, record=True, force_terminal=False, theme=get_theme().app_theme)
     console.print(render_structured_diff(ui_extra))
     output = console.export_text()
 

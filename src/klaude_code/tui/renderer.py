@@ -62,11 +62,11 @@ from klaude_code.tui.commands import (
     RenderRewind,
     RenderSessionStats,
     RenderSubAgentBatchSummary,
+    RenderSubAgentThinking,
     RenderTaskFileChangeSummary,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
-    RenderThinkingSummary,
     RenderTimeMarker,
     RenderToolCall,
     RenderToolResult,
@@ -946,13 +946,26 @@ class TUICommandRenderer:
 
         if is_sub_agent and e.is_error:
             style = ThemeKey.INTERRUPT if e.status == "aborted" else ThemeKey.ERROR
-            self.print(c_errors.render_tool_error(e.result, style=style, detail=self._detail.current))
+            self.print(
+                c_errors.render_tool_error(
+                    e.result,
+                    style=style,
+                    detail=self._detail.current,
+                    max_lines=c_tools.SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES,
+                )
+            )
             return True
 
         if not is_sub_agent and isinstance(e.ui_extra, ImageUIExtra):
             self.display_image(e.ui_extra.file_path)
 
-        renderable = c_tools.render_tool_result(e, code_theme=self.themes.code_theme, detail=self._detail.current)
+        max_lines = c_tools.SUB_AGENT_FULL_TOOL_RESULT_MAX_LINES if is_sub_agent else c_tools.FULL_TOOL_RESULT_MAX_LINES
+        renderable = c_tools.render_tool_result(
+            e,
+            code_theme=self.themes.code_theme,
+            detail=self._detail.current,
+            max_lines=max_lines,
+        )
         if renderable is not None:
             self.print(renderable)
             return True
@@ -1512,13 +1525,15 @@ class TUICommandRenderer:
                     finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
                     if finalized and had_content:
                         self.print()
-                case RenderThinkingSummary(
+                case RenderSubAgentThinking(
                     session_id=session_id,
-                    duration_s=duration_s,
-                    char_count=char_count,
+                    content=content,
                 ):
-                    with self.session_print_context(session_id):
-                        self.print(c_thinking.render_thinking_summary(duration_s, char_count))
+                    with (
+                        self.console.use_theme(self.themes.thinking_markdown_theme),
+                        self.session_print_context(session_id),
+                    ):
+                        self.print(c_thinking.render_sub_agent_thinking(content, code_theme=self.themes.code_theme))
                 case StartAssistantStream(session_id=_):
                     if not self._assistant_stream.is_active:
                         self._assistant_stream.start(self._new_assistant_mdstream())
