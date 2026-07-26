@@ -5,7 +5,6 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     EndAssistantStream,
     PrintBlankLine,
-    RenderUserMessage,
     StartAssistantStream,
 )
 from klaude_code.tui.machine import DisplayStateMachine
@@ -86,27 +85,3 @@ def test_task_finish_does_not_render_user_message_gap() -> None:
     cmds = m.transition(events.TaskFinishEvent(session_id=session_id, task_result="done"))
 
     assert not any(isinstance(c, PrintBlankLine) for c in cmds)
-
-
-def test_gap_renders_before_second_user_message() -> None:
-    m = DisplayStateMachine()
-    session_id = "s1"
-
-    first = m.transition(events.UserMessageEvent(session_id=session_id, content="first"))
-    second = m.transition(events.UserMessageEvent(session_id=session_id, content="second"))
-
-    assert [type(c) for c in first] == [RenderUserMessage]
-    assert [type(c) for c in second] == [PrintBlankLine, RenderUserMessage]
-
-
-def test_interrupt_suppresses_next_user_message_gap() -> None:
-    m = DisplayStateMachine()
-    session_id = "s1"
-
-    _ = m.transition(events.UserMessageEvent(session_id=session_id, content="first"))
-    _ = m.transition(events.InterruptEvent(session_id=session_id))
-    after_interrupt = m.transition(events.UserMessageEvent(session_id=session_id, content="retry"))
-    later = m.transition(events.UserMessageEvent(session_id=session_id, content="later"))
-
-    assert [type(c) for c in after_interrupt] == [RenderUserMessage]
-    assert [type(c) for c in later] == [PrintBlankLine, RenderUserMessage]

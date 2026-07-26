@@ -100,24 +100,6 @@ def test_shimmer_status_without_primary_line_renders_status_and_metadata() -> No
     assert "95.1% · esc to interrupt" in second_line
 
 
-def test_stacked_status_adds_leading_blank_line_when_enabled() -> None:
-    console = Console(file=io.StringIO(), force_terminal=True, width=120, theme=get_theme().app_theme)
-    status = StackedStatusText(
-        metadata_text=Text("95.1%", style=ThemeKey.METADATA_DIM),
-        status_lines=(Text("Finding searching", style=ThemeKey.STATUS_TEXT),),
-        leading_blank_line=True,
-    )
-    lines = console.render_lines(status, console.options.update(no_wrap=True, overflow="ellipsis"), pad=False)
-
-    assert len(lines) == 3
-    first_line = "".join(segment.text for segment in lines[0] if segment.text)
-    second_line = "".join(segment.text for segment in lines[1] if segment.text)
-    third_line = "".join(segment.text for segment in lines[2] if segment.text)
-    assert first_line == ""
-    assert "Finding searching" in second_line
-    assert "95.1% · esc to interrupt" in third_line
-
-
 def test_third_line_drops_hint_before_narrowing_when_full_metadata_fits() -> None:
     state = SpinnerStatusState()
     state.set_context_usage(

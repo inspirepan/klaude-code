@@ -69,7 +69,7 @@ def test_hide_progress_ui_flushes_open_renderer_blocks() -> None:
 
     display.hide_progress_ui()
 
-    assert display._renderer._tool_block_open is False
+    assert display._renderer._continuous_block_session_id is None
     assert output.getvalue().endswith("\n\n")
 
 

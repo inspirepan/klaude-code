@@ -240,13 +240,11 @@ class StackedStatusText:
         self,
         metadata_text: RenderableType | None = None,
         status_lines: tuple[RenderableType, ...] = (),
-        leading_blank_line: bool = False,
         show_hint: bool = True,
         shimmer: bool = True,
     ) -> None:
         self._metadata_line = StatusMetadataLine(metadata_text, hint_style=ThemeKey.STATUS_HINT)
         self._status_lines = status_lines
-        self._leading_blank_line = leading_blank_line
         self._show_hint = show_hint
         self._shimmer = shimmer
 
@@ -278,8 +276,6 @@ class StackedStatusText:
         )
 
         lines: list[Text] = []
-        if self._leading_blank_line and rendered_status_lines:
-            lines.append(Text(""))
         lines.extend(rendered_status_lines)
         lines.append(metadata_line)
 

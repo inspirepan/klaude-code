@@ -44,7 +44,6 @@ from klaude_code.tui.commands import (
     DynamicSeparatorText,
     EndAssistantStream,
     EndThinkingStream,
-    FlushOpenBlocks,
     PrintBlankLine,
     PromptStatusLine,
     RenderAwaySummary,
@@ -142,7 +141,7 @@ SPINNER_UPDATE_MIN_INTERVAL_S = 1 / 10
 
 # Dedup key for spinner updates. `reset_bottom_height` only participates in
 # the key; it carries no rendering state of its own.
-_SpinnerUpdateKey = tuple[object, object, object, object, object, object, object]
+_SpinnerUpdateKey = tuple[object, object, object, object, object]
 
 
 def _text_fingerprint(text: Text) -> tuple[str, str, tuple[tuple[int, int, str], ...]]:
@@ -234,7 +233,6 @@ class TUICommandRenderer:
         self._spinner_pending_update: SpinnerUpdate | None = None
         self._spinner_flush_handle: asyncio.TimerHandle | None = None
         self._spinner_last_apply_at: float = 0.0
-        self._status_top_blank_line: bool = False
         self._status_metadata_text: RenderableType | None = None
         self._status_separator_text: SeparatorText | None = None
 
@@ -247,6 +245,7 @@ class TUICommandRenderer:
         self._status_line_specs: tuple[SpinnerStatusLine, ...] = ()
         self._notifier = notifier
         self._scrollback_boundary_printed = False
+        self._status_gap_in_scrollback = False
         self._status_sink = status_sink
         self._stream_sink = stream_sink
         self._assistant_stream = _StreamState()
@@ -267,10 +266,7 @@ class TUICommandRenderer:
         self._sessions: dict[str, _SessionStatus] = {}
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
-        self._developer_block_open: bool = False
-        self._developer_block_session_id: str | None = None
-        self._tool_block_open: bool = False
-        self._tool_block_session_id: str | None = None
+        self._continuous_block_session_id: str | None = None
         self._detail = detail if detail is not None else TranscriptDetail()
 
     def set_transcript_detail(self, detail: Detail) -> None:
@@ -400,35 +396,44 @@ class TUICommandRenderer:
                     Quote(content, style=Style(color=self._current_sub_agent_color.color), prefix="▌ "),
                     overflow="ellipsis",
                 )
+            elif not self._scrollback_boundary_printed:
+                self._set_scrollback_boundary(True)
+                self.console.print(
+                    Quote(Text(""), style=Style(color=self._current_sub_agent_color.color), prefix="▌ "),
+                    overflow="ellipsis",
+                )
+            return
+        if not objects and self._scrollback_boundary_printed:
             return
         self._set_scrollback_boundary(not objects)
         self.console.print(*objects, style=style, end=end, overflow="ellipsis")
 
-    def _set_scrollback_boundary(self, printed: bool) -> None:
-        if self._scrollback_boundary_printed == printed:
+    def _set_scrollback_boundary(self, printed: bool, *, status_gap: bool | None = None) -> None:
+        resolved_status_gap = printed if status_gap is None else status_gap
+        if self._scrollback_boundary_printed == printed and self._status_gap_in_scrollback == resolved_status_gap:
             return
         self._scrollback_boundary_printed = printed
+        self._status_gap_in_scrollback = resolved_status_gap
         if self._progress_ui_suspended and self._spinner_visible:
             self._emit_prompt_status()
 
     def _clear_open_blocks(self) -> None:
-        self._developer_block_open = False
-        self._developer_block_session_id = None
-        self._tool_block_open = False
-        self._tool_block_session_id = None
+        self._continuous_block_session_id = None
+
+    def _open_continuous_block(self, session_id: str) -> None:
+        self._continuous_block_session_id = session_id
 
     def _print_blank_line(self, session_id: str | None = None) -> None:
         if session_id is not None and self.is_sub_agent_session(session_id):
             with self.session_print_context(session_id):
-                self.print(Text(""))
-            self._set_scrollback_boundary(True)
+                self.print()
         else:
             self.print()
 
     def _flush_open_blocks(self, *, scoped: bool = True) -> None:
-        if not (self._developer_block_open or self._tool_block_open):
+        if self._continuous_block_session_id is None:
             return
-        session_id = self._developer_block_session_id if self._developer_block_open else self._tool_block_session_id
+        session_id = self._continuous_block_session_id
         self._print_blank_line(session_id if scoped else None)
         self._clear_open_blocks()
 
@@ -436,7 +441,7 @@ class TUICommandRenderer:
         self._flush_open_blocks(scoped=scoped)
 
     def _flush_open_blocks_before(self, cmd: RenderCommand) -> None:
-        if not (self._developer_block_open or self._tool_block_open):
+        if self._continuous_block_session_id is None:
             return
 
         match cmd:
@@ -478,16 +483,12 @@ class TUICommandRenderer:
         status_lines: tuple[SpinnerStatusLine, ...] = (),
         separator_text: SeparatorText | None = None,
         reset_bottom_height: bool = False,
-        leading_blank_line: bool = False,
-        top_blank_line: bool = False,
     ) -> None:
         update = SpinnerUpdate(
             right_text=metadata_text,
             status_lines=status_lines,
             separator_text=separator_text,
             reset_bottom_height=reset_bottom_height,
-            leading_blank_line=leading_blank_line,
-            top_blank_line=top_blank_line,
         )
         # Inside the throttle window the payload is stashed as-is; the
         # (comparatively expensive) content key is only materialized when an
@@ -516,9 +517,7 @@ class TUICommandRenderer:
             ),
             update.separator_text,
             update.reset_bottom_height,
-            update.leading_blank_line,
-            update.top_blank_line,
-            self._scrollback_boundary_printed,
+            self._status_gap_in_scrollback,
         )
 
     def _apply_spinner_update(self, update: SpinnerUpdate) -> bool:
@@ -531,7 +530,6 @@ class TUICommandRenderer:
             return False
         self._spinner_last_update_key = new_key
         self._spinner_last_apply_at = time.monotonic()
-        self._status_top_blank_line = update.top_blank_line
         self._status_metadata_text = update.right_text
         self._status_separator_text = update.separator_text
         self._status_line_specs = update.status_lines
@@ -541,7 +539,6 @@ class TUICommandRenderer:
         self._status_text = StackedStatusText(
             metadata_text=update.right_text,
             status_lines=rendered_status_lines,
-            leading_blank_line=update.leading_blank_line,
             show_hint=False,
             shimmer=False,
         )
@@ -655,7 +652,7 @@ class TUICommandRenderer:
                     fragments,
                     show_spinner,
                     inline_spinner_style,
-                    self._scrollback_boundary_printed,
+                    self._status_gap_in_scrollback,
                 )
             )
         if self._status_metadata_text is not None:
@@ -728,7 +725,7 @@ class TUICommandRenderer:
             PromptStatusLine(
                 line,
                 "metadata",
-                suppress_top_spacer=self._scrollback_boundary_printed,
+                suppress_top_spacer=self._status_gap_in_scrollback,
             )
             for line in lines
             if line
@@ -918,11 +915,6 @@ class TUICommandRenderer:
                     color=self._get_session_sub_agent_color(e.session_id),
                 )
             )
-            # These panels have no tool call line of their own, so without this they
-            # each look like an isolated result and get a trailing blank line. The
-            # panel border already separates them.
-            self._tool_block_open = True
-            self._tool_block_session_id = e.session_id
             return True
         if c_tools.is_sub_agent_tool(e.tool_name):
             return False
@@ -995,7 +987,6 @@ class TUICommandRenderer:
             return
         with self.session_print_context(e.session_id):
             self.print(c_away_summary.render_away_summary(e))
-            self.print()
             self.print()
 
     def display_session_stats(self, e: events.SessionStatsEvent) -> None:
@@ -1121,6 +1112,7 @@ class TUICommandRenderer:
     def display_user_message(self, event: events.UserMessageEvent) -> None:
         self.print(c_user_input.render_user_input(event.content))
         self.print()
+        self._set_scrollback_boundary(True, status_gap=False)
 
     def display_time_marker(self, label: str) -> None:
         self.print(Text(f" ⏱ {label} ", style=ThemeKey.TIME_MARKER))
@@ -1141,12 +1133,13 @@ class TUICommandRenderer:
                     effective_model=event.model_id,
                 )
             )
-            self.print()
+        self._print_blank_line(event.session_id)
 
     def display_step_start(self, event: events.StepStartEvent) -> None:
         del event
 
     def display_image(self, file_path: str, caption: str | None = None) -> None:
+        self._set_scrollback_boundary(False)
         if caption:
             caption_style = self.console.get_style("markdown.image.placeholder", default="dim")
             caption_text = caption_style.render(
@@ -1194,7 +1187,6 @@ class TUICommandRenderer:
                     sub_agent_color=self._current_sub_agent_color,
                 )
             )
-            self.print()
 
     def display_sub_agent_batch_summary(self, summaries: tuple[SubAgentSummary, ...]) -> None:
         rendered: list[RenderableType] = []
@@ -1220,7 +1212,7 @@ class TUICommandRenderer:
                 )
             )
         if summaries:
-            self.console.print(Group(*rendered), overflow="ellipsis")
+            self.print(Group(*rendered))
             self.print()
 
     def display_interrupt(self) -> None:
@@ -1255,7 +1247,7 @@ class TUICommandRenderer:
         if not stripped:
             return
         stripped = self._strip_summary_tags(stripped)
-        self.console.print(
+        self.print(
             Rule(
                 Text("Context Compacted", style=ThemeKey.COMPACTION_SUMMARY),
                 characters="=",
@@ -1326,7 +1318,7 @@ class TUICommandRenderer:
         self.print()
 
     def display_handoff(self, summary: str) -> None:
-        self.console.print(
+        self.print(
             Rule(
                 Text("Context Handed Off", style=ThemeKey.HANDOFF),
                 characters="=",
@@ -1360,7 +1352,7 @@ class TUICommandRenderer:
         original_user_message: str,
         messages_discarded: int | None,
     ) -> None:
-        self.console.print(
+        self.print(
             Rule(
                 Text(f"Rewound to Checkpoint {checkpoint_id}", style=ThemeKey.REWIND),
                 characters="=",
@@ -1370,12 +1362,12 @@ class TUICommandRenderer:
         self.print()
 
         if messages_discarded:
-            self.console.print(Text(f"  Discarded {messages_discarded} messages", style=ThemeKey.REWIND_INFO))
+            self.print(Text(f"  Discarded {messages_discarded} messages", style=ThemeKey.REWIND_INFO))
 
         if rationale:
-            self.console.print(Text("  Rationale:", style=ThemeKey.REWIND_INFO))
+            self.print(Text("  Rationale:", style=ThemeKey.REWIND_INFO))
             rationale_preview = rationale[:300] + "..." if len(rationale) > 300 else rationale
-            self.console.print(
+            self.print(
                 Padding(
                     Panel(
                         NoInsetMarkdown(
@@ -1390,11 +1382,11 @@ class TUICommandRenderer:
             )
 
         if original_user_message:
-            self.console.print(Text("  Returned to:", style=ThemeKey.REWIND_INFO))
+            self.print(Text("  Returned to:", style=ThemeKey.REWIND_INFO))
             msg_preview = (
                 original_user_message[:200] + "..." if len(original_user_message) > 200 else original_user_message
             )
-            self.console.print(
+            self.print(
                 Padding(
                     Panel(
                         Text(msg_preview, style=ThemeKey.REWIND_USER_MESSAGE),
@@ -1405,9 +1397,9 @@ class TUICommandRenderer:
                 )
             )
 
-        self.console.print(Text("  Summary:", style=ThemeKey.REWIND_INFO))
+        self.print(Text("  Summary:", style=ThemeKey.REWIND_INFO))
         note_preview = note[:300] + "..." if len(note) > 300 else note
-        self.console.print(
+        self.print(
             Padding(
                 Panel(
                     NoInsetMarkdown(note_preview, code_theme=self.themes.code_theme, style=ThemeKey.REWIND_NOTE),
@@ -1473,19 +1465,13 @@ class TUICommandRenderer:
                     self.display_welcome_context(event)
                 case RenderUserMessage(event=event):
                     self.display_user_message(event)
-                    # prompt-toolkit repaints over the user turn's trailing row;
-                    # the next task still needs the fixed top spacer.
-                    self._set_scrollback_boundary(False)
                 case RenderTimeMarker(label=label):
                     self.display_time_marker(label)
                 case RenderTaskStart(event=event):
                     self.display_task_start(event)
                 case RenderDeveloperMessage(event=event):
                     if self.display_developer_message(event):
-                        self._developer_block_open = True
-                        self._developer_block_session_id = event.session_id
-                        self._tool_block_open = False
-                        self._tool_block_session_id = None
+                        self._open_continuous_block(event.session_id)
                 case RenderNotice(event=event):
                     self.display_notice(event)
                 case RenderAwaySummary(event=event):
@@ -1539,30 +1525,16 @@ class TUICommandRenderer:
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call(event)
                     if rendered:
-                        self._tool_block_open = True
-                        self._tool_block_session_id = event.session_id
-                        self._developer_block_open = False
-                        self._developer_block_session_id = None
+                        self._open_continuous_block(event.session_id)
                 case RenderToolResult(event=event, is_sub_agent_session=is_sub_agent_session):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call_result(event, is_sub_agent=is_sub_agent_session)
-                    continues_tool_block = (
-                        event.tool_name == tools.TODO_WRITE or self._developer_block_open or self._tool_block_open
-                    )
-                    if rendered and not continues_tool_block:
-                        self._print_blank_line(event.session_id)
-                    elif rendered:
-                        self._tool_block_open = True
-                        self._tool_block_session_id = event.session_id
-                        self._developer_block_open = False
-                        self._developer_block_session_id = None
+                    if rendered:
+                        self._open_continuous_block(event.session_id)
                 case RenderCompactToolResult(event=event, arguments=arguments):
                     with self.session_print_context(event.session_id):
                         self.display_compact_tool_result(event, arguments)
-                    self._tool_block_open = True
-                    self._tool_block_session_id = event.session_id
-                    self._developer_block_open = False
-                    self._developer_block_session_id = None
+                    self._open_continuous_block(event.session_id)
                 case RenderTaskMetadata(event=event):
                     self.display_task_metadata(event)
                 case RenderTaskFileChangeSummary(event=event):
@@ -1626,19 +1598,13 @@ class TUICommandRenderer:
                     status_lines=status_lines,
                     separator_text=separator_text,
                     reset_bottom_height=reset_bottom_height,
-                    leading_blank_line=leading_blank_line,
-                    top_blank_line=top_blank_line,
                 ):
                     self.spinner_update(
                         metadata_text,
                         status_lines,
                         separator_text,
                         reset_bottom_height,
-                        leading_blank_line,
-                        top_blank_line,
                     )
-                case FlushOpenBlocks():
-                    continue
                 case PrintBlankLine(session_id=session_id):
                     self._clear_open_blocks()
                     self._print_blank_line(session_id)

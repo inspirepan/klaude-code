@@ -217,7 +217,6 @@ class ActivityState:
         self._tool_calls: dict[str, int] = {}
         self._tool_calls_by_id: dict[str, str] = {}
         self._tool_call_texts: dict[str, Text] = {}
-        self._tool_kinds_by_id: dict[str, str] = {}
         self._sub_agent_tool_calls: dict[str, int] = {}
         self._sub_agent_tool_calls_by_id: dict[str, str] = {}
 
@@ -225,13 +224,9 @@ class ActivityState:
         self,
         tool_name: str | Text,
         tool_call_id: str | None = None,
-        *,
-        tool_kind: str | None = None,
     ) -> None:
         if tool_call_id is not None:
             self._set_tool_call_label(tool_call_id, tool_name)
-            if tool_kind is not None:
-                self._tool_kinds_by_id[tool_call_id] = tool_kind
             return
         label = tool_name.plain if isinstance(tool_name, Text) else tool_name
         self._tool_calls[label] = self._tool_calls.get(label, 0) + 1
@@ -249,7 +244,6 @@ class ActivityState:
             self._tool_call_texts[label] = tool_name.copy()
 
     def finish_tool_call(self, tool_call_id: str) -> None:
-        self._tool_kinds_by_id.pop(tool_call_id, None)
         tool_name = self._tool_calls_by_id.pop(tool_call_id, None)
         if tool_name is not None:
             self._decrement_tool_call(tool_name)
@@ -287,19 +281,16 @@ class ActivityState:
         self._tool_calls = {}
         self._tool_calls_by_id = {}
         self._tool_call_texts = {}
-        self._tool_kinds_by_id = {}
 
     def clear_for_new_step(self) -> None:
         self._tool_calls = {}
         self._tool_calls_by_id = {}
         self._tool_call_texts = {}
-        self._tool_kinds_by_id = {}
 
     def reset(self) -> None:
         self._tool_calls = {}
         self._tool_calls_by_id = {}
         self._tool_call_texts = {}
-        self._tool_kinds_by_id = {}
         self._sub_agent_tool_calls = {}
         self._sub_agent_tool_calls_by_id = {}
 
@@ -328,13 +319,6 @@ class ActivityState:
 
             return activity_text
         return None
-
-    def has_activity_label(self, label: str) -> bool:
-        return label in self._tool_calls or any(name.startswith(f"{label} ") for name in self._tool_calls)
-
-    def has_tool_kind(self, tool_kind: str) -> bool:
-        return tool_kind in self._tool_kinds_by_id.values()
-
 
 class SpinnerStatusState:
     """State machine for spinner status plus task/session metadata."""
@@ -446,10 +430,8 @@ class SpinnerStatusState:
         self,
         tool_name: str | Text,
         tool_call_id: str | None = None,
-        *,
-        tool_kind: str | None = None,
     ) -> None:
-        self._activity.add_tool_call(tool_name, tool_call_id, tool_kind=tool_kind)
+        self._activity.add_tool_call(tool_name, tool_call_id)
 
     def finish_tool_call(self, tool_call_id: str) -> None:
         self._activity.finish_tool_call(tool_call_id)
@@ -508,12 +490,6 @@ class SpinnerStatusState:
     def get_activity_text(self) -> Text | None:
         """Expose current activity for tests and UI composition."""
         return self._activity.get_activity_text()
-
-    def has_activity_label(self, label: str) -> bool:
-        return self._activity.has_activity_label(label)
-
-    def has_tool_kind(self, tool_kind: str) -> bool:
-        return self._activity.has_tool_kind(tool_kind)
 
     def _base_status_text(self) -> Text | None:
         match self._phase:
@@ -910,8 +886,6 @@ class DisplayStateMachine:
         self._live_bash_tool_call_ids: set[str] = set()
         self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
         self._bash_mode_output_chunks_by_session: dict[str, list[str]] = {}
-        self._has_rendered_user_message = False
-        self._skip_next_user_message_gap = False
         self._detail = detail if detail is not None else TranscriptDetail()
         self._pending_sub_agent_results: dict[str, events.ToolResultEvent] = {}
         self._unspawned_sub_agents_by_batch: dict[str, int] = {}
@@ -956,8 +930,6 @@ class DisplayStateMachine:
         self._live_bash_tool_call_ids = set()
         self._pending_bash_tool_outputs = {}
         self._bash_mode_output_chunks_by_session = {}
-        self._has_rendered_user_message = False
-        self._skip_next_user_message_gap = False
         self._pending_sub_agent_results = {}
         self._unspawned_sub_agents_by_batch = {}
         self._last_time_marker_ts = None
@@ -1222,15 +1194,12 @@ class DisplayStateMachine:
         status_lines = sub_agent_lines if sub_agent_lines else (SpinnerStatusLine(text=self._spinner.get_status()),)
         reset_bottom_height = self._had_sub_agent_status_lines and not sub_agent_lines
         self._had_sub_agent_status_lines = bool(sub_agent_lines)
-        top_blank_line = self._spinner.has_tool_kind(tools.BASH) and not self._live_bash_tool_call_ids
         return [
             SpinnerUpdate(
                 right_text=self._spinner.get_right_text(),
                 status_lines=status_lines,
                 separator_text=self._spinner.get_separator_text(),
                 reset_bottom_height=reset_bottom_height,
-                leading_blank_line=bool(sub_agent_lines),
-                top_blank_line=top_blank_line,
             )
         ]
 
@@ -1321,11 +1290,7 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             return []
-        if self._has_rendered_user_message and not self._skip_next_user_message_gap:
-            cmds.append(PrintBlankLine())
         cmds.append(RenderUserMessage(e))
-        self._has_rendered_user_message = True
-        self._skip_next_user_message_gap = False
         return cmds
 
     def _handle_BashCommandStartEvent(
@@ -1819,7 +1784,7 @@ class DisplayStateMachine:
             elif is_sub_agent_tool(e.tool_name):
                 self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
             else:
-                self._spinner.add_tool_call(tool_active_form, e.tool_call_id, tool_kind=e.tool_name)
+                self._spinner.add_tool_call(tool_active_form, e.tool_call_id)
 
         if not is_replay:
             cmds.extend(self._spinner_update_commands())
@@ -1859,7 +1824,7 @@ class DisplayStateMachine:
                 max_target_chars=None,
                 summarize_bash=False,
             )
-            self._spinner.add_tool_call(activity, e.tool_call_id, tool_kind=e.tool_name)
+            self._spinner.add_tool_call(activity, e.tool_call_id)
             cmds.extend(self._spinner_update_commands())
 
         if not is_replay:
@@ -2142,8 +2107,6 @@ class DisplayStateMachine:
                 )
         if e.show_notice:
             cmds.append(RenderInterrupt())
-        if not s.is_sub_agent:
-            self._skip_next_user_message_gap = True
         return cmds
 
     def _handle_ErrorEvent(self, e: events.ErrorEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:

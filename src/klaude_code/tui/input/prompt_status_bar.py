@@ -245,8 +245,7 @@ class PromptBottomBar:
 
         rows = max(0, self._stream_reserved_line_count) + int(self._top_spacer_visible())
         rows += self._status_window_height()
-        if self._pending_messages:
-            rows += len(self._pending_messages) + 2
+        rows += self._pending_block_height()
         return rows
 
     # ---- layout integration ---------------------------------------------
@@ -264,7 +263,7 @@ class PromptBottomBar:
         )
         queue_window = Window(
             content=FormattedTextControl(self._get_pending_message_fragments),
-            height=lambda: len(self._pending_messages) + 1,
+            height=self._pending_window_height,
             dont_extend_height=True,
         )
 
@@ -273,6 +272,7 @@ class PromptBottomBar:
             ConditionalContainer(_spacer(), filter=Condition(self._top_spacer_visible)),
             status_window,
             ConditionalContainer(stream_window, filter=stream_visible),
+            ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._pending_messages))),
             ConditionalContainer(queue_window, filter=Condition(lambda: bool(self._pending_messages))),
             ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._pending_messages))),
         ]
@@ -302,6 +302,14 @@ class PromptBottomBar:
 
     def _top_spacer_visible(self) -> bool:
         return not any(line.suppress_top_spacer for line in self._status_lines)
+
+    def _pending_window_height(self) -> int:
+        return len(self._pending_messages) + 1
+
+    def _pending_block_height(self) -> int:
+        if not self._pending_messages:
+            return 0
+        return self._pending_window_height() + 2
 
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []

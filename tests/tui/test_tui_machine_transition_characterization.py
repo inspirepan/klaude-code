@@ -80,18 +80,17 @@ def test_first_user_message_has_no_leading_gap() -> None:
     assert _types(cmds) == ["RenderUserMessage"]
 
 
-def test_second_user_message_prepends_blank() -> None:
+def test_second_user_message_relies_on_renderer_spacing() -> None:
     m = DisplayStateMachine()
     _ = m.transition(events.UserMessageEvent(session_id="s1", content="first"))
     cmds = m.transition(events.UserMessageEvent(session_id="s1", content="second"))
 
-    assert _types(cmds) == ["PrintBlankLine", "RenderUserMessage"]
+    assert _types(cmds) == ["RenderUserMessage"]
 
 
-def test_user_message_gap_skipped_after_interrupt() -> None:
+def test_user_message_after_interrupt_uses_same_renderer_spacing() -> None:
     m = DisplayStateMachine()
     _ = m.transition(events.UserMessageEvent(session_id="s1", content="first"))
-    # InterruptEvent suppresses the next user-message gap.
     _ = m.transition(events.InterruptEvent(session_id="s1"))
     cmds = m.transition(events.UserMessageEvent(session_id="s1", content="second"))
 

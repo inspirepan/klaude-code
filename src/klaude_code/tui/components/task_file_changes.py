@@ -64,4 +64,4 @@ def render_task_file_change_summary(e: events.TaskFileChangeSummaryEvent) -> Ren
     if hidden_count:
         grid.add_row(Text(" "), Text(format_more_lines_indicator(hidden_count), style=ThemeKey.TOOL_RESULT_TRUNCATED))
 
-    return Padding(Group(title, grid), (1, 1, 1, 2), style=ThemeKey.DIFF_FILE_CHANGES_BACKGROUND, expand=False)
+    return Padding(Group(title, grid), (0, 1, 0, 2), style=ThemeKey.DIFF_FILE_CHANGES_BACKGROUND, expand=False)

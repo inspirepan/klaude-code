@@ -184,8 +184,6 @@ def render_sub_agent_call(
         header,
         Panel(prompt_content, box=box.ROUNDED, border_style=ThemeKey.LINES),
     ]
-
-    elements.append(Text())
     return Group(*elements)
 
 

@@ -93,7 +93,6 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     )
     update = _last_spinner_update(cmds)
 
-    assert update.leading_blank_line is True
     assert update.status_lines[0].session_id == sub_session
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == [
@@ -1097,7 +1096,6 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
     )
     finish_update = _last_spinner_update(finish_cmds)
     assert finish_update.reset_bottom_height is True
-    assert finish_update.leading_blank_line is False
 
 
 def test_sub_agent_finish_emits_unscoped_blank_line_after_result() -> None:
@@ -1186,7 +1184,6 @@ def test_main_agent_tool_call_shows_spawning_task_before_sub_agent_starts() -> N
         )
     )
     update = _last_spinner_update(cmds)
-    assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert _line_plain(update.status_lines[0]).startswith("Running Task")
 
@@ -1230,8 +1227,6 @@ def test_main_bash_tool_call_adds_blank_line_before_stream_starts() -> None:
     )
 
     update = _last_spinner_update(cmds)
-    assert update.leading_blank_line is False
-    assert update.top_blank_line is True
     assert len(update.status_lines) == 1
     assert _line_plain(update.status_lines[0]).startswith("Bashing")
 
@@ -1330,7 +1325,6 @@ def test_interrupt_clears_stale_sub_agent_status_lines() -> None:
     restart_cmds = machine.transition(events.TaskStartEvent(session_id=main_session, model_id="test-model"))
     update = _last_spinner_update(restart_cmds)
 
-    assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
     assert "Finder" not in _line_plain(update.status_lines[0])
@@ -1364,7 +1358,6 @@ def test_sub_agent_non_retry_error_clears_status_lines() -> None:
     update = _last_spinner_update(cmds)
 
     assert update.reset_bottom_height is True
-    assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
     assert "Finder" not in _line_plain(update.status_lines[0])
@@ -1408,7 +1401,6 @@ def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
     update = _last_spinner_update(cmds)
 
     assert update.reset_bottom_height is True
-    assert update.leading_blank_line is False
     assert len(update.status_lines) == 1
     assert update.status_lines[0].session_id is None
     assert "Finder" not in _line_plain(update.status_lines[0])

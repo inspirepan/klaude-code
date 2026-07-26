@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+from itertools import pairwise
 
 from rich.console import Console
 
@@ -12,7 +13,6 @@ from klaude_code.tui.commands import (
     AppendThinking,
     EndAssistantStream,
     EndThinkingStream,
-    FlushOpenBlocks,
     PrintBlankLine,
     RenderDeveloperMessage,
     RenderError,
@@ -61,7 +61,7 @@ def test_step_start_does_not_add_extra_blank_line_before_retry_error() -> None:
     assert "✘ Retrying 1/10" in rendered
 
 
-def test_notice_leaves_blank_line_before_next_input() -> None:
+def test_existing_boundary_is_not_duplicated_before_next_input() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"
 
@@ -70,6 +70,7 @@ def test_notice_leaves_blank_line_before_next_input() -> None:
             [
                 RenderUserMessage(event=events.UserMessageEvent(session_id=session_id, content="/debug")),
                 RenderNotice(event=events.NoticeEvent(session_id=session_id, content="Log file: /tmp/debug.log")),
+                PrintBlankLine(),
                 RenderUserMessage(event=events.UserMessageEvent(session_id=session_id, content="next")),
             ]
         )
@@ -78,7 +79,89 @@ def test_notice_leaves_blank_line_before_next_input() -> None:
     rendered = output.getvalue()
     lines = [line.rstrip() for line in rendered.splitlines()]
     notice_index = lines.index("Log file: /tmp/debug.log")
-    assert lines[notice_index : notice_index + 4] == ["Log file: /tmp/debug.log", "", "", "❯ next"]
+    assert lines[notice_index : notice_index + 3] == ["Log file: /tmp/debug.log", "", "❯ next"]
+
+
+def test_standard_transcript_blocks_have_exactly_one_blank_line_between_them() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "main"
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderUserMessage(event=events.UserMessageEvent(session_id=session_id, content="user-a")),
+                StartAssistantStream(session_id=session_id),
+                AppendAssistant(session_id=session_id, content="assistant-a"),
+                EndAssistantStream(session_id=session_id),
+                RenderNotice(event=events.NoticeEvent(session_id=session_id, content="notice-a")),
+                RenderUserMessage(event=events.UserMessageEvent(session_id=session_id, content="user-b")),
+            ]
+        )
+    )
+
+    lines = [line.rstrip() for line in output.getvalue().splitlines()]
+    block_indexes = [
+        next(index for index, line in enumerate(lines) if marker in line)
+        for marker in ("user-a", "assistant-a", "notice-a", "user-b")
+    ]
+    for left, right in pairwise(block_indexes):
+        assert lines[left + 1 : right] == [""]
+
+
+def test_developer_and_tool_group_is_continuous_until_next_standard_block() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "main"
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderDeveloperMessage(
+                    event=events.DeveloperMessageEvent(
+                        session_id=session_id,
+                        item=message.DeveloperMessage(
+                            parts=[],
+                            ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="commit")]),
+                        ),
+                    )
+                ),
+                RenderToolCall(
+                    event=events.ToolCallEvent(
+                        session_id=session_id,
+                        tool_call_id="bash-1",
+                        tool_name=tools.BASH,
+                        arguments='{"command":"echo hi"}',
+                    )
+                ),
+                RenderToolResult(
+                    event=events.ToolResultEvent(
+                        session_id=session_id,
+                        tool_call_id="bash-1",
+                        tool_name=tools.BASH,
+                        result="hi",
+                        status="success",
+                    ),
+                    is_sub_agent_session=False,
+                ),
+                RenderDeveloperMessage(
+                    event=events.DeveloperMessageEvent(
+                        session_id=session_id,
+                        item=message.DeveloperMessage(
+                            parts=[],
+                            ui_extra=DeveloperUIExtra(items=[SkillActivatedUIItem(name="submit-pr")]),
+                        ),
+                    )
+                ),
+                RenderNotice(event=events.NoticeEvent(session_id=session_id, content="done")),
+            ]
+        )
+    )
+
+    lines = [line.rstrip() for line in output.getvalue().splitlines()]
+    first_developer = next(index for index, line in enumerate(lines) if "commit" in line)
+    second_developer = next(index for index, line in enumerate(lines) if "submit-pr" in line)
+    notice = lines.index("done")
+    assert "" not in lines[first_developer : second_developer + 1]
+    assert lines[second_developer + 1 : notice] == [""]
 
 
 def test_multiline_error_continuation_uses_single_grid_indent() -> None:
@@ -225,10 +308,10 @@ def test_todo_result_stays_grouped_with_following_tool() -> None:
                         arguments='{"command":"uv run pytest"}',
                     )
                 ),
-                FlushOpenBlocks(),
             ]
         )
     )
+    renderer.flush_open_blocks()
 
     lines = output.getvalue().splitlines()
     panel_end = next(index for index, line in enumerate(lines) if "╰" in line)
@@ -382,7 +465,7 @@ def test_sub_agent_block_flush_can_force_top_level_blank_line() -> None:
     assert not output.getvalue().endswith("▌ + Activated skill commit\n▌ \n")
 
 
-def test_sub_agent_standalone_tool_result_blank_line_keeps_quote_prefix() -> None:
+def test_sub_agent_tool_group_flush_keeps_quote_prefix() -> None:
     renderer, output = _renderer_and_output()
     renderer.set_transcript_detail(Detail.FULL)
     session_id = "sub-1"
@@ -407,6 +490,7 @@ def test_sub_agent_standalone_tool_result_blank_line_keeps_quote_prefix() -> Non
             ]
         )
     )
+    renderer.flush_open_blocks()
 
     assert output.getvalue().endswith("▌             done\n▌ \n")
 
@@ -649,7 +733,6 @@ def test_step_start_keeps_consecutive_tool_steps_grouped_until_assistant_message
         )
     )
 
-    assert not any(isinstance(cmd, FlushOpenBlocks) for cmd in commands)
     assert "  $ Bash    one\n  $ Bash    two\n\n● done\n\n" in output.getvalue()
 
 
@@ -689,8 +772,6 @@ def test_replay_step_start_keeps_consecutive_tool_steps_grouped() -> None:
             )
         ),
     ]
-
-    assert not any(isinstance(cmd, FlushOpenBlocks) for cmd in commands)
 
     asyncio.run(renderer.execute(commands))
 

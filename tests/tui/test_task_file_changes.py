@@ -39,9 +39,8 @@ def test_task_file_change_summary_render_includes_diff_stat() -> None:
     output = console.export_text(styles=False)
     lines = output.splitlines()
 
-    assert lines[0].strip() == ""
-    assert lines[1].strip() == "FILE CHANGES · 3 files"
-    assert lines[-1].strip() == ""
+    assert lines[0].strip() == "FILE CHANGES · 3 files"
+    assert lines[-1].strip() == "- ./src/removed.py  -3"
     assert {len(line) for line in lines} == {28}
     assert "FILE CHANGES · 3 files" in output
     assert "• 2 files changed" not in output

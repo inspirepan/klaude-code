@@ -38,11 +38,6 @@ class RenderCommand:
 
 
 @dataclass(frozen=True, slots=True)
-class FlushOpenBlocks(RenderCommand):
-    pass
-
-
-@dataclass(frozen=True, slots=True)
 class RenderWelcome(RenderCommand):
     event: events.WelcomeEvent
 
@@ -235,8 +230,6 @@ class SpinnerUpdate(RenderCommand):
     status_lines: tuple[SpinnerStatusLine, ...] = ()
     separator_text: SeparatorText | None = None
     reset_bottom_height: bool = False
-    leading_blank_line: bool = False
-    top_blank_line: bool = False
 
 
 @dataclass(frozen=True, slots=True)

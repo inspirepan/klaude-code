@@ -276,6 +276,31 @@ def test_status_reuses_explicit_scrollback_boundary() -> None:
     assert status_updates[-1][0].suppress_top_spacer is True
 
 
+def test_user_message_boundary_keeps_status_spacer() -> None:
+    import asyncio
+
+    from klaude_code.tui.commands import PromptStatusLine, RenderUserMessage, SpinnerStatusLine
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    status_updates: list[tuple[PromptStatusLine, ...]] = []
+    renderer = TUICommandRenderer(
+        status_sink=lambda lines, _separator, _reset: status_updates.append(lines)
+    )
+    _renderer_console(renderer)
+    renderer.set_progress_ui_suspended(True)
+    renderer.spinner_start()
+    renderer._spinner_last_apply_at = 0.0
+    renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("Loading")),))
+
+    asyncio.run(
+        renderer.execute(
+            [RenderUserMessage(event=events.UserMessageEvent(session_id="main", content="hello"))]
+        )
+    )
+
+    assert status_updates[-1][0].suppress_top_spacer is False
+
+
 def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     from klaude_code.protocol.models import SubAgentState
     from klaude_code.tui.commands import PromptStatusLine, SpinnerStatusLine

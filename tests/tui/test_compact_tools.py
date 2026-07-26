@@ -11,7 +11,6 @@ from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import BashUIExtra, ReadPreviewLine, ReadPreviewUIExtra
 from klaude_code.tui.commands import (
     AppendBashCommandOutput,
-    FlushOpenBlocks,
     RenderBashCommandEnd,
     RenderCommand,
     RenderCompactToolResult,
@@ -30,6 +29,11 @@ def _renderer_and_output() -> tuple[TUICommandRenderer, io.StringIO]:
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)
     return renderer, output
+
+
+async def _execute_and_flush(renderer: TUICommandRenderer, commands: list[RenderCommand]) -> None:
+    await renderer.execute(commands)
+    renderer.flush_open_blocks()
 
 
 def _bash_commands(
@@ -55,7 +59,7 @@ def _bash_commands(
         ui_extra=BashUIExtra(exit_code=exit_code) if exit_code is not None else None,
     )
     if compact:
-        return [RenderCompactToolResult(event=result_event, arguments=arguments), FlushOpenBlocks()]
+        return [RenderCompactToolResult(event=result_event, arguments=arguments)]
     return [RenderToolCall(event=call), RenderToolResult(event=result_event, is_sub_agent_session=False)]
 
 
@@ -63,7 +67,8 @@ def test_compact_bash_prefers_description_and_hides_command_output() -> None:
     renderer, output = _renderer_and_output()
 
     asyncio.run(
-        renderer.execute(
+        _execute_and_flush(
+            renderer,
             _bash_commands(
                 arguments='{"command":"jj status && jj diff --git","description":"确认提交后工作区为空"}',
                 result="The working copy has no changes.\nmore output",
@@ -98,7 +103,8 @@ def test_compact_bash_falls_back_to_flattened_command() -> None:
     arguments = json.dumps({"command": "uv run pytest tests/tui \\" + "\n  -q"})
 
     asyncio.run(
-        renderer.execute(
+        _execute_and_flush(
+            renderer,
             _bash_commands(
                 arguments=arguments,
                 result="passed",
@@ -113,7 +119,8 @@ def test_compact_bash_failure_shows_concise_exit_code() -> None:
     renderer, output = _renderer_and_output()
 
     asyncio.run(
-        renderer.execute(
+        _execute_and_flush(
+            renderer,
             _bash_commands(
                 arguments='{"command":"uv run pytest","description":"运行测试"}',
                 result="[stdout]\nfailed test details",
@@ -132,7 +139,8 @@ def test_compact_bash_preserves_command_and_status_on_narrow_terminal() -> None:
     renderer.console.width = 32
 
     asyncio.run(
-        renderer.execute(
+        _execute_and_flush(
+            renderer,
             _bash_commands(
                 arguments='{"command":"uv run pytest","description":"Run tests"}',
                 result="passed",
@@ -150,7 +158,8 @@ def test_expanded_bash_keeps_command_and_output() -> None:
     renderer.set_transcript_detail(Detail.FULL)
 
     asyncio.run(
-        renderer.execute(
+        _execute_and_flush(
+            renderer,
             _bash_commands(
                 arguments='{"command":"echo full","description":"显示完整命令"}',
                 result="full output",
@@ -180,7 +189,7 @@ def test_compact_bash_live_tail_is_transient() -> None:
         RenderBashCommandEnd(events.BashCommandEndEvent(session_id="main")),
     ]
 
-    asyncio.run(renderer.execute(commands))
+    asyncio.run(_execute_and_flush(renderer, commands))
 
     assert any(lines == ("            live output",) and not end for lines, end in stream_updates)
     assert stream_updates[-1] == ((), True)
@@ -192,7 +201,7 @@ def test_compact_bash_results_in_same_step_have_no_blank_line_between_them() -> 
     first = _bash_commands(arguments='{"command":"pwd","description":"查看目录"}', result="/tmp")[0]
     second = _bash_commands(arguments='{"command":"jj status","description":"检查状态"}', result="clean")[0]
 
-    asyncio.run(renderer.execute([first, second, FlushOpenBlocks()]))
+    asyncio.run(_execute_and_flush(renderer, [first, second]))
 
     assert (
         output.getvalue()
@@ -356,11 +365,11 @@ def test_compact_read_hides_offset_preview_but_keeps_call() -> None:
     )
 
     asyncio.run(
-        renderer.execute(
+        _execute_and_flush(
+            renderer,
             [
                 RenderToolCall(event=call),
                 RenderToolResult(event=result, is_sub_agent_session=False),
-                FlushOpenBlocks(),
             ]
         )
     )

@@ -180,10 +180,10 @@ class TestRenderAtAndSkillPatterns:
         lines = rendered_segments("!pnpm lint [image /tmp/example.png]")
 
         expected_bg = Console(theme=get_theme().app_theme).get_style(ThemeKey.USER_INPUT.value).bgcolor
-        content_segments = [segment for segment in lines[1][1:] if segment.text.strip()]
+        content_segments = [segment for segment in lines[0][1:] if segment.text.strip()]
 
         assert content_segments
         assert all(segment.style is not None and segment.style.bgcolor == expected_bg for segment in content_segments)
 
-    def test_render_user_input_has_vertical_padding(self):
-        assert rendered_lines("hello") == ["", "❯ hello", ""]
+    def test_render_user_input_has_no_external_vertical_padding(self):
+        assert rendered_lines("hello") == ["❯ hello"]

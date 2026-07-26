@@ -466,7 +466,7 @@ def test_input_window_max_height_accounts_for_bottom_layout() -> None:
     prompt_input.set_status_lines((_status("Loading…"), _metadata("in 12 · cache 3k")))
     prompt_input.set_pending_messages(("first queued", "second queued"))
 
-    assert prompt_input._get_max_input_window_rows(24) == 10
+    assert prompt_input._get_max_input_window_rows(24) == 9
 
 
 def test_input_window_max_height_keeps_minimum_row_on_tiny_terminal() -> None:
@@ -712,6 +712,7 @@ def test_pending_messages_render_above_prompt() -> None:
 
     bar = prompt_input._bottom_bar
     assert bar._pending_messages == ("first queued", "second\nqueued")
+    assert bar.reserved_layout_rows() == 7
     assert bar._get_pending_message_fragments() == [
         ("class:meta", "Queued follow-up message (2 pending) · ↑ to edit."),
         ("", "\n"),
