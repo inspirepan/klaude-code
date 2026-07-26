@@ -25,7 +25,6 @@ from klaude_code.tui.components.tools._common import (
     render_path,
 )
 from klaude_code.tui.components.tools._dispatch import (
-    get_tool_active_form,
     render_compact_file_change,
     render_compact_file_change_action,
     render_markdown_doc,
@@ -37,6 +36,7 @@ from klaude_code.tui.components.tools._file import (
     render_edit_tool_call,
     render_write_tool_call,
 )
+from klaude_code.tui.components.tools._presentation import get_tool_active_form
 from klaude_code.tui.components.tools._question import (
     render_ask_user_question_summary,
     render_ask_user_question_tool_call,

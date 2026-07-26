@@ -14,12 +14,14 @@ from klaude_code.const import (
     WEB_SEARCH_COMPACT_RESULT_LIMIT,
     WEB_SEARCH_DEFAULT_MAX_RESULTS,
 )
+from klaude_code.protocol import tools
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import (
     MARK_WEB_FETCH,
     MARK_WEB_SEARCH,
     render_tool_call_tree,
 )
+from klaude_code.tui.components.tools._presentation import get_tool_display_name
 from klaude_code.tui.transcript_detail import Detail
 
 _EXTERNAL_CONTENT_START = "<<<EXTERNAL_UNTRUSTED_CONTENT>>>"
@@ -138,7 +140,7 @@ def render_web_search_results(items: list[WebSearchResultItem], *, detail: Detai
 
 
 def render_web_fetch_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Fetch Web"
+    tool_name = get_tool_display_name(tools.WEB_FETCH, arguments)
 
     try:
         payload: dict[str, str] = json.loads(arguments)
@@ -156,7 +158,7 @@ def render_web_fetch_tool_call(arguments: str) -> RenderableType:
 
 
 def render_web_search_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Search Web"
+    tool_name = get_tool_display_name(tools.WEB_SEARCH, arguments)
 
     try:
         payload: dict[str, Any] = json.loads(arguments)

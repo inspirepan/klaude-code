@@ -4,12 +4,14 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 
 from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
+from klaude_code.protocol import tools
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import MARK_EDIT, MARK_WRITE, render_path, render_tool_call_tree
+from klaude_code.tui.components.tools._presentation import apply_patch_file_paths, get_tool_display_name
 
 
 def render_edit_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Edit"
+    tool_name = get_tool_display_name(tools.EDIT, arguments)
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path")
@@ -34,7 +36,7 @@ def render_edit_tool_call(arguments: str) -> RenderableType:
 
 
 def render_write_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Write"
+    tool_name = get_tool_display_name(tools.WRITE, arguments)
     try:
         json_dict = json.loads(arguments)
         file_path = json_dict.get("file_path", "")
@@ -48,7 +50,7 @@ def render_write_tool_call(arguments: str) -> RenderableType:
 
 
 def render_apply_patch_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Patch"
+    tool_name = get_tool_display_name(tools.APPLY_PATCH, arguments)
 
     try:
         payload = json.loads(arguments)
@@ -63,18 +65,7 @@ def render_apply_patch_tool_call(arguments: str) -> RenderableType:
     details: RenderableType = Text("", ThemeKey.TOOL_PARAM)
 
     if isinstance(patch_content, str):
-        update_files: list[str] = []
-        add_files: list[str] = []
-        delete_files: list[str] = []
-        for line in patch_content.splitlines():
-            if line.startswith("*** Update File:"):
-                update_files.append(line[len("*** Update File:") :].strip())
-            elif line.startswith("*** Add File:"):
-                add_files.append(line[len("*** Add File:") :].strip())
-            elif line.startswith("*** Delete File:"):
-                delete_files.append(line[len("*** Delete File:") :].strip())
-
-        file_paths = update_files + add_files + delete_files
+        file_paths = apply_patch_file_paths(arguments)
         if len(file_paths) == 1:
             details = render_path(file_paths[0], ThemeKey.TOOL_PARAM_FILE_PATH)
         elif file_paths:

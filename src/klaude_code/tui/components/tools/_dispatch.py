@@ -56,34 +56,6 @@ _COMPACT_MARKDOWN_PREVIEW_LINES = 5
 RESULT_PANEL_MAX_WIDTH = 100
 
 
-# Tool name to active form mapping (for spinner status)
-_TOOL_ACTIVE_FORM: dict[str, str] = {
-    tools.BASH: "Bashing",
-    tools.APPLY_PATCH: "Patching",
-    tools.EDIT: "Editing",
-    tools.READ: "Reading",
-    tools.WRITE: "Writing",
-    tools.TODO_WRITE: "Updating Todos",
-    tools.WEB_FETCH: "Fetching Web",
-    tools.WEB_SEARCH: "Searching Web",
-    tools.AGENT: "Running Task",
-    tools.REWIND: "Rewinding",
-    tools.ASK_USER_QUESTION: "Questioning",
-    tools.HANDOFF: "Packing Context",
-}
-
-
-def get_tool_active_form(tool_name: str) -> str:
-    """Get the active form of a tool name for spinner status.
-
-    Checks both the static mapping and sub agent profiles.
-    """
-    if tool_name in _TOOL_ACTIVE_FORM:
-        return _TOOL_ACTIVE_FORM[tool_name]
-
-    return f"Calling {tool_name}"
-
-
 def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
     """Unified entry point for rendering tool calls.
 

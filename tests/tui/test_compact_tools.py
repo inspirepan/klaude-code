@@ -248,6 +248,31 @@ def test_compact_read_activity_shortens_path(
     assert rendered.plain == "Read ./project/tests/test_example.py"
 
 
+@pytest.mark.parametrize(
+    ("tool_name", "arguments", "expected"),
+    [
+        (
+            tools.APPLY_PATCH,
+            '{"patch":"*** Begin Patch\\n*** Update File: src/demo.py\\n*** End Patch"}',
+            "Patch ./src/demo.py",
+        ),
+        (tools.TODO_WRITE, '{"todos":[]}', "Update To-Dos"),
+        (tools.WEB_FETCH, '{"url":"https://example.com/docs"}', "Fetch Web https://example.com/docs"),
+        (tools.WEB_SEARCH, '{"query":"shared labels"}', "Search Web shared labels"),
+        (tools.READ, '{"file_path":"skills/demo/SKILL.md"}', "Read Skill ./skills/demo/SKILL.md"),
+        (
+            tools.ASK_USER_QUESTION,
+            '{"questions":[{"header":"Scope"},{"header":"Format"}]}',
+            "Agent has 2 questions for you Scope / Format",
+        ),
+    ],
+)
+def test_compact_activity_uses_shared_tool_presentation(tool_name: str, arguments: str, expected: str) -> None:
+    rendered = render_compact_tool_activity(tool_name, arguments, max_target_chars=None)
+
+    assert rendered.plain == expected
+
+
 def test_compact_activity_does_not_apply_tool_name_bold_to_parameters(
     tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

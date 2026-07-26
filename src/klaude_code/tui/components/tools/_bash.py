@@ -6,6 +6,7 @@ from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
+from klaude_code.protocol import tools
 from klaude_code.tui.components.bash_syntax import highlight_bash_command
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import (
@@ -16,10 +17,11 @@ from klaude_code.tui.components.tools._common import (
     AdaptiveIndent,
     render_tool_call_tree,
 )
+from klaude_code.tui.components.tools._presentation import get_tool_display_name
 
 
 def render_bash_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Bash"
+    tool_name = get_tool_display_name(tools.BASH, arguments)
 
     try:
         payload_raw: Any = json.loads(arguments) if arguments else {}

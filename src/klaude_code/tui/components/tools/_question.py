@@ -1,6 +1,3 @@
-import json
-from typing import Any, cast
-
 from rich import box
 from rich.console import Group, RenderableType
 from rich.padding import Padding
@@ -9,6 +6,7 @@ from rich.rule import Rule
 from rich.text import Text
 
 from klaude_code.const import TAB_EXPAND_WIDTH
+from klaude_code.protocol import tools
 from klaude_code.protocol.models import AskUserQuestionSummaryUIExtra
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -18,36 +16,13 @@ from klaude_code.tui.components.tools._common import (
     render_tool_call_tree,
     tool_result_style,
 )
+from klaude_code.tui.components.tools._presentation import get_tool_call_presentation
 
 
 def render_ask_user_question_tool_call(arguments: str) -> RenderableType:
-    question_count = 1
-    headers: list[str] = []
-    if arguments:
-        try:
-            payload_raw: Any = json.loads(arguments)
-            if isinstance(payload_raw, dict):
-                payload = cast(dict[str, Any], payload_raw)
-                questions: Any = payload.get("questions")
-                if isinstance(questions, list) and questions:
-                    question_count = len(cast(list[Any], questions))
-                    for q in cast(list[dict[str, Any]], questions):
-                        header = q.get("header")
-                        if isinstance(header, str):
-                            headers.append(header)
-        except json.JSONDecodeError:
-            pass
-
-    if question_count == 1:
-        tool_name = "Agent has a question for you"
-    else:
-        tool_name = f"Agent has {question_count} questions for you"
-
-    details: RenderableType | None = None
-    if headers:
-        details = Text(" / ".join(headers), style="dim")
-
-    return render_tool_call_tree(mark=MARK_QUESTION, tool_name=tool_name, details=details)
+    presentation = get_tool_call_presentation(tools.ASK_USER_QUESTION, arguments)
+    details = Text(presentation.subject, style="dim") if presentation.subject else None
+    return render_tool_call_tree(mark=MARK_QUESTION, tool_name=presentation.name, details=details)
 
 
 def render_ask_user_question_tool_result(result: str, *, status: ToolResultStatus = "success") -> RenderableType:

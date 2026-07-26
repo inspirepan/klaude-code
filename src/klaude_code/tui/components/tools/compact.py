@@ -1,6 +1,3 @@
-import json
-from typing import Any, cast
-
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.measure import Measurement
 from rich.table import Table
@@ -8,7 +5,6 @@ from rich.text import Text
 
 from klaude_code.protocol import tools
 from klaude_code.tui.components.bash_syntax import summarize_bash_command
-from klaude_code.tui.components.common import format_pascal_case
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import (
     MARK_BASH,
@@ -22,8 +18,12 @@ from klaude_code.tui.components.tools._common import (
     MARK_WEB_SEARCH,
     MARK_WRITE,
     TOOL_SUBJECT_INDENT,
-    render_path,
     render_tool_call_tree,
+)
+from klaude_code.tui.components.tools._presentation import (
+    get_tool_call_presentation,
+    one_line,
+    parse_tool_arguments,
 )
 
 # Width of the Bash description column, in cells (~12 CJK glyphs). Fixed so the
@@ -48,24 +48,6 @@ _COMPACT_MARKS: dict[str, str] = {
 }
 
 
-def _tool_arguments(arguments: str) -> dict[str, object]:
-    try:
-        value: Any = json.loads(arguments)
-    except json.JSONDecodeError:
-        return {}
-    return cast(dict[str, object], value) if isinstance(value, dict) else {}
-
-
-def _one_line(value: object) -> str:
-    return " ".join(str(value).replace("\\\n", " ").split())
-
-
-def _path_target(value: object) -> str:
-    if not isinstance(value, str) or not value:
-        return _one_line(value)
-    return render_path(value, ThemeKey.TOOL_PARAM_FILE_PATH).plain
-
-
 def _clamp_subject(value: str, max_chars: int | None, *, include_mark: bool) -> str:
     if max_chars is None:
         return value
@@ -74,42 +56,6 @@ def _clamp_subject(value: str, max_chars: int | None, *, include_mark: bool) -> 
     if not include_mark:
         return value[:max_chars].rstrip()
     return value[: max(1, max_chars - 1)].rstrip() + "…"
-
-
-def _tool_target(tool_name: str, arguments: str) -> tuple[str, str | ThemeKey]:
-    args = _tool_arguments(arguments)
-    target = ""
-    target_style: str | ThemeKey = ThemeKey.TOOL_PARAM
-
-    if tool_name == tools.READ:
-        target = _path_target(args.get("file_path", ""))
-        offset = args.get("offset")
-        limit = args.get("limit")
-        if target and isinstance(offset, int):
-            start = max(1, offset)
-            target += f":{start}"
-            if isinstance(limit, int) and limit > 0:
-                target += f"-{start + limit - 1}"
-        target_style = ThemeKey.TOOL_PARAM_FILE_PATH
-    elif tool_name in (tools.EDIT, tools.WRITE):
-        target = _path_target(args.get("file_path", ""))
-        target_style = ThemeKey.TOOL_PARAM_FILE_PATH
-    elif tool_name == tools.BASH:
-        description, command_summary = _bash_parts(args)
-        target = "  ".join(part for part in (description, command_summary) if part)
-        target_style = ThemeKey.BASH_TOOL_DESCRIPTION if description else ThemeKey.BASH_COMMAND
-    elif tool_name == tools.WEB_SEARCH:
-        target = _one_line(args.get("query", ""))
-    elif tool_name == tools.WEB_FETCH:
-        target = _one_line(args.get("url", ""))
-        target_style = ThemeKey.TOOL_PARAM_FILE_PATH
-    else:
-        for key in ("description", "query", "file_path", "path", "url", "command"):
-            if args.get(key):
-                target = _path_target(args[key]) if key in ("file_path", "path") else _one_line(args[key])
-                break
-
-    return target, target_style
 
 
 def render_compact_tool_activity(
@@ -124,18 +70,20 @@ def render_compact_tool_activity(
 ) -> Text:
     """Render one compact tool activity line."""
 
+    presentation = get_tool_call_presentation(tool_name, arguments)
     line = Text(no_wrap=True, overflow="ellipsis")
-    line.append(display_name or format_pascal_case(tool_name), style=ThemeKey.TOOL_NAME)
+    line.append(display_name or presentation.name, style=ThemeKey.TOOL_NAME)
     if tool_name == tools.BASH:
-        args = _tool_arguments(arguments)
-        description = _one_line(args.get("description", ""))
-        command = str(args.get("command", ""))
-        command_lines = command.splitlines()
-        if summarize_bash:
-            command_display = summarize_bash_command(command)
-        else:
-            command_display = command_lines[0].strip() if command_lines else ""
-        target = " ".join(part for part in (description, command_display) if part)
+        args = parse_tool_arguments(arguments)
+        description = one_line(args.get("description", ""))
+        raw_command = str(args.get("command", ""))
+        command_lines = raw_command.splitlines()
+        command = (
+            summarize_bash_command(raw_command)
+            if summarize_bash
+            else (command_lines[0].strip() if command_lines else "")
+        )
+        target = " ".join(part for part in (description, command) if part)
         target = _clamp_subject(target, max_target_chars, include_mark=include_truncation_mark)
         if target:
             line.append(" ")
@@ -143,7 +91,8 @@ def render_compact_tool_activity(
         _append_status(line, status)
         return line
 
-    target, target_style = _tool_target(tool_name, arguments)
+    target = presentation.subject
+    target_style = ThemeKey.TOOL_PARAM_FILE_PATH if presentation.subject_kind == "path" else ThemeKey.TOOL_PARAM
     target = _clamp_subject(target, max_target_chars, include_mark=include_truncation_mark)
     if target:
         line.append(" ")
@@ -164,12 +113,14 @@ def render_compact_tool_result(
 
     details = Text(no_wrap=True, overflow="ellipsis")
     description = ""
+    presentation = get_tool_call_presentation(tool_name, arguments)
     if tool_name == tools.BASH:
-        description, command_summary = _bash_parts(_tool_arguments(arguments))
+        description, command_summary = _bash_parts(parse_tool_arguments(arguments))
         if command_summary:
             details.append(command_summary, style=ThemeKey.BASH_ARGUMENT)
     else:
-        target, target_style = _tool_target(tool_name, arguments)
+        target = presentation.subject
+        target_style = ThemeKey.TOOL_PARAM_FILE_PATH if presentation.subject_kind == "path" else ThemeKey.TOOL_PARAM
         if target:
             details.append(target, style=target_style)
     display_status = "error" if exit_code not in (None, 0) else status
@@ -184,7 +135,7 @@ def render_compact_tool_result(
 
     return render_tool_call_tree(
         mark=_COMPACT_MARKS.get(tool_name, MARK_GENERIC),
-        tool_name=format_pascal_case(tool_name),
+        tool_name=presentation.name,
         details=_with_description_column(description, details) if tool_name == tools.BASH else details,
     )
 
@@ -216,7 +167,7 @@ def _with_description_column(description: str, subject: Text) -> RenderableType:
 
 
 def _bash_parts(args: dict[str, object]) -> tuple[str, str]:
-    description = _one_line(args.get("description", ""))
+    description = one_line(args.get("description", ""))
     command = str(args.get("command", ""))
     return description, summarize_bash_command(command)
 

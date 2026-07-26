@@ -6,14 +6,16 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 
 from klaude_code.const import DIFF_PREFIX_WIDTH, INVALID_TOOL_CALL_MAX_LENGTH, TAB_EXPAND_WIDTH
+from klaude_code.protocol import tools
 from klaude_code.protocol.models import ReadPreviewUIExtra
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import MARK_READ, render_path, render_tool_call_tree
+from klaude_code.tui.components.tools._presentation import get_tool_display_name
 
 
 def render_read_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Read"
+    tool_name = get_tool_display_name(tools.READ, arguments)
     details = Text("", ThemeKey.TOOL_PARAM)
 
     try:
@@ -41,7 +43,6 @@ def render_read_tool_call(arguments: str) -> RenderableType:
         path_obj = Path(file_path)
         is_skill = path_obj.name == "SKILL.md"
         if is_skill:
-            tool_name = "Read Skill"
             path_text = render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH)
             skill_file = "SKILL.md"
             skill_file_start = path_text.plain.rfind(skill_file)

@@ -7,7 +7,7 @@ from rich.panel import Panel
 from rich.text import Text
 
 from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH, TAB_EXPAND_WIDTH
-from klaude_code.protocol import events
+from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import TodoListUIExtra
 from klaude_code.tui.components.common import create_grid
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -17,6 +17,7 @@ from klaude_code.tui.components.tools._common import (
     render_tool_call_tree,
     tool_result_style,
 )
+from klaude_code.tui.components.tools._presentation import get_tool_display_name
 
 # Todo status markers
 MARK_TODO_PENDING = "\u25a2"
@@ -25,7 +26,7 @@ MARK_TODO_COMPLETED = "\u2714"
 
 
 def render_todo_write_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Update To-Dos"
+    tool_name = get_tool_display_name(tools.TODO_WRITE, arguments)
     details: RenderableType | None = None
 
     if arguments:

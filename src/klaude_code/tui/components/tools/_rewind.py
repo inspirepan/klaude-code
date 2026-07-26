@@ -5,12 +5,14 @@ from rich.console import RenderableType
 from rich.text import Text
 
 from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
+from klaude_code.protocol import tools
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import MARK_REWIND, render_tool_call_tree
+from klaude_code.tui.components.tools._presentation import get_tool_display_name
 
 
 def render_rewind_tool_call(arguments: str) -> RenderableType:
-    tool_name = "Rewind"
+    tool_name = get_tool_display_name(tools.REWIND, arguments)
 
     try:
         payload: dict[str, Any] = json.loads(arguments)
