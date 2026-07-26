@@ -237,13 +237,14 @@ class TUIDisplay(DisplayABC):
 
         self._sigint_toast_clear_handle = loop.call_later(window_seconds, _schedule_clear)
 
-    def hide_progress_ui(self) -> None:
+    def hide_progress_ui(self, *, flush_open_blocks: bool = True) -> None:
         """Stop transient Rich UI elements before prompt-toolkit takes control."""
 
         with contextlib.suppress(Exception):
             self._renderer.spinner_stop()
-        with contextlib.suppress(Exception):
-            self._renderer.flush_open_blocks(scoped=False)
+        if flush_open_blocks:
+            with contextlib.suppress(Exception):
+                self._renderer.flush_open_blocks(scoped=False)
 
     def show_progress_ui(self) -> None:
         """Restore bottom status line after temporary interactive prompts."""

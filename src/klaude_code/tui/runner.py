@@ -462,7 +462,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 headers=[q.header for q in payload.questions],
             )
         resume_repl = await _pause_repl_for_external_input()
-        tui_display.hide_progress_ui()
+        tui_display.hide_progress_ui(flush_open_blocks=False)
         was_preventing_sleep = _stop_prevent_sleep_if_needed()
 
         prompts: list[QuestionPrompt[str]] = []

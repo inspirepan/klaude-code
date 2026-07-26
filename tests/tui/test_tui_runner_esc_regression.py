@@ -34,6 +34,8 @@ class _FakeComponents:
 
 
 class _FakeDisplay:
+    hide_progress_ui_calls: ClassVar[list[bool]] = []
+
     def __init__(
         self,
         *,
@@ -50,8 +52,8 @@ class _FakeDisplay:
     def notify_ask_user_question(self, *, question_count: int, headers: list[str] | None = None) -> None:
         del question_count, headers
 
-    def hide_progress_ui(self) -> None:
-        return None
+    def hide_progress_ui(self, *, flush_open_blocks: bool = True) -> None:
+        self.hide_progress_ui_calls.append(flush_open_blocks)
 
     def show_progress_ui(self) -> None:
         return None
@@ -160,6 +162,7 @@ def _default_question_payload() -> user_interaction.AskUserQuestionRequestPayloa
 def _patch_runner_basics(monkeypatch: pytest.MonkeyPatch):
     import klaude_code.tui.runner as runner
 
+    _FakeDisplay.hide_progress_ui_calls = []
     _FakePromptToolkitInput.prefills = []
     _FakePromptToolkitInput.pending_messages = []
     _FakePromptToolkitInput.agent_running_changes = []
@@ -1239,6 +1242,7 @@ def test_interaction_collection_runs_without_esc_monitor(monkeypatch: pytest.Mon
     assert response is not None
     assert response.status == "submitted"
     assert _FakePromptToolkitInput.pause_calls == 1
+    assert _FakeDisplay.hide_progress_ui_calls[0] is False
 
 
 def test_interaction_collection_pauses_prevent_sleep(monkeypatch: pytest.MonkeyPatch) -> None:

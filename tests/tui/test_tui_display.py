@@ -73,6 +73,15 @@ def test_hide_progress_ui_flushes_open_renderer_blocks() -> None:
     assert output.getvalue().endswith("\n\n")
 
 
+def test_hide_progress_ui_can_preserve_open_renderer_blocks() -> None:
+    display = TUIDisplay(notifier=Mock(spec=TerminalNotifier))
+    display._renderer._open_continuous_block("main")
+
+    display.hide_progress_ui(flush_open_blocks=False)
+
+    assert display._renderer._continuous_block_session_id == "main"
+
+
 def test_cancelled_task_skips_notification(monkeypatch: pytest.MonkeyPatch) -> None:
     notifier = Mock(spec=TerminalNotifier)
     display = TUIDisplay(notifier=notifier)
