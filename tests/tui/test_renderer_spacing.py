@@ -79,7 +79,7 @@ def test_existing_boundary_is_not_duplicated_before_next_input() -> None:
     rendered = output.getvalue()
     lines = [line.rstrip() for line in rendered.splitlines()]
     notice_index = lines.index("Log file: /tmp/debug.log")
-    assert lines[notice_index : notice_index + 3] == ["Log file: /tmp/debug.log", "", "❯ next"]
+    assert lines[notice_index : notice_index + 3] == ["Log file: /tmp/debug.log", "", "❯  next"]
 
 
 def test_standard_transcript_blocks_have_exactly_one_blank_line_between_them() -> None:
