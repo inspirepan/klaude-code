@@ -12,6 +12,7 @@ class Palette:
     green: str
     cyan: str
     blue: str
+    deep_blue: str
     orange: str
     magenta: str
     grey1: str
@@ -39,6 +40,7 @@ class Palette:
     cyan_background: str
     green_sub_background: str
     blue_sub_background: str
+    deep_blue_background: str
     purple_background: str
     orange_background: str
     red_background: str
@@ -53,6 +55,7 @@ LIGHT_PALETTE = Palette(
     green="#00875f",
     cyan="#2a9090",
     blue="#2d6ba8",
+    deep_blue="#244f7a",
     orange="#c96542",
     magenta="#9a508a",
     grey1="#667e90",
@@ -78,6 +81,7 @@ LIGHT_PALETTE = Palette(
     cyan_background="#ecf7f7",
     green_sub_background="#ecf7ec",
     blue_sub_background="#ecf1f9",
+    deep_blue_background="#e9eff6",
     purple_background="#f5ecf9",
     orange_background="#f9f3ec",
     red_background="#f9ecec",
@@ -92,6 +96,7 @@ DARK_PALETTE = Palette(
     green="#4fb06c",
     cyan="#4db8b8",
     blue="#5b9fd4",
+    deep_blue="#7c9bd1",
     orange="#e69a4a",
     magenta="#b87ab0",
     grey1="#99aabb",
@@ -117,6 +122,7 @@ DARK_PALETTE = Palette(
     cyan_background="#2c3e3e",
     green_sub_background="#2c4336",
     blue_sub_background="#2c3846",
+    deep_blue_background="#29364d",
     purple_background="#383448",
     orange_background="#46382c",
     red_background="#462f32",
@@ -506,7 +512,7 @@ def get_theme(theme: str | None = None) -> Themes:
             Style(color=palette.blue, bgcolor=palette.blue_sub_background),
             Style(color=palette.purple, bgcolor=palette.purple_background),
             Style(color=palette.orange, bgcolor=palette.orange_background),
-            Style(color=palette.grey1, bgcolor=palette.grey_background),
+            Style(color=palette.deep_blue, bgcolor=palette.deep_blue_background),
             Style(color=palette.yellow, bgcolor=palette.yellow_background),
         ],
     )
