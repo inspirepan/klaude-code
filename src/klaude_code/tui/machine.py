@@ -887,11 +887,31 @@ _NOTICE_EVENT_SPECS: dict[type[events.Event], _NoticeSpec] = {
 }
 
 
+# Commands that manage transient UI state owned by the live terminal — spinner,
+# task clock, and terminal title. A tape rebuild repaints scrollback only: those
+# globals were never disturbed by the rebuild, so re-emitting them would
+# double-apply live state (e.g. restart the task clock or the title blink).
+# `end_rebuild` re-derives the final spinner snapshot from the rebuilt state.
+_REBUILD_SUPPRESSED_COMMANDS: tuple[type[RenderCommand], ...] = (
+    SpinnerStart,
+    SpinnerStop,
+    SpinnerUpdate,
+    TaskClockStart,
+    TaskClockClear,
+    StartTitleBlink,
+    StopTitleBlink,
+    UpdateTerminalTitlePrefix,
+)
+
+
 class DisplayStateMachine:
     """Simplified, session-aware REPL UI state machine.
 
     This machine is deterministic because protocol events have explicit streaming
-    boundaries (Start/Delta/End).
+    boundaries (Start/Delta/End): handlers always run with live semantics, and a
+    transcript rebuild replays the display's event tape through
+    `transition_rebuild`, which reconstructs the same state and filters only the
+    transient-UI commands.
     """
 
     # Event-type -> handler dispatch table, derived from the `_handle_<EventName>`
@@ -967,10 +987,6 @@ class DisplayStateMachine:
 
     def _is_primary(self, session_id: str) -> bool:
         return self._primary_session_id == session_id
-
-    def _set_primary_if_needed(self, session_id: str) -> None:
-        if self._primary_session_id is None:
-            self._primary_session_id = session_id
 
     def _abort_active_sub_agent_sessions(
         self,
@@ -1228,7 +1244,7 @@ class DisplayStateMachine:
             )
         ]
 
-    def _render_config_notice(self, e: events.Event, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+    def _render_config_notice(self, e: events.Event, *, s: _SessionState) -> list[RenderCommand]:
         """Handler shared by every event in `_NOTICE_EVENT_SPECS`."""
         spec = _NOTICE_EVENT_SPECS[type(e)]
         return [
@@ -1245,28 +1261,53 @@ class DisplayStateMachine:
         self._spinner.set_toast_status(None)
         return self._spinner_update_commands()
 
-    def begin_replay(self) -> list[RenderCommand]:
-        # Replay is a full rebuild of the terminal view; clear session state so primary-session
-        # routing is recalculated from the replayed TaskStartEvent.
+    def begin_rebuild(self) -> list[RenderCommand]:
+        # A rebuild repaints the terminal view from the display's event tape; clear
+        # session state so it is reconstructed from the taped events.
         self._reset_sessions()
         return [SpinnerStop(), PrintBlankLine()]
 
-    def end_replay(self) -> list[RenderCommand]:
-        return [SpinnerStop()]
+    def end_rebuild(self) -> list[RenderCommand]:
+        """Restore the bottom UI from the rebuilt state after a tape rebuild.
 
-    def transition_replay(self, event: events.Event) -> list[RenderCommand]:
-        return self._transition(event, is_replay=True)
+        Task clock and terminal title are process globals the rebuild never
+        disturbed, so only the spinner (stopped by ``begin_rebuild``) needs
+        to be re-derived here.
+        """
+        primary = self._sessions.get(self._primary_session_id) if self._primary_session_id is not None else None
+        running = (
+            (primary is not None and primary.task_active)
+            or bool(self._bash_mode_output_chunks_by_session)
+            or any(s.is_sub_agent and s.task_active for s in self._sessions.values())
+        )
+        if not running:
+            return [SpinnerStop()]
+        return [SpinnerStart(), *self._spinner_update_commands()]
+
+    def transition_rebuild(self, event: events.Event) -> list[RenderCommand]:
+        """Re-run a taped event to rebuild the transcript.
+
+        Handlers run with live semantics so every piece of session/spinner
+        bookkeeping is reconstructed exactly as the live pass built it; only
+        transient-UI commands are dropped (see ``_REBUILD_SUPPRESSED_COMMANDS``).
+        """
+        cmds = self._transition(event)
+        return [cmd for cmd in cmds if not isinstance(cmd, _REBUILD_SUPPRESSED_COMMANDS)]
+
+    def handles(self, event_type: type[events.Event]) -> bool:
+        """Whether this event type produces display state or output (tape criterion)."""
+        return event_type in self._EVENT_HANDLERS
 
     def transition(self, event: events.Event) -> list[RenderCommand]:
-        return self._transition(event, is_replay=False)
+        return self._transition(event)
 
-    def _transition(self, event: events.Event, *, is_replay: bool) -> list[RenderCommand]:
+    def _transition(self, event: events.Event) -> list[RenderCommand]:
         session_id = getattr(event, "session_id", "__app__")
         s = self._session(session_id)
         handler = self._EVENT_HANDLERS.get(type(event))
         if handler is None:
             return []
-        cmds = handler(self, event, is_replay=is_replay, s=s)
+        cmds = handler(self, event, s=s)
         if not self._compact and cmds:
             marker = self._maybe_time_marker(event.timestamp, cmds)
             if marker is not None:
@@ -1283,7 +1324,7 @@ class DisplayStateMachine:
         self._last_time_marker_ts = timestamp
         return RenderTimeMarker(label=_format_time_marker_label(timestamp))
 
-    def _handle_WelcomeEvent(self, e: events.WelcomeEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+    def _handle_WelcomeEvent(self, e: events.WelcomeEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         # WelcomeEvent marks (or reaffirms) the current interactive session.
         # If the session id changes (e.g., /new creates a new session), clear
@@ -1304,13 +1345,13 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_WelcomeContextEvent(
-        self, e: events.WelcomeContextEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.WelcomeContextEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
-        del is_replay, s
+        del s
         return [RenderWelcomeContext(e)]
 
     def _handle_UserMessageEvent(
-        self, e: events.UserMessageEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.UserMessageEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
@@ -1319,23 +1360,22 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_BashCommandStartEvent(
-        self, e: events.BashCommandStartEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.BashCommandStartEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             return []
         self._bash_mode_output_chunks_by_session[e.session_id] = []
-        if not is_replay:
-            self._spinner.enter_running()
-            cmds.append(TaskClockStart())
-            cmds.append(SpinnerStart())
-            cmds.extend(self._spinner_update_commands())
+        self._spinner.enter_running()
+        cmds.append(TaskClockStart())
+        cmds.append(SpinnerStart())
+        cmds.extend(self._spinner_update_commands())
 
         cmds.append(RenderBashCommandStart(e))
         return cmds
 
     def _handle_BashCommandOutputDeltaEvent(
-        self, e: events.BashCommandOutputDeltaEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.BashCommandOutputDeltaEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
@@ -1347,7 +1387,7 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_BashCommandEndEvent(
-        self, e: events.BashCommandEndEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.BashCommandEndEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
@@ -1378,16 +1418,15 @@ class DisplayStateMachine:
             )
         )
 
-        if not is_replay:
-            self._spinner.enter_waiting()
-            cmds.append(TaskClockClear())
-            cmds.append(SpinnerStop())
-            cmds.extend(self._spinner_update_commands())
+        self._spinner.enter_waiting()
+        cmds.append(TaskClockClear())
+        cmds.append(SpinnerStop())
+        cmds.extend(self._spinner_update_commands())
 
         return cmds
 
     def _handle_TaskStartEvent(
-        self, e: events.TaskStartEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.TaskStartEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         s.sub_agent_state = e.sub_agent_state
@@ -1416,55 +1455,47 @@ class DisplayStateMachine:
         if not s.is_sub_agent:
             # Keep primary session tracking in sync even if the session id changes
             # during the process lifetime (e.g., /new).
-            if is_replay:
-                self._set_primary_if_needed(e.session_id)
-            else:
-                self._primary_session_id = e.session_id
-            if not is_replay:
-                cmds.append(TaskClockStart())
-                self._terminal_title_prefix = "◐"
-                cmds.append(
-                    StartTitleBlink(
-                        model_name=self._model_name,
-                        session_title=self._session_title,
-                    )
+            self._primary_session_id = e.session_id
+            cmds.append(TaskClockStart())
+            self._terminal_title_prefix = "◐"
+            cmds.append(
+                StartTitleBlink(
+                    model_name=self._model_name,
+                    session_title=self._session_title,
                 )
+            )
 
-        if not is_replay:
-            cmds.append(SpinnerStart())
+        cmds.append(SpinnerStart())
         cmds.append(RenderTaskStart(e))
         if s.is_sub_agent and s.terminal_status is not None:
             cmds.extend(self._maybe_finish_sub_agent_batch(s))
-        if not is_replay:
-            cmds.extend(self._spinner_update_commands())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_CompactionStartEvent(
-        self, e: events.CompactionStartEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.CompactionStartEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
-        if not is_replay:
-            if e.reason == "handoff":
-                self._spinner.clear_tool_calls()
-                self._spinner.set_reasoning_status(STATUS_HANDOFF_TEXT)
-            else:
-                self._spinner.enter_compacting()
-            if not s.task_active:
-                cmds.append(SpinnerStart())
-            cmds.extend(self._spinner_update_commands())
+        if e.reason == "handoff":
+            self._spinner.clear_tool_calls()
+            self._spinner.set_reasoning_status(STATUS_HANDOFF_TEXT)
+        else:
+            self._spinner.enter_compacting()
+        if not s.task_active:
+            cmds.append(SpinnerStart())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_CompactionEndEvent(
-        self, e: events.CompactionEndEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.CompactionEndEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if e.reason != "handoff" and not e.aborted and not s.is_sub_agent and self._is_primary(e.session_id):
             self._spinner.notify_compaction()
-        if not is_replay:
-            self._spinner.enter_waiting()
-            if not s.task_active:
-                cmds.append(SpinnerStop())
-            cmds.extend(self._spinner_update_commands())
+        self._spinner.enter_waiting()
+        if not s.task_active:
+            cmds.append(SpinnerStop())
+        cmds.extend(self._spinner_update_commands())
         if e.summary and not e.aborted and self._visible(e, s):
             if e.reason == "handoff":
                 cmds.append(RenderHandoff(summary=e.summary))
@@ -1474,7 +1505,7 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_ForkCacheHitRateEvent(
-        self, e: events.ForkCacheHitRateEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ForkCacheHitRateEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
@@ -1493,7 +1524,7 @@ class DisplayStateMachine:
         )
         return cmds
 
-    def _handle_RewindEvent(self, e: events.RewindEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+    def _handle_RewindEvent(self, e: events.RewindEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(
             RenderRewind(
@@ -1507,14 +1538,14 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_DeveloperMessageEvent(
-        self, e: events.DeveloperMessageEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.DeveloperMessageEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(RenderDeveloperMessage(e))
         return cmds
 
     def _handle_SessionTitleChangedEvent(
-        self, e: events.SessionTitleChangedEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.SessionTitleChangedEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         self._session_title = e.title
@@ -1527,56 +1558,56 @@ class DisplayStateMachine:
         )
         return cmds
 
-    def _handle_NoticeEvent(self, e: events.NoticeEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+    def _handle_NoticeEvent(self, e: events.NoticeEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(RenderNotice(e))
         return cmds
 
     def _handle_AwaySummaryEvent(
-        self, e: events.AwaySummaryEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.AwaySummaryEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(RenderAwaySummary(e))
         return cmds
 
     def _handle_AwaySummaryStartEvent(
-        self, e: events.AwaySummaryStartEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.AwaySummaryStartEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
+        del e
         cmds: list[RenderCommand] = []
-        if not is_replay:
-            self._spinner.enter_recapping()
-            if not s.task_active:
-                cmds.append(SpinnerStart())
-            cmds.extend(self._spinner_update_commands())
+        self._spinner.enter_recapping()
+        if not s.task_active:
+            cmds.append(SpinnerStart())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_AwaySummaryEndEvent(
-        self, e: events.AwaySummaryEndEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.AwaySummaryEndEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
+        del e
         cmds: list[RenderCommand] = []
-        if not is_replay:
-            self._spinner.enter_waiting()
-            if not s.task_active:
-                cmds.append(SpinnerStop())
-            cmds.extend(self._spinner_update_commands())
+        self._spinner.enter_waiting()
+        if not s.task_active:
+            cmds.append(SpinnerStop())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_SessionStatsEvent(
-        self, e: events.SessionStatsEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.SessionStatsEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(RenderSessionStats(e))
         return cmds
 
     def _handle_ContextUsageEvent(
-        self, e: events.ContextUsageEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ContextUsageEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(RenderContextUsage(e))
         return cmds
 
     def _handle_OperationRejectedEvent(
-        self, e: events.OperationRejectedEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.OperationRejectedEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(
@@ -1594,161 +1625,140 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_StepStartEvent(
-        self, e: events.StepStartEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.StepStartEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
+        del e
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             s.step_count += 1
             s.reset_thinking()
-        if not is_replay:
-            if s.is_sub_agent:
-                s.start_status_step()
-            else:
-                self._spinner.clear_for_new_step()
-                self._spinner.enter_waiting()
-            cmds.extend(self._spinner_update_commands())
+            s.start_status_step()
+        else:
+            self._spinner.clear_for_new_step()
+            self._spinner.enter_waiting()
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_ThinkingStartEvent(
-        self, e: events.ThinkingStartEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ThinkingStartEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             s.start_thinking(e.timestamp)
-            if not is_replay:
-                cmds.extend(self._spinner_update_commands())
+            cmds.extend(self._spinner_update_commands())
             return cmds
         if not self._is_primary(e.session_id):
             return []
         s.start_thinking(e.timestamp)
         # Ensure the status reflects that reasoning has started even
         # before we receive any deltas.
-        if not is_replay:
-            self._spinner.enter_thinking()
+        self._spinner.enter_thinking()
         if not self._compact:
             cmds.append(StartThinkingStream(session_id=e.session_id))
-        if not is_replay:
-            cmds.extend(self._spinner_update_commands())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_ThinkingDeltaEvent(
-        self, e: events.ThinkingDeltaEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ThinkingDeltaEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             s.append_thinking(e.content, retain_content=not self._compact)
-            if not is_replay:
-                cmds.extend(self._spinner_update_commands())
+            cmds.extend(self._spinner_update_commands())
             return cmds
 
         if not self._is_primary(e.session_id):
             return []
         s.append_thinking(e.content)
-        if not is_replay:
-            self._spinner.set_thinking_buffer_length(s.thinking_char_count)
+        self._spinner.set_thinking_buffer_length(s.thinking_char_count)
         if not self._compact:
             cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
-        if not is_replay:
-            cmds.extend(self._spinner_update_commands())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_ThinkingEndEvent(
-        self, e: events.ThinkingEndEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ThinkingEndEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             content = s.finish_thinking()
             if self._visible(e, s) and content.strip():
                 cmds.append(RenderSubAgentThinking(e.session_id, content))
-            if not is_replay:
-                cmds.extend(self._spinner_update_commands())
+            cmds.extend(self._spinner_update_commands())
             return cmds
         if not self._is_primary(e.session_id):
             return []
         s.reset_thinking()
-        if not is_replay:
-            self._spinner.clear_default_reasoning_status()
+        self._spinner.clear_default_reasoning_status()
         # Pairs with the StartThinkingStream gate: compact mode never opens a
         # thinking stream, and leaves nothing behind in the transcript either.
         if not self._compact:
             cmds.append(EndThinkingStream(session_id=e.session_id))
-        if not is_replay:
-            cmds.append(SpinnerStart())
-            cmds.extend(self._spinner_update_commands())
+        cmds.append(SpinnerStart())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_AssistantTextStartEvent(
-        self, e: events.AssistantTextStartEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.AssistantTextStartEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            if not is_replay:
-                s.status_composing = True
-                s.assistant_char_count = 0
-                cmds.extend(self._spinner_update_commands())
+            s.status_composing = True
+            s.assistant_char_count = 0
+            cmds.extend(self._spinner_update_commands())
             return cmds
         if not self._is_primary(e.session_id):
             return []
 
         s.assistant_stream_active = True
         s.assistant_char_count = 0
-        if not is_replay:
-            self._spinner.set_composing(True)
-            self._spinner.clear_tool_calls()
+        self._spinner.set_composing(True)
+        self._spinner.clear_tool_calls()
         cmds.append(StartAssistantStream(session_id=e.session_id))
-        if not is_replay:
-            cmds.extend(self._spinner_update_commands())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_AssistantTextDeltaEvent(
-        self, e: events.AssistantTextDeltaEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.AssistantTextDeltaEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             s.assistant_char_count += len(e.content)
-            if not is_replay:
-                cmds.extend(self._spinner_update_commands())
+            cmds.extend(self._spinner_update_commands())
             return cmds
         if not self._is_primary(e.session_id):
             return []
 
         s.assistant_char_count += len(e.content)
-        if not is_replay:
-            self._spinner.set_buffer_length(s.assistant_char_count)
+        self._spinner.set_buffer_length(s.assistant_char_count)
         cmds.append(AppendAssistant(session_id=e.session_id, content=e.content))
-        if not is_replay:
-            cmds.extend(self._spinner_update_commands())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_AssistantTextEndEvent(
-        self, e: events.AssistantTextEndEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.AssistantTextEndEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            if not is_replay:
-                s.status_composing = False
-                cmds.extend(self._spinner_update_commands())
+            s.status_composing = False
+            cmds.extend(self._spinner_update_commands())
             return cmds
         if not self._is_primary(e.session_id):
             return []
 
         s.assistant_stream_active = False
-        if not is_replay:
-            self._spinner.set_composing(False)
+        self._spinner.set_composing(False)
         cmds.append(EndAssistantStream(session_id=e.session_id))
-        if not is_replay:
-            cmds.append(SpinnerStart())
-            cmds.extend(self._spinner_update_commands())
+        cmds.append(SpinnerStart())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_ResponseCompleteEvent(
-        self, e: events.ResponseCompleteEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ResponseCompleteEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
-            if not is_replay:
-                s.status_composing = False
-                cmds.extend(self._spinner_update_commands())
+            s.status_composing = False
             return []
         if not self._is_primary(e.session_id):
             return []
@@ -1768,14 +1778,13 @@ class DisplayStateMachine:
             s.assistant_stream_active = False
             cmds.append(EndAssistantStream(session_id=e.session_id))
 
-        if not is_replay:
-            self._spinner.set_composing(False)
-            cmds.append(SpinnerStart())
-            cmds.extend(self._spinner_update_commands())
+        self._spinner.set_composing(False)
+        cmds.append(SpinnerStart())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_ToolCallStartEvent(
-        self, e: events.ToolCallStartEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ToolCallStartEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         # Defensive: ensure any active main-session streams are finalized
@@ -1789,16 +1798,15 @@ class DisplayStateMachine:
                 primary.thinking_stream_active = False
                 cmds.append(EndThinkingStream(session_id=primary.session_id))
 
-        if not is_replay:
-            if s.is_sub_agent:
-                s.status_composing = False
-                s.set_tool_activity(e.tool_call_id, e.tool_name)
-            else:
-                self._spinner.set_composing(False)
+        if s.is_sub_agent:
+            s.status_composing = False
+            s.set_tool_activity(e.tool_call_id, e.tool_name)
+        else:
+            self._spinner.set_composing(False)
 
         # Skip activity state for fast tools on non-streaming models (e.g., Gemini)
         # to avoid flash-and-disappear effect
-        if not is_replay and not s.should_skip_tool_activity(e.tool_name):
+        if not s.should_skip_tool_activity(e.tool_name):
             tool_active_form = get_tool_active_form(e.tool_name)
             if s.is_sub_agent:
                 s.add_status_tool_call(e.tool_call_id, tool_active_form)
@@ -1807,12 +1815,11 @@ class DisplayStateMachine:
             else:
                 self._spinner.add_tool_call(tool_active_form, e.tool_call_id)
 
-        if not is_replay:
-            cmds.extend(self._spinner_update_commands())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_ToolCallEvent(
-        self, e: events.ToolCallEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ToolCallEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         # Same defensive behavior for tool calls that arrive without a
@@ -1833,8 +1840,7 @@ class DisplayStateMachine:
             s.reset_thinking()
 
         if (
-            not is_replay
-            and not s.is_sub_agent
+            not s.is_sub_agent
             and self._compact
             and e.tool_name == tools.BASH
             and not s.should_skip_tool_activity(e.tool_name)
@@ -1848,15 +1854,14 @@ class DisplayStateMachine:
             self._spinner.add_tool_call(activity, e.tool_call_id)
             cmds.extend(self._spinner_update_commands())
 
-        if not is_replay:
-            if e.tool_name == tools.AGENT and not s.should_skip_tool_activity(e.tool_name):
-                tool_active_form = get_agent_active_form(e.arguments)
-                if s.is_sub_agent:
-                    s.add_status_tool_call(e.tool_call_id, tool_active_form)
-                else:
-                    self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
-            if s.is_sub_agent or e.tool_name == tools.AGENT:
-                cmds.extend(self._spinner_update_commands())
+        if e.tool_name == tools.AGENT and not s.should_skip_tool_activity(e.tool_name):
+            tool_active_form = get_agent_active_form(e.arguments)
+            if s.is_sub_agent:
+                s.add_status_tool_call(e.tool_call_id, tool_active_form)
+            else:
+                self._spinner.add_sub_agent_tool_call(e.tool_call_id, tool_active_form)
+        if s.is_sub_agent or e.tool_name == tools.AGENT:
+            cmds.extend(self._spinner_update_commands())
 
         if not s.is_sub_agent and e.tool_name == tools.BASH:
             self._pending_bash_tool_outputs[e.tool_call_id] = _PendingBashToolOutput(
@@ -1869,9 +1874,10 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_ToolLongRunningEvent(
-        self, e: events.ToolLongRunningEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ToolLongRunningEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
-        if is_replay or e.tool_name == tools.AGENT:
+        del s
+        if e.tool_name == tools.AGENT:
             return []
         return [
             RenderNotice(
@@ -1884,7 +1890,7 @@ class DisplayStateMachine:
         ]
 
     def _handle_ToolOutputDeltaEvent(
-        self, e: events.ToolOutputDeltaEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ToolOutputDeltaEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent or e.tool_name != tools.BASH:
@@ -1913,7 +1919,7 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_ToolResultEvent(
-        self, e: events.ToolResultEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.ToolResultEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         linked_sub_agent: _SessionState | None = None
@@ -1923,11 +1929,11 @@ class DisplayStateMachine:
             if linked_sub_agent.sub_agent_state is None:
                 self._pending_sub_agent_results[e.ui_extra.session_id] = e
         pending = self._pending_bash_tool_outputs.pop(e.tool_call_id, None)
-        if not is_replay and s.is_sub_agent:
+        if s.is_sub_agent:
             s.finish_status_tool_call(e.tool_call_id)
             s.finish_tool_activity(e.tool_call_id, e.tool_name, e.status)
             cmds.extend(self._spinner_update_commands())
-        elif not is_replay and is_sub_agent_tool(e.tool_name):
+        elif is_sub_agent_tool(e.tool_name):
             self._spinner.finish_sub_agent_tool_call(e.tool_call_id)
             if e.is_error and isinstance(e.ui_extra, SessionIdUIExtra):
                 failed_sub_session = self._sessions.get(e.ui_extra.session_id)
@@ -1935,7 +1941,7 @@ class DisplayStateMachine:
                     failed_sub_session.task_active = False
                     failed_sub_session.clear_status_activity()
             cmds.extend(self._spinner_update_commands())
-        elif not is_replay:
+        else:
             self._spinner.finish_tool_call(e.tool_call_id)
             cmds.extend(self._spinner_update_commands())
 
@@ -1962,8 +1968,7 @@ class DisplayStateMachine:
                 linked_sub_agent.task_result = e.result
                 linked_sub_agent.result_summary = c_sub_agent.extract_result_summary(e.result)
             cmds.extend(self._maybe_finish_sub_agent_batch(linked_sub_agent))
-            if not is_replay:
-                cmds.extend(self._spinner_update_commands())
+            cmds.extend(self._spinner_update_commands())
         elif e.tool_name == tools.AGENT and linked_sub_agent is None and e.is_error and e.response_id:
             self._unspawned_sub_agents_by_batch[e.response_id] = (
                 self._unspawned_sub_agents_by_batch.get(e.response_id, 0) + 1
@@ -1983,7 +1988,7 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_TaskMetadataEvent(
-        self, e: events.TaskMetadataEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.TaskMetadataEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
@@ -1994,7 +1999,7 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_TaskFileChangeSummaryEvent(
-        self, e: events.TaskFileChangeSummaryEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.TaskFileChangeSummaryEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(EndThinkingStream(e.session_id))
@@ -2002,7 +2007,7 @@ class DisplayStateMachine:
         cmds.append(RenderTaskFileChangeSummary(e))
         return cmds
 
-    def _handle_UsageEvent(self, e: events.UsageEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+    def _handle_UsageEvent(self, e: events.UsageEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         # UsageEvent is not rendered, but it drives context % display.
         if s.is_sub_agent:
@@ -2010,12 +2015,11 @@ class DisplayStateMachine:
         if not self._is_primary(e.session_id):
             return []
         self._spinner.set_context_usage(e.usage)
-        if not is_replay:
-            cmds.extend(self._spinner_update_commands())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_CacheHitRateEvent(
-        self, e: events.CacheHitRateEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.CacheHitRateEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
@@ -2023,15 +2027,14 @@ class DisplayStateMachine:
         if not self._is_primary(e.session_id):
             return []
         self._spinner.set_cache_hit_rate(e.cache_hit_rate)
-        if not is_replay:
-            cmds.extend(self._spinner_update_commands())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_StepEndEvent(self, e: events.StepEndEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+    def _handle_StepEndEvent(self, e: events.StepEndEvent, *, s: _SessionState) -> list[RenderCommand]:
         return []
 
     def _handle_TaskFinishEvent(
-        self, e: events.TaskFinishEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.TaskFinishEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         s.task_active = False
@@ -2066,8 +2069,7 @@ class DisplayStateMachine:
         # assistant deltas (or without the display consuming them). In that case,
         # fall back to rendering the final task result to avoid a "blank" step.
         if (
-            not is_replay
-            and not s.is_sub_agent
+            not s.is_sub_agent
             and s.assistant_char_count == 0
             and e.task_result.strip()
             and not is_cancelled_task_result(e.task_result)
@@ -2076,7 +2078,7 @@ class DisplayStateMachine:
             cmds.append(AppendAssistant(session_id=e.session_id, content=e.task_result))
             cmds.append(EndAssistantStream(session_id=e.session_id))
 
-        if not s.is_sub_agent and not is_replay:
+        if not s.is_sub_agent:
             cmds.append(TaskClockClear())
             self._spinner.clear_task_state()
             cmds.append(SpinnerStop())
@@ -2089,17 +2091,16 @@ class DisplayStateMachine:
                     session_title=self._session_title,
                 )
             )
-        elif not is_replay:
+        else:
             cmds.extend(self._spinner_update_commands())
         return cmds
 
     def _handle_InterruptEvent(
-        self, e: events.InterruptEvent, *, is_replay: bool, s: _SessionState
+        self, e: events.InterruptEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
-        if not is_replay:
-            self._spinner.clear_task_state()
-            cmds.append(SpinnerStop())
+        self._spinner.clear_task_state()
+        cmds.append(SpinnerStop())
         s.task_active = False
         s.clear_status_activity()
         if s.is_sub_agent:
@@ -2118,22 +2119,21 @@ class DisplayStateMachine:
         if not s.is_sub_agent:
             cmds.append(EndThinkingStream(session_id=e.session_id))
             cmds.append(EndAssistantStream(session_id=e.session_id))
-        if not is_replay:
-            cmds.append(TaskClockClear())
-            if not s.is_sub_agent:
-                cmds.append(StopTitleBlink())
-                cmds.append(
-                    UpdateTerminalTitlePrefix(
-                        prefix=self._terminal_title_prefix,
-                        model_name=self._model_name,
-                        session_title=self._session_title,
-                    )
+        cmds.append(TaskClockClear())
+        if not s.is_sub_agent:
+            cmds.append(StopTitleBlink())
+            cmds.append(
+                UpdateTerminalTitlePrefix(
+                    prefix=self._terminal_title_prefix,
+                    model_name=self._model_name,
+                    session_title=self._session_title,
                 )
+            )
         if e.show_notice:
             cmds.append(RenderInterrupt())
         return cmds
 
-    def _handle_ErrorEvent(self, e: events.ErrorEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+    def _handle_ErrorEvent(self, e: events.ErrorEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if not e.can_retry:
             s.task_active = False
@@ -2148,7 +2148,7 @@ class DisplayStateMachine:
                 s.result_summary = c_sub_agent.extract_result_summary(e.error_message)
                 cmds.extend(self._maybe_finish_sub_agent_batch(s))
         cmds.append(RenderError(e))
-        if not is_replay and not e.can_retry:
+        if not e.can_retry:
             self._spinner.clear_task_state()
             cmds.append(SpinnerStop())
             if not s.is_sub_agent:
@@ -2168,25 +2168,24 @@ class DisplayStateMachine:
                         result=e.error_message,
                     )
                 )
-        if not is_replay:
-            cmds.extend(self._spinner_update_commands())
+        cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_EndEvent(self, e: events.EndEvent, *, is_replay: bool, s: _SessionState) -> list[RenderCommand]:
+    def _handle_EndEvent(self, e: events.EndEvent, *, s: _SessionState) -> list[RenderCommand]:
+        del e, s
         cmds: list[RenderCommand] = []
-        if not is_replay:
-            self._spinner.reset()
-            cmds.append(SpinnerStop())
-            cmds.append(TaskClockClear())
-            cmds.append(StopTitleBlink())
-            self._terminal_title_prefix = None
-            cmds.append(
-                UpdateTerminalTitlePrefix(
-                    prefix=self._terminal_title_prefix,
-                    model_name=self._model_name,
-                    session_title=self._session_title,
-                )
+        self._spinner.reset()
+        cmds.append(SpinnerStop())
+        cmds.append(TaskClockClear())
+        cmds.append(StopTitleBlink())
+        self._terminal_title_prefix = None
+        cmds.append(
+            UpdateTerminalTitlePrefix(
+                prefix=self._terminal_title_prefix,
+                model_name=self._model_name,
+                session_title=self._session_title,
             )
+        )
         return cmds
 
 

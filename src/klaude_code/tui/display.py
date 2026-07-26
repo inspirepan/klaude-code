@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Callable, Coroutine
+from collections.abc import Callable, Coroutine, Sequence
 from typing import Any, override
 
 from klaude_code.app.ports import DisplayABC
+from klaude_code.control.event_tape import EventTape
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
 from klaude_code.tui.commands import PromptStatusLine
@@ -47,7 +48,10 @@ class TUIDisplay(DisplayABC):
 
         self._sigint_toast_clear_handle: asyncio.Handle | None = None
         self._bg_tasks: set[asyncio.Task[None]] = set()
-        self._clear_before_next_replay = False
+        # Everything the display has consumed, so a transcript rebuild (Ctrl+O
+        # detail toggle, /refresh) can repaint the screen without asking the
+        # runtime — including in-flight turns that are not persisted yet.
+        self._tape = EventTape()
 
     @property
     def transcript_detail(self) -> Detail:
@@ -55,11 +59,6 @@ class TUIDisplay(DisplayABC):
 
     @property
     def compact_transcript(self) -> bool:
-        return self._detail.is_compact
-
-    def toggle_transcript_mode(self) -> bool:
-        self._detail.toggle()
-        self._clear_before_next_replay = True
         return self._detail.is_compact
 
     def _create_bg_task(self, coro: Coroutine[Any, Any, None]) -> None:
@@ -71,39 +70,8 @@ class TUIDisplay(DisplayABC):
     async def consume_envelope(self, envelope: events.EventEnvelope) -> None:
         event = envelope.event
         if isinstance(event, events.ReplayHistoryEvent):
-            # Replay does not need streaming UI; disable prompt live rendering
-            # while reconstructing stable scrollback history.
-            self._renderer.set_stream_renderable(None)
-            self._renderer.set_replay_mode(True)
-            self._renderer.reset_replay_state()
-            try:
-                # Render the whole transcript into memory first (yielding per
-                # event so the pure-CPU render loop doesn't starve the event
-                # loop), then flush it in a single scrollback write. Routing
-                # per-event output through the stdout proxy instead paints the
-                # history as dozens of frame-sized chunks, each paying a CPR
-                # round trip and a bottom-UI redraw.
-                with self._renderer.bulk_render_capture() as buffer:
-                    await self._renderer.execute(self._machine.begin_replay())
-                    for item in event.events:
-                        log_debug(
-                            f"[Replay] [{item.__class__.__name__}]",
-                            lambda item=item: item.model_dump_json(exclude_none=True),
-                            debug_type=DebugType.UI_EVENT,
-                        )
-
-                        commands = self._machine.transition_replay(item)
-                        if commands:
-                            await self._renderer.execute(commands)
-                        await asyncio.sleep(0)
-                    await self._renderer.execute(self._machine.end_replay())
-                await write_scrollback_bulk(
-                    buffer.getvalue(),
-                    clear_screen=self._clear_before_next_replay,
-                )
-            finally:
-                self._clear_before_next_replay = False
-                self._renderer.set_replay_mode(False)
+            self._tape.record(event)
+            await self._render_events_to_scrollback(event.events, clear_screen=False)
             self._restore_prompt_suggestion_from_replay(event.events)
             return
 
@@ -112,10 +80,67 @@ class TUIDisplay(DisplayABC):
             lambda: event.model_dump_json(exclude_none=True),
             debug_type=DebugType.UI_EVENT,
         )
+        # Display-local control events: not recorded on the tape (they describe
+        # the rebuild, not the transcript) and handled inside this serialized
+        # consumer so a rebuild can never interleave with a live event.
+        if isinstance(event, events.ToggleTranscriptDetailEvent):
+            self._detail.toggle()
+            await self._render_events_to_scrollback(self._tape.snapshot(), clear_screen=True)
+            return
+        if isinstance(event, events.RefreshDisplayEvent):
+            await self._render_events_to_scrollback(self._tape.snapshot(), clear_screen=True)
+            return
+
         self._handle_prompt_suggestion_event(event)
+        if self._machine.handles(type(event)):
+            self._tape.record(event)
         commands = self._machine.transition(event)
         if commands:
             await self._renderer.execute(commands)
+
+    async def _render_events_to_scrollback(self, items: Sequence[events.Event], *, clear_screen: bool) -> None:
+        """Rebuild machine state and scrollback from `items` in one bulk paint.
+
+        Used both to consume a ReplayHistoryEvent (append below the banner) and
+        to repaint the whole screen from the tape (toggle / refresh, with
+        clear). The machine re-runs every event with live semantics, so after
+        the rebuild its state matches what live consumption had built — open
+        streams and running sub-agents included — and subsequent live events
+        continue seamlessly.
+        """
+        # A rebuild does not need streaming UI; disable prompt live rendering
+        # while reconstructing stable scrollback history.
+        self._renderer.set_stream_renderable(None)
+        self._renderer.set_replay_mode(True)
+        self._renderer.reset_replay_state()
+        try:
+            # Render the whole transcript into memory first (yielding per
+            # event so the pure-CPU render loop doesn't starve the event
+            # loop), then flush it in a single scrollback write. Routing
+            # per-event output through the stdout proxy instead paints the
+            # history as dozens of frame-sized chunks, each paying a CPR
+            # round trip and a bottom-UI redraw.
+            with self._renderer.bulk_render_capture() as buffer:
+                await self._renderer.execute(self._machine.begin_rebuild())
+                for item in items:
+                    log_debug(
+                        f"[Rebuild] [{item.__class__.__name__}]",
+                        lambda item=item: item.model_dump_json(exclude_none=True),
+                        debug_type=DebugType.UI_EVENT,
+                    )
+
+                    commands = self._machine.transition_rebuild(item)
+                    if commands:
+                        await self._renderer.execute(commands)
+                    await asyncio.sleep(0)
+                await self._renderer.execute(self._machine.end_rebuild())
+                self._renderer.flush_rebuild_tails()
+            await write_scrollback_bulk(
+                buffer.getvalue(),
+                clear_screen=clear_screen,
+            )
+        finally:
+            self._renderer.set_replay_mode(False)
 
     def _set_prompt_suggestion(self, text: str | None) -> None:
         if self._on_prompt_suggestion is None:

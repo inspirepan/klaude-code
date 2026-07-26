@@ -1,7 +1,3 @@
-from klaude_code.agent.skill_inventory import (
-    get_skill_names_by_location,
-    get_skill_warnings_by_location,
-)
 from klaude_code.protocol import events, message
 
 from .command_abc import Agent, CommandABC, CommandResult
@@ -25,24 +21,9 @@ class RefreshTerminalCommand(CommandABC):
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
-        import os
-
-        os.system("cls" if os.name == "nt" else "clear")
-
+        # The display clears the terminal and repaints the transcript from its
+        # event tape — the same rebuild path Ctrl+O uses — so the banner and
+        # any in-flight turn survive the refresh.
         return CommandResult(
-            events=[
-                events.WelcomeEvent(
-                    session_id=agent.session.id,
-                    work_dir=str(agent.session.work_dir),
-                    llm_config=agent.get_llm_client().get_llm_config(),
-                    loaded_skills=get_skill_names_by_location(),
-                    loaded_skill_warnings=get_skill_warnings_by_location(),
-                ),
-                events.ReplayHistoryEvent(
-                    session_id=agent.session.id,
-                    events=list(agent.session.get_history_item()),
-                    updated_at=agent.session.updated_at,
-                    is_load=False,
-                ),
-            ],
+            events=[events.RefreshDisplayEvent(session_id=agent.session.id)],
         )

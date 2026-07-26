@@ -11,6 +11,7 @@ from prompt_toolkit.keys import Keys
 
 from klaude_code.protocol import events
 from klaude_code.protocol.models import SubAgentState, TaskMetadata, TaskMetadataItem, Usage
+from klaude_code.tui import display as display_module
 from klaude_code.tui import runner as runner_module
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.key_bindings import create_key_bindings
@@ -19,13 +20,31 @@ from klaude_code.tui.runner import toggle_transcript_view
 from klaude_code.tui.transcript_detail import Detail
 
 
-class _Display:
-    def __init__(self) -> None:
-        self.toggle_count = 0
+def make_envelope(event: events.Event) -> events.EventEnvelope:
+    event_type = events.event_type_name(event)
+    return events.EventEnvelope(
+        event_id="test-event",
+        event_seq=1,
+        session_id=event.session_id,
+        operation_id=None,
+        task_id=None,
+        causation_id=None,
+        event_type=event_type,
+        durability=events.event_durability(event_type),
+        timestamp=event.timestamp,
+        event=event,
+    )
 
-    def toggle_transcript_mode(self) -> bool:
-        self.toggle_count += 1
-        return False
+
+def patch_scrollback_writes(monkeypatch: Any) -> list[tuple[str, bool]]:
+    """Capture (payload, clear_screen) pairs instead of writing the terminal."""
+    writes: list[tuple[str, bool]] = []
+
+    async def _fake_write(payload: str, clear_screen: bool = False) -> None:
+        writes.append((payload, clear_screen))
+
+    monkeypatch.setattr(display_module, "write_scrollback_bulk", _fake_write)
+    return writes
 
 
 def test_ctrl_o_requests_transcript_toggle() -> None:
@@ -119,66 +138,93 @@ def test_renderer_switches_error_detail_between_compact_and_expanded() -> None:
     assert "Report: /tmp/cache-break.txt" in expanded.getvalue()
 
 
-def test_display_toggle_is_process_local() -> None:
-    display = TUIDisplay()
-    assert display.compact_transcript is True
-    assert display.toggle_transcript_mode() is False
-    assert display.compact_transcript is False
-    assert TUIDisplay().compact_transcript is True
+def test_display_toggle_is_process_local(monkeypatch: Any) -> None:
+    async def _test() -> None:
+        patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        assert display.compact_transcript is True
+
+        await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="s1")))
+
+        assert display.compact_transcript is False
+        assert TUIDisplay().compact_transcript is True
+
+    asyncio.run(_test())
 
 
-def test_toggle_transcript_replays_when_idle(monkeypatch: Any) -> None:
+def test_toggle_emits_control_event_and_settles(monkeypatch: Any) -> None:
     async def _test() -> None:
         runtime = SimpleNamespace(
             current_session_id=lambda: "session-1",
             emit_event=AsyncMock(),
-            replay_session_history=AsyncMock(),
         )
-        display = _Display()
         wait_for_display_idle = AsyncMock()
         settle = AsyncMock()
         monkeypatch.setattr(runner_module, "settle_flicker_safe_stdout", settle)
 
         toggled = await toggle_transcript_view(
             runtime=cast(Any, runtime),
-            display=cast(Any, display),
-            is_agent_running=lambda: False,
             wait_for_display_idle=wait_for_display_idle,
         )
 
         assert toggled is True
-        assert display.toggle_count == 1
-        runtime.replay_session_history.assert_awaited_once_with("session-1")
+        emitted = runtime.emit_event.await_args.args[0]
+        assert isinstance(emitted, events.ToggleTranscriptDetailEvent)
+        assert emitted.session_id == "session-1"
         wait_for_display_idle.assert_awaited_once()
         settle.assert_awaited_once()
 
     asyncio.run(_test())
 
 
-def test_toggle_transcript_is_rejected_while_running(monkeypatch: Any) -> None:
+def test_toggle_without_session_is_a_noop(monkeypatch: Any) -> None:
     async def _test() -> None:
         runtime = SimpleNamespace(
-            current_session_id=lambda: "session-1",
+            current_session_id=lambda: None,
             emit_event=AsyncMock(),
-            replay_session_history=AsyncMock(),
         )
-        display = _Display()
         settle = AsyncMock()
         monkeypatch.setattr(runner_module, "settle_flicker_safe_stdout", settle)
 
         toggled = await toggle_transcript_view(
             runtime=cast(Any, runtime),
-            display=cast(Any, display),
-            is_agent_running=lambda: True,
             wait_for_display_idle=AsyncMock(),
         )
 
         assert toggled is False
-        assert display.toggle_count == 0
-        runtime.replay_session_history.assert_not_awaited()
-        emitted = runtime.emit_event.await_args.args[0]
-        assert isinstance(emitted, events.NoticeEvent)
-        assert emitted.content == "ctrl-o is available when the agent is idle."
+        runtime.emit_event.assert_not_awaited()
         settle.assert_not_awaited()
+
+    asyncio.run(_test())
+
+
+def test_toggle_rerenders_tape_with_clear(monkeypatch: Any) -> None:
+    async def _test() -> None:
+        writes = patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+
+        await display.consume_envelope(make_envelope(events.UserMessageEvent(session_id="s1", content="hello tape")))
+        await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="s1")))
+
+        assert display.transcript_detail is Detail.FULL
+        payload, clear_screen = writes[-1]
+        assert clear_screen is True
+        assert "hello tape" in payload
+
+    asyncio.run(_test())
+
+
+def test_refresh_rerenders_tape_without_toggling(monkeypatch: Any) -> None:
+    async def _test() -> None:
+        writes = patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+
+        await display.consume_envelope(make_envelope(events.UserMessageEvent(session_id="s1", content="hello tape")))
+        await display.consume_envelope(make_envelope(events.RefreshDisplayEvent(session_id="s1")))
+
+        assert display.transcript_detail is Detail.COMPACT
+        payload, clear_screen = writes[-1]
+        assert clear_screen is True
+        assert "hello tape" in payload
 
     asyncio.run(_test())

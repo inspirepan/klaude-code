@@ -490,12 +490,12 @@ def test_sub_agent_new_step_clears_interrupted_thinking() -> None:
 def test_sub_agent_replay_renders_complete_thinking() -> None:
     machine = DisplayStateMachine()
     machine.set_transcript_detail(Detail.FULL)
-    machine.transition_replay(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition_rebuild(events.TaskStartEvent(session_id="main", model_id="test-model"))
     _spawn_sub_agent(machine, "sub-1", replay=True)
-    machine.transition_replay(events.ThinkingStartEvent(session_id="sub-1", timestamp=100.0))
-    machine.transition_replay(events.ThinkingDeltaEvent(session_id="sub-1", content="你好，世界", timestamp=100.0))
+    machine.transition_rebuild(events.ThinkingStartEvent(session_id="sub-1", timestamp=100.0))
+    machine.transition_rebuild(events.ThinkingDeltaEvent(session_id="sub-1", content="你好，世界", timestamp=100.0))
 
-    ended = machine.transition_replay(events.ThinkingEndEvent(session_id="sub-1", timestamp=100.0))
+    ended = machine.transition_rebuild(events.ThinkingEndEvent(session_id="sub-1", timestamp=100.0))
 
     rendered = next(cmd for cmd in ended if isinstance(cmd, RenderSubAgentThinking))
     assert rendered.content == "你好，世界"
@@ -1590,7 +1590,7 @@ def _spawn_sub_agent(machine: DisplayStateMachine, session_id: str, *, replay: b
         parent_session_id="main",
     )
     if replay:
-        machine.transition_replay(start)
+        machine.transition_rebuild(start)
     else:
         machine.transition(start)
 

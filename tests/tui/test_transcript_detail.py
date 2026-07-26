@@ -143,7 +143,7 @@ def test_display_shares_one_holder_between_machine_and_renderer() -> None:
     display = TUIDisplay()
     assert display.transcript_detail is Detail.COMPACT
 
-    display.toggle_transcript_mode()
+    display._detail.toggle()  # pyright: ignore[reportPrivateUsage]  # what the ToggleTranscriptDetailEvent handler flips
 
     assert display.transcript_detail is Detail.FULL
     assert display.compact_transcript is False

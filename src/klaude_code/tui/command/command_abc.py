@@ -59,6 +59,7 @@ class CommandResult(BaseModel):
             | protocol_events.ThinkingChangedEvent
             | protocol_events.SubAgentModelChangedEvent
             | protocol_events.CompactModelChangedEvent
+            | protocol_events.RefreshDisplayEvent
         ]
         | None
     ) = None  # List of UI events to display immediately

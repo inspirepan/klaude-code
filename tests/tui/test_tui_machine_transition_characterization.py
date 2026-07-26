@@ -118,7 +118,7 @@ def test_task_start_primary_live_command_sequence() -> None:
 
 def test_task_start_replay_omits_clock_spinner_title() -> None:
     m = DisplayStateMachine()
-    cmds = m.transition_replay(events.TaskStartEvent(session_id="s1", model_id="test-model"))
+    cmds = m.transition_rebuild(events.TaskStartEvent(session_id="s1", model_id="test-model"))
 
     assert _types(cmds) == ["RenderTaskStart"]
 
@@ -340,7 +340,7 @@ def test_interrupt_live_full_sequence() -> None:
 
 def test_interrupt_replay_minimal_sequence() -> None:
     m = DisplayStateMachine()
-    cmds = m.transition_replay(events.InterruptEvent(session_id="s1"))
+    cmds = m.transition_rebuild(events.InterruptEvent(session_id="s1"))
     assert _types(cmds) == ["EndThinkingStream", "EndAssistantStream", "RenderInterrupt"]
 
 
@@ -403,7 +403,7 @@ def test_end_event_live_resets_everything() -> None:
 
 def test_end_event_replay_emits_nothing() -> None:
     m = DisplayStateMachine()
-    assert m.transition_replay(events.EndEvent(session_id="s1")) == []
+    assert m.transition_rebuild(events.EndEvent(session_id="s1")) == []
 
 
 # ---------------------------------------------------------------------------
@@ -456,7 +456,7 @@ def test_sub_agent_user_message_dropped() -> None:
 
 def test_replay_begin_and_end_helpers() -> None:
     m = DisplayStateMachine()
-    begin = m.begin_replay()
-    end = m.end_replay()
+    begin = m.begin_rebuild()
+    end = m.end_rebuild()
     assert _types(begin) == ["SpinnerStop", "PrintBlankLine"]
     assert _types(end) == ["SpinnerStop"]

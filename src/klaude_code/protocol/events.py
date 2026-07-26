@@ -50,6 +50,7 @@ __all__ = [
     "OperationRejectedEvent",
     "PromptSuggestionClearedEvent",
     "PromptSuggestionReadyEvent",
+    "RefreshDisplayEvent",
     "ReplayEventUnion",
     "ReplayHistoryEvent",
     "ResponseCompleteEvent",
@@ -72,6 +73,7 @@ __all__ = [
     "ThinkingEndEvent",
     "ThinkingStartEvent",
     "TodoChangeEvent",
+    "ToggleTranscriptDetailEvent",
     "ToolCallEvent",
     "ToolCallStartEvent",
     "ToolLongRunningEvent",
@@ -455,6 +457,21 @@ class EndEvent(Event):
     """Global display shutdown."""
 
     session_id: str = "__app__"
+
+
+class ToggleTranscriptDetailEvent(Event):
+    """Display-local control: flip compact/full transcript and re-render from the display's event tape.
+
+    Consumed by the interactive TUI display only; other consumers (web, relay
+    subscribers) ignore it. Never persisted and never recorded on the tape.
+    """
+
+
+class RefreshDisplayEvent(Event):
+    """Display-local control: clear the terminal and re-render the transcript from the display's event tape.
+
+    Consumed by the interactive TUI display only; other consumers ignore it.
+    """
 
 
 type ReplayEventUnion = (

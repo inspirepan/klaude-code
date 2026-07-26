@@ -28,7 +28,7 @@ def _expanded_machine() -> DisplayStateMachine:
 
 def test_first_visible_block_gets_time_marker_in_expanded_mode() -> None:
     machine = _expanded_machine()
-    cmds = machine.transition_replay(_user_message(_ts(datetime(2026, 7, 25, 19, 10))))
+    cmds = machine.transition_rebuild(_user_message(_ts(datetime(2026, 7, 25, 19, 10))))
     assert isinstance(cmds[0], RenderTimeMarker)
     assert any(isinstance(cmd, RenderUserMessage) for cmd in cmds)
 
@@ -37,43 +37,43 @@ def test_time_marker_repeats_only_after_a_new_five_minute_bucket() -> None:
     machine = _expanded_machine()
     base = datetime(2026, 7, 25, 19, 10)
 
-    first = machine.transition_replay(_user_message(_ts(base)))
+    first = machine.transition_rebuild(_user_message(_ts(base)))
     assert isinstance(first[0], RenderTimeMarker)
 
     # Same bucket (19:10-19:15): no new marker.
-    within = machine.transition_replay(_user_message(_ts(base + timedelta(minutes=2))))
+    within = machine.transition_rebuild(_user_message(_ts(base + timedelta(minutes=2))))
     assert not any(isinstance(cmd, RenderTimeMarker) for cmd in within)
 
     # New bucket (19:15-19:20): marker again.
-    later = machine.transition_replay(_user_message(_ts(base + timedelta(minutes=5))))
+    later = machine.transition_rebuild(_user_message(_ts(base + timedelta(minutes=5))))
     assert isinstance(later[0], RenderTimeMarker)
 
 
 def test_compact_mode_never_emits_time_markers() -> None:
     machine = DisplayStateMachine()  # compact by default
-    cmds = machine.transition_replay(_user_message(_ts(datetime(2026, 7, 25, 19, 10))))
+    cmds = machine.transition_rebuild(_user_message(_ts(datetime(2026, 7, 25, 19, 10))))
     assert not any(isinstance(cmd, RenderTimeMarker) for cmd in cmds)
 
 
 def test_status_only_commands_do_not_trigger_time_markers() -> None:
     machine = _expanded_machine()
     # StepStartEvent yields no commands during replay: no visible block.
-    cmds = machine.transition_replay(
+    cmds = machine.transition_rebuild(
         events.StepStartEvent(session_id="main", timestamp=_ts(datetime(2026, 7, 25, 19, 10)))
     )
     assert not any(isinstance(cmd, RenderTimeMarker) for cmd in cmds)
     # The marker state must remain unset so the next visible block still gets one.
-    follow_up = machine.transition_replay(_user_message(_ts(datetime(2026, 7, 25, 19, 11))))
+    follow_up = machine.transition_rebuild(_user_message(_ts(datetime(2026, 7, 25, 19, 11))))
     assert isinstance(follow_up[0], RenderTimeMarker)
 
 
-def test_begin_replay_resets_time_marker_state() -> None:
+def test_begin_rebuild_resets_time_marker_state() -> None:
     machine = _expanded_machine()
     ts = _ts(datetime(2026, 7, 25, 19, 10))
-    machine.transition_replay(_user_message(ts))
+    machine.transition_rebuild(_user_message(ts))
 
-    machine.begin_replay()
-    replayed = machine.transition_replay(_user_message(ts))
+    machine.begin_rebuild()
+    replayed = machine.transition_rebuild(_user_message(ts))
     assert isinstance(replayed[0], RenderTimeMarker)
 
 

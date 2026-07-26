@@ -201,25 +201,19 @@ async def _replay_session_history(runtime: RuntimeFacade, session_id: str) -> No
 async def toggle_transcript_view(
     *,
     runtime: RuntimeFacade,
-    display: TUIDisplay,
-    is_agent_running: Callable[[], bool],
     wait_for_display_idle: Callable[[], Awaitable[None]],
 ) -> bool:
-    """Toggle compact transcript detail and replay when the active agent is idle."""
+    """Toggle compact transcript detail; works while the agent is running.
+
+    The event queues behind any in-flight display work; the display flips the
+    detail level and repaints from its event tape inside the same serialized
+    consumer, so the rebuild never interleaves with a live event.
+    """
 
     session_id = runtime.current_session_id()
     if session_id is None:
         return False
-    if is_agent_running():
-        await runtime.emit_event(
-            events.NoticeEvent(
-                session_id=session_id,
-                content="ctrl-o is available when the agent is idle.",
-            )
-        )
-        return False
-    display.toggle_transcript_mode()
-    await runtime.replay_session_history(session_id)
+    await runtime.emit_event(events.ToggleTranscriptDetailEvent(session_id=session_id))
     await wait_for_display_idle()
     await settle_flicker_safe_stdout()
     return True
@@ -629,22 +623,16 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     away_summary_coordinator = AwaySummaryCoordinator(runtime=components.runtime)
     loop = asyncio.get_running_loop()
-    transcript_toggle_lock = asyncio.Lock()
     transcript_toggle_tasks: set[asyncio.Task[None]] = set()
 
     async def _toggle_transcript() -> None:
-        async with transcript_toggle_lock:
-            await toggle_transcript_view(
-                runtime=components.runtime,
-                display=tui_display,
-                is_agent_running=_active_agent_running,
-                wait_for_display_idle=components.wait_for_display_idle,
-            )
+        await toggle_transcript_view(
+            runtime=components.runtime,
+            wait_for_display_idle=components.wait_for_display_idle,
+        )
 
     def _request_toggle_transcript() -> None:
         def _start() -> None:
-            if transcript_toggle_tasks:
-                return
             task = asyncio.create_task(_toggle_transcript())
             transcript_toggle_tasks.add(task)
             task.add_done_callback(transcript_toggle_tasks.discard)

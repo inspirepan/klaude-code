@@ -308,6 +308,21 @@ class TUICommandRenderer:
         self._thinking_stream = _StreamState()
         self._clear_open_blocks()
 
+    def flush_rebuild_tails(self) -> None:
+        """Render open stream prefixes after a tape rebuild.
+
+        A rebuild that happens mid-turn ends with streams that started but have
+        not ended yet. Replay mode buffers their content without rendering, so
+        flush them once non-final here: the stabilized markdown prefix lands in
+        the rebuild capture while the stream object stays open, and live deltas
+        continue it seamlessly after the rebuild. An in-flight bash tail is
+        re-emitted to the prompt live area the same way.
+        """
+        self._flush_thinking()
+        self._flush_assistant()
+        if self._bash_stream_active:
+            self._render_bash_live_tail()
+
     @contextmanager
     def bulk_render_capture(self) -> Iterator[io.StringIO]:
         """Render into memory instead of the terminal.

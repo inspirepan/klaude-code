@@ -765,7 +765,7 @@ def test_replay_step_start_keeps_consecutive_tool_steps_grouped() -> None:
             ),
             is_sub_agent_session=False,
         ),
-        *machine.transition_replay(events.StepStartEvent(session_id=session_id)),
+        *machine.transition_rebuild(events.StepStartEvent(session_id=session_id)),
         RenderToolCall(
             event=events.ToolCallEvent(
                 session_id=session_id,

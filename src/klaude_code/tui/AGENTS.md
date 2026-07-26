@@ -12,9 +12,29 @@ dynamic UI while an agent task is running:
   out of the scrollback entirely (the live status line already reports that the
   model is reasoning, and its char count) and sub-agent internals are represented
   by a batched status/summary view. `Ctrl+O` toggles the process-local expanded
-  view while idle by clearing and replaying the current session; expanded mode
-  preserves the full transcript rendering — a live markdown stream for the main
-  agent and a complete thinking block per sub-agent once that block finishes.
+  view at any time — idle or mid-run — by clearing the screen and replaying the
+  display's event tape; expanded mode preserves the full transcript rendering —
+  a live markdown stream for the main agent and a complete thinking block per
+  sub-agent once that block finishes.
+- Transcript rebuilds (Ctrl+O toggle, `/refresh`) replay `TUIDisplay._tape`
+  (`control/event_tape.py`), NOT `runtime.replay_session_history`. The tape
+  records everything the display consumed — including the in-flight turn that
+  persisted history does not cover — so a mid-run rebuild reproduces the screen
+  and the machine state exactly. Rules:
+  - The tape is the single re-render source. Do not add a second replay path
+    from persisted history for anything the live display already consumed.
+  - `DisplayStateMachine` handlers always run with live semantics; a rebuild
+    goes through `transition_rebuild`, which only filters the transient-UI
+    commands (`_REBUILD_SUPPRESSED_COMMANDS`: spinner/task-clock/title). Do not
+    reintroduce per-handler `is_replay` branches — put state bookkeeping in the
+    handler and let the filter drop the UI commands.
+  - Toggle/refresh are bus events (`ToggleTranscriptDetailEvent`,
+    `RefreshDisplayEvent`) handled inside `consume_envelope`, so a rebuild is
+    serialized with live events by construction. Do not call rebuild methods on
+    the display from outside that consumer.
+  - Mid-run rebuilds end with `renderer.flush_rebuild_tails()`: open
+    assistant/thinking streams render their stabilized prefix and stay open so
+    live deltas continue them; an active bash tail is re-emitted.
 - The detail level itself lives in `tui/transcript_detail.py`, not in a bool on
   each layer. Rules when touching compact/expanded behavior:
   - "Does this event print at all" belongs in the `_HIDDEN_IN` table there.
