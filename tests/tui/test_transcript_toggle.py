@@ -83,13 +83,13 @@ def test_renderer_switches_task_metadata_between_compact_and_expanded() -> None:
 
     with renderer.bulk_render_capture() as compact:
         renderer.display_task_metadata(event)
-    assert "• test-model · ↑10k ◎20k ↓2k · 18s" in compact.getvalue()
+    assert "• test-model ↑10k ◎20k ↓2k 18s" in compact.getvalue()
     assert "2 steps" not in compact.getvalue()
 
     renderer.set_transcript_detail(Detail.FULL)
     with renderer.bulk_render_capture() as expanded:
         renderer.display_task_metadata(event)
-    assert "in 10k · cache 20k · out 2k" in expanded.getvalue()
+    assert "in 10k cache 20k out 2k" in expanded.getvalue()
     assert "2 steps" in expanded.getvalue()
 
 

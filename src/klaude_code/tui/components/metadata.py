@@ -62,7 +62,7 @@ def _build_total_cost_text(costs: list[tuple[str, float]], *, label: str = "tota
         line.append(" ")
     for index, (currency, value) in enumerate(costs):
         if index:
-            line.append(" · ", style=ThemeKey.METADATA_DIM)
+            line.append(" ", style=ThemeKey.METADATA_DIM)
         line.append(f"{_currency_symbol(currency)}{value:.4f}", style=ThemeKey.METADATA_DIM)
     return line
 
@@ -96,16 +96,16 @@ def _build_identity_text(metadata: TaskMetadata, *, split_sub_agent_and_model: b
         if has_description:
             if split_sub_agent_and_model:
                 identity.append_text(Text("\n", style=ThemeKey.METADATA))
-                identity.append_text(Text("· ", style=ThemeKey.METADATA_DIM))
+                identity.append_text(Text(" ", style=ThemeKey.METADATA_DIM))
             else:
-                identity.append_text(Text(" · ", style=ThemeKey.METADATA_DIM))
+                identity.append_text(Text(" ", style=ThemeKey.METADATA_DIM))
         elif split_sub_agent_and_model:
             identity.append("\n")
         else:
             identity.append_text(Text(" ", style=ThemeKey.METADATA))
     elif has_description:
         identity.append_text(Text(metadata.description or "", style=ThemeKey.METADATA_ITALIC))
-        identity.append_text(Text(" · ", style=ThemeKey.METADATA_DIM))
+        identity.append_text(Text(" ", style=ThemeKey.METADATA_DIM))
 
     identity.append_text(Text(metadata.model_name, style=ThemeKey.METADATA_MODEL))
     if metadata.provider:
@@ -139,7 +139,7 @@ class _MetadataContent:
         )
         if self.interrupted:
             if identity.plain:
-                identity.append(" · ", style=ThemeKey.METADATA_DIM)
+                identity.append(" ", style=ThemeKey.METADATA_DIM)
             identity.append("interrupted", style=ThemeKey.INTERRUPT)
 
         content = _build_metadata_content(
@@ -233,7 +233,7 @@ def _build_metric_cells(
 
 
 def _build_details_text(cells: dict[str, _MetricCell]) -> Text | None:
-    """Render metric cells as a flow-style ' · '-separated line."""
+    """Render metric cells as a space-separated line."""
     if not cells:
         return None
 
@@ -246,7 +246,7 @@ def _build_details_text(cells: dict[str, _MetricCell]) -> Text | None:
         if cell.suffix:
             part.append(cell.suffix, style=cell.suffix_style)
         parts.append(part)
-    return Text(" · ", style=ThemeKey.METADATA_DIM).join(parts)
+    return Text(" ", style=ThemeKey.METADATA_DIM).join(parts)
 
 
 def _build_metadata_content(
@@ -436,7 +436,7 @@ def _build_compact_identity(
             identity.append(description, style=ThemeKey.METADATA_ITALIC)
     if model_name:
         if identity.plain:
-            identity.append(" · ", style=ThemeKey.METADATA_DIM)
+            identity.append(" ", style=ThemeKey.METADATA_DIM)
         identity.append(model_name, style=ThemeKey.METADATA_MODEL)
         if show_provider and metadata.provider:
             provider = metadata.provider.rsplit("/", 1)[-1]
@@ -489,7 +489,7 @@ def _build_compact_row(
         line = Text(prefix, style=ThemeKey.METADATA_DIM)
         if groups:
             line.append(" ")
-            line.append_text(Text(" · ", style=ThemeKey.METADATA_DIM).join(groups))
+            line.append_text(Text(" ", style=ThemeKey.METADATA_DIM).join(groups))
         return line
 
     line = build()
@@ -551,13 +551,13 @@ def _build_compact_row(
     if interrupted:
         tail_groups.append(Text("interrupted", style=ThemeKey.INTERRUPT))
     if tail_groups:
-        tail = Text(" · ", style=ThemeKey.METADATA_DIM).join(tail_groups)
+        tail = Text(" ", style=ThemeKey.METADATA_DIM).join(tail_groups)
         core = build(include_tail=False)
-        separator_width = 3 if core.plain != prefix else 1
+        separator_width = 1
         core_width = max_width - cell_len(tail.plain) - separator_width
         if core_width >= cell_len(prefix):
             core.truncate(core_width, overflow="ellipsis")
-            core.append(" · " if core.plain != prefix else " ", style=ThemeKey.METADATA_DIM)
+            core.append(" ", style=ThemeKey.METADATA_DIM)
             core.append_text(tail)
             return core
         if interrupted:

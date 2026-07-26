@@ -196,7 +196,8 @@ def test_multiple_sub_agents_fall_back_to_flow_style_on_narrow_console() -> None
     console.print(render_task_metadata(_multi_sub_agent_event()))
     output = console.export_text(styles=False)
 
-    assert " · " in output
+    assert "in 80.9k out 2k thought 3.5k" in output
+    assert " · " not in output
 
 
 def test_single_sub_agent_keeps_flow_style() -> None:
@@ -212,7 +213,7 @@ def test_single_sub_agent_keeps_flow_style() -> None:
     console.print(render_task_metadata(event))
     output = console.export_text(styles=False)
 
-    assert "in 10k · out 2k" in output
+    assert "in 10k out 2k" in output
 
 
 def test_task_metadata_keeps_duration_and_steps_inline_without_worked_summary() -> None:
@@ -246,7 +247,7 @@ def test_compact_task_metadata_uses_status_bar_token_symbols() -> None:
     event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem(main_agent=metadata))
 
     assert _render_metadata(event, width=120, compact=True) == (
-        "• gpt-5.6-sol@openrouter · ↑5k ◎20k ⊕5k ↓2k ∵382 · $0.0207 · 18s\n"
+        "• gpt-5.6-sol@openrouter ↑5k ◎20k ⊕5k ↓2k ∵382 $0.0207 18s\n"
     )
 
 
@@ -282,12 +283,12 @@ def test_compact_task_metadata_shows_sub_agents_and_currency_totals() -> None:
     )
 
     assert _render_metadata(event, width=160, compact=True).splitlines() == [
-        "• main-model@main · ↑1k ↓200 · ¥0.0200 · 20s",
-        "  ├─ Finder: scan repo · sub-model@sub · ↑2k ↓300 · $0.0100 · 5s",
-        "  ├─ GeneralPurpose: apply fix · other-model@other · ↑3k ↓400 · ¥0.0300 · 8s",
-        "  ╰─ total cost ¥0.0500 · $0.0100",
+        "• main-model@main ↑1k ↓200 ¥0.0200 20s",
+        "  ├─ Finder: scan repo sub-model@sub ↑2k ↓300 $0.0100 5s",
+        "  ├─ GeneralPurpose: apply fix other-model@other ↑3k ↓400 ¥0.0300 8s",
+        "  ╰─ total cost ¥0.0500 $0.0100",
     ]
-    assert "total cost ¥0.0500 · $0.0100" in _render_metadata(event, width=160, compact=False)
+    assert "total cost ¥0.0500 $0.0100" in _render_metadata(event, width=160, compact=False)
 
 
 def test_compact_task_metadata_preserves_tokens_duration_and_interrupt_on_narrow_console() -> None:
@@ -310,7 +311,7 @@ def test_compact_task_metadata_preserves_tokens_duration_and_interrupt_on_narrow
         is_partial=True,
     )
 
-    assert _render_metadata(event, width=35, compact=True).strip() == "• ↑50k ↓100k · 18s · interrupted"
+    assert _render_metadata(event, width=35, compact=True).strip() == "• ↑50k ◎200k ↓100k 18s interrupted"
 
 
 def test_compact_sub_agent_truncates_identity_before_input_and_output_tokens() -> None:
@@ -331,7 +332,7 @@ def test_compact_sub_agent_truncates_identity_before_input_and_output_tokens() -
     )
 
     sub_agent_line = _render_metadata(event, width=25, compact=True).splitlines()[1]
-    assert sub_agent_line == "  ╰─ Genera… · ↑50k ↓100k"
+    assert sub_agent_line == "  ╰─ GeneralP… ↑50k ↓100k"
 
 
 def test_expanded_task_metadata_marks_interrupt_and_uses_compact_tree_guides() -> None:
@@ -347,7 +348,7 @@ def test_expanded_task_metadata_marks_interrupt_and_uses_compact_tree_guides() -
     )
 
     lines = _render_metadata(event, width=120, compact=False).splitlines()
-    assert "• main-model · interrupted" in lines[0]
+    assert "• main-model interrupted" in lines[0]
     assert any(line.startswith("  ├─ ") and "finder" in line for line in lines)
     assert lines[-1] == "  ╰─ total cost $0.0100"
 
