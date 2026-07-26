@@ -1,5 +1,5 @@
 SESSION_TITLE_SYSTEM_PROMPT = (
-    "You generate short, specific conversation titles from user messages. "
+    "You generate very short, specific conversation titles from user messages. "
     "Use the same language as the user's messages and do not translate. "
     "Reply with only the title, no quotes, no markdown, no explanation."
 )
@@ -10,8 +10,9 @@ Rules:
 - be specific: name the concrete thing being done, not the broad area (BAD: 'TUI 开发', GOOD: '修复终端标题截断问题')
 - reflect user intent, not tool usage or internal operations
 - use the same language as the user's messages; do not translate
-- maximum 80 characters; prefer concise phrasing
-- single line, imperative or noun phrase, no filler words
+- prefer 4-10 Chinese characters or 2-5 English words; never exceed 40 characters
+- omit repository names, implementation details, and words already implied by context
+- single line, imperative or noun phrase, no filler words or redundant qualifiers
 - if a previous title exists and the topic hasn't changed, refine it rather than replace it
 
 {previous_title_block}<previous_user_messages>

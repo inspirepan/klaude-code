@@ -107,6 +107,9 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     assert "latest request about src/app.py" in rendered
     assert "be specific" in rendered.lower()
     assert "reflect user intent" in rendered.lower()
+    assert "4-10 chinese characters" in rendered.lower()
+    assert "never exceed 40 characters" in rendered.lower()
+    assert "omit repository names" in rendered.lower()
     assert "previous title" in rendered.lower()
     assert "<previous_title>" in rendered
     assert "Existing title" in rendered
