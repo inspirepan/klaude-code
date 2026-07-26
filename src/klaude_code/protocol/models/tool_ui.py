@@ -36,6 +36,7 @@ class DiffFileDiff(BaseModel):
     lines: list[DiffLine]
     stats_add: int = 0
     stats_remove: int = 0
+    change_type: Literal["add", "update", "delete"] = "update"
 
 
 class DiffUIExtra(BaseModel):

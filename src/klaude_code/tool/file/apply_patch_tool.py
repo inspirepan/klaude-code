@@ -13,9 +13,6 @@ from klaude_code.protocol.models import (
     DiffUIExtra,
     FileChangeSummary,
     FileStatus,
-    MarkdownDocUIExtra,
-    MultiUIExtra,
-    MultiUIExtraItem,
     ToolResultUIExtra,
     ToolStatus,
 )
@@ -110,16 +107,6 @@ class ApplyPatchHandler:
                 )
                 file_change_summary.add_diff(added=file_diff.stats_add, removed=file_diff.stats_remove, path=resolved)
 
-        md_items: list[MarkdownDocUIExtra] = []
-        for change_path, change in landed_changes:
-            if change.type == apply_patch_module.ActionType.ADD and change_path.endswith(".md"):
-                md_items.append(
-                    MarkdownDocUIExtra(
-                        file_path=resolve_path(change_path),
-                        content=change.new_content or "",
-                    )
-                )
-
         def write_fn(path: str, content: str) -> None:
             resolved = resolve_path(path)
             if os.path.isdir(resolved):
@@ -159,15 +146,6 @@ class ApplyPatchHandler:
         for commit in commits:
             ap.apply_commit(commit, write_fn, remove_fn)
 
-        # apply_patch can include multiple operations. If we added markdown files,
-        # return a MultiUIExtra so UI can render markdown previews (without showing a diff for those markdown adds).
-        if md_items:
-            items: list[MultiUIExtraItem] = []
-            items.extend(md_items)
-            if diff_ui.files:
-                items.append(diff_ui)
-            return "success", output_text, MultiUIExtra(items=items)
-
         return "success", output_text, diff_ui if diff_ui.files else None
 
     @staticmethod
@@ -178,24 +156,32 @@ class ApplyPatchHandler:
         raw_chunks: list[str] = []
         for path, change in changes:
             if change.type == apply_patch_module.ActionType.ADD:
-                # For markdown files created via Add File, we render content via MarkdownDocUIExtra instead of a diff.
-                if path.endswith(".md"):
-                    continue
-                files.append(build_structured_file_diff("", change.new_content or "", file_path=path))
+                file_diff = build_structured_file_diff("", change.new_content or "", file_path=path)
+                file_diff.change_type = "add"
+                files.append(file_diff)
                 raw = build_unified_diff_text("", change.new_content or "", from_file="/dev/null", to_file=path)
                 if raw:
                     raw_chunks.append(raw)
+            elif change.type == apply_patch_module.ActionType.DELETE:
+                files.append(
+                    DiffFileDiff(
+                        file_path=path,
+                        lines=[],
+                        stats_remove=len((change.old_content or "").splitlines()),
+                        change_type="delete",
+                    )
+                )
             elif change.type == apply_patch_module.ActionType.UPDATE:
                 display_path = path
                 to_path = path
                 if change.move_path and change.move_path != path:
                     display_path = f"{path} → {change.move_path}"
                     to_path = change.move_path
-                files.append(
-                    build_structured_file_diff(
-                        change.old_content or "", change.new_content or "", file_path=display_path
-                    )
+                file_diff = build_structured_file_diff(
+                    change.old_content or "", change.new_content or "", file_path=display_path
                 )
+                file_diff.change_type = "update"
+                files.append(file_diff)
                 raw = build_unified_diff_text(
                     change.old_content or "", change.new_content or "", from_file=path, to_file=to_path
                 )

@@ -106,7 +106,7 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertTrue(any("".join(span.text for span in line.spans) == "new line" for line in added_lines))
         self.assertEqual(Path("data.txt").read_text(), "new line\nkeep\n")
 
-    def test_apply_patch_delete_file_does_not_render_diff(self) -> None:
+    def test_apply_patch_delete_file_renders_summary_without_content(self) -> None:
         Path("obsolete.txt").write_text("removed\ncontent\n", encoding="utf-8")
         context = _tool_context()
         patch_content = "\n".join(
@@ -121,7 +121,16 @@ class TestApplyPatchTool(BaseTempDirTest):
 
         self.assertEqual(result.status, "success")
         self.assertEqual(result.output_text, "Done!")
-        self.assertIsNone(result.ui_extra)
+        self.assertIsInstance(result.ui_extra, DiffUIExtra)
+        assert isinstance(result.ui_extra, DiffUIExtra)
+        self.assertEqual(len(result.ui_extra.files), 1)
+        file_diff = result.ui_extra.files[0]
+        self.assertEqual(file_diff.file_path, "obsolete.txt")
+        self.assertEqual(file_diff.change_type, "delete")
+        self.assertEqual(file_diff.stats_remove, 2)
+        self.assertEqual(file_diff.lines, [])
+        self.assertNotIn("removed", result.ui_extra.raw_unified_diff or "")
+        self.assertNotIn("content", result.ui_extra.raw_unified_diff or "")
         self.assertFalse(Path("obsolete.txt").exists())
         assert context.file_change_summary is not None
         self.assertEqual(context.file_change_summary.deleted_files, [str(Path("obsolete.txt").resolve())])
@@ -181,6 +190,13 @@ class TestApplyPatchTool(BaseTempDirTest):
         self.assertEqual(session.file_change_summary.deleted_files, [str(Path("delete.txt").resolve())])
         self.assertEqual(session.file_change_summary.diff_lines_added, 3)
         self.assertEqual(session.file_change_summary.diff_lines_removed, 3)
+        self.assertIsInstance(result.ui_extra, DiffUIExtra)
+        assert isinstance(result.ui_extra, DiffUIExtra)
+        self.assertEqual(
+            [(file.file_path, file.change_type) for file in result.ui_extra.files],
+            [("created.md", "add"), ("edit.txt", "update"), ("delete.txt", "delete")],
+        )
+        self.assertEqual(result.ui_extra.files[2].lines, [])
 
     def test_apply_patch_partially_applies_other_files_when_one_file_fails(self) -> None:
         Path("file1.txt").write_text("alpha\nbeta\n", encoding="utf-8")

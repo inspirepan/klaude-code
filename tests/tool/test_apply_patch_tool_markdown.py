@@ -13,7 +13,7 @@ SRC_DIR = ROOT / "src"
 if SRC_DIR.is_dir() and str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from klaude_code.protocol.models import DiffUIExtra, MarkdownDocUIExtra, MultiUIExtra  # noqa: E402
+from klaude_code.protocol.models import DiffUIExtra  # noqa: E402
 from klaude_code.tool import ApplyPatchTool  # noqa: E402
 from klaude_code.tool.core.context import TodoContext, ToolContext  # noqa: E402
 
@@ -39,7 +39,7 @@ class BaseTempDirTest(unittest.TestCase):
 
 
 class TestApplyPatchToolMarkdown(BaseTempDirTest):
-    def test_apply_patch_add_markdown_file_uses_markdown_ui_extra(self) -> None:
+    def test_apply_patch_add_markdown_file_uses_diff_ui_extra(self) -> None:
         patch_content = "\n".join(
             [
                 "*** Begin Patch",
@@ -56,18 +56,14 @@ class TestApplyPatchToolMarkdown(BaseTempDirTest):
 
         self.assertEqual(result.status, "success")
         self.assertEqual(result.output_text, "Done!")
-        # When adding markdown, apply_patch returns a MultiUIExtra containing markdown preview.
-        # It should NOT include a diff ui block for the markdown add.
-        self.assertIsInstance(result.ui_extra, MultiUIExtra)
-        assert isinstance(result.ui_extra, MultiUIExtra)
-
-        md_items = [i for i in result.ui_extra.items if isinstance(i, MarkdownDocUIExtra)]
-        self.assertEqual(len(md_items), 1)
-        self.assertTrue(md_items[0].file_path.endswith("doc.md"))
-        self.assertIn("# Title", md_items[0].content)
-
-        diff_items = [i for i in result.ui_extra.items if isinstance(i, DiffUIExtra)]
-        self.assertEqual(len(diff_items), 0)
+        self.assertIsInstance(result.ui_extra, DiffUIExtra)
+        assert isinstance(result.ui_extra, DiffUIExtra)
+        self.assertEqual(len(result.ui_extra.files), 1)
+        file_diff = result.ui_extra.files[0]
+        self.assertEqual(file_diff.file_path, "doc.md")
+        self.assertEqual(file_diff.change_type, "add")
+        self.assertEqual(file_diff.stats_add, 3)
+        self.assertTrue(any("# Title" in span.text for line in file_diff.lines for span in line.spans))
 
         self.assertTrue(Path("doc.md").exists())
         self.assertEqual(Path("doc.md").read_text(encoding="utf-8"), "# Title\n\nHello")

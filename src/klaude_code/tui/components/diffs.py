@@ -6,20 +6,29 @@ from rich.text import Text
 from klaude_code.const import DIFF_MAX_RENDER_WIDTH, DIFF_PREFIX_WIDTH, TAB_EXPAND_WIDTH
 from klaude_code.protocol.models import DiffFileDiff, DiffLine, DiffUIExtra
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.transcript_detail import Detail
+
+_COMPACT_FILE_LIFECYCLE_PREVIEW_LINES = 5
 
 
-def render_structured_diff(ui_extra: DiffUIExtra, show_file_name: bool = False) -> RenderableType:
+def render_structured_diff(
+    ui_extra: DiffUIExtra,
+    show_file_name: bool = False,
+    *,
+    detail: Detail = Detail.FULL,
+) -> RenderableType:
     files = ui_extra.files
     if not files:
         return Text("")
 
-    return _StructuredDiff(files, show_file_name=show_file_name)
+    return _StructuredDiff(files, show_file_name=show_file_name, detail=detail)
 
 
 class _StructuredDiff:
-    def __init__(self, files: list[DiffFileDiff], *, show_file_name: bool = False):
+    def __init__(self, files: list[DiffFileDiff], *, show_file_name: bool = False, detail: Detail = Detail.FULL):
         self.files = files
         self.show_headers = show_file_name or len(files) > 1
+        self.detail = detail
         self.prefix_width = _prefix_width(files)
 
     def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
@@ -33,6 +42,7 @@ class _StructuredDiff:
             self.files,
             self.prefix_width,
             self.show_headers,
+            self.detail,
             max_width=options.max_width,
         )
 
@@ -41,6 +51,7 @@ def _render_structured_diff_grid(
     files: list[DiffFileDiff],
     prefix_width: int,
     show_headers: bool,
+    detail: Detail,
     *,
     max_width: int,
 ) -> Table:
@@ -50,14 +61,31 @@ def _render_structured_diff_grid(
         if idx > 0:
             grid.add_row("", "")
 
-        if show_headers:
+        if show_headers or file_diff.change_type in ("add", "delete"):
             grid.add_row(*_render_file_header(file_diff, prefix_width))
 
-        for line in file_diff.lines:
+        lines = file_diff.lines
+        hidden_lines = 0
+        if (
+            detail.is_compact
+            and file_diff.change_type in ("add", "delete")
+            and len(lines) > _COMPACT_FILE_LIFECYCLE_PREVIEW_LINES
+        ):
+            hidden_lines = len(lines) - _COMPACT_FILE_LIFECYCLE_PREVIEW_LINES
+            lines = lines[:_COMPACT_FILE_LIFECYCLE_PREVIEW_LINES]
+
+        for line in lines:
             prefix = _make_structured_prefix(line, prefix_width)
             text = _render_structured_line(line)
             row_style = _line_style(line)
             grid.add_row(Text(prefix, row_style or ThemeKey.TOOL_RESULT), text, style=row_style)
+
+        if hidden_lines:
+            action = "added" if file_diff.change_type == "add" else "removed"
+            grid.add_row(
+                Text(f"{'…':>{prefix_width}}  ", style=ThemeKey.TOOL_RESULT_TRUNCATED),
+                Text(f"({hidden_lines} {action} lines hidden)", style=ThemeKey.TOOL_RESULT_TRUNCATED),
+            )
 
     return grid
 
@@ -83,9 +111,9 @@ def _create_diff_grid(prefix_width: int, *, max_width: int) -> Table:
 def _render_file_header(file_diff: DiffFileDiff, prefix_width: int) -> tuple[Text, Text]:
     file_text = Text(file_diff.file_path, style=ThemeKey.DIFF_FILE_NAME)
     stats_text = Text()
-    if file_diff.stats_add > 0:
+    if file_diff.change_type == "add" or file_diff.stats_add > 0:
         stats_text.append(f"+{file_diff.stats_add}", style=ThemeKey.DIFF_STATS_ADD)
-    if file_diff.stats_remove > 0:
+    if file_diff.change_type == "delete" or file_diff.stats_remove > 0:
         if stats_text.plain:
             stats_text.append(" ")
         stats_text.append(f"-{file_diff.stats_remove}", style=ThemeKey.DIFF_STATS_REMOVE)
@@ -97,7 +125,11 @@ def _render_file_header(file_diff: DiffFileDiff, prefix_width: int) -> tuple[Tex
         file_line.append_text(stats_text)
         file_line.append(")")
 
-    if file_diff.stats_add > 0 and file_diff.stats_remove == 0:
+    if file_diff.change_type == "add":
+        file_mark = "+"
+    elif file_diff.change_type == "delete":
+        file_mark = "-"
+    elif file_diff.stats_add > 0 and file_diff.stats_remove == 0:
         file_mark = "+"
     elif file_diff.stats_remove > 0 and file_diff.stats_add == 0:
         file_mark = "-"

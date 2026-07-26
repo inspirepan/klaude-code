@@ -276,7 +276,13 @@ def render_tool_result(
                 )
             elif isinstance(item, DiffUIExtra):
                 rendered.append(
-                    _render_result_panel(r_diffs.render_structured_diff(item, show_file_name=show_patch_file_names))
+                    _render_result_panel(
+                        r_diffs.render_structured_diff(
+                            item,
+                            show_file_name=show_patch_file_names,
+                            detail=detail,
+                        )
+                    )
                 )
         return Group(*rendered) if rendered else None
 
@@ -294,19 +300,23 @@ def render_tool_result(
                 return pad_result(render_read_preview(e.ui_extra))
             return None
         case tools.EDIT:
-            return _render_result_panel(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
+            return _render_result_panel(r_diffs.render_structured_diff(diff_ui, detail=detail) if diff_ui else Text(""))
         case tools.WRITE:
             if md_ui:
                 # Markdown docs already include their own 2-character indent.
                 return render_markdown_doc(md_ui, code_theme=code_theme, detail=detail)
-            return _render_result_panel(r_diffs.render_structured_diff(diff_ui) if diff_ui else Text(""))
+            return _render_result_panel(r_diffs.render_structured_diff(diff_ui, detail=detail) if diff_ui else Text(""))
         case tools.APPLY_PATCH:
             if md_ui:
                 # Markdown docs already include their own 2-character indent.
                 return render_markdown_doc(md_ui, code_theme=code_theme, detail=detail)
             if diff_ui:
                 return _render_result_panel(
-                    r_diffs.render_structured_diff(diff_ui, show_file_name=len(diff_ui.files) > 1)
+                    r_diffs.render_structured_diff(
+                        diff_ui,
+                        show_file_name=len(diff_ui.files) > 1,
+                        detail=detail,
+                    )
                 )
             return _render_fallback()
         case tools.TODO_WRITE:
@@ -355,7 +365,11 @@ def render_compact_file_change(
         if isinstance(item, DiffUIExtra):
             rendered.append(
                 _render_result_panel(
-                    r_diffs.render_structured_diff(item, show_file_name=show_file_names),
+                    r_diffs.render_structured_diff(
+                        item,
+                        show_file_name=show_file_names,
+                        detail=Detail.COMPACT,
+                    ),
                     indent=0,
                 )
             )

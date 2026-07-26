@@ -59,7 +59,17 @@ void preloadHighlighter({
  * Used as fallback when raw_unified_diff is not available.
  */
 function rebuildSingleFileUnifiedDiff(file: DiffUIExtra["files"][number]): string {
-  const parts = [`--- a/${file.file_path}`, `+++ b/${file.file_path}`, "@@ -1 +1 @@"];
+  if (file.change_type === "delete") {
+    return [
+      `--- a/${file.file_path}`,
+      "+++ /dev/null",
+      "@@ -1 +0,0 @@",
+      `-[file deleted: ${file.stats_remove} lines]`,
+    ].join("\n");
+  }
+
+  const fromFile = file.change_type === "add" ? "/dev/null" : `a/${file.file_path}`;
+  const parts = [`--- ${fromFile}`, `+++ b/${file.file_path}`, "@@ -1 +1 @@"];
   for (const line of file.lines) {
     const text = line.spans.map((s) => s.text).join("");
     switch (line.kind) {

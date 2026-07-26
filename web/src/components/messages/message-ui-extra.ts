@@ -10,6 +10,7 @@ export interface DiffUIExtra {
     }>;
     stats_add: number;
     stats_remove: number;
+    change_type?: "add" | "update" | "delete";
   }>;
   raw_unified_diff: string | null;
 }

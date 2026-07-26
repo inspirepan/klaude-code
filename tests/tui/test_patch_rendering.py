@@ -4,6 +4,7 @@ from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import DiffFileDiff, DiffLine, DiffSpan, DiffUIExtra, MarkdownDocUIExtra
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.tools import render_apply_patch_tool_call, render_tool_result
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _render(renderable: object) -> str:
@@ -103,3 +104,111 @@ def test_markdown_file_renders_in_file_change_panel_without_background() -> None
     assert rendered.rstrip().endswith("╯")
     assert "Heading" in rendered
     assert all(segment.style is None or segment.style.bgcolor is None for segment in segments)
+
+
+def test_compact_mixed_patch_summarizes_delete_and_truncates_add() -> None:
+    added_lines = [
+        DiffLine(kind="add", new_line_no=line, spans=[DiffSpan(op="equal", text=f"new line {line}")])
+        for line in range(1, 8)
+    ]
+    updated = _file_diff("src/existing.py", 8)
+    result = render_tool_result(
+        events.ToolResultEvent(
+            session_id="main",
+            tool_call_id="patch-mixed",
+            tool_name=tools.APPLY_PATCH,
+            result="Done!",
+            status="success",
+            is_last_in_step=True,
+            ui_extra=DiffUIExtra(
+                files=[
+                    DiffFileDiff(
+                        file_path="docs/new.md",
+                        lines=added_lines,
+                        stats_add=7,
+                        change_type="add",
+                    ),
+                    DiffFileDiff(
+                        file_path="docs/obsolete.md",
+                        lines=[],
+                        stats_remove=345,
+                        change_type="delete",
+                    ),
+                    updated,
+                ]
+            ),
+        ),
+        detail=Detail.COMPACT,
+    )
+
+    assert result is not None
+    rendered = _render(result)
+    assert "docs/new.md (+7)" in rendered
+    assert "new line 5" in rendered
+    assert "new line 6" not in rendered
+    assert "(2 added lines hidden)" in rendered
+    assert "docs/obsolete.md (-345)" in rendered
+    assert "src/existing.py (+1)" in rendered
+    assert "changed" in rendered
+    assert "Done!" not in rendered
+
+
+def test_expanded_added_file_patch_shows_all_lines() -> None:
+    lines = [
+        DiffLine(kind="add", new_line_no=line, spans=[DiffSpan(op="equal", text=f"new line {line}")])
+        for line in range(1, 8)
+    ]
+    result = render_tool_result(
+        events.ToolResultEvent(
+            session_id="main",
+            tool_call_id="patch-add",
+            tool_name=tools.APPLY_PATCH,
+            result="Done!",
+            status="success",
+            is_last_in_step=True,
+            ui_extra=DiffUIExtra(
+                files=[
+                    DiffFileDiff(
+                        file_path="docs/new.md",
+                        lines=lines,
+                        stats_add=7,
+                        change_type="add",
+                    )
+                ]
+            ),
+        ),
+        detail=Detail.FULL,
+    )
+
+    assert result is not None
+    rendered = _render(result)
+    assert "new line 7" in rendered
+    assert "added lines hidden" not in rendered
+
+
+def test_deleted_empty_file_patch_shows_zero_line_summary() -> None:
+    result = render_tool_result(
+        events.ToolResultEvent(
+            session_id="main",
+            tool_call_id="patch-delete-empty",
+            tool_name=tools.APPLY_PATCH,
+            result="Done!",
+            status="success",
+            is_last_in_step=True,
+            ui_extra=DiffUIExtra(
+                files=[
+                    DiffFileDiff(
+                        file_path="empty.txt",
+                        lines=[],
+                        stats_remove=0,
+                        change_type="delete",
+                    )
+                ]
+            ),
+        )
+    )
+
+    assert result is not None
+    rendered = _render(result)
+    assert "empty.txt (-0)" in rendered
+    assert "Done!" not in rendered
