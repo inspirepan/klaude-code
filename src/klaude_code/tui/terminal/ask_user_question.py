@@ -788,12 +788,6 @@ def select_questions[T](
         dont_extend_height=Always(),
         always_hide_cursor=Always(),
     )
-    top_spacer_window = Window(
-        FormattedTextControl([("", "")]),
-        height=1,
-        dont_extend_height=Always(),
-        always_hide_cursor=Always(),
-    )
     tabs_header_spacer_window = Window(
         FormattedTextControl([("", "")]),
         height=1,
@@ -929,7 +923,7 @@ def select_questions[T](
 
     body_container = DynamicContainer(_build_body_container)
 
-    root_children: list[Container] = [top_spacer_window, tabs_window, tabs_header_spacer_window]
+    root_children: list[Container] = [tabs_window, tabs_header_spacer_window]
     root_children.extend(
         [
             header_window,
