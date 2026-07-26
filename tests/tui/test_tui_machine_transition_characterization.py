@@ -113,7 +113,7 @@ def test_task_start_primary_live_command_sequence() -> None:
         "RenderTaskStart",
         "SpinnerUpdate",
     ]
-    assert m.terminal_title_prefix == "⠋"  # spinner braille frame
+    assert m.terminal_title_prefix == "◐"  # spinner quadrant-circle frame
 
 
 def test_task_start_replay_omits_clock_spinner_title() -> None:
@@ -379,7 +379,7 @@ def test_error_retryable_keeps_task_running() -> None:
 
     assert _types(cmds) == ["RenderError", "SpinnerUpdate"]
     # Prefix was set to the spinner frame at task start and is left untouched.
-    assert m.terminal_title_prefix == "⠋"
+    assert m.terminal_title_prefix == "◐"
 
 
 # ---------------------------------------------------------------------------

@@ -65,7 +65,7 @@ def test_title_change_preserves_active_terminal_prefix() -> None:
 
     update_cmds = machine.transition(events.SessionTitleChangedEvent(session_id="s1", title="New title"))
     update_title_cmd = _last_title_cmd(update_cmds)
-    assert update_title_cmd.prefix == "⠋"
+    assert update_title_cmd.prefix == "◐"
     assert update_title_cmd.session_title == "New title"
 
 
@@ -165,7 +165,7 @@ def test_stop_title_blink_cancels_pending_title_retry(monkeypatch: pytest.Monkey
     monkeypatch.setattr(terminal_title, "_RETRY_INTERVAL", 0.001)
 
     async def _run() -> None:
-        terminal_title.set_terminal_title("⠙ stale · project")
+        terminal_title.set_terminal_title("◓ stale · project")
         retry_task = terminal_title._retry_task  # pyright: ignore[reportPrivateUsage]
         assert retry_task is not None
         terminal_title.stop_terminal_title_blink()

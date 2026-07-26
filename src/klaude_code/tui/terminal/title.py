@@ -8,9 +8,9 @@ import sys
 from klaude_code.log import DebugType, log_debug
 from klaude_code.tui.terminal.tty_state import scrollback_write_in_flight, stdout_writable
 
-# Blink state: cycles a single-glyph Braille spinner to keep title width stable.
-_BLINK_PREFIXES = ("⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏")
-_BLINK_INTERVAL = 0.08  # seconds
+# Blink state: cycles same-width quadrant circles at a title-bar-friendly rate.
+_BLINK_PREFIXES = ("◐", "◓", "◑", "◒")
+_BLINK_INTERVAL = 0.22  # seconds
 _OVERRIDE_BLINK_TICKS = 6
 _OVERRIDE_DIM_PREFIX = "❔"
 

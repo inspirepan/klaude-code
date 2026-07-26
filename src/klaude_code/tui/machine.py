@@ -1397,7 +1397,7 @@ class DisplayStateMachine:
                 self._primary_session_id = e.session_id
             if not is_replay:
                 cmds.append(TaskClockStart())
-                self._terminal_title_prefix = "⠋"
+                self._terminal_title_prefix = "◐"
                 cmds.append(
                     StartTitleBlink(
                         model_name=self._model_name,
