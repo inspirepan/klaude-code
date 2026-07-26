@@ -53,6 +53,8 @@ class BashTool(ToolABC):
                         "type": "string",
                         "description": (
                             "Clear, concise description of what this command does in active voice. "
+                            "Prefer 3-5 words and keep it within 32 terminal cells "
+                            "(roughly 32 Latin characters or 16 CJK characters). "
                             "This field is displayed to the user, so write it in the same language "
                             "the user is using (e.g. Chinese if the user writes in Chinese, "
                             "Japanese if the user writes in Japanese). "

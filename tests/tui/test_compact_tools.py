@@ -77,7 +77,7 @@ def test_compact_bash_prefers_description_and_hides_command_output() -> None:
     )
 
     rendered = output.getvalue()
-    assert rendered == "  $ Bash    确认提交后工作区为空      jj status · jj diff ✓\n\n"
+    assert rendered == "  $ Bash    确认提交后工作区为空              jj status · jj diff ✓\n\n"
     assert "jj status &&" not in rendered
     assert "working copy" not in rendered
 
@@ -96,6 +96,23 @@ def test_compact_bash_command_summary_is_not_bold() -> None:
     command_segments = [segment for segment in segments if "git status · git diff" in segment.text]
     assert command_segments
     assert all(segment.style is None or not segment.style.bold for segment in command_segments)
+
+
+def test_compact_bash_keeps_longer_english_description() -> None:
+    renderer, output = _renderer_and_output()
+
+    asyncio.run(
+        _execute_and_flush(
+            renderer,
+            _bash_commands(
+                arguments='{"command":"jj log","description":"Check recent commit history"}',
+                result="clean",
+            ),
+        )
+    )
+
+    assert "Check recent commit history" in output.getvalue()
+    assert "Check recent commit hist…" not in output.getvalue()
 
 
 def test_compact_bash_falls_back_to_flattened_command() -> None:
@@ -130,7 +147,7 @@ def test_compact_bash_failure_shows_concise_exit_code() -> None:
     )
 
     rendered = output.getvalue()
-    assert rendered == "  $ Bash    运行测试                  uv run pytest ✗ exit 1\n\n"
+    assert rendered == "  $ Bash    运行测试                          uv run pytest ✗ exit 1\n\n"
     assert "failed test details" not in rendered
 
 
@@ -193,7 +210,7 @@ def test_compact_bash_live_tail_is_transient() -> None:
 
     assert any(lines == ("            live output",) and not end for lines, end in stream_updates)
     assert stream_updates[-1] == ((), True)
-    assert output.getvalue() == "  $ Bash    运行长命令                long ✓\n\n"
+    assert output.getvalue() == "  $ Bash    运行长命令                        long ✓\n\n"
 
 
 def test_compact_bash_results_in_same_step_have_no_blank_line_between_them() -> None:
@@ -205,7 +222,7 @@ def test_compact_bash_results_in_same_step_have_no_blank_line_between_them() -> 
 
     assert (
         output.getvalue()
-        == "  $ Bash    查看目录                  pwd ✓\n  $ Bash    检查状态                  jj status ✓\n\n"
+        == "  $ Bash    查看目录                          pwd ✓\n  $ Bash    检查状态                          jj status ✓\n\n"
     )
 
 

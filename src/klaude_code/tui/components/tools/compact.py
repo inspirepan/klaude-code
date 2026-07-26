@@ -26,9 +26,9 @@ from klaude_code.tui.components.tools._presentation import (
     parse_tool_arguments,
 )
 
-# Width of the Bash description column, in cells (~12 CJK glyphs). Fixed so the
+# Width of the Bash description column, in cells (~16 CJK glyphs). Fixed so the
 # command column starts at the same offset on every row.
-BASH_DESCRIPTION_COLUMN_WIDTH = 24
+BASH_DESCRIPTION_COLUMN_WIDTH = 32
 BASH_COMMAND_MIN_WIDTH = 8
 BASH_DESCRIPTION_MIN_TERMINAL_WIDTH = TOOL_SUBJECT_INDENT + BASH_DESCRIPTION_COLUMN_WIDTH + 1 + BASH_COMMAND_MIN_WIDTH
 
