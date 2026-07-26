@@ -72,7 +72,7 @@ def test_compact_bash_prefers_description_and_hides_command_output() -> None:
             _bash_commands(
                 arguments='{"command":"jj status && jj diff --git","description":"确认提交后工作区为空"}',
                 result="The working copy has no changes.\nmore output",
-            )
+            ),
         )
     )
 
@@ -108,7 +108,7 @@ def test_compact_bash_falls_back_to_flattened_command() -> None:
             _bash_commands(
                 arguments=arguments,
                 result="passed",
-            )
+            ),
         )
     )
 
@@ -125,7 +125,7 @@ def test_compact_bash_failure_shows_concise_exit_code() -> None:
                 arguments='{"command":"uv run pytest","description":"运行测试"}',
                 result="[stdout]\nfailed test details",
                 exit_code=1,
-            )
+            ),
         )
     )
 
@@ -144,7 +144,7 @@ def test_compact_bash_preserves_command_and_status_on_narrow_terminal() -> None:
             _bash_commands(
                 arguments='{"command":"uv run pytest","description":"Run tests"}',
                 result="passed",
-            )
+            ),
         )
     )
 
@@ -164,7 +164,7 @@ def test_expanded_bash_keeps_command_and_output() -> None:
                 arguments='{"command":"echo full","description":"显示完整命令"}',
                 result="full output",
                 compact=False,
-            )
+            ),
         )
     )
 
@@ -370,7 +370,7 @@ def test_compact_read_hides_offset_preview_but_keeps_call() -> None:
             [
                 RenderToolCall(event=call),
                 RenderToolResult(event=result, is_sub_agent_session=False),
-            ]
+            ],
         )
     )
 

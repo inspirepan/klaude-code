@@ -217,9 +217,7 @@ def test_status_reuses_assistant_stream_boundary() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     status_updates: list[tuple[PromptStatusLine, ...]] = []
-    renderer = TUICommandRenderer(
-        status_sink=lambda lines, _separator, _reset: status_updates.append(lines)
-    )
+    renderer = TUICommandRenderer(status_sink=lambda lines, _separator, _reset: status_updates.append(lines))
     _renderer_console(renderer)
     renderer.set_progress_ui_suspended(True)
     renderer.spinner_start()
@@ -249,9 +247,7 @@ def test_status_reuses_explicit_scrollback_boundary() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     status_updates: list[tuple[PromptStatusLine, ...]] = []
-    renderer = TUICommandRenderer(
-        status_sink=lambda lines, _separator, _reset: status_updates.append(lines)
-    )
+    renderer = TUICommandRenderer(status_sink=lambda lines, _separator, _reset: status_updates.append(lines))
     _renderer_console(renderer)
     renderer.set_progress_ui_suspended(True)
     renderer.spinner_start()
@@ -283,9 +279,7 @@ def test_user_message_boundary_keeps_status_spacer() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     status_updates: list[tuple[PromptStatusLine, ...]] = []
-    renderer = TUICommandRenderer(
-        status_sink=lambda lines, _separator, _reset: status_updates.append(lines)
-    )
+    renderer = TUICommandRenderer(status_sink=lambda lines, _separator, _reset: status_updates.append(lines))
     _renderer_console(renderer)
     renderer.set_progress_ui_suspended(True)
     renderer.spinner_start()
@@ -293,9 +287,7 @@ def test_user_message_boundary_keeps_status_spacer() -> None:
     renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("Loading")),))
 
     asyncio.run(
-        renderer.execute(
-            [RenderUserMessage(event=events.UserMessageEvent(session_id="main", content="hello"))]
-        )
+        renderer.execute([RenderUserMessage(event=events.UserMessageEvent(session_id="main", content="hello"))])
     )
 
     assert status_updates[-1][0].suppress_top_spacer is False
