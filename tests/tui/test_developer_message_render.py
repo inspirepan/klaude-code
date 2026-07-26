@@ -43,7 +43,9 @@ def test_render_developer_message_memory_paths_preserve_home_prefix(
     )
 
     line = console.render_lines(render_developer_message(event), console.options, pad=False)[0]
-    assert "".join(segment.text for segment in line) == "  + Read memory ~/.claude/CLAUDE.md, ./CLAUDE.md"
+    full_text = "".join(segment.text for segment in line)
+    assert full_text == "  + Read memory ~/.claude/CLAUDE.md, ./CLAUDE.md"
+    assert next(segment.style for segment in line if "+" in segment.text) == console.get_style(ThemeKey.TOOL_MARK)
 
 
 def test_render_developer_message_skill_name_uses_skill_style() -> None:
@@ -122,7 +124,8 @@ def test_render_developer_message_available_skills_use_skill_style() -> None:
     parts: list[tuple[str, object]] = [(segment.text, segment.style) for segment in line]
     full_text = "".join(text for text, _ in parts)
     assert full_text == "  + 2 available skills"
-    assert all(style == console.get_style(ThemeKey.ATTACHMENT) for _, style in parts if _.strip())
+    assert next(style for text, style in parts if "+" in text) == console.get_style(ThemeKey.TOOL_MARK)
+    assert all(style == console.get_style(ThemeKey.ATTACHMENT) for text, style in parts if text.strip(" +"))
 
 
 def test_render_developer_message_incremental_available_skills_lists_names() -> None:
@@ -139,4 +142,5 @@ def test_render_developer_message_incremental_available_skills_lists_names() -> 
     parts: list[tuple[str, object]] = [(segment.text, segment.style) for segment in line]
     full_text = "".join(text for text, _ in parts)
     assert full_text == "  + Updated available skills commit, submit-pr"
-    assert all(style == console.get_style(ThemeKey.ATTACHMENT) for _, style in parts if _.strip())
+    assert next(style for text, style in parts if "+" in text) == console.get_style(ThemeKey.TOOL_MARK)
+    assert all(style == console.get_style(ThemeKey.ATTACHMENT) for text, style in parts if text.strip(" +"))

@@ -34,7 +34,7 @@ def _render_available_skills(names: list[str], *, incremental: bool) -> Renderab
     if incremental:
         label = "Updated available skill " if len(names) == 1 else "Updated available skills "
         grid.add_row(
-            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+            Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
             Text.assemble(
                 (label, ThemeKey.ATTACHMENT),
                 Text(", ", ThemeKey.ATTACHMENT).join(Text(name, ThemeKey.ATTACHMENT) for name in names),
@@ -44,7 +44,7 @@ def _render_available_skills(names: list[str], *, incremental: bool) -> Renderab
 
     count = len(names)
     grid.add_row(
-        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+        Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
         Text(
             f"{count} available skill{'s' if count != 1 else ''}",
             ThemeKey.ATTACHMENT,
@@ -70,7 +70,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                 case MemoryLoadedUIItem() as item:
                     grid = create_grid()
                     grid.add_row(
-                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                         Text.assemble(
                             ("Read memory ", ThemeKey.ATTACHMENT),
                             Text(", ", ThemeKey.ATTACHMENT).join(
@@ -83,7 +83,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     grid = create_grid()
                     for file_path in item.paths:
                         grid.add_row(
-                            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                            Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                             Text.assemble(
                                 ("Read ", ThemeKey.ATTACHMENT),
                                 render_path(file_path, ThemeKey.ATTACHMENT_BOLD),
@@ -101,7 +101,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                             text = ""
                     grid = create_grid()
                     grid.add_row(
-                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                         Text(text, ThemeKey.ATTACHMENT),
                     )
                     parts.append(grid)
@@ -116,7 +116,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                             render_path(p, ThemeKey.ATTACHMENT_BOLD) for p in paths
                         )
                         grid.add_row(
-                            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                            Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                             Text.assemble(
                                 (f"{operation} ", ThemeKey.ATTACHMENT),
                                 path_texts,
@@ -127,7 +127,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     grid = create_grid()
                     count = item.count
                     grid.add_row(
-                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                         Text(
                             f"Attached {count} image{'s' if count > 1 else ''}",
                             style=ThemeKey.ATTACHMENT,
@@ -137,7 +137,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                 case SkillActivatedUIItem() as item:
                     grid = create_grid()
                     grid.add_row(
-                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                         Text.assemble(
                             ("Activated skill ", ThemeKey.ATTACHMENT),
                             (item.name, ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_NAME),
@@ -159,7 +159,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     grid = create_grid()
                     count = len(item.tags)
                     grid.add_row(
-                        Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+                        Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                         Text(
                             f"Saved {count} paste{'s' if count > 1 else ''} to file",
                             style=ThemeKey.ATTACHMENT,
@@ -174,7 +174,7 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
         grid = create_grid()
         label = "Discovered skill " if len(discovered_skill_names) == 1 else "Discovered skills "
         grid.add_row(
-            Text(ATTACHMENT_BULLET, style=ThemeKey.ATTACHMENT),
+            Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
             Text.assemble(
                 (label, ThemeKey.ATTACHMENT),
                 Text(", ", ThemeKey.ATTACHMENT).join(
