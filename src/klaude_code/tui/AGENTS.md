@@ -35,6 +35,20 @@ dynamic UI while an agent task is running:
   - Mid-run rebuilds end with `renderer.flush_rebuild_tails()`: open
     assistant/thinking streams render their stabilized prefix and stay open so
     live deltas continue them; an active bash tail is re-emitted.
+  - Terminal width changes reuse the same path: `ResizeWatcher`
+    (`input/resize_watcher.py`) chains onto the prompt-toolkit app's
+    `_on_resize`, debounces the SIGWINCH burst, and emits a
+    `RefreshDisplayEvent` only when the settled width actually changed
+    (height-only resizes never rewrap scrollback). Do not register a separate
+    SIGWINCH handler — prompt-toolkit owns the signal and re-binds it per app
+    run.
+  - The repaint erases scrollback (`2J 3J H`), which yanks a scrolled-up
+    reader to the bottom, and the terminal protocol offers no way to query or
+    restore a viewport position. So width repaints are timed, not forced:
+    immediate only when the user pressed a key recently (they are at the
+    prompt, viewport already at the bottom); otherwise parked until the next
+    key press — the moment terminals snap to the bottom on their own. Do not
+    make the resize repaint unconditional.
 - The detail level itself lives in `tui/transcript_detail.py`, not in a bool on
   each layer. Rules when touching compact/expanded behavior:
   - "Does this event print at all" belongs in the `_HIDDEN_IN` table there.

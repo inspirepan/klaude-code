@@ -640,6 +640,23 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         with contextlib.suppress(Exception):
             loop.call_soon_threadsafe(_start)
 
+    async def _refresh_transcript() -> None:
+        sid = _get_active_session_id()
+        if sid is None:
+            return
+        await components.runtime.emit_event(events.RefreshDisplayEvent(session_id=sid))
+
+    def _request_refresh_transcript() -> None:
+        """Repaint the transcript from the tape (terminal width changed)."""
+
+        def _start() -> None:
+            task = asyncio.create_task(_refresh_transcript())
+            transcript_toggle_tasks.add(task)
+            task.add_done_callback(transcript_toggle_tasks.discard)
+
+        with contextlib.suppress(Exception):
+            loop.call_soon_threadsafe(_start)
+
     def _get_current_model_effort() -> str | None:
         current_agent = components.runtime.current_agent
         if current_agent is None:
@@ -669,6 +686,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         on_change_model=_change_model_from_prompt,
         command_info_provider=get_command_info_list,
         request_toggle_transcript=_request_toggle_transcript,
+        request_refresh_transcript=_request_refresh_transcript,
     )
 
     async def _wait_for_with_interrupt(wait_id: str, *, session_id: str) -> bool:

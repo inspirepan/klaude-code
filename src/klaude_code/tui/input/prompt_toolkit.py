@@ -58,6 +58,7 @@ from klaude_code.tui.input.paste import (
 )
 from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
 from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_METADATA_FOOTER, get_base_style
+from klaude_code.tui.input.resize_watcher import ResizeWatcher
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
 # Style class tokens used by the REPL prompt. The concrete colors live in
@@ -196,6 +197,7 @@ class PromptToolkitInput(InputProviderABC):
         request_interrupt: Callable[[], None] | None = None,
         refresh_status: Callable[[], None] | None = None,
         request_toggle_transcript: Callable[[], None] | None = None,
+        request_refresh_transcript: Callable[[], None] | None = None,
     ):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
@@ -212,6 +214,8 @@ class PromptToolkitInput(InputProviderABC):
         self._request_interrupt = request_interrupt
         self._refresh_status = refresh_status
         self._request_toggle_transcript = request_toggle_transcript
+        self._request_refresh_transcript = request_refresh_transcript
+        self._resize_watcher: ResizeWatcher | None = None
         self._next_prefill_text: str | None = None
         self._session_dir: Path | None = None
         self._clipboard_has_image: bool = False
@@ -246,8 +250,36 @@ class PromptToolkitInput(InputProviderABC):
         self._session.app.key_processor.before_key_press += self._handle_user_activity
         self._setup_model_picker()
         self._apply_layout_customizations()
+        self._attach_resize_watcher()
+
+    def _attach_resize_watcher(self) -> None:
+        """Chain a transcript re-wrap trigger onto the app's SIGWINCH callback.
+
+        prompt-toolkit binds `self._on_resize` fresh on every `run_async`, so
+        wrapping the attribute on the session's application survives prompt
+        restarts without touching the signal handler itself.
+        """
+        if self._request_refresh_transcript is None:
+            return
+        self._resize_watcher = ResizeWatcher(self._request_refresh_transcript)
+        app = self._session.app
+        original_on_resize = app._on_resize  # pyright: ignore[reportPrivateUsage]
+
+        def _on_resize_with_transcript() -> None:
+            original_on_resize()
+            watcher = self._resize_watcher
+            if watcher is not None:
+                watcher.notify_resize()
+
+        app._on_resize = _on_resize_with_transcript  # pyright: ignore[reportPrivateUsage]  # ty: ignore[invalid-assignment]
 
     def _handle_user_activity(self, _sender: object) -> None:
+        watcher = self._resize_watcher
+        if watcher is not None:
+            # A key press is the safe repaint moment: terminals snap the
+            # viewport to the bottom on keyboard input anyway, so flushing a
+            # parked width-change repaint here never moves what the user sees.
+            watcher.notify_user_activity()
         if self._on_user_activity is not None:
             self._on_user_activity()
 
