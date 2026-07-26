@@ -202,6 +202,50 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert result_line.suppress_top_spacer is False
 
 
+def test_compact_sub_agent_colors_continue_across_tool_batches() -> None:
+    from klaude_code.protocol.models import SubAgentState
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    states = (
+        ("batch-a-1", "batch-a", 1, 2),
+        ("batch-a-0", "batch-a", 0, 2),
+        ("batch-b-0", "batch-b", 0, 1),
+    )
+
+    for session_id, batch_id, batch_index, batch_size in states:
+        renderer.register_session(
+            session_id,
+            SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="inspect status",
+                sub_agent_prompt="prompt",
+                parent_tool_batch_id=batch_id,
+                parent_tool_batch_index=batch_index,
+                parent_tool_batch_size=batch_size,
+            ),
+        )
+
+    assert renderer._sessions["batch-a-0"].color_index == 1
+    assert renderer._sessions["batch-a-1"].color_index == 2
+    assert renderer._sessions["batch-b-0"].color_index == 3
+
+    renderer.reset_replay_state()
+    renderer.register_session(
+        "batch-a-replay",
+        SubAgentState(
+            sub_agent_type="finder",
+            sub_agent_desc="inspect status",
+            sub_agent_prompt="prompt",
+            parent_tool_batch_id="batch-a",
+            parent_tool_batch_index=0,
+            parent_tool_batch_size=2,
+        ),
+    )
+
+    assert renderer._sessions["batch-a-replay"].color_index == 1
+
+
 def test_status_reuses_assistant_stream_boundary() -> None:
     import asyncio
 

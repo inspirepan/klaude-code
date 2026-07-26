@@ -266,6 +266,7 @@ class TUICommandRenderer:
         self._sessions: dict[str, _SessionStatus] = {}
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
+        self._sub_agent_batch_color_starts: dict[str, int] = {}
         self._continuous_block_session_id: str | None = None
         self._detail = detail if detail is not None else TranscriptDetail()
 
@@ -301,6 +302,7 @@ class TUICommandRenderer:
     def reset_replay_state(self) -> None:
         self._sessions = {}
         self._sub_agent_color_index = 0
+        self._sub_agent_batch_color_starts = {}
         self._current_sub_agent_color = None
         self._assistant_stream = _StreamState()
         self._thinking_stream = _StreamState()
@@ -339,8 +341,18 @@ class TUICommandRenderer:
     def register_session(self, session_id: str, sub_agent_state: SubAgentState | None = None) -> None:
         st = _SessionStatus(sub_agent_state=sub_agent_state)
         if sub_agent_state is not None:
-            if self._compact and sub_agent_state.parent_tool_batch_index is not None and self.themes.sub_agent_styles:
-                color_index = (sub_agent_state.parent_tool_batch_index + 1) % len(self.themes.sub_agent_styles)
+            batch_id = sub_agent_state.parent_tool_batch_id
+            batch_index = sub_agent_state.parent_tool_batch_index
+            batch_size = sub_agent_state.parent_tool_batch_size
+            if self._compact and batch_id is not None and batch_index is not None and self.themes.sub_agent_styles:
+                palette_size = len(self.themes.sub_agent_styles)
+                batch_color_start = self._sub_agent_batch_color_starts.get(batch_id)
+                if batch_color_start is None:
+                    batch_color_start = self._sub_agent_color_index
+                    self._sub_agent_batch_color_starts[batch_id] = batch_color_start
+                    reserved_colors = max(batch_size or 0, batch_index + 1)
+                    self._sub_agent_color_index = (batch_color_start + reserved_colors) % palette_size
+                color_index = (batch_color_start + batch_index + 1) % palette_size
                 color = self.themes.sub_agent_styles[color_index]
             else:
                 color, color_index = self._pick_sub_agent_color()
