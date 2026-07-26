@@ -185,5 +185,10 @@ class TestRenderAtAndSkillPatterns:
         assert content_segments
         assert all(segment.style is not None and segment.style.bgcolor == expected_bg for segment in content_segments)
 
-    def test_render_user_input_has_no_external_vertical_padding(self):
-        assert rendered_lines("hello") == ["❯ hello"]
+    def test_render_user_input_has_horizontal_but_no_vertical_padding(self):
+        assert rendered_lines("hello") == ["❯  hello"]
+
+        line = rendered_segments("hello")[0]
+        expected_bg = Console(theme=get_theme().app_theme).get_style(ThemeKey.USER_INPUT.value).bgcolor
+        assert line[-1].text == " "
+        assert line[-1].style is not None and line[-1].style.bgcolor == expected_bg

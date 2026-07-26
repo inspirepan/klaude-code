@@ -1,4 +1,5 @@
 from rich.console import Group, RenderableType
+from rich.padding import Padding
 from rich.text import Text
 
 from klaude_code.const import TAB_EXPAND_WIDTH
@@ -112,7 +113,7 @@ def render_user_input(content: str) -> RenderableType:
         return Text("", style=ThemeKey.USER_INPUT)
 
     return TreeQuote(
-        Group(*renderables),
+        Padding(Group(*renderables), (0, 1), style=ThemeKey.USER_INPUT),
         prefix_first=USER_MESSAGE_MARK,
         prefix_middle=" " * len(USER_MESSAGE_MARK),
         prefix_last=" " * len(USER_MESSAGE_MARK),
