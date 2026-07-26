@@ -19,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from enum import StrEnum
 
-from klaude_code.protocol import events
+from klaude_code.protocol import events, tools
 
 
 class Detail(StrEnum):
@@ -89,6 +89,8 @@ _HIDDEN_IN: Mapping[type[events.Event], frozenset[Quadrant]] = {
     events.ThinkingEndEvent: COMPACT,
 }
 
+_COMPACT_SUB_AGENT_TOOL_RESULTS = frozenset({tools.EDIT, tools.WRITE, tools.APPLY_PATCH})
+
 
 def hidden_in(event_type: type[events.Event]) -> frozenset[Quadrant]:
     """Quadrants where `event_type` is dropped from the transcript."""
@@ -102,6 +104,8 @@ def listed_event_types() -> frozenset[type[events.Event]]:
 
 def is_visible(event: events.Event, *, detail: Detail, is_sub_agent: bool) -> bool:
     """Whether `event` reaches the transcript at this detail level."""
+    if isinstance(event, events.ToolResultEvent) and detail.is_compact and is_sub_agent:
+        return event.tool_name in _COMPACT_SUB_AGENT_TOOL_RESULTS
     return Quadrant.of(detail, is_sub_agent=is_sub_agent) not in hidden_in(type(event))
 
 

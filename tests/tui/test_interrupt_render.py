@@ -43,9 +43,15 @@ def test_renderer_uses_interrupt_style_for_aborted_sub_agent_tool_result(monkeyp
 
     seen: dict[str, str | Style] = {}
 
-    def _fake_render_tool_error(error_msg: Text, *, style: str | Style = ThemeKey.ERROR) -> Text:
+    def _fake_render_tool_error(
+        error_msg: str,
+        *,
+        style: str | Style = ThemeKey.ERROR,
+        detail: Detail = Detail.COMPACT,
+    ) -> Text:
+        del detail
         seen["style"] = style
-        return Text(error_msg.plain, style=style)
+        return Text(error_msg, style=style)
 
     monkeypatch.setattr(renderer_module.c_errors, "render_tool_error", _fake_render_tool_error)
 

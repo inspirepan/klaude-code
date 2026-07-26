@@ -1965,12 +1965,7 @@ class DisplayStateMachine:
                 if candidate_state is not None and candidate_state.parent_tool_batch_id == e.response_id:
                     cmds.extend(self._maybe_finish_sub_agent_batch(candidate))
 
-        if (
-            s.is_sub_agent
-            and not e.is_error
-            and e.tool_name
-            not in (tools.EDIT, tools.WRITE, tools.APPLY_PATCH, tools.TODO_WRITE, tools.ASK_USER_QUESTION)
-        ):
+        if not self._visible(e, s):
             return cmds
 
         if self._compact and not s.is_sub_agent and e.tool_name == tools.BASH:

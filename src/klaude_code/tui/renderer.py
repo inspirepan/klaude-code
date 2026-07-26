@@ -99,7 +99,7 @@ from klaude_code.tui.components import thinking as c_thinking
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
-from klaude_code.tui.components.common import format_more_lines_indicator, truncate_head
+from klaude_code.tui.components.common import format_more_lines_indicator
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText
@@ -945,9 +945,8 @@ class TUICommandRenderer:
             return False
 
         if is_sub_agent and e.is_error:
-            error_msg = truncate_head(e.result)
             style = ThemeKey.INTERRUPT if e.status == "aborted" else ThemeKey.ERROR
-            self.print(c_errors.render_tool_error(error_msg, style=style))
+            self.print(c_errors.render_tool_error(e.result, style=style, detail=self._detail.current))
             return True
 
         if not is_sub_agent and isinstance(e.ui_extra, ImageUIExtra):

@@ -784,6 +784,7 @@ def test_main_session_bash_tool_buffers_before_delay_and_falls_back_to_tool_resu
 
 def test_sub_agent_todo_write_result_is_rendered() -> None:
     machine = DisplayStateMachine()
+    machine.set_transcript_detail(Detail.FULL)
     main_session = "main"
     sub_session = "sub-1"
 
@@ -820,6 +821,39 @@ def test_sub_agent_todo_write_result_is_rendered() -> None:
     assert len(tool_results) == 1
     assert tool_results[0].event.tool_name == tools.TODO_WRITE
     assert tool_results[0].is_sub_agent_session is True
+
+
+@pytest.mark.parametrize(("detail", "is_rendered"), [(Detail.COMPACT, False), (Detail.FULL, True)])
+def test_sub_agent_generic_tool_result_follows_transcript_detail(detail: Detail, is_rendered: bool) -> None:
+    machine = DisplayStateMachine()
+    machine.set_transcript_detail(detail)
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id="sub-1",
+            sub_agent_state=SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="searching",
+                sub_agent_prompt="prompt",
+            ),
+            model_id="test-model",
+        )
+    )
+
+    commands = machine.transition(
+        events.ToolResultEvent(
+            session_id="sub-1",
+            tool_call_id="search-1",
+            tool_name=tools.WEB_SEARCH,
+            result="complete search result",
+            status="success",
+        )
+    )
+
+    results = [command for command in commands if isinstance(command, RenderToolResult)]
+    assert bool(results) is is_rendered
+    if results:
+        assert results[0].is_sub_agent_session is True
 
 
 def test_main_session_bash_tool_flushes_buffer_after_delay(monkeypatch: pytest.MonkeyPatch) -> None:

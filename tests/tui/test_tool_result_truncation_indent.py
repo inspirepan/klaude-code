@@ -7,11 +7,12 @@ from klaude_code.protocol.models import DiffFileDiff, DiffLine, DiffSpan, DiffUI
 from klaude_code.tui.components.diffs import render_structured_diff
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.tools import render_tool_result
+from klaude_code.tui.transcript_detail import Detail
 
 
-def _render_event_to_text(event: events.ToolResultEvent) -> str:
-    console = Console(width=100, record=True, force_terminal=False, theme=get_theme().app_theme)
-    renderable = render_tool_result(event)
+def _render_event_to_text(event: events.ToolResultEvent, *, detail: Detail = Detail.COMPACT, width: int = 100) -> str:
+    console = Console(width=width, record=True, force_terminal=False, theme=get_theme().app_theme)
+    renderable = render_tool_result(event, detail=detail)
     assert renderable is not None
     console.print(renderable)
     return console.export_text()
@@ -47,6 +48,24 @@ def test_bash_truncation_indicator_uses_result_padding() -> None:
     output = _render_event_to_text(event)
 
     assert "  … (more 6 lines)" in output
+
+
+def test_full_bash_result_keeps_all_lines_and_wraps_long_content() -> None:
+    result = "\n".join([*(f"line-{idx}" for idx in range(12)), f"tail-{'x' * 80}-END"])
+    event = events.ToolResultEvent(
+        session_id="s1",
+        tool_call_id="tc1",
+        tool_name=tools.BASH,
+        result=result,
+        status="success",
+    )
+
+    output = _render_event_to_text(event, detail=Detail.FULL, width=40)
+
+    assert "line-0" in output
+    assert "line-11" in output
+    assert "END" in output
+    assert "more" not in output
 
 
 @pytest.mark.parametrize("tool_name", [tools.EDIT, tools.WRITE])

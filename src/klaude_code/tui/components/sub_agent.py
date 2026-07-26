@@ -6,12 +6,10 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
-from klaude_code.const import SUB_AGENT_RESULT_MAX_LINES
 from klaude_code.protocol.models import SubAgentState
 from klaude_code.tui.components.common import (
     format_compact_count,
     format_elapsed_compact,
-    format_more_lines_indicator,
     format_pascal_case,
 )
 from klaude_code.tui.components.rich.clip import MaxLines
@@ -19,7 +17,6 @@ from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
 
-_SUB_AGENT_PROMPT_MAX_LINES = 20
 _MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 _MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s*)")
 COMPACT_CONTINUATION_PREFIX = "↳ "
@@ -165,21 +162,9 @@ def render_sub_agent_call(
     if e.fork_context:
         header.append(" [fork]", style=ThemeKey.STATUS_HINT)
 
-    prompt_lines = e.sub_agent_prompt.splitlines()
-    prompt_source = e.sub_agent_prompt
-    hidden_count = 0
-    if len(prompt_lines) > _SUB_AGENT_PROMPT_MAX_LINES:
-        hidden_count = len(prompt_lines) - _SUB_AGENT_PROMPT_MAX_LINES
-        prompt_source = "\n".join(prompt_lines[:_SUB_AGENT_PROMPT_MAX_LINES])
-
     prompt_content: RenderableType = NoInsetMarkdown(
-        prompt_source, code_theme=code_theme, style=Style(color=style.color) if style else ""
+        e.sub_agent_prompt, code_theme=code_theme, style=Style(color=style.color) if style else ""
     )
-    if hidden_count > 0:
-        prompt_content = Group(
-            prompt_content,
-            Text(format_more_lines_indicator(hidden_count), style=ThemeKey.STATUS_HINT),
-        )
     elements: list[RenderableType] = [
         header,
         Panel(prompt_content, box=box.ROUNDED, border_style=ThemeKey.LINES),
@@ -209,12 +194,6 @@ def render_sub_agent_result(
     if not stripped_result:
         return Text()
 
-    lines = stripped_result.splitlines()
-    if len(lines) > SUB_AGENT_RESULT_MAX_LINES:
-        hidden_count = len(lines) - SUB_AGENT_RESULT_MAX_LINES
-        elements.append(Text("\n".join(lines[:SUB_AGENT_RESULT_MAX_LINES]), style=ThemeKey.TOOL_RESULT))
-        elements.append(Text(format_more_lines_indicator(hidden_count), style=ThemeKey.TOOL_RESULT_TRUNCATED))
-    else:
-        elements.append(Text(stripped_result, style=ThemeKey.TOOL_RESULT))
+    elements.append(Text(stripped_result, style=ThemeKey.TOOL_RESULT))
 
     return Group(*elements)

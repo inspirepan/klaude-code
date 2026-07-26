@@ -11,6 +11,7 @@ from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_to
 from klaude_code.tui.components.common import create_grid, shorten_path, truncate_middle
 from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.transcript_detail import Detail
 
 # Tool markers (Unicode symbols for UI display)
 MARK_GENERIC = "\u2692"
@@ -173,9 +174,17 @@ def tool_result_style(status: ToolResultStatus, *, success_style: str = ThemeKey
     return success_style
 
 
-def render_generic_tool_result(result: str, *, status: ToolResultStatus = "success") -> RenderableType:
-    """Render a generic tool result as truncated text."""
+def render_generic_tool_result(
+    result: str,
+    *,
+    status: ToolResultStatus = "success",
+    detail: Detail = Detail.COMPACT,
+) -> RenderableType:
+    """Render a generic tool result at the requested transcript detail."""
     style = tool_result_style(status)
+    if not detail.is_compact:
+        return Text(result, style=style, overflow="fold")
+
     text = truncate_middle(result, base_style=style)
     # Tool results should not reflow/wrap; use ellipsis when exceeding terminal width.
     text.no_wrap = True
@@ -183,6 +192,12 @@ def render_generic_tool_result(result: str, *, status: ToolResultStatus = "succe
     return text
 
 
-def render_fallback_tool_result(tool_name: str, result: str, *, status: ToolResultStatus = "success") -> RenderableType:
+def render_fallback_tool_result(
+    tool_name: str,
+    result: str,
+    *,
+    status: ToolResultStatus = "success",
+    detail: Detail = Detail.COMPACT,
+) -> RenderableType:
     del tool_name
-    return render_generic_tool_result(result, status=status)
+    return render_generic_tool_result(result, status=status, detail=detail)

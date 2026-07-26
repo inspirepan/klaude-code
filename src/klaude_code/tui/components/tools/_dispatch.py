@@ -229,7 +229,7 @@ def render_tool_result(
         if e.tool_name == tools.TODO_WRITE:
             result = e.result if len(e.result.strip()) > 0 else "(no content)"
             return pad_result(render_todo_message(result, status=e.status))
-        return pad_result(render_fallback_tool_result(e.tool_name, e.result, status=e.status))
+        return pad_result(render_fallback_tool_result(e.tool_name, e.result, status=e.status, detail=detail))
 
     # Render multiple ui blocks if present
     if isinstance(e.ui_extra, MultiUIExtra) and e.ui_extra.items:
@@ -263,8 +263,8 @@ def render_tool_result(
 
     def _render_fallback() -> RenderableType:
         if len(e.result.strip()) == 0:
-            return pad_result(render_fallback_tool_result(e.tool_name, "(no content)"))
-        return pad_result(render_fallback_tool_result(e.tool_name, e.result, status=e.status))
+            return pad_result(render_fallback_tool_result(e.tool_name, "(no content)", detail=detail))
+        return pad_result(render_fallback_tool_result(e.tool_name, e.result, status=e.status, detail=detail))
 
     match e.tool_name:
         case tools.READ:
@@ -304,18 +304,18 @@ def render_tool_result(
                 return _render_result_panel(render_web_search_results(search_results, detail=detail))
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
-                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)"))
-            return pad_result(render_fallback_tool_result(e.tool_name, display_result, status=e.status))
+                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)", detail=detail))
+            return pad_result(render_fallback_tool_result(e.tool_name, display_result, status=e.status, detail=detail))
         case tools.WEB_FETCH:
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
-                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)"))
-            return pad_result(render_fallback_tool_result(e.tool_name, display_result, status=e.status))
+                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)", detail=detail))
+            return pad_result(render_fallback_tool_result(e.tool_name, display_result, status=e.status, detail=detail))
         case tools.ASK_USER_QUESTION:
             if isinstance(e.ui_extra, AskUserQuestionSummaryUIExtra):
                 return AdaptiveIndent(render_ask_user_question_summary(e.ui_extra), TOOL_RESULT_INDENT)
             if len(e.result.strip()) == 0:
-                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)"))
+                return pad_result(render_fallback_tool_result(e.tool_name, "(no content)", detail=detail))
             return pad_result(render_ask_user_question_tool_result(e.result, status=e.status))
         case _:
             return _render_fallback()
