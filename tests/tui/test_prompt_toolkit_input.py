@@ -61,14 +61,6 @@ def _metadata(text: str) -> PromptStatusLine:
     return PromptStatusLine(text, "metadata")
 
 
-def _boundary_status(text: str, *, suppress_top_spacer: bool = False) -> PromptStatusLine:
-    return PromptStatusLine(
-        text,
-        "status",
-        suppress_top_spacer=suppress_top_spacer,
-    )
-
-
 def test_set_next_prefill_stores_text() -> None:
     prompt_input: Any = _build_input("hello")
     prompt_input._next_prefill_text = None
@@ -227,7 +219,7 @@ def test_status_reserved_height_shrinks_with_remaining_status_rows() -> None:
     ]
 
 
-def test_only_status_with_scrollback_boundary_suppresses_top_spacer() -> None:
+def test_status_top_spacer_is_always_reserved() -> None:
     prompt_input = _build_input("")
     bar = prompt_input._bottom_bar
 
@@ -237,14 +229,8 @@ def test_only_status_with_scrollback_boundary_suppresses_top_spacer() -> None:
     prompt_input.set_status_lines((_status("Bashing…"),))
     assert bar.reserved_layout_rows() == 2
 
-    prompt_input.set_status_lines((_boundary_status("Bashing…"),))
+    prompt_input.set_status_lines((_metadata("in 1k"),))
     assert bar.reserved_layout_rows() == 2
-
-    prompt_input.set_status_lines((_boundary_status("Bashing…", suppress_top_spacer=True),))
-    assert bar.reserved_layout_rows() == 1
-
-    prompt_input.set_status_lines((PromptStatusLine("in 1k", "metadata", suppress_top_spacer=True),))
-    assert bar.reserved_layout_rows() == 1
 
 
 def test_status_clear_defers_height_collapse_under_loop() -> None:
@@ -554,10 +540,13 @@ def test_interrupt_handler_invalidates_running_separator() -> None:
     assert invalidations.count == 2
 
 
-def test_stream_lines_render_above_status() -> None:
+def test_stream_lines_reserve_separator_below_status() -> None:
     prompt_input = _build_input("")
 
-    prompt_input.set_stream_lines(("  line one", "  line two"))
+    prompt_input.set_stream_lines(
+        ("  line one", "  line two"),
+        separate_from_status=True,
+    )
 
     bar = prompt_input._bottom_bar
     assert bar._stream_lines == ("  line one", "  line two")
@@ -566,6 +555,7 @@ def test_stream_lines_render_above_status() -> None:
         ("", "\n"),
         ("class:tool.result", "  line two"),
     ]
+    assert bar.reserved_layout_rows() == 5
 
 
 def test_stream_lines_height_high_water_holds_during_session() -> None:
@@ -623,14 +613,16 @@ def test_stream_lines_end_of_stream_defers_height_collapse_under_loop() -> None:
         prompt_input = _build_input("")
         bar = prompt_input._bottom_bar
 
-        prompt_input.set_stream_lines(("a", "b", "c"))
+        prompt_input.set_stream_lines(("a", "b", "c"), separate_from_status=True)
         assert bar._stream_reserved_line_count == 3
+        assert bar._stream_separator_visible() is True
 
-        prompt_input.set_stream_lines((), end_of_stream=True)
+        prompt_input.set_stream_lines((), end_of_stream=True, separate_from_status=True)
         # Lines cleared immediately…
         assert bar._stream_lines == ()
         # …but reserved height is held pending the debounce timer.
         assert bar._stream_reserved_line_count == 3
+        assert bar._stream_separator_visible() is True
         assert bar._stream_collapse_handle is not None
 
         # A new stream before the timer fires cancels the delayed collapse
@@ -639,6 +631,7 @@ def test_stream_lines_end_of_stream_defers_height_collapse_under_loop() -> None:
         assert bar._stream_collapse_handle is None
         assert bar._stream_reserved_line_count == 1
         assert bar._stream_lines == ("d",)
+        assert bar._stream_separator_visible() is False
 
     asyncio.run(_scenario())
 

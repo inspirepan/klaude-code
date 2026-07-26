@@ -296,8 +296,18 @@ class PromptToolkitInput(InputProviderABC):
     def set_session_dir(self, session_dir: Path | None) -> None:
         self._session_dir = session_dir
 
-    def set_stream_lines(self, lines: tuple[str, ...], *, end_of_stream: bool = False) -> None:
-        self._bottom_bar.set_stream_lines(lines, end_of_stream=end_of_stream)
+    def set_stream_lines(
+        self,
+        lines: tuple[str, ...],
+        *,
+        end_of_stream: bool = False,
+        separate_from_status: bool = False,
+    ) -> None:
+        self._bottom_bar.set_stream_lines(
+            lines,
+            end_of_stream=end_of_stream,
+            separate_from_status=separate_from_status,
+        )
 
     def set_status_lines(
         self,

@@ -29,7 +29,7 @@ class TUIDisplay(DisplayABC):
         notifier: TerminalNotifier | None = None,
         on_prompt_suggestion: Callable[[str | None], None] | None = None,
         on_status_update: Callable[[tuple[PromptStatusLine, ...], str | None, bool], None] | None = None,
-        on_stream_update: Callable[[tuple[str, ...], bool], None] | None = None,
+        on_stream_update: Callable[[tuple[str, ...], bool, bool], None] | None = None,
     ):
         self._notifier = notifier or TerminalNotifier()
         # One holder, shared: the machine decides which commands to emit and the

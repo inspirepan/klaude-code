@@ -278,9 +278,17 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
                 reset_bottom_height=reset_bottom_height,
             )
 
-    def _set_stream_lines(lines: tuple[str, ...], end_of_stream: bool = False) -> None:
+    def _set_stream_lines(
+        lines: tuple[str, ...],
+        end_of_stream: bool = False,
+        separate_from_status: bool = False,
+    ) -> None:
         if input_provider is not None:
-            input_provider.set_stream_lines(lines, end_of_stream=end_of_stream)
+            input_provider.set_stream_lines(
+                lines,
+                end_of_stream=end_of_stream,
+                separate_from_status=separate_from_status,
+            )
 
     tui_display = TUIDisplay(
         theme=theme,

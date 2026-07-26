@@ -111,14 +111,16 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 
 - Renderer live output, such as bash-mode live tail, should use
   `TUICommandRenderer(stream_sink=...)` while prompt-toolkit owns the bottom UI.
-- `PromptToolkitInput.set_stream_lines()` renders the live-output block above
-  status, queue, and input.
+- `PromptToolkitInput.set_stream_lines()` renders the live-output block below
+  status and above the queue and input.
 - Do not reintroduce `CropAboveLive` for running prompt-owned live output.
 
 ### Spacing invariants for the prompt bottom layout
 
 - Keep one blank row between recent scrollback and the status block when status
   is visible.
+- Keep one blank row between status and the Bash live-tail block when live
+  command output is visible.
 - Keep one blank row between status and the queue block / input editor.
 - Keep one blank row below the queue block when queued messages are visible.
 - Status, queue, and input should be independent blocks; queue updates must not

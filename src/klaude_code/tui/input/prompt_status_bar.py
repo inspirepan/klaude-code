@@ -18,6 +18,7 @@ from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.layout.containers import ConditionalContainer, Container, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.layout.dimension import Dimension
 
 from klaude_code.const import STATUS_WAITING_TEXT
 from klaude_code.tui.commands import PromptStatusLine
@@ -58,6 +59,7 @@ class PromptBottomBar:
 
         self._stream_lines: tuple[str, ...] = ()
         self._stream_reserved_line_count: int = 0
+        self._stream_separated_from_status = False
         self._stream_collapse_handle: asyncio.TimerHandle | None = None
         self._status_lines: tuple[PromptStatusLine, ...] = ()
         self._metadata_footer_lines: tuple[str, ...] = ()
@@ -72,7 +74,13 @@ class PromptBottomBar:
 
     # ---- public mutators -------------------------------------------------
 
-    def set_stream_lines(self, lines: tuple[str, ...], *, end_of_stream: bool = False) -> None:
+    def set_stream_lines(
+        self,
+        lines: tuple[str, ...],
+        *,
+        end_of_stream: bool = False,
+        separate_from_status: bool = False,
+    ) -> None:
         stream_lines = tuple(line for line in lines if line.strip())
         starts_after_ended_stream = bool(stream_lines) and self._stream_collapse_handle is not None
 
@@ -93,6 +101,7 @@ class PromptBottomBar:
             if not self._stream_lines and self._stream_reserved_line_count == 0:
                 return
             self._stream_lines = ()
+            self._stream_separated_from_status = separate_from_status
             self._invalidate()
             self._schedule_stream_collapse()
             return
@@ -102,10 +111,15 @@ class PromptBottomBar:
         # not flicker the layout. prompt-toolkit pads the difference with
         # blanks for free since the Window has a fixed height.
         new_reserved = max(self._stream_reserved_line_count, len(stream_lines))
-        if stream_lines == self._stream_lines and new_reserved == self._stream_reserved_line_count:
+        if (
+            stream_lines == self._stream_lines
+            and new_reserved == self._stream_reserved_line_count
+            and separate_from_status == self._stream_separated_from_status
+        ):
             return
         self._stream_lines = stream_lines
         self._stream_reserved_line_count = new_reserved
+        self._stream_separated_from_status = separate_from_status
         self._invalidate()
 
     def _cancel_pending_stream_collapse(self) -> None:
@@ -124,6 +138,7 @@ class PromptBottomBar:
             # collapse immediately so behavior matches the synchronous
             # contract.
             self._stream_reserved_line_count = 0
+            self._stream_separated_from_status = False
             self._invalidate()
             return
         self._stream_collapse_handle = loop.call_later(
@@ -136,6 +151,7 @@ class PromptBottomBar:
         if self._stream_reserved_line_count == 0:
             return
         self._stream_reserved_line_count = 0
+        self._stream_separated_from_status = False
         self._invalidate()
 
     def set_status_lines(
@@ -243,8 +259,9 @@ class PromptBottomBar:
     def reserved_layout_rows(self) -> int:
         """Return the current number of rows reserved by build_containers()."""
 
-        rows = max(0, self._stream_reserved_line_count) + int(self._top_spacer_visible())
+        rows = max(0, self._stream_reserved_line_count) + 1
         rows += self._status_window_height()
+        rows += int(self._stream_separator_visible())
         rows += self._pending_block_height()
         return rows
 
@@ -269,8 +286,9 @@ class PromptBottomBar:
 
         stream_visible = Condition(lambda: self._stream_reserved_line_count > 0)
         return [
-            ConditionalContainer(_spacer(), filter=Condition(self._top_spacer_visible)),
+            _spacer(),
             status_window,
+            ConditionalContainer(_flexible_spacer(), filter=Condition(self._stream_separator_visible)),
             ConditionalContainer(stream_window, filter=stream_visible),
             ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._pending_messages))),
             ConditionalContainer(queue_window, filter=Condition(lambda: bool(self._pending_messages))),
@@ -300,11 +318,11 @@ class PromptBottomBar:
     def _visible_status_lines(self) -> tuple[PromptStatusLine, ...]:
         return tuple(line for line in self._status_lines if line.kind != "metadata")
 
-    def _top_spacer_visible(self) -> bool:
-        return not any(line.suppress_top_spacer for line in self._status_lines)
-
     def _pending_window_height(self) -> int:
         return len(self._pending_messages) + 1
+
+    def _stream_separator_visible(self) -> bool:
+        return self._stream_reserved_line_count > 0 and self._stream_separated_from_status
 
     def _pending_block_height(self) -> int:
         if not self._pending_messages:
@@ -407,3 +425,11 @@ class PromptBottomBar:
 
 def _spacer() -> Window:
     return Window(content=FormattedTextControl(""), height=1, dont_extend_height=True)
+
+
+def _flexible_spacer() -> Window:
+    return Window(
+        content=FormattedTextControl(""),
+        height=Dimension(min=0, preferred=1, max=1),
+        dont_extend_height=True,
+    )

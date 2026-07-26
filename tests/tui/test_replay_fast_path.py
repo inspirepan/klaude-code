@@ -12,7 +12,7 @@ def test_replay_mode_defers_assistant_stream_until_end() -> None:
 
     stream_updates: list[tuple[str, ...]] = []
 
-    def _sink(lines: tuple[str, ...], _end_of_stream: bool) -> None:
+    def _sink(lines: tuple[str, ...], _end_of_stream: bool, _separate_from_status: bool) -> None:
         stream_updates.append(lines)
 
     renderer = TUICommandRenderer(stream_sink=_sink)

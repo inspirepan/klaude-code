@@ -22,11 +22,11 @@ def _renderer_console(renderer: object) -> Console:
 
 def _make_stream_recorder():
     lines_only: list[tuple[str, ...]] = []
-    full: list[tuple[tuple[str, ...], bool]] = []
+    full: list[tuple[tuple[str, ...], bool, bool]] = []
 
-    def _sink(lines: tuple[str, ...], end_of_stream: bool) -> None:
+    def _sink(lines: tuple[str, ...], end_of_stream: bool, separate_from_status: bool) -> None:
         lines_only.append(lines)
-        full.append((lines, end_of_stream))
+        full.append((lines, end_of_stream, separate_from_status))
 
     return lines_only, full, _sink
 
@@ -42,7 +42,7 @@ def test_stream_renderable_updates_prompt_stream_sink() -> None:
 
     assert renderer._stream_renderable is not None
     assert stream_updates[-1] == ("live stream",)
-    assert full_updates[-1] == (("live stream",), False)
+    assert full_updates[-1] == (("live stream",), False, False)
 
 
 def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
@@ -57,7 +57,7 @@ def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
 
     assert renderer._stream_renderable is None
     assert stream_updates[-1] == ()
-    assert full_updates[-1] == ((), True)
+    assert full_updates[-1] == ((), True, False)
 
 
 def test_prompt_separator_text_can_be_sent_without_status_lines() -> None:
@@ -179,7 +179,6 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert line.text == " ●  Finder: inspect status ✓ · 2s"
     assert line.fragments
     assert line.show_spinner is False
-    assert line.suppress_top_spacer is False
     assert "".join(text for _, text in line.fragments) == line.text
     assert line.inline_spinner_style is None
     assert line.fragments[0][0].startswith("fg:#")
@@ -199,7 +198,6 @@ def test_sub_agent_status_sink_preserves_identity_color() -> None:
     assert line.fragments[success_index - 1] == ("class:meta", " ")
     assert result_line.text == "      ↳ Found the issue…"
     assert result_line.show_spinner is False
-    assert result_line.suppress_top_spacer is False
 
 
 def test_compact_sub_agent_colors_continue_across_tool_batches() -> None:
@@ -244,97 +242,6 @@ def test_compact_sub_agent_colors_continue_across_tool_batches() -> None:
     )
 
     assert renderer._sessions["batch-a-replay"].color_index == 1
-
-
-def test_status_reuses_assistant_stream_boundary() -> None:
-    import asyncio
-
-    from rich.text import Text
-
-    from klaude_code.tui.commands import (
-        AppendAssistant,
-        EndAssistantStream,
-        PromptStatusLine,
-        SpinnerStatusLine,
-        StartAssistantStream,
-    )
-    from klaude_code.tui.renderer import TUICommandRenderer
-
-    status_updates: list[tuple[PromptStatusLine, ...]] = []
-    renderer = TUICommandRenderer(status_sink=lambda lines, _separator, _reset: status_updates.append(lines))
-    _renderer_console(renderer)
-    renderer.set_progress_ui_suspended(True)
-    renderer.spinner_start()
-    renderer._spinner_last_apply_at = 0.0
-    renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("Loading")),))
-    assert status_updates[-1][0].suppress_top_spacer is False
-
-    asyncio.run(
-        renderer.execute(
-            [
-                StartAssistantStream(session_id="main"),
-                AppendAssistant(session_id="main", content="Starting finder."),
-                EndAssistantStream(session_id="main"),
-            ]
-        )
-    )
-
-    renderer._spinner_last_apply_at = 0.0
-    renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("Bashing: run tests")),))
-
-    assert status_updates[-1][0].suppress_top_spacer is True
-
-
-def test_status_reuses_explicit_scrollback_boundary() -> None:
-    from klaude_code.protocol.models import SubAgentState
-    from klaude_code.tui.commands import PromptStatusLine, SpinnerStatusLine
-    from klaude_code.tui.renderer import TUICommandRenderer
-
-    status_updates: list[tuple[PromptStatusLine, ...]] = []
-    renderer = TUICommandRenderer(status_sink=lambda lines, _separator, _reset: status_updates.append(lines))
-    _renderer_console(renderer)
-    renderer.set_progress_ui_suspended(True)
-    renderer.spinner_start()
-    renderer._spinner_last_apply_at = 0.0
-    renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("Bashing")),))
-
-    renderer.print(Text("tool output"))
-    assert status_updates[-1][0].suppress_top_spacer is False
-
-    renderer.print()
-    assert status_updates[-1][0].suppress_top_spacer is True
-
-    renderer.register_session(
-        "child",
-        SubAgentState(sub_agent_type="finder", sub_agent_desc="search", sub_agent_prompt="prompt"),
-    )
-    with renderer.session_print_context("child"):
-        renderer.print(Text("child output"))
-    assert status_updates[-1][0].suppress_top_spacer is False
-
-    renderer._print_blank_line("child")
-    assert status_updates[-1][0].suppress_top_spacer is True
-
-
-def test_user_message_boundary_keeps_status_spacer() -> None:
-    import asyncio
-
-    from klaude_code.tui.commands import PromptStatusLine, RenderUserMessage, SpinnerStatusLine
-    from klaude_code.tui.renderer import TUICommandRenderer
-
-    status_updates: list[tuple[PromptStatusLine, ...]] = []
-    renderer = TUICommandRenderer(status_sink=lambda lines, _separator, _reset: status_updates.append(lines))
-    _renderer_console(renderer)
-    renderer.set_progress_ui_suspended(True)
-    renderer.spinner_start()
-    renderer._spinner_last_apply_at = 0.0
-    renderer.spinner_update(status_lines=(SpinnerStatusLine(text=Text("Loading")),))
-
-    asyncio.run(
-        renderer.execute([RenderUserMessage(event=events.UserMessageEvent(session_id="main", content="hello"))])
-    )
-
-    assert status_updates[-1][0].suppress_top_spacer is False
 
 
 def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
@@ -472,7 +379,7 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
     from klaude_code.tui.renderer import BASH_LIVE_TAIL_MAX_LINES, TUICommandRenderer
 
-    stream_updates, _full_updates, _sink = _make_stream_recorder()
+    stream_updates, full_updates, _sink = _make_stream_recorder()
     renderer = TUICommandRenderer(stream_sink=_sink)
     console = _renderer_console(renderer)
 
@@ -492,6 +399,7 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     assert lines[0] == f"{' ' * BASH_OUTPUT_LEFT_PADDING}… (more {hidden} lines)"
     assert lines[1:] == [f"{' ' * BASH_OUTPUT_LEFT_PADDING}line-{i}" for i in range(hidden, 12)]
     assert stream_updates[-1] == tuple(lines)
+    assert full_updates[-1][2] is True
 
 
 def test_bash_live_tail_throttles_renders_and_flushes_trailing_content() -> None:

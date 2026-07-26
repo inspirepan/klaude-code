@@ -29,7 +29,6 @@ class PromptStatusLine:
     fragments: PromptStatusFragments = ()
     show_spinner: bool = True
     inline_spinner_style: str | None = None
-    suppress_top_spacer: bool = False
 
 
 @dataclass(frozen=True, slots=True)

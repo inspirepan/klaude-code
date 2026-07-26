@@ -141,7 +141,7 @@ SPINNER_UPDATE_MIN_INTERVAL_S = 1 / 10
 
 # Dedup key for spinner updates. `reset_bottom_height` only participates in
 # the key; it carries no rendering state of its own.
-_SpinnerUpdateKey = tuple[object, object, object, object, object]
+_SpinnerUpdateKey = tuple[object, object, object, object]
 
 
 def _text_fingerprint(text: Text) -> tuple[str, str, tuple[tuple[int, int, str], ...]]:
@@ -219,7 +219,7 @@ class TUICommandRenderer:
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
         status_sink: Callable[[tuple[PromptStatusLine, ...], str | None, bool], None] | None = None,
-        stream_sink: Callable[[tuple[str, ...], bool], None] | None = None,
+        stream_sink: Callable[[tuple[str, ...], bool, bool], None] | None = None,
         detail: TranscriptDetail | None = None,
     ) -> None:
         self.themes = get_theme(theme)
@@ -245,7 +245,6 @@ class TUICommandRenderer:
         self._status_line_specs: tuple[SpinnerStatusLine, ...] = ()
         self._notifier = notifier
         self._scrollback_boundary_printed = False
-        self._status_gap_in_scrollback = False
         self._status_sink = status_sink
         self._stream_sink = stream_sink
         self._assistant_stream = _StreamState()
@@ -435,14 +434,10 @@ class TUICommandRenderer:
         self._set_scrollback_boundary(not objects)
         self.console.print(*objects, style=style, end=end, overflow="ellipsis")
 
-    def _set_scrollback_boundary(self, printed: bool, *, status_gap: bool | None = None) -> None:
-        resolved_status_gap = printed if status_gap is None else status_gap
-        if self._scrollback_boundary_printed == printed and self._status_gap_in_scrollback == resolved_status_gap:
+    def _set_scrollback_boundary(self, printed: bool) -> None:
+        if self._scrollback_boundary_printed == printed:
             return
         self._scrollback_boundary_printed = printed
-        self._status_gap_in_scrollback = resolved_status_gap
-        if self._progress_ui_suspended and self._spinner_visible:
-            self._emit_prompt_status()
 
     def _clear_open_blocks(self) -> None:
         self._continuous_block_session_id = None
@@ -544,7 +539,6 @@ class TUICommandRenderer:
             ),
             update.separator_text,
             update.reset_bottom_height,
-            self._status_gap_in_scrollback,
         )
 
     def _apply_spinner_update(self, update: SpinnerUpdate) -> bool:
@@ -679,7 +673,6 @@ class TUICommandRenderer:
                     fragments,
                     show_spinner,
                     inline_spinner_style,
-                    self._status_gap_in_scrollback,
                 )
             )
         if self._status_metadata_text is not None:
@@ -689,7 +682,6 @@ class TUICommandRenderer:
                 result[-1].fragments,
                 result[-1].show_spinner,
                 result[-1].inline_spinner_style,
-                result[-1].suppress_top_spacer,
             )
         return tuple(result)
 
@@ -748,25 +740,18 @@ class TUICommandRenderer:
             return ()
         rendered = self.console.render_lines(self._status_metadata_text, self.console.options, pad=False)
         lines = tuple("".join(segment.text for segment in line if not segment.control).rstrip() for line in rendered)
-        return tuple(
-            PromptStatusLine(
-                line,
-                "metadata",
-                suppress_top_spacer=self._status_gap_in_scrollback,
-            )
-            for line in lines
-            if line
-        )
+        return tuple(PromptStatusLine(line, "metadata") for line in lines if line)
 
     def _emit_prompt_stream(
         self,
         lines: tuple[str, ...] | None = None,
         *,
         end_of_stream: bool = False,
+        separate_from_status: bool = False,
     ) -> None:
         if self._stream_sink is None:
             return
-        self._stream_sink(lines or (), end_of_stream)
+        self._stream_sink(lines or (), end_of_stream, separate_from_status)
 
     def _prompt_stream_lines(self, renderable: RenderableType) -> tuple[str, ...]:
         rendered = self.console.render_lines(renderable, self.console.options, pad=False)
@@ -857,14 +842,26 @@ class TUICommandRenderer:
         # Fall back to a unique key so we never skip updates for unknown renderables.
         return ("other", object())
 
-    def set_stream_renderable(self, renderable: RenderableType | None) -> None:
+    def set_stream_renderable(
+        self,
+        renderable: RenderableType | None,
+        *,
+        separate_from_status: bool = False,
+    ) -> None:
         if renderable is None:
             self._stream_renderable = None
-            self._emit_prompt_stream((), end_of_stream=True)
+            self._emit_prompt_stream(
+                (),
+                end_of_stream=True,
+                separate_from_status=separate_from_status,
+            )
             return
 
         self._stream_renderable = renderable
-        self._emit_prompt_stream(self._prompt_stream_lines(renderable))
+        self._emit_prompt_stream(
+            self._prompt_stream_lines(renderable),
+            separate_from_status=separate_from_status,
+        )
 
     # ---------------------------------------------------------------------
     # Stream helpers (MarkdownStream)
@@ -1114,7 +1111,10 @@ class TUICommandRenderer:
                 rendered.append("\n")
 
         rendered.append("\n".join(lines))
-        self.set_stream_renderable(c_tools.indent_bash_output(rendered))
+        self.set_stream_renderable(
+            c_tools.indent_bash_output(rendered),
+            separate_from_status=True,
+        )
 
     def display_bash_command_delta(self, e: events.BashCommandOutputDeltaEvent) -> None:
         if not self._bash_stream_active:
@@ -1134,7 +1134,7 @@ class TUICommandRenderer:
         del e
         self._cancel_bash_live_flush()
         if self._bash_stream_active:
-            self.set_stream_renderable(None)
+            self.set_stream_renderable(None, separate_from_status=True)
         self._bash_stream_active = False
         self._bash_live_tail_lines.clear()
         self._bash_live_partial_line = ""
@@ -1151,7 +1151,6 @@ class TUICommandRenderer:
     def display_user_message(self, event: events.UserMessageEvent) -> None:
         self.print(c_user_input.render_user_input(event.content))
         self.print()
-        self._set_scrollback_boundary(True, status_gap=False)
 
     def display_time_marker(self, label: str) -> None:
         self.print(Text(f" ⏱ {label} ", style=ThemeKey.TIME_MARKER))
