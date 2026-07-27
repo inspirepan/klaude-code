@@ -97,10 +97,10 @@ def test_get_existing_memory_files_includes_git_root_memories(monkeypatch: pytes
 
     assert set(result["project"]) == {
         str(root_agents),
-        str(root_claude),
         str(root_claude_dir_file),
         str(root_agents_dir_file),
     }
+    assert str(root_claude) not in result["project"]
     assert result["user"] == []
 
 
@@ -150,6 +150,28 @@ def test_discover_memory_files_near_paths_deduplicates_symlinks(tmp_path: Path) 
 
     assert len(memories) == 1
     assert memories[0].content.strip() == "shared instructions"
+
+
+def test_discover_memory_files_near_paths_loads_only_preferred_file(tmp_path: Path) -> None:
+    work_dir = tmp_path / "repo"
+    nested_dir = work_dir / "src"
+    nested_dir.mkdir(parents=True)
+    target_file = nested_dir / "app.py"
+    target_file.write_text("print('hello')\n", encoding="utf-8")
+    (nested_dir / "AGENTS.md").write_text("agents instructions\n", encoding="utf-8")
+    (nested_dir / "CLAUDE.md").write_text("claude instructions\n", encoding="utf-8")
+
+    loaded: set[str] = set()
+    memories = memory.discover_memory_files_near_paths(
+        [str(target_file.resolve())],
+        work_dir=work_dir,
+        is_memory_loaded=lambda p: p in loaded,
+        mark_memory_loaded=lambda p: loaded.add(p),
+    )
+
+    assert [(item.path, item.content) for item in memories] == [
+        (str(nested_dir / "AGENTS.md"), "agents instructions\n")
+    ]
 
 
 def test_discover_memory_files_near_paths_truncates_content(tmp_path: Path) -> None:

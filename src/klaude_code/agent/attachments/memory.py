@@ -48,6 +48,14 @@ class Memory(BaseModel):
     content: str
 
 
+def _get_memory_path(directory: Path) -> Path | None:
+    for file_name in MEMORY_FILE_NAMES:
+        memory_path = directory / file_name
+        if memory_path.exists() and memory_path.is_file():
+            return memory_path
+    return None
+
+
 def _fmt_memory_truncated(budget_bytes: int) -> str:
     return MEMORY_TRUNCATED_TEMPLATE.format(budget_bytes=budget_bytes)
 
@@ -78,18 +86,18 @@ def get_project_memory_dirs(*, work_dir: Path) -> list[Path]:
 
 
 def get_memory_paths(*, work_dir: Path) -> list[tuple[Path, str]]:
-    """Return all possible memory file paths with their descriptions."""
+    """Return the preferred existing memory file in each search directory."""
 
     user_dirs = [Path.home() / ".claude", Path.home() / ".codex", Path.home() / ".klaude", Path.home() / ".agents"]
     project_dirs = get_project_memory_dirs(work_dir=work_dir)
 
     paths: list[tuple[Path, str]] = []
     for directory in user_dirs:
-        for file_name in MEMORY_FILE_NAMES:
-            paths.append((directory / file_name, USER_MEMORY_INSTRUCTION))
+        if memory_path := _get_memory_path(directory):
+            paths.append((memory_path, USER_MEMORY_INSTRUCTION))
     for directory in project_dirs:
-        for file_name in MEMORY_FILE_NAMES:
-            paths.append((directory / file_name, PROJECT_MEMORY_INSTRUCTION))
+        if memory_path := _get_memory_path(directory):
+            paths.append((memory_path, PROJECT_MEMORY_INSTRUCTION))
     return paths
 
 
@@ -207,11 +215,9 @@ def discover_memory_files_near_paths(
             if current_dir in seen_dirs:
                 continue
             seen_dirs.add(current_dir)
-            for file_name in MEMORY_FILE_NAMES:
-                memory_path = current_dir / file_name
+            memory_path = _get_memory_path(current_dir)
+            if memory_path is not None:
                 memory_path_str = str(memory_path)
-                if not memory_path.exists() or not memory_path.is_file():
-                    continue
                 try:
                     resolved = memory_path.resolve()
                 except OSError:
