@@ -57,7 +57,13 @@ from klaude_code.tui.input.paste import (
     expand_paste_markers_with_file_save,
 )
 from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
-from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_METADATA_FOOTER, get_base_style
+from klaude_code.tui.input.pt_theme import (
+    CLASS_LINES,
+    CLASS_META,
+    CLASS_METADATA_FOOTER,
+    CLASS_TOOL_RESULT,
+    get_base_style,
+)
 from klaude_code.tui.input.resize_watcher import ResizeWatcher
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 
@@ -302,11 +308,13 @@ class PromptToolkitInput(InputProviderABC):
         *,
         end_of_stream: bool = False,
         separate_from_status: bool = False,
+        style_class: str = CLASS_TOOL_RESULT,
     ) -> None:
         self._bottom_bar.set_stream_lines(
             lines,
             end_of_stream=end_of_stream,
             separate_from_status=separate_from_status,
+            style_class=style_class,
         )
 
     def set_status_lines(

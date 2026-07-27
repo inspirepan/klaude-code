@@ -58,6 +58,7 @@ class PromptBottomBar:
         self._is_agent_running = is_agent_running
 
         self._stream_lines: tuple[str, ...] = ()
+        self._stream_style_class: str = CLASS_TOOL_RESULT
         self._stream_reserved_line_count: int = 0
         self._stream_separated_from_status = False
         self._stream_collapse_handle: asyncio.TimerHandle | None = None
@@ -80,6 +81,7 @@ class PromptBottomBar:
         *,
         end_of_stream: bool = False,
         separate_from_status: bool = False,
+        style_class: str = CLASS_TOOL_RESULT,
     ) -> None:
         stream_lines = tuple(line for line in lines if line.strip())
         starts_after_ended_stream = bool(stream_lines) and self._stream_collapse_handle is not None
@@ -115,9 +117,11 @@ class PromptBottomBar:
             stream_lines == self._stream_lines
             and new_reserved == self._stream_reserved_line_count
             and separate_from_status == self._stream_separated_from_status
+            and style_class == self._stream_style_class
         ):
             return
         self._stream_lines = stream_lines
+        self._stream_style_class = style_class
         self._stream_reserved_line_count = new_reserved
         self._stream_separated_from_status = separate_from_status
         self._invalidate()
@@ -309,7 +313,7 @@ class PromptBottomBar:
         for index, line in enumerate(self._stream_lines):
             if index:
                 fragments.append(("", "\n"))
-            fragments.append((CLASS_TOOL_RESULT, line))
+            fragments.append((self._stream_style_class, line))
         return fragments
 
     def _status_window_height(self) -> int:

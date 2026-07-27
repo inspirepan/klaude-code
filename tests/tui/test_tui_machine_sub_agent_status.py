@@ -1596,23 +1596,31 @@ def _spawn_sub_agent(machine: DisplayStateMachine, session_id: str, *, replay: b
 
 
 def test_compact_mode_keeps_thinking_out_of_the_transcript_entirely() -> None:
-    """Compact mode reports thinking only on the live status line, never in scrollback."""
+    """Compact mode reports thinking on the status line and the prompt preview, never in scrollback."""
     from klaude_code.tui.commands import AppendThinking, EndThinkingStream, StartThinkingStream
 
     machine = DisplayStateMachine()
     machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
     _spawn_sub_agent(machine, "sub-1")
 
-    transcript_commands = (RenderSubAgentThinking, StartThinkingStream, AppendThinking, EndThinkingStream)
+    # The main agent's stream commands drive the prompt-owned live preview, which
+    # never reaches scrollback; a sub-agent gets no thinking commands at all.
+    stream_commands = (StartThinkingStream, AppendThinking, EndThinkingStream)
     for session_id in ("main", "sub-1"):
         started = machine.transition(events.ThinkingStartEvent(session_id=session_id, timestamp=100.0))
         delta = machine.transition(
             events.ThinkingDeltaEvent(session_id=session_id, content="deep thoughts ", timestamp=101.0)
         )
         ended = machine.transition(events.ThinkingEndEvent(session_id=session_id, timestamp=102.0, duration_s=2.0))
+        commands = (*started, *delta, *ended)
 
-        for command in (*started, *delta, *ended):
-            assert not isinstance(command, transcript_commands), (session_id, command)
+        for command in commands:
+            assert not isinstance(command, RenderSubAgentThinking), (session_id, command)
+        if session_id == "main":
+            assert [type(cmd) for cmd in commands if isinstance(cmd, stream_commands)] == list(stream_commands)
+        else:
+            for command in commands:
+                assert not isinstance(command, stream_commands), (session_id, command)
 
     # The char count still feeds the status line, so it is tracked even unrendered.
     machine.transition(events.ThinkingStartEvent(session_id="sub-1", timestamp=103.0))

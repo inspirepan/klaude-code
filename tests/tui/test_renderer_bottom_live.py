@@ -24,7 +24,12 @@ def _make_stream_recorder():
     lines_only: list[tuple[str, ...]] = []
     full: list[tuple[tuple[str, ...], bool, bool]] = []
 
-    def _sink(lines: tuple[str, ...], end_of_stream: bool, separate_from_status: bool) -> None:
+    def _sink(
+        lines: tuple[str, ...],
+        end_of_stream: bool,
+        separate_from_status: bool,
+        _style_class: str = "class:tool.result",
+    ) -> None:
         lines_only.append(lines)
         full.append((lines, end_of_stream, separate_from_status))
 
@@ -426,6 +431,111 @@ def test_bash_live_tail_throttles_renders_and_flushes_trailing_content() -> None
         await asyncio.sleep(BASH_LIVE_TAIL_MIN_INTERVAL_S + 0.03)
         assert len(stream_updates) > renders_after_first
         assert any("three" in line for line in stream_updates[-1])
+
+    asyncio.run(_scenario())
+
+
+def test_compact_thinking_preview_keeps_tail_out_of_scrollback() -> None:
+    import asyncio
+
+    from klaude_code.tui.commands import AppendThinking, EndThinkingStream, StartThinkingStream
+    from klaude_code.tui.input.pt_theme import CLASS_THINKING
+    from klaude_code.tui.renderer import THINKING_LIVE_TAIL_MAX_LINES, TUICommandRenderer
+
+    updates: list[tuple[tuple[str, ...], bool, bool, str]] = []
+    renderer = TUICommandRenderer(stream_sink=lambda *args: updates.append(args))
+    console = _renderer_console(renderer)
+
+    # Blank lines between paragraphs must not eat rows of a 3-row window.
+    reasoning = "\n\n".join(f"paragraph {index}" for index in range(6))
+    asyncio.run(
+        renderer.execute(
+            [
+                StartThinkingStream(session_id="main"),
+                AppendThinking(session_id="main", content=reasoning),
+            ]
+        )
+    )
+
+    lines, end_of_stream, separate_from_status, style_class = updates[-1]
+    assert [line.strip() for line in lines] == [f"paragraph {index}" for index in range(3, 6)]
+    assert len(lines) == THINKING_LIVE_TAIL_MAX_LINES
+    assert end_of_stream is False
+    # Flush against the "Thinking…" status line, which acts as its header.
+    assert separate_from_status is False
+    assert style_class == CLASS_THINKING
+    assert console.file.getvalue() == ""  # pyright: ignore[reportAttributeAccessIssue]
+
+    asyncio.run(renderer.execute([EndThinkingStream(session_id="main")]))
+
+    assert updates[-1][0] == ()
+    assert updates[-1][1] is True
+    assert console.file.getvalue() == ""  # pyright: ignore[reportAttributeAccessIssue]
+    assert renderer._thinking_live_buffer == ""
+
+
+def test_compact_thinking_preview_throttles_renders_and_flushes_trailing_content() -> None:
+    import asyncio
+
+    from klaude_code.tui.commands import AppendThinking, StartThinkingStream
+    from klaude_code.tui.renderer import THINKING_LIVE_TAIL_MIN_INTERVAL_S, TUICommandRenderer
+
+    updates: list[tuple[str, ...]] = []
+    renderer = TUICommandRenderer(stream_sink=lambda lines, *_rest: updates.append(lines))
+    _renderer_console(renderer)
+
+    async def _scenario() -> None:
+        await renderer.execute(
+            [
+                StartThinkingStream(session_id="main"),
+                AppendThinking(session_id="main", content="first thought\n"),
+            ]
+        )
+        renders_after_first = len(updates)
+        assert any("first thought" in line for line in updates[-1])
+
+        await renderer.execute(
+            [
+                AppendThinking(session_id="main", content="second thought\n"),
+                AppendThinking(session_id="main", content="third thought\n"),
+            ]
+        )
+        assert len(updates) == renders_after_first
+
+        await asyncio.sleep(THINKING_LIVE_TAIL_MIN_INTERVAL_S + 0.03)
+        assert len(updates) > renders_after_first
+        assert any("third thought" in line for line in updates[-1])
+
+    asyncio.run(_scenario())
+
+
+def test_stop_cancels_pending_compact_thinking_preview_render() -> None:
+    import asyncio
+
+    from klaude_code.tui.commands import AppendThinking, StartThinkingStream
+    from klaude_code.tui.renderer import THINKING_LIVE_TAIL_MIN_INTERVAL_S, TUICommandRenderer
+
+    updates: list[tuple[str, ...]] = []
+    renderer = TUICommandRenderer(stream_sink=lambda lines, *_rest: updates.append(lines))
+    _renderer_console(renderer)
+
+    async def _scenario() -> None:
+        await renderer.execute(
+            [
+                StartThinkingStream(session_id="main"),
+                AppendThinking(session_id="main", content="first thought\n"),
+                AppendThinking(session_id="main", content="second thought\n"),
+            ]
+        )
+        assert renderer._thinking_live_flush_handle is not None
+
+        await renderer.stop()
+
+        assert updates[-1] == ()
+        assert renderer._thinking_live_flush_handle is None
+        updates_after_stop = len(updates)
+        await asyncio.sleep(THINKING_LIVE_TAIL_MIN_INTERVAL_S + 0.03)
+        assert len(updates) == updates_after_stop
 
     asyncio.run(_scenario())
 

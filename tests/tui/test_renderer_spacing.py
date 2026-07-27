@@ -533,6 +533,9 @@ def test_tool_call_and_result_stay_grouped_until_next_visible_block() -> None:
 def test_stream_end_emits_single_blank_line_in_interactive_mode() -> None:
     renderer, output = _renderer_and_output()
     session_id = "main"
+    # Thinking only reaches the transcript in expanded mode; compact previews it
+    # below the prompt instead.
+    renderer.set_transcript_detail(Detail.FULL)
 
     asyncio.run(
         renderer.execute(

@@ -104,6 +104,7 @@ from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMark
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
+from klaude_code.tui.input.pt_theme import CLASS_THINKING, CLASS_TOOL_RESULT
 from klaude_code.tui.status_runtime import clear_task_start, set_task_start
 from klaude_code.tui.terminal.image import print_kitty_image
 from klaude_code.tui.terminal.notifier import (
@@ -133,6 +134,17 @@ _COMPACT_SUB_AGENT_FILE_CHANGE_ACTIONS = {
 # tail repaints and flush trailing content once the interval elapses.
 BASH_LIVE_TAIL_MIN_INTERVAL_S = 1 / 30
 
+# Compact mode keeps reasoning out of the scrollback entirely, so the thinking
+# stream is previewed in the prompt's live area instead: a short tail window
+# that scrolls with the stream and collapses the moment thinking ends. Only the
+# tail is ever visible, so the buffer keeps just enough trailing characters to
+# fill the window — wrapping the whole reasoning text on every delta would grow
+# with its length for no visible gain.
+THINKING_LIVE_TAIL_MAX_LINES = 3
+THINKING_LIVE_TAIL_BUFFER_CHARS = 1200
+THINKING_LIVE_TAIL_MIN_INTERVAL_S = 1 / 20
+THINKING_LIVE_TAIL_LEFT_PADDING = 3
+
 # Spinner updates are emitted per streamed LLM delta; rebuilding the Rich
 # status snapshot for each one costs far more than the visible change (the
 # status text only moves at sub-second granularity). Coalesce rebuilds to a
@@ -142,6 +154,18 @@ SPINNER_UPDATE_MIN_INTERVAL_S = 1 / 10
 # Dedup key for spinner updates. `reset_bottom_height` only participates in
 # the key; it carries no rendering state of its own.
 _SpinnerUpdateKey = tuple[object, object, object, object]
+
+
+def _thinking_preview_text(buffer: str) -> str:
+    """Squeeze the reasoning tail into contiguous non-empty lines.
+
+    The preview window is only a few rows tall, so blank lines between
+    paragraphs would spend a third of it on nothing. Source line breaks are
+    kept -- they carry the shape of the reasoning -- but blank ones are dropped
+    and intra-line whitespace is normalized.
+    """
+    lines = (" ".join(line.split()) for line in buffer.splitlines())
+    return "\n".join(line for line in lines if line)
 
 
 def _text_fingerprint(text: Text) -> tuple[str, str, tuple[tuple[int, int, str], ...]]:
@@ -219,7 +243,7 @@ class TUICommandRenderer:
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
         status_sink: Callable[[tuple[PromptStatusLine, ...], str | None, bool], None] | None = None,
-        stream_sink: Callable[[tuple[str, ...], bool, bool], None] | None = None,
+        stream_sink: Callable[[tuple[str, ...], bool, bool, str], None] | None = None,
         detail: TranscriptDetail | None = None,
     ) -> None:
         self.themes = get_theme(theme)
@@ -262,6 +286,11 @@ class TUICommandRenderer:
         self._bash_live_last_render_at: float = 0.0
         self._bash_live_flush_handle: asyncio.TimerHandle | None = None
 
+        self._thinking_live_active: bool = False
+        self._thinking_live_buffer: str = ""
+        self._thinking_live_last_render_at: float = 0.0
+        self._thinking_live_flush_handle: asyncio.TimerHandle | None = None
+
         self._sessions: dict[str, _SessionStatus] = {}
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
@@ -270,6 +299,10 @@ class TUICommandRenderer:
         self._detail = detail if detail is not None else TranscriptDetail()
 
     def set_transcript_detail(self, detail: Detail) -> None:
+        # The preview only exists in compact mode, and the rebuild that follows
+        # a toggle re-derives it from the tape; drop the current one either way
+        # so a switch mid-reasoning cannot strand it below the prompt.
+        self._end_thinking_live_tail()
         self._detail.set(detail)
 
     @property
@@ -305,6 +338,9 @@ class TUICommandRenderer:
         self._current_sub_agent_color = None
         self._assistant_stream = _StreamState()
         self._thinking_stream = _StreamState()
+        self._cancel_thinking_live_flush()
+        self._thinking_live_active = False
+        self._thinking_live_buffer = ""
         self._clear_open_blocks()
 
     def flush_rebuild_tails(self) -> None:
@@ -314,13 +350,15 @@ class TUICommandRenderer:
         not ended yet. Replay mode buffers their content without rendering, so
         flush them once non-final here: the stabilized markdown prefix lands in
         the rebuild capture while the stream object stays open, and live deltas
-        continue it seamlessly after the rebuild. An in-flight bash tail is
-        re-emitted to the prompt live area the same way.
+        continue it seamlessly after the rebuild. An in-flight bash or thinking
+        tail is re-emitted to the prompt live area the same way.
         """
         self._flush_thinking()
         self._flush_assistant()
         if self._bash_stream_active:
             self._render_bash_live_tail()
+        if self._thinking_live_active:
+            self._render_thinking_live_tail()
 
     @contextmanager
     def bulk_render_capture(self) -> Iterator[io.StringIO]:
@@ -748,10 +786,11 @@ class TUICommandRenderer:
         *,
         end_of_stream: bool = False,
         separate_from_status: bool = False,
+        style_class: str = CLASS_TOOL_RESULT,
     ) -> None:
         if self._stream_sink is None:
             return
-        self._stream_sink(lines or (), end_of_stream, separate_from_status)
+        self._stream_sink(lines or (), end_of_stream, separate_from_status, style_class)
 
     def _prompt_stream_lines(self, renderable: RenderableType) -> tuple[str, ...]:
         rendered = self.console.render_lines(renderable, self.console.options, pad=False)
@@ -847,6 +886,8 @@ class TUICommandRenderer:
         renderable: RenderableType | None,
         *,
         separate_from_status: bool = False,
+        style_class: str = CLASS_TOOL_RESULT,
+        max_lines: int | None = None,
     ) -> None:
         if renderable is None:
             self._stream_renderable = None
@@ -858,9 +899,13 @@ class TUICommandRenderer:
             return
 
         self._stream_renderable = renderable
+        lines = self._prompt_stream_lines(renderable)
+        if max_lines is not None:
+            lines = lines[-max_lines:]
         self._emit_prompt_stream(
-            self._prompt_stream_lines(renderable),
+            lines,
             separate_from_status=separate_from_status,
+            style_class=style_class,
         )
 
     # ---------------------------------------------------------------------
@@ -1139,6 +1184,73 @@ class TUICommandRenderer:
         self._bash_live_tail_lines.clear()
         self._bash_live_partial_line = ""
         self._bash_live_hidden_lines = 0
+
+    # ---------------------------------------------------------------------
+    # Thinking preview (compact mode)
+    # ---------------------------------------------------------------------
+
+    def _start_thinking_live_tail(self) -> None:
+        self._cancel_thinking_live_flush()
+        self._thinking_live_active = True
+        self._thinking_live_buffer = ""
+
+    def _append_thinking_live_tail(self, content: str) -> None:
+        if not self._thinking_live_active or not content:
+            return
+        self._thinking_live_buffer = (self._thinking_live_buffer + content)[-THINKING_LIVE_TAIL_BUFFER_CHARS:]
+        self._schedule_thinking_live_tail_render()
+
+    def _end_thinking_live_tail(self) -> None:
+        self._cancel_thinking_live_flush()
+        was_active = self._thinking_live_active
+        self._thinking_live_active = False
+        self._thinking_live_buffer = ""
+        if was_active:
+            self.set_stream_renderable(None)
+
+    def _schedule_thinking_live_tail_render(self) -> None:
+        # A rebuild replays every delta at once; it only needs the final tail,
+        # which `flush_rebuild_tails` renders when the replay is done.
+        if self._replay_mode or self._thinking_live_flush_handle is not None:
+            return
+        now = time.monotonic()
+        due = self._thinking_live_last_render_at + THINKING_LIVE_TAIL_MIN_INTERVAL_S
+        if now >= due:
+            self._render_thinking_live_tail()
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._render_thinking_live_tail()
+            return
+        self._thinking_live_flush_handle = loop.call_later(due - now, self._flush_thinking_live_tail)
+
+    def _flush_thinking_live_tail(self) -> None:
+        self._thinking_live_flush_handle = None
+        if self._thinking_live_active:
+            self._render_thinking_live_tail()
+
+    def _cancel_thinking_live_flush(self) -> None:
+        handle = self._thinking_live_flush_handle
+        if handle is None:
+            return
+        self._thinking_live_flush_handle = None
+        with contextlib.suppress(Exception):
+            handle.cancel()
+
+    def _render_thinking_live_tail(self) -> None:
+        self._thinking_live_last_render_at = time.monotonic()
+        text = _thinking_preview_text(self._thinking_live_buffer)
+        if not text:
+            return
+        # No `separate_from_status`: the preview reads as the body of the
+        # "Thinking…" status line right above it, so the blank row the bash
+        # tail uses to detach itself would only break that pairing.
+        self.set_stream_renderable(
+            c_tools.AdaptiveIndent(Text(text, overflow="fold"), THINKING_LIVE_TAIL_LEFT_PADDING),
+            style_class=CLASS_THINKING,
+            max_lines=THINKING_LIVE_TAIL_MAX_LINES,
+        )
 
     def display_welcome(self, event: events.WelcomeEvent) -> None:
         self.print(c_welcome.render_welcome(event))
@@ -1525,20 +1637,29 @@ class TUICommandRenderer:
                 case RenderBashCommandEnd(event=event):
                     self.display_bash_command_end(event)
                 case StartThinkingStream(session_id=_):
-                    if not self._thinking_stream.is_active:
+                    # Compact mode previews reasoning in the prompt's live area
+                    # instead of streaming it into the scrollback.
+                    if self._compact:
+                        self._start_thinking_live_tail()
+                    elif not self._thinking_stream.is_active:
                         self._thinking_stream.start(self._new_thinking_mdstream())
                         if not self._replay_mode:
                             self._thinking_stream.render(transform=c_thinking.normalize_thinking_content)
                 case AppendThinking(session_id=_, content=content):
-                    if self._thinking_stream.is_active:
+                    if self._compact:
+                        self._append_thinking_live_tail(content)
+                    elif self._thinking_stream.is_active:
                         self._thinking_stream.append(content)
                         if not self._replay_mode:
                             self._flush_thinking()
                 case EndThinkingStream(session_id=_):
-                    had_content = bool(self._thinking_stream.buffer.strip())
-                    finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
-                    if finalized and had_content:
-                        self.print()
+                    if self._compact:
+                        self._end_thinking_live_tail()
+                    else:
+                        had_content = bool(self._thinking_stream.buffer.strip())
+                        finalized = self._thinking_stream.finalize(transform=c_thinking.normalize_thinking_content)
+                        if finalized and had_content:
+                            self.print()
                 case RenderSubAgentThinking(
                     session_id=session_id,
                     content=content,
@@ -1674,6 +1795,7 @@ class TUICommandRenderer:
 
     async def stop(self) -> None:
         self._cancel_bash_live_flush()
+        self._end_thinking_live_tail()
         self._cancel_spinner_flush()
         self._flush_open_blocks()
         self._flush_assistant()

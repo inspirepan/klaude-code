@@ -1629,8 +1629,10 @@ class DisplayStateMachine:
         # Ensure the status reflects that reasoning has started even
         # before we receive any deltas.
         self._spinner.enter_thinking()
-        if not self._compact:
-            cmds.append(StartThinkingStream(session_id=e.session_id))
+        # Both detail levels open the stream: expanded writes it to the
+        # transcript, compact previews it below the prompt (see the renderer's
+        # thinking live tail).
+        cmds.append(StartThinkingStream(session_id=e.session_id))
         cmds.extend(self._spinner_update_commands())
         return cmds
 
@@ -1645,8 +1647,7 @@ class DisplayStateMachine:
             return []
         s.append_thinking(e.content)
         self._spinner.set_thinking_buffer_length(s.thinking_char_count)
-        if not self._compact:
-            cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
+        cmds.append(AppendThinking(session_id=e.session_id, content=e.content))
         cmds.extend(self._spinner_update_commands())
         return cmds
 
@@ -1662,10 +1663,9 @@ class DisplayStateMachine:
             return []
         s.reset_thinking()
         self._spinner.clear_default_reasoning_status()
-        # Pairs with the StartThinkingStream gate: compact mode never opens a
-        # thinking stream, and leaves nothing behind in the transcript either.
-        if not self._compact:
-            cmds.append(EndThinkingStream(session_id=e.session_id))
+        # Closes whichever surface StartThinkingStream opened: the transcript
+        # stream in expanded mode, the prompt preview in compact mode.
+        cmds.append(EndThinkingStream(session_id=e.session_id))
         cmds.append(SpinnerStart())
         cmds.extend(self._spinner_update_commands())
         return cmds

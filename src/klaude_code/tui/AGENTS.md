@@ -9,8 +9,10 @@ dynamic UI while an agent task is running:
 - prompt-toolkit renders live output, running status, queued follow-up block,
   and input editor in one bottom layout.
 - Interactive sessions default to compact transcript rendering: thinking is kept
-  out of the scrollback entirely (the live status line already reports that the
-  model is reasoning, and its char count) and sub-agent internals are represented
+  out of the scrollback entirely (the status line reports that the model is
+  reasoning plus its char count, and the last few lines of the reasoning scroll
+  through a transient preview window below it — see the renderer's thinking live
+  tail) and sub-agent internals are represented
   by a batched status/summary view. `Ctrl+O` toggles the process-local expanded
   view at any time — idle or mid-run — by clearing the screen and replaying the
   display's event tape; expanded mode preserves the full transcript rendering —
@@ -34,7 +36,8 @@ dynamic UI while an agent task is running:
     the display from outside that consumer.
   - Mid-run rebuilds end with `renderer.flush_rebuild_tails()`: open
     assistant/thinking streams render their stabilized prefix and stay open so
-    live deltas continue them; an active bash tail is re-emitted.
+    live deltas continue them; an active bash or compact-thinking tail is
+    re-emitted.
   - Terminal width changes reuse the same path: `ResizeWatcher`
     (`input/resize_watcher.py`) chains onto the prompt-toolkit app's
     `_on_resize`, debounces the SIGWINCH burst, and emits a
@@ -169,7 +172,7 @@ Keep these invariants:
 - Markdown block spacing should produce one visible blank line between Markdown blocks, not two.
 - The live suffix should not preserve standalone leading blank lines when the stable prefix already ended at a Markdown block boundary.
 - Assistant/thinking message boundaries should still leave one visible blank line before the next rendered block, such as a tool call or metadata line.
-- Prompt live output should not add an extra gap between Markdown live content and the status block; keep that separation only for bash live-tail output.
+- Prompt live output should not add an extra gap between Markdown live content and the status block; keep that separation only for bash live-tail output. The compact-thinking preview also sits flush against the status line, which reads as its header.
 
 ## Verification
 
