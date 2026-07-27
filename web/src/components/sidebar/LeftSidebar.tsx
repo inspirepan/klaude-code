@@ -63,6 +63,9 @@ export function LeftSidebar(): React.JSX.Element {
   const [archivedCollapsedByWorkDir, setArchivedCollapsedByWorkDir] = useState<
     Record<string, boolean>
   >(() => readStoredCollapsedByWorkDir(ARCHIVED_GROUP_COLLAPSE_STORAGE_KEY));
+  // Captured once on mount: the archive cutoff has 1-day granularity, so a
+  // ticking clock would re-run the eligibility filter for no visible gain.
+  const [mountedAtMs] = useState(() => Date.now());
   const sidebarRef = useRef<HTMLElement | null>(null);
   const archiveCleanupButtonRef = useRef<HTMLButtonElement | null>(null);
   const archiveCleanupContentRef = useRef<HTMLDivElement | null>(null);
@@ -203,7 +206,7 @@ export function LeftSidebar(): React.JSX.Element {
   }, [recentCompletionStartedAtBySessionId, activeGroups, collapsedByWorkDir, toggleGroup]);
 
   const archiveCleanupEligibleSessions = useMemo(() => {
-    const cutoff = Date.now() / 1000 - ARCHIVE_CLEANUP_AGE_SECONDS;
+    const cutoff = mountedAtMs / 1000 - ARCHIVE_CLEANUP_AGE_SECONDS;
     return activeSessions.filter((session) => {
       const runtime = runtimeBySessionId[session.id];
       if (runtime !== undefined && runtime.sessionState !== "idle") {
@@ -213,7 +216,7 @@ export function LeftSidebar(): React.JSX.Element {
       const hasNoDiff = diffSummary.diff_lines_added === 0 && diffSummary.diff_lines_removed === 0;
       return session.updated_at < cutoff || hasNoDiff;
     });
-  }, [activeSessions, runtimeBySessionId]);
+  }, [activeSessions, runtimeBySessionId, mountedAtMs]);
 
   const archiveCleanupEligibleCount = archiveCleanupEligibleSessions.length;
 

@@ -33,10 +33,7 @@ export interface SectionDevGroupBlock {
 }
 
 export type SectionBlock =
-  | SectionItemBlock
-  | SectionSubAgentBlock
-  | SectionCollapseGroupBlock
-  | SectionDevGroupBlock;
+  SectionItemBlock | SectionSubAgentBlock | SectionCollapseGroupBlock | SectionDevGroupBlock;
 
 const NON_COLLAPSIBLE_TOOLS = new Set(["TodoWrite"]);
 

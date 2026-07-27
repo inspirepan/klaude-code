@@ -52,6 +52,7 @@ const zh: Translations = {
   "composer.uploadingImages": (count: number) => `正在上传 ${count} 张图片...`,
   "composer.compactDesc": "清除上下文，保留摘要",
   "composer.readOnlyPlaceholder": "只读 \u2014 此会话由另一个运行时拥有",
+  "composer.notHeldPlaceholder": "此会话正由另一个连接操作",
   "composer.inputHistory": "输入历史",
 
   // New session overlay
@@ -92,6 +93,7 @@ const zh: Translations = {
   "header.searchMessages": "搜索消息",
   "header.subAgent": "子 Agent",
   "header.readOnly": "只读 \u2014 此会话由另一个运行时拥有",
+  "header.notHeld": "此会话被另一个连接占用 \u2014 断开后才可操作",
 
   // Error
   "error.title": "错误",
@@ -165,6 +167,7 @@ const zh: Translations = {
   "tool.planning": "更新待办中\u2026",
   "tool.todoTitle": "计划清单",
   "tool.askingQuestion": "编写问题中\u2026",
+  "tool.longRunning": (elapsed: string) => `已运行 ${elapsed}，仍未结束`,
 
   // Collapse group
   "collapse.read": "读取",

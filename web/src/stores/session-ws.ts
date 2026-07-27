@@ -145,6 +145,7 @@ function applySessionUpsert(
       sessionState: keepWsState ? previousRuntime.sessionState : session.session_state,
       wsState: previousRuntime.wsState,
       lastError: previousRuntime.lastError,
+      isHolder: previousRuntime.isHolder,
     },
   };
 
@@ -398,6 +399,8 @@ export function openSessionWs(
     runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
       wsState: "connecting",
       lastError: null,
+      // Holder status is unknown until the connection_info frame arrives.
+      isHolder: null,
     }),
   }));
 
@@ -420,6 +423,7 @@ export function openSessionWs(
       set((state) => ({
         runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
           wsState: "disconnected",
+          isHolder: null,
         }),
       }));
       // Reload history to recover events that may have been missed during the
@@ -435,6 +439,13 @@ export function openSessionWs(
           })
           .catch(() => {});
       }
+    },
+    onConnectionInfo: (info) => {
+      set((state) => ({
+        runtimeBySessionId: updateRuntimeState(state.runtimeBySessionId, sessionId, {
+          isHolder: info.is_holder,
+        }),
+      }));
     },
     onErrorFrame: (errorFrame) => {
       handleWsError(errorFrame, sessionId, set);

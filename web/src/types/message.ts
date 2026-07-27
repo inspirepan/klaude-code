@@ -60,6 +60,11 @@ export interface ToolBlockItem {
   isStreaming: boolean;
   /** Incremental output received via tool.output.delta while the tool is still running. */
   streamingContent: string;
+  /**
+   * Elapsed seconds reported by tool.long.running once the tool crosses the
+   * backend's long-running threshold. Emitted at most once per call.
+   */
+  longRunningSeconds: number | null;
 }
 
 export interface MemoryLoadedUIItem {

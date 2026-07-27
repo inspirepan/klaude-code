@@ -130,7 +130,7 @@ def create_app(
                 status_code=503,
                 content={
                     "ok": False,
-                    "message": "Web frontend assets are missing. Build web/dist first.",
+                    "message": "Web frontend assets are missing. Run `pnpm build` in web/ first.",
                 },
             )
 

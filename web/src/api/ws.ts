@@ -14,11 +14,19 @@ export interface WsErrorFrame {
   detail?: unknown;
 }
 
+/** First frame sent by the backend after a session socket opens. */
+export interface WsConnectionInfoFrame {
+  type: "connection_info";
+  is_holder: boolean;
+  session_id: string;
+}
+
 export interface SessionWsHandlers {
   onOpen?: () => void;
   onClose?: () => void;
   onEvent?: (event: WsEventEnvelope) => void;
   onErrorFrame?: (errorFrame: WsErrorFrame) => void;
+  onConnectionInfo?: (info: WsConnectionInfoFrame) => void;
 }
 
 export interface SessionListWsEvent {
@@ -65,6 +73,18 @@ function isErrorFrame(payload: unknown): payload is WsErrorFrame {
   const record = payload as Record<string, unknown>;
   return (
     record.type === "error" && typeof record.code === "string" && typeof record.message === "string"
+  );
+}
+
+function isConnectionInfoFrame(payload: unknown): payload is WsConnectionInfoFrame {
+  if (typeof payload !== "object" || payload === null) {
+    return false;
+  }
+  const record = payload as Record<string, unknown>;
+  return (
+    record.type === "connection_info" &&
+    typeof record.is_holder === "boolean" &&
+    typeof record.session_id === "string"
   );
 }
 
@@ -156,6 +176,10 @@ export function connectSessionWs(
       }
       if (isErrorFrame(payload)) {
         handlers.onErrorFrame?.(payload);
+        return;
+      }
+      if (isConnectionInfoFrame(payload)) {
+        handlers.onConnectionInfo?.(payload);
         return;
       }
       if (isEventEnvelope(payload)) {

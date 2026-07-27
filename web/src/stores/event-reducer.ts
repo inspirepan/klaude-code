@@ -40,7 +40,15 @@ export function createInitialState(): ReducerState {
   };
 }
 
-const SKIP_EVENT_TYPES = new Set([
+// Events that must not produce a message item. Anything reaching the reducer
+// that is neither handled by a `case` nor listed here falls through to the
+// `default` branch and appends an `unknown_event` item, which MessageList then
+// filters out -- so it costs an item allocation and a re-render per event and
+// silently hides the fact that the event was never triaged. Keep every protocol
+// event either handled by a `case` or listed in one of the groups below;
+// protocol-coverage.test.ts enforces this against protocol/events.py.
+export const SKIP_EVENT_TYPES = new Set([
+  // Consumed by status-reducer / session-store, no message item of their own.
   "step.start",
   "step.end",
   "session.holder.acquired",
@@ -65,6 +73,37 @@ const SKIP_EVENT_TYPES = new Set([
   "fork.cache.hit.rate",
   "usage.snapshot",
   "end",
+
+  // TUI-only render control; meaningless in the web client.
+  "refresh.display",
+  "toggle.transcript.detail",
+  "thinking.changed",
+
+  // Holder lock broadcasts. Their payload carries no holder_key, so a client
+  // cannot tell whether it was the one denied/released. The web client learns
+  // its own holder status from the `connection_info` WS frame instead.
+  "session.holder.denied",
+  "session.holder.released",
+
+  // Pure acknowledgement of a response the web client itself just submitted;
+  // the interaction card already reflects the local state.
+  "user.interaction.response.received",
+
+  // Backend features the web client has not implemented yet. Remove from this
+  // list when the corresponding UI lands.
+  "away.summary",
+  "away.summary.start",
+  "away.summary.end",
+  "bash.command.start",
+  "bash.command.output.delta",
+  "bash.command.end",
+  "prompt.suggestion.ready",
+  "prompt.suggestion.cleared",
+  "context.usage",
+  "session.stats",
+  "sub.agent.model.changed",
+  "compact.model.changed",
+  "fallback.model.config.warn",
 ]);
 
 function makeId(state: ReducerState): string {
@@ -526,6 +565,7 @@ export function reduceEvent(
             uiExtra: null,
             isStreaming: true,
             streamingContent: "",
+            longRunningSeconds: null,
           },
         ],
         nextId: currentState.nextId + 1,
@@ -573,11 +613,27 @@ export function reduceEvent(
             uiExtra: null,
             isStreaming: true,
             streamingContent: "",
+            longRunningSeconds: null,
           },
         ],
         nextId: currentState.nextId + 1,
         toolBlockByCallId: newMap,
       };
+    }
+
+    case "tool.long.running": {
+      // The Agent tool is expected to run long; warning on it is just noise.
+      if (event.tool_name === "Agent") return currentState;
+      const toolCallId = typeof event.tool_call_id === "string" ? event.tool_call_id : "";
+      const elapsed = typeof event.elapsed_seconds === "number" ? event.elapsed_seconds : null;
+      if (elapsed === null) return currentState;
+      const idx = currentState.toolBlockByCallId.get(toolCallId);
+      if (idx === undefined) return currentState;
+      const item = currentState.items[idx];
+      if (item.type !== "tool_block") return currentState;
+      const nextItems = [...currentState.items];
+      nextItems[idx] = { ...item, longRunningSeconds: elapsed };
+      return { ...currentState, items: nextItems };
     }
 
     case "tool.output.delta": {

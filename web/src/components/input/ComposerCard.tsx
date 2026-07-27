@@ -158,20 +158,21 @@ export function ComposerCard({
     setHistoryOpen(false);
   }, []);
 
-  const selectHistory = useCallback(
-    (entry: string) => {
-      onTextChange(entry);
-      setHistoryOpen(false);
-      requestAnimationFrame(() => {
-        const ta = ref.current;
-        if (ta) {
-          ta.focus();
-          ta.setSelectionRange(entry.length, entry.length);
-        }
-      });
-    },
-    [onTextChange, ref],
-  );
+  // Not wrapped in useCallback: reading `ref.current` inside the rAF makes the
+  // manual dependency list unpreservable for the React Compiler, and the only
+  // consumer (InputHistoryList) is not memoized, so a stable identity buys
+  // nothing here.
+  const selectHistory = (entry: string): void => {
+    onTextChange(entry);
+    setHistoryOpen(false);
+    requestAnimationFrame(() => {
+      const ta = ref.current;
+      if (ta) {
+        ta.focus();
+        ta.setSelectionRange(entry.length, entry.length);
+      }
+    });
+  };
 
   const fileComp = useFileCompletion({
     sessionId,

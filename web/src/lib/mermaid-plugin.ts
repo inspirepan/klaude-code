@@ -1,8 +1,10 @@
-import { renderMermaidSVG } from "beautiful-mermaid";
-
 /**
  * Streamdown DiagramPlugin adapter for beautiful-mermaid.
- * Wraps the synchronous renderMermaidSVG into the async MermaidInstance interface.
+ *
+ * beautiful-mermaid is ~2.5MB unminified, so it is imported dynamically: the
+ * chunk is only fetched the first time a message actually contains a mermaid
+ * block, instead of being bundled into the entry chunk. Vite caches the module,
+ * so repeat renders do not re-download it.
  */
 export const mermaid = {
   name: "mermaid" as const,
@@ -10,8 +12,9 @@ export const mermaid = {
   language: "mermaid",
   getMermaid: () => ({
     initialize: () => {},
-    render: (_id: string, source: string) =>
-      Promise.resolve({
+    render: async (_id: string, source: string) => {
+      const { renderMermaidSVG } = await import("beautiful-mermaid");
+      return {
         svg: renderMermaidSVG(source, {
           bg: "#ffffff",
           fg: "#262626",
@@ -19,6 +22,7 @@ export const mermaid = {
           font: "Lilex Variable, ui-monospace, monospace",
           padding: 24,
         }),
-      }),
+      };
+    },
   }),
 };

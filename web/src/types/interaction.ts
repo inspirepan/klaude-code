@@ -1,8 +1,5 @@
 export type UserInteractionSource =
-  | "tool"
-  | "approval"
-  | "operation_model"
-  | "operation_sub_agent_model";
+  "tool" | "approval" | "operation_model" | "operation_sub_agent_model";
 
 export interface AskUserQuestionOption {
   id: string;
@@ -40,8 +37,7 @@ export interface OperationSelectRequestPayload {
 }
 
 export type UserInteractionRequestPayload =
-  | AskUserQuestionRequestPayload
-  | OperationSelectRequestPayload;
+  AskUserQuestionRequestPayload | OperationSelectRequestPayload;
 
 export interface PendingUserInteractionRequest {
   requestId: string;
@@ -71,8 +67,7 @@ export interface OperationSelectResponsePayload {
 }
 
 export type UserInteractionResponsePayload =
-  | AskUserQuestionResponsePayload
-  | OperationSelectResponsePayload;
+  AskUserQuestionResponsePayload | OperationSelectResponsePayload;
 
 export interface UserInteractionResponse {
   status: "submitted" | "cancelled";

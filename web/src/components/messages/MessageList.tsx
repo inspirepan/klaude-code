@@ -419,6 +419,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
   );
   const workspacePath = session?.work_dir ?? "";
   const sessionReadOnly = session?.read_only === true;
+  const sessionNotHeld = runtime?.isHolder === false;
 
   const visibleItems = useMemo(
     () =>
@@ -557,7 +558,6 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
   const prevRunningRef = useRef(isEffectiveRunning);
   useEffect(() => {
     if (prevRunningRef.current && !isEffectiveRunning) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state reset
       setCollapsedCollapseGroups({});
     }
     prevRunningRef.current = isEffectiveRunning;
@@ -568,7 +568,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
   useEffect(() => {
     if (prevEffectiveSessionIdRef.current !== effectiveSessionId) {
       prevEffectiveSessionIdRef.current = effectiveSessionId;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state reset
+
       setCollapsedCollapseGroups({});
     }
   }, [effectiveSessionId]);
@@ -929,6 +929,7 @@ function MessageListInner({ sessionId }: MessageListProps): React.JSX.Element {
             secondaryTitle={secondaryTitle}
             workspacePath={workspacePath}
             sessionReadOnly={sessionReadOnly}
+            sessionNotHeld={sessionNotHeld}
             sidebarOpen={sidebarOpen}
             setSidebarOpen={setSidebarOpen}
             onSearchOpen={() => {

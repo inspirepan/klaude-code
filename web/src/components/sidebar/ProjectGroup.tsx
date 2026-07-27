@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { SessionCard } from "./SessionCard";
+import { defaultRuntimeState } from "@/stores/session-helpers";
 import type { SessionRuntimeState, SessionSummary } from "@/types/session";
 import { workDirLabel } from "@/components/session-title";
 import { useT } from "@/i18n";
@@ -107,13 +108,7 @@ export function ProjectGroup({
               key={session.id}
               session={session}
               active={activeSessionId === session.id}
-              runtime={
-                runtimeBySessionId[session.id] ?? {
-                  sessionState: "idle",
-                  wsState: "idle",
-                  lastError: null,
-                }
-              }
+              runtime={runtimeBySessionId[session.id] ?? defaultRuntimeState}
               hasUnreadCompletion={completedUnreadBySessionId[session.id]}
               onClick={() => {
                 onSelectSession(session.id);

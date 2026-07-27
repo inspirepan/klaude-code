@@ -159,6 +159,7 @@ export const useSessionStore = create<SessionStoreState>((set, get) => ({
               sessionState: shouldKeepPrevious ? previous.sessionState : session.session_state,
               wsState: previous?.wsState ?? "idle",
               lastError: previous?.lastError ?? null,
+              isHolder: previous?.isHolder ?? null,
             };
           }
           return acc;

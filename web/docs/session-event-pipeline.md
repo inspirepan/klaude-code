@@ -219,3 +219,12 @@ Web 端通过 `load_session_read_only()` 判断会话是否只读：
 | owner 是其他 Web 且会话 running/waiting | 只读         |
 
 只读会话：不初始化 actor、不获取 holder、前端只能查看不能发送命令。
+
+## Holder（连接级写锁）
+
+`read_only` 是 session 级判定，`is_holder` 是**连接级**的：即使 session 可写，同一 session 同一时刻也只有一个连接持有写锁。
+
+- 前端连接时带上 sessionStorage 里的 `holder_key`（`api/ws.ts`），后端 `try_acquire_holder` 后用首帧 `connection_info` 回传 `is_holder`
+- 非 holder 的连接仍会收到全部事件（可以正常观看），但提交任何命令都会拿到 `session_not_held` 错误帧
+- 前端把 `is_holder` 存进 `runtimeBySessionId[id].isHolder`，为 `false` 时禁用输入框与模型选择器，并在标题栏显示占用徽标
+- 广播事件 `session.holder.denied` / `.released` 不携带 `holder_key`，收到的连接无法判断是否指向自己，因此前端只依赖 `connection_info`，不消费这两个事件

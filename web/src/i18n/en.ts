@@ -51,6 +51,7 @@ const en = {
   "composer.uploadingImages": (count: number) => `Uploading ${count} images...`,
   "composer.compactDesc": "Clear context, keep summary",
   "composer.readOnlyPlaceholder": "Read-only \u2014 this session is owned by another runtime",
+  "composer.notHeldPlaceholder": "Another connection is driving this session",
   "composer.inputHistory": "Input history",
 
   // New session overlay
@@ -91,6 +92,7 @@ const en = {
   "header.searchMessages": "Search messages",
   "header.subAgent": "Sub Agent",
   "header.readOnly": "Read-only \u2014 this session is owned by another live runtime",
+  "header.notHeld": "Another connection holds this session \u2014 read-only until it disconnects",
 
   // Error
   "error.title": "Error",
@@ -165,6 +167,7 @@ const en = {
   "tool.planning": "Updating todos\u2026",
   "tool.todoTitle": "Update To-Do",
   "tool.askingQuestion": "Composing question\u2026",
+  "tool.longRunning": (elapsed: string) => `Still running after ${elapsed}`,
 
   // Collapse group
   "collapse.read": "Read",

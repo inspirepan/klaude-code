@@ -60,4 +60,10 @@ export interface SessionRuntimeState {
   sessionState: ApiSessionState;
   wsState: SessionWsState;
   lastError: string | null;
+  /**
+   * Whether this client holds the session's write lock, as reported by the
+   * `connection_info` WS frame. `null` while unknown (not connected yet).
+   * When `false` the backend rejects every command with `session_not_held`.
+   */
+  isHolder: boolean | null;
 }

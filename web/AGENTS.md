@@ -32,6 +32,11 @@ These prevent common visual bugs. Violating them causes hard-to-debug layout/ani
 - Never `items-baseline` with icons (icons have no text baseline -- they sink).
 - Lucide icons: always `h-* w-* shrink-0`. No `translate-y-*` hacks, no `inline` + `vertical-align`.
 
+### Protocol events
+
+- Every event in `protocol/events.py` must either have a `case` in `stores/event-reducer.ts` or be listed in `SKIP_EVENT_TYPES`. Otherwise it falls through to `default`, allocating an `unknown_event` item that `MessageList` silently drops -- a wasted re-render plus an untriaged event.
+- `stores/protocol-coverage.test.ts` parses `events.py` directly and enforces this, so a new backend event fails the test until triaged. Add new skips to the right group with a reason.
+
 ### Collapse / expand animation
 
 - Use `height` transition with imperative DOM (`useLayoutEffect` + snapshot height + force reflow). Not `grid-template-rows`.

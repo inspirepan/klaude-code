@@ -395,7 +395,7 @@ function parseGrepLike(args: string[]): ParsedBashCommand {
     i++;
   }
   const hasExplicitPattern = pattern !== null;
-  const query = pattern ?? (operands[0] as string | undefined) ?? null;
+  const query = pattern ?? (operands.length > 0 ? operands[0] : null);
   const pathIdx = hasExplicitPattern ? 0 : 1;
   const rawPath = operands[pathIdx] as string | undefined;
   const path = rawPath ? shortDisplayPath(rawPath) : null;
@@ -683,7 +683,7 @@ export function parseBashCommand(command: string): ParsedBashCommand[] {
       }
       continue;
     }
-    current.push(tok as string | { op: string });
+    current.push(tok);
   }
   if (current.length > 0) statements.push(current);
 

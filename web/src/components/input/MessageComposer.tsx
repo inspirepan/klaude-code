@@ -55,6 +55,9 @@ export function MessageComposer(): React.JSX.Element {
       runtime.wsState === "connecting" ||
       runtime.wsState === "disconnected");
   const sessionReadOnly = activeSession?.read_only === true;
+  // Another connection (a TUI or a second tab) holds the write lock, so the
+  // backend would reject anything we submit with `session_not_held`.
+  const sessionNotHeld = runtime?.isHolder === false;
   const mainSessionStatus = statusBySessionId?.[activeSessionId] ?? null;
   const activeInteraction = pendingInteractions.at(0) ?? null;
   const sessionInterruptible =
@@ -70,6 +73,7 @@ export function MessageComposer(): React.JSX.Element {
     (normalizedText.length === 0 && !hasImages) ||
     sessionBusy ||
     sessionReadOnly ||
+    sessionNotHeld ||
     activeInteraction !== null;
 
   const effectivePendingModelName =
@@ -78,7 +82,8 @@ export function MessageComposer(): React.JSX.Element {
       : null;
   const currentModelName = effectivePendingModelName ?? activeSession?.model_name ?? "";
   const effectiveRespondingInteraction = respondingInteraction && activeInteraction !== null;
-  const modelBusy = sessionBusy || sessionReadOnly || modelLoading || switchingModel;
+  const modelBusy =
+    sessionBusy || sessionReadOnly || sessionNotHeld || modelLoading || switchingModel;
   const hasCurrentModelOption = modelOptions.some((option) => option.name === currentModelName);
 
   // Reset interrupting when session is no longer interruptible (e.g. finished).
@@ -308,13 +313,21 @@ export function MessageComposer(): React.JSX.Element {
           submitting={submitting}
           disableSubmit={disableSubmit}
           interruptible={sessionInterruptible}
-          disableInterrupt={interrupting || sessionReadOnly}
-          disableInput={sessionReadOnly}
+          disableInterrupt={interrupting || sessionReadOnly || sessionNotHeld}
+          disableInput={sessionReadOnly || sessionNotHeld}
           disableAttachments={
-            sessionBusy || sessionReadOnly || activeInteraction !== null || submitting
+            sessionBusy ||
+            sessionReadOnly ||
+            sessionNotHeld ||
+            activeInteraction !== null ||
+            submitting
           }
           placeholder={
-            sessionReadOnly ? t("composer.readOnlyPlaceholder") : t("composer.followUpPlaceholder")
+            sessionReadOnly
+              ? t("composer.readOnlyPlaceholder")
+              : sessionNotHeld
+                ? t("composer.notHeldPlaceholder")
+                : t("composer.followUpPlaceholder")
           }
           modelOptions={resolvedModelOptions}
           modelValue={currentModelName}

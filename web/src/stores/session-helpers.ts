@@ -8,6 +8,7 @@ export const defaultRuntimeState: SessionRuntimeState = {
   sessionState: "idle",
   wsState: "idle",
   lastError: null,
+  isHolder: null,
 };
 
 export function updateRuntimeState(

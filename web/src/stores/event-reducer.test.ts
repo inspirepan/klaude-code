@@ -244,3 +244,50 @@ describe("reduceEvent — developer message", () => {
     });
   });
 });
+
+describe("reduceEvent — long-running tools", () => {
+  function startedToolBlock(toolName: string) {
+    return reduceEvent(
+      createInitialState(),
+      "tool.call",
+      makeEvent({ tool_call_id: "call-1", tool_name: toolName, arguments: "{}" }),
+      null,
+    );
+  }
+
+  it("records elapsed seconds on the matching tool block", () => {
+    let state = startedToolBlock("Bash");
+    state = reduceEvent(
+      state,
+      "tool.long.running",
+      makeEvent({ tool_call_id: "call-1", tool_name: "Bash", elapsed_seconds: 130 }),
+      null,
+    );
+
+    expect(state.items).toHaveLength(1);
+    expect(state.items[0]).toMatchObject({ type: "tool_block", longRunningSeconds: 130 });
+  });
+
+  it("ignores the Agent tool, which is expected to run long", () => {
+    let state = startedToolBlock("Agent");
+    state = reduceEvent(
+      state,
+      "tool.long.running",
+      makeEvent({ tool_call_id: "call-1", tool_name: "Agent", elapsed_seconds: 130 }),
+      null,
+    );
+
+    expect(state.items[0]).toMatchObject({ type: "tool_block", longRunningSeconds: null });
+  });
+
+  it("does not create an item when the tool call is unknown", () => {
+    const state = reduceEvent(
+      createInitialState(),
+      "tool.long.running",
+      makeEvent({ tool_call_id: "missing", tool_name: "Bash", elapsed_seconds: 130 }),
+      null,
+    );
+
+    expect(state.items).toHaveLength(0);
+  });
+});

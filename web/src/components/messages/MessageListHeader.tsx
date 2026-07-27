@@ -6,6 +6,7 @@ import {
   Lock,
   PanelLeftOpen,
   Search,
+  Users,
 } from "lucide-react";
 import { SessionTitleText } from "@/components/SessionTitleText";
 import { useT } from "@/i18n";
@@ -20,6 +21,7 @@ interface MessageListHeaderProps {
   secondaryTitle: string | null;
   workspacePath: string;
   sessionReadOnly: boolean;
+  sessionNotHeld: boolean;
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   onSearchOpen: () => void;
@@ -35,6 +37,7 @@ export function MessageListHeader({
   secondaryTitle,
   workspacePath,
   sessionReadOnly,
+  sessionNotHeld,
   sidebarOpen,
   setSidebarOpen,
   onSearchOpen,
@@ -152,6 +155,15 @@ export function MessageListHeader({
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>{t("header.readOnly")}</TooltipContent>
+                    </Tooltip>
+                  ) : sessionNotHeld ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex shrink-0 cursor-help items-center self-center rounded-full border border-amber-200/70 bg-amber-50 p-1 text-amber-700">
+                          <Users className="h-3 w-3" />
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>{t("header.notHeld")}</TooltipContent>
                     </Tooltip>
                   ) : null}
                   {workspacePath ? (

@@ -42,6 +42,7 @@ function makeToolBlock(
     result: "ok",
     resultStatus: "success",
     uiExtra,
+    longRunningSeconds: null,
     isStreaming: false,
     streamingContent: "",
   };

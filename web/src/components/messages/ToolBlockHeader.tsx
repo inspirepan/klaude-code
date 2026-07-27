@@ -1,3 +1,4 @@
+import { useT } from "@/i18n";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, FADE_TRUNCATE } from "@/lib/utils";
 import type { ToolBlockItem } from "@/types/message";
@@ -5,6 +6,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { FilePathContent } from "./FilePath";
 import { toDisplayPath } from "./file-path-utils";
 import { HighlightText } from "./HighlightText";
+import { formatElapsed } from "./message-list-ui";
 
 const FILE_PATH_TOOLS = new Set(["Read", "Edit", "Write"]);
 
@@ -35,7 +37,14 @@ export function ToolBlockHeader({
   headerDetailTextClass,
   detailChipClass,
 }: ToolBlockHeaderProps): React.JSX.Element {
+  const t = useT();
   const isFilePath = FILE_PATH_TOOLS.has(item.toolName);
+  // Only warn while the call is still in flight; once it returns the elapsed
+  // time is no longer actionable.
+  const longRunningText =
+    item.isStreaming && item.longRunningSeconds !== null
+      ? formatElapsed(item.longRunningSeconds)
+      : null;
 
   let detailContent: React.JSX.Element | null = null;
   let detailClass = "";
@@ -53,13 +62,20 @@ export function ToolBlockHeader({
 
   return (
     <div className="grid min-w-0 grid-cols-[auto,minmax(0,1fr)] items-start gap-x-1.5 gap-y-1 font-sans text-sm leading-5">
-      <span
-        className={cn(
-          "shrink-0 whitespace-nowrap font-semibold text-neutral-800",
-          item.isStreaming && "text-shimmer",
-        )}
-      >
-        {toPascalCase(item.toolName)}
+      <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
+        <span className={cn("font-semibold text-neutral-800", item.isStreaming && "text-shimmer")}>
+          {toPascalCase(item.toolName)}
+        </span>
+        {longRunningText !== null ? (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="font-mono text-xs font-medium text-amber-600">
+                {longRunningText}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{t("tool.longRunning")(longRunningText)}</TooltipContent>
+          </Tooltip>
+        ) : null}
       </span>
       {description ? (
         <Tooltip>
