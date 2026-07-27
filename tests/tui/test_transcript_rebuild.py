@@ -138,9 +138,7 @@ def test_rebuild_reconstructs_live_machine_state() -> None:
     assert rebuilt._primary_session_id == live._primary_session_id  # pyright: ignore[reportPrivateUsage]
     live_activity = live._spinner.get_activity_text()  # pyright: ignore[reportPrivateUsage]
     rebuilt_activity = rebuilt._spinner.get_activity_text()  # pyright: ignore[reportPrivateUsage]
-    assert (rebuilt_activity.plain if rebuilt_activity else None) == (
-        live_activity.plain if live_activity else None
-    )
+    assert (rebuilt_activity.plain if rebuilt_activity else None) == (live_activity.plain if live_activity else None)
 
 
 def test_rebuild_at_the_other_detail_reconstructs_state_too() -> None:
@@ -191,7 +189,9 @@ def test_toggle_mid_run_reveals_thinking_and_keeps_open_stream(monkeypatch: Any)
         await display.consume_envelope(make_envelope(events.UserMessageEvent(session_id=sid, content="question")))
         await display.consume_envelope(make_envelope(events.TaskStartEvent(session_id=sid, model_id="test-model")))
         await display.consume_envelope(make_envelope(events.ThinkingStartEvent(session_id=sid)))
-        await display.consume_envelope(make_envelope(events.ThinkingDeltaEvent(session_id=sid, content="deep secret thought")))
+        await display.consume_envelope(
+            make_envelope(events.ThinkingDeltaEvent(session_id=sid, content="deep secret thought"))
+        )
         await display.consume_envelope(make_envelope(events.ThinkingEndEvent(session_id=sid)))
         await display.consume_envelope(make_envelope(events.AssistantTextStartEvent(session_id=sid)))
         await display.consume_envelope(
@@ -233,7 +233,9 @@ def test_toggle_back_to_compact_hides_thinking_again(monkeypatch: Any) -> None:
         await display.consume_envelope(make_envelope(_welcome(sid)))
         await display.consume_envelope(make_envelope(events.TaskStartEvent(session_id=sid, model_id="test-model")))
         await display.consume_envelope(make_envelope(events.ThinkingStartEvent(session_id=sid)))
-        await display.consume_envelope(make_envelope(events.ThinkingDeltaEvent(session_id=sid, content="deep secret thought")))
+        await display.consume_envelope(
+            make_envelope(events.ThinkingDeltaEvent(session_id=sid, content="deep secret thought"))
+        )
         await display.consume_envelope(make_envelope(events.ThinkingEndEvent(session_id=sid)))
 
         await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id=sid)))

@@ -1344,15 +1344,11 @@ class DisplayStateMachine:
         )
         return cmds
 
-    def _handle_WelcomeContextEvent(
-        self, e: events.WelcomeContextEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_WelcomeContextEvent(self, e: events.WelcomeContextEvent, *, s: _SessionState) -> list[RenderCommand]:
         del s
         return [RenderWelcomeContext(e)]
 
-    def _handle_UserMessageEvent(
-        self, e: events.UserMessageEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_UserMessageEvent(self, e: events.UserMessageEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             return []
@@ -1386,9 +1382,7 @@ class DisplayStateMachine:
         cmds.append(AppendBashCommandOutput(e))
         return cmds
 
-    def _handle_BashCommandEndEvent(
-        self, e: events.BashCommandEndEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_BashCommandEndEvent(self, e: events.BashCommandEndEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             return []
@@ -1425,9 +1419,7 @@ class DisplayStateMachine:
 
         return cmds
 
-    def _handle_TaskStartEvent(
-        self, e: events.TaskStartEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_TaskStartEvent(self, e: events.TaskStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         s.sub_agent_state = e.sub_agent_state
         s.parent_session_id = e.parent_session_id
@@ -1472,9 +1464,7 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_CompactionStartEvent(
-        self, e: events.CompactionStartEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_CompactionStartEvent(self, e: events.CompactionStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if e.reason == "handoff":
             self._spinner.clear_tool_calls()
@@ -1486,9 +1476,7 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_CompactionEndEvent(
-        self, e: events.CompactionEndEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_CompactionEndEvent(self, e: events.CompactionEndEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if e.reason != "handoff" and not e.aborted and not s.is_sub_agent and self._is_primary(e.session_id):
             self._spinner.notify_compaction()
@@ -1563,9 +1551,7 @@ class DisplayStateMachine:
         cmds.append(RenderNotice(e))
         return cmds
 
-    def _handle_AwaySummaryEvent(
-        self, e: events.AwaySummaryEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_AwaySummaryEvent(self, e: events.AwaySummaryEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(RenderAwaySummary(e))
         return cmds
@@ -1581,9 +1567,7 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_AwaySummaryEndEvent(
-        self, e: events.AwaySummaryEndEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_AwaySummaryEndEvent(self, e: events.AwaySummaryEndEvent, *, s: _SessionState) -> list[RenderCommand]:
         del e
         cmds: list[RenderCommand] = []
         self._spinner.enter_waiting()
@@ -1592,16 +1576,12 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_SessionStatsEvent(
-        self, e: events.SessionStatsEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_SessionStatsEvent(self, e: events.SessionStatsEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(RenderSessionStats(e))
         return cmds
 
-    def _handle_ContextUsageEvent(
-        self, e: events.ContextUsageEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_ContextUsageEvent(self, e: events.ContextUsageEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         cmds.append(RenderContextUsage(e))
         return cmds
@@ -1624,9 +1604,7 @@ class DisplayStateMachine:
         )
         return cmds
 
-    def _handle_StepStartEvent(
-        self, e: events.StepStartEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_StepStartEvent(self, e: events.StepStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         del e
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
@@ -1639,9 +1617,7 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_ThinkingStartEvent(
-        self, e: events.ThinkingStartEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_ThinkingStartEvent(self, e: events.ThinkingStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             s.start_thinking(e.timestamp)
@@ -1658,9 +1634,7 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_ThinkingDeltaEvent(
-        self, e: events.ThinkingDeltaEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_ThinkingDeltaEvent(self, e: events.ThinkingDeltaEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             s.append_thinking(e.content, retain_content=not self._compact)
@@ -1676,9 +1650,7 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_ThinkingEndEvent(
-        self, e: events.ThinkingEndEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_ThinkingEndEvent(self, e: events.ThinkingEndEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             content = s.finish_thinking()
@@ -1783,9 +1755,7 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_ToolCallStartEvent(
-        self, e: events.ToolCallStartEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_ToolCallStartEvent(self, e: events.ToolCallStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         # Defensive: ensure any active main-session streams are finalized
         # before tools start producing output.
@@ -1818,9 +1788,7 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_ToolCallEvent(
-        self, e: events.ToolCallEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_ToolCallEvent(self, e: events.ToolCallEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         # Same defensive behavior for tool calls that arrive without a
         # preceding ToolCallStartEvent.
@@ -1873,9 +1841,7 @@ class DisplayStateMachine:
             cmds.append(RenderToolCall(e))
         return cmds
 
-    def _handle_ToolLongRunningEvent(
-        self, e: events.ToolLongRunningEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_ToolLongRunningEvent(self, e: events.ToolLongRunningEvent, *, s: _SessionState) -> list[RenderCommand]:
         del s
         if e.tool_name == tools.AGENT:
             return []
@@ -1889,9 +1855,7 @@ class DisplayStateMachine:
             )
         ]
 
-    def _handle_ToolOutputDeltaEvent(
-        self, e: events.ToolOutputDeltaEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_ToolOutputDeltaEvent(self, e: events.ToolOutputDeltaEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent or e.tool_name != tools.BASH:
             return []
@@ -1918,9 +1882,7 @@ class DisplayStateMachine:
         )
         return cmds
 
-    def _handle_ToolResultEvent(
-        self, e: events.ToolResultEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_ToolResultEvent(self, e: events.ToolResultEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         linked_sub_agent: _SessionState | None = None
         if isinstance(e.ui_extra, SessionIdUIExtra):
@@ -1987,9 +1949,7 @@ class DisplayStateMachine:
             cmds.append(RenderToolResult(event=e, is_sub_agent_session=s.is_sub_agent))
         return cmds
 
-    def _handle_TaskMetadataEvent(
-        self, e: events.TaskMetadataEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_TaskMetadataEvent(self, e: events.TaskMetadataEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             s.task_metadata = e.metadata.main_agent
@@ -2018,9 +1978,7 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_CacheHitRateEvent(
-        self, e: events.CacheHitRateEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_CacheHitRateEvent(self, e: events.CacheHitRateEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent:
             return []
@@ -2033,9 +1991,7 @@ class DisplayStateMachine:
     def _handle_StepEndEvent(self, e: events.StepEndEvent, *, s: _SessionState) -> list[RenderCommand]:
         return []
 
-    def _handle_TaskFinishEvent(
-        self, e: events.TaskFinishEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_TaskFinishEvent(self, e: events.TaskFinishEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         s.task_active = False
         s.task_finished_at = e.timestamp
@@ -2095,9 +2051,7 @@ class DisplayStateMachine:
             cmds.extend(self._spinner_update_commands())
         return cmds
 
-    def _handle_InterruptEvent(
-        self, e: events.InterruptEvent, *, s: _SessionState
-    ) -> list[RenderCommand]:
+    def _handle_InterruptEvent(self, e: events.InterruptEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         self._spinner.clear_task_state()
         cmds.append(SpinnerStop())

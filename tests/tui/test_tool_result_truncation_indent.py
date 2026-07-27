@@ -51,9 +51,7 @@ def test_bash_truncation_indicator_uses_result_padding() -> None:
 
 
 def test_full_bash_result_keeps_all_lines_and_wraps_long_content() -> None:
-    result = "\n".join(
-        [*(f"line-{idx}" for idx in range(FULL_TOOL_RESULT_MAX_LINES - 1)), f"tail-{'x' * 80}-END"]
-    )
+    result = "\n".join([*(f"line-{idx}" for idx in range(FULL_TOOL_RESULT_MAX_LINES - 1)), f"tail-{'x' * 80}-END"])
     event = events.ToolResultEvent(
         session_id="s1",
         tool_call_id="tc1",

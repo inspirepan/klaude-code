@@ -93,4 +93,6 @@ class EventTape:
         if len(chunks) == 1:
             self._items.append(pending)
             return
-        self._items.append(pending.model_copy(update={"content": "".join(chunks), "timestamp": self._pending_timestamp}))
+        self._items.append(
+            pending.model_copy(update={"content": "".join(chunks), "timestamp": self._pending_timestamp})
+        )
