@@ -9,7 +9,7 @@ import pytest
 
 from klaude_code.agent.task import MetadataAccumulator, SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.protocol import events, message
-from klaude_code.protocol.models import TaskMetadataItem, Usage
+from klaude_code.protocol.models import TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
 from klaude_code.tool.core.context import build_todo_context
@@ -107,9 +107,7 @@ def test_task_interrupt_does_not_emit_task_file_change_summary(tmp_path: Path, m
     arun(_test())
 
 
-def test_task_interrupt_persists_metadata_without_emitting_event(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_task_interrupt_persists_and_emits_partial_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
     monkeypatch.chdir(project_dir)
@@ -138,20 +136,46 @@ def test_task_interrupt_persists_metadata_without_emitting_event(
         )
         accumulator = MetadataAccumulator(model_name="test-model")
         accumulator.add(Usage(input_tokens=100, output_tokens=20, input_cost=0.01))
+        sub_agent_metadata = TaskMetadata(
+            model_name="sub-agent-model",
+            usage=Usage(input_tokens=50, output_tokens=10),
+        )
         executor._metadata_accumulator = accumulator  # pyright: ignore[reportPrivateUsage]
         executor._started_at = 1.0  # pyright: ignore[reportPrivateUsage]
+
+        class _StubStep:
+            def on_interrupt(self) -> list[events.Event]:
+                return [
+                    events.ToolResultEvent(
+                        session_id=session.id,
+                        tool_call_id="agent-call",
+                        tool_name="Agent",
+                        result="cancelled",
+                        status="aborted",
+                        task_metadata=sub_agent_metadata,
+                    )
+                ]
+
+        executor._current_step = cast(Any, _StubStep())  # pyright: ignore[reportPrivateUsage]
 
         emitted = executor.on_interrupt()
         await session.wait_for_flush()
 
-        assert not any(isinstance(event, events.TaskMetadataEvent) for event in emitted)
+        metadata_events = [event for event in emitted if isinstance(event, events.TaskMetadataEvent)]
+        assert len(metadata_events) == 1
+        assert metadata_events[0].is_partial is True
+        assert metadata_events[0].metadata.is_partial is True
+        assert metadata_events[0].metadata.sub_agent_task_metadata == [sub_agent_metadata]
         loaded = Session.load(session.id, work_dir=project_dir)
-        metadata = next(item for item in loaded.conversation_history if isinstance(item, TaskMetadataItem))
+        metadata_items = [item for item in loaded.conversation_history if isinstance(item, TaskMetadataItem)]
+        assert len(metadata_items) == 1
+        metadata = metadata_items[0]
         assert metadata.is_partial is True
         assert metadata.main_agent.usage is not None
         assert metadata.main_agent.usage.input_tokens == 100
         assert metadata.main_agent.usage.output_tokens == 20
         assert metadata.main_agent.usage.input_cost == 0.01
+        assert metadata.sub_agent_task_metadata == [sub_agent_metadata]
         await close_default_store()
 
     arun(_test())

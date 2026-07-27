@@ -432,14 +432,21 @@ class TaskExecutor:
         if not had_aborted_assistant_message:
             self._context.session_ctx.append_history([message.InterruptEntry(show_notice=show_notice)])
 
-        # Preserve usage for session statistics without rendering interrupted
-        # task metadata in the transcript.
+        # Preserve usage for session statistics and render the interrupted
+        # task as a distinct partial metadata entry.
         if self._metadata_accumulator is not None and self._started_at > 0:
             task_duration_s = time.perf_counter() - self._started_at
             accumulated = self._metadata_accumulator.get_partial_item(task_duration_s)
             if accumulated is not None:
                 accumulated.is_partial = True
                 self._context.session_ctx.append_history([accumulated])
+                ui_events.append(
+                    events.TaskMetadataEvent(
+                        metadata=accumulated,
+                        session_id=self._context.session_ctx.session_id,
+                        is_partial=True,
+                    )
+                )
 
         return ui_events
 
