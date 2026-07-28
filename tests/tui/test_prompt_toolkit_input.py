@@ -234,11 +234,10 @@ def test_status_top_spacer_is_always_reserved() -> None:
     assert bar.reserved_layout_rows() == 2
 
 
-def test_single_line_stream_swaps_with_scrollback_gap() -> None:
-    """A one-line stream tail (e.g. the compact thinking preview) must not
-    change the bar's total height: the tail's first line replaces the
-    scrollback gap row. Any net height change repaints the prompt UI at a
-    different bottom row and the whole bar visibly hops one line."""
+def test_stream_end_collapses_height_immediately() -> None:
+    """The renderer anchors end_of_stream to its next scrollback write, so
+    the bar itself collapses immediately on the signal — the shrink lands in
+    the same redraw that grows the transcript above it."""
 
     async def _scenario() -> None:
         prompt_input = _build_input("")
@@ -248,20 +247,12 @@ def test_single_line_stream_swaps_with_scrollback_gap() -> None:
         assert bar.reserved_layout_rows() == 2
 
         prompt_input.set_stream_lines(("reasoning preview tail",))
-        assert bar.reserved_layout_rows() == 2
+        assert bar.reserved_layout_rows() == 3
 
-        # End-of-stream holds the reservation, still swapped with the gap…
         prompt_input.set_stream_lines((), end_of_stream=True)
-        assert bar.reserved_layout_rows() == 2
-
-        # …and the next status collapses it; the gap row returns in its place.
-        prompt_input.set_status_lines((_status("Typing…"),))
         assert bar._stream_reserved_line_count == 0
+        assert bar._stream_lines == ()
         assert bar.reserved_layout_rows() == 2
-
-        # Only stream lines beyond the first grow the layout.
-        prompt_input.set_stream_lines(("one", "two", "three"))
-        assert bar.reserved_layout_rows() == 4
 
     asyncio.run(_scenario())
 
@@ -485,9 +476,9 @@ def test_input_window_max_height_accounts_for_bottom_layout() -> None:
     prompt_input.set_status_lines((_status("Loading…"), _metadata("in 12 · cache 3k")))
     prompt_input.set_pending_messages(("first queued", "second queued"))
 
-    # bar rows: stream 3 (gap swapped away) + status 1 + queue 4 = 8;
-    # plus input rules 2, footer 2, safety margin → 11 rows left for input.
-    assert prompt_input._get_max_input_window_rows(24) == 11
+    # bar rows: gap 1 + status 1 + stream 3 + queue 4 = 9;
+    # plus input rules 2, footer 2, safety margin → 10 rows left for input.
+    assert prompt_input._get_max_input_window_rows(24) == 10
 
 
 def test_input_window_max_height_keeps_minimum_row_on_tiny_terminal() -> None:
@@ -587,8 +578,8 @@ def test_stream_lines_render_directly_below_status() -> None:
         ("", "\n"),
         ("class:tool.result", "  line two"),
     ]
-    # Stream lines replace the scrollback gap row: 2 stream + 1 status.
-    assert bar.reserved_layout_rows() == 3
+    # gap 1 + status 1 + 2 stream lines.
+    assert bar.reserved_layout_rows() == 4
 
 
 def test_bashing_status_does_not_reserve_stream_window() -> None:
@@ -652,21 +643,14 @@ def test_stream_lines_end_of_stream_collapses_reserved() -> None:
     prompt_input.set_stream_lines(("a", "b", "c"))
     assert bar._stream_reserved_line_count == 3
 
-    # No running loop in this synchronous test path → fallback collapses
-    # immediately so non-interactive callers keep deterministic behavior.
+    # End-of-stream collapses immediately: the renderer only sends it
+    # anchored to a scrollback write (or a task-end path).
     prompt_input.set_stream_lines((), end_of_stream=True)
     assert bar._stream_reserved_line_count == 0
     assert bar._stream_lines == ()
 
 
-def test_stream_lines_end_of_stream_defers_height_collapse_under_loop() -> None:
-    """Under a running asyncio loop, end_of_stream clears visible content
-    but holds the reserved height for a brief debounce window. This stops
-    prompt-toolkit from briefly painting the input field right under the
-    last assistant message before the adjacent task-end events render to
-    scrollback."""
-    import asyncio
-
+def test_new_stream_after_ended_stream_resets_high_water() -> None:
     async def _scenario() -> None:
         prompt_input = _build_input("")
         bar = prompt_input._bottom_bar
@@ -675,53 +659,12 @@ def test_stream_lines_end_of_stream_defers_height_collapse_under_loop() -> None:
         assert bar._stream_reserved_line_count == 3
 
         prompt_input.set_stream_lines((), end_of_stream=True)
-        # Lines cleared immediately…
-        assert bar._stream_lines == ()
-        # …but reserved height is held pending the debounce timer.
-        assert bar._stream_reserved_line_count == 3
-        assert bar._stream_collapse_handle is not None
+        assert bar._stream_reserved_line_count == 0
 
-        # A new stream before the timer fires cancels the delayed collapse
-        # without inheriting the ended stream's high-water reservation.
+        # A fresh stream does not inherit the ended stream's reservation.
         prompt_input.set_stream_lines(("d",))
-        assert bar._stream_collapse_handle is None
         assert bar._stream_reserved_line_count == 1
         assert bar._stream_lines == ("d",)
-
-    asyncio.run(_scenario())
-
-
-def test_new_status_collapses_ended_stream_reservation() -> None:
-    async def _scenario() -> None:
-        prompt_input = _build_input("")
-        bar = prompt_input._bottom_bar
-
-        prompt_input.set_stream_lines(("thinking preview",))
-        prompt_input.set_stream_lines((), end_of_stream=True)
-        assert bar._stream_reserved_line_count == 1
-        assert bar._stream_collapse_handle is not None
-
-        prompt_input.set_status_lines((_status("Typing…"),))
-
-        assert bar._stream_reserved_line_count == 0
-        assert bar._stream_collapse_handle is None
-
-    asyncio.run(_scenario())
-
-
-def test_loading_status_collapses_ended_stream_reservation() -> None:
-    async def _scenario() -> None:
-        bar = PromptBottomBar(invalidate=lambda: None, is_agent_running=lambda: True)
-
-        bar.set_stream_lines(("thinking preview",))
-        bar.set_stream_lines((), end_of_stream=True)
-        assert bar._stream_reserved_line_count == 1
-
-        bar.set_status_lines(())
-
-        assert bar._stream_reserved_line_count == 0
-        assert bar._stream_collapse_handle is None
-        assert bar._get_status_fragments()[-1] == ("class:meta", "Loading…")
 
     asyncio.run(_scenario())
 

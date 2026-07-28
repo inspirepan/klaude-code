@@ -251,6 +251,10 @@ class TUICommandRenderer:
         self.console.push_theme(self.themes.markdown_theme)
 
         self._stream_renderable: RenderableType | None = None
+        # An ended stream's height collapse is deferred until the next
+        # scrollback write: shrinking the bottom bar without new transcript
+        # content above it makes the whole bar visibly hop up one line.
+        self._stream_end_pending: bool = False
         self._spinner_visible: bool = False
         self._progress_ui_suspended: bool = False
         self._spinner_last_update_key: _SpinnerUpdateKey | None = None
@@ -466,11 +470,17 @@ class TUICommandRenderer:
                     Quote(Text(""), style=Style(color=self._current_sub_agent_color.color), prefix="▌ "),
                     overflow="ellipsis",
                 )
+            else:
+                return
+            self._flush_pending_stream_end()
             return
         if not objects and self._scrollback_boundary_printed:
             return
         self._set_scrollback_boundary(not objects)
         self.console.print(*objects, style=style, end=end, overflow="ellipsis")
+        # Scrollback just grew: release any ended stream's reserved height in
+        # the same redraw so the bar shrink never floats it above the bottom.
+        self._flush_pending_stream_end()
 
     def _set_scrollback_boundary(self, printed: bool) -> None:
         if self._scrollback_boundary_printed == printed:
@@ -540,6 +550,9 @@ class TUICommandRenderer:
         self._flush_pending_spinner_update()
         self._spinner_visible = False
         self._status_separator_text = None
+        # Safety net: a turn can end without a scrollback write after the
+        # last stream ended; release the held stream height with the status.
+        self._flush_pending_stream_end()
         self._emit_prompt_status(self._prompt_metadata_lines(), None)
 
     def spinner_update(
@@ -651,6 +664,7 @@ class TUICommandRenderer:
         if not suspended:
             self._cancel_spinner_flush()
             self._spinner_pending_update = None
+            self._stream_end_pending = False
             self._emit_prompt_status((), None)
             self._emit_prompt_stream((), end_of_stream=True)
             return
@@ -897,15 +911,28 @@ class TUICommandRenderer:
         no_wrap: bool = False,
     ) -> None:
         if renderable is None:
+            # Hold the end-of-stream signal until the next scrollback write
+            # (see `_stream_end_pending`); the bar collapses in the same
+            # redraw that grows the transcript, staying pinned to the bottom.
             self._stream_renderable = None
-            self._emit_prompt_stream((), end_of_stream=True)
+            self._stream_end_pending = True
             return
 
+        if self._stream_end_pending:
+            # A new stream starts before any scrollback write: flush the held
+            # end first so the bar resets the previous stream's reservation.
+            self._flush_pending_stream_end()
         self._stream_renderable = renderable
         lines = self._prompt_stream_lines(renderable, no_wrap=no_wrap)
         if max_lines is not None:
             lines = lines[-max_lines:]
         self._emit_prompt_stream(lines, style_class=style_class)
+
+    def _flush_pending_stream_end(self) -> None:
+        if not self._stream_end_pending:
+            return
+        self._stream_end_pending = False
+        self._emit_prompt_stream((), end_of_stream=True)
 
     # ---------------------------------------------------------------------
     # Stream helpers (MarkdownStream)

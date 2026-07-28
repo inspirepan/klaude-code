@@ -6,13 +6,14 @@ scrollback gap, status spinner lines, stream tail, and queued follow-ups.
 and clipboard watcher; this module owns everything that renders below the
 input.
 
-Height stability is the core layout invariant: when the total bar height
-changes, prompt-toolkit repaints the UI at a different bottom row and the
-whole bar visibly hops up or down one line. The scrollback gap therefore
-flexes against the stream tail — the first stream line replaces the gap
-row instead of adding to the layout, so single-line tails (the compact
-thinking preview, a one-line bash tail) appear and collapse with zero net
-height change. Only stream lines beyond the first grow the bar.
+Bottom-row stability is the core layout invariant: when the total bar
+height shrinks without new scrollback content, prompt-toolkit repaints the
+UI at a higher bottom row and the whole bar visibly hops up one line. The
+stream tail's height collapse is therefore anchored to scrollback growth:
+the renderer holds the ``end_of_stream`` signal until its next scrollback
+write, so the shrink lands in the same redraw that adds transcript content
+and the bar stays pinned to the terminal bottom. Growth only scrolls the
+view, which reads as normal streaming.
 """
 
 from __future__ import annotations
@@ -43,13 +44,9 @@ _STARTUP_LOADING_TEXT = "Preparing session…"
 # ~0.48s cadence keeps the clock fresh at a fraction of the cost.
 _STATUS_REFRESH_EVERY_TICKS = 4
 
-# How long to hold the stream area's reserved height after an end-of-stream
-# signal before truly collapsing it. Adjacent post-stream events
-# (TaskMetadata, TaskFinish) typically arrive within a few milliseconds;
-# keeping the reservation while their scrollback writes drain through the
-# StdoutProxy queue prevents prompt-toolkit from briefly painting the
-# input field right under the last assistant message.
-_STREAM_RESERVATION_HOLD_SECONDS = 0.6
+# How long to hold the status area's reserved height after the status lines
+# clear before truly collapsing it, so adjacent status flickers do not
+# bounce the layout.
 _STATUS_RESERVATION_HOLD_SECONDS = 0.6
 
 
@@ -68,7 +65,6 @@ class PromptBottomBar:
         self._stream_lines: tuple[str, ...] = ()
         self._stream_style_class: str = CLASS_TOOL_RESULT
         self._stream_reserved_line_count: int = 0
-        self._stream_collapse_handle: asyncio.TimerHandle | None = None
         self._status_lines: tuple[PromptStatusLine, ...] = ()
         self._metadata_footer_lines: tuple[str, ...] = ()
         self._status_reserved_line_count: int = 0
@@ -90,27 +86,17 @@ class PromptBottomBar:
         style_class: str = CLASS_TOOL_RESULT,
     ) -> None:
         stream_lines = tuple(line for line in lines if line.strip())
-        starts_after_ended_stream = bool(stream_lines) and self._stream_collapse_handle is not None
 
-        # Any new state cancels a pending delayed collapse — either we're
-        # going to collapse anyway, or we have new content that resets the
-        # debounce.
-        self._cancel_pending_stream_collapse()
-        if starts_after_ended_stream:
-            self._stream_reserved_line_count = 0
-
-        # End-of-stream: clear the visible content immediately but defer the
-        # height collapse so adjacent post-stream events (TaskMetadata,
-        # TaskFinish) can land in scrollback first. Without the delay,
-        # prompt-toolkit's spinner-driven redraw fires between events and
-        # paints the input field right under the last assistant message
-        # before metadata/finish render.
+        # End-of-stream: collapse immediately. The renderer anchors this
+        # signal to its next scrollback write, so the shorter bar repaints in
+        # the same redraw that grows the transcript above it and never floats
+        # above the terminal bottom (see module docstring).
         if end_of_stream:
             if not self._stream_lines and self._stream_reserved_line_count == 0:
                 return
             self._stream_lines = ()
+            self._stream_reserved_line_count = 0
             self._invalidate()
-            self._schedule_stream_collapse()
             return
 
         # Otherwise hold a high-water reservation so transient frame-to-frame
@@ -129,44 +115,6 @@ class PromptBottomBar:
         self._stream_reserved_line_count = new_reserved
         self._invalidate()
 
-    def _cancel_pending_stream_collapse(self) -> None:
-        handle = self._stream_collapse_handle
-        if handle is None:
-            return
-        self._stream_collapse_handle = None
-        with contextlib.suppress(Exception):
-            handle.cancel()
-
-    def _schedule_stream_collapse(self) -> None:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop (non-interactive paths e.g. replay tests):
-            # collapse immediately so behavior matches the synchronous
-            # contract.
-            self._stream_reserved_line_count = 0
-            self._invalidate()
-            return
-        self._stream_collapse_handle = loop.call_later(
-            _STREAM_RESERVATION_HOLD_SECONDS,
-            self._do_stream_collapse,
-        )
-
-    def _do_stream_collapse(self) -> None:
-        self._stream_collapse_handle = None
-        if self._stream_reserved_line_count == 0:
-            return
-        self._stream_reserved_line_count = 0
-        self._invalidate()
-
-    def _collapse_ended_stream_reservation(self) -> bool:
-        if self._stream_collapse_handle is None:
-            return False
-        self._cancel_pending_stream_collapse()
-        height_changed = self._stream_reserved_line_count > 0
-        self._stream_reserved_line_count = 0
-        return height_changed
-
     def set_status_lines(
         self,
         lines: tuple[PromptStatusLine, ...],
@@ -177,12 +125,6 @@ class PromptBottomBar:
         status_lines = tuple(line for line in lines if line.text.strip())
         visible_status_lines = tuple(line for line in status_lines if line.kind != "metadata")
         metadata_footer_lines = tuple(line.text for line in status_lines if line.kind == "metadata")
-        status_will_be_visible = bool(
-            visible_status_lines
-            or self._startup_loading
-            or (self._is_agent_running is not None and self._is_agent_running())
-        )
-        stream_height_changed = status_will_be_visible and self._collapse_ended_stream_reservation()
         reserved_height_changed = False
         if reset_bottom_height and visible_status_lines:
             self._cancel_pending_status_collapse()
@@ -195,7 +137,7 @@ class PromptBottomBar:
                 self._ensure_status_spinner()
             else:
                 self._cancel_status_spinner()
-            if reserved_height_changed or stream_height_changed:
+            if reserved_height_changed:
                 self._invalidate()
             return
 
@@ -214,10 +156,7 @@ class PromptBottomBar:
         self._invalidate()
 
     def set_startup_loading(self, loading: bool) -> None:
-        stream_height_changed = loading and self._collapse_ended_stream_reservation()
         if self._startup_loading == loading:
-            if stream_height_changed:
-                self._invalidate()
             return
 
         self._cancel_pending_status_collapse()
@@ -281,8 +220,7 @@ class PromptBottomBar:
     def reserved_layout_rows(self) -> int:
         """Return the current number of rows reserved by build_containers()."""
 
-        # The scrollback gap and the stream tail's first line share one row.
-        rows = max(1, self._stream_reserved_line_count)
+        rows = max(0, self._stream_reserved_line_count) + 1
         rows += self._status_window_height()
         rows += self._pending_block_height()
         return rows
@@ -307,11 +245,8 @@ class PromptBottomBar:
         )
 
         stream_visible = Condition(lambda: self._stream_reserved_line_count > 0)
-        # The gap collapses while a stream tail is up so the tail's first line
-        # replaces it instead of growing the bar (see module docstring).
-        gap_visible = Condition(lambda: self._stream_reserved_line_count == 0)
         return [
-            ConditionalContainer(_spacer(), filter=gap_visible),
+            _spacer(),
             status_window,
             ConditionalContainer(stream_window, filter=stream_visible),
             ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._pending_messages))),
@@ -322,7 +257,6 @@ class PromptBottomBar:
 
     def stop(self) -> None:
         self._cancel_status_spinner()
-        self._cancel_pending_stream_collapse()
         self._cancel_pending_status_collapse()
 
     # ---- fragment generators --------------------------------------------

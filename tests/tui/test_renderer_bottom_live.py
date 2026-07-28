@@ -49,7 +49,10 @@ def test_stream_renderable_updates_prompt_stream_sink() -> None:
     assert full_updates[-1] == (("live stream",), False)
 
 
-def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
+def test_stream_renderable_clear_anchors_end_to_next_scrollback_write() -> None:
+    """Clearing the stream must not emit end_of_stream immediately: shrinking
+    the bottom bar without new scrollback content above it makes the whole
+    bar hop up one line. The signal is held until the next print()."""
     from klaude_code.tui.renderer import TUICommandRenderer
 
     stream_updates, full_updates, sink = _make_stream_recorder()
@@ -60,8 +63,28 @@ def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
     renderer.set_stream_renderable(None)
 
     assert renderer._stream_renderable is None
+    # Held: the last emission is still the live content.
+    assert full_updates[-1] == (("live stream",), False)
+
+    renderer.print("tool result line")
+
     assert stream_updates[-1] == ()
     assert full_updates[-1] == ((), True)
+
+
+def test_new_stream_flushes_held_end_before_new_lines() -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    _stream_updates, full_updates, sink = _make_stream_recorder()
+    renderer = TUICommandRenderer(stream_sink=sink)
+    _renderer_console(renderer)
+
+    renderer.set_stream_renderable(Text("first stream"))
+    renderer.set_stream_renderable(None)
+    renderer.set_stream_renderable(Text("second stream"))
+
+    assert full_updates[-2] == ((), True)
+    assert full_updates[-1] == (("second stream",), False)
 
 
 def test_prompt_separator_text_can_be_sent_without_status_lines() -> None:
@@ -477,10 +500,15 @@ def test_compact_thinking_preview_keeps_tail_out_of_scrollback() -> None:
 
     asyncio.run(renderer.execute([EndThinkingStream(session_id="main")]))
 
+    # End is held until the next scrollback write anchors the collapse.
+    assert renderer._stream_end_pending is True
+    assert renderer._thinking_live_buffer == ""
+    assert console.file.getvalue() == ""  # pyright: ignore[reportAttributeAccessIssue]
+
+    renderer.print("next tool line")
+
     assert updates[-1][0] == ()
     assert updates[-1][1] is True
-    assert console.file.getvalue() == ""  # pyright: ignore[reportAttributeAccessIssue]
-    assert renderer._thinking_live_buffer == ""
 
 
 def test_compact_thinking_preview_throttles_renders_and_flushes_trailing_content() -> None:
@@ -677,6 +705,10 @@ def test_display_bash_command_end_clears_live_tail() -> None:
 
     assert renderer._stream_renderable is None
     assert renderer._bash_stream_active is False
+    # The tail's height release rides the next scrollback write — in the
+    # real flow, the bash tool's compact result line.
+    assert renderer._stream_end_pending is True
+    renderer.print("  $ Bash    done ✓")
     assert stream_updates[-1] == ()
 
 
