@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 import klaude_code.config.config as _config_module
+from klaude_code.config.builtin_config import get_builtin_config
 from klaude_code.config.config import (
     Config,
     ModelAvailability,
@@ -592,6 +593,50 @@ class TestConfig:
         merged = merge_configs(user_config, builtin_config)
 
         assert merged.sub_agent_model_decision_tree == "- User decision tree."
+
+    def test_legacy_opus_xhigh_override_merges_into_opus_max(self) -> None:
+        builtin_config = Config(
+            provider_list=[
+                ProviderConfig(
+                    provider_name="anthropic",
+                    protocol=llm_param.LLMClientProtocol.ANTHROPIC,
+                    model_list=[
+                        ModelConfig(
+                            model_name="opus:max",
+                            model_alias=["opus:xhigh"],
+                            model_id="claude-opus-5",
+                            effort="max",
+                        )
+                    ],
+                )
+            ]
+        )
+        user_config = UserConfig(
+            provider_list=[
+                UserProviderConfig(
+                    provider_name="anthropic",
+                    model_list=[ModelConfig(model_name="opus:xhigh", disabled=True)],
+                )
+            ]
+        )
+
+        merged = merge_configs(user_config, builtin_config)
+
+        models = merged.provider_list[0].model_list
+        assert len(models) == 1
+        assert models[0].model_name == "opus:max"
+        assert models[0].model_id == "claude-opus-5"
+        assert models[0].effort == "max"
+        assert models[0].disabled is True
+
+    @pytest.mark.parametrize("provider_name", ["youtu-anthropic", "anthropic", "aws-bedrock", "openrouter"])
+    def test_builtin_opus_max_preserves_xhigh_aliases(self, provider_name: str) -> None:
+        config = get_builtin_config()
+        provider = next(provider for provider in config.provider_list if provider.provider_name == provider_name)
+        model = next(model for model in provider.model_list if model.model_name == "opus:max")
+
+        assert model.effort == "max"
+        assert {"opus-5:max", "opus:xhigh", "opus-5:xhigh"}.issubset(model.model_alias)
 
 
 class TestDiagnoseModel:

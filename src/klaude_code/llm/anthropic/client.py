@@ -48,7 +48,7 @@ from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
 from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
+from klaude_code.protocol.model_id import model_supports_temperature, supports_adaptive_thinking
 from klaude_code.protocol.models import StopReason, Usage
 
 _ANTHROPIC_STOP_REASON_OVERRIDES: dict[str, StopReason] = {
@@ -194,7 +194,6 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
     system = [identity_block, *system]
 
     model_id = str(param.model_id)
-    is_opus47 = is_opus_47_model(model_id)
     is_adaptive = param.thinking is not None and param.thinking.type == "adaptive"
     is_adaptive_builtin = is_adaptive and supports_adaptive_thinking(model_id)
 
@@ -213,8 +212,8 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
         "tools": tools,
     }
 
-    # Opus 4.7 rejects non-default temperature/top_p/top_k with 400
-    if not is_opus47:
+    # Newer Opus models reject non-default sampling parameters with 400.
+    if model_supports_temperature(model_id):
         payload["temperature"] = param.temperature or DEFAULT_TEMPERATURE
 
     # Collect beta flags in one place; assigned to payload at the end.

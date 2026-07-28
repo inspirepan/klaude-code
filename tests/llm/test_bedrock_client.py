@@ -90,6 +90,22 @@ def test_bedrock_request_keeps_non_opus47_temperature_and_interleaved_beta() -> 
     }
 
 
+@pytest.mark.parametrize(
+    "model_id",
+    ["global.anthropic.claude-opus-4-8", "global.anthropic.claude-opus-5"],
+)
+def test_bedrock_request_omits_temperature_for_new_opus_models(model_id: str) -> None:
+    param = llm_param.LLMCallParameter(
+        input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
+        model_id=model_id,
+        temperature=0.2,
+    )
+
+    request = build_bedrock_request(param, region="us-east-1")
+
+    assert "temperature" not in request["inferenceConfig"]
+
+
 def test_bedrock_request_keeps_thinking_for_arn_models() -> None:
     param = llm_param.LLMCallParameter(
         input=[message.UserMessage(parts=[message.TextPart(text="hi")])],

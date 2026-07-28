@@ -21,7 +21,7 @@ from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, is_debug_enabled, log_debug
 from klaude_code.protocol import llm_param
-from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
+from klaude_code.protocol.model_id import model_supports_temperature, supports_adaptive_thinking
 
 
 def build_payload(
@@ -100,8 +100,7 @@ def build_payload(
         "verbosity": cast(Literal["low", "medium", "high"] | None, _or_verbosity),
     }
 
-    # Opus 4.7 ignores temperature; omit for cleanliness
-    if not is_opus_47_model(str(param.model_id)):
+    if model_supports_temperature(str(param.model_id)):
         payload["temperature"] = param.temperature
 
     return payload, extra_body, extra_headers

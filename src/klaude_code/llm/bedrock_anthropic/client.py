@@ -49,7 +49,7 @@ from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
 from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.model_id import is_opus_47_model, supports_adaptive_thinking
+from klaude_code.protocol.model_id import model_supports_temperature, supports_adaptive_thinking
 
 _BotocoreBotoCoreErrorType = cast(
     type[Exception],
@@ -356,7 +356,7 @@ def build_bedrock_request(
     inference_config: dict[str, Any] = {
         "maxTokens": param.max_tokens or DEFAULT_MAX_TOKENS,
     }
-    if not is_opus_47_model(model_id):
+    if model_supports_temperature(model_id):
         inference_config["temperature"] = param.temperature or DEFAULT_TEMPERATURE
 
     request: dict[str, Any] = {

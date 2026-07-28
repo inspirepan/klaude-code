@@ -110,10 +110,11 @@ def test_build_payload_skips_context_management_without_thinking() -> None:
     assert ANTHROPIC_BETA_CONTEXT_MANAGEMENT not in payload.get("betas", [])
 
 
-def test_build_payload_omits_temperature_for_opus_47() -> None:
+@pytest.mark.parametrize("model_id", ["claude-opus-4-7", "claude-opus-4-8", "claude-opus-5"])
+def test_build_payload_omits_temperature_for_unsupported_opus_models(model_id: str) -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
-        model_id="claude-opus-4-7",
+        model_id=model_id,
         thinking=llm_param.Thinking(type="adaptive"),
     )
 
@@ -214,10 +215,11 @@ def test_build_payload_enables_eager_input_streaming_for_claude_tools() -> None:
     assert tools[0]["eager_input_streaming"] is True  # type: ignore[typeddict-item]
 
 
-def test_build_payload_enables_eager_input_streaming_for_opus_47() -> None:
+@pytest.mark.parametrize("model_id", ["claude-opus-4-7", "claude-opus-4-8", "claude-opus-5"])
+def test_build_payload_enables_eager_input_streaming_for_new_opus_models(model_id: str) -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
-        model_id="claude-opus-4-7",
+        model_id=model_id,
         tools=_dummy_tools(),
     )
 

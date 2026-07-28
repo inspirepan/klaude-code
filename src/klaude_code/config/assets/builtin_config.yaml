@@ -58,12 +58,12 @@ provider_list:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
-  - model_name: opus:xhigh
-    model_alias: [ opus-5:xhigh, opus5:xhigh, claude-opus-5:xhigh ]
+  - model_name: opus:max
+    model_alias: [ opus-5:max, opus5:max, claude-opus-5:max, opus:xhigh, opus-5:xhigh, opus5:xhigh, claude-opus-5:xhigh ]
     model_id: claude-opus-5
     max_tokens: 128000
     context_limit: 1000000
-    effort: xhigh
+    effort: max
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
@@ -405,13 +405,13 @@ provider_list:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
-  - &opus_xhigh
-    model_name: opus:xhigh
-    model_alias: [ opus-5:xhigh, opus5:xhigh, claude-opus-5:xhigh ]
+  - &opus_max
+    model_name: opus:max
+    model_alias: [ opus-5:max, opus5:max, claude-opus-5:max, opus:xhigh, opus-5:xhigh, opus5:xhigh, claude-opus-5:xhigh ]
     model_id: claude-opus-5
     max_tokens: 128000
     context_limit: 1000000
-    effort: xhigh
+    effort: max
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
@@ -486,12 +486,12 @@ provider_list:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
-  - model_name: opus:xhigh
-    model_alias: [ opus-5:xhigh, opus5:xhigh, claude-opus-5:xhigh ]
+  - model_name: opus:max
+    model_alias: [ opus-5:max, opus5:max, claude-opus-5:max, opus:xhigh, opus-5:xhigh, opus5:xhigh, claude-opus-5:xhigh ]
     model_id: global.anthropic.claude-opus-5
     max_tokens: 128000
     context_limit: 1000000
-    effort: xhigh
+    effort: max
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
@@ -1178,12 +1178,12 @@ provider_list:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
-  - model_name: opus:xhigh
-    model_alias: [ opus-5:xhigh, opus5:xhigh, claude-opus-5:xhigh ]
+  - model_name: opus:max
+    model_alias: [ opus-5:max, opus5:max, claude-opus-5:max, opus:xhigh, opus-5:xhigh, opus5:xhigh, claude-opus-5:xhigh ]
     model_id: anthropic/claude-opus-5
     max_tokens: 128000
     context_limit: 1000000
-    effort: xhigh
+    effort: max
     thinking:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }

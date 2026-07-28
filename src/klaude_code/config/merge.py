@@ -15,6 +15,8 @@ from klaude_code.config.config import (
 if TYPE_CHECKING:
     from klaude_code.config.config import UserConfig
 
+_LEGACY_BUILTIN_MODEL_NAMES = {"opus:xhigh": "opus:max"}
+
 
 def _merge_model(builtin: ModelConfig, user: ModelConfig) -> ModelConfig:
     """Merge user model config with builtin model config.
@@ -43,9 +45,10 @@ def _merge_provider(builtin: ProviderConfig, user: UserProviderConfig) -> Provid
     for m in builtin.model_list:
         merged_models[m.model_name] = m
     for m in user.model_list:
-        if m.model_name in merged_models:
+        model_name = _LEGACY_BUILTIN_MODEL_NAMES.get(m.model_name, m.model_name)
+        if model_name in merged_models:
             # Merge with builtin model
-            merged_models[m.model_name] = _merge_model(merged_models[m.model_name], m)
+            merged_models[model_name] = _merge_model(merged_models[model_name], m)
         else:
             # New model from user
             merged_models[m.model_name] = m
