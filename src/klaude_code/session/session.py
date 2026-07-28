@@ -21,12 +21,15 @@ from klaude_code.protocol.models import (
     SubAgentState,
     TaskMetadataItem,
     TodoItem,
+    Usage,
 )
 from klaude_code.session.history import (
     extract_checkpoint_id,
     extract_xml_tag,
     find_checkpoint_index_in_history,
+    last_request_usage,
     rebuild_loaded_history,
+    update_last_request_usage,
 )
 from klaude_code.session.meta import parse_session_meta, parse_session_state, read_json_dict
 from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
@@ -60,6 +63,7 @@ class Session(BaseModel):
 
     _messages_count_cache: int | None = PrivateAttr(default=None)
     _user_messages_cache: list[str] | None = PrivateAttr(default=None)
+    _last_request_usage: Usage | None = PrivateAttr(default=None)
     _store: JsonlSessionStore = PrivateAttr(default=None)  # ty: ignore[invalid-assignment]  # set in model_post_init
 
     def model_post_init(self, __context: Any) -> None:
@@ -75,6 +79,11 @@ class Session(BaseModel):
                 if isinstance(it, (message.UserMessage, message.AssistantMessage, message.ToolResultMessage))
             )
         return self._messages_count_cache
+
+    @property
+    def last_request_usage(self) -> Usage | None:
+        """Usage from the latest valid request after the last context reset."""
+        return self._last_request_usage
 
     def _invalidate_messages_count_cache(self) -> None:
         self._messages_count_cache = None
@@ -158,7 +167,9 @@ class Session(BaseModel):
     @classmethod
     def load(cls, id: str, work_dir: Path) -> Session:
         session = cls.load_meta(id, work_dir)
-        session.conversation_history = rebuild_loaded_history(session._store.load_history(id))
+        raw_history = session._store.load_history(id)
+        session._last_request_usage = last_request_usage(raw_history)
+        session.conversation_history = rebuild_loaded_history(raw_history)
         return session
 
     @classmethod
@@ -189,6 +200,7 @@ class Session(BaseModel):
             return
 
         self.conversation_history.extend(items)
+        self._last_request_usage = update_last_request_usage(self._last_request_usage, items)
         self._invalidate_messages_count_cache()
 
         new_user_messages = [
@@ -454,6 +466,8 @@ class Session(BaseModel):
         items = [it.model_copy(deep=True) for it in history_to_copy]
         if items:
             forked.append_history(items)
+            # A fork starts a new request lineage even when it shares history.
+            forked._last_request_usage = None
 
         return forked
 

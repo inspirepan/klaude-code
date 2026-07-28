@@ -3,8 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from klaude_code.agent.cache_break_detection import CacheTracker
-from klaude_code.protocol import llm_param
+from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import Usage
+from klaude_code.session.history import last_request_usage
 
 
 def _make_tools(*names: str) -> list[llm_param.ToolSchema]:
@@ -42,6 +43,60 @@ class TestCacheTrackerHitRate:
         t.update(_make_usage(cached=8_000, input_tokens=5_000, cache_write=4_000))
         assert t.prev_step_input_tokens == 12_000  # max(5000, 8000+4000)
 
+    def test_restores_previous_step_from_session_history(self) -> None:
+        t = CacheTracker()
+        previous = message.AssistantMessage(
+            parts=[],
+            usage=_make_usage(input_tokens=10_000),
+            stop_reason="stop",
+        )
+
+        t.restore_previous_usage(last_request_usage([previous, message.UserMessage(parts=[])]))
+        t.record_pre_call_state("prompt", _make_tools("bash"), "model")
+        t.update(_make_usage(cached=9_000, input_tokens=11_000))
+
+        assert t.last_prev_input_tokens == 10_000
+        assert t.last_hit_rate == 0.9
+
+    def test_does_not_restore_across_compaction(self) -> None:
+        t = CacheTracker()
+        previous = message.AssistantMessage(
+            parts=[],
+            usage=_make_usage(input_tokens=10_000),
+            stop_reason="stop",
+        )
+        compaction = message.CompactionEntry(summary="summary", first_kept_index=0)
+
+        t.restore_previous_usage(last_request_usage([previous, compaction]))
+        t.update(_make_usage(cached=9_000, input_tokens=11_000))
+
+        assert t.last_hit_rate is None
+
+    def test_restores_request_after_compaction(self) -> None:
+        before = message.AssistantMessage(
+            parts=[],
+            usage=_make_usage(input_tokens=10_000),
+            stop_reason="stop",
+        )
+        compaction = message.CompactionEntry(summary="summary", first_kept_index=0)
+        after = message.AssistantMessage(
+            parts=[],
+            usage=_make_usage(input_tokens=6_000),
+            stop_reason="stop",
+        )
+
+        assert last_request_usage([before, compaction, after]) is after.usage
+
+    def test_invalid_latest_usage_does_not_restore_older_request(self) -> None:
+        previous = message.AssistantMessage(
+            parts=[],
+            usage=_make_usage(input_tokens=10_000),
+            stop_reason="stop",
+        )
+        latest = message.AssistantMessage(parts=[], usage=Usage(), stop_reason="stop")
+
+        assert last_request_usage([previous, latest]) is None
+
 
 class TestCacheTrackerBreakDetection:
     def test_first_call_no_report(self) -> None:
@@ -70,6 +125,21 @@ class TestCacheTrackerBreakDetection:
         t.update(_make_usage(cached=50_000, input_tokens=60_000))
         t.record_pre_call_state("prompt", _make_tools("bash"), "claude-sonnet-4-20250514")
         report = t.update(_make_usage(cached=10_000, input_tokens=60_000))
+        assert report is not None
+        assert report.token_drop == 40_000
+
+    def test_restored_history_baseline_detects_drop(self) -> None:
+        t = CacheTracker()
+        previous = message.AssistantMessage(
+            parts=[],
+            usage=_make_usage(cached=50_000, input_tokens=60_000),
+            stop_reason="stop",
+        )
+        t.restore_previous_usage(last_request_usage([previous]))
+        t.record_pre_call_state("prompt", _make_tools("bash"), "claude-sonnet-4-20250514")
+
+        report = t.update(_make_usage(cached=10_000, input_tokens=60_000))
+
         assert report is not None
         assert report.token_drop == 40_000
 
@@ -124,6 +194,7 @@ class TestCacheTrackerBreakDetection:
         t.notify_compaction()
         t.record_pre_call_state("prompt", _make_tools("bash"), "claude-sonnet-4-20250514")
         assert t.update(_make_usage(cached=10_000, input_tokens=30_000)) is None
+        assert t.last_hit_rate is None
 
     def test_report_write(self) -> None:
         t = CacheTracker()

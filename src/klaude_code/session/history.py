@@ -5,6 +5,7 @@ from collections.abc import Iterable, Sequence
 
 from klaude_code.prompts.messages import CHECKPOINT_TEMPLATE
 from klaude_code.protocol import message
+from klaude_code.protocol.models import Usage
 
 _CHECKPOINT_RE = re.compile(r"<system-reminder>Checkpoint (\d+)</system-reminder>")
 _XML_TAG_RE_CACHE: dict[str, re.Pattern[str]] = {}
@@ -74,9 +75,38 @@ def rebuild_loaded_history(raw_history: Iterable[message.HistoryEvent]) -> list[
     return [normalized_compaction, *kept]
 
 
+def update_last_request_usage(
+    usage: Usage | None,
+    history: Iterable[message.HistoryEvent],
+) -> Usage | None:
+    """Update the latest valid request usage from chronological history entries."""
+    for item in history:
+        if isinstance(item, (message.CompactionEntry, message.RewindEntry)):
+            usage = None
+            continue
+        if not isinstance(item, message.AssistantMessage):
+            continue
+        if item.stop_reason in {"aborted", "error"} or item.usage is None:
+            usage = None
+            continue
+        prompt_tokens = max(
+            item.usage.input_tokens,
+            item.usage.cached_tokens + item.usage.cache_write_tokens,
+        )
+        usage = item.usage if prompt_tokens > 0 else None
+    return usage
+
+
+def last_request_usage(history: Iterable[message.HistoryEvent]) -> Usage | None:
+    """Return the latest valid request usage after the most recent context reset."""
+    return update_last_request_usage(None, history)
+
+
 __all__ = [
     "extract_checkpoint_id",
     "extract_xml_tag",
     "find_checkpoint_index_in_history",
+    "last_request_usage",
     "rebuild_loaded_history",
+    "update_last_request_usage",
 ]

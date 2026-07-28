@@ -35,11 +35,27 @@ def _hash(data: object) -> str:
 
 @dataclass
 class _Snapshot:
-    system_hash: str
-    tools_hash: str
+    system_hash: str | None
+    tools_hash: str | None
     model_name: str
-    system_chars: int
-    tool_names: list[str]
+    system_chars: int | None
+    tool_names: list[str] | None
+
+
+def _make_snapshot(
+    system_prompt: str | None,
+    tools: list[llm_param.ToolSchema],
+    model_name: str,
+) -> _Snapshot:
+    system_str = system_prompt or ""
+    tool_dicts = [tool.model_dump(exclude_none=True) for tool in tools]
+    return _Snapshot(
+        system_hash=_hash(system_str),
+        tools_hash=_hash(tool_dicts),
+        model_name=model_name,
+        system_chars=len(system_str),
+        tool_names=[tool.name for tool in tools],
+    )
 
 
 @dataclass
@@ -91,29 +107,49 @@ class CacheBreakReport:
             "",
             "## Previous State",
             f"Model: {self.prev_snapshot.model_name}",
-            f"System prompt hash: {self.prev_snapshot.system_hash}",
-            f"System prompt length: {self.prev_snapshot.system_chars:,} chars",
-            f"Tools hash: {self.prev_snapshot.tools_hash}",
-            f"Tools ({len(self.prev_snapshot.tool_names)}): {', '.join(self.prev_snapshot.tool_names)}",
+            f"System prompt hash: {self.prev_snapshot.system_hash or 'unavailable'}",
+            (
+                f"System prompt length: {self.prev_snapshot.system_chars:,} chars"
+                if self.prev_snapshot.system_chars is not None
+                else "System prompt length: unavailable"
+            ),
+            f"Tools hash: {self.prev_snapshot.tools_hash or 'unavailable'}",
+            (
+                f"Tools ({len(self.prev_snapshot.tool_names)}): {', '.join(self.prev_snapshot.tool_names)}"
+                if self.prev_snapshot.tool_names is not None
+                else "Tools: unavailable"
+            ),
             "",
             "## Current State",
             f"Model: {self.curr_snapshot.model_name}",
             f"System prompt hash: {self.curr_snapshot.system_hash}",
-            f"System prompt length: {self.curr_snapshot.system_chars:,} chars",
+            (
+                f"System prompt length: {self.curr_snapshot.system_chars:,} chars"
+                if self.curr_snapshot.system_chars is not None
+                else "System prompt length: unavailable"
+            ),
             f"Tools hash: {self.curr_snapshot.tools_hash}",
-            f"Tools ({len(self.curr_snapshot.tool_names)}): {', '.join(self.curr_snapshot.tool_names)}",
+            (
+                f"Tools ({len(self.curr_snapshot.tool_names)}): {', '.join(self.curr_snapshot.tool_names)}"
+                if self.curr_snapshot.tool_names is not None
+                else "Tools: unavailable"
+            ),
             "",
             "## Diff",
         ]
 
-        if self.prev_snapshot.system_hash != self.curr_snapshot.system_hash:
+        if self.prev_snapshot.system_hash is None:
+            lines.append("Previous system prompt unavailable")
+        elif self.prev_snapshot.system_hash != self.curr_snapshot.system_hash:
             lines.append("System prompt content changed (hashes differ)")
         else:
             lines.append("System prompt content unchanged")
 
-        if self.prev_snapshot.tools_hash != self.curr_snapshot.tools_hash:
-            prev_set = set(self.prev_snapshot.tool_names)
-            curr_set = set(self.curr_snapshot.tool_names)
+        if self.prev_snapshot.tools_hash is None:
+            lines.append("Previous tools unavailable")
+        elif self.prev_snapshot.tools_hash != self.curr_snapshot.tools_hash:
+            prev_set = set(self.prev_snapshot.tool_names or [])
+            curr_set = set(self.curr_snapshot.tool_names or [])
             added = sorted(curr_set - prev_set)
             removed = sorted(prev_set - curr_set)
             if added:
@@ -171,16 +207,29 @@ class CacheTracker:
         model_name: str,
     ) -> None:
         """Snapshot prompt/tool state before each LLM call (phase 1 of break detection)."""
-        system_str = system_prompt or ""
-        tool_dicts = [t.model_dump(exclude_none=True) for t in tools]
-        self._pending_snapshot = _Snapshot(
-            system_hash=_hash(system_str),
-            tools_hash=_hash(tool_dicts),
-            model_name=model_name,
-            system_chars=len(system_str),
-            tool_names=[t.name for t in tools],
-        )
+        self._pending_snapshot = _make_snapshot(system_prompt, tools, model_name)
         self._call_count += 1
+
+    def restore_previous_usage(self, usage: Usage | None) -> None:
+        """Restore the previous request baseline persisted in the session."""
+        if usage is None:
+            return
+        prompt_tokens = max(
+            usage.input_tokens,
+            usage.cached_tokens + usage.cache_write_tokens,
+        )
+        if prompt_tokens <= 0:
+            return
+        self._prev_step_input_tokens = prompt_tokens
+        self._prev_cached_tokens = usage.cached_tokens
+        self._prev_call_time = usage.created_at.timestamp()
+        self._prev_snapshot = _Snapshot(
+            system_hash=None,
+            tools_hash=None,
+            model_name=usage.model_name,
+            system_chars=None,
+            tool_names=None,
+        )
 
     def update(self, usage: Usage) -> CacheBreakReport | None:
         """Process a step's usage: compute hit rate and check for cache break.
@@ -210,8 +259,14 @@ class CacheTracker:
         return self._check_break(usage.cached_tokens)
 
     def notify_compaction(self) -> None:
-        """Reset break-detection baseline after compaction (expected cache drop)."""
+        """Reset cache baselines after an expected context change."""
+        self._prev_step_input_tokens = 0
+        self.last_hit_rate = None
+        self.last_cached_tokens = 0
+        self.last_prev_input_tokens = 0
         self._prev_cached_tokens = None
+        self._prev_snapshot = None
+        self._prev_call_time = None
 
     # -- private ---------------------------------------------------
 
@@ -220,7 +275,7 @@ class CacheTracker:
         if snapshot is None:
             return None
 
-        now = time.monotonic()
+        now = time.time()
         prev_cached = self._prev_cached_tokens
         prev_snapshot = self._prev_snapshot
         prev_time = self._prev_call_time
@@ -243,15 +298,17 @@ class CacheTracker:
 
         # Diagnose cause
         changes: list[str] = []
-        if snapshot.model_name != prev_snapshot.model_name:
+        if prev_snapshot.model_name and snapshot.model_name != prev_snapshot.model_name:
             changes.append(f"model changed ({prev_snapshot.model_name} -> {snapshot.model_name})")
-        if snapshot.system_hash != prev_snapshot.system_hash:
+        if prev_snapshot.system_hash is not None and snapshot.system_hash != prev_snapshot.system_hash:
+            assert snapshot.system_chars is not None
+            assert prev_snapshot.system_chars is not None
             delta = snapshot.system_chars - prev_snapshot.system_chars
             sign = "+" if delta >= 0 else ""
             changes.append(f"system prompt changed ({sign}{delta} chars)")
-        if snapshot.tools_hash != prev_snapshot.tools_hash:
-            prev_set = set(prev_snapshot.tool_names)
-            curr_set = set(snapshot.tool_names)
+        if prev_snapshot.tools_hash is not None and snapshot.tools_hash != prev_snapshot.tools_hash:
+            prev_set = set(prev_snapshot.tool_names or [])
+            curr_set = set(snapshot.tool_names or [])
             added = curr_set - prev_set
             removed = prev_set - curr_set
             if added or removed:
@@ -259,14 +316,17 @@ class CacheTracker:
             else:
                 changes.append("tool schema changed (same tool set)")
 
-        time_gap = (now - prev_time) if prev_time is not None else None
+        time_gap = max(0.0, now - prev_time) if prev_time is not None else None
         if not changes and time_gap is not None:
+            prompt_state = (
+                "prompt unchanged" if prev_snapshot.system_hash is not None else "prior prompt state unavailable"
+            )
             if time_gap > _TTL_1HOUR_S:
-                changes.append("possible 1h TTL expiry (prompt unchanged)")
+                changes.append(f"possible 1h TTL expiry ({prompt_state})")
             elif time_gap > _TTL_5MIN_S:
-                changes.append("possible 5min TTL expiry (prompt unchanged)")
+                changes.append(f"possible 5min TTL expiry ({prompt_state})")
             else:
-                changes.append("likely server-side (prompt unchanged, <5min gap)")
+                changes.append(f"likely server-side ({prompt_state}, <5min gap)")
 
         reason = ", ".join(changes) if changes else "unknown cause"
         return CacheBreakReport(

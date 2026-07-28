@@ -641,6 +641,7 @@ class TaskExecutor:
         profile = ctx.profile
         self._metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)
         metadata_accumulator = self._metadata_accumulator
+        metadata_accumulator.cache.restore_previous_usage(ctx.session.last_request_usage)
 
         if self._rewind_manager is not None and has_user_input:
             checkpoint_id = ctx.session.create_checkpoint()
