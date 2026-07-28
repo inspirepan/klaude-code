@@ -1,6 +1,7 @@
 import asyncio
 from typing import Any, cast
 
+import pytest
 from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
 from anthropic.types.beta.beta_raw_content_block_stop_event import BetaRawContentBlockStopEvent
 from anthropic.types.beta.beta_raw_message_delta_event import BetaRawMessageDeltaEvent
@@ -133,10 +134,22 @@ def test_build_payload_includes_temperature_for_opus_46() -> None:
     assert "temperature" in payload
 
 
-def test_build_payload_sets_thinking_display_summarized_for_opus_47() -> None:
+@pytest.mark.parametrize(
+    "model_id",
+    [
+        "claude-opus-4-6",
+        "claude-opus-4-7",
+        "claude-opus-4-8",
+        "claude-opus-5",
+        "claude-sonnet-4-6",
+        "claude-sonnet-5",
+        "claude-fable-5",
+    ],
+)
+def test_build_payload_sets_thinking_display_summarized_for_adaptive_models(model_id: str) -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
-        model_id="claude-opus-4-7",
+        model_id=model_id,
         thinking=llm_param.Thinking(type="adaptive"),
     )
 
@@ -148,10 +161,10 @@ def test_build_payload_sets_thinking_display_summarized_for_opus_47() -> None:
     assert thinking["display"] == "summarized"  # type: ignore[index]
 
 
-def test_build_payload_no_thinking_display_for_opus_46() -> None:
+def test_build_payload_omits_thinking_display_for_unknown_adaptive_model() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
-        model_id="claude-opus-4-6",
+        model_id="custom-adaptive-model",
         thinking=llm_param.Thinking(type="adaptive"),
     )
 

@@ -226,8 +226,8 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
     # default API behavior clears them beyond the last assistant turn.
     if is_adaptive:
         thinking_config: dict[str, str] = {"type": "adaptive"}
-        # Opus 4.7 omits thinking content by default; restore it for UI streaming
-        if is_opus47:
+        # Request displayable thinking summaries from models that support adaptive thinking.
+        if is_adaptive_builtin:
             thinking_config["display"] = "summarized"
         # "adaptive" thinking and "display" are beta features not yet in the SDK TypedDict.
         payload["thinking"] = cast(anthropic.types.ThinkingConfigEnabledParam, thinking_config)

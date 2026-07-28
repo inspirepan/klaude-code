@@ -16,12 +16,27 @@ def is_opus_47_model(model_name: str | None) -> bool:
     return "opus-4-7" in model_lower or "opus-4.7" in model_lower
 
 
+def is_opus_48_model(model_name: str | None) -> bool:
+    """Check if the model is Claude Opus 4.8."""
+    if not model_name:
+        return False
+    model_lower = model_name.lower()
+    return "opus-4-8" in model_lower or "opus-4.8" in model_lower
+
+
 def is_opus_46_model(model_name: str | None) -> bool:
     """Check if the model is Claude Opus 4.6."""
     if not model_name:
         return False
     model_lower = model_name.lower()
     return "opus-4-6" in model_lower or "opus-4.6" in model_lower
+
+
+def is_opus_5_model(model_name: str | None) -> bool:
+    """Check if the model is Claude Opus 5."""
+    if not model_name:
+        return False
+    return "opus-5" in model_name.lower()
 
 
 def is_sonnet_46_model(model_name: str | None) -> bool:
@@ -40,13 +55,23 @@ def is_sonnet_5_model(model_name: str | None) -> bool:
     return "sonnet-5" in model_lower
 
 
+def is_fable_5_model(model_name: str | None) -> bool:
+    """Check if the model is Claude Fable 5."""
+    if not model_name:
+        return False
+    return "fable-5" in model_name.lower()
+
+
 def supports_adaptive_thinking(model_name: str | None) -> bool:
-    """Check if the model supports adaptive thinking (Opus 4.6+, Sonnet 4.6+)."""
+    """Check if the model supports adaptive thinking."""
     return (
         is_opus_47_model(model_name)
+        or is_opus_48_model(model_name)
         or is_opus_46_model(model_name)
+        or is_opus_5_model(model_name)
         or is_sonnet_46_model(model_name)
         or is_sonnet_5_model(model_name)
+        or is_fable_5_model(model_name)
     )
 
 
@@ -62,6 +87,7 @@ def model_supports_eager_input_streaming(model_name: str | None) -> bool:
     """
     return (
         is_opus_46_model(model_name)
+        or is_opus_48_model(model_name)
         or is_sonnet_46_model(model_name)
         or is_sonnet_5_model(model_name)
         or is_opus_47_model(model_name)
