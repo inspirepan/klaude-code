@@ -307,13 +307,11 @@ class PromptToolkitInput(InputProviderABC):
         lines: tuple[str, ...],
         *,
         end_of_stream: bool = False,
-        separate_from_status: bool = False,
         style_class: str = CLASS_TOOL_RESULT,
     ) -> None:
         self._bottom_bar.set_stream_lines(
             lines,
             end_of_stream=end_of_stream,
-            separate_from_status=separate_from_status,
             style_class=style_class,
         )
 

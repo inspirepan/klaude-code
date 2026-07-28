@@ -120,12 +120,18 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 
 ### Spacing invariants for the prompt bottom layout
 
-- Keep one blank row between recent scrollback and the status block when status
-  is visible.
-- Keep the Bash live-tail block directly below status when live command output
-  is visible.
+- Total bar height stability is the core invariant: a net height change makes
+  prompt-toolkit repaint the UI at a different bottom row and the whole bar
+  hops one line. The scrollback gap row flexes against the stream tail — the
+  tail's first line replaces the gap instead of growing the bar, so one-line
+  tails (compact thinking preview) appear and collapse with zero net change.
+- Keep one blank row between recent scrollback and the status block while no
+  stream tail is visible; drop it (gap row = 0) while a tail is up.
+- Keep the live-tail block (bash output, thinking preview) directly below
+  status when visible.
 - Keep status directly above the queue block / input editor.
-- Keep one blank row below the queue block when queued messages are visible.
+- Keep one blank row above the queue block and none below it; the queue sits
+  directly on the input's top rule.
 - Status, queue, and input should be independent blocks; queue updates must not
   clear or replace running status.
 

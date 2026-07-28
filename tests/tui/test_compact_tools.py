@@ -193,9 +193,7 @@ def test_expanded_bash_keeps_command_and_output() -> None:
 
 def test_compact_bash_live_tail_is_transient() -> None:
     stream_updates: list[tuple[tuple[str, ...], bool]] = []
-    renderer = TUICommandRenderer(
-        stream_sink=lambda lines, end, _separate, _style="": stream_updates.append((lines, end))
-    )
+    renderer = TUICommandRenderer(stream_sink=lambda lines, end, _style="": stream_updates.append((lines, end)))
     output = io.StringIO()
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)

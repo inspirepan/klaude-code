@@ -14,6 +14,7 @@ from klaude_code.tui.commands import (
     EndAssistantStream,
     EndThinkingStream,
     PrintBlankLine,
+    RenderCompactToolResult,
     RenderDeveloperMessage,
     RenderError,
     RenderNotice,
@@ -106,6 +107,45 @@ def test_standard_transcript_blocks_have_exactly_one_blank_line_between_them() -
     ]
     for left, right in pairwise(block_indexes):
         assert lines[left + 1 : right] == [""]
+
+
+def test_compact_thinking_between_tools_keeps_block_contiguous() -> None:
+    """Compact mode previews reasoning in the prompt live area, not scrollback.
+    Thinking between two tool calls must not break the contiguous tool block
+    with a blank line."""
+
+    renderer, output = _renderer_and_output()
+    session_id = "main"
+
+    def _bash(tool_call_id: str, command: str) -> RenderCompactToolResult:
+        return RenderCompactToolResult(
+            event=events.ToolResultEvent(
+                session_id=session_id,
+                tool_call_id=tool_call_id,
+                tool_name=tools.BASH,
+                result="ok",
+                status="success",
+            ),
+            arguments=f'{{"command":"{command}"}}',
+        )
+
+    asyncio.run(
+        renderer.execute(
+            [
+                _bash("bash-1", "ls"),
+                StartThinkingStream(session_id=session_id),
+                AppendThinking(session_id=session_id, content="deciding the next command"),
+                EndThinkingStream(session_id=session_id),
+                _bash("bash-2", "pwd"),
+            ]
+        )
+    )
+    renderer.flush_open_blocks()
+
+    lines = [line.rstrip() for line in output.getvalue().splitlines()]
+    first = next(index for index, line in enumerate(lines) if "ls" in line)
+    second = next(index for index, line in enumerate(lines) if "pwd" in line)
+    assert second == first + 1
 
 
 def test_developer_and_tool_group_is_continuous_until_next_standard_block() -> None:

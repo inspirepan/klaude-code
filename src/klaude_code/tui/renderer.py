@@ -243,7 +243,7 @@ class TUICommandRenderer:
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
         status_sink: Callable[[tuple[PromptStatusLine, ...], str | None, bool], None] | None = None,
-        stream_sink: Callable[[tuple[str, ...], bool, bool, str], None] | None = None,
+        stream_sink: Callable[[tuple[str, ...], bool, str], None] | None = None,
         detail: TranscriptDetail | None = None,
     ) -> None:
         self.themes = get_theme(theme)
@@ -523,6 +523,11 @@ class TUICommandRenderer:
                 return
             case RenderDeveloperMessage():
                 return
+            case StartThinkingStream() | AppendThinking() | EndThinkingStream() if self._compact:
+                # Compact mode previews reasoning in the prompt's live area;
+                # nothing lands in scrollback, so thinking between tool calls
+                # must not break the contiguous tool block with a blank line.
+                return
             case _:
                 self._flush_open_blocks()
 
@@ -785,12 +790,11 @@ class TUICommandRenderer:
         lines: tuple[str, ...] | None = None,
         *,
         end_of_stream: bool = False,
-        separate_from_status: bool = False,
         style_class: str = CLASS_TOOL_RESULT,
     ) -> None:
         if self._stream_sink is None:
             return
-        self._stream_sink(lines or (), end_of_stream, separate_from_status, style_class)
+        self._stream_sink(lines or (), end_of_stream, style_class)
 
     def _prompt_stream_lines(self, renderable: RenderableType, *, no_wrap: bool = False) -> tuple[str, ...]:
         options = self.console.options
@@ -888,29 +892,20 @@ class TUICommandRenderer:
         self,
         renderable: RenderableType | None,
         *,
-        separate_from_status: bool = False,
         style_class: str = CLASS_TOOL_RESULT,
         max_lines: int | None = None,
         no_wrap: bool = False,
     ) -> None:
         if renderable is None:
             self._stream_renderable = None
-            self._emit_prompt_stream(
-                (),
-                end_of_stream=True,
-                separate_from_status=separate_from_status,
-            )
+            self._emit_prompt_stream((), end_of_stream=True)
             return
 
         self._stream_renderable = renderable
         lines = self._prompt_stream_lines(renderable, no_wrap=no_wrap)
         if max_lines is not None:
             lines = lines[-max_lines:]
-        self._emit_prompt_stream(
-            lines,
-            separate_from_status=separate_from_status,
-            style_class=style_class,
-        )
+        self._emit_prompt_stream(lines, style_class=style_class)
 
     # ---------------------------------------------------------------------
     # Stream helpers (MarkdownStream)
@@ -1162,7 +1157,6 @@ class TUICommandRenderer:
         rendered.append("\n".join(lines))
         self.set_stream_renderable(
             c_tools.indent_bash_output(rendered),
-            separate_from_status=True,
             no_wrap=True,
         )
 
@@ -1184,7 +1178,7 @@ class TUICommandRenderer:
         del e
         self._cancel_bash_live_flush()
         if self._bash_stream_active:
-            self.set_stream_renderable(None, separate_from_status=True)
+            self.set_stream_renderable(None)
         self._bash_stream_active = False
         self._bash_live_tail_lines.clear()
         self._bash_live_partial_line = ""
@@ -1248,9 +1242,6 @@ class TUICommandRenderer:
         text = _thinking_preview_text(self._thinking_live_buffer)
         if not text:
             return
-        # No `separate_from_status`: the preview reads as the body of the
-        # "Thinking…" status line right above it, so the blank row the bash
-        # tail uses to detach itself would only break that pairing.
         self.set_stream_renderable(
             c_tools.AdaptiveIndent(Text(text, overflow="fold"), THINKING_LIVE_TAIL_LEFT_PADDING),
             style_class=CLASS_THINKING,

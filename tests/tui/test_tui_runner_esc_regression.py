@@ -101,12 +101,10 @@ class _FakePromptToolkitInput:
         lines: tuple[str, ...],
         *,
         end_of_stream: bool = False,
-        separate_from_status: bool = False,
         style_class: str = "class:tool.result",
     ) -> None:
         del lines
         del end_of_stream
-        del separate_from_status
         del style_class
         return None
 

@@ -22,16 +22,15 @@ def _renderer_console(renderer: object) -> Console:
 
 def _make_stream_recorder():
     lines_only: list[tuple[str, ...]] = []
-    full: list[tuple[tuple[str, ...], bool, bool]] = []
+    full: list[tuple[tuple[str, ...], bool]] = []
 
     def _sink(
         lines: tuple[str, ...],
         end_of_stream: bool,
-        separate_from_status: bool,
         _style_class: str = "class:tool.result",
     ) -> None:
         lines_only.append(lines)
-        full.append((lines, end_of_stream, separate_from_status))
+        full.append((lines, end_of_stream))
 
     return lines_only, full, _sink
 
@@ -47,7 +46,7 @@ def test_stream_renderable_updates_prompt_stream_sink() -> None:
 
     assert renderer._stream_renderable is not None
     assert stream_updates[-1] == ("live stream",)
-    assert full_updates[-1] == (("live stream",), False, False)
+    assert full_updates[-1] == (("live stream",), False)
 
 
 def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
@@ -62,7 +61,7 @@ def test_stream_renderable_clear_updates_prompt_stream_sink() -> None:
 
     assert renderer._stream_renderable is None
     assert stream_updates[-1] == ()
-    assert full_updates[-1] == ((), True, False)
+    assert full_updates[-1] == ((), True)
 
 
 def test_prompt_separator_text_can_be_sent_without_status_lines() -> None:
@@ -384,7 +383,7 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
     from klaude_code.tui.renderer import BASH_LIVE_TAIL_MAX_LINES, TUICommandRenderer
 
-    stream_updates, full_updates, _sink = _make_stream_recorder()
+    stream_updates, _full_updates, _sink = _make_stream_recorder()
     renderer = TUICommandRenderer(stream_sink=_sink)
     console = _renderer_console(renderer)
 
@@ -404,7 +403,6 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     assert lines[0] == f"{' ' * BASH_OUTPUT_LEFT_PADDING}… (more {hidden} lines)"
     assert lines[1:] == [f"{' ' * BASH_OUTPUT_LEFT_PADDING}line-{i}" for i in range(hidden, 12)]
     assert stream_updates[-1] == tuple(lines)
-    assert full_updates[-1][2] is True
 
 
 def test_display_bash_command_delta_ellipsizes_long_lines_without_wrapping() -> None:
@@ -415,9 +413,7 @@ def test_display_bash_command_delta_ellipsizes_long_lines_without_wrapping() -> 
     renderer = TUICommandRenderer(stream_sink=sink)
     renderer.console = Console(file=io.StringIO(), theme=renderer.themes.app_theme, width=40, force_terminal=False)
 
-    renderer.display_bash_command_delta(
-        events.BashCommandOutputDeltaEvent(session_id="s", content=f"{'x' * 50}\n")
-    )
+    renderer.display_bash_command_delta(events.BashCommandOutputDeltaEvent(session_id="s", content=f"{'x' * 50}\n"))
 
     assert stream_updates[-1] == (f"{' ' * BASH_OUTPUT_LEFT_PADDING}{'x' * 27}…",)
 
@@ -457,7 +453,7 @@ def test_compact_thinking_preview_keeps_tail_out_of_scrollback() -> None:
     from klaude_code.tui.input.pt_theme import CLASS_THINKING
     from klaude_code.tui.renderer import THINKING_LIVE_TAIL_MAX_LINES, TUICommandRenderer
 
-    updates: list[tuple[tuple[str, ...], bool, bool, str]] = []
+    updates: list[tuple[tuple[str, ...], bool, str]] = []
     renderer = TUICommandRenderer(stream_sink=lambda *args: updates.append(args))
     console = _renderer_console(renderer)
 
@@ -472,12 +468,10 @@ def test_compact_thinking_preview_keeps_tail_out_of_scrollback() -> None:
         )
     )
 
-    lines, end_of_stream, separate_from_status, style_class = updates[-1]
+    lines, end_of_stream, style_class = updates[-1]
     assert [line.strip() for line in lines] == [f"paragraph {index}" for index in range(3, 6)]
     assert len(lines) == THINKING_LIVE_TAIL_MAX_LINES
     assert end_of_stream is False
-    # Flush against the "Thinking…" status line, which acts as its header.
-    assert separate_from_status is False
     assert style_class == CLASS_THINKING
     assert console.file.getvalue() == ""  # pyright: ignore[reportAttributeAccessIssue]
 

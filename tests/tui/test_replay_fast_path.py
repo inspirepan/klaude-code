@@ -15,7 +15,6 @@ def test_replay_mode_defers_assistant_stream_until_end() -> None:
     def _sink(
         lines: tuple[str, ...],
         _end_of_stream: bool,
-        _separate_from_status: bool,
         _style_class: str = "class:tool.result",
     ) -> None:
         stream_updates.append(lines)
