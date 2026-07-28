@@ -19,6 +19,7 @@ from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.layout.containers import ConditionalContainer, Container, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
+from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.const import STATUS_WAITING_TEXT
 from klaude_code.tui.commands import PromptStatusLine
@@ -309,11 +310,15 @@ class PromptBottomBar:
     # ---- fragment generators --------------------------------------------
 
     def _get_stream_fragments(self) -> StyleAndTextTuples:
+        try:
+            columns = get_app().output.get_size().columns
+        except Exception:
+            columns = 80
         fragments: StyleAndTextTuples = []
         for index, line in enumerate(self._stream_lines):
             if index:
                 fragments.append(("", "\n"))
-            fragments.append((self._stream_style_class, line))
+            fragments.append((self._stream_style_class, _truncate_line(line, max(1, columns))))
         return fragments
 
     def _status_window_height(self) -> int:
@@ -437,3 +442,23 @@ def _flexible_spacer() -> Window:
         height=Dimension(min=0, preferred=1, max=1),
         dont_extend_height=True,
     )
+
+
+def _truncate_line(line: str, max_width: int) -> str:
+    width = sum(get_cwidth(char) for char in line)
+    if width <= max_width:
+        return line
+    if max_width <= 0:
+        return ""
+    if max_width == 1:
+        return "…"
+
+    remaining = max_width - get_cwidth("…")
+    result: list[str] = []
+    for char in line:
+        char_width = get_cwidth(char)
+        if char_width > remaining:
+            break
+        result.append(char)
+        remaining -= char_width
+    return f"{''.join(result)}…"

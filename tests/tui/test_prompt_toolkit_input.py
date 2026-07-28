@@ -1,6 +1,7 @@
 import asyncio
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 from prompt_toolkit.completion import Completion
 from prompt_toolkit.document import Document
@@ -556,6 +557,21 @@ def test_stream_lines_reserve_separator_below_status() -> None:
         ("class:tool.result", "  line two"),
     ]
     assert bar.reserved_layout_rows() == 5
+
+
+def test_stream_lines_truncate_to_terminal_width_with_ellipsis() -> None:
+    prompt_input = _build_input("")
+    prompt_input.set_stream_lines(("short", "12345678901", "你好abcdefghi"))
+
+    output = SimpleNamespace(get_size=lambda: SimpleNamespace(columns=10))
+    with patch("klaude_code.tui.input.prompt_status_bar.get_app", return_value=SimpleNamespace(output=output)):
+        assert prompt_input._bottom_bar._get_stream_fragments() == [
+            ("class:tool.result", "short"),
+            ("", "\n"),
+            ("class:tool.result", "123456789…"),
+            ("", "\n"),
+            ("class:tool.result", "你好abcde…"),
+        ]
 
 
 def test_stream_lines_height_high_water_holds_during_session() -> None:
