@@ -122,9 +122,9 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 
 - Keep one blank row between recent scrollback and the status block when status
   is visible.
-- Keep one blank row between status and the Bash live-tail block when live
-  command output is visible.
-- Keep one blank row between status and the queue block / input editor.
+- Keep the Bash live-tail block directly below status when live command output
+  is visible.
+- Keep status directly above the queue block / input editor.
 - Keep one blank row below the queue block when queued messages are visible.
 - Status, queue, and input should be independent blocks; queue updates must not
   clear or replace running status.

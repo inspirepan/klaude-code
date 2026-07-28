@@ -792,8 +792,11 @@ class TUICommandRenderer:
             return
         self._stream_sink(lines or (), end_of_stream, separate_from_status, style_class)
 
-    def _prompt_stream_lines(self, renderable: RenderableType) -> tuple[str, ...]:
-        rendered = self.console.render_lines(renderable, self.console.options, pad=False)
+    def _prompt_stream_lines(self, renderable: RenderableType, *, no_wrap: bool = False) -> tuple[str, ...]:
+        options = self.console.options
+        if no_wrap:
+            options = options.update(no_wrap=True, overflow="ellipsis")
+        rendered = self.console.render_lines(renderable, options, pad=False)
         lines = tuple("".join(segment.text for segment in line if not segment.control).rstrip() for line in rendered)
         return tuple(line for line in lines if line)
 
@@ -888,6 +891,7 @@ class TUICommandRenderer:
         separate_from_status: bool = False,
         style_class: str = CLASS_TOOL_RESULT,
         max_lines: int | None = None,
+        no_wrap: bool = False,
     ) -> None:
         if renderable is None:
             self._stream_renderable = None
@@ -899,7 +903,7 @@ class TUICommandRenderer:
             return
 
         self._stream_renderable = renderable
-        lines = self._prompt_stream_lines(renderable)
+        lines = self._prompt_stream_lines(renderable, no_wrap=no_wrap)
         if max_lines is not None:
             lines = lines[-max_lines:]
         self._emit_prompt_stream(
@@ -1159,6 +1163,7 @@ class TUICommandRenderer:
         self.set_stream_renderable(
             c_tools.indent_bash_output(rendered),
             separate_from_status=True,
+            no_wrap=True,
         )
 
     def display_bash_command_delta(self, e: events.BashCommandOutputDeltaEvent) -> None:

@@ -541,7 +541,7 @@ def test_interrupt_handler_invalidates_running_separator() -> None:
     assert invalidations.count == 2
 
 
-def test_stream_lines_reserve_separator_below_status() -> None:
+def test_stream_lines_render_directly_below_status() -> None:
     prompt_input = _build_input("")
 
     prompt_input.set_stream_lines(
@@ -556,7 +556,7 @@ def test_stream_lines_reserve_separator_below_status() -> None:
         ("", "\n"),
         ("class:tool.result", "  line two"),
     ]
-    assert bar.reserved_layout_rows() == 5
+    assert bar.reserved_layout_rows() == 4
 
 
 def test_stream_lines_truncate_to_terminal_width_with_ellipsis() -> None:
@@ -631,14 +631,12 @@ def test_stream_lines_end_of_stream_defers_height_collapse_under_loop() -> None:
 
         prompt_input.set_stream_lines(("a", "b", "c"), separate_from_status=True)
         assert bar._stream_reserved_line_count == 3
-        assert bar._stream_separator_visible() is True
 
         prompt_input.set_stream_lines((), end_of_stream=True, separate_from_status=True)
         # Lines cleared immediately…
         assert bar._stream_lines == ()
         # …but reserved height is held pending the debounce timer.
         assert bar._stream_reserved_line_count == 3
-        assert bar._stream_separator_visible() is True
         assert bar._stream_collapse_handle is not None
 
         # A new stream before the timer fires cancels the delayed collapse
@@ -647,7 +645,24 @@ def test_stream_lines_end_of_stream_defers_height_collapse_under_loop() -> None:
         assert bar._stream_collapse_handle is None
         assert bar._stream_reserved_line_count == 1
         assert bar._stream_lines == ("d",)
-        assert bar._stream_separator_visible() is False
+
+    asyncio.run(_scenario())
+
+
+def test_new_status_collapses_ended_bash_stream_reservation() -> None:
+    async def _scenario() -> None:
+        prompt_input = _build_input("")
+        bar = prompt_input._bottom_bar
+
+        prompt_input.set_stream_lines(("bash output",), separate_from_status=True)
+        prompt_input.set_stream_lines((), end_of_stream=True, separate_from_status=True)
+        assert bar._stream_reserved_line_count == 1
+        assert bar._stream_collapse_handle is not None
+
+        prompt_input.set_status_lines((_status("Updating Todos…"),))
+
+        assert bar._stream_reserved_line_count == 0
+        assert bar._stream_collapse_handle is None
 
     asyncio.run(_scenario())
 

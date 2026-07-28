@@ -407,6 +407,21 @@ def test_display_bash_command_delta_shows_hidden_lines_indicator_and_latest_tail
     assert full_updates[-1][2] is True
 
 
+def test_display_bash_command_delta_ellipsizes_long_lines_without_wrapping() -> None:
+    from klaude_code.tui.components.tools import BASH_OUTPUT_LEFT_PADDING
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    stream_updates, _full_updates, sink = _make_stream_recorder()
+    renderer = TUICommandRenderer(stream_sink=sink)
+    renderer.console = Console(file=io.StringIO(), theme=renderer.themes.app_theme, width=40, force_terminal=False)
+
+    renderer.display_bash_command_delta(
+        events.BashCommandOutputDeltaEvent(session_id="s", content=f"{'x' * 50}\n")
+    )
+
+    assert stream_updates[-1] == (f"{' ' * BASH_OUTPUT_LEFT_PADDING}{'x' * 27}…",)
+
+
 def test_bash_live_tail_throttles_renders_and_flushes_trailing_content() -> None:
     import asyncio
 
