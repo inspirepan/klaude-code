@@ -77,11 +77,7 @@ def supports_adaptive_thinking(model_name: str | None) -> bool:
 
 def model_supports_temperature(model_name: str | None) -> bool:
     """Check if the Anthropic model accepts sampling temperature."""
-    return not (
-        is_opus_47_model(model_name)
-        or is_opus_48_model(model_name)
-        or is_opus_5_model(model_name)
-    )
+    return not (is_opus_47_model(model_name) or is_opus_48_model(model_name) or is_opus_5_model(model_name))
 
 
 def is_claude_model(model_name: str | None) -> bool:
