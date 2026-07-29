@@ -56,6 +56,7 @@ class Session(BaseModel):
 
     model_config_name: str | None = None
     model_thinking: llm_param.Thinking | None = None
+    prompt_cache_key: str | None = None
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
     need_todo_empty_cooldown_counter: int = Field(exclude=True, default=0)
@@ -68,6 +69,8 @@ class Session(BaseModel):
 
     def model_post_init(self, __context: Any) -> None:
         self._store = get_store_for_path(self.work_dir)
+        if self.prompt_cache_key is None:
+            self.prompt_cache_key = self.id
 
     @property
     def messages_count(self) -> int:
@@ -160,6 +163,7 @@ class Session(BaseModel):
             archived=meta.archived,
             model_config_name=meta.model_config_name,
             model_thinking=meta.model_thinking,
+            prompt_cache_key=meta.prompt_cache_key,
             next_checkpoint_id=meta.next_checkpoint_id,
             follow_up_queue=meta.follow_up_queue,
         )
@@ -242,6 +246,7 @@ class Session(BaseModel):
             archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
+            prompt_cache_key=self.prompt_cache_key,
             next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
         )
@@ -283,6 +288,7 @@ class Session(BaseModel):
             archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
+            prompt_cache_key=self.prompt_cache_key,
             next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
         )
@@ -479,6 +485,7 @@ class Session(BaseModel):
         forked.model_name = self.model_name
         forked.model_config_name = self.model_config_name
         forked.model_thinking = self.model_thinking.model_copy(deep=True) if self.model_thinking is not None else None
+        forked.prompt_cache_key = self.prompt_cache_key
         forked.next_checkpoint_id = self.next_checkpoint_id
         forked.file_tracker = {k: v.model_copy(deep=True) for k, v in self.file_tracker.items()}
         forked.file_change_summary = self.file_change_summary.model_copy(deep=True)

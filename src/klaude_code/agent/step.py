@@ -277,6 +277,7 @@ class StepExecutor:
             system=ctx.system_prompt,
             tools=ctx.tools,
             session_id=session_ctx.session_id,
+            prompt_cache_key=session_ctx.prompt_cache_key,
         )
 
         self._llm_stream = await ctx.llm_client.call(call_param)

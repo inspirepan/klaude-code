@@ -36,6 +36,7 @@ class LoadedSessionMeta:
     archived: bool
     model_config_name: str | None
     model_thinking: llm_param.Thinking | None
+    prompt_cache_key: str | None
     next_checkpoint_id: int
     follow_up_queue: list[message.UserInputPayload]
 
@@ -152,6 +153,7 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         archived=archived,
         model_config_name=raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None,
         model_thinking=model_thinking,
+        prompt_cache_key=raw.get("prompt_cache_key") if isinstance(raw.get("prompt_cache_key"), str) else None,
         next_checkpoint_id=int(raw.get("next_checkpoint_id", 0)),
         follow_up_queue=_parse_follow_up_queue(raw.get("follow_up_queue")),
     )

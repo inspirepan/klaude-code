@@ -144,6 +144,7 @@ class Agent:
             todo_context=build_todo_context(self.session),
             run_subtask=run_subtask,
             request_user_interaction=self.request_user_interaction,
+            prompt_cache_key=self.session.prompt_cache_key,
         )
         context = TaskExecutionContext(
             session=self.session,

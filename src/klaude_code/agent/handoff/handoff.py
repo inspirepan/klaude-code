@@ -153,7 +153,11 @@ async def _build_handoff_fork(
     prefix_messages = session.get_llm_history()
     prompt_text = HANDOFF_FORK_PROMPT.format(goal=goal)
     extra: list[message.HistoryEvent] = [message.UserMessage(parts=[message.TextPart(text=prompt_text)])]
-    cache_safe = CacheSafeParams(profile=main_profile, prefix_messages=prefix_messages)
+    cache_safe = CacheSafeParams(
+        profile=main_profile,
+        prefix_messages=prefix_messages,
+        prompt_cache_key=session.prompt_cache_key,
+    )
     wire_messages = build_cache_safe_messages(cache_safe, extra)
     input_messages = [m for m in wire_messages if isinstance(m, message.Message)]
 
@@ -161,6 +165,7 @@ async def _build_handoff_fork(
         input=input_messages,
         system=main_profile.system_prompt,
         session_id=session.id,
+        prompt_cache_key=cache_safe.prompt_cache_key,
     )
     call_param.tools = main_profile.tools  # Must match parent; tools=[] would break cache.
 

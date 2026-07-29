@@ -103,7 +103,11 @@ async def run_prompt_suggestion(
 
     prefix = session.get_llm_history()
     extra: list[message.HistoryEvent] = [message.UserMessage(parts=[message.TextPart(text=PROMPT_SUGGESTION_PROMPT)])]
-    cache_safe = CacheSafeParams(profile=main_profile, prefix_messages=prefix)
+    cache_safe = CacheSafeParams(
+        profile=main_profile,
+        prefix_messages=prefix,
+        prompt_cache_key=session.prompt_cache_key,
+    )
     wire = build_cache_safe_messages(cache_safe, extra)
     input_messages = [m for m in wire if isinstance(m, message.Message)]
 
@@ -111,6 +115,7 @@ async def run_prompt_suggestion(
         input=input_messages,
         system=main_profile.system_prompt,
         session_id=session.id,
+        prompt_cache_key=cache_safe.prompt_cache_key,
     )
     # tools must match parent; tools=[] would bust cache (0% hit).
     call_param.tools = main_profile.tools

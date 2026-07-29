@@ -61,6 +61,7 @@ class TestSaveLoadRoundTrip:
                 model_name="model-x",
                 model_config_name="config-x",
                 model_thinking=llm_param.Thinking(reasoning_effort="medium"),
+                prompt_cache_key="shared-cache-lineage",
                 session_state=SessionRuntimeState.IDLE,
                 archived=False,
                 next_checkpoint_id=3,
@@ -104,6 +105,7 @@ class TestSaveLoadRoundTrip:
             assert loaded.model_config_name == "config-x"
             assert loaded.model_thinking is not None
             assert loaded.model_thinking.reasoning_effort == "medium"
+            assert loaded.prompt_cache_key == "shared-cache-lineage"
             assert loaded.next_checkpoint_id == 3
             assert loaded.archived is False
             assert [t.content for t in loaded.todos] == ["alpha", "beta"]

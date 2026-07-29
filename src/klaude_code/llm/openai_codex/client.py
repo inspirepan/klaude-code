@@ -34,7 +34,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
     inputs = convert_history_to_input(param.input, param.model_id)
     tools = convert_tool_schema(param.tools)
 
-    session_id = param.session_id
+    prompt_cache_key = param.prompt_cache_key or param.session_id
 
     payload: ResponseCreateParamsBase = {
         "model": str(param.model_id),
@@ -52,8 +52,8 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
     if instructions:
         payload["instructions"] = instructions
 
-    if session_id:
-        payload["prompt_cache_key"] = session_id
+    if prompt_cache_key:
+        payload["prompt_cache_key"] = prompt_cache_key
 
     payload.update(build_prompt_cache_payload(param.model_id, param.cache_retention, allow_ttl_options=False))
 

@@ -68,7 +68,7 @@ def build_payload(
     }
 
     if not is_volces_base_url:
-        payload["prompt_cache_key"] = param.session_id or ""
+        payload["prompt_cache_key"] = param.prompt_cache_key or param.session_id or ""
 
     if not is_volces_base_url:
         payload.update(build_prompt_cache_payload(param.model_id, param.cache_retention))

@@ -997,6 +997,8 @@ class TestForkSessionCommand:
             assert forked.model_name == session.model_name
             assert forked.model_config_name == session.model_config_name
             assert forked.model_thinking == session.model_thinking
+            assert forked.prompt_cache_key == session.id
+            assert forked.prompt_cache_key != forked.id
             assert forked.file_tracker.keys() == session.file_tracker.keys()
             assert forked.file_change_summary == session.file_change_summary
             assert len(forked.todos) == len(session.todos)

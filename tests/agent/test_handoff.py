@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.handoff import HandoffManager, run_handoff
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
@@ -101,6 +102,7 @@ class TestRunHandoff:
 
         async def _test() -> None:
             session = Session.create(id="handoff-test", work_dir=project_dir)
+            session.prompt_cache_key = "source-session"
             session.file_tracker["src/auth.py"] = FileStatus(mtime=0.0)
 
             history: list[message.HistoryEvent] = [
@@ -116,6 +118,12 @@ class TestRunHandoff:
                 model_id="test-model",
             )
             client = _CapturingClient(config)
+            main_profile = AgentProfile(
+                llm_client=client,
+                system_prompt="main prompt",
+                tools=[],
+                attachments=[],
+            )
 
             goal = "finish OAuth2 implementation with PKCE and keep the existing session API"
 
@@ -124,6 +132,7 @@ class TestRunHandoff:
                 goal=goal,
                 llm_client=client,
                 llm_config=config,
+                main_profile=main_profile,
             )
 
             # Should discard all history
@@ -139,7 +148,8 @@ class TestRunHandoff:
 
             # Verify the LLM was called with the extraction prompt
             assert len(client.calls) == 1
-            call_prompt = message.join_text_parts(client.calls[0].input[0].parts)
+            assert client.calls[0].prompt_cache_key == "source-session"
+            call_prompt = "\n".join(message.join_text_parts(item.parts) for item in client.calls[0].input)
             assert "implement auth module" in call_prompt
             assert goal in call_prompt
 

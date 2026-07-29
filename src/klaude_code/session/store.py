@@ -332,6 +332,7 @@ def build_meta_snapshot(
     archived: bool,
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
+    prompt_cache_key: str | None = None,
     next_checkpoint_id: int = 0,
     follow_up_queue: Sequence[message.UserInputPayload] = (),
 ) -> dict[str, Any]:
@@ -358,6 +359,7 @@ def build_meta_snapshot(
         "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
         if model_thinking
         else None,
+        "prompt_cache_key": prompt_cache_key,
         "next_checkpoint_id": next_checkpoint_id,
         "follow_up_queue": follow_up_queue_payload or None,
     }

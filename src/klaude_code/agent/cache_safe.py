@@ -10,7 +10,7 @@ cache key is composed of:
 - thinking config
 - messages prefix (byte-identical)
 
-:class:`CacheSafeParams` packages these five so any caller producing an LLM
+:class:`CacheSafeParams` packages these values so any caller producing an LLM
 request whose wire prefix must match the parent's most recent request can pass
 it around explicitly instead of relying on implicit convention.
 
@@ -41,7 +41,7 @@ from klaude_code.protocol.models import Usage
 class CacheSafeParams:
     """Parameters that must match the parent request to share its prompt cache.
 
-    Cache key = (system, tools, model, thinking, messages prefix).
+    Cache key = (routing key, system, tools, model, thinking, messages prefix).
 
     The first four come from :attr:`profile`; the fifth is :attr:`prefix_messages`.
     """
@@ -55,6 +55,9 @@ class CacheSafeParams:
     """The exact message prefix the parent's last LLM request sent.
     Typically ``session.get_llm_history()`` from the parent session.
     """
+
+    prompt_cache_key: str | None = None
+    """Provider routing key inherited from the parent session lineage."""
 
 
 def build_cache_safe_messages(

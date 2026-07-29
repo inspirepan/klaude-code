@@ -1,4 +1,7 @@
+from klaude_code.llm.openai_codex.client import build_payload as build_codex_payload
+from klaude_code.llm.openai_responses.client import build_payload as build_responses_payload
 from klaude_code.llm.openai_responses.prompt_cache import build_prompt_cache_payload
+from klaude_code.protocol import llm_param
 
 
 def test_prompt_cache_payload_uses_ttl_for_gpt56() -> None:
@@ -21,3 +24,15 @@ def test_prompt_cache_payload_skips_ttl_options_when_disallowed() -> None:
     # Codex backend rejects prompt_cache_options with 400.
     assert build_prompt_cache_payload("gpt-5.6-sol", None, allow_ttl_options=False) == {}
     assert build_prompt_cache_payload("gpt-5.5", None, allow_ttl_options=False) == {"prompt_cache_retention": "24h"}
+
+
+def test_openai_payload_uses_inherited_cache_key_instead_of_fork_session_id() -> None:
+    param = llm_param.LLMCallParameter(
+        input=[],
+        model_id="gpt-5.6-sol",
+        session_id="fork-session",
+        prompt_cache_key="source-session",
+    )
+
+    assert build_responses_payload(param)["prompt_cache_key"] == "source-session"
+    assert build_codex_payload(param)["prompt_cache_key"] == "source-session"

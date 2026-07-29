@@ -270,6 +270,7 @@ def test_fork_compaction_removes_own_summary_instructions_from_constraints(tmp_p
 
     async def _test() -> None:
         session = Session.create(id="fork-compaction-pollution", work_dir=project_dir)
+        session.prompt_cache_key = "source-session"
         session.append_history(
             [
                 _text_user("old task: write an AI article " + ("u" * 10_000)),
@@ -302,6 +303,7 @@ def test_fork_compaction_removes_own_summary_instructions_from_constraints(tmp_p
         )
 
         assert len(llm_client.calls) == 1
+        assert llm_client.calls[0].prompt_cache_key == "source-session"
         assert "不要继续当前任务" not in result.summary
         assert "Do NOT call any tools" not in result.summary
         assert "用户希望正文避免使用 Scoble 聚合推文" in result.summary

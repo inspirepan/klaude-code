@@ -167,3 +167,4 @@ class LLMCallParameter(LLMConfigModelParameter):
     system: str | None = None
     tools: list[ToolSchema] | None = None
     session_id: str | None = None
+    prompt_cache_key: str | None = None

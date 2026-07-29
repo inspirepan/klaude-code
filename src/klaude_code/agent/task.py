@@ -222,6 +222,7 @@ class SessionContext:
     todo_context: TodoContext
     run_subtask: RunSubtask | None
     request_user_interaction: RequestUserInteraction | None
+    prompt_cache_key: str | None = None
 
 
 @dataclass

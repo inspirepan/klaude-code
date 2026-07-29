@@ -333,7 +333,11 @@ async def _build_summary_fork(
         prompt_text = f"{prompt_text}\n\nAdditional focus: {focus}"
 
     extra: list[message.HistoryEvent] = [message.UserMessage(parts=[message.TextPart(text=prompt_text)])]
-    cache_safe = CacheSafeParams(profile=main_profile, prefix_messages=prefix_messages)
+    cache_safe = CacheSafeParams(
+        profile=main_profile,
+        prefix_messages=prefix_messages,
+        prompt_cache_key=session.prompt_cache_key,
+    )
     wire_messages = build_cache_safe_messages(cache_safe, extra)
     # Call parameter carries Message-typed input; filter to Messages only.
     input_messages = [m for m in wire_messages if isinstance(m, message.Message)]
@@ -342,6 +346,7 @@ async def _build_summary_fork(
         input=input_messages,
         system=main_profile.system_prompt,
         session_id=session.id,
+        prompt_cache_key=cache_safe.prompt_cache_key,
     )
     call_param.tools = main_profile.tools  # Must match parent; tools=[] would break cache.
     call_param.max_tokens = max_summary_tokens
