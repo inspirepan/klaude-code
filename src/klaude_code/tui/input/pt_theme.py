@@ -128,6 +128,7 @@ def _build_style_rules(palette: Palette) -> list[tuple[str, str]]:
         ("prompt", f"bold fg:{palette.magenta}"),
         ("prompt.running", f"bold fg:{palette.cyan}"),
         ("prompt.bash", f"fg:{palette.green}"),
+        ("input.rule.btw", f"fg:{palette.magenta}"),
         ("user.input", f"fg:{palette.magenta}"),
         ("user.input.rule", f"fg:{palette.grey2}"),
         # --- Completion menu --------------------------------------------

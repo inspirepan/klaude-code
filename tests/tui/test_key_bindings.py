@@ -63,3 +63,37 @@ def test_small_bracketed_paste_stays_inline(tmp_path: Path) -> None:
 
     assert buffer.text == "alpha\nbeta"
     assert not (tmp_path / "paste-files").exists()
+
+
+def test_tab_toggles_btw_prefix_while_agent_runs() -> None:
+    bindings = create_key_bindings(
+        capture_clipboard_tag=lambda: None,
+        at_token_pattern=re.compile(r"$^"),
+        skill_token_pattern=re.compile(r"$^"),
+        is_agent_running=lambda: True,
+    )
+    buffer = Buffer(document=Document("explain this", cursor_position=7))
+    invalidations = SimpleNamespace(count=0)
+    event = cast(
+        KeyPressEvent,
+        SimpleNamespace(
+            current_buffer=buffer,
+            app=SimpleNamespace(invalidate=lambda: setattr(invalidations, "count", invalidations.count + 1)),
+        ),
+    )
+    binding = next(
+        binding
+        for binding in bindings.get_bindings_for_keys((Keys.ControlI,))
+        if binding.handler.__doc__ and "queued follow-up" in binding.handler.__doc__
+    )
+
+    binding.handler(event)
+
+    assert buffer.text == "/btw explain this"
+    assert buffer.cursor_position == 12
+
+    binding.handler(event)
+
+    assert buffer.text == "explain this"
+    assert buffer.cursor_position == 7
+    assert invalidations.count == 2

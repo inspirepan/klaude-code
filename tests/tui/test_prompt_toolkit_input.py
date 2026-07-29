@@ -5,6 +5,8 @@ from unittest.mock import patch
 
 from prompt_toolkit.completion import Completion
 from prompt_toolkit.document import Document
+from prompt_toolkit.layout.controls import BufferControl
+from prompt_toolkit.layout.processors import TransformationInput
 from rich.text import Text
 
 from klaude_code.tui.commands import DynamicSeparatorText, PromptStatusLine, SpinnerStatusLine
@@ -12,7 +14,11 @@ from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.key_bindings import merge_dequeued_messages, split_queued_message_edit_text
 from klaude_code.tui.input.paste import expand_paste_markers, store_paste
 from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
-from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput, _PasteAwareFileHistory
+from klaude_code.tui.input.prompt_toolkit import (
+    PromptToolkitInput,
+    _BtwPlaceholderProcessor,
+    _PasteAwareFileHistory,
+)
 from klaude_code.tui.renderer import TUICommandRenderer
 
 
@@ -151,6 +157,31 @@ def test_running_prompt_uses_cyan_style() -> None:
     prompt_input._agent_running = True
 
     assert prompt_input._get_prompt_message() == [("class:prompt.running", USER_MESSAGE_MARK)]
+
+
+def test_running_btw_input_uses_magenta_prompt_and_rules() -> None:
+    prompt_input = _build_input("/btw explain this")
+    prompt_input._agent_running = True
+
+    assert prompt_input._get_prompt_message() == [("class:prompt", USER_MESSAGE_MARK)]
+    assert prompt_input._get_input_top_rule_fragments() == [("class:input.rule.btw", "─" * 80)]
+    assert prompt_input._get_input_bottom_rule_fragments() == [("class:input.rule.btw", "─" * 80)]
+
+
+def test_btw_prefix_shows_inline_placeholder() -> None:
+    processor = _BtwPlaceholderProcessor()
+    transformation_input = TransformationInput(
+        buffer_control=BufferControl(),
+        lineno=0,
+        document=Document("/btw ", cursor_position=5),
+        source_to_display=lambda position: position,
+        fragments=[("", "/btw ")],
+        width=80,
+        height=1,
+    )
+    transformation = processor.apply_transformation(transformation_input)
+
+    assert transformation.fragments == [("", "/btw "), ("class:placeholder", "Ask a side question")]
 
 
 def test_status_lines_render_above_prompt() -> None:
@@ -371,10 +402,16 @@ def test_input_footer_renders_interrupt_hint_after_context() -> None:
     prompt_input._bottom_bar._running_separator_label = "1m51s · esc to interrupt"
 
     assert prompt_input._get_input_footer_height() == 2
-    assert prompt_input._get_input_footer_fragments()[-2:] == [
+    assert prompt_input._get_input_footer_fragments()[-3:] == [
         ("class:meta", " · "),
         ("class:meta", "1m51s · esc to interrupt"),
+        ("class:meta", " · tab to ask /btw"),
     ]
+
+    prompt_input._agent_running = True
+    prompt_input._session.default_buffer.text = "/btw ask this"
+
+    assert prompt_input._get_input_footer_fragments()[-1] == ("class:meta", " · tab to queue follow-up")
 
 
 def test_input_footer_context_name_uses_blue_not_placeholder() -> None:
@@ -535,9 +572,10 @@ def test_input_footer_renders_metadata_below_context_line() -> None:
     )
 
     assert prompt_input._get_input_footer_height() == 2
-    assert prompt_input._get_input_footer_fragments()[-4:] == [
+    assert prompt_input._get_input_footer_fragments()[-5:] == [
         ("class:meta", " · "),
         ("class:meta", "11s · esc to interrupt"),
+        ("class:meta", " · tab to ask /btw"),
         ("", "\n"),
         ("class:metadata.footer", "  in 15.3k · cache 28.2k"),
     ]

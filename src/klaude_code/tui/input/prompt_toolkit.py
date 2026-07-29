@@ -21,6 +21,7 @@ from prompt_toolkit.key_binding import merge_key_bindings
 from prompt_toolkit.layout.containers import ConditionalContainer, Container, HSplit, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
+from prompt_toolkit.layout.processors import Processor, Transformation, TransformationInput
 from prompt_toolkit.output.color_depth import ColorDepth
 from prompt_toolkit.utils import get_cwidth
 
@@ -71,6 +72,7 @@ from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_m
 INPUT_PROMPT_STYLE = "class:prompt"
 INPUT_PROMPT_RUNNING_STYLE = "class:prompt.running"
 INPUT_PROMPT_BASH_STYLE = "class:prompt.bash"
+INPUT_RULE_BTW_STYLE = "class:input.rule.btw"
 _INPUT_HEIGHT_SAFETY_ROWS = 1
 
 _REMOTE_URL_RE = re.compile(r"(?:.*[:/])([^/]+)/([^/]+?)(?:\.git)?$")
@@ -84,6 +86,21 @@ _git_info_cache: tuple[float, Path, tuple[str | None, str | None]] | None = None
 
 class _PromptPaused(Exception):
     """Internal signal used to pause the REPL while another prompt_toolkit app owns stdin."""
+
+
+class _BtwPlaceholderProcessor(Processor):
+    """Show ghost text after the `/btw ` mode prefix."""
+
+    @override
+    def apply_transformation(self, transformation_input: TransformationInput) -> Transformation:
+        placeholder = ""
+        if (
+            transformation_input.lineno == 0
+            and transformation_input.document.text == "/btw "
+            and transformation_input.document.is_cursor_at_the_end
+        ):
+            placeholder = "Ask a side question"
+        return Transformation(fragments=[*transformation_input.fragments, ("class:placeholder", placeholder)])
 
 
 def _get_git_info_cached() -> tuple[str | None, str | None]:
@@ -436,6 +453,7 @@ class PromptToolkitInput(InputProviderABC):
             ),
             mark_dequeued_messages_for_edit=self._mark_queued_edit_active,
             has_pending_messages=lambda: self._bottom_bar.has_pending_messages,
+            is_agent_running=self._is_agent_running,
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
             request_toggle_transcript=self._request_toggle_transcript,
@@ -561,6 +579,12 @@ class PromptToolkitInput(InputProviderABC):
     def _is_agent_running(self) -> bool:
         return self._agent_running
 
+    def _is_btw_mode_active(self) -> bool:
+        try:
+            return self._is_agent_running() and self._session.default_buffer.text.startswith("/btw ")
+        except Exception:
+            return False
+
     def _take_resumed_buffer_text(self) -> str | None:
         """Pop text saved when the prompt was paused for a modal selector.
 
@@ -585,7 +609,11 @@ class PromptToolkitInput(InputProviderABC):
         return text
 
     def _get_prompt_message(self) -> FormattedText:
-        style = INPUT_PROMPT_RUNNING_STYLE if self._is_agent_running() else INPUT_PROMPT_STYLE
+        style = (
+            INPUT_PROMPT_RUNNING_STYLE
+            if self._is_agent_running() and not self._is_btw_mode_active()
+            else INPUT_PROMPT_STYLE
+        )
         return FormattedText([(style, self._prompt_text)])
 
     def _get_rprompt_message(self) -> FormattedText:
@@ -645,6 +673,10 @@ class PromptToolkitInput(InputProviderABC):
     def _install_bottom_windows(self) -> None:
         with contextlib.suppress(Exception):
             root = self._session.app.layout.container
+            input_window = _find_window_for_buffer(root, self._session.default_buffer)
+            if input_window is not None and isinstance(input_window.content, BufferControl):
+                processors = input_window.content.input_processors or []
+                input_window.content.input_processors = [*processors, _BtwPlaceholderProcessor()]
             bar_containers = self._bottom_bar.build_containers()
             input_top_rule = Window(
                 content=FormattedTextControl(self._get_input_top_rule_fragments),
@@ -683,7 +715,8 @@ class PromptToolkitInput(InputProviderABC):
             columns = get_app().output.get_size().columns
         except Exception:
             columns = 80
-        return [(CLASS_LINES, "─" * max(1, columns))]
+        style = INPUT_RULE_BTW_STYLE if self._is_btw_mode_active() else CLASS_LINES
+        return [(style, "─" * max(1, columns))]
 
     def _get_input_footer_fragments(self) -> StyleAndTextTuples:
         if self._is_completion_active() or self._is_completion_panel_visible() or self._is_picker_open():
@@ -691,7 +724,8 @@ class PromptToolkitInput(InputProviderABC):
         fragments = self._build_prompt_context_fragments(prefix="  ")
         status_hint = self._bottom_bar.running_separator_label
         if status_hint:
-            fragments.extend([(CLASS_META, " · "), (CLASS_META, status_hint)])
+            mode_hint = "tab to queue follow-up" if self._is_btw_mode_active() else "tab to ask /btw"
+            fragments.extend([(CLASS_META, " · "), (CLASS_META, status_hint), (CLASS_META, f" · {mode_hint}")])
         for line in self._bottom_bar.metadata_footer_lines:
             fragments.extend([("", "\n"), (CLASS_METADATA_FOOTER, f"  {line}")])
         return fragments

@@ -69,6 +69,7 @@ def create_key_bindings(
     dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
     mark_dequeued_messages_for_edit: Callable[[str], None] | None = None,
     has_pending_messages: Callable[[], bool] | None = None,
+    is_agent_running: Callable[[], bool] | None = None,
     request_interrupt: Callable[[], None] | None = None,
     is_interrupt_available: Callable[[], bool] | None = None,
     request_toggle_transcript: Callable[[], None] | None = None,
@@ -86,6 +87,7 @@ def create_key_bindings(
             (used when the user accepts it, so it can't be accepted twice).
         dequeue_pending_messages: Returns and clears all queued messages, if any.
         has_pending_messages: Returns True while queued messages are available.
+        is_agent_running: Returns True while Tab can switch between follow-up and `/btw` input.
         request_interrupt: Requests interruption of the currently running agent task.
         is_interrupt_available: Returns True while Escape can interrupt a task.
 
@@ -94,6 +96,7 @@ def create_key_bindings(
     """
     kb = KeyBindings()
     enabled = input_enabled if input_enabled is not None else Always()
+    agent_running = Condition(lambda: is_agent_running is not None and is_agent_running())
 
     has_text = Condition(lambda: bool(get_app().current_buffer.text))
     has_no_text = Condition(lambda: not bool(get_app().current_buffer.text))
@@ -483,6 +486,7 @@ def create_key_bindings(
     _has_suggestion = Condition(
         lambda: get_prompt_suggestion is not None
         and bool(get_prompt_suggestion())
+        and not (is_agent_running is not None and is_agent_running())
         and not get_app().current_buffer.text
     )
 
@@ -513,6 +517,21 @@ def create_key_bindings(
                 buf.cursor_position = len(suggestion)  # type: ignore[reportUnknownMemberType]
             with contextlib.suppress(Exception):
                 event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+
+    @kb.add("tab", filter=enabled & ~has_completions & agent_running, eager=True)
+    def _(event: KeyPressEvent) -> None:
+        """Switch running input between queued follow-up and `/btw` mode."""
+        buf = event.current_buffer
+        prefix = "/btw "
+        text = buf.text
+        cursor_position = buf.cursor_position
+        if text.startswith(prefix):
+            buf.text = text[len(prefix) :]
+            buf.cursor_position = max(0, cursor_position - len(prefix))
+        else:
+            buf.text = prefix + text
+            buf.cursor_position = cursor_position + len(prefix)
+        event.app.invalidate()  # type: ignore[reportUnknownMemberType]
 
     @kb.add("enter", filter=enabled & ~is_searching)
     def _(event: KeyPressEvent) -> None:
