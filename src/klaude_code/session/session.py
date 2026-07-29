@@ -543,6 +543,7 @@ class Session(BaseModel):
                 message.DeveloperMessage,
                 message.CacheHitRateEntry,
                 message.FallbackModelConfigWarnEntry,
+                message.SideQuestionEntry,
                 message.CompactionEntry,
                 message.InterruptEntry,
                 message.RewindEntry,
@@ -834,6 +835,14 @@ class Session(BaseModel):
                     if had_any_step:
                         yield from _flush_task_finish(msg_ts)
                     yield events.AwaySummaryEvent(session_id=self.id, text=aw.text, timestamp=msg_ts)
+                case message.SideQuestionEntry() as sq:
+                    yield events.SideQuestionEvent(
+                        session_id=self.id,
+                        question=sq.question,
+                        answer=sq.answer,
+                        cache_hit_rate=sq.cache_hit_rate,
+                        timestamp=msg_ts,
+                    )
                 case message.PromptSuggestionEntry() as ps:
                     yield events.PromptSuggestionReadyEvent(session_id=self.id, text=ps.text, timestamp=msg_ts)
                 case message.SpawnSubAgentEntry() as sa:

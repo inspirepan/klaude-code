@@ -88,6 +88,17 @@ class CommandABC(ABC):
         return False
 
     @property
+    def runs_in_background(self) -> bool:
+        """Whether this command is dispatched immediately, even mid-task.
+
+        Busy-time Enter normally queues the input as a follow-up. A background
+        command skips the queue: it is dispatched as soon as it is typed and the
+        TUI never waits for it, so its operations must be safe to run next to an
+        active task.
+        """
+        return False
+
+    @property
     def support_addition_params(self) -> bool:
         """Whether this command support additional parameters."""
         return False

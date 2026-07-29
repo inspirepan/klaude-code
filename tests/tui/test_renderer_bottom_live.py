@@ -2,6 +2,7 @@
 
 import io
 from pathlib import Path
+from typing import cast
 
 from rich.console import Console, RenderableType
 from rich.text import Text
@@ -18,6 +19,11 @@ def _renderer_console(renderer: object) -> Console:
     console.push_theme(renderer.themes.markdown_theme)
     renderer.console = console
     return console
+
+
+def _console_output(console: Console) -> str:
+    """Read back what a `_renderer_console` console has written."""
+    return cast(io.StringIO, console.file).getvalue()
 
 
 def _make_stream_recorder():
@@ -496,14 +502,14 @@ def test_compact_thinking_preview_keeps_tail_out_of_scrollback() -> None:
     assert len(lines) == THINKING_LIVE_TAIL_MAX_LINES
     assert end_of_stream is False
     assert style_class == CLASS_THINKING
-    assert console.file.getvalue() == ""  # pyright: ignore[reportAttributeAccessIssue]
+    assert _console_output(console) == ""
 
     asyncio.run(renderer.execute([EndThinkingStream(session_id="main")]))
 
     # End is held until the next scrollback write anchors the collapse.
     assert renderer._stream_end_pending is True
     assert renderer._thinking_live_buffer == ""
-    assert console.file.getvalue() == ""  # pyright: ignore[reportAttributeAccessIssue]
+    assert _console_output(console) == ""
 
     renderer.print("next tool line")
 

@@ -4,6 +4,7 @@ from .registry import (
     get_command_info_list,
     get_command_names,
     get_commands,
+    has_background_command,
     has_interactive_command,
     is_slash_command_name,
     register,
@@ -29,6 +30,7 @@ def ensure_commands_loaded() -> None:
     _commands_loaded = True
 
     # Import and register commands in display order
+    from .btw_cmd import BtwCommand
     from .compact_cmd import CompactCommand
     from .context_cmd import ContextCommand
     from .continue_cmd import ContinueCommand
@@ -68,6 +70,7 @@ def ensure_commands_loaded() -> None:
     register(ContinueCommand())
     register(RecapCommand())
     register(GrillMeCommand())
+    register(BtwCommand())
     register(DebugCommand())
 
 
@@ -75,6 +78,7 @@ def ensure_commands_loaded() -> None:
 def __getattr__(name: str) -> object:
     _commands_map = {
         "NewCommand": "new_cmd",
+        "BtwCommand": "btw_cmd",
         "CompactCommand": "compact_cmd",
         "ContinueCommand": "continue_cmd",
         "CopyCommand": "copy_cmd",
@@ -115,6 +119,7 @@ __all__ = [
     "get_command_info_list",
     "get_command_names",
     "get_commands",
+    "has_background_command",
     "has_interactive_command",
     "is_slash_command_name",
 ]

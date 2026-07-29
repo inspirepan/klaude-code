@@ -30,6 +30,7 @@ from klaude_code.session.session import Session
 from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,
+    has_background_command,
     has_interactive_command,
 )
 from klaude_code.tui.command.command_abc import WebModeRequest
@@ -873,6 +874,23 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
     input_provider.set_dequeue_pending_messages(_dequeue_pending_messages)
 
+    async def _dispatch_background_command(user_input: UserInputPayload) -> None:
+        """Dispatch a background slash command without echoing or waiting.
+
+        The input is not rendered as a user turn: a background command reports
+        itself (e.g. the `/btw` panel), so echoing it would duplicate the
+        question and, mid-task, read as if a new turn had started.
+        """
+        session_id = _get_active_session_id()
+        agent = components.runtime.current_agent
+        if session_id is None or agent is None or agent.session.id != session_id:
+            return
+        result = await dispatch_command(user_input, agent, submission_id=uuid4().hex)
+        for evt in result.events or []:
+            await components.runtime.emit_event(evt)
+        for operation in result.operations or []:
+            await components.runtime.submit(operation)
+
     def _active_agent_running() -> bool:
         nonlocal active_wait_task
         if active_wait_task is None:
@@ -941,6 +959,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             async for user_input in inputs:
                 await startup_task
                 is_exit_input = user_input.text.strip().lower() in {"exit", ":q", "quit"}
+                # Background commands (e.g. /btw) run beside whatever the session
+                # is doing: dispatch now instead of starting a turn or queueing a
+                # follow-up, and never wait for the result.
+                if has_background_command(user_input.text):
+                    await _dispatch_background_command(user_input)
+                    continue
                 # The user interrupted the running turn and immediately submitted.
                 # Wait for the interrupted turn to wind down — but only the
                 # wind-down, not the whole wait task: the task may keep running

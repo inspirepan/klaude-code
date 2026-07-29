@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from klaude_code.protocol.op import (
+        AskSideQuestionOperation,
         ChangeCompactModelOperation,
         ChangeModelOperation,
         ChangeSubAgentModelOperation,
@@ -114,4 +115,8 @@ class OperationHandler(Protocol):
 
     async def handle_generate_away_summary(self, operation: GenerateAwaySummaryOperation) -> None:
         """Handle a generate-away-summary operation (while-you-were-away recap)."""
+        ...
+
+    async def handle_ask_side_question(self, operation: AskSideQuestionOperation) -> None:
+        """Handle a `/btw` side question operation."""
         ...

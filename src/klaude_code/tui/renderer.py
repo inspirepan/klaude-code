@@ -61,6 +61,7 @@ from klaude_code.tui.commands import (
     RenderNotice,
     RenderRewind,
     RenderSessionStats,
+    RenderSideQuestion,
     RenderSubAgentBatchSummary,
     RenderSubAgentThinking,
     RenderTaskFileChangeSummary,
@@ -93,6 +94,7 @@ from klaude_code.tui.components import context_usage as c_context_usage
 from klaude_code.tui.components import developer as c_developer
 from klaude_code.tui.components import errors as c_errors
 from klaude_code.tui.components import metadata as c_metadata
+from klaude_code.tui.components import side_question as c_side_question
 from klaude_code.tui.components import sub_agent as c_sub_agent
 from klaude_code.tui.components import task_file_changes as c_task_file_changes
 from klaude_code.tui.components import thinking as c_thinking
@@ -1096,6 +1098,28 @@ class TUICommandRenderer:
             self.print(c_away_summary.render_away_summary(e))
             self.print()
 
+    def display_side_question(self, e: events.SideQuestionEvent) -> None:
+        """Print a `/btw` answer as a self-contained panel in the scrollback.
+
+        The panel is written to scrollback rather than a prompt-owned overlay so
+        the answer keeps terminal scrolling, selection, and link handling, and so
+        transcript rebuilds and history replay reproduce it like any other block.
+        """
+        if not self._visible(e):
+            return
+        terminal_width = shutil.get_terminal_size().columns
+        panel_width = min(100, terminal_width) - MARKDOWN_LEFT_MARGIN
+        with self.session_print_context(e.session_id):
+            self.console.push_theme(self.themes.markdown_theme)
+            panel = c_side_question.render_side_question(
+                e,
+                code_theme=self.themes.code_theme,
+                width=panel_width,
+            )
+            self.print(Padding(panel, (0, 0, 0, MARKDOWN_LEFT_MARGIN)))
+            self.console.pop_theme()
+            self.print()
+
     def display_session_stats(self, e: events.SessionStatsEvent) -> None:
         if not self._visible(e):
             return
@@ -1649,6 +1673,8 @@ class TUICommandRenderer:
                     self.display_notice(event)
                 case RenderAwaySummary(event=event):
                     self.display_away_summary(event)
+                case RenderSideQuestion(event=event):
+                    self.display_side_question(event)
                 case RenderSessionStats(event=event):
                     self.display_session_stats(event)
                 case RenderContextUsage(event=event):

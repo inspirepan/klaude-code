@@ -218,6 +218,12 @@ class OperationDispatcher:
     def cancel_auto_away_summary(self, session_id: str) -> None:
         self._agent_operation_handler.cancel_auto_away_summary(session_id)
 
+    async def handle_ask_side_question(self, operation: op.AskSideQuestionOperation) -> None:
+        await self._agent_operation_handler.ask_side_question(operation)
+
+    def cancel_side_questions(self, session_id: str) -> None:
+        self._agent_operation_handler.cancel_side_questions(session_id)
+
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
         await self._config_handler.handle_change_model(operation)
 

@@ -199,6 +199,7 @@ STATUS_COMPOSING_TEXT = "Typing…"
 STATUS_COMPACTING_TEXT = "Compacting Conversation…"
 STATUS_HANDOFF_TEXT = "Packing Context…"
 STATUS_RECAPPING_TEXT = "Recapping…"
+STATUS_SIDE_QUESTION_TEXT = "Asking aside"  # /btw status row prefix, followed by the question
 STATUS_RUNNING_TEXT = "Running…"
 
 # Backwards-compatible alias for the default spinner status text.

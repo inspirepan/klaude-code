@@ -110,6 +110,29 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   behavior as a fallback. Plain `Up` remains history navigation when the queue
   is empty.
 
+### `/btw` side question flow
+
+A side question runs beside the task instead of inside it, so it deliberately
+does not use the queue, the spinner phase, or an overlay:
+
+- The runner intercepts `runs_in_background` commands before queue mode and
+  submits `AskSideQuestionOperation` without waiting. The input is not echoed as
+  a user turn; the answer panel carries the question instead.
+- Pending requests are keyed by `request_id` in `DisplayStateMachine`, and each
+  adds its own status row (`_side_question_status_lines`) *next to* the task's
+  row, carrying its question ellipsized to one line. Do not express this as a
+  `SpinnerPhase`: the phase belongs to the task, and a side question must not
+  overwrite what the task reports.
+- Task end goes through `_spinner_stop_commands()` so a pending answer keeps the
+  spinner alive after the task it was asked during has finished. `Esc` keeps its
+  meaning — interrupt the task — and does not cancel a side question.
+- The answer prints into scrollback as a bordered panel, not into a
+  prompt-toolkit window: terminal scrolling, selection, and links come for free,
+  and tape rebuilds plus history replay reproduce it like any other block. It is
+  persisted as a `SideQuestionEntry` sidecar, which never reaches LLM input. The
+  panel's bottom border reports the forked request's cache hit rate, so the
+  entry persists that rate too — replay renders the same panel.
+
 ### Live output flow
 
 - Renderer live output, such as bash-mode live tail, should use

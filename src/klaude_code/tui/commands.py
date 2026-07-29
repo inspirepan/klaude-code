@@ -77,6 +77,11 @@ class RenderAwaySummary(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderSideQuestion(RenderCommand):
+    event: events.SideQuestionEvent
+
+
+@dataclass(frozen=True, slots=True)
 class RenderSessionStats(RenderCommand):
     event: events.SessionStatsEvent
 

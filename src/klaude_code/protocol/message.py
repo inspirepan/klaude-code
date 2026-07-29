@@ -150,6 +150,22 @@ class PromptSuggestionEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class SideQuestionEntry(BaseModel):
+    """A `/btw` side question and its answer.
+
+    Sidecar event (not a Message) so the side question and its answer never
+    enter the parent conversation the model sees — the whole point of `/btw`
+    is that it leaves the running task's context untouched. Persisted so
+    replay can restore the answer panel.
+    """
+
+    question: str
+    answer: str
+    # Share of the forked request's prompt served from the parent's cache.
+    cache_hit_rate: float | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class FallbackModelConfigWarnEntry(BaseModel):
     """Persisted record of a runtime model fallback."""
 
@@ -326,6 +342,7 @@ HistoryEvent = (
     | SpawnSubAgentEntry
     | AwaySummaryEntry
     | PromptSuggestionEntry
+    | SideQuestionEntry
 )
 
 StreamItem = AssistantTextDelta | ThinkingTextDelta | ToolCallStartDelta

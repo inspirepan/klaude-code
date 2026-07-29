@@ -8,7 +8,7 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Any, ClassVar, Literal
 
-from rich.cells import cell_len
+from rich.cells import cell_len, set_cell_size
 from rich.text import Text
 
 from klaude_code.config.formatters import format_number
@@ -23,6 +23,7 @@ from klaude_code.const import (
     STATUS_RECAPPING_TEXT,
     STATUS_RUNNING_TEXT,
     STATUS_SHOW_BUFFER_LENGTH,
+    STATUS_SIDE_QUESTION_TEXT,
     STATUS_THINKING_TEXT,
 )
 from klaude_code.protocol import events, tools
@@ -51,6 +52,7 @@ from klaude_code.tui.commands import (
     RenderNotice,
     RenderRewind,
     RenderSessionStats,
+    RenderSideQuestion,
     RenderSubAgentBatchSummary,
     RenderSubAgentThinking,
     RenderTaskFileChangeSummary,
@@ -121,6 +123,7 @@ _TIME_MARKER_TRIGGER_COMMANDS: tuple[type[RenderCommand], ...] = (
     RenderDeveloperMessage,
     RenderNotice,
     RenderAwaySummary,
+    RenderSideQuestion,
     RenderBashCommandStart,
     RenderToolCall,
     StartThinkingStream,
@@ -152,11 +155,16 @@ SUB_AGENT_TOOL_ACTIVITY_MAX_LINES = 4
 SUB_AGENT_STATUS_MAX_HEIGHT_RATIO = 0.8
 BASH_STREAM_DELAY_SEC = 3.0
 
+# prompt-toolkit prefixes each status row with its own 4-cell spinner frame,
+# outside the Rich render that would otherwise apply the ellipsis.
+SIDE_QUESTION_STATUS_RESERVED_CELLS = 4
+
 # `shutil.get_terminal_size()` is an ioctl; the sub-agent status layout calls
 # it on every spinner update. Cache it briefly — a stale value for up to a
 # second only affects how many rows are shown right after a resize.
 _TERMINAL_LINES_CACHE_TTL_S = 1.0
 _terminal_lines_cache: tuple[float, int] | None = None
+_terminal_columns_cache: tuple[float, int] | None = None
 
 
 def _terminal_lines() -> int:
@@ -168,6 +176,17 @@ def _terminal_lines() -> int:
     lines = shutil.get_terminal_size((120, 24)).lines
     _terminal_lines_cache = (now, lines)
     return lines
+
+
+def _terminal_columns() -> int:
+    global _terminal_columns_cache
+    now = time.monotonic()
+    cached = _terminal_columns_cache
+    if cached is not None and now - cached[0] < _TERMINAL_LINES_CACHE_TTL_S:
+        return cached[1]
+    columns = shutil.get_terminal_size((120, 24)).columns
+    _terminal_columns_cache = (now, columns)
+    return columns
 
 
 def _empty_bash_chunks() -> list[str]:
@@ -926,6 +945,7 @@ class DisplayStateMachine:
         self._session_title: str | None = None
         self._terminal_title_prefix: str | None = None
         self._had_sub_agent_status_lines: bool = False
+        self._side_question_pending: dict[str, str] = {}
         self._live_bash_tool_call_ids: set[str] = set()
         self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
         self._bash_mode_output_chunks_by_session: dict[str, list[str]] = {}
@@ -969,6 +989,7 @@ class DisplayStateMachine:
         self._primary_session_id = None
         self._spinner.reset()
         self._had_sub_agent_status_lines = False
+        self._side_question_pending = {}
         self._terminal_title_prefix = None
         self._live_bash_tool_call_ids = set()
         self._pending_bash_tool_outputs = {}
@@ -1230,9 +1251,43 @@ class DisplayStateMachine:
 
         return [RenderSubAgentBatchSummary(tuple(summaries))]
 
+    def _side_question_status_lines(self) -> tuple[SpinnerStatusLine, ...]:
+        """One extra status row per in-flight `/btw`, carrying its question.
+
+        Its own row rather than a spinner phase: a side question runs *beside*
+        the task, so it must not overwrite what the task's status line reports.
+        """
+        return tuple(
+            SpinnerStatusLine(text=self._side_question_status_text(question))
+            for question in self._side_question_pending.values()
+        )
+
+    @staticmethod
+    def _side_question_status_text(question: str) -> Text:
+        """`Asking aside <question>` on one line, truncated to fit the terminal."""
+        text = Text(no_wrap=True, overflow="ellipsis")
+        text.append(STATUS_SIDE_QUESTION_TEXT, style=ThemeKey.STATUS_TEXT)
+        one_line = " ".join(question.split())
+        if not one_line:
+            return text
+        # Rich truncates at the console width, but prompt-toolkit prefixes the
+        # spinner outside Rich; budget for it so the ellipsis is not cropped off.
+        budget = _terminal_columns() - SIDE_QUESTION_STATUS_RESERVED_CELLS - cell_len(STATUS_SIDE_QUESTION_TEXT) - 1
+        if budget > 1 and cell_len(one_line) > budget:
+            one_line = set_cell_size(one_line, budget - 1) + "…"
+        text.append(f" {one_line}", style=ThemeKey.SIDE_QUESTION_QUESTION)
+        return text
+
     def _spinner_update_commands(self) -> list[RenderCommand]:
         sub_agent_lines = self._sub_agent_status_lines()
-        status_lines = sub_agent_lines if sub_agent_lines else (SpinnerStatusLine(text=self._spinner.get_status()),)
+        side_question_lines = self._side_question_status_lines()
+        if sub_agent_lines:
+            status_lines = (*sub_agent_lines, *side_question_lines)
+        elif side_question_lines and not self._any_task_active():
+            # Nothing else is running: the side question is the whole status.
+            status_lines = side_question_lines
+        else:
+            status_lines = (SpinnerStatusLine(text=self._spinner.get_status()), *side_question_lines)
         reset_bottom_height = self._had_sub_agent_status_lines and not sub_agent_lines
         self._had_sub_agent_status_lines = bool(sub_agent_lines)
         return [
@@ -1274,15 +1329,29 @@ class DisplayStateMachine:
         disturbed, so only the spinner (stopped by ``begin_rebuild``) needs
         to be re-derived here.
         """
+        if not self._any_task_active() and not self._side_question_pending:
+            return [SpinnerStop()]
+        return [SpinnerStart(), *self._spinner_update_commands()]
+
+    def _any_task_active(self) -> bool:
+        """Whether the spinner has a running task to report."""
         primary = self._sessions.get(self._primary_session_id) if self._primary_session_id is not None else None
-        running = (
+        return (
             (primary is not None and primary.task_active)
             or bool(self._bash_mode_output_chunks_by_session)
             or any(s.is_sub_agent and s.task_active for s in self._sessions.values())
         )
-        if not running:
-            return [SpinnerStop()]
-        return [SpinnerStart(), *self._spinner_update_commands()]
+
+    def _spinner_stop_commands(self) -> list[RenderCommand]:
+        """End-of-task spinner handling: stop it unless something else needs it.
+
+        Every main-agent task-end path goes through here rather than emitting
+        `SpinnerStop` directly, because activity that outlives the task — today a
+        pending `/btw` answer — still has a status row to animate.
+        """
+        if self._side_question_pending:
+            return self._spinner_update_commands()
+        return [SpinnerStop()]
 
     def transition_rebuild(self, event: events.Event) -> list[RenderCommand]:
         """Re-run a taped event to rebuild the transcript.
@@ -1575,6 +1644,47 @@ class DisplayStateMachine:
             cmds.append(SpinnerStop())
         cmds.extend(self._spinner_update_commands())
         return cmds
+
+    def _handle_SideQuestionStartEvent(
+        self, e: events.SideQuestionStartEvent, *, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = []
+        idle = not self._side_question_pending and not self._any_task_active()
+        self._side_question_pending[e.request_id] = e.question
+        if idle:
+            cmds.append(SpinnerStart())
+        cmds.extend(self._spinner_update_commands())
+        return cmds
+
+    def _handle_SideQuestionEvent(self, e: events.SideQuestionEvent, *, s: _SessionState) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = [RenderSideQuestion(e)]
+        cmds.extend(self._clear_side_question(e.request_id))
+        return cmds
+
+    def _handle_SideQuestionFailedEvent(
+        self, e: events.SideQuestionFailedEvent, *, s: _SessionState
+    ) -> list[RenderCommand]:
+        cmds: list[RenderCommand] = [
+            RenderNotice(
+                events.NoticeEvent(
+                    session_id=e.session_id,
+                    content=f"btw failed: {e.error}",
+                    is_error=True,
+                )
+            )
+        ]
+        cmds.extend(self._clear_side_question(e.request_id))
+        return cmds
+
+    def _clear_side_question(self, request_id: str) -> list[RenderCommand]:
+        """Drop a pending row. No-op on replay, which has no pending rows."""
+        if self._side_question_pending.pop(request_id, None) is None:
+            return []
+        if not self._side_question_pending and not self._any_task_active():
+            # Stop rather than refresh: a trailing SpinnerUpdate would restore
+            # the "esc to interrupt" hint the stop just cleared.
+            return [SpinnerStop()]
+        return self._spinner_update_commands()
 
     def _handle_SessionStatsEvent(self, e: events.SessionStatsEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
@@ -2037,7 +2147,7 @@ class DisplayStateMachine:
         if not s.is_sub_agent:
             cmds.append(TaskClockClear())
             self._spinner.clear_task_state()
-            cmds.append(SpinnerStop())
+            cmds.extend(self._spinner_stop_commands())
             cmds.append(StopTitleBlink())
             self._terminal_title_prefix = None if is_cancelled_task_result(e.task_result) else "✅"
             cmds.append(
@@ -2054,9 +2164,9 @@ class DisplayStateMachine:
     def _handle_InterruptEvent(self, e: events.InterruptEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         self._spinner.clear_task_state()
-        cmds.append(SpinnerStop())
         s.task_active = False
         s.clear_status_activity()
+        cmds.extend(self._spinner_stop_commands())
         if s.is_sub_agent:
             content = s.finish_thinking()
             if content.strip():
@@ -2104,7 +2214,7 @@ class DisplayStateMachine:
         cmds.append(RenderError(e))
         if not e.can_retry:
             self._spinner.clear_task_state()
-            cmds.append(SpinnerStop())
+            cmds.extend(self._spinner_stop_commands())
             if not s.is_sub_agent:
                 cmds.append(TaskClockClear())
                 cmds.append(StopTitleBlink())

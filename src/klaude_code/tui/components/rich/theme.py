@@ -241,6 +241,10 @@ class ThemeKey(str, Enum):
     HANDOFF = "handoff"
     HANDOFF_INFO = "handoff.info"
     HANDOFF_NOTE = "handoff.note"
+    # SIDE QUESTION (/btw)
+    SIDE_QUESTION_LABEL = "side_question.label"
+    SIDE_QUESTION_QUESTION = "side_question.question"
+    SIDE_QUESTION_ANSWER = "side_question.answer"
     # REWIND
     REWIND = "rewind"
     REWIND_INFO = "rewind.info"
@@ -409,6 +413,10 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.HANDOFF.value: palette.blue,
                 ThemeKey.HANDOFF_INFO.value: palette.dim_grey2,
                 ThemeKey.HANDOFF_NOTE.value: palette.grey1,
+                # SIDE QUESTION (/btw)
+                ThemeKey.SIDE_QUESTION_LABEL.value: "bold " + palette.blue,
+                ThemeKey.SIDE_QUESTION_QUESTION.value: palette.blue,
+                ThemeKey.SIDE_QUESTION_ANSWER.value: palette.grey1,
                 # REWIND
                 ThemeKey.REWIND.value: palette.orange,
                 ThemeKey.REWIND_INFO.value: palette.dim_grey2,

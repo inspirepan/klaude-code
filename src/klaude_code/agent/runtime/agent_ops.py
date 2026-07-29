@@ -22,6 +22,7 @@ from klaude_code.agent.prompt_suggestion import run_prompt_suggestion, should_su
 from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients, create_llm_client_for_candidates
 from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
 from klaude_code.agent.session_title import generate_session_title
+from klaude_code.agent.side_question import run_side_question
 from klaude_code.agent.skill_inventory import (
     get_skill_names_by_location,
     get_skill_warnings_by_location,
@@ -51,6 +52,14 @@ def _has_summary_since_last_user_turn(session: Session) -> bool:
         if isinstance(item, message.AwaySummaryEntry):
             return True
     return False
+
+
+@dataclass
+class _PendingSideQuestion:
+    """An in-flight `/btw` answer, tracked outside the session's task handles."""
+
+    session_id: str
+    task: asyncio.Task[None]
 
 
 @dataclass
@@ -101,6 +110,7 @@ class AgentOperationHandler:
         self._title_refresh_tasks: dict[str, asyncio.Task[None]] = {}
         self._prompt_suggestion_tasks: dict[str, asyncio.Task[None]] = {}
         self._auto_away_summary_tasks: dict[str, asyncio.Task[None]] = {}
+        self._side_question_tasks: dict[str, _PendingSideQuestion] = {}
 
     async def _request_user_interaction(
         self,
@@ -235,6 +245,7 @@ class AgentOperationHandler:
         return active_tasks
 
     def clear_active_tasks(self) -> None:
+        self._cancel_side_questions(None)
         for runtime in self._list_session_actors():
             for _, task in runtime.cancel_active_tasks():
                 if not task.done():
@@ -815,11 +826,112 @@ class AgentOperationHandler:
             if show_spinner:
                 await self._emit_event(events.AwaySummaryEndEvent(session_id=agent.session.id))
 
+    async def ask_side_question(self, operation: op.AskSideQuestionOperation) -> None:
+        """Answer a `/btw` side question beside whatever the session is doing.
+
+        The answer runs in a bare asyncio task rather than a registered runtime
+        task on purpose: a side question must not make the session look busy
+        (which would reject the next root operation) and must not be cancelled
+        by the Esc interrupt that stops the main task.
+        """
+        question = operation.question.strip()
+        if not question:
+            # Guard here, not only in the TUI: any frontend can submit this op.
+            await self._emit_event(
+                events.NoticeEvent(
+                    session_id=operation.session_id,
+                    content="/btw needs a question, e.g. `/btw why is this cached?`",
+                    is_error=True,
+                )
+            )
+            return
+
+        agent = await self.ensure_agent(operation.session_id)
+        request_id = operation.id
+        await self._emit_event(
+            events.SideQuestionStartEvent(
+                session_id=agent.session.id,
+                request_id=request_id,
+                question=question,
+            )
+        )
+        task = asyncio.create_task(self._run_side_question(agent, question=question, request_id=request_id))
+        self._side_question_tasks[request_id] = _PendingSideQuestion(session_id=agent.session.id, task=task)
+
+        def _cleanup(completed: asyncio.Task[None]) -> None:
+            pending = self._side_question_tasks.get(request_id)
+            if pending is not None and pending.task is completed:
+                self._side_question_tasks.pop(request_id, None)
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                _ = completed.exception()
+
+        task.add_done_callback(_cleanup)
+
+    async def _run_side_question(self, agent: Agent, *, question: str, request_id: str) -> None:
+        session = agent.session
+        try:
+            result = await run_side_question(session=session, main_profile=agent.profile, question=question)
+        except asyncio.CancelledError:
+            # The session was cleared or the runtime is shutting down; whatever
+            # owns the pending indicator is going away with it.
+            raise
+        except Exception as exc:
+            log_debug(f"[SideQuestion] failed session={session.id}: {exc}", debug_type=DebugType.EXECUTION)
+            await self._emit_event(
+                events.SideQuestionFailedEvent(
+                    session_id=session.id,
+                    request_id=request_id,
+                    question=question,
+                    error=str(exc) or exc.__class__.__name__,
+                )
+            )
+            return
+
+        session.append_history(
+            [
+                message.SideQuestionEntry(
+                    question=question,
+                    answer=result.answer,
+                    cache_hit_rate=result.cache_hit_rate,
+                )
+            ]
+        )
+        await self._emit_event(
+            events.SideQuestionEvent(
+                session_id=session.id,
+                request_id=request_id,
+                question=question,
+                answer=result.answer,
+                cache_hit_rate=result.cache_hit_rate,
+            )
+        )
+
+    def cancel_side_questions(self, session_id: str) -> None:
+        """Drop a session's pending answers. Called when the session goes away.
+
+        A side question keeps no runtime task, so closing or clearing a session
+        would otherwise leave one writing history for a session nobody owns.
+        """
+        self._cancel_side_questions(session_id)
+
+    def _cancel_side_questions(self, session_id: str | None) -> None:
+        for request_id, pending in list(self._side_question_tasks.items()):
+            if session_id is not None and pending.session_id != session_id:
+                continue
+            self._side_question_tasks.pop(request_id, None)
+            if not pending.task.done():
+                log_debug(
+                    f"[SideQuestion] cancel pending session={pending.session_id}",
+                    debug_type=DebugType.EXECUTION,
+                )
+                pending.task.cancel()
+
     async def clear_session(self, session_id: str) -> None:
         agent = await self.ensure_agent(session_id)
         old_session_id = agent.session.id
         self._cancel_prompt_suggestion(old_session_id)
         self._cancel_auto_away_summary(old_session_id)
+        self._cancel_side_questions(old_session_id)
         old_runtime = self._get_session_actor(old_session_id)
         if old_runtime is None:
             raise RuntimeError(f"Missing runtime for session {old_session_id}")
@@ -875,6 +987,7 @@ class AgentOperationHandler:
         agent = await self.ensure_agent(session_id)
         old_session_id = agent.session.id
         self._cancel_auto_away_summary(old_session_id)
+        self._cancel_side_questions(old_session_id)
         old_runtime = self._get_session_actor(old_session_id)
         if old_runtime is None:
             raise RuntimeError(f"Missing runtime for session {old_session_id}")

@@ -604,6 +604,8 @@ def _meta_preview_and_title(item: message.HistoryEvent) -> tuple[str, str]:
         return "Step interrupted", "Interrupt"
     if isinstance(item, message.CacheHitRateEntry):
         return f"Cache hit rate {item.cache_hit_rate:.1%}", "Cache"
+    if isinstance(item, message.SideQuestionEntry):
+        return _text_preview(item.question, fallback="side question"), "Btw"
     if isinstance(item, message.SpawnSubAgentEntry):
         return _text_preview(item.sub_agent_desc, fallback=item.sub_agent_type), "Sub Agent"
     if isinstance(item, TaskMetadataItem):

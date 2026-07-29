@@ -61,6 +61,10 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
     class _StubOperationDispatcher:
         def __init__(self) -> None:
             self.events: list[tuple[events.Event, dict[str, str | None]]] = []
+            self.cancelled_side_questions: list[str] = []
+
+        def cancel_side_questions(self, session_id: str) -> None:
+            self.cancelled_side_questions.append(session_id)
 
         async def emit_event(
             self,
@@ -106,6 +110,9 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
         assert second_event.request_id == "req1"
         assert second_event.status == "cancelled"
         assert second_meta["causation_id"] == "req1"
+
+        # A closed session must not keep a side-question answer writing to it.
+        assert executor.cancelled_side_questions == ["s1"]
 
     arun(_test())
 

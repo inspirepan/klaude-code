@@ -180,14 +180,23 @@ async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *
         )
 
 
-def has_interactive_command(raw: str) -> bool:
+def _resolve_command(raw: str) -> "CommandABC | None":
     _ensure_commands_loaded()
     if not raw.startswith("/"):
-        return False
+        return None
     splits = raw.split(" ", maxsplit=1)
-    command_name_raw = splits[0][1:]
-    command_key = _resolve_command_key(command_name_raw)
+    command_key = _resolve_command_key(splits[0][1:])
     if command_key is None:
-        return False
-    command = _COMMANDS[command_key]
-    return command.is_interactive
+        return None
+    return _COMMANDS[command_key]
+
+
+def has_interactive_command(raw: str) -> bool:
+    command = _resolve_command(raw)
+    return command is not None and command.is_interactive
+
+
+def has_background_command(raw: str) -> bool:
+    """Whether `raw` resolves to a command that is dispatched without waiting."""
+    command = _resolve_command(raw)
+    return command is not None and command.runs_in_background

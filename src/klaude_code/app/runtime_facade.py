@@ -360,6 +360,9 @@ class RuntimeFacade:
         self._operation_dispatcher.cancel_auto_away_summary(session_id)
 
     async def close_session(self, session_id: str, force: bool = False) -> bool:
+        # Side-question answers live outside the actor's task handles, so closing
+        # would otherwise leave one writing history for a released session.
+        self._operation_dispatcher.cancel_side_questions(session_id)
         cancelled_requests: list[PendingUserInteractionRequest] = []
         work_dir: Path | None = None
         get_actor = getattr(self.session_registry, "get_session_actor", None)

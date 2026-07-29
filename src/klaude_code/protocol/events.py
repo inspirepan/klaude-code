@@ -61,6 +61,9 @@ __all__ = [
     "SessionHolderReleasedEvent",
     "SessionStatsEvent",
     "SessionTitleChangedEvent",
+    "SideQuestionEvent",
+    "SideQuestionFailedEvent",
+    "SideQuestionStartEvent",
     "StepEndEvent",
     "StepStartEvent",
     "SubAgentModelChangedEvent",
@@ -126,6 +129,7 @@ DURABLE_EVENT_TYPES = frozenset(
         "task.finish",
         "away.summary",
         "prompt.suggestion.ready",
+        "side.question",
     }
 )
 
@@ -191,6 +195,37 @@ class AwaySummaryEndEvent(Event):
     Ephemeral — UI only."""
 
     pass
+
+
+class SideQuestionStartEvent(Event):
+    """A `/btw` side question was accepted and its forked LLM call started.
+
+    Ephemeral — UI only. The TUI shows an "asking aside" status row keyed by
+    ``request_id`` so a stale answer cannot clear a newer request's row.
+    """
+
+    request_id: str
+    question: str
+
+
+class SideQuestionEvent(Event):
+    """A `/btw` side question was answered. Persisted via SideQuestionEntry.
+
+    ``request_id`` is empty on replay: history has no pending row to clear.
+    """
+
+    question: str
+    answer: str
+    request_id: str = ""
+    cache_hit_rate: float | None = None
+
+
+class SideQuestionFailedEvent(Event):
+    """A `/btw` side question produced no answer. Ephemeral — UI only."""
+
+    request_id: str
+    question: str
+    error: str
 
 
 class PromptSuggestionReadyEvent(Event):
@@ -514,6 +549,7 @@ type ReplayEventUnion = (
     | BashCommandEndEvent
     | AwaySummaryEvent
     | PromptSuggestionReadyEvent
+    | SideQuestionEvent
 )
 
 

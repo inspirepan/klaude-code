@@ -59,6 +59,11 @@ Commands return `CommandResult` with optional fields:
 - `is_interactive` (default `False`) - If `True`, the command handles its own interactive UI (e.g. model picker)
 - `support_addition_params` (default `False`) - If `True`, shows a parameter hint in completion
 - `placeholder` (default `"instructions"`) - Placeholder text for the parameter hint
+- `runs_in_background` (default `False`) - If `True`, the runner dispatches the command the moment
+  it is entered — even mid-task, where Enter would otherwise queue a follow-up — and never waits
+  for it. Its operations must be safe next to an active task, and the input is not echoed as a user
+  turn, so the command has to report itself (see `/btw`). Argument validation belongs in the
+  operation handler, not here: any frontend can submit the operation.
 
 ### Agent protocol
 

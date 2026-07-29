@@ -45,6 +45,7 @@ class OperationType(Enum):
     USER_INTERACTION_RESPOND = "user_interaction_respond"
     INIT_AGENT = "init_agent"
     GENERATE_AWAY_SUMMARY = "generate_away_summary"
+    ASK_SIDE_QUESTION = "ask_side_question"
 
 
 class Operation(BaseModel):
@@ -314,3 +315,20 @@ class GenerateAwaySummaryOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_generate_away_summary(self)
+
+
+class AskSideQuestionOperation(Operation):
+    """Operation for answering a `/btw` side question next to the running task.
+
+    The handler forks the session's LLM history for a single-turn answer and
+    never appends the answer to the conversation the model sees, so a side
+    question can be asked mid-task without disturbing it. ``id`` doubles as
+    the request id the UI correlates its pending indicator with.
+    """
+
+    type: OperationType = OperationType.ASK_SIDE_QUESTION
+    session_id: str
+    question: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_ask_side_question(self)
