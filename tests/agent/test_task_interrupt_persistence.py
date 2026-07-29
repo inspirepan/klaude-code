@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pytest
 
+from klaude_code.agent.agent import Agent
 from klaude_code.agent.task import MetadataAccumulator, SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.protocol import events, message
 from klaude_code.protocol.models import TaskMetadata, TaskMetadataItem, Usage
@@ -295,6 +296,111 @@ def test_task_interrupt_without_visible_output_restores_input_and_hides_notice(
         assert executor.last_interrupt_show_notice is False
         assert executor.take_interrupt_prefill_text() == "retry me"
         assert executor.take_interrupt_prefill_text() is None
+        await close_default_store()
+
+    arun(_test())
+
+
+def _make_agent(session: Session) -> Agent:
+    # Agent.__init__ only touches the profile when session.model_name is unset.
+    session.model_name = "test-model"
+    return Agent(session=session, profile=cast(Any, object()))
+
+
+def test_agent_retracts_unanswered_user_message(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("retry me"))])
+        agent = _make_agent(session)
+        agent._last_interrupt_prefill_text = "retry me"  # pyright: ignore[reportPrivateUsage]
+
+        assert agent.retract_interrupted_user_message() == "retry me"
+        await session.wait_for_flush()
+
+        assert session.user_messages == []
+        assert any(isinstance(item, message.RetractEntry) for item in session.conversation_history)
+        # The prefill stays armed for the frontend to restore into its input box.
+        assert agent.consume_interrupt_prefill_text() == "retry me"
+
+        loaded = Session.load(session.id, work_dir=project_dir)
+        assert loaded.user_messages == []
+        await close_default_store()
+
+    arun(_test())
+
+
+def test_agent_retracts_a_message_with_images_and_prefill_keeps_the_markers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Images ride in the text as ``[image path]`` markers (extracted again on
+    the next submit), so restoring the exact text restores the images too."""
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        text_with_marker = "check [image /tmp/shot.png]"
+        session = Session.create(work_dir=project_dir)
+        session.append_history(
+            [
+                message.UserMessage(
+                    parts=[
+                        message.TextPart(text=text_with_marker),
+                        message.ImageFilePart(file_path="/tmp/shot.png", mime_type="image/png"),
+                    ]
+                ),
+            ]
+        )
+        agent = _make_agent(session)
+        agent._last_interrupt_prefill_text = text_with_marker  # pyright: ignore[reportPrivateUsage]
+
+        assert agent.retract_interrupted_user_message() == text_with_marker
+        assert session.user_messages == []
+        assert agent.consume_interrupt_prefill_text() == text_with_marker
+        await close_default_store()
+
+    arun(_test())
+
+
+def test_agent_retraction_skipped_when_follow_ups_are_queued(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The TUI drops the prefill when queued messages run next; retracting
+    would then lose the message entirely, so it must stay in history."""
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("retry me"))])
+        agent = _make_agent(session)
+        agent.follow_up(message.UserInputPayload(text="queued"))
+        agent._last_interrupt_prefill_text = "retry me"  # pyright: ignore[reportPrivateUsage]
+
+        assert agent.retract_interrupted_user_message() is None
+        assert session.user_messages == ["retry me"]
+        assert not any(isinstance(item, message.RetractEntry) for item in session.conversation_history)
+        await close_default_store()
+
+    arun(_test())
+
+
+def test_agent_retraction_skipped_after_visible_output(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("answered"))])
+        agent = _make_agent(session)
+        # Visible output happened: on_interrupt left the prefill unset.
+
+        assert agent.retract_interrupted_user_message() is None
+        assert session.user_messages == ["answered"]
         await close_default_store()
 
     arun(_test())

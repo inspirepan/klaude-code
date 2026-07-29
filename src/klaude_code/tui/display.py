@@ -6,7 +6,7 @@ from collections.abc import Callable, Coroutine, Sequence
 from typing import Any, override
 
 from klaude_code.app.ports import DisplayABC
-from klaude_code.control.event_tape import EventTape
+from klaude_code.control.event_tape import EventTape, apply_retractions
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
 from klaude_code.tui.commands import PromptStatusLine
@@ -85,10 +85,18 @@ class TUIDisplay(DisplayABC):
         # consumer so a rebuild can never interleave with a live event.
         if isinstance(event, events.ToggleTranscriptDetailEvent):
             self._detail.toggle()
-            await self._render_events_to_scrollback(self._tape.snapshot(), clear_screen=True)
+            await self._render_events_to_scrollback(apply_retractions(self._tape.snapshot()), clear_screen=True)
             return
         if isinstance(event, events.RefreshDisplayEvent):
-            await self._render_events_to_scrollback(self._tape.snapshot(), clear_screen=True)
+            await self._render_events_to_scrollback(apply_retractions(self._tape.snapshot()), clear_screen=True)
+            return
+        if isinstance(event, events.UserMessageRetractedEvent):
+            # A transcript event (recorded so later rebuilds keep hiding the
+            # turn), but rendered as a full repaint: the retracted turn is
+            # already on screen, so erasing it needs a clear + re-render, not
+            # a state-machine transition.
+            self._tape.record(event)
+            await self._render_events_to_scrollback(apply_retractions(self._tape.snapshot()), clear_screen=True)
             return
 
         self._handle_prompt_suggestion_event(event)

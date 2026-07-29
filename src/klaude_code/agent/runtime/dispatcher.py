@@ -255,7 +255,10 @@ class OperationDispatcher:
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 
-        await self._agent_operation_handler.interrupt(operation.session_id)
+        await self._agent_operation_handler.interrupt(
+            operation.session_id,
+            retract_unanswered_input=operation.retract_unanswered_input,
+        )
         cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
 

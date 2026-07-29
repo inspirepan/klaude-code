@@ -52,11 +52,38 @@ def _apply_rewind_entry_to_history(
     return [*history[: target_idx + 1], entry]
 
 
+def _apply_retract_entry_to_history(
+    history: list[message.HistoryEvent],
+    entry: message.RetractEntry,
+) -> list[message.HistoryEvent]:
+    """Drop the retracted UserMessage, mirroring the live retraction exactly.
+
+    Only the message itself is removed — the turn's other appends (attachment
+    developer messages, partial metadata, interrupt entry) stay, keeping
+    file-tracker state and token accounting consistent. The entry is kept in
+    active history (like RewindEntry) so indices recorded live, e.g.
+    ``CompactionEntry.first_kept_index``, still line up after a reload. On an
+    anchor mismatch the history is left untouched rather than losing the
+    wrong message.
+    """
+    for idx in range(len(history) - 1, -1, -1):
+        item = history[idx]
+        if not isinstance(item, message.UserMessage):
+            continue
+        if message.join_text_parts(item.parts) == entry.retracted_text:
+            return [*history[:idx], *history[idx + 1 :], entry]
+        break
+    return [*history, entry]
+
+
 def rebuild_loaded_history(raw_history: Iterable[message.HistoryEvent]) -> list[message.HistoryEvent]:
     active_history: list[message.HistoryEvent] = []
     for item in raw_history:
         if isinstance(item, message.RewindEntry):
             active_history = _apply_rewind_entry_to_history(active_history, item)
+            continue
+        if isinstance(item, message.RetractEntry):
+            active_history = _apply_retract_entry_to_history(active_history, item)
             continue
         active_history.append(item)
 
@@ -81,7 +108,7 @@ def update_last_request_usage(
 ) -> Usage | None:
     """Update the latest valid request usage from chronological history entries."""
     for item in history:
-        if isinstance(item, (message.CompactionEntry, message.RewindEntry)):
+        if isinstance(item, (message.CompactionEntry, message.RewindEntry, message.RetractEntry)):
             usage = None
             continue
         if not isinstance(item, message.AssistantMessage):

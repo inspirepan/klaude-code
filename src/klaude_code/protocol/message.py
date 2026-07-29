@@ -92,6 +92,21 @@ class RewindEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class RetractEntry(BaseModel):
+    """Marks the nearest preceding UserMessage as withdrawn.
+
+    Appended when an interrupt lands before the turn produced any visible
+    output and the frontend restores the text into its input box. Storage
+    stays append-only: the original UserMessage remains in the jsonl and
+    loading applies this entry by dropping it from active history.
+    ``retracted_text`` doubles as an anchor check so a drifted history is
+    left untouched instead of losing the wrong message.
+    """
+
+    retracted_text: str
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class CacheHitRateEntry(BaseModel):
     cache_hit_rate: float
     cached_tokens: int
@@ -305,6 +320,7 @@ HistoryEvent = (
     | TaskMetadataItem
     | CompactionEntry
     | RewindEntry
+    | RetractEntry
     | CacheHitRateEntry
     | FallbackModelConfigWarnEntry
     | SpawnSubAgentEntry

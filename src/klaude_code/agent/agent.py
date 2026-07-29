@@ -55,6 +55,26 @@ class Agent:
         self._last_interrupt_prefill_text = None
         return text
 
+    def retract_interrupted_user_message(self) -> str | None:
+        """Withdraw the just-interrupted turn's user message from history.
+
+        Only valid right after ``on_interrupt`` armed the prefill text (the
+        turn produced no visible output). The prefill stays armed — the
+        frontend that requested retraction restores it into its input box.
+        Skipped when follow-ups are queued: the TUI drops the prefill in that
+        case, so keeping the message in history is the only lossless choice.
+        """
+        text = self._last_interrupt_prefill_text
+        if text is None:
+            return None
+        if self.session.sub_agent_state is not None:
+            return None
+        if self._follow_up_queue:
+            return None
+        if not self.session.retract_last_user_message(text):
+            return None
+        return text
+
     def follow_up(self, user_input: UserInputPayload) -> int:
         """Queue a user message to run after the active task completes."""
 

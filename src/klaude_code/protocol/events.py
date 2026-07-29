@@ -453,6 +453,17 @@ class InterruptEvent(Event):
     show_notice: bool = True
 
 
+class UserMessageRetractedEvent(Event):
+    """The interrupted turn's user message was withdrawn from history.
+
+    Emitted after ``InterruptEvent`` when the turn produced no visible output
+    and the interrupting frontend restores ``content`` into its input box.
+    Displays hide the retracted turn (the TUI repaints from its event tape).
+    """
+
+    content: str
+
+
 class EndEvent(Event):
     """Global display shutdown."""
 

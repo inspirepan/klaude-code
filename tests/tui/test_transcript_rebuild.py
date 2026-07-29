@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from klaude_code.control.event_tape import EventTape
+from klaude_code.control.event_tape import EventTape, apply_retractions
 from klaude_code.protocol import events, llm_param
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.machine import DisplayStateMachine
@@ -97,6 +97,56 @@ def test_tape_flattens_replay_history() -> None:
 
     kinds = [type(item).__name__ for item in tape.snapshot()]
     assert kinds == ["WelcomeEvent", "UserMessageEvent", "TaskStartEvent"]
+
+
+# ---------------------------------------------------------------------------
+# apply_retractions: render-time view with retracted turns hidden
+# ---------------------------------------------------------------------------
+
+
+def test_apply_retractions_hides_the_whole_retracted_turn() -> None:
+    items: list[events.Event] = [
+        _welcome("s1"),
+        events.UserMessageEvent(session_id="s1", content="answered"),
+        events.AssistantTextDeltaEvent(session_id="s1", content="reply"),
+        events.UserMessageEvent(session_id="s1", content="retract me"),
+        events.TaskStartEvent(session_id="s1", model_id="test-model"),
+        events.ThinkingDeltaEvent(session_id="s1", content="pondering"),
+        events.InterruptEvent(session_id="s1", show_notice=False),
+        events.UserMessageRetractedEvent(session_id="s1", content="retract me"),
+        events.TaskFinishEvent(session_id="s1", task_result="task cancelled"),
+    ]
+
+    kinds = [type(item).__name__ for item in apply_retractions(items)]
+    assert kinds == [
+        "WelcomeEvent",
+        "UserMessageEvent",
+        "AssistantTextDeltaEvent",
+        "TaskFinishEvent",
+    ]
+
+
+def test_apply_retractions_targets_the_nearest_matching_message() -> None:
+    items: list[events.Event] = [
+        events.UserMessageEvent(session_id="s1", content="same text"),
+        events.AssistantTextDeltaEvent(session_id="s1", content="answered"),
+        events.UserMessageEvent(session_id="s1", content="same text"),
+        events.UserMessageRetractedEvent(session_id="s1", content="same text"),
+    ]
+
+    filtered = apply_retractions(items)
+    kinds = [type(item).__name__ for item in filtered]
+    assert kinds == ["UserMessageEvent", "AssistantTextDeltaEvent"]
+
+
+def test_apply_retractions_without_anchor_hides_nothing() -> None:
+    items: list[events.Event] = [
+        events.UserMessageEvent(session_id="s1", content="still here"),
+        events.UserMessageRetractedEvent(session_id="s1", content="never on tape"),
+    ]
+
+    kinds = [type(item).__name__ for item in apply_retractions(items)]
+    assert kinds == ["UserMessageEvent"]
 
 
 # ---------------------------------------------------------------------------
@@ -244,5 +294,36 @@ def test_toggle_back_to_compact_hides_thinking_again(monkeypatch: Any) -> None:
         await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id=sid)))
         assert display.transcript_detail is Detail.COMPACT
         assert "deep secret thought" not in writes[-1][0]
+
+    asyncio.run(_test())
+
+
+def test_retraction_repaints_without_the_withdrawn_turn(monkeypatch: Any) -> None:
+    async def _test() -> None:
+        writes = patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        sid = "s1"
+
+        await display.consume_envelope(make_envelope(_welcome(sid)))
+        await display.consume_envelope(make_envelope(events.UserMessageEvent(session_id=sid, content="answered")))
+        await display.consume_envelope(
+            make_envelope(events.AssistantTextDeltaEvent(session_id=sid, content="reply.\n\n"))
+        )
+        await display.consume_envelope(make_envelope(events.UserMessageEvent(session_id=sid, content="retract me")))
+        await display.consume_envelope(make_envelope(events.TaskStartEvent(session_id=sid, model_id="test-model")))
+        await display.consume_envelope(make_envelope(events.InterruptEvent(session_id=sid, show_notice=False)))
+
+        await display.consume_envelope(
+            make_envelope(events.UserMessageRetractedEvent(session_id=sid, content="retract me"))
+        )
+
+        payload, clear_screen = writes[-1]
+        assert clear_screen is True
+        assert "retract me" not in payload
+        assert "answered" in payload
+
+        # The marker stays on the tape, so later rebuilds keep hiding the turn.
+        await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id=sid)))
+        assert "retract me" not in writes[-1][0]
 
     asyncio.run(_test())

@@ -28,6 +28,32 @@ _MERGEABLE_DELTA_TYPES = (
 )
 
 
+def apply_retractions(items: list[events.Event]) -> list[events.Event]:
+    """Project a tape snapshot with retracted turns hidden.
+
+    A ``UserMessageRetractedEvent`` hides its whole turn: the nearest
+    preceding ``UserMessageEvent`` with matching content and everything
+    recorded after it (thinking stream, interrupt, partial metadata) up to
+    the marker itself. The tape stays a faithful record of consumption; this
+    is a render-time view applied before every rebuild. A marker whose
+    anchor is missing (mismatched content or tape cleared by a session
+    switch) hides nothing.
+    """
+    result: list[events.Event] = []
+    for event in items:
+        if not isinstance(event, events.UserMessageRetractedEvent):
+            result.append(event)
+            continue
+        for idx in range(len(result) - 1, -1, -1):
+            item = result[idx]
+            if not isinstance(item, events.UserMessageEvent):
+                continue
+            if item.session_id == event.session_id and item.content == event.content:
+                del result[idx:]
+            break
+    return result
+
+
 class EventTape:
     """Append-only event recording with delta coalescing and session scoping."""
 

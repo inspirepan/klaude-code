@@ -703,7 +703,12 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         interrupt_task: asyncio.Task[None] | None = None
 
         async def _submit_interrupt(target_session_id: str) -> None:
-            await components.runtime.submit_and_wait(op.InterruptOperation(session_id=target_session_id))
+            # The TUI restores the interrupted text as the next prompt's
+            # prefill, so an unanswered message can be withdrawn from history
+            # without losing it.
+            await components.runtime.submit_and_wait(
+                op.InterruptOperation(session_id=target_session_id, retract_unanswered_input=True)
+            )
 
         def _start_interrupt_once() -> None:
             nonlocal interrupt_requested, interrupt_task, interrupt_in_flight

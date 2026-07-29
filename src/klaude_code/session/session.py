@@ -352,6 +352,32 @@ class Session(BaseModel):
         self._user_messages_cache = None
         return entry
 
+    def retract_last_user_message(self, text: str) -> bool:
+        """Withdraw the most recent user message from active history.
+
+        Storage stays append-only: the message is removed in memory and a
+        ``RetractEntry`` marker is persisted; loading replays the marker via
+        ``rebuild_loaded_history``. ``text`` must match the message exactly —
+        a mismatch means the anchor drifted (e.g. a queued follow-up landed)
+        and retracting would lose the wrong message, so nothing happens.
+        """
+        for idx in range(len(self.conversation_history) - 1, -1, -1):
+            item = self.conversation_history[idx]
+            if not isinstance(item, message.UserMessage):
+                continue
+            if message.join_text_parts(item.parts) != text:
+                return False
+            del self.conversation_history[idx]
+            self._invalidate_messages_count_cache()
+            self._user_messages_cache = None
+            # append_history rebuilds the meta snapshot (user_messages, counts)
+            # from the already-trimmed history and resets _last_request_usage —
+            # the retraction changes the prompt prefix, so the next request is
+            # an expected cache miss, not a cache-break to warn about.
+            self.append_history([message.RetractEntry(retracted_text=text)])
+            return True
+        return False
+
     @staticmethod
     def _strip_dangling_tool_calls(items: list[message.HistoryEvent]) -> list[message.HistoryEvent]:
         """Patch dangling tool_call parts that have no matching ToolResultMessage.
@@ -513,6 +539,7 @@ class Session(BaseModel):
                 message.CompactionEntry,
                 message.InterruptEntry,
                 message.RewindEntry,
+                message.RetractEntry,
             ),
         )
 
@@ -750,6 +777,10 @@ class Session(BaseModel):
                         show_notice=interrupt.show_notice,
                         timestamp=msg_ts,
                     )
+                case message.RetractEntry():
+                    # Already applied by rebuild_loaded_history (or the live
+                    # retraction); the withdrawn turn renders as if never sent.
+                    pass
                 case message.RewindEntry() as be:
                     yield events.RewindEvent(
                         session_id=self.id,

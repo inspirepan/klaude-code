@@ -248,6 +248,11 @@ class InterruptOperation(Operation):
 
     type: OperationType = OperationType.INTERRUPT
     session_id: str
+    # Withdraw the interrupted user message from history when the turn
+    # produced no visible output. Only frontends that restore the text into
+    # their input box (TUI Esc) should set this — otherwise the message would
+    # silently vanish.
+    retract_unanswered_input: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""
