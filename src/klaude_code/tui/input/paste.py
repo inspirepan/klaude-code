@@ -1,4 +1,4 @@
-"""Fold large multi-line pastes into a short marker.
+"""Save large pastes to session files and insert short editor markers.
 
 prompt_toolkit already parses terminal bracketed paste mode and exposes the
 pasted payload via a `<bracketed-paste>` key event.
@@ -7,8 +7,7 @@ We keep the editor buffer small by inserting a marker like:
 - `[paste #3 +42 lines]`  (when many lines)
 - `[paste #3 1205 chars]` (when very long)
 
-On submit, markers are expanded back to the original pasted content.
-Large pastes can optionally be saved to files in the session directory.
+On submit, each marker becomes a short model-facing reference to the saved file.
 """
 
 from __future__ import annotations
@@ -16,6 +15,8 @@ from __future__ import annotations
 import re
 import secrets
 from pathlib import Path
+
+from klaude_code.prompts.attachments import PASTE_REFERENCE_TEMPLATE
 
 _PASTE_MARKER_RE = re.compile(r"\[paste #(?P<id>\d+)(?: (?P<meta>\+\d+ lines|\d+ chars))?\]")
 
@@ -43,9 +44,13 @@ def save_paste_to_file(text: str, session_dir: Path) -> Path | None:
 class PasteBufferState:
     def __init__(self) -> None:
         self._next_id = 1
-        self._pastes: dict[int, str] = {}
+        self._paste_files: dict[int, Path] = {}
 
-    def store(self, text: str) -> str:
+    def store(self, text: str, session_dir: Path) -> str | None:
+        file_path = save_paste_to_file(text, session_dir)
+        if file_path is None:
+            return None
+
         paste_id = self._next_id
         self._next_id += 1
 
@@ -53,12 +58,12 @@ class PasteBufferState:
         line_count = max(1, len(lines))
         total_chars = len(text)
 
-        if line_count > 10:
+        if line_count >= PASTE_FILE_THRESHOLD_LINES:
             marker = f"[paste #{paste_id} +{line_count} lines]"
         else:
             marker = f"[paste #{paste_id} {total_chars} chars]"
 
-        self._pastes[paste_id] = text
+        self._paste_files[paste_id] = file_path.resolve()
         return marker
 
     def expand_markers(self, text: str, *, consume: bool = True) -> str:
@@ -70,62 +75,25 @@ class PasteBufferState:
             except (TypeError, ValueError):
                 return m.group(0)
 
-            content = self._pastes.get(paste_id)
-            if content is None:
+            file_path = self._paste_files.get(paste_id)
+            if file_path is None:
                 return m.group(0)
 
             used.add(paste_id)
-            return f"\n{content}\n"
+            return f"\n{PASTE_REFERENCE_TEMPLATE.format(path=file_path)}\n"
 
         out = _PASTE_MARKER_RE.sub(_replace, text)
         if consume:
             for pid in used:
-                self._pastes.pop(pid, None)
+                self._paste_files.pop(pid, None)
         return out
-
-    def expand_markers_with_file_save(self, text: str, session_dir: Path) -> tuple[str, dict[str, str]]:
-        """Expand paste markers, saving large pastes to files.
-
-        Large pastes are wrapped in ``<pasteN>`` XML tags and saved to session
-        directory files.  Returns (expanded_text, {tag_name: file_path}).
-        """
-        pasted_files: dict[str, str] = {}
-        tag_counter = len(pasted_files)
-        used: set[int] = set()
-
-        def _replace(m: re.Match[str]) -> str:
-            nonlocal tag_counter
-            try:
-                paste_id = int(m.group("id"))
-            except (TypeError, ValueError):
-                return m.group(0)
-
-            content = self._pastes.get(paste_id)
-            if content is None:
-                return m.group(0)
-
-            used.add(paste_id)
-
-            file_path = save_paste_to_file(content, session_dir)
-            if file_path is not None:
-                tag_counter += 1
-                tag = f"paste{tag_counter}"
-                pasted_files[tag] = str(file_path)
-                return f"\n<{tag}>\n{content}\n</{tag}>\n"
-
-            return f"\n{content}\n"
-
-        out = _PASTE_MARKER_RE.sub(_replace, text)
-        for pid in used:
-            self._pastes.pop(pid, None)
-        return out, pasted_files
 
 
 paste_state = PasteBufferState()
 
 
-def store_paste(text: str) -> str:
-    return paste_state.store(text)
+def store_paste(text: str, session_dir: Path) -> str | None:
+    return paste_state.store(text, session_dir)
 
 
 def expand_paste_markers(text: str) -> str:
@@ -134,7 +102,3 @@ def expand_paste_markers(text: str) -> str:
 
 def expand_paste_markers_for_history(text: str) -> str:
     return paste_state.expand_markers(text, consume=False)
-
-
-def expand_paste_markers_with_file_save(text: str, session_dir: Path) -> tuple[str, dict[str, str]]:
-    return paste_state.expand_markers_with_file_save(text, session_dir)

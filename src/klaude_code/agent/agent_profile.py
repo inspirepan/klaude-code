@@ -12,7 +12,6 @@ from klaude_code.agent.attachments.files import (
     at_file_reader_attachment,
     file_changed_externally_attachment,
     image_attachment,
-    paste_file_attachment,
 )
 from klaude_code.agent.attachments.memory import last_path_memory_attachment, memory_attachment
 from klaude_code.agent.attachments.skills import (
@@ -130,7 +129,6 @@ def load_agent_attachments(
         last_path_memory_attachment,
         last_path_skill_attachment,
         image_attachment,
-        paste_file_attachment,
         skill_attachment,
     ]
     return attachments

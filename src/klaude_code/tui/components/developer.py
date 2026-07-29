@@ -8,7 +8,6 @@ from klaude_code.protocol.models import (
     AtFileOpsUIItem,
     ExternalFileChangesUIItem,
     MemoryLoadedUIItem,
-    PasteFilesUIItem,
     SkillActivatedUIItem,
     SkillDiscoveredUIItem,
     SkillListingUIItem,
@@ -155,18 +154,6 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                 case AtFileImagesUIItem():
                     # Image display is handled by renderer.display_developer_message
                     pass
-                case PasteFilesUIItem() as item:
-                    grid = create_grid()
-                    count = len(item.tags)
-                    grid.add_row(
-                        Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
-                        Text(
-                            f"Saved {count} paste{'s' if count > 1 else ''} to file",
-                            style=ThemeKey.ATTACHMENT,
-                        ),
-                    )
-                    parts.append(grid)
-
     if available_skill_names:
         parts.append(_render_available_skills(available_skill_names, incremental=available_skills_incremental))
 

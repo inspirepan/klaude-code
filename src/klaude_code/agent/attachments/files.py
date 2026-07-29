@@ -11,7 +11,6 @@ from klaude_code.prompts.attachments import (
     FILE_CHANGED_DIFF_SKIPPED_TEMPLATE,
     FILE_CHANGED_DIFF_TRUNCATED_TEMPLATE,
     FILE_CHANGED_EXTERNALLY_TEMPLATE,
-    PASTE_FILE_HINT_TEMPLATE,
     TOOL_RESULT_TEMPLATE,
 )
 from klaude_code.protocol import message, tools
@@ -25,7 +24,6 @@ from klaude_code.protocol.models import (
     ExternalFileChangesUIItem,
     MemoryFileLoaded,
     MemoryLoadedUIItem,
-    PasteFilesUIItem,
     UserImagesUIItem,
 )
 from klaude_code.session import Session
@@ -55,11 +53,6 @@ def _fmt_tool_result(tool_name: str, tool_args: str, output: str) -> str:
 
 def _fmt_file_changed_externally(file_path: str, file_content: str) -> str:
     return FILE_CHANGED_EXTERNALLY_TEMPLATE.format(file_path=file_path, file_content=file_content)
-
-
-def _fmt_paste_file_hint(pasted_files: dict[str, str]) -> str:
-    mapping = "\n".join(f"- <{tag}> saved to: {path}" for tag, path in pasted_files.items())
-    return PASTE_FILE_HINT_TEMPLATE.format(mapping=mapping)
 
 
 class AtFileRef:
@@ -390,27 +383,3 @@ async def image_attachment(session: Session) -> message.DeveloperMessage | None:
         parts=[],
         ui_extra=DeveloperUIExtra(items=[UserImagesUIItem(count=len(image_paths), paths=image_paths)]),
     )
-
-
-async def paste_file_attachment(session: Session) -> message.DeveloperMessage | None:
-    """Remind agent about paste files the user provided."""
-
-    for item in reversed(session.conversation_history):
-        if isinstance(item, message.ToolResultMessage):
-            return None
-        if (
-            isinstance(item, message.DeveloperMessage)
-            and item.ui_extra is not None
-            and any(isinstance(ui_item, PasteFilesUIItem) for ui_item in item.ui_extra.items)
-        ):
-            return None
-        if isinstance(item, message.UserMessage):
-            if not item.pasted_files:
-                return None
-            return message.DeveloperMessage(
-                parts=message.text_parts_from_str(
-                    f"<system-reminder>{_fmt_paste_file_hint(item.pasted_files)}\n</system-reminder>"
-                ),
-                ui_extra=DeveloperUIExtra(items=[PasteFilesUIItem(tags=item.pasted_files)]),
-            )
-    return None

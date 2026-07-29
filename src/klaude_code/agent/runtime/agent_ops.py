@@ -576,7 +576,6 @@ class AgentOperationHandler:
         return message.UserInputPayload(
             text=user_input.text,
             images=frozen_images,
-            pasted_files=user_input.pasted_files,
         )
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
@@ -596,7 +595,6 @@ class AgentOperationHandler:
                         frozen_input.text,
                         frozen_input.images,
                     ),
-                    pasted_files=frozen_input.pasted_files,
                 )
             ]
         )

@@ -72,6 +72,7 @@ def create_key_bindings(
     request_interrupt: Callable[[], None] | None = None,
     is_interrupt_available: Callable[[], bool] | None = None,
     request_toggle_transcript: Callable[[], None] | None = None,
+    get_session_dir: Callable[[], Path | None] | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
 
@@ -429,7 +430,7 @@ def create_key_bindings(
     def _(event: KeyPressEvent) -> None:
         """Handle bracketed paste.
 
-        - Large multi-line pastes are folded into a marker: `[paste #N ...]`.
+        - Large pastes are saved to a session file and folded into a marker.
         - Otherwise, try to convert dropped file URLs/paths into @ tokens or `[image ...]` markers.
         """
 
@@ -443,22 +444,19 @@ def create_key_bindings(
         # prompt_toolkit buffer.
         data = data.replace("\r\n", "\n").replace("\r", "\n").replace("\t", "    ")
 
-        pasted_lines = data.splitlines()
-        line_count = max(1, len(pasted_lines))
-        total_chars = len(data)
+        session_dir = get_session_dir() if get_session_dir is not None else None
+        marker: str | None = None
+        if session_dir is not None:
+            with contextlib.suppress(OSError):
+                marker = store_paste(data, session_dir)
 
-        should_fold = line_count > 10 or total_chars > 1000
-        if should_fold:
-            marker = store_paste(data)
-            if marker and not marker.endswith((" ", "\t", "\n")):
-                marker += " "
-            with contextlib.suppress(Exception):
-                event.current_buffer.insert_text(marker)  # pyright: ignore[reportUnknownMemberType]
-            return
-
-        converted = convert_dropped_text(data, cwd=Path.cwd())
-        if converted != data and converted and not converted.endswith((" ", "\t", "\n")):
-            converted += " "
+        if marker is not None:
+            data = marker + " "
+        else:
+            converted = convert_dropped_text(data, cwd=Path.cwd())
+            if converted != data and converted and not converted.endswith((" ", "\t", "\n")):
+                converted += " "
+            data = converted
 
         buf = event.current_buffer
         try:
@@ -468,7 +466,7 @@ def create_key_bindings(
             pass
 
         with contextlib.suppress(Exception):
-            buf.insert_text(converted)  # type: ignore[reportUnknownMemberType]
+            buf.insert_text(data)  # type: ignore[reportUnknownMemberType]
 
     @kb.add("escape", "enter", filter=enabled)
     def _(event: KeyPressEvent) -> None:

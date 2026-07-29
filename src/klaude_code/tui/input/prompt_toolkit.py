@@ -54,7 +54,6 @@ from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.input.paste import (
     expand_paste_markers,
     expand_paste_markers_for_history,
-    expand_paste_markers_with_file_save,
 )
 from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
 from klaude_code.tui.input.pt_theme import (
@@ -223,7 +222,7 @@ class PromptToolkitInput(InputProviderABC):
         self._request_refresh_transcript = request_refresh_transcript
         self._resize_watcher: ResizeWatcher | None = None
         self._next_prefill_text: str | None = None
-        self._session_dir: Path | None = None
+        self._session_dir_provider: Callable[[], Path | None] = lambda: None
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
         self._prompt_suggestion: str | None = None
@@ -299,8 +298,8 @@ class PromptToolkitInput(InputProviderABC):
         with contextlib.suppress(Exception):
             self._session.app.exit(exception=_PromptPaused())
 
-    def set_session_dir(self, session_dir: Path | None) -> None:
-        self._session_dir = session_dir
+    def set_session_dir_provider(self, provider: Callable[[], Path | None]) -> None:
+        self._session_dir_provider = provider
 
     def set_stream_lines(
         self,
@@ -434,6 +433,7 @@ class PromptToolkitInput(InputProviderABC):
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
             request_toggle_transcript=self._request_toggle_transcript,
+            get_session_dir=lambda: self._session_dir_provider(),
         )
 
         return PromptSession(
@@ -1090,14 +1090,8 @@ class PromptToolkitInput(InputProviderABC):
                 with contextlib.suppress(Exception):
                     self._post_prompt()
 
-            # Expand folded paste markers back into the original content.
-            # Save large pastes to files when session directory is available.
-            pasted_files: dict[str, str] | None = None
-            if self._session_dir is not None:
-                line, pasted_file_map = expand_paste_markers_with_file_save(line, self._session_dir)
-                pasted_files = pasted_file_map or None
-            else:
-                line = expand_paste_markers(line)
+            # Replace saved-paste markers with short file references.
+            line = expand_paste_markers(line)
 
             # Convert drag-and-drop file:// URIs that may have bypassed bracketed paste.
             line = convert_dropped_text(line, cwd=Path.cwd())
@@ -1108,7 +1102,6 @@ class PromptToolkitInput(InputProviderABC):
             yield UserInputPayload(
                 text=line,
                 images=images if images else None,
-                pasted_files=pasted_files,
                 queued_edit=queued_edit,
             )
 

@@ -124,10 +124,7 @@ FILE_CHANGED_DIFF_SKIPPED_TEMPLATE = (
     "{limit_bytes}-byte limit. Use the Read tool with offset/limit to inspect the current file at: {file_path}]"
 )
 
-PASTE_FILE_HINT_TEMPLATE = (
-    "The user's message contains pasted content wrapped in XML tags. "
-    "Each paste has been saved to a file for convenient editing:\n"
-    "{mapping}\n\n"
-    "When you need to execute the pasted content in Bash or write it into a code file, "
-    "use Bash commands (cp, mv, cat, etc.) to operate on the file directly instead of repeating it."
+PASTE_REFERENCE_TEMPLATE = (
+    "<system-reminder>The user pasted a large text block. It was saved to {path}. "
+    "Use the Read tool to inspect it.</system-reminder>"
 )

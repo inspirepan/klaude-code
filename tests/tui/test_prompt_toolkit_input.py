@@ -782,10 +782,15 @@ def test_external_input_pause_waits_until_resume() -> None:
     asyncio.run(_run())
 
 
-def test_paste_aware_history_stores_expanded_paste(tmp_path) -> None:
-    paste_text = "alpha\nbeta"
-    marker = store_paste(paste_text)
-    expected = f"prefix \n{paste_text}\n suffix"
+def test_paste_aware_history_stores_file_reference(tmp_path) -> None:
+    paste_text = "x" * 2000
+    marker = store_paste(paste_text, tmp_path)
+    assert marker is not None
+    paste_file = next((tmp_path / "paste-files").iterdir()).resolve()
+    expected = (
+        "prefix \n<system-reminder>The user pasted a large text block. "
+        f"It was saved to {paste_file}. Use the Read tool to inspect it.</system-reminder>\n suffix"
+    )
     history_path = tmp_path / "input_history.txt"
 
     history = _PasteAwareFileHistory(str(history_path))
@@ -794,4 +799,4 @@ def test_paste_aware_history_stores_expanded_paste(tmp_path) -> None:
     assert history.get_strings() == [expected]
     assert list(_PasteAwareFileHistory(str(history_path)).load_history_strings()) == [expected]
     assert marker not in history_path.read_text(encoding="utf-8")
-    assert expand_paste_markers(marker) == f"\n{paste_text}\n"
+    assert expand_paste_markers(marker) == expected.removeprefix("prefix ").removesuffix(" suffix")

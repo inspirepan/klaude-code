@@ -59,6 +59,7 @@ class AtFileImagesUIItem(BaseModel):
     paths: list[str]
 
 
+# Kept only so persisted events from older versions remain loadable.
 class PasteFilesUIItem(BaseModel):
     type: Literal["paste_files"] = "paste_files"
     tags: dict[str, str]
