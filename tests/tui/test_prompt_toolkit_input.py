@@ -37,6 +37,7 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._get_current_model_provider_name = lambda: "test-provider"
     prompt_input._get_current_model_effort = None
     prompt_input._next_prefill_text = None
+    prompt_input._resumed_buffer_text = None
     prompt_input._prompt_suggestion = None
     prompt_input._last_completion_panel_completions = ()
     prompt_input._last_completion_panel_selected_index = None
@@ -71,18 +72,54 @@ def test_set_next_prefill_stores_text() -> None:
     assert prompt_input._next_prefill_text == "retry me"
 
 
-def test_next_prefill_waits_until_idle_prompt() -> None:
+def test_next_prefill_is_dropped_when_a_turn_is_already_running() -> None:
     prompt_input: Any = _build_input("")
     prompt_input._agent_running = True
     prompt_input.set_next_prefill("retry me")
 
     assert prompt_input._take_next_prefill_text() is None
-    assert prompt_input._next_prefill_text == "retry me"
+    # Deferring it would resurface the interrupted text on a later prompt.
+    assert prompt_input._next_prefill_text is None
 
     prompt_input._agent_running = False
 
+    assert prompt_input._take_next_prefill_text() is None
+
+
+def test_next_prefill_is_dropped_when_user_already_typed() -> None:
+    prompt_input: Any = _build_input("my own draft")
+    prompt_input._prompt_active = True
+
+    prompt_input.set_next_prefill("interrupted message")
+
+    assert prompt_input._next_prefill_text is None
+    assert prompt_input._take_next_prefill_text() is None
+
+
+def test_next_prefill_applies_to_idle_empty_prompt() -> None:
+    prompt_input: Any = _build_input("")
+
+    prompt_input.set_next_prefill("retry me")
+
     assert prompt_input._take_next_prefill_text() == "retry me"
     assert prompt_input._next_prefill_text is None
+
+
+def test_paused_buffer_text_is_restored_while_agent_runs() -> None:
+    async def _run() -> None:
+        prompt_input: Any = _build_input("half-typed follow up")
+        prompt_input._agent_running = True
+        prompt_input._prompt_active = True
+
+        _resume = await prompt_input.pause_for_external_input()
+
+        assert prompt_input._resumed_buffer_text == "half-typed follow up"
+        # The user's own draft comes back even mid-turn, and it does not
+        # consume the interrupt prefill slot.
+        assert prompt_input._take_resumed_buffer_text() == "half-typed follow up"
+        assert prompt_input._resumed_buffer_text is None
+
+    asyncio.run(_run())
 
 
 def test_placeholder_shows_paste_image_hint_with_prompt_suggestion() -> None:

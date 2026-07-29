@@ -222,6 +222,7 @@ class PromptToolkitInput(InputProviderABC):
         self._request_refresh_transcript = request_refresh_transcript
         self._resize_watcher: ResizeWatcher | None = None
         self._next_prefill_text: str | None = None
+        self._resumed_buffer_text: str | None = None
         self._session_dir_provider: Callable[[], Path | None] = lambda: None
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
@@ -294,6 +295,11 @@ class PromptToolkitInput(InputProviderABC):
             return
         with contextlib.suppress(Exception):
             if self._session.default_buffer.text:
+                # The user is already typing something else (Esc interrupts
+                # regardless of buffer content). Overwriting it would be worse
+                # than dropping the prefill, and holding the prefill back would
+                # resurface the interrupted text on some later prompt.
+                self._next_prefill_text = None
                 return
         with contextlib.suppress(Exception):
             self._session.app.exit(exception=_PromptPaused())
@@ -374,7 +380,7 @@ class PromptToolkitInput(InputProviderABC):
         self._prompt_pause_waiter = waiter
         with contextlib.suppress(Exception):
             text = self._session.default_buffer.text
-            self._next_prefill_text = text or None
+            self._resumed_buffer_text = text or None
         try:
             self._session.app.exit(exception=_PromptPaused())
         except Exception:
@@ -555,11 +561,27 @@ class PromptToolkitInput(InputProviderABC):
     def _is_agent_running(self) -> bool:
         return self._agent_running
 
+    def _take_resumed_buffer_text(self) -> str | None:
+        """Pop text saved when the prompt was paused for a modal selector.
+
+        This is the user's own unsent input, so it is restored unconditionally —
+        including while the agent runs, where the prompt accepts queued input.
+        """
+        text = self._resumed_buffer_text
+        self._resumed_buffer_text = None
+        return text
+
     def _take_next_prefill_text(self) -> str | None:
-        if self._is_agent_running():
-            return None
+        """Pop the interrupted turn's text, dropping it if it cannot be used now.
+
+        A prefill that misses its prompt is discarded rather than deferred: a
+        turn is running again, so restoring the text would turn it into a queued
+        message, and keeping it around would resurface it on a later prompt.
+        """
         text = self._next_prefill_text
         self._next_prefill_text = None
+        if self._is_agent_running():
+            return None
         return text
 
     def _get_prompt_message(self) -> FormattedText:
@@ -1061,7 +1083,11 @@ class PromptToolkitInput(InputProviderABC):
             queued_edit = False
             try:
                 self._prompt_active = True
-                default_text = self._take_next_prefill_text()
+                # Take both so neither can linger into a later prompt; the
+                # user's own restored text wins over an interrupt prefill.
+                resumed_text = self._take_resumed_buffer_text()
+                prefill_text = self._take_next_prefill_text()
+                default_text = resumed_text or prefill_text
                 if default_text is None:
                     line = await self._session.prompt_async(message=self._get_prompt_message)
                 else:
