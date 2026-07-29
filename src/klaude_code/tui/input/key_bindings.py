@@ -687,6 +687,11 @@ def create_key_bindings(
 
         event.current_buffer.insert_text("\n")
 
+    @kb.add("c-u", filter=enabled, eager=True)
+    def _(event: KeyPressEvent) -> None:
+        """Clear the entire input buffer."""
+        event.current_buffer.reset()
+
     # Some IME/terminal combinations occasionally emit spurious forward-delete
     # keypresses (e.g. Ctrl-D) while composing/switching input methods.
     # In our REPL, Ctrl-D is primarily useful for EOF on an empty buffer;
