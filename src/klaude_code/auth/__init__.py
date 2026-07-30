@@ -18,6 +18,15 @@ from klaude_code.auth.env import (
     list_auth_env,
     set_auth_env,
 )
+from klaude_code.auth.xai import (
+    XaiAuthState,
+    XaiDeviceCode,
+    XaiNotLoggedInError,
+    XaiOAuth,
+    XaiOAuthError,
+    XaiTokenExpiredError,
+    XaiTokenManager,
+)
 
 __all__ = [
     "CodexAuthError",
@@ -27,6 +36,13 @@ __all__ = [
     "CodexOAuthError",
     "CodexTokenExpiredError",
     "CodexTokenManager",
+    "XaiAuthState",
+    "XaiDeviceCode",
+    "XaiNotLoggedInError",
+    "XaiOAuth",
+    "XaiOAuthError",
+    "XaiTokenExpiredError",
+    "XaiTokenManager",
     "delete_auth_env",
     "get_auth_env",
     "list_auth_env",

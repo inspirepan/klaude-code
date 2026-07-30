@@ -17,6 +17,10 @@ def _get_oauth_auth_state(provider_name: str) -> tuple[bool, bool]:
                 from klaude_code.auth.codex.token_manager import CodexTokenManager
 
                 state = CodexTokenManager().get_state()
+            case "xai":
+                from klaude_code.auth.xai.token_manager import XaiTokenManager
+
+                state = XaiTokenManager().get_state()
             case _:
                 return False, False
         if state is None:
@@ -179,6 +183,14 @@ def select_provider(
                 title=_oauth_title("ChatGPT Codex Subscription", "codex"),
                 value="codex",
                 search_text="codex",
+            )
+        )
+    if not configured_only or _get_oauth_auth_state("xai")[0]:
+        items.append(
+            SelectItem(
+                title=_oauth_title("xAI Grok Subscription", "xai"),
+                value="xai",
+                search_text="xai grok grok-build",
             )
         )
     if configured_only:

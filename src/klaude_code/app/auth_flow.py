@@ -172,6 +172,30 @@ def execute_login(provider: str, account_name: str | None = None) -> None:
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
+        case "xai" | "grok" | "grok-build" | "grok_build":
+            from klaude_code.auth.xai.oauth import XaiDeviceCode, XaiOAuth
+            from klaude_code.auth.xai.token_manager import XaiTokenManager
+
+            token_manager = XaiTokenManager()
+            state = token_manager.get_state()
+            if state and not state.is_expired():
+                log(("You are already logged in to xAI Grok OAuth.", "green"))
+                log(f"  Expires: {_format_utc_timestamp(state.expires_at)}")
+                if not typer.confirm("Do you want to re-login?"):
+                    return
+
+            def notify(device: XaiDeviceCode) -> None:
+                log("Starting xAI Grok OAuth login flow...")
+                log(f"  Verification URL: {device.verification_url}")
+                log(f"  User code: {device.user_code}")
+
+            try:
+                state = XaiOAuth(token_manager).login(notifier=notify)
+                log(("xAI Grok OAuth login successful!", "green"))
+                log(f"  Expires: {_format_utc_timestamp(state.expires_at)}")
+            except Exception as e:
+                log((f"Login failed: {e}", "red"))
+                raise typer.Exit(1) from None
         case "aws-bedrock" | "aws_bedrock" | "bedrock":
             _configure_aws_bedrock()
         case "google-vertex" | "google_vertex" | "vertex":
@@ -246,6 +270,16 @@ def execute_logout(provider: str, account_name: str | None = None, *, all_accoun
                 log((f"Logged out from Codex account '{target}'.", "green"))
                 if active:
                     log(f"  Active account: {active}")
+        case "xai" | "grok" | "grok-build" | "grok_build":
+            from klaude_code.auth.xai.token_manager import XaiTokenManager
+
+            token_manager = XaiTokenManager()
+            if not token_manager.is_logged_in():
+                log("You are not logged in to xAI Grok OAuth.")
+                return
+            if typer.confirm("Are you sure you want to logout from xAI Grok OAuth?"):
+                token_manager.delete()
+                log(("Logged out from xAI Grok OAuth.", "green"))
         case "github-copilot" | "copilot":
             from klaude_code.auth.removed_provider import delete_removed_github_copilot_auth_state
 

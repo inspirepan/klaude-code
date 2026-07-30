@@ -30,3 +30,22 @@ def test_logout_selector_shows_removed_github_copilot_cleanup(tmp_path: Path, mo
     assert [item.value for item in selected_items] == ["github-copilot"]
     title_text = "".join(text for _style, text in selected_items[0].title)
     assert "cleanup only" in title_text
+
+
+def test_selector_includes_xai_and_filters_unconfigured(monkeypatch: pytest.MonkeyPatch) -> None:
+    selected_items: list[SelectItem[str]] = []
+
+    def _select_one(*, items: list[SelectItem[str]], **_: Any) -> str | None:
+        selected_items.extend(items)
+        return None
+
+    monkeypatch.setattr(auth_selector, "select_one", _select_one)
+    monkeypatch.setattr(
+        auth_selector,
+        "_get_oauth_auth_state",
+        lambda provider: (provider == "xai", False),
+    )
+
+    auth_selector.select_provider(include_api_keys=False, configured_only=True)
+
+    assert [item.value for item in selected_items] == ["xai"]

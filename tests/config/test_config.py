@@ -479,6 +479,25 @@ class TestConfig:
         assert llm_config.protocol == llm_param.LLMClientProtocol.CODEX_OAUTH
         assert llm_config.api_key is None
 
+    def test_get_model_config_xai_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from klaude_code.auth.xai.token_manager import XaiAuthState, XaiTokenManager
+
+        monkeypatch.setattr(
+            XaiTokenManager,
+            "get_state",
+            lambda _self: XaiAuthState(access_token="access", refresh_token="refresh", expires_at=4102444800),
+        )
+        provider = ProviderConfig(
+            provider_name="xai",
+            protocol=llm_param.LLMClientProtocol.XAI_OAUTH,
+            model_list=[ModelConfig(model_name="grok-build", model_id="grok-build-0.1")],
+        )
+
+        llm_config = Config(provider_list=[provider], main_model="grok-build").get_model_config("grok-build")
+
+        assert llm_config.protocol == llm_param.LLMClientProtocol.XAI_OAUTH
+        assert llm_config.api_key is None
+
     @pytest.mark.parametrize("provider_name", ["github-copilot", "copilot"])
     def test_removed_github_copilot_provider_name_is_rejected(self, provider_name: str) -> None:
         with pytest.raises(ValueError, match="GitHub Copilot provider support has been removed"):

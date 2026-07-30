@@ -413,24 +413,29 @@ class ResponsesClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
         self._is_volces_base_url = bool(config.base_url and "volces.com" in config.base_url.lower())
+        self.client = self._create_client(config)
+
+    def _create_client(self, config: llm_param.LLMConfigParameter) -> AsyncAzureOpenAI | AsyncOpenAI:
+        """Create the provider SDK client."""
         if config.is_azure:
             if not config.base_url:
                 raise ValueError("Azure endpoint is required")
-            client = AsyncAzureOpenAI(
+            return AsyncAzureOpenAI(
                 api_key=config.api_key,
                 azure_endpoint=str(config.base_url),
                 api_version=config.azure_api_version,
                 default_headers={"User-Agent": _OPENAI_USER_AGENT},
                 timeout=create_http_timeout(),
             )
-        else:
-            client = AsyncOpenAI(
-                api_key=config.api_key,
-                base_url=config.base_url,
-                default_headers={"User-Agent": _OPENAI_USER_AGENT},
-                timeout=create_http_timeout(),
-            )
-        self.client: AsyncAzureOpenAI | AsyncOpenAI = client
+        return AsyncOpenAI(
+            api_key=config.api_key,
+            base_url=config.base_url,
+            default_headers={"User-Agent": _OPENAI_USER_AGENT},
+            timeout=create_http_timeout(),
+        )
+
+    def _build_payload(self, param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase:
+        return build_payload(param, is_volces_base_url=self._is_volces_base_url)
 
     @classmethod
     @override
@@ -444,7 +449,7 @@ class ResponsesClient(LLMClientABC):
         metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
 
         # Payload building re-encodes history images; keep it off the event loop.
-        payload = await asyncio.to_thread(build_payload, param, is_volces_base_url=self._is_volces_base_url)
+        payload = await asyncio.to_thread(self._build_payload, param)
 
         log_debug(
             lambda: json.dumps(payload, ensure_ascii=False, default=str),

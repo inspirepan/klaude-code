@@ -9,6 +9,8 @@ import pytest
 from klaude_code.app import auth_flow
 from klaude_code.auth import base as auth_base
 from klaude_code.auth.codex.token_manager import CodexAuthState
+from klaude_code.auth.xai.oauth import XaiDeviceCode
+from klaude_code.auth.xai.token_manager import XaiAuthState
 
 
 class _FakeCodexTokenManager:
@@ -101,6 +103,60 @@ def test_execute_codex_login_prompts_for_new_account_name(monkeypatch: pytest.Mo
 
     assert _FakeCodexTokenManager.created_names == [None, "new"]
     assert login_calls == ["new"]
+
+
+def test_execute_xai_login_displays_device_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    logs: list[Any] = []
+
+    class _TokenManager:
+        def get_state(self) -> None:
+            return None
+
+    class _OAuth:
+        def __init__(self, _manager: _TokenManager):
+            pass
+
+        def login(self, notifier: Any) -> XaiAuthState:
+            notifier(
+                XaiDeviceCode(
+                    device_code="device",
+                    user_code="USER-CODE",
+                    verification_uri="https://auth.x.ai/verify",
+                    verification_uri_complete=None,
+                    expires_in=300,
+                    interval=5,
+                )
+            )
+            return XaiAuthState(access_token="access", refresh_token="refresh", expires_at=4102444800)
+
+    monkeypatch.setattr("klaude_code.auth.xai.token_manager.XaiTokenManager", _TokenManager)
+    monkeypatch.setattr("klaude_code.auth.xai.oauth.XaiOAuth", _OAuth)
+    monkeypatch.setattr(auth_flow, "log", lambda message: logs.append(message))
+
+    auth_flow.execute_login("grok-build")
+
+    assert "  Verification URL: https://auth.x.ai/verify" in logs
+    assert "  User code: USER-CODE" in logs
+    assert ("xAI Grok OAuth login successful!", "green") in logs
+
+
+def test_execute_xai_logout_deletes_credentials(monkeypatch: pytest.MonkeyPatch) -> None:
+    deleted: list[bool] = []
+
+    class _TokenManager:
+        def is_logged_in(self) -> bool:
+            return True
+
+        def delete(self) -> None:
+            deleted.append(True)
+
+    monkeypatch.setattr("klaude_code.auth.xai.token_manager.XaiTokenManager", _TokenManager)
+    monkeypatch.setattr(auth_flow.typer, "confirm", lambda _prompt: True)
+    monkeypatch.setattr(auth_flow, "log", lambda _message: None)
+
+    auth_flow.execute_logout("xai")
+
+    assert deleted == [True]
 
 
 def test_execute_logout_github_copilot_cleans_legacy_auth_state(

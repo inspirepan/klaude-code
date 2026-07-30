@@ -253,7 +253,7 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
     def is_api_key_missing(self) -> bool:
         """Check if the API key is missing (either not set or env var not found).
 
-        For codex protocol, checks OAuth login status instead of API key.
+        For OAuth protocols, checks OAuth login status instead of API key.
         For bedrock protocol, checks AWS credentials instead of API key.
         For google_vertex protocol, checks Vertex credentials instead of API key.
         """
@@ -267,6 +267,11 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
             state = token_manager.get_state()
             # Consider available if logged in. Token refresh happens on-demand.
             return state is None
+
+        if self.protocol == LLMClientProtocol.XAI_OAUTH:
+            from klaude_code.auth.xai.token_manager import XaiTokenManager
+
+            return XaiTokenManager().get_state() is None
 
         if self.protocol == LLMClientProtocol.BEDROCK:
             # Bedrock uses AWS credentials, not API key. Region is always required.

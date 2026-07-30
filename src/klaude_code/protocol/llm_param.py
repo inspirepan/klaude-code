@@ -14,6 +14,7 @@ class LLMClientProtocol(Enum):
     ANTHROPIC = "anthropic"
     BEDROCK = "bedrock"
     CODEX_OAUTH = "codex_oauth"
+    XAI_OAUTH = "xai_oauth"
     GOOGLE = "google"
     GOOGLE_VERTEX = "google_vertex"
 
