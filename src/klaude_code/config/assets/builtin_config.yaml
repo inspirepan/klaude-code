@@ -599,69 +599,12 @@ provider_list:
   azure_api_version: v1
   model_list:
 
-  - model_name: gpt-5.6-sol
-    model_alias: [ gpt-5.6 ]
-    model_id: gpt-5.6-sol
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: concise
-    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: gpt-5.6-sol:max
-    model_alias: [ gpt-5.6:max ]
-    model_id: gpt-5.6-sol
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: max
-      reasoning_summary: concise
-    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: gpt-5.6-sol:pro:max
-    model_alias: [ gpt-5.6:pro:max ]
-    model_id: gpt-5.6-sol
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: max
-      reasoning_mode: pro
-      reasoning_summary: concise
-    cost: { input: 5, output: 30, cache_read: 0.5, cache_write: 6.25 }
-
-  - model_name: gpt-5.6-terra
-    model_id: gpt-5.6-terra
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: concise
-    cost: { input: 2, output: 12, cache_read: 0.2, cache_write: 2.5 }
-
-  - model_name: gpt-5.6-luna
-    model_id: gpt-5.6-luna
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: low
-      reasoning_summary: concise
-    cost: { input: 0.2, output: 1.2, cache_read: 0.02, cache_write: 0.25 }
-
-  - model_name: gpt-5.6-luna:max
-    model_id: gpt-5.6-luna
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: max
-      reasoning_summary: concise
-    cost: { input: 0.2, output: 1.2, cache_read: 0.02, cache_write: 0.25 }
+  - *gpt56sol
+  - *gpt56sol_max
+  - *gpt56sol_pro_max
+  - *gpt56terra
+  - *gpt56luna
+  - *gpt56luna_max
 
 # ######################################## google ########################################
 - provider_name: google
