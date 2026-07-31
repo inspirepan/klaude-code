@@ -73,7 +73,7 @@ def create_key_bindings(
     request_interrupt: Callable[[], None] | None = None,
     is_interrupt_available: Callable[[], bool] | None = None,
     request_toggle_transcript: Callable[[], None] | None = None,
-    get_session_dir: Callable[[], Path | None] | None = None,
+    paste_dir: Path | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
 
@@ -433,7 +433,7 @@ def create_key_bindings(
     def _(event: KeyPressEvent) -> None:
         """Handle bracketed paste.
 
-        - Large pastes are saved to a session file and folded into a marker.
+        - Large pastes are saved to a temporary file and folded into a marker.
         - Otherwise, try to convert dropped file URLs/paths into @ tokens or `[image ...]` markers.
         """
 
@@ -447,11 +447,9 @@ def create_key_bindings(
         # prompt_toolkit buffer.
         data = data.replace("\r\n", "\n").replace("\r", "\n").replace("\t", "    ")
 
-        session_dir = get_session_dir() if get_session_dir is not None else None
         marker: str | None = None
-        if session_dir is not None:
-            with contextlib.suppress(OSError):
-                marker = store_paste(data, session_dir)
+        with contextlib.suppress(OSError):
+            marker = store_paste(data, paste_dir)
 
         if marker is not None:
             data = marker + " "

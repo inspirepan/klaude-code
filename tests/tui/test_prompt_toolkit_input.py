@@ -861,7 +861,7 @@ def test_paste_aware_history_stores_file_reference(tmp_path) -> None:
     paste_text = "x" * 2000
     marker = store_paste(paste_text, tmp_path)
     assert marker is not None
-    paste_file = next((tmp_path / "paste-files").iterdir()).resolve()
+    paste_file = next(path for path in tmp_path.iterdir() if path.name.startswith("paste-")).resolve()
     expected = (
         "prefix \n<system-reminder>The user pasted a large text block. "
         f"It was saved to {paste_file}. Use the Read tool to inspect it.</system-reminder>\n suffix"

@@ -240,7 +240,6 @@ class PromptToolkitInput(InputProviderABC):
         self._resize_watcher: ResizeWatcher | None = None
         self._next_prefill_text: str | None = None
         self._resumed_buffer_text: str | None = None
-        self._session_dir_provider: Callable[[], Path | None] = lambda: None
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
         self._prompt_suggestion: str | None = None
@@ -320,9 +319,6 @@ class PromptToolkitInput(InputProviderABC):
                 return
         with contextlib.suppress(Exception):
             self._session.app.exit(exception=_PromptPaused())
-
-    def set_session_dir_provider(self, provider: Callable[[], Path | None]) -> None:
-        self._session_dir_provider = provider
 
     def set_stream_lines(
         self,
@@ -457,7 +453,6 @@ class PromptToolkitInput(InputProviderABC):
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
             request_toggle_transcript=self._request_toggle_transcript,
-            get_session_dir=lambda: self._session_dir_provider(),
         )
 
         return PromptSession(

@@ -941,14 +941,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             is_new_session=session_id is None,
         )
 
-        def _current_session_dir() -> Path | None:
-            current_agent = components.runtime.current_agent
-            if current_agent is None or not hasattr(current_agent, "session"):
-                return None
-            current_session = current_agent.session
-            return Session.paths(current_session.work_dir).session_dir(current_session.id)
-
-        input_provider.set_session_dir_provider(_current_session_dir)
         _refresh_pending_messages()
 
         startup_task = asyncio.create_task(_load_context_after_prompt_start())

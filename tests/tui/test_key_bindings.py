@@ -50,7 +50,7 @@ def test_large_bracketed_paste_saves_file_and_inserts_marker(tmp_path: Path) -> 
         capture_clipboard_tag=lambda: None,
         at_token_pattern=re.compile(r"$^"),
         skill_token_pattern=re.compile(r"$^"),
-        get_session_dir=lambda: tmp_path,
+        paste_dir=tmp_path,
     )
     buffer = Buffer()
     text = "x" * 2000
@@ -60,7 +60,7 @@ def test_large_bracketed_paste_saves_file_and_inserts_marker(tmp_path: Path) -> 
     binding.handler(event)
 
     assert re.fullmatch(r"\[paste #\d+ 2000 chars\] ", buffer.text)
-    paste_file = next((tmp_path / "paste-files").iterdir())
+    paste_file = next(tmp_path.iterdir())
     assert paste_file.read_text(encoding="utf-8") == text
 
 
@@ -69,7 +69,7 @@ def test_small_bracketed_paste_stays_inline(tmp_path: Path) -> None:
         capture_clipboard_tag=lambda: None,
         at_token_pattern=re.compile(r"$^"),
         skill_token_pattern=re.compile(r"$^"),
-        get_session_dir=lambda: tmp_path,
+        paste_dir=tmp_path,
     )
     buffer = Buffer()
 
@@ -78,7 +78,7 @@ def test_small_bracketed_paste_stays_inline(tmp_path: Path) -> None:
     binding.handler(event)
 
     assert buffer.text == "alpha\nbeta"
-    assert not (tmp_path / "paste-files").exists()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_tab_toggles_btw_prefix_while_agent_runs() -> None:

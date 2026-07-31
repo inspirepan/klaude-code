@@ -93,9 +93,6 @@ class _FakePromptToolkitInput:
     def set_next_prefill(self, text: str | None) -> None:
         self.prefills.append(text)
 
-    def set_session_dir_provider(self, provider: Any) -> None:
-        del provider
-
     def set_stream_lines(
         self,
         lines: tuple[str, ...],

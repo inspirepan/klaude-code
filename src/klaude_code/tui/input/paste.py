@@ -1,4 +1,4 @@
-"""Save large pastes to session files and insert short editor markers.
+"""Save large pastes to temporary files and insert short editor markers.
 
 prompt_toolkit already parses terminal bracketed paste mode and exposes the
 pasted payload via a `<bracketed-paste>` key event.
@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import re
 import secrets
+import time
 from pathlib import Path
 
 from klaude_code.prompts.attachments import PASTE_REFERENCE_TEMPLATE
@@ -22,9 +23,24 @@ _PASTE_MARKER_RE = re.compile(r"\[paste #(?P<id>\d+)(?: (?P<meta>\+\d+ lines|\d+
 
 PASTE_FILE_THRESHOLD_LINES = 20
 PASTE_FILE_THRESHOLD_CHARS = 2000
+PASTE_FILE_RETENTION_SECONDS = 7 * 24 * 60 * 60
 
 
-def save_paste_to_file(text: str, session_dir: Path) -> Path | None:
+def _default_paste_dir() -> Path:
+    return Path.home() / ".klaude" / "tmp"
+
+
+def _prune_stale_paste_files(paste_dir: Path) -> None:
+    cutoff = time.time() - PASTE_FILE_RETENTION_SECONDS
+    for file_path in paste_dir.glob("paste-*.txt"):
+        try:
+            if file_path.stat().st_mtime < cutoff:
+                file_path.unlink()
+        except OSError:
+            continue
+
+
+def save_paste_to_file(text: str, paste_dir: Path | None = None) -> Path | None:
     """Save paste content to a file if it exceeds size thresholds.
 
     Returns the file path if saved, None if content is below threshold.
@@ -33,8 +49,9 @@ def save_paste_to_file(text: str, session_dir: Path) -> Path | None:
     if len(lines) < PASTE_FILE_THRESHOLD_LINES and len(text) < PASTE_FILE_THRESHOLD_CHARS:
         return None
 
-    paste_dir = session_dir / "paste-files"
-    paste_dir.mkdir(parents=True, exist_ok=True)
+    paste_dir = paste_dir or _default_paste_dir()
+    paste_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
+    _prune_stale_paste_files(paste_dir)
 
     file_path = paste_dir / f"paste-{secrets.token_hex(6)}.txt"
     file_path.write_text(text, encoding="utf-8")
@@ -46,8 +63,8 @@ class PasteBufferState:
         self._next_id = 1
         self._paste_files: dict[int, Path] = {}
 
-    def store(self, text: str, session_dir: Path) -> str | None:
-        file_path = save_paste_to_file(text, session_dir)
+    def store(self, text: str, paste_dir: Path | None = None) -> str | None:
+        file_path = save_paste_to_file(text, paste_dir)
         if file_path is None:
             return None
 
@@ -92,8 +109,8 @@ class PasteBufferState:
 paste_state = PasteBufferState()
 
 
-def store_paste(text: str, session_dir: Path) -> str | None:
-    return paste_state.store(text, session_dir)
+def store_paste(text: str, paste_dir: Path | None = None) -> str | None:
+    return paste_state.store(text, paste_dir)
 
 
 def expand_paste_markers(text: str) -> str:
