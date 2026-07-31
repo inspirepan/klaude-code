@@ -692,6 +692,15 @@ provider_list:
       type: enabled
     cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
 
+  - model_name: deepseek-flash:max
+    model_alias: [ v4-flash:max ]
+    model_id: deepseek-v4-flash
+    context_limit: 1000000
+    effort: max
+    thinking:
+      type: enabled
+    cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
+
   - model_name: deepseek
     model_alias: [ deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high ]
     model_id: deepseek-v4-pro
@@ -1194,7 +1203,6 @@ sub_agent_models:
   - haiku
   code-reviewer:
   - gpt-5.6-sol:max
-  - fable
   - opus
   code-maintenance-reviewer:
   - gpt-5.6-sol:max
