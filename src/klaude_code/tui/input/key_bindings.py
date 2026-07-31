@@ -706,6 +706,12 @@ def create_key_bindings(
 
     @kb.add("c-u", filter=enabled, eager=True)
     def _(event: KeyPressEvent) -> None:
+        """Delete from the cursor to the start of the current logical line."""
+        line_before_cursor = event.current_buffer.document.current_line_before_cursor
+        event.current_buffer.delete_before_cursor(count=len(line_before_cursor))
+
+    @kb.add("c-x", filter=enabled, eager=True)
+    def _(event: KeyPressEvent) -> None:
         """Clear the entire input buffer."""
         event.current_buffer.reset()
 

@@ -13,15 +13,31 @@ from prompt_toolkit.keys import Keys
 from klaude_code.tui.input.key_bindings import create_key_bindings
 
 
-def test_ctrl_u_clears_entire_input_buffer() -> None:
+def test_ctrl_u_clears_to_start_of_current_logical_line() -> None:
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
         at_token_pattern=re.compile(r"$^"),
         skill_token_pattern=re.compile(r"$^"),
     )
-    buffer = Buffer(document=Document("first\nsecond", cursor_position=3))
+    buffer = Buffer(document=Document("first line\nsecond line", cursor_position=18))
 
     binding = bindings.get_bindings_for_keys((Keys.ControlU,))[-1]
+    event = cast(KeyPressEvent, SimpleNamespace(current_buffer=buffer))
+    binding.handler(event)
+
+    assert buffer.text == "first line\nline"
+    assert buffer.cursor_position == 11
+
+
+def test_ctrl_x_clears_entire_input_buffer() -> None:
+    bindings = create_key_bindings(
+        capture_clipboard_tag=lambda: None,
+        at_token_pattern=re.compile(r"$^"),
+        skill_token_pattern=re.compile(r"$^"),
+    )
+    buffer = Buffer(document=Document("first\nsecond", cursor_position=9))
+
+    binding = bindings.get_bindings_for_keys((Keys.ControlX,))[-1]
     event = cast(KeyPressEvent, SimpleNamespace(current_buffer=buffer))
     binding.handler(event)
 
