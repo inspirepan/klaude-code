@@ -299,6 +299,7 @@ def test_fork_context_model_override_updates_child_session_metadata(
         profile_provider = _TestProfileProvider()
         parent_session = Session(work_dir=tmp_path)
         parent_session.model_name = "main-model"
+        parent_session.prompt_cache_key = "parent-cache-lineage"
         parent_agent = Agent(
             session=parent_session,
             profile=AgentProfile(
@@ -345,6 +346,8 @@ def test_fork_context_model_override_updates_child_session_metadata(
         child_tool_names = {schema.name for schema in child_tools}
         assert child_session.model_name == "gpt-4.1"
         assert child_session.model_config_name == "override-model"
+        assert child_session.prompt_cache_key == "parent-cache-lineage"
+        assert override_client.call_params[0].prompt_cache_key == "parent-cache-lineage"
         assert tools.APPLY_PATCH in child_tool_names
         assert tools.EDIT not in child_tool_names
         assert tools.WRITE not in child_tool_names
