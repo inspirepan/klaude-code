@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
+import klaude_code.agent.side_question as side_question_module
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.side_question import SideQuestionError, run_side_question
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.prompts.side_question import SIDE_QUESTION_PROMPT
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import Usage
 from klaude_code.session.session import Session
@@ -77,7 +77,10 @@ def _session(tmp_path: Path) -> Session:
     return session
 
 
-def test_side_question_forks_the_parent_prefix_and_leaves_history_alone(tmp_path: Path) -> None:
+def test_side_question_forks_the_parent_prefix_and_leaves_history_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(side_question_module, "SIDE_QUESTION_PROMPT", "SIDE_SENTINEL:{question}:END")
     client = _CapturingClient([message.AssistantMessage(parts=message.text_parts_from_str(" because X. "))])
     session = _session(tmp_path)
     history_before = list(session.conversation_history)
@@ -102,7 +105,7 @@ def test_side_question_forks_the_parent_prefix_and_leaves_history_alone(tmp_path
     assert len(call.input) == len(prefix) + 1
     appended = call.input[-1]
     assert isinstance(appended, message.UserMessage)
-    assert message.join_text_parts(appended.parts) == SIDE_QUESTION_PROMPT.format(question="why is this cached?")
+    assert message.join_text_parts(appended.parts) == "SIDE_SENTINEL:why is this cached?:END"
 
 
 def test_side_question_reports_the_normalized_cache_hit_rate(tmp_path: Path) -> None:

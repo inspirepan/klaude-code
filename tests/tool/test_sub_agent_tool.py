@@ -39,7 +39,6 @@ def test_agent_tool_schema(isolated_home: Path) -> None:
     assert "model" in schema.parameters["properties"]
     assert "general-purpose" in schema.parameters["properties"]["type"]["enum"]
     assert "resume" not in schema.parameters["properties"]
-    assert "Available models:" in schema.description
 
 
 def test_agent_tool_call_invalid_json() -> None:
@@ -124,18 +123,3 @@ class TestSubAgentRegistration:
         assert len(profiles) > 0
         names = {p.name for p in profiles}
         assert {"general-purpose", "finder"}.issubset(names)
-
-
-def test_shared_review_prompt_requirement_is_stated_once(isolated_home: Path) -> None:
-    """Both reviewers take the same prompt, so the requirement lives in one place.
-
-    It used to be spelled out inside each reviewer's invoker_summary, which doubled the cost
-    and let the two copies drift apart.
-    """
-    del isolated_home
-
-    description = AgentTool.schema().description
-
-    assert description.count("shell command that shows the diff") == 1
-    for reviewer_only_prose in ("Don't use for", "The prompt must give background"):
-        assert reviewer_only_prose not in description

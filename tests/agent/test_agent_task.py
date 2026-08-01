@@ -18,7 +18,6 @@ from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExe
 from klaude_code.config.config import ModelConfigCandidate
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.usage import MetadataTracker, error_stream_items
-from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import TaskMetadataItem, Usage
 from klaude_code.session.session import Session
@@ -1001,6 +1000,7 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
 
 def test_empty_response_triggers_retry_error_event(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Empty model responses emit a retryable ErrorEvent before retrying."""
+    monkeypatch.setattr(task_module, "EMPTY_RESPONSE_CONTINUATION_PROMPT", "RETRY_SENTINEL")
     project_dir = tmp_path / "project"
     project_dir.mkdir()
 
@@ -1022,11 +1022,10 @@ def test_empty_response_triggers_retry_error_event(tmp_path: Path, monkeypatch: 
         assert error_events[0].can_retry is True
         assert error_events[0].error_message == "Empty response from model, retrying 1/3"
 
-        assert harness.get_user_texts() == [
-            "try again",
-            EMPTY_RESPONSE_CONTINUATION_PROMPT,
-        ]
-        assert "[DONE]" not in EMPTY_RESPONSE_CONTINUATION_PROMPT
+        user_texts = harness.get_user_texts()
+        assert len(user_texts) == 2
+        assert user_texts[0] == "try again"
+        assert user_texts[1] == "RETRY_SENTINEL"
         assert "recovered" in harness.get_assistant_texts()
 
     arun(_test())

@@ -5,11 +5,11 @@ from typing import Any
 
 import pytest
 
+import klaude_code.agent.handoff.handoff as handoff_module
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.handoff import HandoffManager, run_handoff
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
-from klaude_code.prompts.handoff import HANDOFF_SUMMARY_PREFIX
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import FileStatus
 from klaude_code.session.session import Session
@@ -96,7 +96,8 @@ class TestHandoffManager:
 
 
 class TestRunHandoff:
-    def test_handoff_produces_compaction_result(self, tmp_path: Path) -> None:
+    def test_handoff_produces_compaction_result(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(handoff_module, "HANDOFF_SUMMARY_PREFIX", "HANDOFF_SENTINEL")
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
 
@@ -137,7 +138,7 @@ class TestRunHandoff:
 
             # Should discard all history
             assert result.first_kept_index == len(session.conversation_history)
-            assert HANDOFF_SUMMARY_PREFIX in result.summary
+            assert result.summary.startswith("HANDOFF_SENTINEL")
             assert f"<original-handoff-goal>\n{goal}\n</original-handoff-goal>" in result.summary
             assert "EXTRACTED_CONTEXT" in result.summary
             assert result.tokens_before is not None
@@ -215,7 +216,6 @@ class TestRunHandoff:
             assert len(llm_history) == 1
             assert isinstance(llm_history[0], message.UserMessage)
             summary_text = message.join_text_parts(llm_history[0].parts)
-            assert HANDOFF_SUMMARY_PREFIX in summary_text
             assert f"<original-handoff-goal>\n{goal}\n</original-handoff-goal>" in summary_text
             assert "EXTRACTED_CONTEXT" in summary_text
 

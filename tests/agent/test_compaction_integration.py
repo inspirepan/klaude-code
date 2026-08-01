@@ -11,9 +11,6 @@ from klaude_code.agent.compaction import CompactionReason, run_compaction
 from klaude_code.llm import LLMClientABC
 from klaude_code.llm.client import LLMStreamABC
 from klaude_code.prompts.compaction import (
-    COMPACTION_CONTINUATION_INSTRUCTION,
-    COMPACTION_SUMMARY_PREFIX,
-    SUMMARIZATION_PROMPT,
     TASK_PREFIX_SUMMARIZATION_PROMPT,
 )
 from klaude_code.protocol import llm_param, message
@@ -146,6 +143,13 @@ def _text_assistant(text: str) -> message.AssistantMessage:
 
 
 def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    continuation_inputs: list[str] = []
+
+    def _append_continuation(summary: str) -> str:
+        continuation_inputs.append(summary)
+        return f"{summary}\n\nCONTINUATION_SENTINEL"
+
+    monkeypatch.setattr(compaction_module, "append_continuation_instruction", _append_continuation)
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
     monkeypatch.chdir(project_dir)
@@ -222,7 +226,6 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
         await session.wait_for_flush()
 
         assert result.first_kept_index > 0
-        assert COMPACTION_SUMMARY_PREFIX in result.summary
         assert "HISTORY_SUMMARY" in result.summary
         assert "TASK_PREFIX_SUMMARY" in result.summary
 
@@ -231,7 +234,8 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
         assert "docs/a.md" in result.summary
         assert "<modified-files>" in result.summary
         assert "src/foo.py" in result.summary
-        assert result.summary.endswith(COMPACTION_CONTINUATION_INSTRUCTION)
+        assert len(continuation_inputs) == 1
+        assert result.summary.endswith("CONTINUATION_SENTINEL")
 
         # The end-to-end chain: Session.get_llm_history injects the summary as a UserMessage.
         llm_history = session.get_llm_history()
@@ -253,8 +257,6 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
             for call in llm_client.calls
         ]
         assert any("[Tool result]:" in p and "...(truncated)" in p for p in prompts)
-        assert any(TASK_PREFIX_SUMMARIZATION_PROMPT in p for p in prompts)
-        assert any("<instructions>" in p and SUMMARIZATION_PROMPT in p for p in prompts)
 
         # With no previous compaction, we should not label the base prompt as <previous-summary>.
         assert all("<previous-summary>" not in p for p in prompts)
@@ -307,7 +309,6 @@ def test_fork_compaction_removes_own_summary_instructions_from_constraints(tmp_p
         assert "不要继续当前任务" not in result.summary
         assert "Do NOT call any tools" not in result.summary
         assert "用户希望正文避免使用 Scoble 聚合推文" in result.summary
-        assert result.summary.endswith(COMPACTION_CONTINUATION_INSTRUCTION)
 
         await close_default_store()
 

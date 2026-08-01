@@ -5,7 +5,6 @@ import pytest
 from klaude_code.const import ANTHROPIC_BETA_CONTEXT_MANAGEMENT
 from klaude_code.llm.bedrock_anthropic import client as bedrock_client_module
 from klaude_code.llm.bedrock_anthropic.client import BedrockClient, build_bedrock_request
-from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
 from klaude_code.protocol import llm_param, message
 
 
@@ -37,7 +36,8 @@ def test_bedrock_client_reports_missing_optional_dependencies(monkeypatch: pytes
         BedrockClient.create(config)
 
 
-def test_bedrock_request_uses_converse_fields_for_opus_47() -> None:
+def test_bedrock_request_uses_converse_fields_for_opus_47(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(bedrock_client_module, "CLAUDE_CODE_IDENTITY", "IDENTITY_SENTINEL")
     param = llm_param.LLMCallParameter(
         input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
         model_id="global.anthropic.claude-opus-4-7",
@@ -59,10 +59,8 @@ def test_bedrock_request_uses_converse_fields_for_opus_47() -> None:
         "anthropic_beta": [ANTHROPIC_BETA_CONTEXT_MANAGEMENT],
         "output_config": {"effort": "xhigh"},
     }
-    assert request["system"][:2] == [
-        {"text": CLAUDE_CODE_IDENTITY},
-        {"cachePoint": {"type": "default"}},
-    ]
+    assert request["system"][0] == {"text": "IDENTITY_SENTINEL"}
+    assert request["system"][1] == {"cachePoint": {"type": "default"}}
     assert "context_management" not in request
 
 

@@ -1,7 +1,9 @@
 import asyncio
 from typing import Any, cast
 
-from klaude_code.prompts.grilling import GRILLING_PROMPT
+import pytest
+
+import klaude_code.tui.command.grill_me_cmd as grill_me_module
 from klaude_code.protocol import message, op
 from klaude_code.tui.command.command_abc import Agent
 from klaude_code.tui.command.grill_me_cmd import GrillMeCommand
@@ -16,7 +18,8 @@ class _DummyAgent:
         raise NotImplementedError
 
 
-def test_grill_me_command_starts_interview_for_current_context() -> None:
+def test_grill_me_command_starts_interview_for_current_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(grill_me_module, "GRILLING_PROMPT", "GRILL_SENTINEL")
     command = GrillMeCommand()
 
     result = asyncio.run(command.run(cast(Agent, _DummyAgent()), message.UserInputPayload(text="")))
@@ -28,10 +31,11 @@ def test_grill_me_command_starts_interview_for_current_context() -> None:
     operation = result.operations[0]
     assert isinstance(operation, op.RunAgentOperation)
     assert operation.session_id == "session-1"
-    assert operation.input.text == GRILLING_PROMPT
+    assert operation.input.text == "GRILL_SENTINEL"
 
 
-def test_grill_me_command_appends_supplied_topic() -> None:
+def test_grill_me_command_appends_supplied_topic(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(grill_me_module, "GRILLING_PROMPT", "GRILL_SENTINEL")
     command = GrillMeCommand()
 
     result = asyncio.run(
@@ -41,4 +45,5 @@ def test_grill_me_command_appends_supplied_topic() -> None:
     assert result.operations is not None
     operation = result.operations[0]
     assert isinstance(operation, op.RunAgentOperation)
-    assert operation.input.text == f"{GRILLING_PROMPT}\n\nTopic to grill me about:\nwhether to rewrite the parser"
+    assert operation.input.text.startswith("GRILL_SENTINEL")
+    assert operation.input.text.endswith("whether to rewrite the parser")

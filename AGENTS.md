@@ -42,7 +42,6 @@ cli > tui/web > app > agent > tool/control > skill > session > config > llm > pr
 Anything the model reads is context budget, so it is written once, in one place:
 
 - Guidance about a single tool belongs in that tool's own description, not the system prompt.
-  `tests/agent/test_system_prompt.py` asserts specific phrases stay out of the system prompt.
 - Cross-tool orchestration (which tool to reach for, what to do after a result) belongs in
   `build_dynamic_tool_strategy_prompt`.
 - Prefer expressing a constraint in the tool schema (enums, required fields, parameter

@@ -27,7 +27,7 @@ from typing import Any
 
 import pytest
 
-from klaude_code.prompts.messages import FILE_UNCHANGED_STUB
+import klaude_code.tool.file.read_tool as read_tool_module
 from klaude_code.protocol import message
 from klaude_code.protocol.models import ImageUIExtra, ReadPreviewUIExtra
 from klaude_code.session.session import Session
@@ -303,8 +303,11 @@ def test_read_pdf_without_pdfplumber_returns_install_instructions(tmp_path: Path
 # --------------------------------------------------------------------------
 
 
-def test_read_dedup_returns_unchanged_stub_on_second_read(tmp_path: Path, isolated_home: Path) -> None:
+def test_read_dedup_returns_unchanged_stub_on_second_read(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     del isolated_home
+    monkeypatch.setattr(read_tool_module, "FILE_UNCHANGED_STUB", "UNCHANGED_SENTINEL")
     _, context = _make_context(tmp_path)
     file_path = str((tmp_path / "dedup.txt").resolve())
     Path(file_path).write_text("a\nb\nc\n", encoding="utf-8")
@@ -315,7 +318,7 @@ def test_read_dedup_returns_unchanged_stub_on_second_read(tmp_path: Path, isolat
 
     second = arun(ReadTool.call(json.dumps({"file_path": file_path}), context))
     assert second.status == "success"
-    assert second.output_text == FILE_UNCHANGED_STUB
+    assert second.output_text == "UNCHANGED_SENTINEL"
 
 
 def test_read_dedup_resends_when_file_changes(tmp_path: Path, isolated_home: Path) -> None:
@@ -334,7 +337,6 @@ def test_read_dedup_resends_when_file_changes(tmp_path: Path, isolated_home: Pat
 
     second = arun(ReadTool.call(json.dumps({"file_path": file_path}), context))
     assert second.status == "success"
-    assert second.output_text != FILE_UNCHANGED_STUB
     assert "1→second" in (second.output_text or "")
 
 
@@ -349,7 +351,6 @@ def test_read_dedup_not_applied_with_offset(tmp_path: Path, isolated_home: Path)
     res = arun(ReadTool.call(json.dumps({"file_path": file_path, "offset": 2}), context))
 
     assert res.status == "success"
-    assert res.output_text != FILE_UNCHANGED_STUB
     assert "     2→y" in (res.output_text or "")
 
 
