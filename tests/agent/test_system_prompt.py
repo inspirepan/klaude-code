@@ -51,10 +51,12 @@ def test_load_main_base_prompt_routes_gpt5_to_gpt_prompt() -> None:
     assert "Pragmatism and Scope" in gpt_prompt
     assert "Autonomy and Persistence" in gpt_prompt
     assert "## Response Channels" in gpt_prompt
+    assert "state user-visible outcomes before key technical changes" in gpt_prompt
 
     default_prompt = load_main_base_prompt("claude-opus-4.7")
     assert "Pragmatism and Scope" not in default_prompt
     assert "## Response Channels" not in default_prompt
+    assert "state user-visible outcomes before key technical changes" in default_prompt
 
 
 def test_gpt5_prompt_includes_response_channels_from_base(tmp_path: Path) -> None:
