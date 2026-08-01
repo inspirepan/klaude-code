@@ -1,5 +1,6 @@
 import asyncio
 import shutil
+from collections.abc import Sequence
 
 from prompt_toolkit.utils import get_cwidth
 
@@ -73,7 +74,7 @@ class CopyCommand(CommandABC):
         return _command_output(agent, f"Copied {label} to clipboard.")
 
 
-def _build_copy_items(history: list[message.HistoryEvent]) -> list[SelectItem[int]]:
+def _build_copy_items(history: Sequence[message.HistoryEvent]) -> list[SelectItem[int]]:
     entries = [
         (history_index, text, isinstance(history[history_index], message.SideQuestionEntry))
         for history_index in range(len(history) - 1, -1, -1)
