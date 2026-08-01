@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import urllib.request
@@ -31,6 +32,13 @@ INSTALL_KIND_DIRECT_URL = "direct_url"
 INSTALL_KIND_LOCAL = "local"
 INSTALL_KIND_EDITABLE = "editable"
 
+# Where "latest" came from. Local git checkouts track the upstream branch
+# directly so they pick up commits that were never released to PyPI.
+UPDATE_SOURCE_PYPI = "pypi"
+UPDATE_SOURCE_GIT = "git"
+
+UPGRADE_BRANCH = "main"
+
 
 class InstallationInfo(NamedTuple):
     """Current package installation metadata."""
@@ -47,6 +55,7 @@ class VersionInfo(NamedTuple):
     latest: str | None
     update_available: bool
     install_kind: str = INSTALL_KIND_UNKNOWN
+    update_source: str = UPDATE_SOURCE_PYPI
 
 
 class PersistedUpdateInfo(NamedTuple):
@@ -55,6 +64,7 @@ class PersistedUpdateInfo(NamedTuple):
     latest: str | None
     update_available: bool
     install_kind: str = INSTALL_KIND_UNKNOWN
+    update_source: str = UPDATE_SOURCE_PYPI
 
 
 class StartupUpdateSummary(NamedTuple):
@@ -217,11 +227,95 @@ def _compare_versions(installed: str, latest: str) -> bool:
         return False
 
 
+GIT_QUERY_TIMEOUT = 15
+GIT_FETCH_TIMEOUT = 60
+
+
+def _run_git(repo: str, args: list[str], timeout: int) -> subprocess.CompletedProcess[str] | None:
+    """Run a git command inside ``repo``; return None when git is unusable."""
+
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    try:
+        return subprocess.run(
+            ["git", "-C", repo, *args],
+            capture_output=True,
+            text=True,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            env=env,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _git_output(repo: str, args: list[str], timeout: int = GIT_QUERY_TIMEOUT) -> str | None:
+    result = _run_git(repo, args, timeout)
+    if result is None or result.returncode != 0:
+        return None
+    return result.stdout.strip()
+
+
+def _fetch_git_version_info(install_info: InstallationInfo, source_path: str) -> VersionInfo | None:
+    """Compare the local checkout against ``origin/main``.
+
+    Returns None when the source path is not a usable git clone, so the caller
+    can fall back to the PyPI comparison.
+    """
+
+    repo_path = Path(source_path).expanduser()
+    if not repo_path.is_dir() or shutil.which("git") is None:
+        return None
+
+    repo = str(repo_path)
+    if _git_output(repo, ["rev-parse", "--git-dir"]) is None:
+        return None
+
+    remote_ref = f"origin/{UPGRADE_BRANCH}"
+    fetch = _run_git(repo, ["fetch", "--quiet", "origin", UPGRADE_BRANCH], GIT_FETCH_TIMEOUT)
+    if fetch is None or fetch.returncode != 0:
+        # Offline or no `origin`: fall back to whatever was fetched previously.
+        pass
+
+    latest_sha = _git_output(repo, ["rev-parse", "--short", remote_ref])
+    if latest_sha is None:
+        return None
+
+    head_sha = _git_output(repo, ["rev-parse", "--short", "HEAD"])
+    behind_raw = _git_output(repo, ["rev-list", "--count", f"HEAD..{remote_ref}"])
+    try:
+        behind = int(behind_raw) if behind_raw else 0
+    except ValueError:
+        behind = 0
+
+    version = install_info.version or "unknown"
+    installed = f"{version} ({head_sha})" if head_sha else version
+
+    return VersionInfo(
+        installed=installed,
+        latest=latest_sha,
+        update_available=behind > 0,
+        install_kind=install_info.install_kind,
+        update_source=UPDATE_SOURCE_GIT,
+    )
+
+
 def _fetch_version_info() -> VersionInfo | None:
     if not _has_uv():
         return None
 
     install_info = get_installation_info()
+
+    # Local checkouts track git, not PyPI: the user cloned the source precisely
+    # so they can run commits that predate a release.
+    if install_info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
+        source_path = get_install_source_path()
+        if source_path is not None:
+            git_info = _fetch_git_version_info(install_info, source_path)
+            if git_info is not None:
+                return git_info
+
     installed = install_info.version or _get_installed_version()
     latest = _get_latest_version()
 
@@ -234,6 +328,7 @@ def _fetch_version_info() -> VersionInfo | None:
         latest=latest,
         update_available=update_available,
         install_kind=install_info.install_kind,
+        update_source=UPDATE_SOURCE_PYPI,
     )
 
 
@@ -251,6 +346,7 @@ def write_persisted_update_info(info: PersistedUpdateInfo) -> None:
         "latest": info.latest,
         "update_available": info.update_available,
         "install_kind": info.install_kind,
+        "update_source": info.update_source,
     }
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -274,6 +370,7 @@ def _load_persisted_update_info() -> PersistedUpdateInfo | None:
     latest = data.get("latest")
     update_available = data.get("update_available")
     install_kind = data.get("install_kind", INSTALL_KIND_UNKNOWN)
+    update_source = data.get("update_source", UPDATE_SOURCE_PYPI)
 
     if not isinstance(checked_at, (int, float)):
         return None
@@ -285,6 +382,8 @@ def _load_persisted_update_info() -> PersistedUpdateInfo | None:
         return None
     if not isinstance(install_kind, str):
         install_kind = INSTALL_KIND_UNKNOWN
+    if not isinstance(update_source, str):
+        update_source = UPDATE_SOURCE_PYPI
 
     return PersistedUpdateInfo(
         checked_at=float(checked_at),
@@ -292,6 +391,7 @@ def _load_persisted_update_info() -> PersistedUpdateInfo | None:
         latest=latest,
         update_available=update_available,
         install_kind=install_kind,
+        update_source=update_source,
     )
 
 
@@ -309,6 +409,7 @@ def persist_current_update_info() -> None:
                 latest=info.latest,
                 update_available=info.update_available,
                 install_kind=info.install_kind,
+                update_source=info.update_source,
             )
         )
     finally:
@@ -365,12 +466,24 @@ def _is_persisted_update_info_fresh(info: PersistedUpdateInfo) -> bool:
 
 
 def _build_update_message(
-    installed: str | None, latest: str | None, install_kind: str, *, update_available: bool
+    installed: str | None,
+    latest: str | None,
+    install_kind: str,
+    *,
+    update_available: bool,
+    update_source: str = UPDATE_SOURCE_PYPI,
 ) -> str | None:
     if not update_available or not latest:
         return None
 
     installed_display = installed or "unknown"
+
+    if update_source == UPDATE_SOURCE_GIT:
+        return (
+            f"origin/{UPGRADE_BRANCH} {latest} available. Current {installed_display}; "
+            "auto-upgrade applies on next start, or run `klaude upgrade`."
+        )
+
     if install_kind == INSTALL_KIND_EDITABLE:
         return (
             f"PyPI {latest} available. Current {installed_display} (editable install); "
@@ -404,6 +517,7 @@ def get_startup_update_summary() -> StartupUpdateSummary | None:
         persisted.latest,
         persisted.install_kind,
         update_available=persisted.update_available,
+        update_source=persisted.update_source,
     )
     if message is None:
         return None
@@ -427,7 +541,9 @@ def _invalidate_persisted_update_info() -> None:
 AUTO_UPGRADE_PYPI_TIMEOUT = 180  # uv tool upgrade, includes solve+download
 AUTO_UPGRADE_GIT_STATUS_TIMEOUT = 15
 AUTO_UPGRADE_GIT_PULL_TIMEOUT = 60
+AUTO_UPGRADE_SUBMODULE_TIMEOUT = 180
 AUTO_UPGRADE_UV_INSTALL_TIMEOUT = 180
+AUTO_UPGRADE_WEB_BUILD_TIMEOUT = 600  # npm install + vite build on a cold cache
 
 
 def _auto_upgrade_pypi() -> AutoUpgradeResult:
@@ -452,6 +568,41 @@ def _auto_upgrade_pypi() -> AutoUpgradeResult:
     return AutoUpgradeResult(True, None, None)
 
 
+def rebuild_web_assets(repo_path: Path) -> bool | None:
+    """Best-effort rebuild of the bundled web UI after pulling new sources.
+
+    ``src/klaude_code/web/dist`` is gitignored and generated, so a plain
+    ``git pull`` leaves the frontend stale. Returns None when there is nothing
+    to build, otherwise whether the build succeeded. Failures are non-fatal:
+    the Python package can still be reinstalled from the updated source.
+    """
+
+    from klaude_code.log import log_debug
+
+    build_script = repo_path / "scripts" / "build_web.py"
+    if not build_script.is_file() or not (repo_path / "web").is_dir():
+        return None
+
+    try:
+        # build_web.py only uses the standard library, so the tool interpreter
+        # is enough; it locates the repo root from its own __file__.
+        result = subprocess.run(
+            [sys.executable, str(build_script)],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=AUTO_UPGRADE_WEB_BUILD_TIMEOUT,
+        )
+    except (OSError, subprocess.SubprocessError) as err:
+        log_debug(f"Web rebuild failed: {err}")
+        return False
+
+    if result.returncode != 0:
+        log_debug(f"Web rebuild exited {result.returncode}: {result.stderr.strip()[-500:]}")
+        return False
+    return True
+
+
 def _auto_upgrade_local_git(install_kind: str, source_path: str) -> AutoUpgradeResult:
     repo_path = Path(source_path).expanduser()
     if not repo_path.exists() or not repo_path.is_dir():
@@ -464,18 +615,16 @@ def _auto_upgrade_local_git(install_kind: str, source_path: str) -> AutoUpgradeR
         return AutoUpgradeResult(False, None, "auto-upgrade skipped: `git` not found in PATH", "warn")
 
     source_display = str(repo_path)
-    try:
-        status = subprocess.run(
-            ["git", "-C", source_display, "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=AUTO_UPGRADE_GIT_STATUS_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        return AutoUpgradeResult(
-            False, None, f"auto-upgrade skipped: `git status` timed out at {source_display}", "warn"
-        )
+    # `--ignore-submodules=all` keeps a moved submodule pointer from looking
+    # like a local edit, which would otherwise wedge auto-upgrade permanently
+    # after the first pull that bumps the submodule.
+    status = _run_git(
+        source_display,
+        ["status", "--porcelain", "--ignore-submodules=all"],
+        AUTO_UPGRADE_GIT_STATUS_TIMEOUT,
+    )
+    if status is None:
+        return AutoUpgradeResult(False, None, f"auto-upgrade skipped: `git status` failed at {source_display}", "warn")
     if status.returncode != 0:
         return AutoUpgradeResult(False, None, f"auto-upgrade skipped: not a git repo at {source_display}", "warn")
     if status.stdout.strip():
@@ -486,22 +635,37 @@ def _auto_upgrade_local_git(install_kind: str, source_path: str) -> AutoUpgradeR
             "info",
         )
 
-    try:
-        pull = subprocess.run(
-            ["git", "-C", source_display, "pull", "--ff-only"],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=AUTO_UPGRADE_GIT_PULL_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
+    # Never move someone off their working branch behind their back; that is
+    # the manual `klaude upgrade` path's job.
+    branch = _git_output(source_display, ["rev-parse", "--abbrev-ref", "HEAD"])
+    if branch != UPGRADE_BRANCH:
         return AutoUpgradeResult(
-            False, None, f"auto-upgrade skipped: `git pull --ff-only` timed out at {source_display}", "warn"
+            False,
+            None,
+            f"auto-upgrade skipped: local checkout is on `{branch or 'detached HEAD'}`, not `{UPGRADE_BRANCH}`",
+            "info",
         )
-    if pull.returncode != 0:
+
+    pull = _run_git(source_display, ["pull", "--ff-only"], AUTO_UPGRADE_GIT_PULL_TIMEOUT)
+    if pull is None or pull.returncode != 0:
         return AutoUpgradeResult(
             False, None, f"auto-upgrade skipped: `git pull --ff-only` failed at {source_display}", "warn"
         )
+
+    submodule = _run_git(
+        source_display,
+        ["submodule", "update", "--init", "--recursive"],
+        AUTO_UPGRADE_SUBMODULE_TIMEOUT,
+    )
+    if submodule is None or submodule.returncode != 0:
+        return AutoUpgradeResult(
+            False,
+            None,
+            f"auto-upgrade failed: `git submodule update` failed at {source_display}",
+            "warn",
+        )
+
+    rebuild_web_assets(repo_path)
 
     install_args = ["uv", "tool", "install", "--force"]
     if install_kind == INSTALL_KIND_EDITABLE:
@@ -540,14 +704,24 @@ def perform_auto_upgrade_if_needed() -> AutoUpgradeResult:
     # Resolve install metadata from the current process, not the cache, so an
     # out-of-band install-method change does not steer us to the wrong branch.
     install_info = get_installation_info()
-    current_version = install_info.version
-    if current_version and not _compare_versions(current_version, persisted.latest):
-        return AutoUpgradeResult(False, None, None)
-
     install_kind = install_info.install_kind
+    is_local_kind = install_kind in {INSTALL_KIND_LOCAL, INSTALL_KIND_EDITABLE}
+
+    if persisted.update_source == UPDATE_SOURCE_GIT:
+        # `latest` is a commit sha here, so there is no version ordering to
+        # check; the recorded behind-count already answered the question.
+        if not is_local_kind:
+            # Install method changed out of band; let the next check re-resolve.
+            _invalidate_persisted_update_info()
+            return AutoUpgradeResult(False, None, None)
+    else:
+        current_version = install_info.version
+        if current_version and not _compare_versions(current_version, persisted.latest):
+            return AutoUpgradeResult(False, None, None)
+
     if install_kind == INSTALL_KIND_INDEX:
         result = _auto_upgrade_pypi()
-    elif install_kind in {INSTALL_KIND_LOCAL, INSTALL_KIND_EDITABLE}:
+    elif is_local_kind:
         source_path = get_install_source_path()
         if source_path is None:
             return AutoUpgradeResult(False, None, "auto-upgrade skipped: local install source path unavailable", "warn")
@@ -558,5 +732,9 @@ def perform_auto_upgrade_if_needed() -> AutoUpgradeResult:
 
     if result.performed:
         _invalidate_persisted_update_info()
-        return AutoUpgradeResult(True, persisted.latest, f"Auto-upgraded klaude-code to {persisted.latest}.", "info")
+        if persisted.update_source == UPDATE_SOURCE_GIT:
+            target = f"origin/{UPGRADE_BRANCH} {persisted.latest}"
+        else:
+            target = persisted.latest
+        return AutoUpgradeResult(True, persisted.latest, f"Auto-upgraded klaude-code to {target}.", "info")
     return result

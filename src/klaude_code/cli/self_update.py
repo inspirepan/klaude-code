@@ -43,8 +43,9 @@ def _upgrade_local_git_install(install_kind: str, source_path: str) -> None:
         raise typer.Exit(1)
 
     try:
+        # Ignore submodules entirely: a moved pointer is not a user edit.
         status_result = subprocess.run(
-            ["git", "-C", source_display, "status", "--porcelain"],
+            ["git", "-C", source_display, "status", "--porcelain", "--ignore-submodules=all"],
             capture_output=True,
             text=True,
             check=False,
@@ -77,6 +78,19 @@ def _upgrade_local_git_install(install_kind: str, source_path: str) -> None:
         log(("Error: `git pull --ff-only` failed.", "red"))
         raise typer.Exit(pull_result.returncode or 1)
 
+    log("Syncing git submodules…")
+    submodule_result = subprocess.run(
+        ["git", "-C", source_display, "submodule", "update", "--init", "--recursive"], check=False
+    )
+    if submodule_result.returncode != 0:
+        log(("Error: `git submodule update` failed; upgrade stopped before reinstall.", "red"))
+        raise typer.Exit(submodule_result.returncode or 1)
+
+    from klaude_code.update import rebuild_web_assets
+
+    if rebuild_web_assets(repo_path) is False:
+        log(("Warning: web UI rebuild failed; `klaude web` may serve stale assets.", "yellow"))
+
     install_args = ["uv", "tool", "install", "--force"]
     if install_kind == INSTALL_KIND_EDITABLE:
         install_args.append("--editable")
@@ -105,6 +119,8 @@ def upgrade_command(
         INSTALL_KIND_EDITABLE,
         INSTALL_KIND_LOCAL,
         PACKAGE_NAME,
+        UPDATE_SOURCE_GIT,
+        UPGRADE_BRANCH,
         check_for_updates_blocking,
         get_install_source_path,
     )
@@ -117,12 +133,14 @@ def upgrade_command(
             log(f"Install uv, then run `uv tool upgrade {PACKAGE_NAME}`.")
             raise typer.Exit(1)
 
+        tracks_git = info.update_source == UPDATE_SOURCE_GIT
         installed_display = info.installed or "unknown"
         latest_display = info.latest or "unknown"
+        latest_label = f"origin/{UPGRADE_BRANCH}:" if tracks_git else "latest:   "
         status = "update available" if info.update_available else "up to date"
 
         log(f"{PACKAGE_NAME} installed: {installed_display}")
-        log(f"{PACKAGE_NAME} latest:    {latest_display}")
+        log(f"{PACKAGE_NAME} {latest_label} {latest_display}")
         log(f"Status: {status}")
 
         if info.install_kind == INSTALL_KIND_EDITABLE:
@@ -133,7 +151,9 @@ def upgrade_command(
             log("Install mode: direct URL")
 
         if info.update_available:
-            if info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
+            if tracks_git:
+                log(f"origin/{UPGRADE_BRANCH} has newer commits. Run `klaude upgrade` from a clean local checkout.")
+            elif info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
                 log("PyPI has a newer release. Run `klaude upgrade` from a clean local checkout to update.")
             elif info.install_kind == INSTALL_KIND_DIRECT_URL:
                 log("PyPI has a newer release. Reinstall from the source URL if needed.")

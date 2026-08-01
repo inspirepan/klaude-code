@@ -48,13 +48,20 @@ def test_upgrade_command_updates_clean_editable_local_git_checkout(monkeypatch: 
     ) -> _Result:
         assert check is False
         calls.append(args)
-        if args == ["git", "-C", str(source_path), "status", "--porcelain"]:
+        if args == ["git", "-C", str(source_path), "status", "--porcelain", "--ignore-submodules=all"]:
             assert capture_output is True
             assert text is True
             return _Result(stdout="")
         return _Result()
 
     monkeypatch.setattr(self_update.subprocess, "run", fake_run)
+
+    def fake_rebuild_web_assets(repo_path: Path) -> bool:
+        assert repo_path == source_path
+        calls.append(["rebuild_web_assets"])
+        return True
+
+    monkeypatch.setattr(update, "rebuild_web_assets", fake_rebuild_web_assets)
 
     def fake_log(*objects: _LogObject) -> None:
         messages.extend(obj[0] if isinstance(obj, tuple) else obj for obj in objects)
@@ -64,9 +71,11 @@ def test_upgrade_command_updates_clean_editable_local_git_checkout(monkeypatch: 
     self_update.upgrade_command(check=False)
 
     assert calls == [
-        ["git", "-C", str(source_path), "status", "--porcelain"],
+        ["git", "-C", str(source_path), "status", "--porcelain", "--ignore-submodules=all"],
         ["git", "-C", str(source_path), "checkout", "main"],
         ["git", "-C", str(source_path), "pull", "--ff-only"],
+        ["git", "-C", str(source_path), "submodule", "update", "--init", "--recursive"],
+        ["rebuild_web_assets"],
         ["uv", "tool", "install", "--force", "--editable", str(source_path)],
     ]
     assert "Update complete. Please re-run `klaude` to use the new version." in messages
@@ -110,7 +119,7 @@ def test_upgrade_command_rejects_dirty_local_git_checkout(monkeypatch: MonkeyPat
     ) -> _Result:
         assert check is False
         calls.append(args)
-        if args == ["git", "-C", str(source_path), "status", "--porcelain"]:
+        if args == ["git", "-C", str(source_path), "status", "--porcelain", "--ignore-submodules=all"]:
             assert capture_output is True
             assert text is True
             return _Result(stdout=" M src/klaude_code/update.py\n")
@@ -127,5 +136,39 @@ def test_upgrade_command_rejects_dirty_local_git_checkout(monkeypatch: MonkeyPat
         self_update.upgrade_command(check=False)
 
     assert exc_info.value.exit_code == 1
-    assert calls == [["git", "-C", str(source_path), "status", "--porcelain"]]
+    assert calls == [["git", "-C", str(source_path), "status", "--porcelain", "--ignore-submodules=all"]]
     assert "Error: local git checkout has uncommitted changes." in messages
+
+
+def test_upgrade_command_stops_when_submodule_sync_fails(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "klaude-code"
+    source_path.mkdir()
+
+    info = update.VersionInfo(
+        installed="1.0.0",
+        latest="1.1.0",
+        update_available=True,
+        install_kind=update.INSTALL_KIND_LOCAL,
+    )
+    monkeypatch.setattr(update, "check_for_updates_blocking", lambda: info)
+    monkeypatch.setattr(update, "get_install_source_path", lambda: str(source_path))
+    monkeypatch.setattr(self_update.shutil, "which", lambda _: "/usr/bin/tool")
+
+    calls: list[list[str]] = []
+
+    def fake_run(args: list[str], **_: object) -> _Result:
+        calls.append(args)
+        if "status" in args:
+            return _Result(stdout="")
+        if "submodule" in args:
+            return _Result(returncode=1)
+        return _Result()
+
+    monkeypatch.setattr(self_update.subprocess, "run", fake_run)
+
+    with pytest.raises(self_update.typer.Exit) as exc_info:
+        self_update.upgrade_command(check=False)
+
+    assert exc_info.value.exit_code == 1
+    assert any("submodule" in call for call in calls)
+    assert not any(call[:3] == ["uv", "tool", "install"] for call in calls)
