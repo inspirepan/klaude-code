@@ -68,6 +68,15 @@ provider_list:
       type: adaptive
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
+  - model_name: opus-4-6
+    model_alias: [ claude-opus-4-6 ]
+    model_id: claude-opus-4-6
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: adaptive
+    cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
+
   - model_name: haiku
     model_alias: [ claude-haiku-4-5, claude-haiku-4-5-20251001 ]
     model_id: claude-haiku-4-5
