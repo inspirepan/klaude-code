@@ -56,6 +56,7 @@ class Session(BaseModel):
 
     model_config_name: str | None = None
     model_thinking: llm_param.Thinking | None = None
+    model_effort: str | None = None
     prompt_cache_key: str | None = None
     created_at: float = Field(default_factory=lambda: time.time())
     updated_at: float = Field(default_factory=lambda: time.time())
@@ -163,6 +164,7 @@ class Session(BaseModel):
             archived=meta.archived,
             model_config_name=meta.model_config_name,
             model_thinking=meta.model_thinking,
+            model_effort=meta.model_effort,
             prompt_cache_key=meta.prompt_cache_key,
             next_checkpoint_id=meta.next_checkpoint_id,
             follow_up_queue=meta.follow_up_queue,
@@ -246,6 +248,7 @@ class Session(BaseModel):
             archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
+            model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
             next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
@@ -288,6 +291,7 @@ class Session(BaseModel):
             archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
+            model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
             next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
@@ -485,6 +489,7 @@ class Session(BaseModel):
         forked.model_name = self.model_name
         forked.model_config_name = self.model_config_name
         forked.model_thinking = self.model_thinking.model_copy(deep=True) if self.model_thinking is not None else None
+        forked.model_effort = self.model_effort
         forked.prompt_cache_key = self.prompt_cache_key
         forked.next_checkpoint_id = self.next_checkpoint_id
         forked.file_tracker = {k: v.model_copy(deep=True) for k, v in self.file_tracker.items()}
@@ -571,6 +576,7 @@ class Session(BaseModel):
             session_id=self.id,
             sub_agent_state=self.sub_agent_state,
             model_id=self.model_name,
+            effort=self.model_effort,
             timestamp=self.created_at if self.created_at > 0 else time.time(),
             parent_session_id=parent_session_id,
         )
@@ -607,6 +613,7 @@ class Session(BaseModel):
                     session_id=self.id,
                     sub_agent_state=self.sub_agent_state,
                     model_id=self.model_name,
+                    effort=self.model_effort,
                     timestamp=msg_ts,
                     parent_session_id=parent_session_id,
                 )

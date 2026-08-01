@@ -36,6 +36,7 @@ class LoadedSessionMeta:
     archived: bool
     model_config_name: str | None
     model_thinking: llm_param.Thinking | None
+    model_effort: str | None
     prompt_cache_key: str | None
     next_checkpoint_id: int
     follow_up_queue: list[message.UserInputPayload]
@@ -133,6 +134,12 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
     archived_raw = raw.get("archived")
     archived = archived_raw if isinstance(archived_raw, bool) else False
 
+    raw_model_effort = raw.get("model_effort")
+    if raw.get("model_effort_recorded") is True or isinstance(raw_model_effort, str):
+        model_effort = raw_model_effort if isinstance(raw_model_effort, str) else None
+    else:
+        model_effort = model_thinking.reasoning_effort if model_thinking is not None else None
+
     return LoadedSessionMeta(
         work_dir=Path(work_dir_str),
         sub_agent_state=SubAgentState.model_validate(raw["sub_agent_state"])
@@ -153,6 +160,7 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         archived=archived,
         model_config_name=raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None,
         model_thinking=model_thinking,
+        model_effort=model_effort,
         prompt_cache_key=raw.get("prompt_cache_key") if isinstance(raw.get("prompt_cache_key"), str) else None,
         next_checkpoint_id=int(raw.get("next_checkpoint_id", 0)),
         follow_up_queue=_parse_follow_up_queue(raw.get("follow_up_queue")),

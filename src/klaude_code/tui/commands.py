@@ -149,6 +149,7 @@ class SubAgentSummary:
     tool_count: int
     token_count: int | None
     result_summary: str
+    effort: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

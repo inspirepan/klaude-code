@@ -23,6 +23,15 @@ def format_pascal_case(name: str) -> str:
     return "".join(word.capitalize() for word in re.split(r"[-_]", name))
 
 
+def format_model_with_effort(model: str | None, effort: str | None) -> str:
+    if not model:
+        return ""
+    selector = model.split("@", 1)[0]
+    if not effort or effort in selector.split(":")[1:]:
+        return model
+    return f"{model} {effort}"
+
+
 def shorten_path(path: str) -> str:
     """Shorten an absolute path against the current working or home directory."""
 

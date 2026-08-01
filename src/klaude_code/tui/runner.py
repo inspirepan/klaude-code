@@ -671,9 +671,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         if current_agent is None:
             return None
         llm_config = current_agent.profile.llm_client.get_llm_config()
-        if llm_config.thinking is not None and llm_config.thinking.reasoning_effort is not None:
-            return llm_config.thinking.reasoning_effort
-        return llm_config.effort
+        return llm_config.effective_effort
 
     input_provider = PromptToolkitInput(
         pre_prompt=_stop_rich_bottom_ui,

@@ -105,6 +105,7 @@ class TestSaveLoadRoundTrip:
             assert loaded.model_config_name == "config-x"
             assert loaded.model_thinking is not None
             assert loaded.model_thinking.reasoning_effort == "medium"
+            assert loaded.model_effort is None
             assert loaded.prompt_cache_key == "shared-cache-lineage"
             assert loaded.next_checkpoint_id == 3
             assert loaded.archived is False

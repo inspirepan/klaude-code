@@ -448,7 +448,7 @@ def test_input_footer_context_renders_model_effort() -> None:
 
 def test_input_footer_context_does_not_repeat_effort_from_model_suffix() -> None:
     prompt_input: Any = _build_input("")
-    prompt_input._get_current_model_config_name = lambda: "test-model:xhigh"
+    prompt_input._get_current_model_config_name = lambda: "test-model:xhigh@test-provider"
     prompt_input._get_current_model_effort = lambda: "xhigh"
 
     rendered = "".join(text for _style, text, *_ in prompt_input._build_prompt_context_fragments())

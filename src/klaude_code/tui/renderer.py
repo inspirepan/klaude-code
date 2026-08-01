@@ -1334,6 +1334,7 @@ class TUICommandRenderer:
                     self._get_session_sub_agent_color(event.session_id),
                     code_theme=self.themes.code_theme,
                     effective_model=event.model_id,
+                    effective_effort=event.effort,
                 )
             )
         self._print_blank_line(event.session_id)
@@ -1401,6 +1402,7 @@ class TUICommandRenderer:
                 description=summary.description,
                 status=summary.status,
                 model_id=summary.model_id,
+                effort=summary.effort,
                 duration_s=summary.duration_s,
                 tool_count=summary.tool_count,
                 token_count=summary.token_count,

@@ -10,6 +10,7 @@ from klaude_code.protocol.models import SubAgentState
 from klaude_code.tui.components.common import (
     format_compact_count,
     format_elapsed_compact,
+    format_model_with_effort,
     format_pascal_case,
 )
 from klaude_code.tui.components.rich.clip import MaxLines
@@ -60,6 +61,7 @@ def render_compact_sub_agent_summary(
     description: str,
     status: str,
     model_id: str | None,
+    effort: str | None,
     duration_s: float | None,
     tool_count: int,
     token_count: int | None,
@@ -83,8 +85,8 @@ def render_compact_sub_agent_summary(
         first.append(" cancelled", style=ThemeKey.INTERRUPT)
 
     metrics: list[str] = []
-    if model_id:
-        metrics.append(model_id)
+    if model := format_model_with_effort(model_id, effort):
+        metrics.append(model)
     if duration_s is not None:
         metrics.append(format_elapsed_compact(duration_s))
     if tool_count:
@@ -148,6 +150,7 @@ def render_sub_agent_call(
     *,
     code_theme: str = "monokai",
     effective_model: str | None = None,
+    effective_effort: str | None = None,
 ) -> RenderableType:
     """Render sub-agent tool call header and prompt body."""
     name_style = Style(color=style.color if style else None, bold=True, reverse=True)
@@ -156,9 +159,15 @@ def render_sub_agent_call(
     desc = Text(f" {e.sub_agent_desc} ", style=desc_style)
     header = Text.assemble(name, " ", desc)
     if e.model:
-        header.append(f" [model override: {e.model}]", style=ThemeKey.STATUS_HINT)
+        header.append(
+            f" [model override: {format_model_with_effort(e.model, effective_effort)}]",
+            style=ThemeKey.STATUS_HINT,
+        )
     elif effective_model:
-        header.append(f" [model default: {effective_model}]", style=ThemeKey.STATUS_HINT)
+        header.append(
+            f" [model default: {format_model_with_effort(effective_model, effective_effort)}]",
+            style=ThemeKey.STATUS_HINT,
+        )
     if e.fork_context:
         header.append(" [fork]", style=ThemeKey.STATUS_HINT)
 

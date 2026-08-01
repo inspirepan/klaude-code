@@ -142,6 +142,12 @@ class LLMConfigModelParameter(BaseModel):
     # Cost configuration (USD per million tokens)
     cost: Cost | None = None
 
+    @property
+    def effective_effort(self) -> str | None:
+        if self.thinking is not None and self.thinking.reasoning_effort is not None:
+            return self.thinking.reasoning_effort
+        return self.effort
+
 
 class LLMConfigParameter(LLMConfigProviderParameter, LLMConfigModelParameter):
     """

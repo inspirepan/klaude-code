@@ -158,7 +158,8 @@ class TestSessionNeedStepStart:
 class TestSessionPersistence:
     """Tests for Session save/load with file system."""
 
-    def test_save_and_load_session(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    def test_save_and_load_session(self, tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        del isolated_home
         # Create a unique project directory
         project_dir = tmp_path / "test_project"
         project_dir.mkdir()
@@ -173,6 +174,7 @@ class TestSessionPersistence:
                 archived=True,
                 model_config_name="test-config-model",
                 model_thinking=llm_param.Thinking(reasoning_effort="high"),
+                model_effort="max",
             )
             session.todos = [TodoItem(content="Task 1", status="pending")]
             session.file_tracker = {"/path/to/file": FileStatus(mtime=1234567890.0)}
@@ -196,6 +198,10 @@ class TestSessionPersistence:
             assert loaded.model_config_name == "test-config-model"
             assert loaded.model_thinking is not None
             assert loaded.model_thinking.reasoning_effort == "high"
+            assert loaded.model_effort == "max"
+            start_event = next(iter(loaded.get_history_item()))
+            assert isinstance(start_event, events.TaskStartEvent)
+            assert start_event.effort == "max"
             assert len(loaded.todos) == 1
             assert loaded.todos[0].content == "Task 1"
             assert "/path/to/file" in loaded.file_tracker

@@ -31,6 +31,7 @@ from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.commands import PromptStatusLine
+from klaude_code.tui.components.common import format_model_with_effort
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.completers import (
     AT_TOKEN_PATTERN,
@@ -558,7 +559,7 @@ class PromptToolkitInput(InputProviderABC):
             ("class:placeholder", f"{suffix} > "),
             ("class:accent.blue", model_name),
         ]
-        if effort and effort not in model_name.split(":")[1:]:
+        if effort and format_model_with_effort(model_name, effort) != model_name:
             fragments.extend([(CLASS_META, " "), ("class:accent.blue", effort)])
         if provider_name:
             fragments.extend([(CLASS_META, " via "), (CLASS_META, provider_name)])

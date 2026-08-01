@@ -89,6 +89,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
                 sub_agent_prompt="prompt",
             ),
             model_id="test-model",
+            effort="medium",
         )
     )
     update = _last_spinner_update(cmds)
@@ -96,7 +97,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     assert update.status_lines[0].session_id == sub_session
     lines = [_line_plain(line) for line in update.status_lines]
     assert lines == [
-        "Finder: searching xxxxx · test-model · Running… · 0s",
+        "Finder: searching xxxxx · test-model medium · Running… · 0s",
         "Initializing…",
     ]
     first_line = update.status_lines[0].text

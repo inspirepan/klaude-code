@@ -339,6 +339,7 @@ class BashCommandEndEvent(Event):
 class TaskStartEvent(Event):
     sub_agent_state: SubAgentState | None = None
     model_id: str | None = None
+    effort: str | None = None
     parent_session_id: str | None = None
 
 

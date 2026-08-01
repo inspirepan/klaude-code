@@ -85,6 +85,7 @@ from klaude_code.tui.components.common import (
     format_compact_count,
     format_compact_token_values,
     format_elapsed_compact,
+    format_model_with_effort,
     format_more_lines_indicator,
     format_pascal_case,
 )
@@ -686,6 +687,7 @@ class _SessionState:
     sub_agent_state: SubAgentState | None = None
     parent_session_id: str | None = None
     model_id: str | None = None
+    effort: str | None = None
     assistant_stream_active: bool = False
     thinking_stream_active: bool = False
     assistant_char_count: int = 0
@@ -1154,8 +1156,8 @@ class DisplayStateMachine:
             line.append(description, style=ThemeKey.STATUS_TEXT)
             line.stylize("italic", description_start, len(line))
 
-        if session.model_id:
-            line.append(f" · {session.model_id}", style=ThemeKey.STATUS_HINT)
+        if model := format_model_with_effort(session.model_id, session.effort):
+            line.append(f" · {model}", style=ThemeKey.STATUS_HINT)
 
         tool_count = len(session.tool_call_ids)
         if tool_count:
@@ -1192,6 +1194,8 @@ class DisplayStateMachine:
             description_start = len(line)
             line.append(description, style=ThemeKey.STATUS_TEXT)
             line.stylize("italic", description_start, len(line))
+        if model := format_model_with_effort(session.model_id, session.effort):
+            line.append(f" · {model}", style=ThemeKey.STATUS_HINT)
         if session.step_count > 0:
             suffix = "step" if session.step_count == 1 else "steps"
             line.append(f" · {session.step_count} {suffix}", style=ThemeKey.STATUS_HINT)
@@ -1241,6 +1245,7 @@ class DisplayStateMachine:
                     description=item.status_description(),
                     status=item.terminal_status,
                     model_id=item.model_id,
+                    effort=item.effort,
                     duration_s=item.elapsed_s(),
                     tool_count=len(item.tool_call_ids),
                     token_count=self._sub_agent_token_count(item.task_metadata),
@@ -1493,6 +1498,7 @@ class DisplayStateMachine:
         s.sub_agent_state = e.sub_agent_state
         s.parent_session_id = e.parent_session_id
         s.model_id = e.model_id
+        s.effort = e.effort
         s.task_active = True
         s.task_started_at = e.timestamp
         s.task_finished_at = None

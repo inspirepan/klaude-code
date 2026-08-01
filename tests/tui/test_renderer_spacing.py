@@ -668,6 +668,7 @@ def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
                             description="search",
                             status="success",
                             model_id="gpt-5.6-luna",
+                            effort="high",
                             duration_s=12.0,
                             tool_count=3,
                             token_count=1200,
@@ -691,7 +692,7 @@ def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
     )
 
     rendered = output.getvalue()
-    assert "gpt-5.6-luna · 12s · 3 tools · 1.2K tokens" in rendered
+    assert "gpt-5.6-luna high · 12s · 3 tools · 1.2K tokens" in rendered
     assert "▌ ↳ Found the path." in rendered
     assert "Child failed…" not in rendered
 
@@ -861,6 +862,7 @@ def test_sub_agent_call_prompt_renders_as_markdown() -> None:
             ),
             code_theme="monokai",
             effective_model="gpt-5.4-mini",
+            effective_effort="high",
         )
     )
 
@@ -868,7 +870,7 @@ def test_sub_agent_call_prompt_renders_as_markdown() -> None:
     assert "## Plan" not in rendered
     assert "Plan" in rendered
     assert " • item" in rendered
-    assert "[model default: gpt-5.4-mini]" in rendered
+    assert "[model default: gpt-5.4-mini high]" in rendered
 
 
 def test_sub_agent_call_identifies_model_override() -> None:
@@ -880,12 +882,14 @@ def test_sub_agent_call_identifies_model_override() -> None:
                 sub_agent_type="finder",
                 sub_agent_desc="searching",
                 sub_agent_prompt="Find it",
-                model="sonnet",
+                model="sonnet:high@anthropic",
             ),
             effective_model="claude-sonnet-4-6",
+            effective_effort="high",
         )
     )
 
     rendered = output.getvalue()
-    assert "[model override: sonnet]" in rendered
+    assert "[model override: sonnet:high@anthropic]" in rendered
+    assert "high@anthropic high" not in rendered
     assert "model default" not in rendered

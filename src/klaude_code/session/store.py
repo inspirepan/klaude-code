@@ -335,6 +335,7 @@ def build_meta_snapshot(
     prompt_cache_key: str | None = None,
     next_checkpoint_id: int = 0,
     follow_up_queue: Sequence[message.UserInputPayload] = (),
+    model_effort: str | None = None,
 ) -> dict[str, Any]:
     follow_up_queue_payload = [item.model_dump(mode="json", exclude_none=True) for item in follow_up_queue]
     snapshot: dict[str, Any] = {
@@ -359,6 +360,8 @@ def build_meta_snapshot(
         "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
         if model_thinking
         else None,
+        "model_effort": model_effort,
+        "model_effort_recorded": True,
         "prompt_cache_key": prompt_cache_key,
         "next_checkpoint_id": next_checkpoint_id,
         "follow_up_queue": follow_up_queue_payload or None,
