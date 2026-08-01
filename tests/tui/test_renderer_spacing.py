@@ -18,6 +18,7 @@ from klaude_code.tui.commands import (
     RenderDeveloperMessage,
     RenderError,
     RenderNotice,
+    RenderSideQuestion,
     RenderSubAgentBatchSummary,
     RenderSubAgentThinking,
     RenderTaskFinish,
@@ -81,6 +82,30 @@ def test_existing_boundary_is_not_duplicated_before_next_input() -> None:
     lines = [line.rstrip() for line in rendered.splitlines()]
     notice_index = lines.index("Log file: /tmp/debug.log")
     assert lines[notice_index : notice_index + 3] == ["Log file: /tmp/debug.log", "", "❯  next"]
+
+
+def test_side_question_wraps_long_answer_without_truncating() -> None:
+    renderer, output = _renderer_and_output()
+    answer = "这是一段需要完整换行显示的长答案。" * 20 + "保留到结尾"
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderSideQuestion(
+                    event=events.SideQuestionEvent(
+                        session_id="main",
+                        question="完整内容是什么？",
+                        answer=answer,
+                        cache_hit_rate=0.99,
+                    )
+                )
+            ]
+        )
+    )
+
+    rendered = output.getvalue()
+    assert "保留到结尾" in rendered
+    assert "…" not in rendered
 
 
 def test_standard_transcript_blocks_have_exactly_one_blank_line_between_them() -> None:

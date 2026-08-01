@@ -10,7 +10,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from rich import box
 from rich.console import Console, Group, RenderableType
@@ -457,14 +457,20 @@ class TUICommandRenderer:
     # Low-level printing & bottom status
     # ---------------------------------------------------------------------
 
-    def print(self, *objects: Any, style: StyleType | None = None, end: str = "\n") -> None:
+    def print(
+        self,
+        *objects: Any,
+        style: StyleType | None = None,
+        end: str = "\n",
+        overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "ellipsis",
+    ) -> None:
         if self._current_sub_agent_color:
             if objects:
                 self._set_scrollback_boundary(False)
                 content = objects[0] if len(objects) == 1 else objects
                 self.console.print(
                     Quote(content, style=Style(color=self._current_sub_agent_color.color), prefix="▌ "),
-                    overflow="ellipsis",
+                    overflow=overflow,
                 )
             elif not self._scrollback_boundary_printed:
                 self._set_scrollback_boundary(True)
@@ -479,7 +485,7 @@ class TUICommandRenderer:
         if not objects and self._scrollback_boundary_printed:
             return
         self._set_scrollback_boundary(not objects)
-        self.console.print(*objects, style=style, end=end, overflow="ellipsis")
+        self.console.print(*objects, style=style, end=end, overflow=overflow)
         # Scrollback just grew: release any ended stream's reserved height in
         # the same redraw so the bar shrink never floats it above the bottom.
         self._flush_pending_stream_end()
@@ -1116,7 +1122,7 @@ class TUICommandRenderer:
                 code_theme=self.themes.code_theme,
                 width=panel_width,
             )
-            self.print(Padding(panel, (0, 0, 0, MARKDOWN_LEFT_MARGIN)))
+            self.print(Padding(panel, (0, 0, 0, MARKDOWN_LEFT_MARGIN)), overflow="fold")
             self.console.pop_theme()
             self.print()
 
