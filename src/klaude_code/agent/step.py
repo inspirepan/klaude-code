@@ -193,7 +193,7 @@ class StepExecutor:
                     ui_events.append(ui_event)
             self._tool_executor = None
         if self._llm_stream is not None:
-            self._persist_continuation_prompt_on_interrupt()
+            self._persist_partial_message_on_interrupt()
         return ui_events
 
     async def run(self) -> AsyncGenerator[events.Event]:
@@ -463,16 +463,26 @@ class StepExecutor:
         finally:
             self._tool_executor = None
 
-    def _persist_continuation_prompt_on_interrupt(self) -> None:
-        """Persist user continuation prompt from accumulated assistant text.
+    def _persist_partial_message_on_interrupt(self) -> None:
+        """Persist interrupted assistant output from accumulated text.
 
         Uses text accumulated from AssistantTextDelta events, which excludes
         thinking content.
         """
+        llm_stream = self._llm_stream
+        if llm_stream is None:
+            return
         partial_text = "".join(self._accumulated_assistant_text).strip()
         if not partial_text:
             return
-        continuation_prompt = _build_continuation_prompt(partial_text)
-        self._context.session_ctx.append_history(
-            [message.UserMessage(parts=[message.TextPart(text=continuation_prompt)])]
+        partial_message = llm_stream.get_partial_message()
+        if partial_message is None:
+            partial_message = message.AssistantMessage(parts=[], stop_reason="aborted")
+        partial_message = partial_message.model_copy(
+            update={
+                "parts": [message.TextPart(text=partial_text)],
+                "usage": None,
+                "stop_reason": "aborted",
+            }
         )
+        self._context.session_ctx.append_history([partial_message])

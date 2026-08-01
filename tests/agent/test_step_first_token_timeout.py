@@ -135,7 +135,7 @@ def test_stream_error_retries_with_user_continuation_prompt_for_all_protocols() 
     assert "without repeating" in retry_prompt
 
 
-def test_interrupt_persists_user_continuation_prompt_instead_of_aborted_assistant() -> None:
+def test_interrupt_persists_aborted_assistant_without_continuation_prompt() -> None:
     stream = InterruptWithPartialTextStream()
     executor, history = _build_step_executor(stream)
     executor._llm_stream = stream  # pyright: ignore[reportPrivateUsage]
@@ -145,16 +145,12 @@ def test_interrupt_persists_user_continuation_prompt_instead_of_aborted_assistan
 
     _ = executor.on_interrupt()
 
-    retry_user_messages = [item for item in history if isinstance(item, message.UserMessage)]
-    assert len(retry_user_messages) == 1
-    retry_prompt = message.join_text_parts(retry_user_messages[0].parts)
-    assert "<assistant>" in retry_prompt
-    assert "</assistant>" in retry_prompt
-    assert "partial answer" in retry_prompt
-    assert "<system-reminder>" in retry_prompt
-    assert "</system-reminder>" in retry_prompt
-
-    assert not any(isinstance(item, message.AssistantMessage) and item.stop_reason == "aborted" for item in history)
+    assert not any(isinstance(item, message.UserMessage) for item in history)
+    aborted_messages = [
+        item for item in history if isinstance(item, message.AssistantMessage) and item.stop_reason == "aborted"
+    ]
+    assert len(aborted_messages) == 1
+    assert message.join_text_parts(aborted_messages[0].parts) == "partial answer"
     assert executor.should_show_interrupt_notice is True
 
 
