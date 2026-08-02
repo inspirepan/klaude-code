@@ -1203,7 +1203,7 @@ provider_list:
 sub_agent_model_decision_tree: |
   - Omit `model` for specialized agents (`finder`, `code-reviewer`, `code-maintenance-reviewer`); their configured defaults are chosen for their roles. Pick a model only for `general-purpose` and `general-purpose-fork-context`.
   - If the user asks for a specific model or provider, pass that selector exactly.
-  - Otherwise, for general-purpose work: `gemini-pro` or `gemini-flash` for image and other multimodal analysis, `opus` for frontend (UI, React, CSS, styling, design), and `deepseek` or `kimi` for Chinese-language writing and proofreading. For everything else, omit `model`.
+  - Otherwise, for general-purpose work: `gemini-pro` or `gemini-flash` for image and other multimodal analysis, `opus` for frontend (UI, React, CSS, styling, design), and `deepseek-flash:max` or `kimi` for Chinese-language writing and proofreading. For everything else, omit `model`.
 
 sub_agent_models:
   finder:
