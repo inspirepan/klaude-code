@@ -1,8 +1,41 @@
 # Klaude Code
 
-Minimal code agent CLI.
+Minimal code agent CLI — and an **agent multiplexer**: one local server owns all agent execution, humans use the TUI, and other agents (Claude Code, scripts, cron jobs) drive it through the CLI.
+
+## Agent Multiplexer
+
+Every klaude command is a thin client of a single local server (Unix socket, auto-started on demand). `run` returns immediately, multi-target `wait` is a barrier, `--group` names a fan-out — orchestration is plain bash:
+
+```bash
+id=$(klaude run --group me "fix the failing tests under tests/server/")
+klaude ps                                  # ID / NAME / STATE / MODEL / ACTIVITY
+klaude brief "$id"                         # compact, bounded status report
+klaude wait "$id" --timeout 600            # block until it settles (exit 0/2/3/124)
+klaude output "$id"                        # last assistant message
+klaude send "$id" --wait "now update the changelog too"   # next turn, same context
+```
+
+Parallel fan-out + barrier + synthesis:
+
+```bash
+G="review-$(git rev-parse --short HEAD)"
+git diff --name-only main | \
+  xargs -I{} klaude run --group "$G" --agent code-reviewer "review the changes in {}"
+klaude wait --group "$G" --timeout 900
+klaude output --group "$G" | klaude run --wait "dedupe these findings and rank by severity"
+```
+
+Sessions never expire: `send` works days later and across server restarts. Background agents run unattended (`--approval hold|auto|deny`); when one parks at `waiting_input`, answer it with `klaude respond` or attach the TUI. The server caps concurrent headless runs (`headless_max_running`, default 8) and queues the rest.
+
+For the full integration guide (command cheatsheet, orchestration patterns, current models and agent types, assembled from your live config):
+
+```bash
+klaude agents --prime    # paste into your agent's CLAUDE.md / AGENTS.md
+```
 
 ## Features
+- **Agent multiplexer**: single local server owns all execution; spawn background agents with `run`, track with `ps`/`brief`/`wait`, continue with `send`, interrupt with `kill`
+- **Agent-friendly CLI**: bounded `brief` reports, `--json` everywhere, exit-code contracts, plain-text `--help`, `klaude agents --prime` integration guide
 - **Multi-provider**: Anthropic Message API, OpenAI Responses API, OpenRouter, ChatGPT Codex OAuth etc.
 - **Keep reasoning item in context**: Interleaved thinking support
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
@@ -149,15 +182,15 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 | `ark-coding-plan` | `ARK_API_KEY` |
 | `openrouter` | `OPENROUTER_API_KEY` |
 
-List all configured providers and models:
+List all configured providers, models, and agent types:
 
 ```bash
-klaude list
+klaude agents
 ```
 
 Models from providers without valid credentials are shown as dimmed/unavailable. The built-in
-model catalog changes more frequently than this README; use `klaude list` for the authoritative
-provider/model list.
+model catalog changes more frequently than this README; use `klaude agents` for the authoritative
+provider/model list (`--json` for machines, `--prime` for an AI-agent integration guide).
 
 #### Authentication
 
@@ -287,7 +320,7 @@ sub_agent_models:
 List configured providers and models:
 
 ```bash
-klaude list
+klaude agents
 ```
 
 ### Cost Tracking
