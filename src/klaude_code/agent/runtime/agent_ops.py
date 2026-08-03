@@ -329,7 +329,13 @@ class AgentOperationHandler:
         profile_agent_type: str | None = None
         if session.agent_type is not None and session.agent_type != "main":
             profile_agent_type = session.agent_type
-        profile = self._model_profile_provider.build_profile(
+        # Vanilla is a per-session flag now that the server owns all sessions.
+        profile_provider: ModelProfileProvider = self._model_profile_provider
+        if session.vanilla:
+            from klaude_code.agent.agent_profile import VanillaModelProfileProvider
+
+            profile_provider = VanillaModelProfileProvider()
+        profile = profile_provider.build_profile(
             session_clients.main,
             profile_agent_type,
             work_dir=session.work_dir,
@@ -339,7 +345,7 @@ class AgentOperationHandler:
             profile=profile,
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
-            model_profile_provider=self._model_profile_provider,
+            model_profile_provider=profile_provider,
         )
 
         startup_update = get_startup_update_summary()

@@ -45,6 +45,7 @@ class LoadedSessionMeta:
     agent_type: str | None
     spawn_kind: str | None
     approval_policy: str | None
+    vanilla: bool
 
 
 def read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -180,6 +181,7 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         agent_type=_parse_optional_str(raw.get("agent_type")),
         spawn_kind=_parse_optional_str(raw.get("spawn_kind")),
         approval_policy=_parse_optional_str(raw.get("approval_policy")),
+        vanilla=bool(raw.get("vanilla", False)),
     )
 
 

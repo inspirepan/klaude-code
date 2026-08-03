@@ -2,15 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Protocol, cast
+from typing import cast
 
 import pytest
 import typer
 from typer.testing import CliRunner
-
-
-class _HasModel(Protocol):
-    model: str
 
 
 class TestCliOptionalValues:
@@ -58,15 +54,22 @@ class TestCliOptionalValues:
             captured["initial_search_text"] = initial_search_text
             return ModelSelectResult(status=ModelSelectStatus.SELECTED, model="picked-model")
 
-        async def _run_interactive(**_kwargs: object) -> None:
-            return None
+        async def _run_attach(session_id: str, *, peek: bool = False) -> None:
+            captured["attached_session_id"] = session_id
+            captured["peek"] = peek
 
         def _prepare_debug_logging(_debug: bool) -> tuple[bool, Path | None]:
             return False, None
 
+        def _request(method: str, path: str, **kwargs: object) -> tuple[int, object]:
+            captured["create_request"] = (method, path, kwargs.get("json_body"))
+            return 200, {"session_id": "created-session"}
+
         monkeypatch.setattr(model_picker_module, "select_model_interactive", _select_model_interactive)
-        monkeypatch.setattr(tui_runner, "run_interactive", _run_interactive)
+        monkeypatch.setattr(tui_runner, "run_attach", _run_attach)
         monkeypatch.setattr(cli_main, "prepare_debug_logging", _prepare_debug_logging)
+        monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda **_kwargs: None)
+        monkeypatch.setattr("klaude_code.cli.uds_client.request", _request)
         monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", lambda: None)
         monkeypatch.setattr(cli_main.sys, "stdin", SimpleNamespace(isatty=lambda: True))
         monkeypatch.setattr(cli_main.sys, "stdout", SimpleNamespace(isatty=lambda: True))
@@ -83,10 +86,12 @@ class TestCliOptionalValues:
             version=False,
         )
 
-        assert captured == {
-            "keywords": None,
-            "initial_search_text": "sonnet",
-        }
+        assert captured["keywords"] is None
+        assert captured["initial_search_text"] == "sonnet"
+        method, path, json_body = cast(tuple[str, str, dict[str, object]], captured["create_request"])
+        assert (method, path) == ("POST", "/api/sessions")
+        assert json_body["model"] == "picked-model"
+        assert captured["attached_session_id"] == "created-session"
 
     def test_resume_falls_back_to_current_main_model_when_session_model_unavailable(
         self, monkeypatch: pytest.MonkeyPatch
@@ -113,9 +118,14 @@ class TestCliOptionalValues:
                 assert model_name == "gpt@openai"
                 return SimpleNamespace(availability=ModelAvailability.AVAILABLE, detail="", suggestions=[])
 
-        async def _run_interactive(**kwargs: object) -> None:
-            captured.update(kwargs)
-            return None
+        async def _run_attach(session_id: str, *, peek: bool = False) -> None:
+            captured["attached_session_id"] = session_id
+            captured["peek"] = peek
+
+        class _FakeStore:
+            def update_meta(self, session_id: str, updates: dict[str, object]) -> bool:
+                captured["meta_update"] = (session_id, updates)
+                return True
 
         def _prepare_debug_logging(_debug: bool) -> tuple[bool, Path | None]:
             return False, None
@@ -129,8 +139,12 @@ class TestCliOptionalValues:
         def _stdout_write(_text: str) -> None:
             return None
 
-        monkeypatch.setattr(tui_runner, "run_interactive", _run_interactive)
+        monkeypatch.setattr(tui_runner, "run_attach", _run_attach)
         monkeypatch.setattr(cli_main, "prepare_debug_logging", _prepare_debug_logging)
+        monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda **_kwargs: None)
+        monkeypatch.setattr(
+            "klaude_code.session.store_registry.get_store_for_path", lambda _path: _FakeStore()
+        )
         monkeypatch.setattr(model_picker_module, "select_model_interactive", _select_model_interactive)
         monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", lambda: None)
         monkeypatch.setattr(log_module, "log", _noop_log)
@@ -158,9 +172,10 @@ class TestCliOptionalValues:
             version=False,
         )
 
-        assert captured["session_id"] == "session-1"
-        init_config = cast(_HasModel, captured["init_config"])
-        assert init_config.model == "gpt@openai"
+        assert captured["attached_session_id"] == "session-1"
+        meta_session_id, meta_updates = cast(tuple[str, dict[str, object]], captured["meta_update"])
+        assert meta_session_id == "session-1"
+        assert meta_updates == {"model_config_name": "gpt@openai"}
 
     def test_resume_prefers_unique_model_id_match_before_main_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
         import klaude_code.config as config_module
@@ -184,9 +199,14 @@ class TestCliOptionalValues:
                 assert include_disabled is False
                 return [SimpleNamespace(selector="sonnet@openrouter", model_id="claude-sonnet-4")]
 
-        async def _run_interactive(**kwargs: object) -> None:
-            captured.update(kwargs)
-            return None
+        async def _run_attach(session_id: str, *, peek: bool = False) -> None:
+            captured["attached_session_id"] = session_id
+            captured["peek"] = peek
+
+        class _FakeStore:
+            def update_meta(self, session_id: str, updates: dict[str, object]) -> bool:
+                captured["meta_update"] = (session_id, updates)
+                return True
 
         def _prepare_debug_logging(_debug: bool) -> tuple[bool, Path | None]:
             return False, None
@@ -200,8 +220,12 @@ class TestCliOptionalValues:
         def _stdout_write(_text: str) -> None:
             return None
 
-        monkeypatch.setattr(tui_runner, "run_interactive", _run_interactive)
+        monkeypatch.setattr(tui_runner, "run_attach", _run_attach)
         monkeypatch.setattr(cli_main, "prepare_debug_logging", _prepare_debug_logging)
+        monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda **_kwargs: None)
+        monkeypatch.setattr(
+            "klaude_code.session.store_registry.get_store_for_path", lambda _path: _FakeStore()
+        )
         monkeypatch.setattr(model_picker_module, "select_model_interactive", _select_model_interactive)
         monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", lambda: None)
         monkeypatch.setattr(log_module, "log", _noop_log)
@@ -231,6 +255,7 @@ class TestCliOptionalValues:
             version=False,
         )
 
-        assert captured["session_id"] == "session-1"
-        init_config = cast(_HasModel, captured["init_config"])
-        assert init_config.model == "sonnet@openrouter"
+        assert captured["attached_session_id"] == "session-1"
+        meta_session_id, meta_updates = cast(tuple[str, dict[str, object]], captured["meta_update"])
+        assert meta_session_id == "session-1"
+        assert meta_updates == {"model_config_name": "sonnet@openrouter"}

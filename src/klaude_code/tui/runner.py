@@ -1,39 +1,48 @@
+"""Interactive TUI runner: a WebSocket client of the local klaude server.
+
+The TUI no longer embeds a runtime. ``run_attach`` connects to the single
+local server (UDS WS), replays the session, and follows live. Every exit
+path is a detach: the server keeps the session and any running task alive.
+
+Structure:
+- ``SocketRuntimeClient`` owns the wire, the display feed, and state mirrors.
+- A watcher task drives the prompt's busy state, Esc interrupt handling,
+  interrupt prefill, and the queued-message list from client mirrors —
+  turns started by other clients or by the server's follow-up drain are
+  reflected exactly like locally started ones.
+- Follow-up queueing and draining live on the server; typing while the
+  agent runs sends a FollowUpAgentOperation.
+"""
+
 from __future__ import annotations
 
 import asyncio
 import contextlib
 import shutil
-from collections.abc import AsyncGenerator, Awaitable, Callable
-from dataclasses import dataclass
+import sys
+from collections.abc import AsyncGenerator, Callable, Coroutine
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 from uuid import uuid4
 
-from klaude_code.agent.compaction import should_compact_threshold
 from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
 from klaude_code.agent.welcome_context import build_welcome_context_event
-from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
-from klaude_code.app.runtime import (
-    AppInitConfig,
-    backfill_session_model_config,
-    cleanup_app_components,
-    handle_keyboard_interrupt,
-    initialize_app_components,
-    initialize_session,
-)
-from klaude_code.app.runtime_facade import RuntimeFacade
+from klaude_code.app.herdr import HerdrReporter
 from klaude_code.config import load_config
 from klaude_code.log import DebugType, log, log_debug
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.models import SessionRuntimeState
 from klaude_code.session.session import Session
+from klaude_code.tui.client import RuntimeClient, SessionInfoSnapshot, SocketRuntimeClient
+from klaude_code.tui.client.command_agent import ClientCommandAgent
 from klaude_code.tui.command import (
     dispatch_command,
     get_command_info_list,
     has_background_command,
     has_interactive_command,
 )
-from klaude_code.tui.command.command_abc import WebModeRequest
+from klaude_code.tui.command.command_abc import CommandResult
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.flicker_safe_stdout import settle_flicker_safe_stdout
@@ -54,120 +63,6 @@ from klaude_code.tui.terminal.selector import (
 from klaude_code.tui.terminal.title import update_terminal_title
 
 
-async def submit_user_input_payload(
-    *,
-    runtime: RuntimeFacade,
-    wait_for_display_idle: Callable[[], Awaitable[None]],
-    user_input: UserInputPayload,
-    session_id: str | None,
-) -> SubmitUserInputResult:
-    """Submit TUI input while routing immediate Rich output through prompt-toolkit.
-
-    The ``flicker_safe_patch_stdout`` context wrapping iter_inputs in
-    PromptToolkitInput already covers this path, so we no longer enter a
-    nested proxy here — re-entering would build a second StdoutProxy with
-    its own background thread for no benefit.
-    """
-
-    return await _submit_user_input_payload_inner(
-        runtime=runtime,
-        wait_for_display_idle=wait_for_display_idle,
-        user_input=user_input,
-        session_id=session_id,
-    )
-
-
-async def _submit_user_input_payload_inner(
-    *,
-    runtime: RuntimeFacade,
-    wait_for_display_idle: Callable[[], Awaitable[None]],
-    user_input: UserInputPayload,
-    session_id: str | None,
-) -> SubmitUserInputResult:
-    """Parse/dispatch a user input payload (TUI commands) and submit operations.
-
-    This function is TUI-only: it supports slash command parsing and interactive prompts.
-
-    Returns the submitted operation id to await, plus any requested mode transition.
-    """
-
-    sid = session_id or runtime.current_session_id()
-    if sid is None:
-        raise RuntimeError("No active session")
-
-    agent = runtime.current_agent
-    if agent is None or agent.session.id != sid:
-        await runtime.submit_and_wait(op.InitAgentOperation(session_id=sid, work_dir=Path.cwd()))
-        agent = runtime.current_agent
-
-    if agent is None:
-        raise RuntimeError("Failed to initialize agent")
-
-    submission_id = uuid4().hex
-
-    # Normalize a leading full-width exclamation mark for consistent UI/history.
-    # (Bash mode is triggered only when the first character is `!`.)
-    text = user_input.text
-    if text.startswith("！"):
-        text = "!" + text[1:]
-        user_input = UserInputPayload(text=text, images=user_input.images)
-
-    # Render the raw user input in the TUI even when it resolves to an event-only command.
-    await runtime.emit_event(events.UserMessageEvent(content=user_input.text, session_id=sid, images=user_input.images))
-
-    # Bash mode: run a user-entered command without invoking the agent.
-    if user_input.text.startswith("!"):
-        command = user_input.text[1:].lstrip(" \t")
-        if command == "":
-            # Enter should be ignored in the input layer for this case; keep a guard here.
-            return SubmitUserInputResult(wait_id=None)
-        bash_op = op.RunBashOperation(id=submission_id, session_id=sid, command=command)
-        return SubmitUserInputResult(wait_id=await runtime.submit(bash_op))
-
-    cmd_result = await dispatch_command(user_input, agent, submission_id=submission_id)
-    operations: list[op.Operation] = list(cmd_result.operations or [])
-    if cmd_result.web_mode_request is not None and operations:
-        raise ValueError("Web mode transition cannot be combined with operations")
-
-    run_ops = [candidate for candidate in operations if isinstance(candidate, op.RunAgentOperation)]
-    if len(run_ops) > 1:
-        raise ValueError("Multiple RunAgentOperation results are not supported")
-
-    if cmd_result.events:
-        for evt in cmd_result.events:
-            await runtime.emit_event(evt)
-
-    if run_ops and should_compact_threshold(
-        session=agent.session,
-        config=None,
-        llm_config=agent.profile.llm_client.get_llm_config(),
-    ):
-        compact_id = await runtime.submit(
-            op.CompactSessionOperation(
-                session_id=agent.session.id,
-                reason="threshold",
-                will_retry=False,
-            )
-        )
-        return SubmitUserInputResult(
-            wait_id=compact_id,
-            deferred_operations=tuple(operations),
-        )
-
-    submitted_ids: list[str] = []
-    for operation_item in operations:
-        submitted_ids.append(await runtime.submit(operation_item))
-
-    if not submitted_ids:
-        # Ensure event-only commands are fully rendered before showing the next prompt.
-        await wait_for_display_idle()
-        return SubmitUserInputResult(wait_id=None, web_mode_request=cmd_result.web_mode_request)
-
-    if run_ops:
-        return SubmitUserInputResult(wait_id=run_ops[0].id)
-    return SubmitUserInputResult(wait_id=submitted_ids[-1])
-
-
 def _split_queue_edit_payload(user_input: UserInputPayload) -> tuple[UserInputPayload, ...]:
     if user_input.images:
         return (user_input,)
@@ -180,71 +75,17 @@ def _split_queue_edit_payload(user_input: UserInputPayload) -> tuple[UserInputPa
     return tuple(UserInputPayload(text=text) for text in parts)
 
 
-@dataclass(frozen=True, slots=True)
-class SubmitUserInputResult:
-    wait_id: str | None
-    web_mode_request: WebModeRequest | None = None
-    deferred_operations: tuple[op.Operation, ...] = ()
+def _is_exit_input(text: str) -> bool:
+    return text.strip().lower() in {"exit", ":q", "quit"}
 
 
-async def _warmup_runtime_clients(runtime: RuntimeFacade) -> None:
-    await runtime.warmup_current_llm_clients()
+def _is_command_shaped(text: str) -> bool:
+    stripped = text.lstrip()
+    return stripped.startswith(("/", "!", "！"))
 
 
-async def _emit_welcome_context(runtime: RuntimeFacade, event: events.WelcomeContextEvent) -> None:
-    await runtime.emit_event(event)
-
-
-async def _replay_session_history(runtime: RuntimeFacade, session_id: str) -> None:
-    await runtime.replay_session_history(session_id)
-
-
-async def toggle_transcript_view(
-    *,
-    runtime: RuntimeFacade,
-    wait_for_display_idle: Callable[[], Awaitable[None]],
-) -> bool:
-    """Toggle compact transcript detail; works while the agent is running.
-
-    The event queues behind any in-flight display work; the display flips the
-    detail level and repaints from its event tape inside the same serialized
-    consumer, so the rebuild never interleaves with a live event.
-    """
-
-    session_id = runtime.current_session_id()
-    if session_id is None:
-        return False
-    await runtime.emit_event(events.ToggleTranscriptDetailEvent(session_id=session_id))
-    await wait_for_display_idle()
-    await settle_flicker_safe_stdout()
-    return True
-
-
-async def _load_welcome_context_and_replay(
-    runtime: RuntimeFacade,
-    session: Session,
-    wait_for_display_idle: Callable[[], Awaitable[None]],
-) -> None:
-    try:
-        context_event = await asyncio.to_thread(
-            build_welcome_context_event,
-            session_id=session.id,
-            work_dir=session.work_dir,
-        )
-        await _emit_welcome_context(runtime, context_event)
-        await wait_for_display_idle()
-    except Exception as exc:
-        log_debug(f"Welcome context initialization failed: {exc}", debug_type=DebugType.EXECUTION)
-    await _replay_session_history(runtime, session.id)
-    await wait_for_display_idle()
-
-
-async def run_interactive(init_config: AppInitConfig, session_id: str | None = None) -> WebModeRequest | None:
-    """Run the interactive REPL (TUI).
-
-    If session_id is None, a new session is created.
-    If session_id is provided, attempts to resume that session.
-    """
+async def run_attach(session_id: str, *, peek: bool = False) -> None:
+    """Attach the interactive TUI to a server-side session."""
 
     update_terminal_title()
 
@@ -256,9 +97,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             theme = "light"
         elif detected is False:
             theme = "dark"
-
-    # Propagate the resolved theme to the prompt_toolkit palette so selectors
-    # and the REPL input share hex colors with the rich-rendered UI.
     configure_pt_theme(theme)
 
     input_provider: PromptToolkitInput | None = None
@@ -297,7 +135,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         on_status_update=_set_status_lines,
         on_stream_update=_set_stream_lines,
     )
-    display: DisplayABC = tui_display
+
     prevent_sleep_active = False
 
     def _start_prevent_sleep_if_needed() -> None:
@@ -314,6 +152,11 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         stop_prevent_sleep()
         prevent_sleep_active = False
         return True
+
+    herdr = HerdrReporter.from_env()
+    local_turn_ops: set[str] = set()
+
+    # -- interaction pickers (terminal UI, unchanged from the in-process era) --
 
     def _build_question_items(
         question: user_interaction.AskUserQuestionQuestion,
@@ -366,17 +209,14 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
 
         valid_ids = {opt.id for opt in payload.options}
 
-        # Fetch model entries and keep only those present in the payload
         config = load_config()
         entries = [
             m for m in config.iter_model_entries(only_available=True, include_disabled=False) if m.selector in valid_ids
         ]
         model_selectors = {m.selector for m in entries}
 
-        # Build items using the shared builder (identical to --model CLI)
         items = build_model_select_items(entries)
 
-        # Prepend any non-model options (e.g., "__default__" for sub-agent config)
         special_opts = [opt for opt in payload.options if opt.id not in model_selectors]
         for opt in reversed(special_opts):
             title: list[tuple[str, str]] = [("class:msg", opt.label)]
@@ -435,7 +275,7 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
         payload = request_event.payload
         if isinstance(payload, user_interaction.OperationSelectRequestPayload):
             resume_repl = await _pause_repl_for_external_input()
-            restore_progress_ui = _has_active_wait_running()
+            restore_progress_ui = _agent_busy()
             tui_display.hide_progress_ui()
             was_preventing_sleep = _stop_prevent_sleep_if_needed()
 
@@ -482,7 +322,6 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
 
         try:
-            # to_thread erases the T generic in select_questions; rebind it explicitly.
             selections = await asyncio.to_thread(
                 lambda: select_questions(
                     questions=prompts,
@@ -539,90 +378,90 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             payload=user_interaction.AskUserQuestionResponsePayload(answers=answers),
         )
 
-    class _TUIInteractionHandler(InteractionHandlerABC):
-        async def collect_response(
-            self,
-            request_event: events.UserInteractionRequestEvent,
-        ) -> user_interaction.UserInteractionResponse:
-            return await _collect_interaction_response(request_event)
+    # -- client wiring --
 
-    def _on_model_change(model_name: str) -> None:
-        tui_display.set_model_name(model_name)
+    def _on_session_info(info: SessionInfoSnapshot) -> None:
+        if info.model_config_name:
+            tui_display.set_model_name(info.model_config_name)
+        if input_provider is not None:
+            input_provider.set_pending_messages(info.follow_ups)
 
-    components = await initialize_app_components(
-        init_config=init_config,
-        display=display,
-        interaction_handler=_TUIInteractionHandler(),
-        on_model_change=_on_model_change,
+    def _report_herdr(event: events.Event) -> None:
+        if herdr is None:
+            return
+        with contextlib.suppress(Exception):
+            herdr.consume_event(event)
+            if event.session_id != client.session_id:
+                return
+            if isinstance(event, events.TaskStartEvent):
+                herdr.report_session_state(event.session_id, SessionRuntimeState.RUNNING)
+            elif isinstance(event, events.TaskFinishEvent | events.InterruptEvent):
+                herdr.report_session_state(event.session_id, SessionRuntimeState.IDLE)
+            elif isinstance(event, events.UserInteractionRequestEvent):
+                herdr.report_session_state(event.session_id, SessionRuntimeState.WAITING_USER_INPUT)
+            elif isinstance(event, events.UserInteractionResolvedEvent):
+                herdr.report_session_state(event.session_id, SessionRuntimeState.RUNNING)
+
+    async def _on_envelope(envelope: events.EventEnvelope) -> None:
+        _report_herdr(envelope.event)
+        await tui_display.consume_envelope(envelope)
+
+    client: RuntimeClient = SocketRuntimeClient(
+        session_id,
+        on_envelope=_on_envelope,
+        on_session_info=_on_session_info,
+        peek=peek,
     )
 
-    def _stop_rich_bottom_ui() -> None:
-        if _has_active_wait_running():
-            return
-        active_display = components.display
-        if isinstance(active_display, TUIDisplay):
-            active_display.hide_progress_ui()
+    def _agent_busy() -> bool:
+        return client.is_running() or bool(local_turn_ops)
 
-    def _set_rich_progress_suspended(suspended: bool) -> None:
-        active_display = components.display
-        if isinstance(active_display, TUIDisplay):
-            active_display.set_progress_ui_suspended(suspended)
+    def _session_work_dir() -> Path:
+        raw = client.session_info().work_dir
+        return Path(raw) if raw else Path.cwd()
 
-    active_wait_task: asyncio.Task[None] | None = None
-    startup_task: asyncio.Task[None] | None = None
+    class _AwayRuntimeAdapter:
+        def current_session_id(self) -> str | None:
+            return client.session_id
+
+        def has_running_tasks(self) -> bool:
+            return _agent_busy()
+
+        async def submit(self, operation: op.Operation) -> str:
+            return await client.submit(operation)
+
+    away_summary_coordinator = AwaySummaryCoordinator(runtime=_AwayRuntimeAdapter())
+    loop = asyncio.get_running_loop()
     prompt_started = asyncio.Event()
-    # Set when the user interrupts (Esc/Ctrl-C) the active turn. The wait task
-    # keeps running while the interrupt winds down, so a submission that lands
-    # in that window must start a fresh turn instead of being queued.
-    interrupt_in_flight = False
-    # Cleared when an interrupt is requested and set again once the interrupted
-    # turn has wound down (display drained). The input loop waits on this
-    # instead of the whole wait task: after an interrupt the wait task may keep
-    # running queued follow-ups, and awaiting it would leave the prompt torn
-    # down until the agent went fully idle.
-    interrupt_settled = asyncio.Event()
-    interrupt_settled.set()
+    background_tasks: set[asyncio.Task[None]] = set()
 
-    def _settle_interrupt() -> None:
-        nonlocal interrupt_in_flight
-        interrupt_in_flight = False
-        interrupt_settled.set()
+    def _spawn(coro: Coroutine[Any, Any, None]) -> None:
+        task = asyncio.create_task(coro)
+        background_tasks.add(task)
+        task.add_done_callback(background_tasks.discard)
 
-    def _has_active_wait_running() -> bool:
-        return active_wait_task is not None and not active_wait_task.done()
+    # -- local display-control helpers --
 
-    def _on_prompt_start() -> None:
-        prompt_started.set()
-        _set_rich_progress_suspended(True)
-        away_summary_coordinator.notify_prompt_started()
+    async def _toggle_transcript() -> None:
+        await client.emit_local_event(events.ToggleTranscriptDetailEvent(session_id=client.session_id))
+        await client.wait_for_display_idle()
+        await settle_flicker_safe_stdout()
 
-    def _on_prompt_end() -> None:
-        away_summary_coordinator.notify_prompt_ended()
-        if _has_active_wait_running():
-            return
-        _set_rich_progress_suspended(False)
+    def _request_toggle_transcript() -> None:
+        with contextlib.suppress(Exception):
+            loop.call_soon_threadsafe(lambda: _spawn(_toggle_transcript()))
 
-    def _get_active_session_id() -> str | None:
-        """Get the current active session ID dynamically.
+    async def _refresh_transcript() -> None:
+        await client.emit_local_event(events.RefreshDisplayEvent(session_id=client.session_id))
 
-        This is necessary because /new creates a new session with a different id.
-        """
-
-        return components.runtime.current_session_id()
-
-    def _cancel_auto_away_summary(session_id: str) -> None:
-        cancel = getattr(components.runtime, "cancel_auto_away_summary", None)
-        if callable(cancel):
-            with contextlib.suppress(Exception):
-                cancel(session_id)
+    def _request_refresh_transcript() -> None:
+        with contextlib.suppress(Exception):
+            loop.call_soon_threadsafe(lambda: _spawn(_refresh_transcript()))
 
     async def _change_model_from_prompt(model_name: str) -> None:
-        sid = _get_active_session_id()
-        if not sid:
-            return
-        await components.runtime.submit_and_wait(
+        await client.submit_and_wait(
             op.ChangeModelOperation(
-                session_id=sid,
+                session_id=client.session_id,
                 model_name=model_name,
                 save_as_default=False,
                 emit_welcome_event=True,
@@ -630,496 +469,382 @@ async def run_interactive(init_config: AppInitConfig, session_id: str | None = N
             )
         )
 
-    away_summary_coordinator = AwaySummaryCoordinator(runtime=components.runtime)
-    loop = asyncio.get_running_loop()
-    transcript_toggle_tasks: set[asyncio.Task[None]] = set()
-
-    async def _toggle_transcript() -> None:
-        await toggle_transcript_view(
-            runtime=components.runtime,
-            wait_for_display_idle=components.wait_for_display_idle,
-        )
-
-    def _request_toggle_transcript() -> None:
-        def _start() -> None:
-            task = asyncio.create_task(_toggle_transcript())
-            transcript_toggle_tasks.add(task)
-            task.add_done_callback(transcript_toggle_tasks.discard)
-
+    async def _dequeue_remote() -> None:
         with contextlib.suppress(Exception):
-            loop.call_soon_threadsafe(_start)
+            await client.dequeue_follow_ups()
+        if input_provider is not None:
+            input_provider.set_pending_messages(client.follow_up_texts())
 
-    async def _refresh_transcript() -> None:
-        sid = _get_active_session_id()
-        if sid is None:
-            return
-        await components.runtime.emit_event(events.RefreshDisplayEvent(session_id=sid))
+    def _dequeue_pending_messages() -> tuple[str, ...]:
+        texts = client.follow_up_texts()
+        _spawn(_dequeue_remote())
+        return texts
 
-    def _request_refresh_transcript() -> None:
-        """Repaint the transcript from the tape (terminal width changed)."""
+    def _on_prompt_start() -> None:
+        prompt_started.set()
+        tui_display.set_progress_ui_suspended(True)
+        away_summary_coordinator.notify_prompt_started()
 
-        def _start() -> None:
-            task = asyncio.create_task(_refresh_transcript())
-            transcript_toggle_tasks.add(task)
-            task.add_done_callback(transcript_toggle_tasks.discard)
+    def _on_prompt_end() -> None:
+        away_summary_coordinator.notify_prompt_ended()
+        if not _agent_busy():
+            tui_display.set_progress_ui_suspended(False)
 
-        with contextlib.suppress(Exception):
-            loop.call_soon_threadsafe(_start)
-
-    def _get_current_model_effort() -> str | None:
-        current_agent = components.runtime.current_agent
-        if current_agent is None:
-            return None
-        llm_config = current_agent.profile.llm_client.get_llm_config()
-        return llm_config.effective_effort
+    def _pre_prompt() -> None:
+        if not _agent_busy():
+            tui_display.hide_progress_ui()
 
     input_provider = PromptToolkitInput(
-        pre_prompt=_stop_rich_bottom_ui,
+        pre_prompt=_pre_prompt,
         on_prompt_start=_on_prompt_start,
         on_prompt_end=_on_prompt_end,
         on_user_activity=away_summary_coordinator.notify_user_activity,
         refresh_status=tui_display.refresh_prompt_status,
-        get_current_model_config_name=lambda: (
-            components.runtime.current_agent.session.model_config_name
-            if components.runtime.current_agent is not None
-            else None
-        ),
-        get_current_model_provider_name=lambda: (
-            components.runtime.current_agent.profile.llm_client.get_llm_config().provider_name
-            if components.runtime.current_agent is not None
-            else None
-        ),
-        get_current_model_effort=_get_current_model_effort,
+        get_current_model_config_name=lambda: client.session_info().model_config_name,
+        get_current_model_provider_name=lambda: client.session_info().provider_name,
+        get_current_model_effort=lambda: client.session_info().effort,
         on_change_model=_change_model_from_prompt,
         command_info_provider=get_command_info_list,
         request_toggle_transcript=_request_toggle_transcript,
         request_refresh_transcript=_request_refresh_transcript,
     )
-
-    async def _wait_for_with_interrupt(wait_id: str, *, session_id: str) -> bool:
-        wait_task = asyncio.create_task(components.runtime.wait_for(wait_id))
-        interrupt_requested = False
-        interrupt_task: asyncio.Task[None] | None = None
-
-        async def _submit_interrupt(target_session_id: str) -> None:
-            # The TUI restores the interrupted text as the next prompt's
-            # prefill, so an unanswered message can be withdrawn from history
-            # without losing it.
-            await components.runtime.submit_and_wait(
-                op.InterruptOperation(session_id=target_session_id, retract_unanswered_input=True)
-            )
-
-        def _start_interrupt_once() -> None:
-            nonlocal interrupt_requested, interrupt_task, interrupt_in_flight
-            if interrupt_requested:
-                return
-            interrupt_requested = True
-            interrupt_in_flight = True
-            interrupt_settled.clear()
-            interrupt_task = asyncio.create_task(_submit_interrupt(session_id))
-
-        def _request_interrupt_once() -> None:
-            with contextlib.suppress(Exception):
-                loop.call_soon_threadsafe(_start_interrupt_once)
-
-        restore_sigint = install_sigint_interrupt(_request_interrupt_once)
-        input_provider.set_interrupt_handler(_request_interrupt_once)
-        _start_prevent_sleep_if_needed()
-
-        try:
-            await wait_task
-        finally:
-            input_provider.set_interrupt_handler(None)
-            _stop_prevent_sleep_if_needed()
-            with contextlib.suppress(Exception):
-                restore_sigint()
-            if interrupt_task is not None and not interrupt_task.done():
-                with contextlib.suppress(Exception):
-                    await interrupt_task
-            if not wait_task.done():
-                wait_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await wait_task
-        return interrupt_requested
-
-    exit_hint_printed = False
-    pending_web_mode_request: WebModeRequest | None = None
-
-    async def _wait_for_submission(submission: SubmitUserInputResult, *, session_id: str) -> bool:
-        if submission.wait_id is not None:
-            interrupted = await _wait_for_with_interrupt(submission.wait_id, session_id=session_id)
-            if interrupted:
-                return True
-
-        for operation_item in submission.deferred_operations:
-            operation_id = await components.runtime.submit(operation_item)
-            interrupted = await _wait_for_with_interrupt(operation_id, session_id=session_id)
-            if interrupted:
-                return True
-        return False
-
-    async def _finish_active_wait(submission: SubmitUserInputResult, *, session_id: str) -> None:
-        marked_idle = False
-
-        def _mark_agent_idle() -> None:
-            nonlocal marked_idle
-            if marked_idle:
-                return
-            marked_idle = True
-            input_provider.set_agent_running(False)
-
-        try:
-            interrupted = await _wait_for_submission(submission, session_id=session_id)
-            # Ensure all trailing events (e.g. final deltas / spinner stop) are rendered
-            # before treating the agent as idle again. ``wait_for_display_idle`` waits
-            # for the event-bus subscription to drain (consume_envelope returned), but
-            # Rich writes from those handlers are still queued in the StdoutProxy and
-            # dispatched asynchronously via ``synchronized_in_terminal``. We must
-            # also drain that pipeline, otherwise a follow-up ``UserMessageEvent``
-            # (emitted below) can land on the wire — and on screen — before the
-            # previous task's TaskFinish separator has been painted.
-            await components.wait_for_display_idle()
-            await settle_flicker_safe_stdout()
-            away_summary_coordinator.notify_task_finished()
-            _settle_interrupt()
-            if interrupted:
-                prefill_text = None
-                agent = components.runtime.current_agent
-                if agent is not None:
-                    prefill_text = agent.consume_interrupt_prefill_text()
-                if agent is None or agent.peek_next_follow_up() is None:
-                    _mark_agent_idle()
-                    input_provider.set_next_prefill(prefill_text)
-                    return
-
-            while True:
-                agent = components.runtime.current_agent
-                if agent is None:
-                    _refresh_pending_messages()
-                    _mark_agent_idle()
-                    return
-                follow_up = agent.peek_next_follow_up()
-                if follow_up is None:
-                    _refresh_pending_messages()
-                    _mark_agent_idle()
-                    # A submission that saw this task as still running may have
-                    # queued a follow-up between the peek above and the idle
-                    # flip. Re-peek and resume draining instead of stranding it
-                    # in the queue until some later turn finishes.
-                    if agent.peek_next_follow_up() is None:
-                        return
-                    marked_idle = False
-                    input_provider.set_agent_running(True)
-                    _refresh_pending_messages()
-                    continue
-                submission = await submit_user_input_payload(
-                    runtime=components.runtime,
-                    wait_for_display_idle=components.wait_for_display_idle,
-                    user_input=follow_up,
-                    session_id=agent.session.id,
-                )
-                # Pop and refresh before waiting on the session flush: the
-                # message is already submitted, so leaving it in the pending
-                # list would show a stale "queued" entry for as long as the
-                # flush (and the turn it overlaps) takes.
-                agent.pop_next_follow_up()
-                current_agent = components.runtime.current_agent
-                if current_agent is not None and current_agent is not agent:
-                    for pending_follow_up in agent.pop_all_follow_up():
-                        current_agent.follow_up(pending_follow_up)
-                _refresh_pending_messages()
-                await agent.session.wait_for_flush()
-                if submission.wait_id is None and not submission.deferred_operations:
-                    continue
-                interrupted = await _wait_for_submission(submission, session_id=agent.session.id)
-                await components.wait_for_display_idle()
-                await settle_flicker_safe_stdout()
-                away_summary_coordinator.notify_task_finished()
-                _settle_interrupt()
-                current_agent = components.runtime.current_agent
-                if current_agent is not None and current_agent is not agent:
-                    for pending_follow_up in agent.pop_all_follow_up():
-                        current_agent.follow_up(pending_follow_up)
-                    _refresh_pending_messages()
-                if interrupted:
-                    prefill_text = None
-                    current_agent = components.runtime.current_agent
-                    if current_agent is not None:
-                        prefill_text = current_agent.consume_interrupt_prefill_text()
-                    if current_agent is None or current_agent.peek_next_follow_up() is None:
-                        _mark_agent_idle()
-                        input_provider.set_next_prefill(prefill_text)
-                        return
-        finally:
-            # Guarantee no input-loop waiter is left hanging on the settled
-            # event if the wait task exits on an error path.
-            _settle_interrupt()
-            _mark_agent_idle()
-
-    def _refresh_pending_messages() -> int:
-        agent = components.runtime.current_agent
-        messages = agent.follow_up_snapshot() if agent is not None else ()
-        input_provider.set_pending_messages(tuple(message.text for message in messages))
-        return len(messages)
-
-    def _dequeue_pending_messages() -> tuple[str, ...]:
-        agent = components.runtime.current_agent
-        if agent is None:
-            return ()
-        messages = agent.pop_all_follow_up()
-        _refresh_pending_messages()
-        return tuple(message.text for message in messages)
-
     input_provider.set_dequeue_pending_messages(_dequeue_pending_messages)
 
-    async def _dispatch_background_command(user_input: UserInputPayload) -> None:
-        """Dispatch a background slash command without echoing or waiting.
+    # -- interrupt handling (Esc / Ctrl+C while the agent runs) --
 
-        The input is not rendered as a user turn: a background command reports
-        itself (e.g. the `/btw` panel), so echoing it would duplicate the
-        question and, mid-task, read as if a new turn had started.
-        """
-        session_id = _get_active_session_id()
-        agent = components.runtime.current_agent
-        if session_id is None or agent is None or agent.session.id != session_id:
+    interrupt_pending = False
+
+    def _start_interrupt_once() -> None:
+        nonlocal interrupt_pending
+        if peek or interrupt_pending or not _agent_busy():
             return
-        result = await dispatch_command(user_input, agent, submission_id=uuid4().hex)
-        for evt in result.events or []:
-            await components.runtime.emit_event(evt)
-        for operation in result.operations or []:
-            await components.runtime.submit(operation)
+        interrupt_pending = True
+        _spawn(_submit_interrupt())
 
-    def _active_agent_running() -> bool:
-        nonlocal active_wait_task
-        if active_wait_task is None:
-            return False
-        if active_wait_task.done():
-            with contextlib.suppress(Exception, asyncio.CancelledError):
-                active_wait_task.result()
-            active_wait_task = None
-            return False
-        return True
+    async def _submit_interrupt() -> None:
+        with contextlib.suppress(Exception):
+            await client.submit(
+                op.InterruptOperation(session_id=client.session_id, retract_unanswered_input=True)
+            )
 
-    def _consume_active_wait_result(task: asyncio.Task[None]) -> None:
-        with contextlib.suppress(Exception, asyncio.CancelledError):
-            task.result()
+    def _request_interrupt_once() -> None:
+        with contextlib.suppress(Exception):
+            loop.call_soon_threadsafe(_start_interrupt_once)
 
-    async def _load_context_after_prompt_start() -> None:
+    # -- watcher: prompt busy state driven by client mirrors --
+
+    async def _watch_state() -> None:
+        nonlocal interrupt_pending
+        ui_busy = False
+        restore_sigint: Callable[[], None] | None = None
+        state_changed = client.state_changed_event()
+        while True:
+            await state_changed.wait()
+            state_changed.clear()
+            input_provider.set_pending_messages(client.follow_up_texts())
+            busy = _agent_busy()
+            if busy and not ui_busy:
+                ui_busy = True
+                input_provider.set_agent_running(True)
+                if not peek:
+                    input_provider.set_interrupt_handler(_request_interrupt_once)
+                    restore_sigint = install_sigint_interrupt(_request_interrupt_once)
+                _start_prevent_sleep_if_needed()
+                continue
+            if not busy and ui_busy:
+                # Debounce the idle gap between server-drained queue turns.
+                if client.follow_up_texts() and not interrupt_pending:
+                    with contextlib.suppress(TimeoutError):
+                        await asyncio.wait_for(state_changed.wait(), timeout=1.0)
+                    if _agent_busy():
+                        continue
+                ui_busy = False
+                input_provider.set_interrupt_handler(None)
+                if restore_sigint is not None:
+                    with contextlib.suppress(Exception):
+                        restore_sigint()
+                    restore_sigint = None
+                _stop_prevent_sleep_if_needed()
+                await client.wait_for_display_idle()
+                await settle_flicker_safe_stdout()
+                away_summary_coordinator.notify_task_finished()
+                prefill = client.consume_interrupt_prefill()
+                if prefill is not None:
+                    input_provider.set_next_prefill(prefill)
+                interrupt_pending = False
+                input_provider.set_pending_messages(client.follow_up_texts())
+                input_provider.set_agent_running(False)
+
+    # -- interaction consumer --
+
+    async def _consume_interactions() -> None:
+        queue = client.interaction_requests()
+        while True:
+            request_event = await queue.get()
+            if peek:
+                continue
+            try:
+                response = await _collect_interaction_response(request_event)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                response = user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+            with contextlib.suppress(Exception):
+                await client.submit(
+                    op.UserInteractionRespondOperation(
+                        session_id=request_event.session_id,
+                        request_id=request_event.request_id,
+                        response=response,
+                    )
+                )
+
+    # -- startup: replay after the first prompt paint --
+
+    async def _startup_replay() -> None:
         await prompt_started.wait()
         input_provider.set_startup_loading(True)
         try:
-            agent = components.runtime.current_agent
-            if agent is not None and hasattr(agent, "session"):
-                agent_session = agent.session
-                await _load_welcome_context_and_replay(
-                    components.runtime,
-                    agent_session,
-                    components.wait_for_display_idle,
+            client.start_display()
+            try:
+                await asyncio.wait_for(client.wait_for_replay_complete(), timeout=15.0)
+            except TimeoutError:
+                await _emit_local_notice(
+                    "Attach replay did not complete — the server may be running older code. "
+                    "Try: klaude server reload"
                 )
-            await _warmup_runtime_clients(components.runtime)
+            await client.wait_for_display_idle()
+            try:
+                context_event = await asyncio.to_thread(
+                    build_welcome_context_event,
+                    session_id=client.session_id,
+                    work_dir=_session_work_dir(),
+                )
+                await client.emit_local_event(context_event)
+                await client.wait_for_display_idle()
+            except Exception as exc:
+                log_debug(f"Welcome context initialization failed: {exc}", debug_type=DebugType.EXECUTION)
         finally:
             input_provider.set_startup_loading(False)
 
+    # -- submission helpers --
+
+    async def _emit_local_notice(text: str) -> None:
+        await client.emit_local_event(events.NoticeEvent(session_id=client.session_id, content=text))
+
+    def _track_foreground_op(operation_id: str) -> None:
+        local_turn_ops.add(operation_id)
+        client.state_changed_event().set()
+
+        async def _await_done() -> None:
+            with contextlib.suppress(Exception):
+                await client.wait_for(operation_id)
+            local_turn_ops.discard(operation_id)
+            client.state_changed_event().set()
+
+        _spawn(_await_done())
+
+    async def _submit_turn(run_op: op.RunAgentOperation) -> None:
+        await client.submit(run_op)
+        _track_foreground_op(run_op.id)
+
+    async def _queue_follow_up(payload: UserInputPayload) -> None:
+        await client.submit_and_wait(op.FollowUpAgentOperation(session_id=client.session_id, input=payload))
+        input_provider.set_pending_messages(client.follow_up_texts())
+
+    async def _reattach_to(new_session_id: str) -> None:
+        await client.wait_for_display_idle()
+        await client.reattach(new_session_id)
+        client.start_display()
+        await client.wait_for_replay_complete()
+
+    async def _handle_command_result(result: CommandResult) -> None:
+        for evt in result.events or []:
+            await client.emit_local_event(evt)
+        if result.web_mode_request is not None:
+            await _emit_local_notice("The web UI has been removed. Manage the local server with `klaude server`.")
+            return
+
+        for operation in result.operations or []:
+            if isinstance(operation, op.ClearSessionOperation):
+                # /new: fresh server session in the same directory, same model.
+                from klaude_code.tui.client.server_api import create_server_session
+
+                new_id = await asyncio.to_thread(
+                    create_server_session,
+                    work_dir=_session_work_dir(),
+                    model=client.session_info().model_config_name,
+                )
+                await _reattach_to(new_id)
+                continue
+            if isinstance(operation, op.ForkAndSwitchSessionOperation):
+                await _reattach_to(operation.new_session_id)
+                continue
+            if isinstance(operation, op.RunAgentOperation):
+                await _submit_turn(operation)
+                continue
+            await client.submit(operation)
+            _track_foreground_op(operation.id)
+
+    async def _dispatch_background_command(user_input: UserInputPayload) -> None:
+        try:
+            agent = await asyncio.to_thread(ClientCommandAgent, client.session_id, _session_work_dir())
+            result = await dispatch_command(user_input, agent, submission_id=uuid4().hex)
+        except Exception as exc:
+            await _emit_local_notice(f"Command failed: {exc}")
+            return
+        for evt in result.events or []:
+            await client.emit_local_event(evt)
+        for operation in result.operations or []:
+            await client.submit(operation)
+
+    async def _submit_idle_input(user_input: UserInputPayload) -> None:
+        """Dispatch one input while the session is idle."""
+        text = user_input.text
+        if text.startswith("！"):
+            text = "!" + text[1:]
+            user_input = UserInputPayload(text=text, images=user_input.images)
+
+        await client.emit_user_message(
+            events.UserMessageEvent(content=user_input.text, session_id=client.session_id, images=user_input.images)
+        )
+
+        if text.startswith("!"):
+            command = text[1:].lstrip(" \t")
+            if command == "":
+                return
+            bash_op = op.RunBashOperation(session_id=client.session_id, command=command)
+            await client.submit(bash_op)
+            _track_foreground_op(bash_op.id)
+            return
+
+        if text.lstrip().startswith("/"):
+            run_in_foreground = has_interactive_command(text)
+            try:
+                agent = await asyncio.to_thread(ClientCommandAgent, client.session_id, _session_work_dir())
+                result = await dispatch_command(user_input, agent, submission_id=uuid4().hex)
+            except Exception as exc:
+                await _emit_local_notice(f"Command failed: {exc}")
+                return
+            if run_in_foreground:
+                # Interactive commands own the terminal; keep the prompt idle
+                # and process their operations inline.
+                for evt in result.events or []:
+                    await client.emit_local_event(evt)
+                for operation in result.operations or []:
+                    await client.submit_and_wait(operation)
+                await client.wait_for_display_idle()
+                await settle_flicker_safe_stdout()
+                return
+            await _handle_command_result(result)
+            await client.wait_for_display_idle()
+            return
+
+        await _submit_turn(op.RunAgentOperation(session_id=client.session_id, input=user_input))
+
+    # -- main --
+
+    watcher_task: asyncio.Task[None] | None = None
+    interaction_task: asyncio.Task[None] | None = None
+    startup_task: asyncio.Task[None] | None = None
+    exited_via_ctrl_c = False
+
     try:
+        await tui_display.start()
+        await client.start()
         await away_summary_coordinator.start()
 
-        tui_holder_key = uuid4().hex
-        await initialize_session(
-            components.runtime,
-            components.wait_for_display_idle,
-            session_id=session_id,
-            holder_key=tui_holder_key,
-            defer_welcome_context=True,
-            defer_replay=True,
-        )
-        backfill_session_model_config(
-            components.runtime.current_agent,
-            init_config.model,
-            components.config.main_model,
-            is_new_session=session_id is None,
-        )
+        watcher_task = asyncio.create_task(_watch_state())
+        interaction_task = asyncio.create_task(_consume_interactions())
+        startup_task = asyncio.create_task(_startup_replay())
 
-        _refresh_pending_messages()
-
-        startup_task = asyncio.create_task(_load_context_after_prompt_start())
+        # Seed prompt state for mid-turn attaches.
+        client.state_changed_event().set()
 
         await input_provider.start()
-        inputs_iter = cast(AsyncGenerator[UserInputPayload], input_provider.iter_inputs())
+        inputs_iter = cast("AsyncGenerator[UserInputPayload]", input_provider.iter_inputs())
         async with contextlib.aclosing(inputs_iter) as inputs:
             async for user_input in inputs:
-                await startup_task
-                is_exit_input = user_input.text.strip().lower() in {"exit", ":q", "quit"}
-                # Background commands (e.g. /btw) run beside whatever the session
-                # is doing: dispatch now instead of starting a turn or queueing a
-                # follow-up, and never wait for the result.
-                if has_background_command(user_input.text):
-                    await _dispatch_background_command(user_input)
-                    continue
-                # The user interrupted the running turn and immediately submitted.
-                # Wait for the interrupted turn to wind down — but only the
-                # wind-down, not the whole wait task: the task may keep running
-                # queued follow-ups after the interrupt, and awaiting it here
-                # would leave the prompt torn down until the agent went idle.
-                if interrupt_in_flight and not is_exit_input and _has_active_wait_running():
-                    await interrupt_settled.wait()
-                    interrupt_in_flight = False
-                    if not _active_agent_running():
-                        # The interrupted turn ended with no queued follow-up,
-                        # so this submission starts a fresh turn; drop the
-                        # interrupted turn's prefill that the wait task queued.
-                        input_provider.set_next_prefill(None)
-                if _active_agent_running():
-                    if is_exit_input:
-                        if active_wait_task is not None:
-                            with contextlib.suppress(Exception, asyncio.CancelledError):
-                                await active_wait_task
-                            active_wait_task = None
-                        break
-
-                    sid = _get_active_session_id()
-                    if sid is not None:
-                        follow_up_inputs = _split_queue_edit_payload(user_input)
-                        for follow_up_input in follow_up_inputs:
-                            await components.runtime.submit_and_wait(
-                                op.FollowUpAgentOperation(session_id=sid, input=follow_up_input)
-                            )
-                        _refresh_pending_messages()
-                        # The turn may have wound down while these ops were in
-                        # flight: the wait task's final follow-up check ran
-                        # before the queue op landed, so nothing would drain
-                        # this message until some later turn. Detect that and
-                        # start a drain cycle ourselves.
-                        if not _active_agent_running():
-                            agent = components.runtime.current_agent
-                            if agent is not None and agent.peek_next_follow_up() is not None:
-                                input_provider.set_agent_running(True)
-                                active_wait_task = asyncio.create_task(
-                                    _finish_active_wait(SubmitUserInputResult(wait_id=None), session_id=sid)
-                                )
-                                active_wait_task.add_done_callback(_consume_active_wait_result)
-                    continue
-
-                if is_exit_input:
+                if _is_exit_input(user_input.text):
                     break
                 if user_input.text.strip() == "":
                     continue
-
-                active_session_id = _get_active_session_id()
-                if active_session_id is None:
+                if peek:
+                    await _emit_local_notice("Read-only attach (--peek): input is disabled.")
                     continue
-                _cancel_auto_away_summary(active_session_id)
+                if has_background_command(user_input.text):
+                    await _dispatch_background_command(user_input)
+                    continue
 
-                submission_payloads = _split_queue_edit_payload(user_input)
-                run_in_foreground = len(submission_payloads) == 1 and has_interactive_command(
-                    submission_payloads[0].text
-                )
-                mark_agent_running = not run_in_foreground
-                interrupt_in_flight = False
-                if mark_agent_running:
-                    input_provider.set_agent_running(True)
-                final_submission: SubmitUserInputResult | None = None
-                try:
-                    for index, payload in enumerate(submission_payloads):
-                        submission = await submit_user_input_payload(
-                            runtime=components.runtime,
-                            wait_for_display_idle=components.wait_for_display_idle,
-                            user_input=payload,
-                            session_id=active_session_id,
+                if interrupt_pending and _agent_busy():
+                    # Esc-then-type: wait for the interrupted turn to wind
+                    # down, then start a fresh turn with this input.
+                    deadline = loop.time() + 10.0
+                    state_changed = client.state_changed_event()
+                    while _agent_busy() and loop.time() < deadline:
+                        with contextlib.suppress(TimeoutError):
+                            await asyncio.wait_for(state_changed.wait(), timeout=0.25)
+                        state_changed.clear()
+
+                if _agent_busy():
+                    if _is_command_shaped(user_input.text):
+                        await _emit_local_notice(
+                            "Commands cannot be queued while the agent is running; press Esc to interrupt first."
                         )
-
-                        final_submission = submission
-                        if submission.web_mode_request is not None:
-                            pending_web_mode_request = submission.web_mode_request
-                            break
-                        if submission.wait_id is not None or submission.deferred_operations:
-                            follow_up_inputs = submission_payloads[index + 1 :]
-                            for follow_up_input in follow_up_inputs:
-                                await components.runtime.submit_and_wait(
-                                    op.FollowUpAgentOperation(session_id=active_session_id, input=follow_up_input)
-                                )
-                            if follow_up_inputs:
-                                _refresh_pending_messages()
-                            break
-
-                    if pending_web_mode_request is not None:
-                        if mark_agent_running:
-                            input_provider.set_agent_running(False)
-                        break
-
-                    if final_submission is None or (
-                        final_submission.wait_id is None and not final_submission.deferred_operations
-                    ):
-                        if mark_agent_running:
-                            input_provider.set_agent_running(False)
                         continue
+                    for payload in _split_queue_edit_payload(user_input):
+                        await _queue_follow_up(payload)
+                    continue
 
-                    if run_in_foreground:
-                        interrupted = await _wait_for_submission(final_submission, session_id=active_session_id)
-                        await components.wait_for_display_idle()
-                        await settle_flicker_safe_stdout()
-                        away_summary_coordinator.notify_task_finished()
-                        if interrupted:
-                            prefill_text = None
-                            if components.runtime.current_agent is not None:
-                                prefill_text = components.runtime.current_agent.consume_interrupt_prefill_text()
-                            input_provider.set_next_prefill(prefill_text)
-                        continue
-
-                    active_wait_task = asyncio.create_task(
-                        _finish_active_wait(final_submission, session_id=active_session_id)
-                    )
-                    active_wait_task.add_done_callback(_consume_active_wait_result)
-                except Exception:
-                    if mark_agent_running:
-                        input_provider.set_agent_running(False)
-                    raise
+                payloads = _split_queue_edit_payload(user_input)
+                first, rest = payloads[0], payloads[1:]
+                await _submit_idle_input(first)
+                for payload in rest:
+                    await _queue_follow_up(payload)
 
     except KeyboardInterrupt:
-        await handle_keyboard_interrupt(components.runtime)
-        exit_hint_printed = True
+        exited_via_ctrl_c = True
     finally:
-        _set_rich_progress_suspended(False)
-        for task in transcript_toggle_tasks:
+        tui_display.set_progress_ui_suspended(False)
+        for task in (watcher_task, interaction_task, startup_task):
+            if task is not None and not task.done():
+                task.cancel()
+                with contextlib.suppress(Exception, asyncio.CancelledError):
+                    await task
+        for task in list(background_tasks):
             if not task.done():
                 task.cancel()
-        if transcript_toggle_tasks:
-            await asyncio.gather(*transcript_toggle_tasks, return_exceptions=True)
-        if startup_task is not None and not startup_task.done():
-            startup_task.cancel()
-            with contextlib.suppress(Exception, asyncio.CancelledError):
-                await startup_task
-        if active_wait_task is not None:
-            if not active_wait_task.done():
-                active_wait_task.cancel()
-            with contextlib.suppress(Exception, asyncio.CancelledError):
-                await active_wait_task
-            active_wait_task = None
+        if background_tasks:
+            await asyncio.gather(*background_tasks, return_exceptions=True)
 
         force_stop_prevent_sleep()
         with contextlib.suppress(Exception):
             await away_summary_coordinator.stop()
 
-        active_session_id = components.runtime.current_session_id()
-        work_dir = Path.cwd()
-        should_show_resume_hint = False
-        await cleanup_app_components(components)
-
-        if active_session_id and Session.exists(active_session_id, work_dir=work_dir):
+        was_running = client.is_running() or bool(client.follow_up_texts())
+        if herdr is not None:
             with contextlib.suppress(Exception):
-                session = Session.load(active_session_id, work_dir=work_dir)
-                should_show_resume_hint = bool(session.user_messages)
-                if session.messages_count == 0:
-                    shutil.rmtree(Session.paths(work_dir).session_dir(active_session_id), ignore_errors=True)
+                await herdr.close()
+        with contextlib.suppress(Exception):
+            await client.close()
+        with contextlib.suppress(Exception):
+            await tui_display.stop()
+        with contextlib.suppress(Exception):
+            stream = getattr(sys, "__stdout__", None) or sys.stdout
+            stream.write("\033[?25h")
+            stream.flush()
 
-        if (
-            pending_web_mode_request is None
-            and not exit_hint_printed
-            and active_session_id
-            and should_show_resume_hint
-            and Session.exists(active_session_id, work_dir=work_dir)
-        ):
-            short_id = Session.shortest_unique_prefix(active_session_id, work_dir=work_dir)
-            log(f"Session ID: {active_session_id}")
-            log(f"Resume with: klaude -r {short_id}")
-
-    return pending_web_mode_request
+        # Detach semantics: the server keeps the session (and any running
+        # task) alive; only this client goes away.
+        work_dir = _session_work_dir()
+        if exited_via_ctrl_c:
+            log("Bye!")
+        if Session.exists(client.session_id, work_dir=work_dir):
+            short_id = Session.shortest_unique_prefix(client.session_id, work_dir=work_dir)
+            if was_running:
+                log(
+                    ("detached, agent keeps running — reattach with:", "dim"),
+                    (f"klaude attach {short_id}", "green"),
+                )
+            elif Session.has_user_messages(client.session_id, work_dir=work_dir):
+                log(f"Session ID: {client.session_id}")
+                log(f"Resume with: klaude -r {short_id}")

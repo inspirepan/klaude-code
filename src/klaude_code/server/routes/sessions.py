@@ -44,6 +44,8 @@ def _runtime_session_states(state: ServerAppState) -> dict[str, Literal["idle", 
 
 class CreateSessionRequest(BaseModel):
     work_dir: str | None = None
+    model: str | None = None
+    vanilla: bool = False
 
 
 class MessageRequest(BaseModel):
@@ -188,52 +190,43 @@ async def create_session(
     target_work_dir = Path(payload.work_dir).expanduser() if payload.work_dir else state.work_dir
     if not target_work_dir.exists() or not target_work_dir.is_dir():
         raise HTTPException(status_code=400, detail=f"work_dir does not exist: {target_work_dir}")
+    target_work_dir = target_work_dir.resolve()
 
-    session_id = uuid4().hex
+    if payload.model is not None:
+        from klaude_code.config import load_config
+
+        try:
+            config = load_config()
+            candidates = config.iter_model_config_candidates(payload.model)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"unknown model '{payload.model}': {exc}") from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"failed to load config: {exc}") from exc
+        if not candidates:
+            raise HTTPException(status_code=400, detail=f"model '{payload.model}' is unavailable")
+
+    # Persist meta first (model/vanilla are read when the agent is built),
+    # then spin up the actor so follow-up REST/WS calls find it.
+    session = Session.create(id=uuid4().hex, work_dir=target_work_dir)
+    session.model_config_name = payload.model
+    session.vanilla = payload.vanilla
+    try:
+        session.ensure_meta_exists()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"failed to create session metadata: {exc}") from exc
+
     try:
         await state.runtime.submit_and_wait(
-            op.InitAgentOperation(session_id=session_id, work_dir=target_work_dir.resolve())
+            op.InitAgentOperation(
+                session_id=session.id,
+                work_dir=target_work_dir,
+                defer_welcome_context=True,
+                defer_replay=True,
+            )
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"failed to create session: {exc}") from exc
-
-    store = get_store_for_path(target_work_dir.resolve())
-    meta_path = store.paths.meta_file(session_id)
-    if not meta_path.exists():
-        now = time.time()
-        current_agent = state.runtime.current_agent
-        current_model_name = (
-            current_agent.session.model_name
-            if current_agent is not None and current_agent.session.id == session_id
-            else None
-        )
-        meta: dict[str, Any] = {
-            "id": session_id,
-            "work_dir": str(target_work_dir.resolve()),
-            "title": None,
-            "sub_agent_state": None,
-            "created_at": now,
-            "updated_at": now,
-            "user_messages": [],
-            "messages_count": 0,
-            "model_name": current_model_name,
-            "session_state": "idle",
-            "runtime_owner": state.runtime.session_owner.model_dump(mode="json"),
-            "runtime_owner_heartbeat_at": time.time(),
-            "archived": False,
-            "todos": [],
-            "file_change_summary": {
-                "created_files": [],
-                "edited_files": [],
-                "deleted_files": [],
-                "diff_lines_added": 0,
-                "diff_lines_removed": 0,
-                "file_diffs": {},
-            },
-        }
-        if not store.create_meta_if_missing(session_id, meta):
-            raise HTTPException(status_code=500, detail="failed to create session metadata")
-    return {"session_id": session_id}
+    return {"session_id": session.id}
 
 
 @router.post("/{session_id}/archive")

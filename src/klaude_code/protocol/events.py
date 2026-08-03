@@ -41,6 +41,7 @@ __all__ = [
     "Event",
     "EventEnvelope",
     "FallbackModelConfigWarnEvent",
+    "FollowUpQueueUpdatedEvent",
     "ForkCacheHitRateEvent",
     "InterruptEvent",
     "ModelChangedEvent",
@@ -94,6 +95,7 @@ __all__ = [
     "WelcomeUpdateInfo",
     "event_durability",
     "event_type_name",
+    "parse_event",
     "parse_event_envelope",
     "parse_event_envelope_json",
 ]
@@ -489,6 +491,16 @@ class InterruptEvent(Event):
     show_notice: bool = True
 
 
+class FollowUpQueueUpdatedEvent(Event):
+    """The session's queued follow-up messages changed (enqueue/pop/drain).
+
+    Lets attached clients mirror the server-held queue for their pending
+    message UI without polling.
+    """
+
+    texts: list[str] = Field(default_factory=list)
+
+
 class UserMessageRetractedEvent(Event):
     """The interrupted turn's user message was withdrawn from history.
 
@@ -635,17 +647,21 @@ _EVENT_TYPE_TO_CLASS = {
 }
 
 
+def parse_event(event_type: str, payload: dict[str, Any]) -> Event:
+    """Parse a bare event dict given its wire type tag."""
+    event_cls = _EVENT_TYPE_TO_CLASS.get(event_type)
+    if event_cls is None:
+        raise ValueError(f"unknown event type: {event_type}")
+    return event_cls.model_validate(payload)
+
+
 def parse_event_envelope(payload: dict[str, Any]) -> EventEnvelope:
     raw_event_type = payload.get("event_type")
     raw_event = payload.get("event")
     if not isinstance(raw_event_type, str) or not isinstance(raw_event, dict):
         raise ValueError("invalid event envelope payload")
 
-    event_cls = _EVENT_TYPE_TO_CLASS.get(raw_event_type)
-    if event_cls is None:
-        raise ValueError(f"unknown event type: {raw_event_type}")
-
-    parsed_event = event_cls.model_validate(raw_event)
+    parsed_event = parse_event(raw_event_type, raw_event)
     return EventEnvelope.model_validate({**payload, "event": parsed_event})
 
 

@@ -332,3 +332,36 @@ class AskSideQuestionOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_ask_side_question(self)
+
+
+def _iter_operation_classes(base: type[Operation]) -> list[type[Operation]]:
+    classes: list[type[Operation]] = []
+    for subclass in base.__subclasses__():
+        classes.append(subclass)
+        classes.extend(_iter_operation_classes(subclass))
+    return classes
+
+
+def _operation_type_map() -> dict[str, type[Operation]]:
+    mapping: dict[str, type[Operation]] = {}
+    for operation_cls in _iter_operation_classes(Operation):
+        default_type = operation_cls.model_fields["type"].default
+        if isinstance(default_type, OperationType):
+            mapping[default_type.value] = operation_cls
+    return mapping
+
+
+_OPERATION_TYPE_TO_CLASS = _operation_type_map()
+
+
+def parse_operation(payload: dict[str, object]) -> Operation:
+    """Parse a serialized operation (wire format) into its concrete class."""
+    raw_type = payload.get("type")
+    if isinstance(raw_type, OperationType):
+        raw_type = raw_type.value
+    if not isinstance(raw_type, str):
+        raise ValueError("invalid operation payload: missing type")
+    operation_cls = _OPERATION_TYPE_TO_CLASS.get(raw_type)
+    if operation_cls is None:
+        raise ValueError(f"unknown operation type: {raw_type}")
+    return operation_cls.model_validate(payload)

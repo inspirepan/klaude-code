@@ -59,6 +59,8 @@ class Session(BaseModel):
     agent_type: str | None = None
     spawn_kind: str | None = None
     approval_policy: str | None = None
+    # Vanilla mode (basic tools, no system prompts) is a per-session flag.
+    vanilla: bool = False
 
     next_checkpoint_id: int = 0
 
@@ -181,6 +183,7 @@ class Session(BaseModel):
             agent_type=meta.agent_type,
             spawn_kind=meta.spawn_kind,
             approval_policy=meta.approval_policy,
+            vanilla=meta.vanilla,
         )
 
     @classmethod
@@ -270,6 +273,7 @@ class Session(BaseModel):
             agent_type=self.agent_type,
             spawn_kind=self.spawn_kind,
             approval_policy=self.approval_policy,
+            vanilla=self.vanilla,
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
 
@@ -318,6 +322,7 @@ class Session(BaseModel):
             agent_type=self.agent_type,
             spawn_kind=self.spawn_kind,
             approval_policy=self.approval_policy,
+            vanilla=self.vanilla,
         )
         self._store.create_meta_if_missing(self.id, meta)
 
@@ -584,7 +589,7 @@ class Session(BaseModel):
         return any(isinstance(it, TaskMetadataItem) for it in self.conversation_history)
 
     def get_history_item(
-        self, *, emit_finish: bool = True, parent_session_id: str | None = None
+        self, *, emit_finish: bool = True, parent_session_id: str | None = None, limit: int | None = None
     ) -> Iterable[events.ReplayEventUnion]:
         seen_sub_agent_sessions: set[str] = set()
         prev_item: message.HistoryEvent | None = None
@@ -593,7 +598,9 @@ class Session(BaseModel):
         had_any_step = False
         task_finish_pending = False
         prev_step_interrupted = False
-        history = self.conversation_history
+        # `limit` truncates the source items so an attach replay can splice
+        # synthesized history with the server-side event tape without overlap.
+        history = self.conversation_history if limit is None else self.conversation_history[:limit]
         history_len = len(history)
         yield events.TaskStartEvent(
             session_id=self.id,

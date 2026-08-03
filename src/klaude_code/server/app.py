@@ -21,6 +21,7 @@ from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.routes import headless_router, server_router, sessions_router, ws_router
 from klaude_code.server.session_live import SessionLiveState
+from klaude_code.server.session_tape import SessionEventTapes
 from klaude_code.server.state import ServerAppState, get_server_state_from_app
 from klaude_code.session.store import register_session_meta_observer
 
@@ -47,8 +48,18 @@ def create_app(
         if state.session_live is None:
             state = replace(state, session_live=SessionLiveState(home_dir=state.home_dir, runtime=state.runtime))
             app.state.server_state = state
+        if state.tapes is None:
+            state = replace(state, tapes=SessionEventTapes(_history_len_getter(state.runtime)))
+            app.state.server_state = state
+        if state.tapes is not None:
+            # Tap the origin bus: recording lands in the same event-loop step
+            # as the fan-out, so attach replay snapshots are gap-free.
+            state.event_bus.set_publish_listener(state.tapes.record)
         if state.headless is None:
-            state = replace(state, headless=HeadlessRuntime(state.runtime, max_running=_headless_max_running()))
+            state = replace(
+                state,
+                headless=HeadlessRuntime(state.runtime, max_running=_headless_max_running(), tapes=state.tapes),
+            )
             app.state.server_state = state
         session_live = state.session_live
         if session_live is None:
@@ -109,6 +120,17 @@ def create_app(
     app.include_router(ws_router)
 
     return app
+
+
+def _history_len_getter(runtime: RuntimeFacade):
+    def _history_len(session_id: str) -> int | None:
+        actor = runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        if agent is None:
+            return None
+        return len(agent.session.conversation_history)
+
+    return _history_len
 
 
 def _headless_max_running() -> int:

@@ -2,7 +2,13 @@
 
 ## Current Interactive TUI Architecture
 
-During interactive `run_interactive()` sessions, prompt-toolkit owns the bottom
+The TUI is a WebSocket client of the local klaude server (`run_attach()` in
+runner.py; the wire lives in `tui/client/socket_client.py`). Execution,
+follow-up queueing/draining, and interaction parking all happen server-side;
+the runner renders the event stream and sends operations over the socket.
+Exiting the TUI is a detach — the server keeps the session running.
+
+During interactive `run_attach()` sessions, prompt-toolkit owns the bottom
 dynamic UI while an agent task is running:
 
 - Rich prints stable scrollback content above the prompt.

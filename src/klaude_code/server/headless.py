@@ -23,6 +23,7 @@ from klaude_code.control.event_bus import EventBus, EventSubscription
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.server.session_tape import SessionEventTapes
 
 _ACTIVITY_ARG_KEYS = (
     "command",
@@ -142,8 +143,15 @@ class QueuedRun:
 class HeadlessRuntime:
     """Owns the headless run queue, concurrency slots, and activity tracker."""
 
-    def __init__(self, runtime: RuntimeFacade, *, max_running: int = 8) -> None:
+    def __init__(
+        self,
+        runtime: RuntimeFacade,
+        *,
+        max_running: int = 8,
+        tapes: SessionEventTapes | None = None,
+    ) -> None:
         self._runtime = runtime
+        self._tapes = tapes
         self._max_running = max(1, max_running)
         self.tracker = SessionActivityTracker()
         self._running: set[str] = set()
@@ -151,6 +159,11 @@ class HeadlessRuntime:
         self._queued_by_id: dict[str, QueuedRun] = {}
         self._watch_tasks: set[asyncio.Task[None]] = set()
         self._consumer_task: asyncio.Task[None] | None = None
+        self._drain_locks: dict[str, asyncio.Lock] = {}
+        # Sessions with a user turn submitted whose task has not started yet.
+        # The registry looks idle in that window; the drain must back off or
+        # it would steal the slot and get the user's turn busy-rejected.
+        self._turn_starting: dict[str, float] = {}
 
     @property
     def max_running(self) -> int:
@@ -182,7 +195,15 @@ class HeadlessRuntime:
                 if isinstance(event, events.EndEvent):
                     return
                 self.tracker.consume(event)
+                if isinstance(event, events.TaskStartEvent):
+                    self._turn_starting.pop(event.session_id, None)
                 if isinstance(event, events.TaskFinishEvent) and not self.tracker.is_interrupted(event.session_id):
+                    self._schedule_follow_up_drain(event.session_id)
+                if isinstance(event, events.TaskFinishEvent):
+                    self._schedule_tape_reset(event.session_id)
+                # A follow-up queued onto an already-idle session (submit
+                # raced the turn end) has no TaskFinish coming; drain now.
+                if isinstance(event, events.FollowUpQueueUpdatedEvent) and event.texts:
                     self._schedule_follow_up_drain(event.session_id)
             # Bus dropped this subscriber on overflow; resubscribe.
             log_debug("[headless] activity subscription overflowed; resubscribed", debug_type=DebugType.EVENT_BUS)
@@ -193,12 +214,17 @@ class HeadlessRuntime:
         self._watch_tasks.add(task)
         task.add_done_callback(self._watch_tasks.discard)
 
-    async def _drain_follow_up(self, session_id: str) -> None:
-        """Start the next queued follow-up turn on a headless session.
+    def _schedule_tape_reset(self, session_id: str) -> None:
+        if self._tapes is None:
+            return
+        task = asyncio.create_task(self._reset_tape_after_flush(session_id))
+        self._watch_tasks.add(task)
+        task.add_done_callback(self._watch_tasks.discard)
 
-        Interactive sessions are drained by their attached TUI runner; headless
-        sessions have no runner, so the server continues the queue itself.
-        """
+    async def _reset_tape_after_flush(self, session_id: str) -> None:
+        """Advance the attach-replay tape once the finished turn is on disk."""
+        if self._tapes is None:
+            return
         registry = self._runtime.session_registry
         agent = None
         for _ in range(100):
@@ -206,23 +232,115 @@ class HeadlessRuntime:
             agent = actor.get_agent() if actor is not None else None
             if actor is None or agent is None:
                 return
-            if agent.session.spawn_kind != "headless":
-                return
             if actor.snapshot().is_idle:
                 break
-            # The finish event races the operation teardown; wait it out.
             await asyncio.sleep(0.05)
         else:
             return
         if agent is None:
             return
-        follow_up = agent.pop_next_follow_up()
-        if follow_up is None:
+        try:
+            # Shield: cancelling this task must not cancel the shared flush
+            # future other waiters (e.g. runtime shutdown) are awaiting.
+            await asyncio.shield(agent.session.wait_for_flush())
+        except asyncio.CancelledError:
             return
-        await self._runtime.emit_event(
-            events.UserMessageEvent(content=follow_up.text, session_id=session_id, images=follow_up.images)
-        )
-        await self._runtime.submit(op.RunAgentOperation(session_id=session_id, input=follow_up))
+        except Exception:
+            pass
+        actor = registry.get_session_actor(session_id)
+        if actor is None or not actor.snapshot().is_idle:
+            return
+        agent = actor.get_agent()
+        if agent is None:
+            return
+        self._tapes.reset_if_settled(session_id, len(agent.session.conversation_history))
+
+    async def _drain_follow_up(self, session_id: str) -> None:
+        """Drain queued follow-up turns on any server-managed session.
+
+        The server owns every session (TUI clients only attach), so the queue
+        continues here for interactive and headless sessions alike. A
+        per-session lock serializes drains: without it two triggers could pop
+        concurrently and lose a message to a busy rejection. Mirrors the old
+        in-process runner: compact first when over threshold; stop draining
+        after an interrupt (kill must keep the session stopped).
+        """
+        lock = self._drain_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            registry = self._runtime.session_registry
+            while True:
+                agent = None
+                for _ in range(100):
+                    actor = registry.get_session_actor(session_id)
+                    agent = actor.get_agent() if actor is not None else None
+                    if actor is None or agent is None:
+                        return
+                    if actor.snapshot().is_idle:
+                        break
+                    # The finish event races the operation teardown; wait it out.
+                    await asyncio.sleep(0.05)
+                else:
+                    return
+                if agent is None:
+                    return
+                if self.tracker.is_interrupted(session_id):
+                    return
+                if self.turn_start_pending(session_id):
+                    return
+                if agent.peek_next_follow_up() is None:
+                    return
+
+                if self._should_compact_before_run(agent):
+                    compact = op.CompactSessionOperation(session_id=session_id, reason="threshold", will_retry=False)
+                    await self._runtime.submit(compact)
+                    await self._runtime.wait_for(compact.id)
+                    refreshed = registry.get_session_actor(session_id)
+                    agent = refreshed.get_agent() if refreshed is not None else None
+                    if agent is None or self.tracker.is_interrupted(session_id):
+                        return
+
+                follow_up = agent.pop_next_follow_up()
+                if follow_up is None:
+                    return
+                await self._runtime.emit_event(
+                    events.UserMessageEvent(content=follow_up.text, session_id=session_id, images=follow_up.images)
+                )
+                run = op.RunAgentOperation(session_id=session_id, input=follow_up)
+                await self._runtime.submit(run)
+                await self._runtime.emit_event(
+                    events.FollowUpQueueUpdatedEvent(
+                        session_id=session_id,
+                        texts=[item.text for item in agent.follow_up_snapshot()],
+                    )
+                )
+                await self._runtime.wait_for(run.id)
+
+    @staticmethod
+    def _should_compact_before_run(agent: Any) -> bool:
+        from klaude_code.agent.compaction import should_compact_threshold
+
+        try:
+            return should_compact_threshold(
+                session=agent.session,
+                config=None,
+                llm_config=agent.profile.llm_client.get_llm_config(),
+            )
+        except Exception:
+            return False
+
+    def mark_turn_starting(self, session_id: str) -> None:
+        """Note that a user turn was submitted but its task is not active yet."""
+        self._turn_starting[session_id] = time.time()
+
+    def turn_start_pending(self, session_id: str) -> bool:
+        started_at = self._turn_starting.get(session_id)
+        if started_at is None:
+            return False
+        if time.time() - started_at > 5.0:
+            # The submission never became a task (e.g. rejected); recover.
+            self._turn_starting.pop(session_id, None)
+            return False
+        return True
 
     def is_queued(self, session_id: str) -> bool:
         return session_id in self._queued_by_id

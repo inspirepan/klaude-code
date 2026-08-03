@@ -559,8 +559,10 @@ def output_command(
 # -- send --
 
 
-def _send_message(target: str, text: str, *, wait: bool, timeout: float | None, json_: bool) -> None:
-    body = _api("POST", f"/api/headless/sessions/{target}/send", json_body={"text": text})
+def _send_message(
+    target: str, text: str, *, wait: bool, timeout: float | None, json_: bool, steer: bool = False
+) -> None:
+    body = _api("POST", f"/api/headless/sessions/{target}/send", json_body={"text": text, "steer": steer})
     session_id = str(body.get("session_id", ""))
     mode = str(body.get("mode", ""))
 
@@ -588,6 +590,7 @@ def _send_message(target: str, text: str, *, wait: bool, timeout: float | None, 
 def send_command(
     target: str = typer.Argument(..., metavar="TARGET"),
     text: list[str] = TEXT_ARGUMENT,
+    steer: bool = typer.Option(False, "--steer", help="Deliver immediately, interrupting work"),
     wait: bool = typer.Option(False, "--wait", help="Block until the resulting turn finishes"),
     timeout: float | None = typer.Option(None, "--timeout", metavar="SECS", help="With --wait"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
@@ -599,6 +602,8 @@ def send_command(
                         keeps the full conversation context
       running session:  queued by default; delivered when the current
                         turn finishes (like typing while klaude works)
+      --steer:          interrupt the running turn and inject the
+                        message now (course-correction)
 
     Sessions never expire: send works minutes or days after the last turn,
     and across server restarts — the conversation is reloaded from disk on
@@ -618,7 +623,7 @@ def send_command(
     if not message:
         typer.echo("error: message text is empty", err=True)
         raise typer.Exit(EXIT_USAGE)
-    _send_message(target, message, wait=wait, timeout=timeout, json_=json_)
+    _send_message(target, message, wait=wait, timeout=timeout, json_=json_, steer=steer)
 
 
 # -- respond --

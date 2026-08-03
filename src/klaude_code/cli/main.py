@@ -9,6 +9,7 @@ import typer
 from typer.core import TyperGroup
 
 from klaude_code.cli.agents_cmd import register_agents_command
+from klaude_code.cli.attach_cmd import register_attach_command
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.headless_cmd import register_headless_commands
@@ -46,6 +47,9 @@ Background agents:
   send       Send a follow-up message (queued by default)
   respond    Answer a pending approval/question of a session
   kill       Interrupt a running agent (session stays resumable)
+
+Attach:
+  attach     Open the TUI on a session: replay, then follow live
 
 Discovery:
   agents     Show agent types and models; --json for machines,
@@ -200,6 +204,7 @@ register_config_commands(app)
 register_self_upgrade_commands(app)
 register_server_commands(app)
 register_headless_commands(app)
+register_attach_command(app)
 register_agents_command(app)
 
 
@@ -313,9 +318,7 @@ def main_callback(
 
         _maybe_start_auto_upgrade()
 
-        from klaude_code.app.runtime import AppInitConfig
         from klaude_code.tui.command.model_picker import ModelSelectStatus, select_model_interactive
-        from klaude_code.tui.runner import run_interactive
 
         update_terminal_title()
 
@@ -451,13 +454,7 @@ def main_callback(
             elif isinstance(main_model, str):
                 chosen_model = main_model
 
-        debug_enabled, log_path = prepare_debug_logging(debug)
-
-        init_config = AppInitConfig(
-            model=chosen_model,
-            debug=debug_enabled,
-            vanilla=vanilla,
-        )
+        _debug_enabled, log_path = prepare_debug_logging(debug)
 
         if log_path:
             log(f"Debug log: {log_path}")
@@ -467,13 +464,36 @@ def main_callback(
             viewer_url = start_log_viewer(log_path)
             log(f"Log viewer: {viewer_url}")
 
-        web_mode_request = asyncio.run(
-            run_interactive(
-                init_config=init_config,
-                session_id=session_id,
+        # TUI = client of the single local server: auto-start it, create the
+        # session server-side when needed, then attach (replay + live).
+        from klaude_code.cli.uds_client import ServerNotRunningError, ensure_server_running
+        from klaude_code.tui.runner import run_attach
+
+        try:
+            ensure_server_running()
+        except ServerNotRunningError as exc:
+            log((f"Error: could not start the klaude server: {exc}", "red"))
+            log(("Hint: run `klaude server run` in another terminal to see why", "yellow"))
+            raise typer.Exit(1) from None
+
+        if session_id is None:
+            from klaude_code.cli.uds_client import request
+
+            status, body = request(
+                "POST",
+                "/api/sessions",
+                json_body={"work_dir": str(Path.cwd()), "model": chosen_model, "vanilla": vanilla},
             )
-        )
-        if web_mode_request is not None:
-            # The browser UI was removed with the web module; the TUI /web
-            # command is a leftover until the attach flow lands.
-            log(("The web UI has been removed. Manage the local server with `klaude server`.", "yellow"))
+            if status != 200 or not isinstance(body, dict) or not body.get("session_id"):
+                detail = body.get("detail") if isinstance(body, dict) else body
+                log((f"Error: failed to create session: {detail}", "red"))
+                raise typer.Exit(1)
+            session_id = str(body["session_id"])
+        elif chosen_model:
+            # Resuming: persist the resolved model (explicit -m, the session's
+            # own model, or the fallback) so the server rehydrates with it.
+            from klaude_code.session.store_registry import get_store_for_path
+
+            get_store_for_path(Path.cwd()).update_meta(session_id, {"model_config_name": chosen_model})
+
+        asyncio.run(run_attach(session_id))

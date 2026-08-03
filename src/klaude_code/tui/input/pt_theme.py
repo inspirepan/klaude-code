@@ -45,9 +45,9 @@ def configure_pt_theme(theme: str | None) -> None:
 
 
 def _ensure_configured() -> None:
-    """Lazy theme detection for CLI entry points that bypass ``run_interactive``.
+    """Lazy theme detection for CLI entry points that bypass ``run_attach``.
 
-    ``run_interactive`` calls :func:`configure_pt_theme` explicitly; the
+    ``run_attach`` calls :func:`configure_pt_theme` explicitly; the
     ``klaude --model`` / ``klaude --resume`` paths construct selectors
     before that runs, so we fall back to user config + terminal background
     detection on first use.

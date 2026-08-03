@@ -6,6 +6,7 @@ and bounded serialization all live here so every CLI client stays thin.
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any, Final, Literal
 from uuid import uuid4
@@ -488,6 +489,7 @@ async def get_headless_output(
 
 class HeadlessSendRequest(BaseModel):
     text: str
+    steer: bool = False
 
 
 @router.post("/sessions/{target}/send")
@@ -509,6 +511,20 @@ async def send_headless_message(
     user_input = UserInputPayload(text=text)
     actor = state.runtime.session_registry.get_session_actor(summary.id)
     busy = actor is not None and not actor.snapshot().is_idle
+    if busy and payload.steer:
+        # Steer: interrupt the running turn, wait for it to wind down, then
+        # inject the message as a fresh turn (Esc + type, as one command).
+        await state.runtime.submit(op.InterruptOperation(session_id=summary.id))
+        deadline = asyncio.get_running_loop().time() + 30.0
+        while asyncio.get_running_loop().time() < deadline:
+            actor = state.runtime.session_registry.get_session_actor(summary.id)
+            if actor is None or actor.snapshot().is_idle:
+                break
+            await asyncio.sleep(0.05)
+        actor = state.runtime.session_registry.get_session_actor(summary.id)
+        if actor is not None and not actor.snapshot().is_idle:
+            raise HTTPException(status_code=504, detail="session did not stop in time; message not delivered")
+        busy = False
     if busy:
         # Queue as a follow-up: delivered when the current turn finishes.
         await state.runtime.submit(op.FollowUpAgentOperation(session_id=summary.id, input=user_input))

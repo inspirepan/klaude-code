@@ -11,6 +11,7 @@ from klaude_code.server.headless import HeadlessRuntime
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.session_live import SessionLiveState
+from klaude_code.server.session_tape import SessionEventTapes
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,7 @@ class ServerAppState:
     session_live: SessionLiveState | None = None
     lifecycle: ServerLifecycle | None = None
     headless: HeadlessRuntime | None = None
+    tapes: SessionEventTapes | None = None
 
     def subscribe_events(self, session_id: str | None) -> EventSubscription:
         source = self.event_stream or self.event_bus

@@ -93,8 +93,23 @@ class EnvelopeBus:
     def __init__(self, *, subscriber_queue_maxsize: int = 1024) -> None:
         self._subscriber_queue_maxsize = subscriber_queue_maxsize
         self._subscribers: dict[str, _Subscriber] = {}
+        self._publish_listener: Callable[[events.EventEnvelope], None] | None = None
+
+    def set_publish_listener(self, listener: Callable[[events.EventEnvelope], None] | None) -> None:
+        """Install a synchronous tap called for every published envelope.
+
+        The listener runs in the same event-loop step as the subscriber
+        fan-out, so a snapshot taken between two publishes never sees a
+        half-delivered event (used by the server-side attach replay tape).
+        """
+        self._publish_listener = listener
 
     async def publish_envelope(self, envelope: events.EventEnvelope) -> None:
+        if self._publish_listener is not None:
+            try:
+                self._publish_listener(envelope)
+            except Exception as exc:
+                log_debug(f"envelope publish listener failed: {exc}", debug_type=DebugType.EVENT_BUS)
         log_debug(
             f"[{envelope.session_id}] publish [{envelope.event_type}] seq={envelope.event_seq}",
             debug_type=DebugType.EVENT_BUS,
@@ -200,6 +215,9 @@ class EventBus:
 
     def subscribe(self, session_id: str | None) -> EventSubscription:
         return self._envelope_bus.subscribe(session_id)
+
+    def set_publish_listener(self, listener: Callable[[events.EventEnvelope], None] | None) -> None:
+        self._envelope_bus.set_publish_listener(listener)
 
     async def unsubscribe(self, subscriber_id: str) -> None:
         await self._envelope_bus.unsubscribe(subscriber_id)

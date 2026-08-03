@@ -341,6 +341,7 @@ def build_meta_snapshot(
     agent_type: str | None = None,
     spawn_kind: str | None = None,
     approval_policy: str | None = None,
+    vanilla: bool = False,
 ) -> dict[str, Any]:
     follow_up_queue_payload = [item.model_dump(mode="json", exclude_none=True) for item in follow_up_queue]
     snapshot: dict[str, Any] = {
@@ -376,5 +377,6 @@ def build_meta_snapshot(
         "agent_type": agent_type,
         "spawn_kind": spawn_kind,
         "approval_policy": approval_policy,
+        "vanilla": vanilla or None,
     }
     return {k: v for k, v in snapshot.items() if v is not None}

@@ -4,7 +4,6 @@ import asyncio
 import re
 from types import SimpleNamespace
 from typing import Any, cast
-from unittest.mock import AsyncMock
 
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 from prompt_toolkit.keys import Keys
@@ -12,11 +11,9 @@ from prompt_toolkit.keys import Keys
 from klaude_code.protocol import events
 from klaude_code.protocol.models import SubAgentState, TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.tui import display as display_module
-from klaude_code.tui import runner as runner_module
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.renderer import TUICommandRenderer
-from klaude_code.tui.runner import toggle_transcript_view
 from klaude_code.tui.transcript_detail import Detail
 
 
@@ -148,52 +145,6 @@ def test_display_toggle_is_process_local(monkeypatch: Any) -> None:
 
         assert display.compact_transcript is False
         assert TUIDisplay().compact_transcript is True
-
-    asyncio.run(_test())
-
-
-def test_toggle_emits_control_event_and_settles(monkeypatch: Any) -> None:
-    async def _test() -> None:
-        runtime = SimpleNamespace(
-            current_session_id=lambda: "session-1",
-            emit_event=AsyncMock(),
-        )
-        wait_for_display_idle = AsyncMock()
-        settle = AsyncMock()
-        monkeypatch.setattr(runner_module, "settle_flicker_safe_stdout", settle)
-
-        toggled = await toggle_transcript_view(
-            runtime=cast(Any, runtime),
-            wait_for_display_idle=wait_for_display_idle,
-        )
-
-        assert toggled is True
-        emitted = runtime.emit_event.await_args.args[0]
-        assert isinstance(emitted, events.ToggleTranscriptDetailEvent)
-        assert emitted.session_id == "session-1"
-        wait_for_display_idle.assert_awaited_once()
-        settle.assert_awaited_once()
-
-    asyncio.run(_test())
-
-
-def test_toggle_without_session_is_a_noop(monkeypatch: Any) -> None:
-    async def _test() -> None:
-        runtime = SimpleNamespace(
-            current_session_id=lambda: None,
-            emit_event=AsyncMock(),
-        )
-        settle = AsyncMock()
-        monkeypatch.setattr(runner_module, "settle_flicker_safe_stdout", settle)
-
-        toggled = await toggle_transcript_view(
-            runtime=cast(Any, runtime),
-            wait_for_display_idle=AsyncMock(),
-        )
-
-        assert toggled is False
-        runtime.emit_event.assert_not_awaited()
-        settle.assert_not_awaited()
 
     asyncio.run(_test())
 
