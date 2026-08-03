@@ -375,13 +375,6 @@ def test_auto_upgrade_local_git_runs_when_clean(
     calls: list[list[str]] = []
     monkeypatch.setattr(update.subprocess, "run", _make_fake_run(calls))
 
-    def fake_rebuild_web_assets(repo_path: Path) -> bool:
-        assert repo_path == repo
-        calls.append(["rebuild_web_assets"])
-        return True
-
-    monkeypatch.setattr(update, "rebuild_web_assets", fake_rebuild_web_assets)
-
     result = update.perform_auto_upgrade_if_needed()
     assert result.performed is True
     assert result.new_version == "1.1.0"
@@ -390,9 +383,6 @@ def test_auto_upgrade_local_git_runs_when_clean(
     assert any("pull" in c for c in calls)
     assert any("submodule" in c for c in calls)
     assert any(c[:3] == ["uv", "tool", "install"] and "--editable" in c for c in calls)
-    build_index = calls.index(["rebuild_web_assets"])
-    install_index = next(index for index, call in enumerate(calls) if call[:3] == ["uv", "tool", "install"])
-    assert build_index < install_index
 
 
 def test_auto_upgrade_local_git_stops_when_submodule_sync_fails(
@@ -414,11 +404,6 @@ def test_auto_upgrade_local_git_stops_when_submodule_sync_fails(
         return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
     monkeypatch.setattr(update, "_run_git", fake_run_git)
-    monkeypatch.setattr(
-        update,
-        "rebuild_web_assets",
-        lambda _: pytest.fail("web build must not run after a failed submodule sync"),
-    )
 
     result = update._auto_upgrade_local_git(update.INSTALL_KIND_LOCAL, str(repo))
 

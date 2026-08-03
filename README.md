@@ -16,7 +16,7 @@ Minimal code agent CLI.
 - **Prompt caching**: Append-only persisted history and stable request prefixes maximize cache hits
 - **Context management**: Auto-compaction, Rewind (rollback to checkpoint), Handoff (compress and continue in fresh context)
 - **Auto memory**: Persistent cross-session memory per project (`~/.klaude/projects/<project>/memory/`)
-- **Web UI**: Browser-based interface via `klaude web` or `/web` slash command
+- **Local server**: Managed with `klaude server` (status / stop / reload / logs / run)
 - **Sessions**: Resumable with `--continue`, forkable with `/fork-session`
 - **Extras**: Slash commands, sub-agents, image paste, terminal notifications, auto-theming
 
@@ -43,7 +43,7 @@ klaude upgrade
 ```bash
 git clone https://github.com/inspirepan/klaude-code.git
 cd klaude-code
-make install    # init submodules, build web frontend, install as editable
+make install    # init submodules, install as editable
 ```
 
 Or step by step:
@@ -51,11 +51,8 @@ Or step by step:
 ```bash
 git submodule update --init --recursive
 uv sync                              # install Python deps
-uv run python scripts/build_web.py   # build web frontend
 uv tool install -e .                 # install CLI globally (editable)
 ```
-
-Requires `pnpm` or `npm` for the web frontend build (`pnpm` preferred).
 
 ## Usage
 
@@ -319,7 +316,6 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 - `/compact` - Clear conversation history but keep a summary in context.
 - `/fork-session` - Fork current session from a selected point.
 - `/refresh-terminal` - Refresh terminal display.
-- `/web` - Switch to web UI mode.
 - `/new` - Start a new session (clears context).
 - `/model` - Switch the active LLM and update `main_model` in config while preserving fallback order (the selected model is moved/inserted to the front).
 - `/sub-agent-model` - Configure sub-agent models at runtime.
@@ -355,19 +351,17 @@ The main agent can spawn specialized sub-agents for specific tasks:
 | **Code Reviewer** | Identify real bugs in proposed changes |
 | **Code Maintenance Reviewer** | Review maintainability, reuse, layering, and unnecessary complexity |
 
-### Web UI
+### Local Server
 
-Klaude includes a browser-based interface as an alternative to the terminal TUI.
+Klaude runs a local server on a Unix domain socket (`~/.klaude/run/server.sock`).
 
 ```bash
-# Start web UI directly
-klaude web
-
-# With options
-klaude web --port 9000 --host 0.0.0.0 --no-open
+klaude server run       # run the server in the foreground (debugging)
+klaude server status    # pid, socket path, uptime, version, session counts
+klaude server stop      # graceful shutdown
+klaude server reload    # graceful restart on the current code (--force to interrupt sessions)
+klaude server logs      # tail server logs
 ```
-
-You can also switch from TUI to web mid-session with the `/web` slash command. The web UI provides the same capabilities as the TUI: multi-session management, file browsing, tool execution, and real-time streaming.
 
 ### Prompt Caching
 

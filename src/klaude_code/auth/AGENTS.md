@@ -54,4 +54,4 @@ Add focused coverage at each changed boundary. Existing examples are:
 - `tests/tui/test_auth_selector.py`
 - `tests/config/test_config.py`
 
-Run the focused tests first, then `make python-lint` for cross-layer and type checks.
+Run the focused tests first, then `make lint` for cross-layer and type checks.

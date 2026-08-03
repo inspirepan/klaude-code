@@ -86,11 +86,6 @@ def _upgrade_local_git_install(install_kind: str, source_path: str) -> None:
         log(("Error: `git submodule update` failed; upgrade stopped before reinstall.", "red"))
         raise typer.Exit(submodule_result.returncode or 1)
 
-    from klaude_code.update import rebuild_web_assets
-
-    if rebuild_web_assets(repo_path) is False:
-        log(("Warning: web UI rebuild failed; `klaude web` may serve stale assets.", "yellow"))
-
     install_args = ["uv", "tool", "install", "--force"]
     if install_kind == INSTALL_KIND_EDITABLE:
         install_args.append("--editable")

@@ -11,7 +11,6 @@ import json
 import os
 import shutil
 import subprocess
-import sys
 import threading
 import time
 import urllib.request
@@ -543,7 +542,6 @@ AUTO_UPGRADE_GIT_STATUS_TIMEOUT = 15
 AUTO_UPGRADE_GIT_PULL_TIMEOUT = 60
 AUTO_UPGRADE_SUBMODULE_TIMEOUT = 180
 AUTO_UPGRADE_UV_INSTALL_TIMEOUT = 180
-AUTO_UPGRADE_WEB_BUILD_TIMEOUT = 600  # npm install + vite build on a cold cache
 
 
 def _auto_upgrade_pypi() -> AutoUpgradeResult:
@@ -566,41 +564,6 @@ def _auto_upgrade_pypi() -> AutoUpgradeResult:
     if result.returncode != 0:
         return AutoUpgradeResult(False, None, f"auto-upgrade failed (uv tool upgrade exit {result.returncode})", "warn")
     return AutoUpgradeResult(True, None, None)
-
-
-def rebuild_web_assets(repo_path: Path) -> bool | None:
-    """Best-effort rebuild of the bundled web UI after pulling new sources.
-
-    ``src/klaude_code/web/dist`` is gitignored and generated, so a plain
-    ``git pull`` leaves the frontend stale. Returns None when there is nothing
-    to build, otherwise whether the build succeeded. Failures are non-fatal:
-    the Python package can still be reinstalled from the updated source.
-    """
-
-    from klaude_code.log import log_debug
-
-    build_script = repo_path / "scripts" / "build_web.py"
-    if not build_script.is_file() or not (repo_path / "web").is_dir():
-        return None
-
-    try:
-        # build_web.py only uses the standard library, so the tool interpreter
-        # is enough; it locates the repo root from its own __file__.
-        result = subprocess.run(
-            [sys.executable, str(build_script)],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=AUTO_UPGRADE_WEB_BUILD_TIMEOUT,
-        )
-    except (OSError, subprocess.SubprocessError) as err:
-        log_debug(f"Web rebuild failed: {err}")
-        return False
-
-    if result.returncode != 0:
-        log_debug(f"Web rebuild exited {result.returncode}: {result.stderr.strip()[-500:]}")
-        return False
-    return True
 
 
 def _auto_upgrade_local_git(install_kind: str, source_path: str) -> AutoUpgradeResult:
@@ -664,8 +627,6 @@ def _auto_upgrade_local_git(install_kind: str, source_path: str) -> AutoUpgradeR
             f"auto-upgrade failed: `git submodule update` failed at {source_display}",
             "warn",
         )
-
-    rebuild_web_assets(repo_path)
 
     install_args = ["uv", "tool", "install", "--force"]
     if install_kind == INSTALL_KIND_EDITABLE:

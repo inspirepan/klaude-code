@@ -56,13 +56,6 @@ def test_upgrade_command_updates_clean_editable_local_git_checkout(monkeypatch: 
 
     monkeypatch.setattr(self_update.subprocess, "run", fake_run)
 
-    def fake_rebuild_web_assets(repo_path: Path) -> bool:
-        assert repo_path == source_path
-        calls.append(["rebuild_web_assets"])
-        return True
-
-    monkeypatch.setattr(update, "rebuild_web_assets", fake_rebuild_web_assets)
-
     def fake_log(*objects: _LogObject) -> None:
         messages.extend(obj[0] if isinstance(obj, tuple) else obj for obj in objects)
 
@@ -75,7 +68,6 @@ def test_upgrade_command_updates_clean_editable_local_git_checkout(monkeypatch: 
         ["git", "-C", str(source_path), "checkout", "main"],
         ["git", "-C", str(source_path), "pull", "--ff-only"],
         ["git", "-C", str(source_path), "submodule", "update", "--init", "--recursive"],
-        ["rebuild_web_assets"],
         ["uv", "tool", "install", "--force", "--editable", str(source_path)],
     ]
     assert "Update complete. Please re-run `klaude` to use the new version." in messages

@@ -10,6 +10,7 @@ from typer.core import TyperGroup
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
+from klaude_code.cli.server_cmd import register_server_commands
 
 
 class _LazyEnvHelp:
@@ -137,12 +138,6 @@ def prepare_debug_logging(debug: bool) -> tuple[bool, Path | None]:
     return _prepare_debug_logging(debug)
 
 
-def run_web_server_command(*, host: str, port: int, no_open: bool, debug: bool) -> None:
-    from klaude_code.cli.web_cmd import run_web_server_command as _run_web_server_command
-
-    _run_web_server_command(host=host, port=port, no_open=no_open, debug=debug)
-
-
 def _maybe_start_auto_upgrade() -> None:
     """Start auto-upgrade in the background for interactive startup.
 
@@ -182,16 +177,7 @@ app = typer.Typer(
 register_auth_commands(app)
 register_config_commands(app)
 register_self_upgrade_commands(app)
-
-
-@app.command("web")
-def _web_command_wrapper(  # pyright: ignore[reportUnusedFunction]
-    host: str = typer.Option("127.0.0.1", "--host", help="Host to bind web server"),
-    port: int = typer.Option(8765, "--port", help="Port to bind web server"),
-    no_open: bool = typer.Option(False, "--no-open", help="Do not open browser automatically"),
-    debug: bool = typer.Option(False, "--debug", help="Enable debug logs for web server"),
-) -> None:
-    run_web_server_command(host=host, port=port, no_open=no_open, debug=debug)
+register_server_commands(app)
 
 
 # cost command is registered via a lazy wrapper to avoid pulling in
@@ -465,9 +451,6 @@ def main_callback(
             )
         )
         if web_mode_request is not None:
-            run_web_server_command(
-                host=web_mode_request.host,
-                port=web_mode_request.port,
-                no_open=web_mode_request.no_open,
-                debug=web_mode_request.debug if web_mode_request.debug is not None else debug_enabled,
-            )
+            # The browser UI was removed with the web module; the TUI /web
+            # command is a leftover until the attach flow lands.
+            log(("The web UI has been removed. Manage the local server with `klaude server`.", "yellow"))
