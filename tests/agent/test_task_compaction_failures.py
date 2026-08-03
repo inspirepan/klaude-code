@@ -43,7 +43,7 @@ def _build_executor(
     sub_agent_state: SubAgentState | None = None,
     attachments: list[Any] | None = None,
 ) -> TaskExecutor:
-    llm_config = SimpleNamespace(model_id="test-model")
+    llm_config = SimpleNamespace(model_id="test-model", effective_effort=None)
     llm_client = SimpleNamespace(model_name="test-model", get_llm_config=lambda: llm_config)
 
     session_ctx = SessionContext(

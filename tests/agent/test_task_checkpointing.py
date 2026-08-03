@@ -29,7 +29,7 @@ def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedF
 
 
 def _build_profile(*, tool_names: list[str] | None = None) -> AgentProfile:
-    llm_config = SimpleNamespace(model_id="test-model")
+    llm_config = SimpleNamespace(model_id="test-model", effective_effort=None)
     llm_client = SimpleNamespace(model_name="test-model", get_llm_config=lambda: llm_config)
     return AgentProfile(
         llm_client=cast(Any, llm_client),
