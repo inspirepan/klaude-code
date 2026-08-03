@@ -52,6 +52,14 @@ class Session(BaseModel):
     runtime_owner_heartbeat_at: float | None = None
     archived: bool = False
 
+    # Headless/multiplexer metadata (set by `klaude run`).
+    # spawn_kind is None for interactive sessions, "headless" for `klaude run`.
+    name: str | None = None
+    group: str | None = None
+    agent_type: str | None = None
+    spawn_kind: str | None = None
+    approval_policy: str | None = None
+
     next_checkpoint_id: int = 0
 
     model_config_name: str | None = None
@@ -168,6 +176,11 @@ class Session(BaseModel):
             prompt_cache_key=meta.prompt_cache_key,
             next_checkpoint_id=meta.next_checkpoint_id,
             follow_up_queue=meta.follow_up_queue,
+            name=meta.name,
+            group=meta.group,
+            agent_type=meta.agent_type,
+            spawn_kind=meta.spawn_kind,
+            approval_policy=meta.approval_policy,
         )
 
     @classmethod
@@ -252,6 +265,11 @@ class Session(BaseModel):
             prompt_cache_key=self.prompt_cache_key,
             next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
+            name=self.name,
+            group=self.group,
+            agent_type=self.agent_type,
+            spawn_kind=self.spawn_kind,
+            approval_policy=self.approval_policy,
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
 
@@ -295,6 +313,11 @@ class Session(BaseModel):
             prompt_cache_key=self.prompt_cache_key,
             next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
+            name=self.name,
+            group=self.group,
+            agent_type=self.agent_type,
+            spawn_kind=self.spawn_kind,
+            approval_policy=self.approval_policy,
         )
         self._store.create_meta_if_missing(self.id, meta)
 

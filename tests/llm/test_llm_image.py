@@ -409,6 +409,7 @@ def test_image_file_to_data_url_reuses_cached_request_variant(
     second = image_module.image_file_to_data_url(part, max_dimension=2000)
 
     assert first is not None
+    assert second is not None
     assert second == first
     assert _payload_from_data_url(second) == b"request-ready"
     assert compress_calls == 1

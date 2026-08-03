@@ -12,11 +12,13 @@ from typing import Any, NoReturn
 
 import typer
 
+from klaude_code.cli.uds_client import ServerNotRunningError, request
 from klaude_code.log import log
 
 server_app = typer.Typer(
-    help="Manage the local klaude server",
+    help="Manage the local klaude server. One server per user; every other command auto-starts it on demand, so you rarely need these.",
     no_args_is_help=True,
+    rich_markup_mode=None,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 
@@ -25,30 +27,10 @@ def register_server_commands(app: typer.Typer) -> None:
     app.add_typer(server_app, name="server")
 
 
-# -- UDS HTTP client (thin; heavy imports stay lazy) --
-
-
-class ServerNotRunningError(RuntimeError):
-    pass
-
-
 def _request(method: str, path: str, json_body: dict[str, Any] | None = None, timeout: float = 10.0) -> Any:
     """Send one HTTP request over the server's Unix socket and return (status, body)."""
 
-    import httpx
-
-    from klaude_code.server.paths import server_socket_path
-
-    socket_path = server_socket_path()
-    if not socket_path.exists():
-        raise ServerNotRunningError(str(socket_path))
-    transport = httpx.HTTPTransport(uds=str(socket_path))
-    try:
-        with httpx.Client(transport=transport, base_url="http://klaude", timeout=timeout) as client:
-            response = client.request(method, path, json=json_body)
-    except httpx.TransportError as exc:
-        raise ServerNotRunningError(str(socket_path)) from exc
-    return response.status_code, response.json()
+    return request(method, path, json_body=json_body, timeout=timeout)
 
 
 def _print_not_running(socket_path_hint: str) -> None:

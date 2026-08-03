@@ -47,6 +47,12 @@ class SessionSummary:
     archived: bool
     todos: list[TodoSummary]
     file_change_summary: FileChangeSummary
+    name: str | None = None
+    group: str | None = None
+    agent_type: str | None = None
+    spawn_kind: str | None = None
+    approval_policy: str | None = None
+    model_config_name: str | None = None
 
 
 def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id: str) -> SessionSummary | None:
@@ -167,6 +173,10 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
         "file_diffs": file_diffs,
     }
 
+    def _optional_str(key: str) -> str | None:
+        value = data.get(key)
+        return value if isinstance(value, str) and value else None
+
     return SessionSummary(
         id=sid,
         created_at=created_at,
@@ -182,6 +192,12 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
         archived=archived,
         todos=todos,
         file_change_summary=file_change_summary,
+        name=_optional_str("name"),
+        group=_optional_str("group"),
+        agent_type=_optional_str("agent_type"),
+        spawn_kind=_optional_str("spawn_kind"),
+        approval_policy=_optional_str("approval_policy"),
+        model_config_name=_optional_str("model_config_name"),
     )
 
 

@@ -368,6 +368,8 @@ class UserConfig(BaseModel):
     sub_agent_model_decision_tree: str | None = None
     theme: str | None = None
     auto_upgrade: bool | None = None
+    # Max concurrently running headless sessions (spawned via `klaude run`).
+    headless_max_running: int | None = None
     provider_list: list[UserProviderConfig] = Field(default_factory=lambda: [])
 
     @model_validator(mode="before")
@@ -386,6 +388,9 @@ class Config(BaseModel):
     sub_agent_model_decision_tree: str | None = None
     theme: str | None = None
     auto_upgrade: bool = True
+    # Max concurrently running headless sessions (spawned via `klaude run`);
+    # further `run` requests queue on the server until a slot frees.
+    headless_max_running: int = 8
     provider_list: list[ProviderConfig] = Field(default_factory=lambda: [])
 
     # Internal: reference to original user config for saving

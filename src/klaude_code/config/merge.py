@@ -133,6 +133,11 @@ def merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Con
         auto_upgrade=(
             user_config.auto_upgrade if user_config.auto_upgrade is not None else builtin_config.auto_upgrade
         ),
+        headless_max_running=(
+            user_config.headless_max_running
+            if user_config.headless_max_running is not None
+            else builtin_config.headless_max_running
+        ),
         provider_list=revalidated_providers,
     )
     # Keep reference to user config for saving

@@ -13,6 +13,7 @@ from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.protocol.models import SessionRuntimeState
 from klaude_code.server.session_access import is_session_read_only_for_runtime
 from klaude_code.server.session_index import SessionIndex, SessionSummary
+from klaude_code.server.session_state import derive_session_state_from_snapshot
 
 
 @dataclass(frozen=True)
@@ -102,14 +103,6 @@ class SessionEventStream:
             self.detach(subscriber_id)
 
 
-def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "running", "waiting_user_input"]:
-    if snapshot.pending_request_count > 0:
-        return cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.WAITING_USER_INPUT.value)
-    if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
-        return cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.RUNNING.value)
-    return cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
-
-
 class SessionLiveState:
     def __init__(self, *, home_dir: Path, runtime: RuntimeFacade) -> None:
         self._runtime = runtime
@@ -183,7 +176,7 @@ class SessionLiveState:
         if actor is None:
             return fallback or cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
         snapshot = actor.snapshot()
-        return _derive_session_state_from_snapshot(snapshot)
+        return derive_session_state_from_snapshot(snapshot)
 
     def _is_session_read_only(
         self,

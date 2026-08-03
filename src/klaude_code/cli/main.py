@@ -2,55 +2,73 @@ import asyncio
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
+import click
 import typer
 from typer.core import TyperGroup
 
+from klaude_code.cli.agents_cmd import register_agents_command
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
+from klaude_code.cli.headless_cmd import register_headless_commands
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
 from klaude_code.cli.server_cmd import register_server_commands
 
+# Product spec: docs/agent-multiplexer.md §2. Plain text on purpose — help is
+# read by agents as often as by humans, so no rich panels or box drawing.
+TOP_LEVEL_HELP = """\
+Usage: klaude [OPTIONS] [COMMAND]
 
-class _LazyEnvHelp:
-    """Lazy proxy that defers heavy config imports until --help is shown.
+klaude — an agent multiplexer.
 
-    Typer/Click calls .split() and str() on the epilog, so we materialise
-    the real string on first attribute access.
-    """
+Run coding agents interactively, in the background, or from other
+agents. A single local server owns all execution; the TUI and every
+CLI command below are clients of it. Running klaude with no command
+opens an interactive session in the current directory (the server is
+auto-started when needed).
 
-    _value: str | None = None
+Options:
+  -c, --continue       Resume the latest session in this directory
+  -r, --resume [ID]    Pick a session and resume it
+  -m, --model TEXT     Select model (see `klaude agents`)
+      --vanilla        Minimal mode: basic tools, no system prompts
+  -d, --debug          Enable debug logging
+  -V, --version        Show version and exit
+  -h, --help           Show this message and exit
 
-    def _resolve(self) -> str:
-        if self._value is None:
-            from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
+Background agents:
+  run        Spawn a background agent, print its id, return at once
+  ps         List sessions and their runtime states
+  brief      Compact status of one session (agent-friendly, bounded)
+  wait       Block until agents finish; print their results
+  output     Print a session's output (last reply / transcript)
+  send       Send a follow-up message (queued by default)
+  respond    Answer a pending approval/question of a session
+  kill       Interrupt a running agent (session stays resumable)
 
-            lines = [
-                "Environment Variables:",
-                "",
-                "Provider API keys (built-in config):",
-            ]
-            max_len = max(len(k.env_var) for k in SUPPORTED_API_KEYS)
-            for k in SUPPORTED_API_KEYS:
-                lines.append(f"  {k.env_var:<{max_len}}  {k.description}")
-            lines.extend(
-                [
-                    "",
-                    "Tool limits (Read):",
-                    "  KLAUDE_READ_GLOBAL_LINE_CAP    Max lines to read (default: 2000)",
-                    "  KLAUDE_READ_MAX_CHARS          Max total chars to read (default: 50000)",
-                    "  KLAUDE_READ_MAX_IMAGE_BYTES    Max image bytes to read (default: 64MB)",
-                ]
-            )
-            self._value = "\n\n".join(lines)
-        return self._value
+Discovery:
+  agents     Show agent types and models; --json for machines,
+             --prime for an AI-agent integration guide
 
-    def __str__(self) -> str:
-        return self._resolve()
+Server:
+  server     Manage the local server (status / stop / reload / logs / run)
 
-    def __getattr__(self, name: str) -> Any:
-        return getattr(self._resolve(), name)
+Setup:
+  conf       Edit config file
+  auth       Login/logout
+  cost       Show usage stats
+  upgrade    Upgrade to latest version
+
+TARGET accepts a session id (unique prefix is enough) or a --name
+given at `klaude run`. Pass --json to any background-agent or
+discovery command for machine-readable output.
+
+Orchestration is plain bash: `run` returns immediately, multi-target
+`wait` is a barrier, `--group` names a fan-out. For the playbook
+(parallel fan-out, barriers, loops, synthesis pipelines) and the
+current model/agent inventory, run: klaude agents --prime
+"""
 
 
 def _looks_like_flag(token: str) -> bool:
@@ -112,6 +130,10 @@ def _preprocess_cli_args(args: list[str]) -> list[str]:
 
 
 class _PreprocessingTyperGroup(TyperGroup):
+    def format_help(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        del ctx
+        formatter.write(TOP_LEVEL_HELP)
+
     def main(
         self,
         args: Sequence[str] | None = None,
@@ -168,8 +190,7 @@ app = typer.Typer(
     add_completion=False,
     pretty_exceptions_enable=False,
     no_args_is_help=False,
-    rich_markup_mode="rich",
-    epilog=cast(str, _LazyEnvHelp()),
+    rich_markup_mode=None,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 
@@ -178,6 +199,8 @@ register_auth_commands(app)
 register_config_commands(app)
 register_self_upgrade_commands(app)
 register_server_commands(app)
+register_headless_commands(app)
+register_agents_command(app)
 
 
 # cost command is registered via a lazy wrapper to avoid pulling in

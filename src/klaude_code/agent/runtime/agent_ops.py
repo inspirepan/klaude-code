@@ -324,7 +324,16 @@ class AgentOperationHandler:
 
         session_clients = self._ensure_session_llm_clients(session)
 
-        profile = self._model_profile_provider.build_profile(session_clients.main, work_dir=session.work_dir)
+        # Top-level sessions created via `klaude run --agent TYPE` carry the
+        # agent type in meta; build the matching profile (prompt + tool set).
+        profile_agent_type: str | None = None
+        if session.agent_type is not None and session.agent_type != "main":
+            profile_agent_type = session.agent_type
+        profile = self._model_profile_provider.build_profile(
+            session_clients.main,
+            profile_agent_type,
+            work_dir=session.work_dir,
+        )
         agent = Agent(
             session=session,
             profile=profile,

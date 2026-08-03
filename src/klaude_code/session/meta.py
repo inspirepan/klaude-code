@@ -40,6 +40,11 @@ class LoadedSessionMeta:
     prompt_cache_key: str | None
     next_checkpoint_id: int
     follow_up_queue: list[message.UserInputPayload]
+    name: str | None
+    group: str | None
+    agent_type: str | None
+    spawn_kind: str | None
+    approval_policy: str | None
 
 
 def read_json_dict(path: Path) -> dict[str, Any] | None:
@@ -103,6 +108,12 @@ def _parse_follow_up_queue(raw: object) -> list[message.UserInputPayload]:
     return inputs
 
 
+def _parse_optional_str(raw: object) -> str | None:
+    if isinstance(raw, str) and raw:
+        return raw
+    return None
+
+
 def parse_session_state(raw: object) -> SessionRuntimeState | None:
     if not isinstance(raw, str):
         return None
@@ -164,6 +175,11 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         prompt_cache_key=raw.get("prompt_cache_key") if isinstance(raw.get("prompt_cache_key"), str) else None,
         next_checkpoint_id=int(raw.get("next_checkpoint_id", 0)),
         follow_up_queue=_parse_follow_up_queue(raw.get("follow_up_queue")),
+        name=_parse_optional_str(raw.get("name")),
+        group=_parse_optional_str(raw.get("group")),
+        agent_type=_parse_optional_str(raw.get("agent_type")),
+        spawn_kind=_parse_optional_str(raw.get("spawn_kind")),
+        approval_policy=_parse_optional_str(raw.get("approval_policy")),
     )
 
 

@@ -1,0 +1,704 @@
+"""Headless command surface: run / ps / brief / wait / output / send / respond / kill.
+
+Thin client: every command is one or more HTTP calls over the server's Unix
+socket. Heavy imports stay inside functions so each invocation starts fast.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+import time
+from typing import Any
+
+import typer
+
+WAIT_POLL_INTERVAL_SECONDS = 1.0
+
+EXIT_USAGE = 1
+EXIT_WAITING_INPUT = 2
+EXIT_FAILED = 3
+EXIT_TIMEOUT = 124
+
+# Module-level singletons: B008 forbids these calls in argument defaults.
+TARGETS_ARGUMENT = typer.Argument(None, metavar="[TARGET]...")
+TEXT_ARGUMENT = typer.Argument(..., metavar="TEXT...")
+STATE_OPTION = typer.Option(None, "--state", help="Filter by state (repeatable)")
+
+
+# -- shared helpers --
+
+
+def _api(
+    method: str,
+    path: str,
+    *,
+    json_body: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+    timeout: float = 30.0,
+) -> Any:
+    from klaude_code.cli.uds_client import ServerNotRunningError, request_with_autostart
+
+    try:
+        status, body = request_with_autostart(method, path, json_body=json_body, params=params, timeout=timeout)
+    except ServerNotRunningError as exc:
+        typer.echo(f"error: klaude server is not reachable ({exc})", err=True)
+        raise typer.Exit(EXIT_USAGE) from None
+    if status >= 400:
+        detail = body.get("detail") if isinstance(body, dict) else body
+        if isinstance(detail, dict):
+            message = detail.get("message", detail)
+            typer.echo(f"error: {message}", err=True)
+            candidates = detail.get("candidates")
+            if isinstance(candidates, list) and candidates:
+                typer.echo("candidates:", err=True)
+                for candidate in candidates:
+                    typer.echo(f"  {candidate}", err=True)
+            agent_types = detail.get("agent_types")
+            if isinstance(agent_types, list) and agent_types:
+                typer.echo(f"agent types: {', '.join(agent_types)}", err=True)
+        else:
+            typer.echo(f"error: {detail}", err=True)
+        raise typer.Exit(EXIT_USAGE)
+    return body
+
+
+def _split_targets(values: list[str]) -> list[str]:
+    targets: list[str] = []
+    for value in values:
+        targets.extend(part.strip() for part in value.split(",") if part.strip())
+    return targets
+
+
+def _print_json(data: Any) -> None:
+    typer.echo(json.dumps(data, ensure_ascii=False, indent=2))
+
+
+def _short_id(session_id: str) -> str:
+    return session_id[:8]
+
+
+def _shorten(text: str, limit: int) -> str:
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1] + "…"
+
+
+def _format_relative(timestamp: float) -> str:
+    delta = max(0.0, time.time() - timestamp)
+    if delta < 60:
+        return f"{int(delta)}s ago"
+    if delta < 3600:
+        return f"{int(delta // 60)}m ago"
+    if delta < 86400:
+        return f"{int(delta // 3600)}h ago"
+    return f"{int(delta // 86400)}d ago"
+
+
+def _abbrev_home(path: str) -> str:
+    from pathlib import Path
+
+    home = str(Path.home())
+    if path == home:
+        return "~"
+    if path.startswith(home + "/"):
+        return "~" + path[len(home) :]
+    return path
+
+
+def _fetch_rows(
+    targets: list[str],
+    group: str | None,
+    *,
+    states: list[str] | None = None,
+    dir_: str | None = None,
+    limit: int = 0,
+    include_archived: bool = False,
+) -> list[dict[str, Any]]:
+    params: dict[str, Any] = {"limit": limit}
+    if targets:
+        params["targets"] = ",".join(targets)
+    if group:
+        params["group"] = group
+    if dir_:
+        params["dir"] = dir_
+    if states:
+        params["state"] = states
+    if include_archived:
+        params["include_archived"] = True
+    body = _api("GET", "/api/headless/sessions", params=params)
+    sessions = body.get("sessions", [])
+    return sessions if isinstance(sessions, list) else []
+
+
+def _pending_request_lines(pending: dict[str, Any], *, target: str) -> list[str]:
+    lines = [f"pending {pending.get('type', 'request')}: {pending.get('prompt', '')}"]
+    options = pending.get("options") or []
+    for option in options:
+        description = option.get("description") or ""
+        suffix = f" — {description}" if description else ""
+        lines.append(f"  {option.get('index')}. {option.get('label')}{suffix}")
+    if options:
+        lines.append(f"answer with: klaude respond {target} --option N")
+    else:
+        lines.append(f"answer with: klaude respond {target} --text '...'")
+    return lines
+
+
+def _fetch_output(target: str, *, turns: int | None = None, transcript: bool = False) -> dict[str, Any]:
+    params: dict[str, Any] = {}
+    if turns is not None:
+        params["turns"] = turns
+    if transcript:
+        params["transcript"] = True
+    return _api("GET", f"/api/headless/sessions/{target}/output", params=params)
+
+
+def _print_output_block(result: dict[str, Any], *, with_header: bool) -> None:
+    if with_header:
+        name = result.get("name") or "-"
+        typer.echo(f"== {_short_id(str(result.get('id', '')))} {name}")
+    output = str(result.get("output") or "")
+    if output:
+        typer.echo(output)
+    pending = result.get("pending_request")
+    if isinstance(pending, dict):
+        target = str(result.get("id", ""))[:8]
+        for line in _pending_request_lines(pending, target=target):
+            typer.echo(line)
+
+
+def _poll_until_settled(
+    targets: list[str],
+    group: str | None,
+    *,
+    timeout: float | None,
+    any_mode: bool = False,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Poll until targets leave queued/running. Returns (rows, timed_out)."""
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    while True:
+        rows = _fetch_rows(targets, group)
+        if not rows:
+            typer.echo("error: no matching sessions", err=True)
+            raise typer.Exit(EXIT_USAGE)
+        settled = [row for row in rows if row.get("state") not in ("queued", "running")]
+        if any_mode and settled:
+            return rows, False
+        if len(settled) == len(rows):
+            return rows, False
+        if deadline is not None and time.monotonic() >= deadline:
+            return rows, True
+        time.sleep(WAIT_POLL_INTERVAL_SECONDS)
+
+
+def _exit_code_for_states(states: list[str]) -> int:
+    if any(state == "failed" for state in states):
+        return EXIT_FAILED
+    if any(state == "waiting_input" for state in states):
+        return EXIT_WAITING_INPUT
+    return 0
+
+
+# -- run --
+
+
+def run_command(
+    prompt: str | None = typer.Argument(None, metavar="[PROMPT]"),
+    dir_: str | None = typer.Option(None, "--dir", "-C", help="Working directory (default: cwd)"),
+    model: str | None = typer.Option(
+        None, "--model", "-m", help="Model alias (see `klaude agents`); defaults to the agent type's bound model"
+    ),
+    agent: str = typer.Option(
+        "main",
+        "--agent",
+        show_default=False,
+        help="Agent type (see `klaude agents`). Default: main — the full agent with all tools. "
+        "Other types (finder, code-reviewer, ...) run with their own prompt, tool set, and bound model",
+    ),
+    name: str | None = typer.Option(None, "--name", help="Addressable name for ps/brief/wait/send"),
+    group: str | None = typer.Option(
+        None,
+        "--group",
+        help="Tag this session for `ps --group NAME`. Lets a calling agent find everything it "
+        "spawned even after it lost the ids",
+    ),
+    session: str | None = typer.Option(
+        None, "--session", help="Send into an existing session instead of creating a new one (same as `klaude send`)"
+    ),
+    approval: str = typer.Option(
+        "hold",
+        "--approval",
+        show_default=False,
+        help="What to do on permission requests when no human is attached: "
+        "hold = park request, state=waiting_input (default); auto = approve everything (trusted dirs); "
+        "deny = reject; agent must work around",
+    ),
+    wait: bool = typer.Option(False, "--wait", help="Block until finished, print final output"),
+    timeout: float | None = typer.Option(None, "--timeout", metavar="SECS", help="With --wait: exit 124 on timeout"),
+    json_: bool = typer.Option(False, "--json", help='Print {"session_id": ..., "name": ...}'),
+) -> None:
+    """Spawn a background agent on the server and print its session id, then return immediately.
+
+    The agent keeps running after this command exits. PROMPT is read from the
+    argument, or from stdin when piped.
+
+    \b
+    Examples:
+      klaude run "fix the failing tests under tests/web/"
+      klaude run -C ~/code/proj -m sonnet --name fix-tests "..."
+      git diff | klaude run --agent code-reviewer "review this diff"
+      klaude run --wait "one-shot question, print answer when done"
+    """
+    from pathlib import Path
+
+    prompt_text = (prompt or "").strip()
+    if not sys.stdin.isatty():
+        stdin_text = sys.stdin.read().strip()
+        if stdin_text:
+            prompt_text = f"{prompt_text}\n\n{stdin_text}" if prompt_text else stdin_text
+    if not prompt_text:
+        typer.echo("error: no prompt given (pass PROMPT or pipe stdin)", err=True)
+        raise typer.Exit(EXIT_USAGE)
+    if approval not in ("hold", "auto", "deny"):
+        typer.echo("error: --approval must be one of: hold, auto, deny", err=True)
+        raise typer.Exit(EXIT_USAGE)
+
+    if session is not None:
+        _send_message(session, prompt_text, wait=wait, timeout=timeout, json_=json_)
+        return
+
+    work_dir = str(Path(dir_).expanduser().resolve()) if dir_ else str(Path.cwd())
+    body = _api(
+        "POST",
+        "/api/headless/run",
+        json_body={
+            "prompt": prompt_text,
+            "work_dir": work_dir,
+            "model": model,
+            "agent": agent,
+            "name": name,
+            "group": group,
+            "approval": approval,
+        },
+    )
+    session_id = str(body.get("session_id", ""))
+    run_state = str(body.get("state", ""))
+
+    if not wait:
+        if json_:
+            _print_json({"session_id": session_id, "name": body.get("name"), "state": run_state})
+        else:
+            typer.echo(session_id)
+            if run_state == "queued":
+                typer.echo("queued: waiting for a free slot (see `klaude ps`)", err=True)
+        return
+
+    rows, timed_out = _poll_until_settled([session_id], None, timeout=timeout)
+    if timed_out:
+        typer.echo(f"timeout: {_short_id(session_id)} is still {rows[0].get('state')}", err=True)
+        raise typer.Exit(EXIT_TIMEOUT)
+    result = _fetch_output(session_id)
+    if json_:
+        _print_json({"session_id": session_id, "name": body.get("name"), "state": rows[0].get("state"), **result})
+    else:
+        _print_output_block(result, with_header=False)
+    raise typer.Exit(_exit_code_for_states([str(row.get("state")) for row in rows]))
+
+
+# -- ps --
+
+
+def ps_command(
+    targets: list[str] | None = TARGETS_ARGUMENT,
+    group: str | None = typer.Option(None, "--group", help="Only sessions spawned with `run --group NAME`"),
+    dir_: str | None = typer.Option(None, "--dir", help="Only sessions under PATH"),
+    states: list[str] | None = STATE_OPTION,
+    limit: int = typer.Option(20, "--limit", "-n", show_default=False, help="Max rows (default 20)"),
+    show_all: bool = typer.Option(False, "--all", help="Include archived sessions"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+) -> None:
+    """List sessions known to the server.
+
+    Active sessions (queued, running, waiting_input) always sort first, then by
+    most recently updated. With TARGETs — ids, unique prefixes, or names;
+    space- or comma-separated — show only those sessions. This is the usual
+    form for a calling agent: check exactly the agents it spawned, nothing else.
+
+    \b
+      klaude ps a3f2c1,9b01d4,fix-tests --json
+
+    ACTIVITY is the current tool call when running, the pending request when
+    waiting_input, and relative finish time when idle/failed.
+    """
+    target_list = _split_targets(targets or [])
+    rows = _fetch_rows(
+        target_list,
+        group,
+        states=states,
+        dir_=dir_,
+        limit=0 if show_all else limit,
+        include_archived=show_all,
+    )
+    if json_:
+        _print_json({"sessions": rows})
+        return
+    if not rows:
+        typer.echo("no sessions")
+        return
+
+    table = [("ID", "NAME", "STATE", "MODEL", "DIR", "ACTIVITY")]
+    for row in rows:
+        state = str(row.get("state", ""))
+        activity = row.get("activity")
+        if not activity:
+            updated_at = float(row.get("updated_at") or 0.0)
+            prefix = "failed" if state == "failed" else "done"
+            activity = f"{prefix} {_format_relative(updated_at)}" if updated_at else "-"
+        table.append(
+            (
+                _short_id(str(row.get("id", ""))),
+                str(row.get("name") or "-"),
+                state,
+                _shorten(str(row.get("model") or "-"), 20),
+                _shorten(_abbrev_home(str(row.get("work_dir") or "-")), 28),
+                _shorten(str(activity), 60),
+            )
+        )
+    widths = [max(len(line[column]) for line in table) for column in range(5)]
+    for line in table:
+        cells = [line[column].ljust(widths[column]) for column in range(5)]
+        typer.echo("  ".join([*cells, line[5]]).rstrip())
+
+
+# -- brief --
+
+
+def brief_command(
+    target: str = typer.Argument(..., metavar="TARGET"),
+    max_chars: int = typer.Option(2000, "--max-chars", show_default=False, help="Output budget (default 2000)"),
+    full_last: bool = typer.Option(False, "--full-last", help="Do not truncate the last assistant message"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+) -> None:
+    """Print a compact, bounded summary of one session — sized to fit in a calling agent's context.
+
+    Never dumps the full transcript.
+
+    \b
+    Sections: state, title, model, dir, todos, current/last tool call,
+    pending request (when waiting_input), last assistant message
+    (truncated), token usage, changed-files summary.
+    """
+    body = _api("GET", f"/api/headless/sessions/{target}/brief")
+    if json_:
+        _print_json(body)
+        return
+
+    lines: list[str] = []
+    name = body.get("name")
+    header = f"{_short_id(str(body.get('id', '')))}"
+    if name:
+        header += f" ({name})"
+    lines.append(f"session: {header}")
+    lines.append(f"state: {body.get('state')}")
+    if body.get("title"):
+        lines.append(f"title: {body.get('title')}")
+    lines.append(f"model: {body.get('model') or '-'}")
+    lines.append(f"dir: {_abbrev_home(str(body.get('work_dir') or '-'))}")
+    if body.get("agent_type"):
+        lines.append(f"agent: {body.get('agent_type')}")
+    if body.get("approval_policy"):
+        lines.append(f"approval: {body.get('approval_policy')}")
+
+    todos = body.get("todos") or []
+    if todos:
+        lines.append("todos:")
+        for todo in todos:
+            marker = "x" if todo.get("status") == "completed" else ">" if todo.get("status") == "in_progress" else " "
+            lines.append(f"  [{marker}] {todo.get('content')}")
+
+    if body.get("current_tool_call"):
+        lines.append(f"current tool: {body.get('current_tool_call')}")
+
+    pending = body.get("pending_request")
+    if isinstance(pending, dict):
+        lines.extend(_pending_request_lines(pending, target=target))
+
+    usage = body.get("usage")
+    if isinstance(usage, dict):
+        context_size = usage.get("context_size")
+        context_limit = usage.get("context_limit")
+        context = f", context {context_size}/{context_limit}" if context_size and context_limit else ""
+        lines.append(
+            f"tokens: in {usage.get('input_tokens')}, out {usage.get('output_tokens')}, "
+            f"cached {usage.get('cached_tokens')}{context}"
+        )
+
+    changes = body.get("file_change_summary") or {}
+    edited = list(changes.get("edited_files") or []) + list(changes.get("created_files") or [])
+    if edited or changes.get("diff_lines_added") or changes.get("diff_lines_removed"):
+        lines.append(
+            f"files: +{changes.get('diff_lines_added', 0)}/-{changes.get('diff_lines_removed', 0)} "
+            f"({', '.join(edited[:8])})"
+        )
+
+    last_message = str(body.get("last_assistant_message") or "")
+    if last_message:
+        used = sum(len(line) + 1 for line in lines) + len("last message:\n")
+        budget = max(200, max_chars - used)
+        if not full_last and len(last_message) > budget:
+            last_message = last_message[:budget] + "… [truncated, use `klaude output` for full text]"
+        lines.append("last message:")
+        lines.append(last_message)
+
+    typer.echo("\n".join(lines))
+
+
+# -- wait --
+
+
+def wait_command(
+    targets: list[str] | None = TARGETS_ARGUMENT,
+    group: str | None = typer.Option(None, "--group", help="Wait for every session spawned with this group"),
+    timeout: float | None = typer.Option(None, "--timeout", metavar="SECS", help="Give up after SECS (exit 124)"),
+    any_: bool = typer.Option(False, "--any", help="Return when the first target finishes"),
+    quiet: bool = typer.Option(False, "--quiet", help="Exit code only, print nothing"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+) -> None:
+    """Block until the given agents leave the queued/running states, then print each one's final output.
+
+    When a session stopped at waiting_input, its pending question is printed
+    instead. Give TARGETs, --group, or both.
+
+    \b
+    Exit codes: 0 all idle · 2 some waiting_input · 3 some failed · 124 timeout.
+
+    \b
+    Examples:
+      klaude wait a3f2,9b01                    # barrier over two agents
+      klaude wait --group review --timeout 900 # barrier over a fan-out
+      klaude wait --group review --any         # first finisher wins
+    """
+    target_list = _split_targets(targets or [])
+    if not target_list and not group:
+        typer.echo("error: give TARGETs, --group, or both", err=True)
+        raise typer.Exit(EXIT_USAGE)
+
+    rows, timed_out = _poll_until_settled(target_list, group, timeout=timeout, any_mode=any_)
+    if timed_out:
+        if not quiet:
+            still = [row for row in rows if row.get("state") in ("queued", "running")]
+            for row in still:
+                typer.echo(f"timeout: {_short_id(str(row.get('id', '')))} is still {row.get('state')}", err=True)
+        raise typer.Exit(EXIT_TIMEOUT)
+
+    settled = [row for row in rows if row.get("state") not in ("queued", "running")]
+    exit_code = _exit_code_for_states([str(row.get("state")) for row in settled])
+
+    if quiet:
+        raise typer.Exit(exit_code)
+
+    results: list[dict[str, Any]] = []
+    for row in settled:
+        result = _fetch_output(str(row.get("id")))
+        result["state"] = row.get("state")
+        results.append(result)
+    if json_:
+        _print_json({"sessions": results})
+    else:
+        for result in results:
+            _print_output_block(result, with_header=len(results) > 1)
+    raise typer.Exit(exit_code)
+
+
+# -- output --
+
+
+def output_command(
+    targets: list[str] | None = TARGETS_ARGUMENT,
+    group: str | None = typer.Option(None, "--group", help="All sessions spawned with this group"),
+    turns: int | None = typer.Option(None, "--turns", metavar="N", help="Last N user+assistant turns"),
+    transcript: bool = typer.Option(False, "--transcript", help="Full transcript rendered as plain text"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+) -> None:
+    """Print sessions' output. Default: the last assistant message only.
+
+    With multiple TARGETs or --group, each output is printed under a
+    `== <id> <name>` header — pipe the lot into a synthesis agent:
+
+    \b
+      klaude output --group review | klaude run --wait "dedupe and rank"
+
+    When a session is waiting_input, its pending request (type, prompt,
+    options) is appended after the output.
+    """
+    target_list = _split_targets(targets or [])
+    if not target_list and not group:
+        typer.echo("error: give TARGETs, --group, or both", err=True)
+        raise typer.Exit(EXIT_USAGE)
+
+    ids: list[str]
+    if target_list and not group:
+        ids = target_list
+    else:
+        rows = _fetch_rows(target_list, group)
+        ids = [str(row.get("id")) for row in rows]
+    if not ids:
+        typer.echo("error: no matching sessions", err=True)
+        raise typer.Exit(EXIT_USAGE)
+
+    results = [_fetch_output(target, turns=turns, transcript=transcript) for target in ids]
+    if json_:
+        _print_json({"sessions": results})
+        return
+    for result in results:
+        _print_output_block(result, with_header=len(results) > 1)
+
+
+# -- send --
+
+
+def _send_message(target: str, text: str, *, wait: bool, timeout: float | None, json_: bool) -> None:
+    body = _api("POST", f"/api/headless/sessions/{target}/send", json_body={"text": text})
+    session_id = str(body.get("session_id", ""))
+    mode = str(body.get("mode", ""))
+
+    if not wait:
+        if json_:
+            _print_json({"session_id": session_id, "mode": mode})
+        elif mode == "queued":
+            typer.echo(f"queued for {_short_id(session_id)}: delivered when the current turn finishes")
+        else:
+            typer.echo(f"started turn on {_short_id(session_id)}")
+        return
+
+    rows, timed_out = _poll_until_settled([session_id], None, timeout=timeout)
+    if timed_out:
+        typer.echo(f"timeout: {_short_id(session_id)} is still {rows[0].get('state')}", err=True)
+        raise typer.Exit(EXIT_TIMEOUT)
+    result = _fetch_output(session_id)
+    if json_:
+        _print_json({"session_id": session_id, "mode": mode, "state": rows[0].get("state"), **result})
+    else:
+        _print_output_block(result, with_header=False)
+    raise typer.Exit(_exit_code_for_states([str(row.get("state")) for row in rows]))
+
+
+def send_command(
+    target: str = typer.Argument(..., metavar="TARGET"),
+    text: list[str] = TEXT_ARGUMENT,
+    wait: bool = typer.Option(False, "--wait", help="Block until the resulting turn finishes"),
+    timeout: float | None = typer.Option(None, "--timeout", metavar="SECS", help="With --wait"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+) -> None:
+    """Send a message to a session.
+
+    \b
+      idle session:     starts a new turn immediately — the follow-up
+                        keeps the full conversation context
+      running session:  queued by default; delivered when the current
+                        turn finishes (like typing while klaude works)
+
+    Sessions never expire: send works minutes or days after the last turn,
+    and across server restarts — the conversation is reloaded from disk on
+    demand. This is how a calling agent iterates with the same klaude agent
+    over many rounds:
+
+    \b
+      id=$(klaude run "read the codebase, summarize the auth flow")
+      klaude wait "$id"
+      klaude send "$id" --wait "now write tests for the edge cases you found"
+      klaude send "$id" --wait "one of them fails, here is the log: ..."
+
+    Note: send does NOT answer a pending interaction — a session parked
+    at waiting_input needs `klaude respond`.
+    """
+    message = " ".join(text).strip()
+    if not message:
+        typer.echo("error: message text is empty", err=True)
+        raise typer.Exit(EXIT_USAGE)
+    _send_message(target, message, wait=wait, timeout=timeout, json_=json_)
+
+
+# -- respond --
+
+
+def respond_command(
+    target: str = typer.Argument(..., metavar="TARGET"),
+    approve: bool = typer.Option(False, "--approve", help="For permission requests"),
+    deny: bool = typer.Option(False, "--deny", help="For permission requests; cancels other request kinds"),
+    option: int | None = typer.Option(None, "--option", metavar="N", help="Pick option N of a choice request"),
+    text: str | None = typer.Option(None, "--text", help="Free-text answer"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+) -> None:
+    """Answer a session's pending interaction (approval, choice, or text).
+
+    Run `klaude brief TARGET` first to see the request and its options.
+    """
+    actions: list[tuple[str, dict[str, Any]]] = []
+    if approve:
+        actions.append(("approve", {}))
+    if deny:
+        actions.append(("deny", {}))
+    if option is not None:
+        actions.append(("option", {"option": option}))
+    if text is not None:
+        actions.append(("text", {"text": text}))
+    if len(actions) != 1:
+        typer.echo("error: pass exactly one of --approve / --deny / --option N / --text TEXT", err=True)
+        raise typer.Exit(EXIT_USAGE)
+
+    action, extra = actions[0]
+    body = _api(
+        "POST",
+        f"/api/headless/sessions/{target}/respond",
+        json_body={"action": action, **extra},
+    )
+    if json_:
+        _print_json(body)
+    else:
+        typer.echo(f"answered {body.get('request_id')} ({body.get('status')})")
+
+
+# -- kill --
+
+
+def kill_command(
+    targets: list[str] | None = TARGETS_ARGUMENT,
+    group: str | None = typer.Option(None, "--group", help="Interrupt every session in this group"),
+    all_: bool = typer.Option(False, "--all", help="Interrupt every running session"),
+) -> None:
+    """Interrupt a running agent — same as pressing Esc in the TUI.
+
+    The session is kept and stays resumable via `send` or `attach`.
+    """
+    target_list = _split_targets(targets or [])
+    if not target_list and not group and not all_:
+        typer.echo("error: give TARGETs, --group, or --all", err=True)
+        raise typer.Exit(EXIT_USAGE)
+
+    ids: list[str]
+    if all_ or group:
+        rows = _fetch_rows(target_list, group, states=["queued", "running", "waiting_input"])
+        ids = [str(row.get("id")) for row in rows]
+    else:
+        ids = target_list
+    if not ids:
+        typer.echo("nothing to interrupt")
+        return
+
+    for target in ids:
+        body = _api("POST", f"/api/headless/sessions/{target}/interrupt")
+        typer.echo(f"interrupted {_short_id(str(body.get('session_id', target)))} (was {body.get('was')})")
+
+
+def register_headless_commands(app: typer.Typer) -> None:
+    app.command("run")(run_command)
+    app.command("ps")(ps_command)
+    app.command("brief")(brief_command)
+    app.command("wait")(wait_command)
+    app.command("output")(output_command)
+    app.command("send")(send_command)
+    app.command("respond")(respond_command)
+    app.command("kill")(kill_command)

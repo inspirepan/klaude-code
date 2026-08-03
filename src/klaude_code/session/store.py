@@ -336,6 +336,11 @@ def build_meta_snapshot(
     next_checkpoint_id: int = 0,
     follow_up_queue: Sequence[message.UserInputPayload] = (),
     model_effort: str | None = None,
+    name: str | None = None,
+    group: str | None = None,
+    agent_type: str | None = None,
+    spawn_kind: str | None = None,
+    approval_policy: str | None = None,
 ) -> dict[str, Any]:
     follow_up_queue_payload = [item.model_dump(mode="json", exclude_none=True) for item in follow_up_queue]
     snapshot: dict[str, Any] = {
@@ -365,5 +370,11 @@ def build_meta_snapshot(
         "prompt_cache_key": prompt_cache_key,
         "next_checkpoint_id": next_checkpoint_id,
         "follow_up_queue": follow_up_queue_payload or None,
+        # Headless/multiplexer metadata (set by `klaude run`).
+        "name": name,
+        "group": group,
+        "agent_type": agent_type,
+        "spawn_kind": spawn_kind,
+        "approval_policy": approval_policy,
     }
     return {k: v for k, v in snapshot.items() if v is not None}

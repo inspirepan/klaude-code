@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.server.lifecycle import ServerLifecycle
+from klaude_code.server.session_state import derive_session_state_from_snapshot
 from klaude_code.server.state import ServerAppState, get_server_state
 from klaude_code.update import get_display_version
 
@@ -30,14 +31,11 @@ def list_active_sessions(runtime: RuntimeFacade) -> list[dict[str, str]]:
 
     active: list[dict[str, str]] = []
     for actor in runtime.session_registry.list_session_actors():
-        snapshot = actor.snapshot()
-        if snapshot.pending_request_count > 0:
-            state = "waiting_input"
-        elif snapshot.active_root_task is not None or snapshot.child_task_count > 0:
-            state = "running"
-        else:
-            continue
-        active.append({"session_id": actor.session_id, "state": state})
+        state = derive_session_state_from_snapshot(actor.snapshot())
+        if state == "waiting_user_input":
+            active.append({"session_id": actor.session_id, "state": "waiting_input"})
+        elif state == "running":
+            active.append({"session_id": actor.session_id, "state": "running"})
     return active
 
 

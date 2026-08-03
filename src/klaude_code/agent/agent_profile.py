@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Protocol
 if TYPE_CHECKING:
     from klaude_code.config.config import Config
 
+from klaude_code.agent.attachments.autonomy import autonomy_attachment
 from klaude_code.agent.attachments.collection import Attachment
 from klaude_code.agent.attachments.files import (
     at_file_reader_attachment,
@@ -122,6 +123,7 @@ def load_agent_attachments(
     del available_tools
 
     attachments: list[Attachment] = [
+        autonomy_attachment,
         memory_attachment,
         available_skills_attachment,
         at_file_reader_attachment,

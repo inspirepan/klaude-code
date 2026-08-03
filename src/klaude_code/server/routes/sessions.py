@@ -15,7 +15,6 @@ from pydantic import BaseModel
 from klaude_code.protocol import events as protocol_events
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
-from klaude_code.protocol.models import SessionRuntimeState
 from klaude_code.server.session_access import load_session_read_only
 from klaude_code.server.session_index import (
     list_file_running_states,
@@ -27,32 +26,18 @@ from klaude_code.server.session_index import (
     soft_delete_session,
 )
 from klaude_code.server.session_live import format_sse_message
+from klaude_code.server.session_state import derive_session_state_from_snapshot
 from klaude_code.server.state import ServerAppState, get_server_state
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import get_store_for_path
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 WEB_STATE_DEP: Final = Depends(get_server_state)
-SESSION_STATE_IDLE: Final = cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
-
-
-def _derive_session_state_from_snapshot(snapshot: Any) -> Literal["idle", "running", "waiting_user_input"]:
-    if snapshot.pending_request_count > 0:
-        return cast(
-            Literal["idle", "running", "waiting_user_input"],
-            SessionRuntimeState.WAITING_USER_INPUT.value,
-        )
-    if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
-        return cast(
-            Literal["idle", "running", "waiting_user_input"],
-            SessionRuntimeState.RUNNING.value,
-        )
-    return SESSION_STATE_IDLE
 
 
 def _runtime_session_states(state: ServerAppState) -> dict[str, Literal["idle", "running", "waiting_user_input"]]:
     return {
-        snapshot.session_id: _derive_session_state_from_snapshot(snapshot)
+        snapshot.session_id: derive_session_state_from_snapshot(snapshot)
         for snapshot in state.runtime.session_registry.all_snapshots()
     }
 

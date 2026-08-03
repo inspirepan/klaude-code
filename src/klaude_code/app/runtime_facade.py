@@ -250,6 +250,10 @@ class RuntimeFacade:
         self,
         request: PendingUserInteractionRequest,
     ) -> user_interaction.UserInteractionResponse:
+        auto_response = self._headless_auto_interaction_response(request)
+        if auto_response is not None:
+            await self._emit_interaction_auto_resolved(request, auto_response)
+            return auto_response
         runtime = self.session_registry.ensure_session_actor(request.session_id)
         future = runtime.open_pending_interaction(request)
         await self._persist_session_state(request.session_id, SessionRuntimeState.WAITING_USER_INPUT)
@@ -257,6 +261,75 @@ class RuntimeFacade:
             return await future
         finally:
             await self._sync_session_state_from_snapshot(request.session_id)
+
+    def _headless_auto_interaction_response(
+        self,
+        request: PendingUserInteractionRequest,
+    ) -> user_interaction.UserInteractionResponse | None:
+        """Resolve an interaction without parking, per the session's approval policy.
+
+        Applies only to headless sessions (`klaude run`):
+        - hold (default): park every request as waiting_input.
+        - auto: approve permission requests (source == "approval"); questions
+          still park — approving a question has no meaning.
+        - deny: never park. Questions get a synthetic "no human available"
+          answer so the turn keeps running; everything else is cancelled.
+        """
+        runtime = self.session_registry.get_session_actor(request.session_id)
+        agent = runtime.get_agent() if runtime is not None else None
+        if agent is None:
+            return None
+        session = agent.session
+        if session.spawn_kind != "headless":
+            return None
+        policy = session.approval_policy or "hold"
+        if policy == "hold":
+            return None
+        if policy == "auto":
+            if request.source == "approval":
+                return user_interaction.UserInteractionResponse(status="submitted", payload=None)
+            return None
+        if policy == "deny":
+            if isinstance(request.payload, user_interaction.AskUserQuestionRequestPayload):
+                answers = [
+                    user_interaction.AskUserQuestionAnswer(
+                        question_id=question.id,
+                        selected_option_ids=[],
+                        other_text=(
+                            "No human is available to answer (unattended run). "
+                            "Proceed with your best judgment and state the assumption in your final report."
+                        ),
+                    )
+                    for question in request.payload.questions
+                ]
+                return user_interaction.UserInteractionResponse(
+                    status="submitted",
+                    payload=user_interaction.AskUserQuestionResponsePayload(answers=answers),
+                )
+            return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+        return None
+
+    async def _emit_interaction_auto_resolved(
+        self,
+        request: PendingUserInteractionRequest,
+        response: user_interaction.UserInteractionResponse,
+    ) -> None:
+        await self._operation_dispatcher.emit_event(
+            events.UserInteractionResponseReceivedEvent(
+                session_id=request.session_id,
+                request_id=request.request_id,
+                status=response.status,
+            ),
+            causation_id=request.request_id,
+        )
+        await self._operation_dispatcher.emit_event(
+            events.UserInteractionResolvedEvent(
+                session_id=request.session_id,
+                request_id=request.request_id,
+                status=response.status,
+            ),
+            causation_id=request.request_id,
+        )
 
     def _cancel_pending_user_interactions(
         self,

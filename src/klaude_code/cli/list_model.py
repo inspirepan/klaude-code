@@ -339,7 +339,7 @@ def display_models_and_providers(config: Config, *, show_all: bool = False) -> N
                             if usage_summary:
                                 usage_map[protocol] = usage_summary
                     except Exception:
-                        # Usage display must never break `klaude list`.
+                        # Usage display must never break `klaude agents`.
                         usage_map = {}
 
                     status.update(

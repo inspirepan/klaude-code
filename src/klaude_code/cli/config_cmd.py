@@ -8,32 +8,6 @@ import sys
 import typer
 
 
-def list_models(
-    show_all: bool = typer.Option(False, "--all", "-a", help="Include unavailable providers"),
-) -> None:
-    """List available models"""
-    from klaude_code.cli.list_model import display_models_and_providers
-    from klaude_code.config import ConfigValidationError, load_config
-    from klaude_code.log import log
-    from klaude_code.tui.terminal.color import is_light_terminal_background
-
-    try:
-        config = load_config()
-    except ConfigValidationError as exc:
-        log((str(exc), "red"))
-        sys.exit(1)
-
-    # Auto-detect theme when not explicitly set in config, to match other CLI entrypoints.
-    if config.theme is None:
-        detected = is_light_terminal_background()
-        if detected is True:
-            config.theme = "light"
-        elif detected is False:
-            config.theme = "dark"
-
-    display_models_and_providers(config, show_all=show_all)
-
-
 def edit_config() -> None:
     """Edit config file"""
     from klaude_code.config import config_path, create_example_config, example_config_path
@@ -89,6 +63,5 @@ def edit_config() -> None:
 
 def register_config_commands(app: typer.Typer) -> None:
     """Register config commands to the given Typer app."""
-    app.command("list")(list_models)
     app.command("conf")(edit_config)
     app.command("config", hidden=True)(edit_config)

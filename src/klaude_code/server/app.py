@@ -16,9 +16,10 @@ from klaude_code.control.session_meta_relay import (
     session_meta_relay_socket_path,
 )
 from klaude_code.log import DebugType, log_debug
+from klaude_code.server.headless import HeadlessRuntime
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
-from klaude_code.server.routes import server_router, sessions_router, ws_router
+from klaude_code.server.routes import headless_router, server_router, sessions_router, ws_router
 from klaude_code.server.session_live import SessionLiveState
 from klaude_code.server.state import ServerAppState, get_server_state_from_app
 from klaude_code.session.store import register_session_meta_observer
@@ -46,9 +47,16 @@ def create_app(
         if state.session_live is None:
             state = replace(state, session_live=SessionLiveState(home_dir=state.home_dir, runtime=state.runtime))
             app.state.server_state = state
+        if state.headless is None:
+            state = replace(state, headless=HeadlessRuntime(state.runtime, max_running=_headless_max_running()))
+            app.state.server_state = state
         session_live = state.session_live
         if session_live is None:
             raise RuntimeError("session live state is not initialized")
+        headless = state.headless
+        if headless is None:
+            raise RuntimeError("headless runtime is not initialized")
+        headless.start(state.event_bus)
         session_live.attach_loop(asyncio.get_running_loop())
         unregister_meta_observer = register_session_meta_observer(session_live.apply_meta_update)
         session_meta_relay_server = SessionMetaRelayServer(
@@ -60,6 +68,8 @@ def create_app(
             yield
         finally:
             log_debug("[server] lifespan shutdown start", debug_type=DebugType.EXECUTION)
+            log_debug("[server] lifespan shutdown: closing headless runtime", debug_type=DebugType.EXECUTION)
+            await headless.aclose()
             log_debug("[server] lifespan shutdown: closing session meta relay", debug_type=DebugType.EXECUTION)
             await session_meta_relay_server.aclose()
             log_debug("[server] lifespan shutdown: session meta relay closed", debug_type=DebugType.EXECUTION)
@@ -95,9 +105,19 @@ def create_app(
 
     app.include_router(server_router)
     app.include_router(sessions_router)
+    app.include_router(headless_router)
     app.include_router(ws_router)
 
     return app
+
+
+def _headless_max_running() -> int:
+    try:
+        from klaude_code.config import load_config
+
+        return load_config().headless_max_running
+    except Exception:
+        return 8
 
 
 def _apply_session_meta_message(session_live: SessionLiveState, message: SessionMetaRelayMessage) -> None:

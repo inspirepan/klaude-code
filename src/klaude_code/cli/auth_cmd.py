@@ -91,7 +91,7 @@ def switch_command(
 
 def register_auth_commands(app: typer.Typer) -> None:
     """Register auth commands to the given Typer app."""
-    auth_app = typer.Typer(help="Login/logout", invoke_without_command=True)
+    auth_app = typer.Typer(help="Login/logout", invoke_without_command=True, rich_markup_mode=None)
 
     @auth_app.callback()
     def auth_callback(ctx: typer.Context) -> None:  # pyright: ignore[reportUnusedFunction]

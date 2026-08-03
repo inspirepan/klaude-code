@@ -68,8 +68,10 @@ def image_placeholder(image: ImagePart, request_url: str | None) -> str:
     else:
         size_bytes = 0
     size_kb = size_bytes / 1024
-    if request_url is not None and request_url.startswith("data:") and not image_data_url_within_single_image_limits(
-        request_url
+    if (
+        request_url is not None
+        and request_url.startswith("data:")
+        and not image_data_url_within_single_image_limits(request_url)
     ):
         reason = "single image size limit exceeded"
     else:
