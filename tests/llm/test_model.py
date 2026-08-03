@@ -281,6 +281,19 @@ def test_anthropic_history_keeps_contiguous_recent_tool_images_when_trimming(
         for idx, url in enumerate(urls)
     ]
     monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", 1900)
+    hydrated_urls: list[str] = []
+    original_image_part_to_request_url = input_common_module.image_part_to_request_url
+
+    def _track_hydration(
+        image: message.ImageURLPart | message.ImageFilePart,
+        *,
+        max_dimension: int,
+    ) -> str | None:
+        if isinstance(image, message.ImageURLPart):
+            hydrated_urls.append(image.url)
+        return original_image_part_to_request_url(image, max_dimension=max_dimension)
+
+    monkeypatch.setattr(input_common_module, "image_part_to_request_url", _track_hydration)
 
     messages = anthropic_history(history, model_name=None)
 
@@ -291,6 +304,7 @@ def test_anthropic_history_keeps_contiguous_recent_tool_images_when_trimming(
         content = [_ensure_dict(block) for block in _ensure_list(tool_result["content"])]
         image_counts.append(sum(1 for block in content if block.get("type") == "image"))
     assert image_counts == [0, 0, 1]
+    assert hydrated_urls == [urls[2], urls[1]]
 
 
 def test_openai_compatible_history_includes_image_url_parts():

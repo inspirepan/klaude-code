@@ -17,7 +17,7 @@ from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import message
 
 ImagePart = message.ImageURLPart | message.ImageFilePart
-INLINE_IMAGE_PAYLOAD_BUDGET_BYTES = 24 * 1024 * 1024
+INLINE_IMAGE_PAYLOAD_BUDGET_BYTES = 8 * 1024 * 1024
 
 
 def _empty_image_parts() -> list[ImagePart]:
@@ -31,12 +31,14 @@ class DeveloperAttachment:
     images: list[ImagePart] = field(default_factory=_empty_image_parts)
 
 
-@dataclass(frozen=True)
+@dataclass
 class _ImageOccurrence:
     tuple_index: int
     source: Literal["message", "attachment"]
     part_index: int
-    request_url: str
+    image: ImagePart
+    request_url: str | None = None
+    unavailable: bool = False
 
 
 def count_images(messages: list[tuple[message.Message, DeveloperAttachment]]) -> int:
@@ -54,11 +56,21 @@ def image_part_to_request_url(image: ImagePart, *, max_dimension: int) -> str | 
     return image_url_to_request_url(image, max_dimension=max_dimension)
 
 
-def image_placeholder(image: ImagePart, request_url: str) -> str:
+def image_placeholder(image: ImagePart, request_url: str | None) -> str:
     source = image.source_file_path if isinstance(image, message.ImageURLPart) else image.file_path
     source_text = f" source={source}" if source else ""
-    size_kb = len(request_url.encode("utf-8")) / 1024
-    if request_url.startswith("data:") and not image_data_url_within_single_image_limits(request_url):
+    if request_url is not None:
+        size_bytes = len(request_url.encode("utf-8"))
+    elif isinstance(image, message.ImageFilePart) and image.byte_size is not None:
+        size_bytes = ((image.byte_size + 2) // 3) * 4
+    elif isinstance(image, message.ImageURLPart):
+        size_bytes = len(image.url.encode("utf-8"))
+    else:
+        size_bytes = 0
+    size_kb = size_bytes / 1024
+    if request_url is not None and request_url.startswith("data:") and not image_data_url_within_single_image_limits(
+        request_url
+    ):
         reason = "single image size limit exceeded"
     else:
         reason = "inline image payload budget exceeded"
@@ -82,30 +94,38 @@ def _frozen_url_part(image: ImagePart, request_url: str) -> message.ImageURLPart
 
 def _collect_image_occurrences(
     attached: list[tuple[message.Message, DeveloperAttachment]],
-    *,
-    max_dimension: int,
 ) -> list[_ImageOccurrence]:
     occurrences: list[_ImageOccurrence] = []
     for tuple_index, (msg, attachment) in enumerate(attached):
         if isinstance(msg, (message.UserMessage, message.ToolResultMessage)):
             for part_index, part in enumerate(msg.parts):
                 if isinstance(part, (message.ImageURLPart, message.ImageFilePart)):
-                    request_url = image_part_to_request_url(part, max_dimension=max_dimension)
-                    if request_url is not None:
-                        occurrences.append(_ImageOccurrence(tuple_index, "message", part_index, request_url))
+                    occurrences.append(_ImageOccurrence(tuple_index, "message", part_index, part))
         for part_index, image in enumerate(attachment.images):
-            request_url = image_part_to_request_url(image, max_dimension=max_dimension)
-            if request_url is not None:
-                occurrences.append(_ImageOccurrence(tuple_index, "attachment", part_index, request_url))
+            occurrences.append(_ImageOccurrence(tuple_index, "attachment", part_index, image))
     return occurrences
 
 
-def _kept_image_occurrences(occurrences: list[_ImageOccurrence]) -> set[tuple[int, str, int]]:
+def _kept_image_occurrences(
+    occurrences: list[_ImageOccurrence],
+    *,
+    max_dimension: int,
+) -> set[tuple[int, str, int]]:
     kept: set[tuple[int, str, int]] = set()
     inline_bytes = 0
     inline_cutoff_reached = False
     for occurrence in reversed(occurrences):
         key = (occurrence.tuple_index, occurrence.source, occurrence.part_index)
+        image = occurrence.image
+        if inline_cutoff_reached and not (
+            isinstance(image, message.ImageURLPart) and not image.url.startswith("data:")
+        ):
+            continue
+
+        occurrence.request_url = image_part_to_request_url(image, max_dimension=max_dimension)
+        if occurrence.request_url is None:
+            occurrence.unavailable = True
+            continue
         if not occurrence.request_url.startswith("data:"):
             kept.add(key)
             continue
@@ -130,11 +150,11 @@ def apply_inline_image_budget(
     if count_images(attached) == 0:
         return attached
 
-    occurrences = _collect_image_occurrences(attached, max_dimension=max_dimension)
+    occurrences = _collect_image_occurrences(attached)
     occurrence_by_key = {
         (occurrence.tuple_index, occurrence.source, occurrence.part_index): occurrence for occurrence in occurrences
     }
-    kept = _kept_image_occurrences(occurrences)
+    kept = _kept_image_occurrences(occurrences, max_dimension=max_dimension)
 
     result: list[tuple[message.Message, DeveloperAttachment]] = []
     for tuple_index, (msg, attachment) in enumerate(attached):
@@ -150,9 +170,10 @@ def apply_inline_image_budget(
                 key = (tuple_index, "message", part_index)
                 occurrence = occurrence_by_key.get(key)
                 changed = True
-                if occurrence is None:
+                if occurrence is None or occurrence.unavailable:
                     placeholder = missing_image_placeholder(part)
                 elif key in kept:
+                    assert occurrence.request_url is not None
                     new_parts.append(_frozen_url_part(part, occurrence.request_url))
                     continue
                 else:
@@ -176,9 +197,10 @@ def apply_inline_image_budget(
             key = (tuple_index, "attachment", part_index)
             occurrence = occurrence_by_key.get(key)
             attachment_changed = True
-            if occurrence is None:
+            if occurrence is None or occurrence.unavailable:
                 omitted_attachment_text.append(missing_image_placeholder(image))
             elif key in kept:
+                assert occurrence.request_url is not None
                 attachment_images.append(_frozen_url_part(image, occurrence.request_url))
             else:
                 omitted_attachment_text.append(image_placeholder(image, occurrence.request_url))

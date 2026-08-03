@@ -377,6 +377,79 @@ def test_image_file_to_data_url_recompresses_frozen_file_for_request_dimension(
     assert _payload_from_data_url(result) == b"request-ready"
 
 
+def test_image_file_to_data_url_reuses_cached_request_variant(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    path = tmp_path / ".klaude" / "projects" / "proj" / "sessions" / "sid" / "images" / "frozen.png"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(png_bytes)
+    compress_calls = 0
+
+    def _fake_detect(image_bytes: bytes, _mime_type: str) -> tuple[int, int]:
+        return (1179, 2244) if image_bytes == png_bytes else (1000, 1000)
+
+    def _fake_compress(
+        _image_bytes: bytes,
+        _mime_type: str,
+        *,
+        max_dimension: int = image_module.MAX_IMAGE_DIMENSION,
+    ) -> tuple[bytes, str]:
+        nonlocal compress_calls
+        compress_calls += 1
+        assert max_dimension == 2000
+        return b"request-ready", "image/png"
+
+    monkeypatch.setattr(image_module, "_detect_image_dimensions", _fake_detect)
+    monkeypatch.setattr(image_module, "_compress_image_bytes_for_request", _fake_compress)
+    part = message.ImageFilePart(file_path=str(path), mime_type="image/png", frozen=True)
+
+    first = image_module.image_file_to_data_url(part, max_dimension=2000)
+    second = image_module.image_file_to_data_url(part, max_dimension=2000)
+
+    assert first is not None
+    assert second == first
+    assert _payload_from_data_url(second) == b"request-ready"
+    assert compress_calls == 1
+    assert len(list((path.parent / ".request-cache").glob("*.png"))) == 1
+
+
+def test_image_file_to_data_url_caches_request_variants_by_dimension(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    png_bytes = b"\x89PNG\r\n\x1a\n" + b"\x00" * 20
+    path = tmp_path / ".klaude" / "projects" / "proj" / "sessions" / "sid" / "images" / "frozen.png"
+    path.parent.mkdir(parents=True)
+    path.write_bytes(png_bytes)
+    compressed_dimensions: list[int] = []
+
+    monkeypatch.setattr(image_module, "_detect_image_dimensions", lambda *_args: (3000, 3000))
+
+    def _fake_compress(
+        _image_bytes: bytes,
+        _mime_type: str,
+        *,
+        max_dimension: int = image_module.MAX_IMAGE_DIMENSION,
+    ) -> tuple[bytes, str]:
+        compressed_dimensions.append(max_dimension)
+        return f"ready-{max_dimension}".encode(), "image/png"
+
+    monkeypatch.setattr(image_module, "_compress_image_bytes_for_request", _fake_compress)
+    part = message.ImageFilePart(file_path=str(path), mime_type="image/png", frozen=True)
+
+    result_2000 = image_module.image_file_to_data_url(part, max_dimension=2000)
+    result_1000 = image_module.image_file_to_data_url(part, max_dimension=1000)
+
+    assert result_2000 is not None
+    assert result_1000 is not None
+    assert _payload_from_data_url(result_2000) == b"ready-2000"
+    assert _payload_from_data_url(result_1000) == b"ready-1000"
+    assert compressed_dimensions == [2000, 1000]
+    assert len(list((path.parent / ".request-cache").glob("*.png"))) == 2
+
+
 def test_image_file_to_data_url_treats_existing_session_snapshot_as_stable(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

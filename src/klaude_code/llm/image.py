@@ -28,6 +28,8 @@ _MAX_BASE64_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 _IMAGE_TARGET_RAW_SIZE_BYTES = (_MAX_BASE64_IMAGE_SIZE_BYTES // 4) * 3
 MAX_IMAGE_DIMENSION = 8000
 _JPEG_FALLBACK_QUALITIES = (85, 70, 55, 40, 25)
+_REQUEST_VARIANT_CACHE_DIR = ".request-cache"
+_REQUEST_VARIANT_CACHE_VERSION = 1
 _JPEG_SOF_MARKERS = {
     0xC0,
     0xC1,
@@ -694,6 +696,92 @@ def _is_session_image_snapshot_path(file_path: Path) -> bool:
     return False
 
 
+def _request_variant_cache_stem(image: message.ImageFilePart, image_bytes: bytes, max_dimension: int) -> str:
+    recorded_digest = image.sha256
+    digest = (
+        recorded_digest.lower()
+        if recorded_digest is not None
+        and len(recorded_digest) == 64
+        and all(character in "0123456789abcdefABCDEF" for character in recorded_digest)
+        else hashlib.sha256(image_bytes).hexdigest()
+    )
+    return f"v{_REQUEST_VARIANT_CACHE_VERSION}-{digest}-{max_dimension}"
+
+
+def _request_variant_cache_dir(file_path: Path) -> Path | None:
+    if not _is_session_image_snapshot_path(file_path) or file_path.parent.name != "images":
+        return None
+    return file_path.parent / _REQUEST_VARIANT_CACHE_DIR
+
+
+def _load_request_variant(cache_dir: Path, stem: str) -> tuple[bytes, str] | None:
+    suffixes = (
+        (".png", "image/png"),
+        (".jpg", "image/jpeg"),
+        (".gif", "image/gif"),
+        (".webp", "image/webp"),
+        (".img", "application/octet-stream"),
+    )
+    for suffix, fallback_mime in suffixes:
+        path = cache_dir / f"{stem}{suffix}"
+        try:
+            image_bytes = path.read_bytes()
+        except FileNotFoundError:
+            continue
+        except OSError:
+            return None
+        mime_type = detect_mime_type_from_bytes(image_bytes) or fallback_mime
+        return image_bytes, mime_type
+    return None
+
+
+def _store_request_variant(cache_dir: Path, stem: str, image_bytes: bytes, mime_type: str) -> None:
+    suffix = _suffix_for_mime_type(mime_type) or ".img"
+    target = cache_dir / f"{stem}{suffix}"
+    if target.exists():
+        return
+
+    temp_path: Path | None = None
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=cache_dir, prefix=".tmp-", delete=False) as temp_file:
+            temp_file.write(image_bytes)
+            temp_path = Path(temp_file.name)
+        temp_path.replace(target)
+        temp_path = None
+    except OSError:
+        pass
+    finally:
+        if temp_path is not None:
+            temp_path.unlink(missing_ok=True)
+
+
+def _request_ready_image_bytes(
+    image: message.ImageFilePart,
+    image_bytes: bytes,
+    mime_type: str,
+    *,
+    max_dimension: int,
+) -> tuple[bytes, str]:
+    file_path = Path(image.file_path)
+    cache_dir = _request_variant_cache_dir(file_path)
+    if cache_dir is None:
+        return _compress_image_bytes_for_request(image_bytes, mime_type, max_dimension=max_dimension)
+
+    stem = _request_variant_cache_stem(image, image_bytes, max_dimension)
+    cached = _load_request_variant(cache_dir, stem)
+    if cached is not None:
+        return cached
+
+    request_bytes, request_mime = _compress_image_bytes_for_request(
+        image_bytes,
+        mime_type,
+        max_dimension=max_dimension,
+    )
+    _store_request_variant(cache_dir, stem, request_bytes, request_mime)
+    return request_bytes, request_mime
+
+
 def _can_preserve_existing_snapshot(file_path: Path, image_bytes: bytes, mime_type: str, *, max_dimension: int) -> bool:
     if not _is_session_image_snapshot_path(file_path):
         return False
@@ -746,7 +834,12 @@ def image_file_to_data_url(image: message.ImageFilePart, *, max_dimension: int =
         encoded = b64encode(decoded).decode("ascii")
         return f"data:{mime_type};base64,{encoded}"
 
-    decoded, mime_type = _compress_image_bytes_for_request(decoded, mime_type, max_dimension=max_dimension)
+    decoded, mime_type = _request_ready_image_bytes(
+        image,
+        decoded,
+        mime_type,
+        max_dimension=max_dimension,
+    )
 
     encoded = b64encode(decoded).decode("ascii")
     return f"data:{mime_type};base64,{encoded}"
