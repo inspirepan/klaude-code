@@ -640,6 +640,7 @@ class TaskExecutor:
             sub_agent_state=ctx.sub_agent_state,
             model_id=llm_config.model_id,
             effort=effort,
+            parent_session_id=ctx.session.parent_session_id,
         )
         del user_input  # Persisted by the operation handler before launching the task.
 

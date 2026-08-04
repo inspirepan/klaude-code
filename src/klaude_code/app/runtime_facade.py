@@ -14,6 +14,7 @@ from klaude_code.control.runtime.registry import OperationLifecycleHooks, Sessio
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op, user_interaction
+from klaude_code.session.session import Session
 
 
 class OperationCompletionAwaiter:
@@ -122,6 +123,8 @@ class RuntimeFacade:
                 respond_user_interaction=self._respond_user_interaction,
                 cancel_pending_interactions=self._cancel_pending_user_interactions,
                 on_child_task_state_change=self._on_child_task_state_change,
+                submit_operation=self.submit,
+                wait_for_operation=self.wait_for,
             ),
             model_profile_provider,
             on_model_change,
@@ -160,6 +163,22 @@ class RuntimeFacade:
             response=response,
         )
 
+    def _resolve_policy_session(self, session: Session) -> Session:
+        """Walk up the parent chain: sub-agents inherit the root's approval policy."""
+        seen: set[str] = set()
+        while session.parent_session_id and session.id not in seen:
+            seen.add(session.id)
+            parent_actor = self.session_registry.get_session_actor(session.parent_session_id)
+            parent_agent = parent_actor.get_agent() if parent_actor is not None else None
+            if parent_agent is not None:
+                session = parent_agent.session
+                continue
+            try:
+                session = Session.load_meta(session.parent_session_id, work_dir=session.work_dir)
+            except Exception:
+                break
+        return session
+
     async def _request_user_interaction(
         self,
         request: PendingUserInteractionRequest,
@@ -189,7 +208,7 @@ class RuntimeFacade:
         agent = runtime.get_agent() if runtime is not None else None
         if agent is None:
             return None
-        session = agent.session
+        session = self._resolve_policy_session(agent.session)
         if session.spawn_kind != "headless":
             return None
         policy = session.approval_policy or "hold"

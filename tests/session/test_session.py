@@ -480,6 +480,63 @@ class TestSessionPersistence:
 
         arun(_test())
 
+    def test_spawn_entry_synthesizes_sub_agent_state_for_replay(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """Meta no longer stores sub_agent_state; replay rebuilds it from the spawn entry."""
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            sub_session = Session.create(id="synth-sub", work_dir=project_dir)
+            sub_session.parent_session_id = "synth-main"
+            sub_session.append_history(
+                [
+                    message.UserMessage(
+                        parts=message.text_parts_from_str("<system-reminder>fork context</system-reminder>")
+                    ),
+                    message.UserMessage(parts=message.text_parts_from_str("the real prompt")),
+                    message.AssistantMessage(parts=message.text_parts_from_str("done")),
+                ]
+            )
+            await sub_session.wait_for_flush()
+
+            main_session = Session.create(id="synth-main", work_dir=project_dir)
+            main_session.append_history(
+                [
+                    message.SpawnSubAgentEntry(
+                        session_id=sub_session.id,
+                        sub_agent_type="general-purpose-fork-context",
+                        sub_agent_desc="forked work",
+                        fork_context=True,
+                        parent_tool_batch_id="batch-1",
+                        parent_tool_batch_index=2,
+                        parent_tool_batch_size=3,
+                    ),
+                ]
+            )
+            await main_session.wait_for_flush()
+
+            reloaded = Session.load(main_session.id, work_dir=project_dir)
+            sub_starts = [
+                e
+                for e in reloaded.get_history_item()
+                if isinstance(e, events.TaskStartEvent) and e.session_id == sub_session.id
+            ]
+            assert sub_starts
+            state = sub_starts[0].sub_agent_state
+            assert state is not None
+            assert state.sub_agent_type == "general-purpose-fork-context"
+            assert state.sub_agent_desc == "forked work"
+            assert state.sub_agent_prompt == "the real prompt"
+            assert state.fork_context is True
+            assert state.parent_tool_batch_id == "batch-1"
+            assert state.parent_tool_batch_index == 2
+            assert state.parent_tool_batch_size == 3
+
+            await close_default_store()
+
+        arun(_test())
+
     def test_spawn_sub_agent_entry_no_task_finish_when_still_running(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ):
@@ -1328,6 +1385,7 @@ class TestFindSessionsByPrefix:
             await main_session.wait_for_flush()
 
             sub_session = Session.create(id="abc_sub", work_dir=project_dir)
+            sub_session.parent_session_id = "abc_main"
             sub_session.sub_agent_state = SubAgentState(
                 sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test"
             )
@@ -1409,6 +1467,7 @@ class TestShortestUniquePrefix:
             await main.wait_for_flush()
 
             sub = Session.create(id="abcd2222", work_dir=project_dir)
+            sub.parent_session_id = "main-session"
             sub.sub_agent_state = SubAgentState(sub_agent_type="Task", sub_agent_desc="test", sub_agent_prompt="test")
             sub.append_history([message.AssistantMessage(parts=message.text_parts_from_str("Done"))])
             await sub.wait_for_flush()

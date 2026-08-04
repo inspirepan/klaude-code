@@ -152,6 +152,7 @@ def _fetch_rows(
     dir_: str | None = None,
     limit: int = 0,
     include_archived: bool = False,
+    include_children: bool = False,
 ) -> list[dict[str, Any]]:
     params: dict[str, Any] = {"limit": limit}
     if targets:
@@ -164,9 +165,34 @@ def _fetch_rows(
         params["state"] = states
     if include_archived:
         params["include_archived"] = True
+    if include_children:
+        params["include_children"] = True
     body = _api("GET", "/api/headless/sessions", params=params)
     sessions = body.get("sessions", [])
     return sessions if isinstance(sessions, list) else []
+
+
+def _order_rows_as_tree(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Place each sub-agent session right under its parent, keeping row order."""
+    row_ids = {str(row.get("id", "")) for row in rows}
+    children_by_parent: dict[str, list[dict[str, Any]]] = {}
+    roots: list[dict[str, Any]] = []
+    for row in rows:
+        parent_id = row.get("parent_session_id")
+        if isinstance(parent_id, str) and parent_id in row_ids:
+            children_by_parent.setdefault(parent_id, []).append(row)
+        else:
+            roots.append(row)
+    ordered: list[dict[str, Any]] = []
+
+    def _append(row: dict[str, Any]) -> None:
+        ordered.append(row)
+        for child in children_by_parent.get(str(row.get("id", "")), []):
+            _append(child)
+
+    for root in roots:
+        _append(root)
+    return ordered
 
 
 def _pending_request_lines(pending: dict[str, Any], *, target: str) -> list[str]:
@@ -209,10 +235,14 @@ def _ps_table_rows(rows: list[dict[str, Any]]) -> list[tuple[str, ...]]:
             updated_at = float(row.get("updated_at") or 0.0)
             prefix = "failed" if state == "failed" else "done"
             activity = f"{prefix} {_format_relative(updated_at)}" if updated_at else "-"
+        if row.get("parent_session_id"):
+            name = f"└─ {row.get('agent_type') or 'sub-agent'}"
+        else:
+            name = str(row.get("name") or "-")
         table_rows.append(
             (
                 _short_id(str(row.get("id", ""))),
-                str(row.get("name") or "-"),
+                name,
                 _shorten(str(row.get("title") or "-"), 32),
                 state,
                 _shorten(str(row.get("model") or "-"), 20),
@@ -594,6 +624,7 @@ def ps_command(
     states: list[str] | None = STATE_OPTION,
     limit: int = typer.Option(20, "--limit", "-n", show_default=False, help="Max rows (default 20)"),
     show_all: bool = typer.Option(False, "--all", help="Include archived sessions"),
+    tree: bool = typer.Option(False, "--tree", help="Include sub-agent sessions nested under their parents"),
     watch: bool = typer.Option(False, "--watch", help="Live-refreshing table (human view)"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
@@ -610,6 +641,9 @@ def ps_command(
     ACTIVITY is the current tool call when running, the pending request when
     waiting_input, and relative finish time when idle/failed.
 
+    Sub-agent sessions spawned by an Agent tool call are hidden by default;
+    --tree lists them under their parent (the limit counts top-level rows).
+
     --watch refreshes the human table until Ctrl-C and cannot be combined with
     --json.
     """
@@ -619,14 +653,16 @@ def ps_command(
     target_list = _split_targets(targets or [])
 
     def fetch() -> list[dict[str, Any]]:
-        return _fetch_rows(
+        rows = _fetch_rows(
             target_list,
             group,
             states=states,
             dir_=dir_,
             limit=0 if show_all else limit,
             include_archived=show_all,
+            include_children=tree,
         )
+        return _order_rows_as_tree(rows) if tree else rows
 
     if watch:
         try:

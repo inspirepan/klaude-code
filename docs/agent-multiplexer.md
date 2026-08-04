@@ -1,6 +1,6 @@
 # klaude Agent Multiplexer 设计
 
-状态：Phase 1–4 已实现；Phase 5 待办（2026-08）
+状态：Phase 1–4 已实现；Phase 5 进行中（2026-08，决策见 §8.4）
 决策：移除 web 模块；klaude 变成 agent multiplexer —— 唯一的本地 server 持有全部 agent 执行，TUI 与 CLI 都是客户端。目标使用者有两类：人类（TUI attach）和其他 Agent（如 Claude Code 通过 Bash 调用 CLI）。
 
 已确认的关键决策（2026-08-03）：
@@ -229,9 +229,13 @@ Options:
       --state STATE   Filter by state (repeatable)
   -n, --limit N       Max rows (default 20)
       --all           Include archived sessions
+      --tree          Include sub-agent sessions nested under their
+                      parents (the limit counts top-level rows)
       --watch         Live-refreshing table (human view)
       --json          Machine-readable
 ```
+
+子会话（Agent 工具派生，`spawn_kind: subagent`）默认隐藏；`--tree` 展开时 NAME 列显示 `└─ <agent_type>`。TARGET 解析对子会话始终可用——`brief` / `output` / `kill` / `respond` / `attach` 都能用子会话 id 前缀直达。
 
 `--watch` 持续刷新直到 Ctrl-C，仅用于人类表格，不能与 `--json` 组合。
 
@@ -539,7 +543,7 @@ esac
 
 1. **事件归属**：子事件内联转发进父会话的事件管道（`sub_agent.py:190-204`，`TaskStartEvent` 上打 `parent_session_id`），TUI 靠这一条流渲染嵌套进度。server 化后子 actor 有自己的事件流，需要 server 侧把子流镜像回父流（保留 task 分组契约）——**这是最大的一块**。
 2. **进度/元数据闭包**：`register_progress_getter` / `register_metadata_getter` 是函数闭包直连 dispatcher（`sub_agent.py:138-163`），要改成基于子 actor snapshot / 事件的等价物。
-3. **交互请求**：子 agent 直接借用父的 `request_user_interaction` 闭包（`sub_agent.py:129`），要改成注册表级的路由规则（子会话的交互请求上浮到父会话的等待队列）。
+3. **交互请求**：子 agent 直接借用父的 `request_user_interaction` 闭包（`sub_agent.py:129`），请求因此挂在父会话名下——这是闭包副作用而非设计。改为：**请求挂子会话自己名下（park 在子 actor），仅显示层上浮**——TUI attach 父会话时由 server 把子会话的 pending 请求转发归并（见 §8.4 决策 1）。
 
 次要工作：级联取消从 asyncio 原生 cancel 改为注册表级 parent-child 链（`mark_child_task_state` 已有雏形）；`SubAgentResult` 改为读子会话的 `TaskFinishEvent`；file-change 合并改为显式钩子；meta 的 `sub_agent_state` 换成 `parent_session_id` + `agent_type`。`fork_context` 不受影响（同进程，`Session.fork()` 照用）。
 
@@ -553,6 +557,22 @@ esac
 ### 8.3 为什么不现在做
 
 现有机制在新架构下**本来就跑在 server 进程里**，功能上没有任何问题——不统一的只是管理面。multiplexer 的全部价值（Phase 1–3）不依赖这次统一；而这次统一依赖 Phase 2 建好的 profile 实例化路径和 Phase 1 的 server 操作原语。顺序不能倒。
+
+### 8.4 已拍板的实现决策（2026-08-04）
+
+对照调研了 grok-build（xai-org-grok-build，Rust，ACP 协议 + leader server 多路复用，架构同构）后确认三项：
+
+1. **交互请求挂子会话名下，显示层归并到父。** 子 agent 的 AskUserQuestion（及未来的权限审批）park 在子会话自己的 actor：状态投影天然正确（子 = `waiting_input`）、`respond`/`kill`/`attach` 目标精确；TUI attach 父会话时由 server 把 tracked 子会话的 pending 请求转发过去，界面上照常弹窗并标注来源。grok-build 的对照实验佐证了这个选择：它审批挂父/根会话、提问挂子会话，两种归属并存导致 UI 双套路由 + 「父会话被回收后无主请求」的兜底分支，属历史包袱；其提问路径（挂子 + UI 归并到父视图）是被验证的干净做法。
+2. **子会话不占 headless 并发槽位。** 父占槽等子、子排队等槽会直接死锁；子会话绕过 headless 队列直跑，未来如需限流单独加 child cap。
+3. **approval policy 沿 parent 链继承。** `_headless_auto_interaction_response` 目前只认 `spawn_kind == "headless"`；子会话按 `parent_session_id` 上溯取根会话的 policy。
+
+从 grok-build 另外记录三条经验：
+
+- **订阅继承**：其 leader 在「子 agent 已派生」时把父会话的订阅者集合复制给子 session id，并按 `(sessionId, toolCallId)` 缓存交互请求、attach 时 replay、多客户端 first-answer-wins。对应我们 WS `_forward_events` 的 live child tracking（看到 `TaskStartEvent.parent_session_id` 匹配即加入 tracked 集合）。
+- **headless 反面教材**：grok-build 的 headless 路径漏处理提问类交互（drop 掉 response 通道），子 agent 静默挂 30 分钟超时。无人值守路径必须给**每一类**交互显式自动答复，不能靠 drop。
+- **嵌套深度**：默认 max_depth=1 与我们一致，但超限时它从子 agent 的工具集里**删掉派生工具**，而不是运行时抛错——统一后照此办理（深度成为注册表上限参数）。
+
+实施顺序：Step 0 meta 加 `parent_session_id`（无行为变化）→ Step 1a Agent 工具换轨子 actor（spawn/结果/级联取消 + WS live child tracking）→ 1b 交互路由 → 1c 进度/metadata 事件化 → Step 2 `ps --tree`/attach/kill 子会话 → Step 3 异步 subagent + 嵌套深度参数化 → Step 4 meta 停写 `sub_agent_state`（内存中的 `session.sub_agent_state` 保留：TUI 渲染与 task.py 行为门——compaction/rewind/handoff——都依赖它，Phase 5 只换 meta 持久化与索引过滤）。
 
 ---
 
@@ -643,6 +663,6 @@ loop-until-dry 同理是纯 bash：`while` 里 `run --wait` 一轮 finder，输�
 | 2 | **已实现** | headless 命令面：`run/ps/brief/wait/output/send(queue)/respond/kill` + `--group` 全套 + server 并发上限 + thin client + `--approval` 策略 + autonomy attachment + `agents --json/--prime` + 纯文本 help | **Claude Code 的异步子 Agent 可用** |
 | 3 | **已实现** | TUI attach：`RuntimeClient`（仅 UDS 实现）、attach + 回放 + detach、`--resume/-c` 切 attach 语义、无 server 自动拉起、`send --steer` | 人类工作流完整切换 |
 | 4 | **已实现** | 大扫除：删除跨进程机制（event/meta relay、runtime_owner/心跳、read_only、holder 仲裁、meta 运行时键回填） | 工程收敛 |
-| 5 | **待办** | 内部 sub-agent 的 server 化（见 §8）：Agent 工具改走 run 同款操作、子会话入 `ps --tree`、可 attach/kill 单个 subagent、异步 subagent | 内外一套任务机制 |
+| 5 | **已实现**（增量项除外） | 内部 sub-agent 的 server 化（见 §8）：Agent 工具改走子 actor、子会话入 `ps --tree`、可 attach/kill 单个 subagent、meta 停写 `sub_agent_state`（读兼容保留，回放从 SpawnSubAgentEntry 重建显示状态） | 内外一套任务机制 |
 
-Phase 5 依赖 Phase 1–2 的原语；现有 sub-agent 已在 server 进程内运行，功能无损，待后续统一管理面。
+Phase 5 已交付（2026-08-04）。刻意排除的增量项：异步 subagent（父发起后不阻塞、靠完成通知收结果）与嵌套深度参数化（现仍硬性一层），留待后续按需求开启。

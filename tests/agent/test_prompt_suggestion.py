@@ -28,7 +28,7 @@ def test_runtime_skips_prompt_suggestion_when_follow_up_queue_pending(monkeypatc
     monkeypatch.setattr("klaude_code.agent.runtime.agent_ops.asyncio.create_task", _fail_create_task)
 
     agent = SimpleNamespace(
-        session=SimpleNamespace(id="s1", sub_agent_state=None),
+        session=SimpleNamespace(id="s1", sub_agent_state=None, parent_session_id=None),
         follow_up_count=lambda: 1,
     )
 

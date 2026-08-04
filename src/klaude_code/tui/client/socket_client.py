@@ -83,6 +83,9 @@ class SocketRuntimeClient:
         self._interrupt_prefill: str | None = None
         self._interaction_queue: asyncio.Queue[events.UserInteractionRequestEvent] = asyncio.Queue()
         self._dequeue_future: asyncio.Future[tuple[str, ...]] | None = None
+        # Sub-agent sessions spawned under the attached session; their
+        # interaction requests surface through this client too.
+        self._child_session_ids: set[str] = set()
         self._closed = False
         # (content, monotonic timestamp) of locally echoed user messages whose
         # canonical server echo must be dropped instead of rendered twice.
@@ -441,6 +444,16 @@ class SocketRuntimeClient:
 
     async def _handle_envelope(self, envelope: EventEnvelope) -> None:
         event = envelope.event
+        if (
+            isinstance(event, events.TaskStartEvent)
+            and envelope.session_id == self._session_id
+            and event.sub_agent_state is not None
+        ):
+            # Attached directly to a sub-agent session: render it as a plain
+            # transcript, not as a nested sub-agent block under a parent this
+            # client is not showing.
+            event = event.model_copy(update={"sub_agent_state": None, "parent_session_id": None})
+            envelope = envelope.model_copy(update={"event": event})
         if isinstance(event, events.OperationFinishedEvent | events.OperationRejectedEvent):
             operation_id = event.operation_id
             future = self._op_futures.pop(operation_id, None)
@@ -449,6 +462,14 @@ class SocketRuntimeClient:
                 future.set_result(None)
             elif operation_id in self._my_op_ids:
                 self._completed_ops.add(operation_id)
+        if (
+            isinstance(event, events.TaskStartEvent)
+            and event.parent_session_id is not None
+            and (event.parent_session_id == self._session_id or event.parent_session_id in self._child_session_ids)
+        ):
+            self._child_session_ids.add(envelope.session_id)
+        if envelope.session_id in self._child_session_ids and isinstance(event, events.UserInteractionRequestEvent):
+            self._interaction_queue.put_nowait(event)
         if envelope.session_id == self._session_id:
             if isinstance(event, events.TaskStartEvent):
                 self._running = True

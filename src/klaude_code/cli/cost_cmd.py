@@ -326,7 +326,7 @@ def iter_all_sessions() -> Iterator[tuple[str, Path]]:
                     if meta_file.exists():
                         try:
                             meta = json.loads(meta_file.read_text(encoding="utf-8"))
-                            if meta.get("sub_agent_state") is not None:
+                            if meta.get("sub_agent_state") is not None or meta.get("parent_session_id"):
                                 continue
                         except (json.JSONDecodeError, OSError):
                             pass

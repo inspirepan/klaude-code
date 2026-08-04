@@ -878,3 +878,48 @@ def test_latest_queued_steer_wins_when_slots_are_full(isolated_home: Path, tmp_p
         await runtime.aclose()
 
     asyncio.run(_test())
+
+
+class TestChildSessionIndexing:
+    def test_child_with_parent_link_is_indexed(self) -> None:
+        from klaude_code.server.session_index import load_session_summary_from_meta
+
+        summary = load_session_summary_from_meta(
+            {"id": "child1", "work_dir": "/tmp/x", "parent_session_id": "parent1", "agent_type": "finder"},
+            fallback_session_id="child1",
+        )
+        assert summary is not None
+        assert summary.parent_session_id == "parent1"
+        assert summary.agent_type == "finder"
+
+    def test_legacy_sub_agent_without_parent_link_stays_hidden(self) -> None:
+        from klaude_code.server.session_index import load_session_summary_from_meta
+
+        summary = load_session_summary_from_meta(
+            {
+                "id": "legacy1",
+                "work_dir": "/tmp/x",
+                "sub_agent_state": {"sub_agent_type": "Task", "sub_agent_desc": "d", "sub_agent_prompt": "p"},
+            },
+            fallback_session_id="legacy1",
+        )
+        assert summary is None
+
+    def test_resolve_target_finds_child_summary(self) -> None:
+        parent = _summary("aaaa1111")
+        child = SessionSummary(
+            id="bbbb2222",
+            created_at=1.0,
+            updated_at=2.0,
+            work_dir="/tmp/x",
+            title=None,
+            user_messages=[],
+            messages_count=0,
+            model_name=None,
+            archived=False,
+            todos=[],
+            file_change_summary={},
+            parent_session_id="aaaa1111",
+        )
+        resolved = _resolve_target([parent, child], "bbbb")
+        assert resolved.id == "bbbb2222"

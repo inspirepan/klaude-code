@@ -48,10 +48,13 @@ class SessionSummary:
     spawn_kind: str | None = None
     approval_policy: str | None = None
     model_config_name: str | None = None
+    parent_session_id: str | None = None
 
 
 def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id: str) -> SessionSummary | None:
-    if data.get("sub_agent_state") is not None:
+    # Legacy sub-agent sessions (pre Phase 5) carry sub_agent_state but no
+    # parent link; they cannot be surfaced in a tree, so keep them hidden.
+    if data.get("sub_agent_state") is not None and not data.get("parent_session_id"):
         return None
     if data.get("deleted_at") is not None:
         return None
@@ -174,6 +177,7 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
         spawn_kind=_optional_str("spawn_kind"),
         approval_policy=_optional_str("approval_policy"),
         model_config_name=_optional_str("model_config_name"),
+        parent_session_id=_optional_str("parent_session_id"),
     )
 
 
@@ -231,7 +235,7 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
         if data is None:
             continue
         summary = load_session_summary_from_meta(data, fallback_session_id=meta_path.parent.name)
-        if summary is not None:
+        if summary is not None and summary.parent_session_id is None:
             summaries.append(summary)
 
     summaries.sort(key=lambda item: item.updated_at, reverse=True)

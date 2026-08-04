@@ -192,6 +192,11 @@ class SpawnSubAgentEntry(BaseModel):
     sub_agent_desc: str
     model: str | None = None
     fork_context: bool = False
+    # Parallel-spawn grouping, mirrored from SubAgentState so replay can
+    # reconstruct the child's display state without reading its meta.
+    parent_tool_batch_id: str | None = None
+    parent_tool_batch_index: int | None = None
+    parent_tool_batch_size: int | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 

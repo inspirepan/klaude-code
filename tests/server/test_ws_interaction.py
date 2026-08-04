@@ -121,6 +121,7 @@ def test_send_pending_interaction_snapshots_replays_pending_requests(monkeypatch
         runtime=SimpleNamespace(
             session_registry=SimpleNamespace(
                 get_session_actor=None,
+                list_session_actors=lambda: [],
             )
         )
     )
@@ -354,7 +355,11 @@ def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPat
         return True
 
     runtime = SimpleNamespace(
-        session_registry=SimpleNamespace(has_session_actor=_has_session_actor, get_session_actor=_get_session_actor),
+        session_registry=SimpleNamespace(
+            has_session_actor=_has_session_actor,
+            get_session_actor=_get_session_actor,
+            list_session_actors=lambda: [],
+        ),
         close_session=_close_session,
     )
     state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test")

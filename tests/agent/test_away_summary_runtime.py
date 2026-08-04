@@ -65,7 +65,6 @@ def test_manual_recap_emits_spinner_events_but_auto_does_not(
             emit_event=_emit,
             llm_clients=LLMClients(main=client, fast=client, compact=client),
             model_profile_provider=cast_any(object()),
-            sub_agent_manager=cast_any(object()),
             on_child_task_state_change=_noop_child_task_state_change,
             ensure_session_actor=_unexpected_session_actor,
             get_session_actor=lambda _sid: None,

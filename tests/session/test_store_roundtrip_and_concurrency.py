@@ -187,7 +187,6 @@ def _seed_meta(store: JsonlSessionStore, session_id: str, work_dir: Path, **over
         session_id=session_id,
         work_dir=work_dir,
         title=overrides.get("title", "seed title"),
-        sub_agent_state=None,
         file_tracker={},
         file_change_summary=FileChangeSummary(),
         todos=[],
@@ -260,7 +259,6 @@ class TestUpdateMetaMerge:
             session_id=sid,
             work_dir=project_dir,
             title="replacement",
-            sub_agent_state=None,
             file_tracker={},
             file_change_summary=FileChangeSummary(),
             todos=[],
@@ -400,12 +398,14 @@ class TestConcurrentMetaUpdates:
 
 
 # =====================================================================
-# Sub-agent meta excluded; round-trip of sub-agent-flagged session.
+# Sub-agent meta: identity keys persist, display state does not.
 # =====================================================================
 
 
 class TestSubAgentMetaRoundTrip:
-    def test_sub_agent_state_roundtrips(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_sub_agent_identity_persists_without_sub_agent_state(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
@@ -415,14 +415,44 @@ class TestSubAgentMetaRoundTrip:
             session.sub_agent_state = SubAgentState(
                 sub_agent_type="Finder", sub_agent_desc="find things", sub_agent_prompt="prompt text"
             )
+            session.parent_session_id = "parent-1"
+            session.agent_type = "finder"
+            session.spawn_kind = "subagent"
             session.append_history([message.AssistantMessage(parts=message.text_parts_from_str("done"))])
             await session.wait_for_flush()
 
+            store = get_store_for_path(project_dir)
+            raw = store.load_meta("sub-1")
+            assert raw is not None
+            assert "sub_agent_state" not in raw
             loaded = Session.load_meta("sub-1", work_dir=project_dir)
-            assert loaded.sub_agent_state is not None
-            assert loaded.sub_agent_state.sub_agent_type == "Finder"
-            assert loaded.sub_agent_state.sub_agent_desc == "find things"
-            assert loaded.sub_agent_state.sub_agent_prompt == "prompt text"
+            assert loaded.sub_agent_state is None
+            assert loaded.parent_session_id == "parent-1"
+            assert loaded.agent_type == "finder"
+            assert loaded.spawn_kind == "subagent"
             await close_default_store()
 
         arun(_test())
+
+    def test_legacy_sub_agent_state_meta_still_parses(self, tmp_path: Path) -> None:
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        store = _make_store(project_dir)
+        sid = "legacy-sub"
+        meta = _seed_meta(store, sid, project_dir)
+        assert meta["id"] == sid
+        assert store.update_meta(
+            sid,
+            {
+                "sub_agent_state": {
+                    "sub_agent_type": "Finder",
+                    "sub_agent_desc": "find things",
+                    "sub_agent_prompt": "prompt text",
+                }
+            },
+        )
+
+        loaded = Session.load_meta(sid, work_dir=project_dir)
+        assert loaded.sub_agent_state is not None
+        assert loaded.sub_agent_state.sub_agent_type == "Finder"
+        assert loaded.sub_agent_state.sub_agent_prompt == "prompt text"

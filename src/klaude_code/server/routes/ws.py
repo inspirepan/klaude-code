@@ -21,7 +21,7 @@ from klaude_code.protocol import events, message, op
 from klaude_code.protocol.models import TaskMetadataItem, Usage
 from klaude_code.protocol.version import PROTOCOL_VERSION
 from klaude_code.server.session_index import resolve_session_work_dir
-from klaude_code.server.session_state import derive_session_state_from_snapshot
+from klaude_code.server.session_state import derive_session_state_from_snapshot, live_descendant_session_ids
 from klaude_code.server.state import ServerAppState, get_server_state_from_ws
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import get_store_for_path
@@ -190,11 +190,15 @@ async def _handle_operation_frame(
         await _send_error_frame(websocket, code="invalid_operation", message=f"Failed to parse operation: {exc}")
         return
     bound_session = getattr(operation, "session_id", None)
-    if bound_session != session_id:
+    if bound_session != session_id and not (
+        isinstance(operation, op.UserInteractionRespondOperation | op.InterruptOperation)
+        and isinstance(bound_session, str)
+        and bound_session in live_descendant_session_ids(runtime.session_registry, session_id)
+    ):
         await _send_error_frame(
             websocket,
             code="operation_session_mismatch",
-            message="Operation must target the attached session",
+            message="Operation must target the attached session or a live sub-agent under it",
         )
         return
     try:
@@ -460,6 +464,15 @@ async def _forward_events(
                 if envelope.session_id == session_id or envelope.session_id in tracked_child_session_ids:
                     if envelope.task_id is not None:
                         tracked_task_ids.add(envelope.task_id)
+                elif isinstance(envelope.event, events.TaskStartEvent) and (
+                    envelope.event.parent_session_id == session_id
+                    or envelope.event.parent_session_id in tracked_child_session_ids
+                ):
+                    # A sub-agent spawned under this session runs in its own
+                    # actor with its own task id; follow its stream live.
+                    tracked_child_session_ids.add(envelope.session_id)
+                    if envelope.task_id is not None:
+                        tracked_task_ids.add(envelope.task_id)
                 elif envelope.task_id not in tracked_task_ids:
                     continue
 
@@ -530,25 +543,30 @@ async def _send_pending_interaction_snapshots(session_id: str, websocket: WebSoc
     get_session_actor = getattr(state.runtime.session_registry, "get_session_actor", None)
     if not callable(get_session_actor):
         return
-    runtime = get_session_actor(session_id)
-    if runtime is None:
-        return
 
-    pending_requests_snapshot = getattr(runtime, "pending_requests_snapshot", None)
-    if not callable(pending_requests_snapshot):
-        return
+    # Sub-agent sessions park their own interaction requests; surface them to
+    # clients attached to any ancestor (display-level aggregation).
+    target_ids = [session_id, *sorted(live_descendant_session_ids(state.runtime.session_registry, session_id))]
+    for target_id in target_ids:
+        runtime = get_session_actor(target_id)
+        if runtime is None:
+            continue
 
-    requests = cast(list[PendingUserInteractionRequest], pending_requests_snapshot())
-    for request in requests:
-        # Full envelope shape so clients parse it like a live event.
-        request_event = events.UserInteractionRequestEvent(
-            session_id=session_id,
-            request_id=request.request_id,
-            source=request.source,
-            payload=request.payload,
-            tool_call_id=request.tool_call_id,
-        )
-        await websocket.send_json(_synthetic_envelope_dict(request_event))
+        pending_requests_snapshot = getattr(runtime, "pending_requests_snapshot", None)
+        if not callable(pending_requests_snapshot):
+            continue
+
+        requests = cast(list[PendingUserInteractionRequest], pending_requests_snapshot())
+        for request in requests:
+            # Full envelope shape so clients parse it like a live event.
+            request_event = events.UserInteractionRequestEvent(
+                session_id=target_id,
+                request_id=request.request_id,
+                source=request.source,
+                payload=request.payload,
+                tool_call_id=request.tool_call_id,
+            )
+            await websocket.send_json(_synthetic_envelope_dict(request_event))
 
 
 async def _receive_commands(

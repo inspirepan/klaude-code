@@ -12,7 +12,7 @@ from klaude_code.agent.agent_profile import DefaultModelProfileProvider, ModelPr
 from klaude_code.agent.runtime.agent_ops import ActiveTask, AgentOperationHandler
 from klaude_code.agent.runtime.config_ops import ConfigHandler, ModelSwitcher
 from klaude_code.agent.runtime.llm import LLMClients
-from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
+from klaude_code.agent.runtime.sub_agent import SubAgentLauncher
 from klaude_code.control.event_bus import EventBus
 from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
@@ -36,6 +36,10 @@ class OperationDispatcherPorts:
     respond_user_interaction: Callable[[str, str, user_interaction.UserInteractionResponse], None]
     cancel_pending_interactions: Callable[[str | None], list[PendingUserInteractionRequest]]
     on_child_task_state_change: Callable[[str, str, bool], None]
+    # Sub-agent sessions run through their own actors; the launcher submits
+    # and awaits operations on them via these facade entry points.
+    submit_operation: Callable[[op.Operation], Awaitable[str]]
+    wait_for_operation: Callable[[str], Awaitable[Literal["completed", "rejected", "failed"] | None]]
 
 
 class OperationDispatcher:
@@ -63,12 +67,10 @@ class OperationDispatcher:
         resolved_profile_provider = model_profile_provider or DefaultModelProfileProvider()
         self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
 
-        self._sub_agent_executor = SubAgentExecutor(self.emit_event, llm_clients, resolved_profile_provider)
         self._agent_operation_handler = AgentOperationHandler(
             emit_event=self.emit_event,
             llm_clients=llm_clients,
             model_profile_provider=resolved_profile_provider,
-            sub_agent_manager=self._sub_agent_executor,
             on_child_task_state_change=self._on_child_task_state_change,
             ensure_session_actor=ports.ensure_session_actor,
             get_session_actor=ports.get_session_actor,
@@ -78,6 +80,13 @@ class OperationDispatcher:
             remove_task=ports.remove_task,
             request_user_interaction=self.request_user_interaction,
         )
+        self._sub_agent_launcher = SubAgentLauncher(
+            handler=self._agent_operation_handler,
+            event_bus=event_bus,
+            submit_operation=ports.submit_operation,
+            wait_for_operation=ports.wait_for_operation,
+        )
+        self._agent_operation_handler.set_sub_agent_launcher(self._sub_agent_launcher)
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
         self._config_handler = ConfigHandler(
             agent_operation_handler=self._agent_operation_handler,
@@ -268,6 +277,21 @@ class OperationDispatcher:
         )
         cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
+        # Sub-agents run in their own actors; cancelling the parent task no
+        # longer reaches them, so cascade the interrupt down the tree.
+        for child_id in self._live_child_session_ids(operation.session_id):
+            await self.handle_interrupt(op.InterruptOperation(session_id=child_id))
+
+    def _live_child_session_ids(self, session_id: str) -> list[str]:
+        children: list[str] = []
+        for actor in self._ports.list_session_actors():
+            agent = actor.get_agent()
+            if agent is None or agent.session.parent_session_id != session_id:
+                continue
+            if actor.snapshot().is_idle:
+                continue
+            children.append(actor.session_id)
+        return children
 
     async def handle_close_session(self, operation: op.CloseSessionOperation) -> None:
         await self._ports.close_session(operation.session_id, operation.force)

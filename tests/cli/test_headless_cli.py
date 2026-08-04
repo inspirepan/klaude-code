@@ -271,3 +271,17 @@ def test_headless_help_lists_watch_follow_and_approval_warning() -> None:
     run_help_text = " ".join(run_help.output.split())
     assert "questions still park as waiting_input" in run_help_text
     assert "use only in trusted dirs" in run_help_text
+
+
+def test_order_rows_as_tree_places_children_under_parent() -> None:
+    from klaude_code.cli.headless_cmd import _order_rows_as_tree  # pyright: ignore[reportPrivateUsage]
+
+    rows = [
+        {"id": "p1"},
+        {"id": "p2"},
+        {"id": "c1", "parent_session_id": "p1"},
+        {"id": "c2", "parent_session_id": "p2"},
+        {"id": "orphan", "parent_session_id": "missing"},
+    ]
+    ordered = [row["id"] for row in _order_rows_as_tree(rows)]
+    assert ordered == ["p1", "c1", "p2", "c2", "orphan"]

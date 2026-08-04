@@ -102,7 +102,13 @@ def load_agent_tools(
 
     del config
 
-    return get_tool_schemas(tool_names)
+    schemas = get_tool_schemas(tool_names)
+    if sub_agent_type is not None:
+        # Sub-agents that inherit the main tool set still get the any-GPT
+        # diff-tool adaptation (Edit/Write -> apply_patch), like tool_set
+        # profiles above.
+        return adapt_sub_agent_tools_for_model(model_name, schemas)
+    return schemas
 
 
 def load_agent_attachments(

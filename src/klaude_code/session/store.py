@@ -16,7 +16,6 @@ from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
-    SubAgentState,
     TodoItem,
 )
 from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
@@ -361,7 +360,6 @@ def build_meta_snapshot(
     session_id: str,
     work_dir: Path,
     title: str | None,
-    sub_agent_state: SubAgentState | None,
     file_tracker: dict[str, FileStatus],
     file_change_summary: FileChangeSummary,
     todos: list[TodoItem],
@@ -385,14 +383,17 @@ def build_meta_snapshot(
     agent_type: str | None = None,
     spawn_kind: str | None = None,
     approval_policy: str | None = None,
+    parent_session_id: str | None = None,
     vanilla: bool = False,
 ) -> dict[str, Any]:
     follow_up_queue_payload = [item.model_dump(mode="json", exclude_none=True) for item in follow_up_queue]
+    # sub_agent_state is no longer persisted: sub-agent identity lives in
+    # parent_session_id/agent_type, display state is rebuilt from the parent's
+    # SpawnSubAgentEntry. Legacy metas keep being parsed for read compat.
     snapshot: dict[str, Any] = {
         "id": session_id,
         "work_dir": str(work_dir),
         "title": title,
-        "sub_agent_state": sub_agent_state.model_dump(mode="json") if sub_agent_state else None,
         "file_tracker": {path: status.model_dump(mode="json") for path, status in file_tracker.items()},
         "file_change_summary": file_change_summary.model_dump(mode="json", exclude_defaults=True),
         "todos": [todo.model_dump(mode="json", exclude_defaults=True) for todo in todos],
@@ -423,6 +424,7 @@ def build_meta_snapshot(
         "agent_type": agent_type,
         "spawn_kind": spawn_kind,
         "approval_policy": approval_policy,
+        "parent_session_id": parent_session_id,
         "vanilla": vanilla or None,
     }
     return {k: v for k, v in snapshot.items() if v is not None}

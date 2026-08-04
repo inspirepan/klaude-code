@@ -34,6 +34,20 @@ from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 from klaude_code.session.store_registry import get_store_for_path
 
 
+def _first_prompt_text(history: Sequence[message.HistoryEvent]) -> str:
+    """The spawning prompt of a sub-agent session: its first real user message.
+
+    Skips the fork-context system reminder a forked child is seeded with.
+    """
+    for item in history:
+        if not isinstance(item, message.UserMessage):
+            continue
+        text = message.join_text_parts(item.parts)
+        if text.strip() and not text.lstrip().startswith("<system-reminder>"):
+            return text
+    return ""
+
+
 class Session(BaseModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     work_dir: Path
@@ -57,6 +71,8 @@ class Session(BaseModel):
     agent_type: str | None = None
     spawn_kind: str | None = None
     approval_policy: str | None = None
+    # Set on sessions spawned by another session's Agent tool call.
+    parent_session_id: str | None = None
     # Vanilla mode (basic tools, no system prompts) is a per-session flag.
     vanilla: bool = False
 
@@ -181,6 +197,7 @@ class Session(BaseModel):
             agent_type=meta.agent_type,
             spawn_kind=meta.spawn_kind,
             approval_policy=meta.approval_policy,
+            parent_session_id=meta.parent_session_id,
             vanilla=meta.vanilla,
         )
 
@@ -261,7 +278,6 @@ class Session(BaseModel):
             session_id=self.id,
             work_dir=self.work_dir,
             title=self.title,
-            sub_agent_state=self.sub_agent_state,
             file_tracker=self.file_tracker,
             file_change_summary=self.file_change_summary,
             todos=list(self.todos),
@@ -285,6 +301,7 @@ class Session(BaseModel):
             agent_type=self.agent_type,
             spawn_kind=self.spawn_kind,
             approval_policy=self.approval_policy,
+            parent_session_id=self.parent_session_id,
             vanilla=self.vanilla,
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
@@ -310,7 +327,6 @@ class Session(BaseModel):
             session_id=self.id,
             work_dir=self.work_dir,
             title=self.title,
-            sub_agent_state=self.sub_agent_state,
             file_tracker=self.file_tracker,
             file_change_summary=self.file_change_summary,
             todos=list(self.todos),
@@ -334,6 +350,7 @@ class Session(BaseModel):
             agent_type=self.agent_type,
             spawn_kind=self.spawn_kind,
             approval_policy=self.approval_policy,
+            parent_session_id=self.parent_session_id,
             vanilla=self.vanilla,
         )
         self._store.create_meta_if_missing(self.id, meta)
@@ -561,7 +578,7 @@ class Session(BaseModel):
             data = read_json_dict(meta_path)
             if data is None:
                 continue
-            if data.get("sub_agent_state") is not None:
+            if data.get("sub_agent_state") is not None or data.get("parent_session_id"):
                 continue
             if data.get("archived") is True:
                 continue
@@ -900,7 +917,7 @@ class Session(BaseModel):
                 case message.PromptSuggestionEntry() as ps:
                     yield events.PromptSuggestionReadyEvent(session_id=self.id, text=ps.text, timestamp=msg_ts)
                 case message.SpawnSubAgentEntry() as sa:
-                    yield from self._iter_sub_agent_history_by_id(sa.session_id, seen_sub_agent_sessions)
+                    yield from self._iter_sub_agent_history_by_id(sa.session_id, seen_sub_agent_sessions, entry=sa)
                 case message.SystemMessage():
                     pass
             prev_item = it
@@ -914,7 +931,10 @@ class Session(BaseModel):
             yield from _flush_task_finish(msg_ts)
 
     def _iter_sub_agent_history_by_id(
-        self, session_id: str, seen_sub_agent_sessions: set[str]
+        self,
+        session_id: str,
+        seen_sub_agent_sessions: set[str],
+        entry: message.SpawnSubAgentEntry | None = None,
     ) -> Iterable[events.ReplayEventUnion]:
         if not session_id or session_id == self.id:
             return
@@ -925,6 +945,19 @@ class Session(BaseModel):
             sub_session = Session.load(session_id, work_dir=self.work_dir)
         except (OSError, json.JSONDecodeError, ValueError):
             return
+        if sub_session.sub_agent_state is None and entry is not None:
+            # Meta no longer stores the display state; rebuild it from the
+            # spawn entry, taking the prompt from the child's own history.
+            sub_session.sub_agent_state = SubAgentState(
+                sub_agent_type=entry.sub_agent_type,
+                sub_agent_desc=entry.sub_agent_desc,
+                sub_agent_prompt=_first_prompt_text(sub_session.conversation_history),
+                model=entry.model,
+                fork_context=entry.fork_context,
+                parent_tool_batch_id=entry.parent_tool_batch_id,
+                parent_tool_batch_index=entry.parent_tool_batch_index,
+                parent_tool_batch_size=entry.parent_tool_batch_size,
+            )
         yield from sub_session.get_history_item(
             emit_finish=sub_session._has_task_completed(), parent_session_id=self.id
         )
@@ -994,7 +1027,7 @@ class Session(BaseModel):
             data = read_json_dict(meta_path)
             if data is None:
                 continue
-            if data.get("sub_agent_state") is not None:
+            if data.get("sub_agent_state") is not None or data.get("parent_session_id"):
                 continue
 
             sid = str(data.get("id", meta_path.parent.name))
@@ -1057,7 +1090,7 @@ class Session(BaseModel):
             if data is None:
                 continue
             # Exclude sub-agent sessions.
-            if data.get("sub_agent_state") is not None:
+            if data.get("sub_agent_state") is not None or data.get("parent_session_id"):
                 continue
             sid = str(data.get("id", meta_path.parent.name)).strip()
             if sid.lower().startswith(prefix):
@@ -1084,7 +1117,7 @@ class Session(BaseModel):
             data = read_json_dict(meta_path)
             if data is None:
                 continue
-            if data.get("sub_agent_state") is not None:
+            if data.get("sub_agent_state") is not None or data.get("parent_session_id"):
                 continue
             sid = str(data.get("id", meta_path.parent.name)).strip()
             if sid != session_id:

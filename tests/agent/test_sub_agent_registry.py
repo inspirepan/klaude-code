@@ -9,13 +9,16 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+import klaude_code.agent.runtime.agent_ops as agent_ops_runtime
 import klaude_code.agent.runtime.sub_agent as sub_agent_runtime
 import klaude_code.tool as core_tool
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import AgentProfile, load_agent_tools
 from klaude_code.agent.runtime.llm import LLMClients
-from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
+from klaude_code.agent.runtime.sub_agent import SubAgentLauncher
+from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
+from klaude_code.control.event_bus import EventBus, EventSubscription
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import events, llm_param, message, tools
 from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState
@@ -25,7 +28,6 @@ from klaude_code.tool import ToolABC, WriteTool
 from klaude_code.tool.agent_tool import AgentTool
 from klaude_code.tool.core.abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.tool.core.context import TodoContext, ToolContext
-from klaude_code.tool.core.registry import get_tool_schemas
 from klaude_code.tool.core.runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
 
 
@@ -232,6 +234,37 @@ def _consume_tool_executor(executor: ToolExecutor, tool_calls: list[ToolCallRequ
     return asyncio.create_task(_runner())
 
 
+def _make_facade_launcher(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    template_client: LLMClientABC,
+    config: Config,
+    override_client: LLMClientABC | None = None,
+) -> tuple[EventBus, RuntimeFacade, SubAgentLauncher]:
+    """Build a real facade whose launcher runs sub-agents through child actors."""
+    monkeypatch.setattr(sub_agent_runtime, "load_config", lambda: config)
+    monkeypatch.setattr(agent_ops_runtime, "load_config", lambda: config)
+    monkeypatch.setattr(agent_ops_runtime, "clone_llm_clients", lambda clients: clients)
+    if override_client is not None:
+        monkeypatch.setattr(agent_ops_runtime, "create_llm_client_for_candidates", lambda candidates: override_client)
+    event_bus = EventBus()
+    facade = RuntimeFacade(event_bus, LLMClients(main=template_client))
+    launcher = facade._operation_dispatcher._sub_agent_launcher  # pyright: ignore[reportPrivateUsage]
+    return event_bus, facade, launcher
+
+
+def _drain_subscription_events(subscription: EventSubscription) -> list[events.Event]:
+    collected: list[events.Event] = []
+    queue = subscription._queue  # pyright: ignore[reportPrivateUsage]
+    while True:
+        try:
+            item = queue.get_nowait()
+        except asyncio.QueueEmpty:
+            return collected
+        if isinstance(item, events.EventEnvelope):
+            collected.append(item.event)
+
+
 def test_sub_agent_model_override_uses_explicit_client(
     tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -240,18 +273,6 @@ def test_sub_agent_model_override_uses_explicit_client(
     async def _test() -> None:
         parent_client = _RecordingClient("main-model", "main response")
         override_client = _RecordingClient("override-model-id", "override response")
-        profile_provider = _TestProfileProvider()
-        parent_session = Session(work_dir=tmp_path)
-        parent_agent = Agent(
-            session=parent_session,
-            profile=AgentProfile(llm_client=parent_client, system_prompt=None, tools=[], attachments=[]),
-            model_profile_provider=profile_provider,
-        )
-        executor = SubAgentExecutor(
-            emit_event=lambda event: asyncio.sleep(0),
-            llm_clients=LLMClients(main=parent_client),
-            model_profile_provider=profile_provider,
-        )
         config = Config(
             main_model="main-model",
             provider_list=[
@@ -263,27 +284,45 @@ def test_sub_agent_model_override_uses_explicit_client(
                 )
             ],
         )
-        monkeypatch.setattr(sub_agent_runtime, "load_config", lambda: config)
-        monkeypatch.setattr(sub_agent_runtime, "create_llm_client_for_candidates", lambda candidates: override_client)
-
-        result = await executor.run_sub_agent(
-            parent_agent,
-            SubAgentState(
-                sub_agent_type="finder",
-                sub_agent_desc="override test",
-                sub_agent_prompt="hello",
-                model="override-model",
-            ),
+        _event_bus, facade, launcher = _make_facade_launcher(
+            monkeypatch,
+            template_client=parent_client,
+            config=config,
+            override_client=override_client,
         )
+        try:
+            parent_session = Session(work_dir=tmp_path)
+            parent_agent = Agent(
+                session=parent_session,
+                profile=AgentProfile(llm_client=parent_client, system_prompt=None, tools=[], attachments=[]),
+            )
 
-        spawn_entries = [
-            item for item in parent_session.conversation_history if isinstance(item, message.SpawnSubAgentEntry)
-        ]
-        assert result.task_result == "override response"
-        assert parent_client.call_count == 0
-        assert override_client.call_count == 1
-        assert profile_provider.model_names == ["override-model-id"]
-        assert spawn_entries[0].model == "override-model"
+            result = await launcher.run_sub_agent(
+                parent_agent,
+                SubAgentState(
+                    sub_agent_type="finder",
+                    sub_agent_desc="override test",
+                    sub_agent_prompt="hello",
+                    model="override-model",
+                ),
+            )
+
+            spawn_entries = [
+                item for item in parent_session.conversation_history if isinstance(item, message.SpawnSubAgentEntry)
+            ]
+            assert result.task_result == "override response"
+            assert result.error is False
+            assert parent_client.call_count == 0
+            assert override_client.call_count == 1
+            assert spawn_entries[0].model == "override-model"
+
+            child_session = Session.load(result.session_id, work_dir=tmp_path)
+            assert child_session.parent_session_id == parent_session.id
+            assert child_session.spawn_kind == "subagent"
+            assert child_session.agent_type == "finder"
+            assert child_session.model_config_name == "override-model"
+        finally:
+            await facade.stop()
 
     asyncio.run(_test())
 
@@ -296,25 +335,6 @@ def test_fork_context_model_override_updates_child_session_metadata(
     async def _test() -> None:
         parent_client = _RecordingClient("main-model", "main response")
         override_client = _RecordingClient("gpt-4.1", "override response")
-        profile_provider = _TestProfileProvider()
-        parent_session = Session(work_dir=tmp_path)
-        parent_session.model_name = "main-model"
-        parent_session.prompt_cache_key = "parent-cache-lineage"
-        parent_agent = Agent(
-            session=parent_session,
-            profile=AgentProfile(
-                llm_client=parent_client,
-                system_prompt="parent prompt",
-                tools=get_tool_schemas([tools.BASH, tools.READ, tools.EDIT, tools.WRITE]),
-                attachments=[],
-            ),
-            model_profile_provider=profile_provider,
-        )
-        executor = SubAgentExecutor(
-            emit_event=lambda event: asyncio.sleep(0),
-            llm_clients=LLMClients(main=parent_client),
-            model_profile_provider=profile_provider,
-        )
         config = Config(
             main_model="main-model",
             provider_list=[
@@ -326,36 +346,58 @@ def test_fork_context_model_override_updates_child_session_metadata(
                 )
             ],
         )
-        monkeypatch.setattr(sub_agent_runtime, "load_config", lambda: config)
-        monkeypatch.setattr(sub_agent_runtime, "create_llm_client_for_candidates", lambda candidates: override_client)
-
-        result = await executor.run_sub_agent(
-            parent_agent,
-            SubAgentState(
-                sub_agent_type="general-purpose-fork-context",
-                sub_agent_desc="override test",
-                sub_agent_prompt="hello",
-                model="override-model",
-                fork_context=True,
-            ),
+        _event_bus, facade, launcher = _make_facade_launcher(
+            monkeypatch,
+            template_client=parent_client,
+            config=config,
+            override_client=override_client,
         )
+        try:
+            parent_session = Session(work_dir=tmp_path)
+            parent_session.model_name = "main-model"
+            parent_session.prompt_cache_key = "parent-cache-lineage"
+            parent_agent = Agent(
+                session=parent_session,
+                profile=AgentProfile(
+                    llm_client=parent_client,
+                    system_prompt="parent prompt",
+                    tools=[],
+                    attachments=[],
+                ),
+            )
 
-        child_session = Session.load(result.session_id, work_dir=tmp_path)
-        child_tools = override_client.call_params[0].tools
-        assert child_tools is not None
-        child_tool_names = {schema.name for schema in child_tools}
-        assert child_session.model_name == "gpt-4.1"
-        assert child_session.model_config_name == "override-model"
-        assert child_session.prompt_cache_key == "parent-cache-lineage"
-        assert override_client.call_params[0].prompt_cache_key == "parent-cache-lineage"
-        assert tools.APPLY_PATCH in child_tool_names
-        assert tools.EDIT not in child_tool_names
-        assert tools.WRITE not in child_tool_names
+            result = await launcher.run_sub_agent(
+                parent_agent,
+                SubAgentState(
+                    sub_agent_type="general-purpose-fork-context",
+                    sub_agent_desc="override test",
+                    sub_agent_prompt="hello",
+                    model="override-model",
+                    fork_context=True,
+                ),
+            )
+
+            child_session = Session.load(result.session_id, work_dir=tmp_path)
+            child_tools = override_client.call_params[0].tools
+            assert child_tools is not None
+            child_tool_names = {schema.name for schema in child_tools}
+            assert child_session.model_name == "gpt-4.1"
+            assert child_session.model_config_name == "override-model"
+            assert child_session.prompt_cache_key == "parent-cache-lineage"
+            assert child_session.parent_session_id == parent_session.id
+            assert override_client.call_params[0].prompt_cache_key == "parent-cache-lineage"
+            assert tools.APPLY_PATCH in child_tool_names
+            assert tools.EDIT not in child_tool_names
+            assert tools.WRITE not in child_tool_names
+        finally:
+            await facade.stop()
 
     asyncio.run(_test())
 
 
-def test_fork_context_file_change_summary_merges_child_delta_into_parent(tmp_path: Path, isolated_home: Path) -> None:
+def test_fork_context_file_change_summary_merges_child_delta_into_parent(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     del isolated_home
 
     async def _test() -> None:
@@ -376,54 +418,63 @@ def test_fork_context_file_change_summary_merges_child_delta_into_parent(tmp_pat
             stop_reason="stop",
         )
         parent_client = _ScriptedClient("main-model", [[child_tool_call], [child_final]])
-        profile_provider = _TestProfileProvider()
-        parent_session = Session(work_dir=tmp_path)
-        parent_session.file_change_summary.record_edited(parent_path)
-        parent_session.file_change_summary.add_diff(added=5, removed=1, path=parent_path)
-        parent_agent = Agent(
-            session=parent_session,
-            profile=AgentProfile(
-                llm_client=parent_client,
-                system_prompt="parent prompt",
-                tools=[WriteTool.schema()],
-                attachments=[],
-            ),
-            model_profile_provider=profile_provider,
+        config = Config(main_model="main-model", provider_list=[])
+        event_bus, facade, launcher = _make_facade_launcher(
+            monkeypatch,
+            template_client=parent_client,
+            config=config,
         )
-        emitted: list[events.Event] = []
-        executor = SubAgentExecutor(
-            emit_event=lambda event: emitted.append(event) or asyncio.sleep(0),
-            llm_clients=LLMClients(main=parent_client),
-            model_profile_provider=profile_provider,
-        )
+        try:
+            parent_session = Session(work_dir=tmp_path)
+            parent_session.file_change_summary.record_edited(parent_path)
+            parent_session.file_change_summary.add_diff(added=5, removed=1, path=parent_path)
+            parent_agent = Agent(
+                session=parent_session,
+                profile=AgentProfile(
+                    llm_client=parent_client,
+                    system_prompt="parent prompt",
+                    tools=[WriteTool.schema()],
+                    attachments=[],
+                ),
+            )
+            subscription = event_bus.subscribe(None)
 
-        result = await executor.run_sub_agent(
-            parent_agent,
-            SubAgentState(
-                sub_agent_type="general-purpose-fork-context",
-                sub_agent_desc="write child",
-                sub_agent_prompt="write child file",
-                fork_context=True,
-            ),
-        )
+            result = await launcher.run_sub_agent(
+                parent_agent,
+                SubAgentState(
+                    sub_agent_type="general-purpose-fork-context",
+                    sub_agent_desc="write child",
+                    sub_agent_prompt="write child file",
+                    fork_context=True,
+                ),
+            )
 
-        assert result.task_result == "child done"
-        assert parent_client.call_count == 2
-        assert Path(child_path).read_text(encoding="utf-8") == "hello\nworld\n"
+            assert result.task_result == "child done"
+            assert parent_client.call_count == 2
+            assert Path(child_path).read_text(encoding="utf-8") == "hello\nworld\n"
 
-        summary = parent_session.file_change_summary
-        assert summary.file_diffs[parent_path].added == 5
-        assert summary.file_diffs[parent_path].removed == 1
-        assert summary.file_diffs[child_path].added == 2
-        assert summary.file_diffs[child_path].removed == 0
-        assert summary.diff_lines_added == 7
-        assert summary.diff_lines_removed == 1
-        assert summary.edited_files == [parent_path]
-        assert summary.created_files == [child_path]
+            summary = parent_session.file_change_summary
+            assert summary.file_diffs[parent_path].added == 5
+            assert summary.file_diffs[parent_path].removed == 1
+            assert summary.file_diffs[child_path].added == 2
+            assert summary.file_diffs[child_path].removed == 0
+            assert summary.diff_lines_added == 7
+            assert summary.diff_lines_removed == 1
+            assert summary.edited_files == [parent_path]
+            assert summary.created_files == [child_path]
 
-        child_summary_events = [event for event in emitted if isinstance(event, events.TaskFileChangeSummaryEvent)]
-        assert len(child_summary_events) == 1
-        assert child_summary_events[0].summary.files[0].path == child_path
+            emitted = _drain_subscription_events(subscription)
+            child_summary_events = [event for event in emitted if isinstance(event, events.TaskFileChangeSummaryEvent)]
+            assert len(child_summary_events) == 1
+            assert child_summary_events[0].summary.files[0].path == child_path
+            task_starts = [
+                event
+                for event in emitted
+                if isinstance(event, events.TaskStartEvent) and event.session_id == result.session_id
+            ]
+            assert task_starts and task_starts[0].parent_session_id == parent_session.id
+        finally:
+            await facade.stop()
 
     asyncio.run(_test())
 

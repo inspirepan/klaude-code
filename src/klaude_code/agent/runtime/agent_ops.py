@@ -20,7 +20,7 @@ from klaude_code.agent.compaction import CompactionReason, run_compaction
 from klaude_code.agent.model_fallback import build_fallback_model_config_warn, fallback_llm_client
 from klaude_code.agent.prompt_suggestion import run_prompt_suggestion, should_suggest
 from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients, create_llm_client_for_candidates
-from klaude_code.agent.runtime.sub_agent import SubAgentExecutor
+from klaude_code.agent.runtime.sub_agent import SubAgentLauncher
 from klaude_code.agent.session_title import generate_session_title
 from klaude_code.agent.side_question import run_side_question
 from klaude_code.agent.skill_inventory import (
@@ -81,7 +81,6 @@ class AgentOperationHandler:
         emit_event: Callable[[events.Event], Awaitable[None]],
         llm_clients: LLMClients,
         model_profile_provider: ModelProfileProvider,
-        sub_agent_manager: SubAgentExecutor,
         on_child_task_state_change: Callable[[str, str, bool], None],
         ensure_session_actor: Callable[[str], SessionActor],
         get_session_actor: Callable[[str], SessionActor | None],
@@ -97,7 +96,7 @@ class AgentOperationHandler:
         self._emit_event = emit_event
         self._llm_clients_template = llm_clients
         self._model_profile_provider = model_profile_provider
-        self._sub_agent_manager = sub_agent_manager
+        self._sub_agent_launcher: SubAgentLauncher | None = None
         self._on_child_task_state_change = on_child_task_state_change
         self._ensure_session_actor = ensure_session_actor
         self._get_session_actor = get_session_actor
@@ -111,6 +110,9 @@ class AgentOperationHandler:
         self._prompt_suggestion_tasks: dict[str, asyncio.Task[None]] = {}
         self._auto_away_summary_tasks: dict[str, asyncio.Task[None]] = {}
         self._side_question_tasks: dict[str, _PendingSideQuestion] = {}
+
+    def set_sub_agent_launcher(self, launcher: SubAgentLauncher) -> None:
+        self._sub_agent_launcher = launcher
 
     async def _request_user_interaction(
         self,
@@ -133,8 +135,6 @@ class AgentOperationHandler:
         agent = runtime.get_agent()
         if agent is None:
             raise RuntimeError("No active agent session")
-        if agent.session.sub_agent_state is not None:
-            raise RuntimeError("User interaction is available only for the main agent")
         return await self._request_user_interaction_callback(
             PendingUserInteractionRequest(
                 request_id=request_id,
@@ -390,6 +390,43 @@ class AgentOperationHandler:
         )
         return agent
 
+    async def init_sub_agent_session(self, session: Session) -> Agent:
+        """Register a prepared sub-agent session on its own actor.
+
+        Mirrors ``ensure_agent`` without the welcome event, history replay,
+        or primary-session bookkeeping: the child renders inside the parent's
+        transcript, so none of those apply.
+        """
+        runtime = self._ensure_session_actor(session.id)
+        existing = runtime.get_agent()
+        if existing is not None:
+            return existing
+
+        session_clients = self._ensure_session_llm_clients(session)
+        profile_agent_type: str | None = None
+        if session.agent_type is not None and session.agent_type != "main":
+            profile_agent_type = session.agent_type
+        profile_provider: ModelProfileProvider = self._model_profile_provider
+        if session.vanilla:
+            from klaude_code.agent.agent_profile import VanillaModelProfileProvider
+
+            profile_provider = VanillaModelProfileProvider()
+        profile = profile_provider.build_profile(
+            session_clients.main,
+            profile_agent_type,
+            work_dir=session.work_dir,
+        )
+        session.model_name = session_clients.main.model_name
+        agent = Agent(
+            session=session,
+            profile=profile,
+            compact_llm_client=session_clients.compact,
+            request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
+            model_profile_provider=profile_provider,
+        )
+        runtime.set_agent(agent)
+        return agent
+
     async def init_agent(
         self,
         session_id: str,
@@ -451,6 +488,10 @@ class AgentOperationHandler:
         await self._emit_event(events.SessionTitleChangedEvent(session_id=session.id, title=title))
 
     def _schedule_session_title_refresh(self, session: Session) -> None:
+        # Sub-agent sessions render inside the parent transcript; skip the
+        # per-spawn title LLM call.
+        if session.parent_session_id is not None:
+            return
         user_messages_snapshot = list(session.user_messages)
         previous_title_snapshot = session.title if len(user_messages_snapshot) > 1 else None
         existing = self._title_refresh_tasks.get(session.id)
@@ -510,7 +551,7 @@ class AgentOperationHandler:
         session_id = agent.session.id
         # Sub-agent sessions don't surface a prompt to the user; the leader
         # session is the only one that benefits from a suggestion.
-        if agent.session.sub_agent_state is not None:
+        if agent.session.sub_agent_state is not None or agent.session.parent_session_id is not None:
             return
         if agent.follow_up_count() > 0:
             log_debug(
@@ -1115,16 +1156,17 @@ class AgentOperationHandler:
                 register_metadata_getter: Callable[[Callable[[], TaskMetadata | None]], None] | None,
                 register_progress_getter: Callable[[Callable[[], str | None]], None] | None,
             ) -> SubAgentResult:
-                if agent.session.sub_agent_state is not None:
+                if agent.session.sub_agent_state is not None or agent.session.parent_session_id is not None:
                     raise RuntimeError("Sub-agents cannot spawn nested sub-agents")
-                session_clients = self.get_session_llm_clients(session_id)
+                launcher = self._sub_agent_launcher
+                if launcher is None:
+                    raise RuntimeError("Sub-agent launcher is not wired")
                 child_task_id = uuid4().hex
                 self._on_child_task_state_change(session_id, child_task_id, True)
                 try:
-                    return await self._sub_agent_manager.run_sub_agent(
+                    return await launcher.run_sub_agent(
                         agent,
                         state,
-                        llm_clients=session_clients,
                         record_session_id=record_session_id,
                         register_metadata_getter=register_metadata_getter,
                         register_progress_getter=register_progress_getter,

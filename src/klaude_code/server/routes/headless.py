@@ -19,7 +19,7 @@ from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.sub_agent import get_all_names
 from klaude_code.server.headless import HeadlessRuntime, format_tool_call_activity
 from klaude_code.server.session_index import SessionSummary
-from klaude_code.server.session_state import derive_session_state_from_snapshot
+from klaude_code.server.session_state import derive_session_state_from_snapshot, live_descendant_session_ids
 from klaude_code.server.state import ServerAppState, get_server_state
 from klaude_code.session.session import Session
 
@@ -98,6 +98,10 @@ def _headless_state(state: ServerAppState, headless: HeadlessRuntime, session_id
         if derived == "waiting_user_input":
             return "waiting_input"
         if derived == "running":
+            # A sub-agent parked on an interaction stalls the whole tree; the
+            # caller polls the parent, so bubble the state up (§7 closed loop).
+            if _pending_requests(state, session_id):
+                return "waiting_input"
             return "running"
     if headless.is_running(session_id) or headless.turn_start_pending(session_id):
         return "running"
@@ -107,10 +111,14 @@ def _headless_state(state: ServerAppState, headless: HeadlessRuntime, session_id
 
 
 def _pending_requests(state: ServerAppState, session_id: str) -> list[PendingUserInteractionRequest]:
-    actor = state.runtime.session_registry.get_session_actor(session_id)
-    if actor is None:
-        return []
-    return actor.pending_requests_snapshot()
+    """Pending requests of the session and its live sub-agent descendants."""
+    registry = state.runtime.session_registry
+    requests: list[PendingUserInteractionRequest] = []
+    for target_id in (session_id, *sorted(live_descendant_session_ids(registry, session_id))):
+        actor = registry.get_session_actor(target_id)
+        if actor is not None:
+            requests.extend(actor.pending_requests_snapshot())
+    return requests
 
 
 def serialize_pending_request(request: PendingUserInteractionRequest) -> dict[str, Any]:
@@ -179,6 +187,7 @@ def _serialize_row(
         "group": summary.group,
         "agent_type": summary.agent_type,
         "spawn_kind": summary.spawn_kind,
+        "parent_session_id": summary.parent_session_id,
         "state": session_state,
         "model": summary.model_config_name or summary.model_name,
         "work_dir": summary.work_dir,
@@ -362,6 +371,7 @@ async def list_headless_sessions(
     states: list[str] | None = STATES_QUERY,
     limit: int = 20,
     include_archived: bool = False,
+    include_children: bool = False,
     state: ServerAppState = STATE_DEP,
 ) -> dict[str, Any]:
     headless = _require_headless(state)
@@ -399,6 +409,8 @@ async def list_headless_sessions(
         ]
     if not include_archived and not targets:
         selected = [summary for summary in selected if not summary.archived]
+    if not include_children and not targets:
+        selected = [summary for summary in selected if summary.parent_session_id is None]
 
     rows = [_serialize_row(state, headless, summary) for summary in selected]
     if states:
@@ -406,7 +418,14 @@ async def list_headless_sessions(
 
     rows.sort(key=lambda row: (0 if row["state"] in ACTIVE_STATES else 1, -float(row["updated_at"])))
     if limit > 0 and not targets:
-        rows = rows[:limit]
+        if include_children:
+            # The limit counts top-level sessions; their children ride along.
+            row_ids = {row["id"] for row in rows}
+            roots = [row for row in rows if not row.get("parent_session_id") or row["parent_session_id"] not in row_ids]
+            kept_roots = {row["id"] for row in roots[:limit]}
+            rows = [row for row in rows if row["id"] in kept_roots or row.get("parent_session_id") in kept_roots]
+        else:
+            rows = rows[:limit]
     return {"sessions": rows}
 
 
@@ -621,7 +640,9 @@ async def respond_headless(
 
     await state.runtime.submit(
         op.UserInteractionRespondOperation(
-            session_id=summary.id,
+            # The request may be parked on a sub-agent session under the
+            # target; route the response to its owning actor.
+            session_id=request.session_id,
             request_id=request.request_id,
             response=response,
         )
