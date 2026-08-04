@@ -17,6 +17,7 @@ import typer
 WAIT_POLL_INTERVAL_SECONDS = 1.0
 PS_WATCH_INTERVAL_SECONDS = 1.0
 FOLLOW_STATE_POLL_INTERVAL_SECONDS = 0.25
+STDIN_POLL_SECONDS = 1.0
 
 EXIT_USAGE = 1
 EXIT_WAITING_INPUT = 2
@@ -71,6 +72,39 @@ def _split_targets(values: list[str]) -> list[str]:
     for value in values:
         targets.extend(part.strip() for part in value.split(",") if part.strip())
     return targets
+
+
+def _read_piped_stdin(*, has_prompt: bool) -> str:
+    """Read piped stdin without hanging on an open-but-silent descriptor.
+
+    Only FIFO/regular-file stdin counts as piped input. With an explicit
+    PROMPT argument the read is skipped unless data shows up within
+    STDIN_POLL_SECONDS — a caller-inherited pipe that never closes must not
+    hang `run`. Without a PROMPT, block like any unix filter.
+    """
+    import os
+    import select
+    import stat
+
+    if sys.stdin.isatty():
+        return ""
+    try:
+        mode = os.fstat(sys.stdin.fileno()).st_mode
+    except (OSError, ValueError):
+        return ""
+    if not (stat.S_ISFIFO(mode) or stat.S_ISREG(mode)):
+        return ""
+    if has_prompt and stat.S_ISFIFO(mode):
+        try:
+            ready, _, _ = select.select([sys.stdin], [], [], STDIN_POLL_SECONDS)
+        except (OSError, ValueError):
+            return ""
+        if not ready:
+            return ""
+    try:
+        return sys.stdin.read().strip()
+    except OSError:
+        return ""
 
 
 def _print_json(data: Any) -> None:
@@ -446,7 +480,8 @@ def run_command(
         "--approval",
         show_default=False,
         help="What to do on permission requests when no human is attached: "
-        "hold = park request, state=waiting_input (default); auto = approve everything; use only in trusted dirs; "
+        "hold = park request, state=waiting_input (default); "
+        "auto = approve permission requests (questions still park as waiting_input); use only in trusted dirs; "
         "deny = reject; agent must work around",
     ),
     wait: bool = typer.Option(False, "--wait", help="Block until finished, print final output"),
@@ -456,7 +491,9 @@ def run_command(
     """Spawn a background agent on the server and print its session id, then return immediately.
 
     The agent keeps running after this command exits. PROMPT is read from the
-    argument, or from stdin when piped.
+    argument, or from stdin when piped. When both are given, stdin is appended
+    to PROMPT — but only if pipe data arrives within 1s, so an inherited
+    pipe that never closes cannot hang the command.
 
     \b
     Examples:
@@ -468,10 +505,9 @@ def run_command(
     from pathlib import Path
 
     prompt_text = (prompt or "").strip()
-    if not sys.stdin.isatty():
-        stdin_text = sys.stdin.read().strip()
-        if stdin_text:
-            prompt_text = f"{prompt_text}\n\n{stdin_text}" if prompt_text else stdin_text
+    stdin_text = _read_piped_stdin(has_prompt=bool(prompt_text))
+    if stdin_text:
+        prompt_text = f"{prompt_text}\n\n{stdin_text}" if prompt_text else stdin_text
     if not prompt_text:
         typer.echo("error: no prompt given (pass PROMPT or pipe stdin)", err=True)
         raise typer.Exit(EXIT_USAGE)

@@ -253,4 +253,6 @@ def test_headless_help_lists_watch_follow_and_approval_warning() -> None:
     assert output_help.exit_code == 0
     assert "--follow" in output_help.output
     assert run_help.exit_code == 0
-    assert "approve everything; use only in trusted dirs" in run_help.output
+    run_help_text = " ".join(run_help.output.split())
+    assert "questions still park as waiting_input" in run_help_text
+    assert "use only in trusted dirs" in run_help_text
