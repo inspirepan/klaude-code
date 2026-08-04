@@ -637,7 +637,7 @@ def ps_command(
 
     rows = fetch()
     if json_:
-        _print_json({"sessions": rows})
+        _print_json({"sessions": [{key: value for key, value in row.items() if value is not None} for row in rows]})
         return
     if not rows:
         typer.echo("no sessions")

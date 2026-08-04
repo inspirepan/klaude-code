@@ -113,6 +113,21 @@ def test_ps_watch_and_json_are_mutually_exclusive() -> None:
     assert "--watch and --json are mutually exclusive" in result.output
 
 
+def test_ps_json_omits_null_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.cli.main import app
+
+    monkeypatch.setattr(
+        headless_cmd,
+        "_fetch_rows",
+        lambda *_args, **_kwargs: [{"id": "session-id", "name": None, "state": "idle", "activity": None}],
+    )
+
+    result = CliRunner().invoke(app, ["ps", "--json"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == {"sessions": [{"id": "session-id", "state": "idle"}]}
+
+
 @pytest.mark.parametrize(
     "args, message",
     [
