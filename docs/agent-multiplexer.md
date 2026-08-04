@@ -157,7 +157,10 @@ Usage: klaude run [OPTIONS] [PROMPT]
 
 Spawn a background agent on the server and print its session id, then
 return immediately. The agent keeps running after this command exits.
-PROMPT is read from the argument, or from stdin when piped.
+PROMPT is read from the argument, or from stdin when piped. When
+both are given, stdin is appended to PROMPT — but only if pipe data
+arrives within 1s, so an inherited pipe that never closes cannot
+hang the command.
 
 Examples:
   klaude run "fix the failing tests under tests/server/"
@@ -183,8 +186,9 @@ Options:
                        human is attached:
                          hold  park request, state=waiting_input
                                (default)
-                         auto  approve everything; use only in
-                               trusted dirs
+                         auto  approve permission requests;
+                               questions still park as
+                               waiting_input; trusted dirs only
                          deny  reject; agent must work around
       --wait           Block until finished, print final output
       --timeout SECS   With --wait: exit 124 on timeout
@@ -202,7 +206,7 @@ Options:
 ```text
 Usage: klaude ps [OPTIONS] [TARGET...]
 
-List sessions known to the server. Active sessions (running,
+List sessions known to the server. Active sessions (queued, running,
 waiting_input) always sort first, then by most recently updated.
 
 With TARGETs — ids, unique prefixes, or names; space- or comma-
@@ -211,10 +215,10 @@ calling agent: check exactly the agents it spawned, nothing else.
 
   klaude ps a3f2c1,9b01d4,fix-tests --json
 
-  ID       NAME       TITLE          STATE          MODEL   DIR          ACTIVITY
-  a3f2c1   fix-tests  running        sonnet  ~/code/proj  Bash: uv run pytest ...
-  9b01d4   -          waiting_input  fable   ~/code/x     approval: Edit main.py
-  77e0aa   -          idle           opus    ~/code/y     done 12m ago
+  ID       NAME       TITLE            STATE          MODEL   DIR          ACTIVITY
+  a3f2c1   fix-tests  修复失败的测试     running        sonnet  ~/code/proj  Bash: uv run pytest ...
+  9b01d4   -          调整登录流程       waiting_input  fable   ~/code/x     approval: Edit main.py
+  77e0aa   -          -                idle           opus    ~/code/y     done 12m ago
 
 ACTIVITY is the current tool call when running, the pending request
 when waiting_input, and relative finish time when idle/failed.
@@ -319,8 +323,8 @@ Send a message to a session.
                     keeps the full conversation context
   running session:  queued by default; delivered when the current
                     turn finishes (like typing while klaude works)
-  --steer:          interrupt at the next step boundary and inject
-                    the message now (course-correction)
+  --steer:          interrupt the running turn and start a new turn
+                    with the message now (course-correction)
 
 Sessions never expire: send works minutes or days after the last
 turn, and across server restarts — the conversation is reloaded
@@ -377,13 +381,15 @@ Usage: klaude attach [OPTIONS] [TARGET]
 
 Open the TUI on a session: replay the conversation so far, then
 follow live. Multiple clients may attach to the same session and all
-may type; execution is serialized by the server. Detach with Ctrl+B D
-— the agent keeps running.
+may type; execution is serialized by the server. Detach by exiting
+(type `exit`, Ctrl+D, or close the terminal) — the agent keeps
+running.
 
 With no TARGET, opens the interactive session picker (same as -r).
 
 Options:
       --peek          Read-only: follow without input
+  -d, --debug         Enable debug logging
 ```
 
 ### 4.10 `klaude agents`（合并 agent types + models + prime）
@@ -493,7 +499,7 @@ headless 会话（由 `run` 创建、无人 attach）在对话开始注入一条
 
 ### 7.2 策略：`--approval`
 
-模型层的提问被 7.1 压到最少之后，剩余的 `waiting_input` 主要来自 harness 层的权限门（工具审批）。`run --approval` 决定无人值守时的处理：`auto` / `deny` 不产生卡点，`hold`（默认）落为 `waiting_input` 等人处理。`auto` 会批准所有权限请求，**不会**自动检查目录是否可信，只能在 trusted dir 中使用。
+模型层的提问被 7.1 压到最少之后，剩余的 `waiting_input` 主要来自 harness 层的权限门（工具审批）。`run --approval` 决定无人值守时的处理：`hold`（默认）落为 `waiting_input` 等人处理；`auto` 自动批准**权限请求**（`source == "approval"`），但 `AskUserQuestion` 类提问仍会停靠为 `waiting_input`——只有 `deny` 做到零卡点（拒绝权限、给提问合成 "no human available" 答复）。`auto` **不会**自动检查目录是否可信，只能在 trusted dir 中使用。
 
 ### 7.3 暴露：wait / brief / output 都把 pending request 当一等公民
 
@@ -611,7 +617,7 @@ loop-until-dry 同理是纯 bash：`while` 里 `run --wait` 一轮 finder，输�
   2. `server/session_tape.py` 的 per-session tape 补上进行中未落盘回合；
   3. 接实时事件流。
 - **TUI 改造**：TUI 与 runtime 之间抽 `RuntimeClient` 接口，但**只做 UDS 一个实现**（已决策：不保留本地直连双模式）。接口仍然值得抽——单测可以注入内存实现，且隔离 wire 细节。
-- **server 生命周期**：常驻（tmux 语义），退出只经 `server stop` / `server reload`。`reload` = 优雅重启：默认有 running/queued 会话时拒绝并列出，`--force` 先打断（会话可续）；然后 re-exec 新代码、重新 bind socket。与版本握手互补：CLI 握手发现 server 版本/代码指纹过旧且 server 空闲时，自动触发同样的重启路径（代码指纹可复用现有 git checkout 更新追踪）。
+- **server 生命周期**：常驻（tmux 语义），退出只经 `server stop` / `server reload`。`reload` = 优雅重启：默认有 running/waiting_input/queued 会话时拒绝并列出，`--force` 直接停机再 re-exec 新代码、重新 bind socket。被打断的 headless turn 在新 server `restore()` 时**从头重跑**（同一条输入重新执行一遍，靠 turn id 去重避免重复入历史）；交互会话不重跑，attach 后从磁盘续。与版本握手互补：CLI 握手发现 server 版本/代码指纹过旧且 server 空闲时，自动触发同样的重启路径（代码指纹可复用现有 git checkout 更新追踪）。
 - **headless 交互**：`--approval hold` 时交互请求落为 `waiting_input` 状态，人类 `attach` 或任一客户端 `respond` 均可解锁（完整闭环见 §7）。
 - **并发上限**：server 维护全局 headless 运行槽位（可配置，默认 ~8），超出的 `run` 进 `queued` 排队（见 §9.1）；交互式 attach 会话不占用该配额。
 - **版本握手**：server status 与 WS `connection_info` 同时返回独立 protocol version 和 code fingerprint。HTTP CLI 遇到任一不匹配时走 stale-server 路径：空闲时自动 reload，busy 时警告；TUI 显示错误 notice。
@@ -624,7 +630,7 @@ loop-until-dry 同理是纯 bash：`while` 里 `run --wait` 一轮 finder，输�
 | `control/event_relay.py`、`control/session_meta_relay.py` | 无跨进程事件转发 |
 | `runtime_owner` / heartbeat 循环 / 15s 过期判定 | 所有权问题结构性消失 |
 | `web/session_access.py` read_only 全套 | 同上 |
-| meta.json 运行时键回填逻辑（`store.py:26-27, 147-160`） | 只有一个写入者 |
+| meta.json 的 `runtime_owner` 键回填 | 只有一个写入者。注：回填机制本身保留（`store.py` 的 `_RUNTIME_META_KEYS`），键集换成 `follow_up_queue` / `headless_*` —— 直接 `update_meta` 的写入优先于滞后的批量快照，这在单 server 下仍然必要 |
 | holder 跨连接仲裁 | 多客户端皆可输入，actor 串行化执行 |
 
 ---
