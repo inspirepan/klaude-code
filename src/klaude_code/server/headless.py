@@ -104,7 +104,9 @@ class SessionActivityTracker:
             return
         if isinstance(event, events.InterruptEvent):
             entry = self._entry(session_id)
-            entry.interrupted = True
+            # An Esc that resumes the queue is not a stop: leaving the flag
+            # set would block the follow-up drain this interrupt asked for.
+            entry.interrupted = not event.resume_follow_ups
             entry.current_tool_call = None
             entry.finished_at = time.time()
             return
@@ -201,6 +203,10 @@ class HeadlessRuntime:
                     self._schedule_follow_up_drain(event.session_id)
                 if isinstance(event, events.TaskFinishEvent):
                     self._schedule_tape_reset(event.session_id)
+                # TUI Esc mid-queue: the interrupted turn ends without a
+                # drain-triggering TaskFinish, so continue the queue here.
+                if isinstance(event, events.InterruptEvent) and event.resume_follow_ups:
+                    self._schedule_follow_up_drain(event.session_id)
                 # A follow-up queued onto an already-idle session (submit
                 # raced the turn end) has no TaskFinish coming; drain now.
                 if isinstance(event, events.FollowUpQueueUpdatedEvent) and event.texts:

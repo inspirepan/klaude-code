@@ -1042,7 +1042,9 @@ class AgentOperationHandler:
             )
         )
 
-    async def interrupt(self, session_id: str, *, retract_unanswered_input: bool = False) -> None:
+    async def interrupt(
+        self, session_id: str, *, retract_unanswered_input: bool = False, resume_follow_ups: bool = False
+    ) -> None:
         runtime = self._get_session_actor(session_id)
         if runtime is None:
             return
@@ -1056,7 +1058,9 @@ class AgentOperationHandler:
             if retract_unanswered_input:
                 retracted_text = agent.retract_interrupted_user_message()
 
-        await self._emit_event(events.InterruptEvent(session_id=session_id, show_notice=show_notice))
+        await self._emit_event(
+            events.InterruptEvent(session_id=session_id, show_notice=show_notice, resume_follow_ups=resume_follow_ups)
+        )
         if retracted_text is not None:
             # After InterruptEvent so the display's tape filter can hide the
             # whole turn (user message through interrupt) in one contiguous span.

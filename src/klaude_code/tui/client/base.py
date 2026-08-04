@@ -9,6 +9,7 @@ sole production implementation is :class:`SocketRuntimeClient` (UDS WebSocket).
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -80,6 +81,11 @@ class RuntimeClient(Protocol):
     def is_running(self) -> bool: ...
 
     def follow_up_texts(self) -> tuple[str, ...]: ...
+
+    def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
+        """Show newly queued texts in the mirror immediately; the server's
+        FollowUpQueueUpdatedEvent reconciles the authoritative list."""
+        ...
 
     def session_info(self) -> SessionInfoSnapshot: ...
 

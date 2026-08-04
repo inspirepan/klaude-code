@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -117,6 +117,10 @@ class FakeRuntimeClient:
 
     def follow_up_texts(self) -> tuple[str, ...]:
         return self._info.follow_ups
+
+    def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
+        self._info.follow_ups = (*self._info.follow_ups, *texts)
+        self._state_changed.set()
 
     def session_info(self) -> SessionInfoSnapshot:
         return self._info

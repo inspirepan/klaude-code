@@ -254,6 +254,10 @@ class InterruptOperation(Operation):
     # their input box (TUI Esc) should set this — otherwise the message would
     # silently vanish.
     retract_unanswered_input: bool = False
+    # Keep draining queued follow-ups after the interrupt settles. TUI Esc
+    # sets this (an Esc mid-queue moves on to the next queued message);
+    # headless `kill` leaves it False — the session must stay stopped.
+    resume_follow_ups: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""

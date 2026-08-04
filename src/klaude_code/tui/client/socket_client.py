@@ -11,7 +11,7 @@ import asyncio
 import contextlib
 import json
 from collections import deque
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
 
 from klaude_code.log import DebugType, log_debug
@@ -243,6 +243,10 @@ class SocketRuntimeClient:
 
     def follow_up_texts(self) -> tuple[str, ...]:
         return self._info.follow_ups
+
+    def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
+        self._info.follow_ups = (*self._info.follow_ups, *texts)
+        self._notify_state_changed()
 
     def session_info(self) -> SessionInfoSnapshot:
         return self._info

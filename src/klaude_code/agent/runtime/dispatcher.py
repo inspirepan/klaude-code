@@ -264,6 +264,7 @@ class OperationDispatcher:
         await self._agent_operation_handler.interrupt(
             operation.session_id,
             retract_unanswered_input=operation.retract_unanswered_input,
+            resume_follow_ups=operation.resume_follow_ups,
         )
         cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")

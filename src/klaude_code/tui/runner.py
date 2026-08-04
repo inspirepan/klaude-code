@@ -523,7 +523,15 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
 
     async def _submit_interrupt() -> None:
         with contextlib.suppress(Exception):
-            await client.submit(op.InterruptOperation(session_id=client.session_id, retract_unanswered_input=True))
+            await client.submit(
+                op.InterruptOperation(
+                    session_id=client.session_id,
+                    retract_unanswered_input=True,
+                    # Esc mid-queue moves on to the next queued message
+                    # (matches the pre-attach runner); kill keeps it stopped.
+                    resume_follow_ups=True,
+                )
+            )
 
     def _request_interrupt_once() -> None:
         with contextlib.suppress(Exception):
@@ -644,9 +652,23 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         await client.submit(run_op)
         _track_foreground_op(run_op.id)
 
-    async def _queue_follow_up(payload: UserInputPayload) -> None:
-        await client.submit_and_wait(op.FollowUpAgentOperation(session_id=client.session_id, input=payload))
+    def _queue_follow_ups(payloads: list[UserInputPayload]) -> None:
+        # Optimistic: mirror + queue UI update now; the server confirm
+        # (FollowUpQueueUpdatedEvent) reconciles. Awaiting the round trip in
+        # the input loop kept the prompt — and the whole bottom bar — torn
+        # down until the server replied: a visible blink on every queued
+        # submission.
+        client.optimistically_append_follow_ups([p.text for p in payloads])
         input_provider.set_pending_messages(client.follow_up_texts())
+
+        async def _submit_queued() -> None:
+            for payload in payloads:
+                with contextlib.suppress(Exception):
+                    await client.submit_and_wait(
+                        op.FollowUpAgentOperation(session_id=client.session_id, input=payload)
+                    )
+
+        _spawn(_submit_queued())
 
     async def _reattach_to(new_session_id: str) -> None:
         await client.wait_for_display_idle()
@@ -784,15 +806,14 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                             "Commands cannot be queued while the agent is running; press Esc to interrupt first."
                         )
                         continue
-                    for payload in _split_queue_edit_payload(user_input):
-                        await _queue_follow_up(payload)
+                    _queue_follow_ups(list(_split_queue_edit_payload(user_input)))
                     continue
 
                 payloads = _split_queue_edit_payload(user_input)
                 first, rest = payloads[0], payloads[1:]
                 await _submit_idle_input(first)
-                for payload in rest:
-                    await _queue_follow_up(payload)
+                if rest:
+                    _queue_follow_ups(rest)
 
     except KeyboardInterrupt:
         exited_via_ctrl_c = True

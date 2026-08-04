@@ -468,6 +468,9 @@ class ErrorEvent(Event):
 
 class InterruptEvent(Event):
     show_notice: bool = True
+    # Mirrors InterruptOperation.resume_follow_ups: the queue drain may
+    # continue after this interrupt (TUI Esc) instead of stopping (kill).
+    resume_follow_ups: bool = False
 
 
 class FollowUpQueueUpdatedEvent(Event):
