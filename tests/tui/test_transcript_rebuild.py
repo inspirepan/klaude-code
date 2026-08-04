@@ -15,6 +15,7 @@ from typing import Any
 
 from klaude_code.control.event_tape import EventTape, apply_retractions
 from klaude_code.protocol import events, llm_param
+from klaude_code.protocol.models import SubAgentState
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
@@ -222,6 +223,33 @@ def test_end_rebuild_restarts_spinner_only_while_running() -> None:
     machine.transition_rebuild(events.TaskFinishEvent(session_id="s1", task_result="done"))
     idle_cmds = machine.end_rebuild()
     assert [type(cmd).__name__ for cmd in idle_cmds] == ["SpinnerStop"]
+
+
+def test_end_rebuild_drops_dangling_tasks_from_persisted_history() -> None:
+    """A history killed mid-turn (e.g. server reload --force) replays a
+    TaskStart — including a sub-agent's — with no terminal event. Persisted-
+    history replays must clear those danglers or the spinner and the
+    sub-agent status row stick around forever."""
+    machine = DisplayStateMachine(detail=TranscriptDetail(Detail.COMPACT))
+    machine.begin_rebuild()
+    machine.transition_rebuild(events.TaskStartEvent(session_id="s1", model_id="test-model"))
+    machine.transition_rebuild(
+        events.TaskStartEvent(
+            session_id="sub1",
+            model_id="test-model",
+            sub_agent_state=SubAgentState(sub_agent_type="finder", sub_agent_desc="find", sub_agent_prompt="find"),
+            parent_session_id="s1",
+        )
+    )
+    cmds = machine.end_rebuild(drop_dangling_tasks=True)
+    assert [type(cmd).__name__ for cmd in cmds] == ["SpinnerStop"]
+
+    # Toggle/refresh repaints replay the display tape, which does include a
+    # genuinely live turn: those must keep the spinner running.
+    machine.begin_rebuild()
+    machine.transition_rebuild(events.TaskStartEvent(session_id="s1", model_id="test-model"))
+    live_cmds = machine.end_rebuild()
+    assert any(type(cmd).__name__ == "SpinnerStart" for cmd in live_cmds)
 
 
 # ---------------------------------------------------------------------------

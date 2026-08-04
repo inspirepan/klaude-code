@@ -1327,13 +1327,25 @@ class DisplayStateMachine:
         self._reset_sessions()
         return [SpinnerStop(), PrintBlankLine()]
 
-    def end_rebuild(self) -> list[RenderCommand]:
+    def end_rebuild(self, *, drop_dangling_tasks: bool = False) -> list[RenderCommand]:
         """Restore the bottom UI from the rebuilt state after a tape rebuild.
 
         Task clock and terminal title are process globals the rebuild never
         disturbed, so only the spinner (stopped by ``begin_rebuild``) needs
         to be re-derived here.
+
+        ``drop_dangling_tasks`` is set when the rebuild replayed *persisted*
+        history: an in-flight turn's events arrive through the live stream
+        after the rebuild, and completed/interrupted turns replay their own
+        terminal events, so anything still "active" here is a dangler from a
+        session killed mid-turn (e.g. ``server reload --force``). Clearing it
+        keeps the spinner and sub-agent status rows from sticking forever.
+        Repaints from the display's own tape (toggle/refresh) must NOT drop —
+        their tape does include the live turn.
         """
+        if drop_dangling_tasks:
+            for session in self._sessions.values():
+                session.task_active = False
         if not self._any_task_active() and not self._side_question_pending:
             return [SpinnerStop()]
         return [SpinnerStart(), *self._spinner_update_commands()]

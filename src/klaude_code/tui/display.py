@@ -71,7 +71,9 @@ class TUIDisplay(DisplayABC):
         event = envelope.event
         if isinstance(event, events.ReplayHistoryEvent):
             self._tape.record(event)
-            await self._render_events_to_scrollback(event.events, clear_screen=False)
+            # Persisted-history replay: live-turn events follow on the live
+            # stream, so dangling "active" states are stale (killed sessions).
+            await self._render_events_to_scrollback(event.events, clear_screen=False, drop_dangling_tasks=True)
             self._restore_prompt_suggestion_from_replay(event.events)
             return
 
@@ -106,7 +108,9 @@ class TUIDisplay(DisplayABC):
         if commands:
             await self._renderer.execute(commands)
 
-    async def _render_events_to_scrollback(self, items: Sequence[events.Event], *, clear_screen: bool) -> None:
+    async def _render_events_to_scrollback(
+        self, items: Sequence[events.Event], *, clear_screen: bool, drop_dangling_tasks: bool = False
+    ) -> None:
         """Rebuild machine state and scrollback from `items` in one bulk paint.
 
         Used both to consume a ReplayHistoryEvent (append below the banner) and
@@ -141,7 +145,7 @@ class TUIDisplay(DisplayABC):
                     if commands:
                         await self._renderer.execute(commands)
                     await asyncio.sleep(0)
-                await self._renderer.execute(self._machine.end_rebuild())
+                await self._renderer.execute(self._machine.end_rebuild(drop_dangling_tasks=drop_dangling_tasks))
                 self._renderer.flush_rebuild_tails()
             await write_scrollback_bulk(
                 buffer.getvalue(),
