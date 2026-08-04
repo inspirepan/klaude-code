@@ -452,7 +452,7 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.CONFIG_STATUS_ERROR.value: palette.red,
                 ThemeKey.CONFIG_ITEM_NAME.value: palette.cyan,
                 ThemeKey.CONFIG_MODEL_ID.value: palette.blue,
-                ThemeKey.CONFIG_PARAM_LABEL.value: palette.grey2,
+                ThemeKey.CONFIG_PARAM_LABEL.value: palette.grey1,
                 ThemeKey.CONFIG_PARAM_VALUE.value: palette.grey1,
                 ThemeKey.CONFIG_PROVIDER.value: palette.cyan + " bold",
             }

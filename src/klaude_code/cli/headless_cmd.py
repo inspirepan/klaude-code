@@ -232,18 +232,45 @@ def _print_ps_table(rows: list[dict[str, Any]]) -> None:
         typer.echo("  ".join([*cells, line[body_columns]]).rstrip())
 
 
+_PS_STATE_STYLES = {
+    "running": "green",
+    "waiting_input": "yellow",
+    "queued": "cyan",
+    "failed": "red",
+    "idle": "dim",
+}
+_PS_COLUMN_STYLES = {"ID": "cyan", "MODEL": "dim", "DIR": "dim"}
+
+
 def _build_ps_rich_table(rows: list[dict[str, Any]]) -> Any:
     from rich import box
     from rich.table import Table
+    from rich.text import Text
 
-    table = Table(box=box.SIMPLE, expand=True)
+    table = Table(box=box.SIMPLE, expand=True, header_style="bold")
     for column in _PS_COLUMNS:
         table.add_column(column, no_wrap=column != "ACTIVITY")
-    for row in _ps_table_rows(rows):
-        table.add_row(*row)
+    for raw, cells in zip(rows, _ps_table_rows(rows), strict=True):
+        state = str(raw.get("state", ""))
+        rich_cells: list[Any] = []
+        for column, cell in zip(_PS_COLUMNS, cells, strict=True):
+            if column == "STATE":
+                style = _PS_STATE_STYLES.get(state, "")
+            elif column == "ACTIVITY":
+                style = "dim" if state in ("idle", "failed") else ""
+            else:
+                style = _PS_COLUMN_STYLES.get(column, "")
+            rich_cells.append(Text(cell, style=style))
+        table.add_row(*rich_cells)
     if not rows:
         table.add_row(*["-"] * (len(_PS_COLUMNS) - 1), "no sessions")
     return table
+
+
+def _print_ps_rich_table(rows: list[dict[str, Any]]) -> None:
+    from rich.console import Console
+
+    Console().print(_build_ps_rich_table(rows))
 
 
 def _watch_ps_rows(
@@ -616,7 +643,12 @@ def ps_command(
         typer.echo("no sessions")
         return
 
-    _print_ps_table(rows)
+    # Rich table for humans; pipes and calling agents keep the plain
+    # two-space-aligned table (or use --json).
+    if sys.stdout.isatty():
+        _print_ps_rich_table(rows)
+    else:
+        _print_ps_table(rows)
 
 
 # -- brief --
