@@ -157,6 +157,7 @@ class FakeInputProvider:
         self.interrupt_handler: Callable[[], None] | None = None
         self.startup_loading: list[bool] = []
         self.exit_requests = 0
+        self.call_log: list[tuple[str, Any]] = []
         self._script: AsyncGenerator[UserInputPayload] | None = None
         FakeInputProvider.instance = self
 
@@ -175,6 +176,7 @@ class FakeInputProvider:
     # state sinks
     def set_agent_running(self, running: bool) -> None:
         self.agent_running_states.append(running)
+        self.call_log.append(("agent_running", running))
 
     def set_interrupt_handler(self, handler: Callable[[], None] | None) -> None:
         self.interrupt_handler = handler
@@ -184,6 +186,7 @@ class FakeInputProvider:
 
     def set_next_prefill(self, text: str | None) -> None:
         self.prefills.append(text)
+        self.call_log.append(("prefill", text))
 
     def set_startup_loading(self, loading: bool) -> None:
         self.startup_loading.append(loading)
@@ -406,9 +409,16 @@ def test_esc_submits_interrupt_with_retraction_and_prefill(monkeypatch: pytest.M
     interrupts = client.ops_of(op.InterruptOperation)
     assert len(interrupts) == 1
     assert interrupts[0].retract_unanswered_input is True
+    assert interrupts[0].resume_follow_ups is True
     provider = FakeInputProvider.instance
     assert provider is not None
     assert "interrupted text" in provider.prefills
+    # The running flag must clear BEFORE the prefill is applied: the real
+    # prompt layer refuses to restart the prompt while the agent looks busy,
+    # so the reversed order shelves the text until after the NEXT turn.
+    prefill_index = provider.call_log.index(("prefill", "interrupted text"))
+    running_cleared_index = provider.call_log.index(("agent_running", False))
+    assert running_cleared_index < prefill_index
 
 
 def test_exit_while_running_detaches_without_interrupt(monkeypatch: pytest.MonkeyPatch) -> None:

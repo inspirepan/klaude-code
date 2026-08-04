@@ -589,12 +589,16 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 await client.wait_for_display_idle()
                 await settle_flicker_safe_stdout()
                 away_summary_coordinator.notify_task_finished()
+                interrupt_pending = False
+                input_provider.set_pending_messages(client.follow_up_texts())
+                # Clear the running flag BEFORE applying the prefill:
+                # set_next_prefill only restarts the prompt when the agent is
+                # idle — applied the other way round, the retracted text sat
+                # in _next_prefill_text and resurfaced after the NEXT turn.
+                input_provider.set_agent_running(False)
                 prefill = client.consume_interrupt_prefill()
                 if prefill is not None:
                     input_provider.set_next_prefill(prefill)
-                interrupt_pending = False
-                input_provider.set_pending_messages(client.follow_up_texts())
-                input_provider.set_agent_running(False)
 
     # -- connection watcher: auto-detach when the server goes away --
 
