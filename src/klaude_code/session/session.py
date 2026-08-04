@@ -577,6 +577,11 @@ class Session(BaseModel):
         # synthesized history with the server-side event tape without overlap.
         history = self.conversation_history if limit is None else self.conversation_history[:limit]
         history_len = len(history)
+        if history_len == 0:
+            # Nothing happened yet: an empty replay must not synthesize a
+            # dangling TaskStartEvent — the display machine would keep the
+            # spinner (and its "Loading…" status) alive forever.
+            return
         yield events.TaskStartEvent(
             session_id=self.id,
             sub_agent_state=self.sub_agent_state,

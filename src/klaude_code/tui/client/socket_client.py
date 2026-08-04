@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+from collections import deque
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -72,6 +73,9 @@ class SocketRuntimeClient:
         self._interaction_queue: asyncio.Queue[events.UserInteractionRequestEvent] = asyncio.Queue()
         self._dequeue_future: asyncio.Future[tuple[str, ...]] | None = None
         self._closed = False
+        # Contents of locally echoed user messages whose canonical server
+        # echo must be dropped instead of rendered twice.
+        self._pending_echo_swallows: deque[str] = deque()
 
     # -- lifecycle --
 
@@ -134,6 +138,8 @@ class SocketRuntimeClient:
         self._info = SessionInfoSnapshot(session_id=session_id)
         self._running = False
         self._interrupt_prefill = None
+        # Stale swallows must not eat user messages replayed by the new attach.
+        self._pending_echo_swallows.clear()
         self._notify_state_changed()
         await self._connect()
 
@@ -196,6 +202,13 @@ class SocketRuntimeClient:
         await self.wait_for(operation.id)
 
     async def emit_user_message(self, event: events.UserMessageEvent) -> None:
+        # Optimistic local echo: render right away instead of waiting for the
+        # server round trip (a busy server loop can hold the canonical echo
+        # for seconds on the first turn). The emit still goes to the server —
+        # the session tape and other attached clients need it — and
+        # _handle_envelope swallows the matching echo when it comes back.
+        self._pending_echo_swallows.append(event.content)
+        await self._display_queue.put(_local_envelope(event))
         await self._send(
             {
                 "type": "emit",
@@ -409,5 +422,13 @@ class SocketRuntimeClient:
                     self._interrupt_prefill = event.content
             elif isinstance(event, events.UserInteractionRequestEvent):
                 self._interaction_queue.put_nowait(event)
+            if (
+                isinstance(event, events.UserMessageEvent)
+                and self._pending_echo_swallows
+                and self._pending_echo_swallows[0] == event.content
+            ):
+                # Canonical echo of a message this client already rendered.
+                self._pending_echo_swallows.popleft()
+                return
 
         await self._display_queue.put(envelope)
