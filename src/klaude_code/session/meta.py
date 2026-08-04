@@ -12,7 +12,6 @@ from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
-    SessionOwner,
     SessionRuntimeState,
     SubAgentState,
     TodoItem,
@@ -31,8 +30,6 @@ class LoadedSessionMeta:
     title: str | None
     model_name: str | None
     session_state: SessionRuntimeState | None
-    runtime_owner: SessionOwner | None
-    runtime_owner_heartbeat_at: float | None
     archived: bool
     model_config_name: str | None
     model_thinking: llm_param.Thinking | None
@@ -124,16 +121,9 @@ def parse_session_state(raw: object) -> SessionRuntimeState | None:
         return None
 
 
-def _parse_runtime_owner(raw: object) -> SessionOwner | None:
-    if not isinstance(raw, dict):
-        return None
-    try:
-        return SessionOwner.model_validate(raw)
-    except ValidationError:
-        return None
-
-
 def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionMeta:
+    """Parse a meta.json dict; unknown keys (e.g. legacy runtime_owner) are ignored."""
+
     work_dir_str = raw.get("work_dir")
     if not isinstance(work_dir_str, str) or not work_dir_str:
         work_dir_str = str(work_dir)
@@ -142,7 +132,6 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
     model_thinking = (
         llm_param.Thinking.model_validate(model_thinking_raw) if isinstance(model_thinking_raw, dict) else None
     )
-    runtime_owner_heartbeat_raw = raw.get("runtime_owner_heartbeat_at")
     archived_raw = raw.get("archived")
     archived = archived_raw if isinstance(archived_raw, bool) else False
 
@@ -165,10 +154,6 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         title=raw.get("title") if isinstance(raw.get("title"), str) else None,
         model_name=raw.get("model_name") if isinstance(raw.get("model_name"), str) else None,
         session_state=parse_session_state(raw.get("session_state")),
-        runtime_owner=_parse_runtime_owner(raw.get("runtime_owner")),
-        runtime_owner_heartbeat_at=float(runtime_owner_heartbeat_raw)
-        if isinstance(runtime_owner_heartbeat_raw, int | float)
-        else None,
         archived=archived,
         model_config_name=raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None,
         model_thinking=model_thinking,

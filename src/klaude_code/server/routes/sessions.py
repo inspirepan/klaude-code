@@ -8,14 +8,13 @@ from pathlib import Path
 from typing import Any, Final, Literal, cast
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from klaude_code.protocol import events as protocol_events
 from klaude_code.protocol import op, user_interaction
 from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
-from klaude_code.server.session_access import load_session_read_only
 from klaude_code.server.session_index import (
     list_file_running_states,
     list_main_sessions,
@@ -32,7 +31,7 @@ from klaude_code.session.session import Session
 from klaude_code.session.store_registry import get_store_for_path
 
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
-WEB_STATE_DEP: Final = Depends(get_server_state)
+_SERVER_STATE_DEP: Final = Depends(get_server_state)
 
 
 def _runtime_session_states(state: ServerAppState) -> dict[str, Literal["idle", "running", "waiting_user_input"]]:
@@ -70,7 +69,7 @@ class RequestModelRequest(BaseModel):
 
 
 @router.get("")
-async def list_sessions(state: ServerAppState = WEB_STATE_DEP) -> dict[str, list[dict[str, Any]]]:
+async def list_sessions(state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, list[dict[str, Any]]]:
     if state.session_live is None:
         raise RuntimeError("session live state is not initialized")
     state.session_live.index.reload()
@@ -80,7 +79,7 @@ async def list_sessions(state: ServerAppState = WEB_STATE_DEP) -> dict[str, list
 @router.get("/search")
 async def search_sessions_endpoint(
     q: str = "",
-    state: ServerAppState = WEB_STATE_DEP,
+    state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, list[dict[str, Any]]]:
     """Search sessions by title, user messages, and workspace path."""
     results = search_sessions(state.home_dir, q)
@@ -101,7 +100,7 @@ async def search_sessions_endpoint(
 
 
 @router.get("/stream")
-async def stream_sessions(request: Request, state: ServerAppState = WEB_STATE_DEP) -> StreamingResponse:
+async def stream_sessions(request: Request, state: ServerAppState = _SERVER_STATE_DEP) -> StreamingResponse:
     if state.session_live is None:
         raise RuntimeError("session live state is not initialized")
 
@@ -150,7 +149,7 @@ async def stream_sessions(request: Request, state: ServerAppState = WEB_STATE_DE
 
 @router.get("/running")
 async def list_running_sessions(
-    state: ServerAppState = WEB_STATE_DEP,
+    state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, dict[str, Any]]:
     """Return runtime states for sessions that have active actors."""
     runtime_states = _runtime_session_states(state)
@@ -169,11 +168,6 @@ async def list_running_sessions(
         "states": {
             sid: {
                 "session_state": session_state,
-                "read_only": load_session_read_only(
-                    state,
-                    session_id=sid,
-                    work_dir=resolve_session_work_dir(state.home_dir, sid) or state.work_dir,
-                ),
                 "title": title_map.get(sid),
                 "user_messages": user_messages_map.get(sid, []),
             }
@@ -185,7 +179,7 @@ async def list_running_sessions(
 @router.post("")
 async def create_session(
     payload: CreateSessionRequest,
-    state: ServerAppState = WEB_STATE_DEP,
+    state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, str]:
     target_work_dir = Path(payload.work_dir).expanduser() if payload.work_dir else state.work_dir
     if not target_work_dir.exists() or not target_work_dir.is_dir():
@@ -230,7 +224,7 @@ async def create_session(
 
 
 @router.post("/{session_id}/archive")
-async def archive_session(session_id: str, state: ServerAppState = WEB_STATE_DEP) -> dict[str, bool]:
+async def archive_session(session_id: str, state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, bool]:
     work_dir = resolve_session_work_dir(state.home_dir, session_id)
     if work_dir is None:
         raise HTTPException(status_code=404, detail="session not found")
@@ -246,7 +240,7 @@ async def archive_session(session_id: str, state: ServerAppState = WEB_STATE_DEP
 
 
 @router.post("/{session_id}/unarchive")
-async def unarchive_session(session_id: str, state: ServerAppState = WEB_STATE_DEP) -> dict[str, bool]:
+async def unarchive_session(session_id: str, state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, bool]:
     work_dir = resolve_session_work_dir(state.home_dir, session_id)
     if work_dir is None:
         raise HTTPException(status_code=404, detail="session not found")
@@ -265,7 +259,7 @@ class ArchiveCleanupRequest(BaseModel):
 @router.post("/archive/cleanup")
 async def cleanup_archived_sessions(
     payload: ArchiveCleanupRequest | None = None,
-    state: ServerAppState = WEB_STATE_DEP,
+    state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, bool | int]:
     cutoff_seconds = payload.cutoff_seconds if payload is not None else 24 * 60 * 60
     cutoff = time.time() - cutoff_seconds
@@ -296,7 +290,7 @@ async def cleanup_archived_sessions(
 
 
 @router.delete("/{session_id}")
-async def delete_session(session_id: str, state: ServerAppState = WEB_STATE_DEP) -> dict[str, bool]:
+async def delete_session(session_id: str, state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, bool]:
     deleted = soft_delete_session(state.home_dir, session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="session not found")
@@ -309,7 +303,7 @@ async def delete_session(session_id: str, state: ServerAppState = WEB_STATE_DEP)
 
 
 @router.get("/{session_id}/history")
-async def get_history(session_id: str, state: ServerAppState = WEB_STATE_DEP) -> dict[str, Any]:
+async def get_history(session_id: str, state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, Any]:
     work_dir = resolve_session_work_dir(state.home_dir, session_id)
     if work_dir is None:
         raise HTTPException(status_code=404, detail="session not found")
@@ -317,7 +311,7 @@ async def get_history(session_id: str, state: ServerAppState = WEB_STATE_DEP) ->
     try:
         # Use the in-memory session only when it is ahead of disk (items
         # appended but not yet flushed by the background writer).  Otherwise
-        # always prefer disk: when a TUI heartbeat expires the web server
+        # always prefer disk: the server
         # may initialise its own stale agent copy via InitAgentOperation and
         # that copy never receives further updates while the TUI keeps
         # appending to the real events file.
@@ -342,21 +336,11 @@ async def get_history(session_id: str, state: ServerAppState = WEB_STATE_DEP) ->
     return {"session_id": session_id, "events": payload}
 
 
-def _check_write_access(state: ServerAppState, session_id: str, holder_key: str | None) -> Path:
-    """Validate session exists, is not read-only, and caller holds the session lock (if one exists).
-
-    Returns the session work_dir on success; raises HTTPException otherwise.
-    """
+def _check_write_access(state: ServerAppState, session_id: str) -> Path:
+    """Validate the session exists; return its work_dir or raise 404."""
     work_dir = resolve_session_work_dir(state.home_dir, session_id)
     if work_dir is None:
         raise HTTPException(status_code=404, detail="session not found")
-    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
-        raise HTTPException(status_code=409, detail="session is owned by another runtime and is read-only")
-    # If a holder is active on this session, the caller must provide the matching key.
-    if state.runtime.holder_is_active(session_id) and (
-        holder_key is None or not state.runtime.is_held_by(session_id, holder_key)
-    ):
-        raise HTTPException(status_code=409, detail="session is held by another connection")
     return work_dir
 
 
@@ -364,10 +348,9 @@ def _check_write_access(state: ServerAppState, session_id: str, holder_key: str 
 async def post_message(
     session_id: str,
     payload: MessageRequest,
-    state: ServerAppState = WEB_STATE_DEP,
-    x_holder_key: str | None = Header(None),
+    state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, str]:
-    _check_write_access(state, session_id, x_holder_key)
+    _check_write_access(state, session_id)
 
     await state.runtime.emit_event(
         protocol_events.UserMessageEvent(content=payload.text, session_id=session_id, images=payload.images)
@@ -385,10 +368,9 @@ async def post_message(
 @router.post("/{session_id}/interrupt")
 async def interrupt_session(
     session_id: str,
-    state: ServerAppState = WEB_STATE_DEP,
-    x_holder_key: str | None = Header(None),
+    state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, str]:
-    _check_write_access(state, session_id, x_holder_key)
+    _check_write_access(state, session_id)
     operation_id = await state.runtime.submit(op.InterruptOperation(session_id=session_id))
     return {"operation_id": operation_id}
 
@@ -397,10 +379,9 @@ async def interrupt_session(
 async def respond_interaction(
     session_id: str,
     payload: RespondRequest,
-    state: ServerAppState = WEB_STATE_DEP,
-    x_holder_key: str | None = Header(None),
+    state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, bool]:
-    _check_write_access(state, session_id, x_holder_key)
+    _check_write_access(state, session_id)
     await state.runtime.submit(
         op.UserInteractionRespondOperation(
             session_id=session_id,
@@ -415,10 +396,9 @@ async def respond_interaction(
 async def change_model(
     session_id: str,
     payload: ModelRequest,
-    state: ServerAppState = WEB_STATE_DEP,
-    x_holder_key: str | None = Header(None),
+    state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, str]:
-    _check_write_access(state, session_id, x_holder_key)
+    _check_write_access(state, session_id)
     operation_id = await state.runtime.submit(
         op.ChangeModelOperation(
             session_id=session_id,
@@ -433,10 +413,9 @@ async def change_model(
 async def request_model(
     session_id: str,
     payload: RequestModelRequest,
-    state: ServerAppState = WEB_STATE_DEP,
-    x_holder_key: str | None = Header(None),
+    state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, str]:
-    _check_write_access(state, session_id, x_holder_key)
+    _check_write_access(state, session_id)
     operation_id = await state.runtime.submit(
         op.RequestModelOperation(
             session_id=session_id,

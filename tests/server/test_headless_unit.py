@@ -26,8 +26,6 @@ def _summary(session_id: str, *, name: str | None = None, archived: bool = False
         messages_count=0,
         model_name=None,
         session_state=None,
-        runtime_owner=None,
-        runtime_owner_heartbeat_at=None,
         archived=archived,
         todos=[],
         file_change_summary={},

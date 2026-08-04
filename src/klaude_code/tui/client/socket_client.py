@@ -336,12 +336,37 @@ class SocketRuntimeClient:
             code = str(item.get("code", ""))
             log_debug(f"[client] server error frame code={code}: {message}", debug_type=DebugType.EXECUTION)
             await self._display_queue.put(
-                _local_envelope(
-                    events.ErrorEvent(session_id=self._session_id, error_message=message, can_retry=False)
-                )
+                _local_envelope(events.ErrorEvent(session_id=self._session_id, error_message=message, can_retry=False))
             )
             return
-        # connection_info and other frames need no client action.
+        if frame_type == "connection_info":
+            await self._check_server_code(item)
+            return
+        # Other frames need no client action.
+
+    async def _check_server_code(self, item: dict[str, Any]) -> None:
+        """Version handshake: warn (without disconnecting) on a stale server."""
+        from klaude_code.update import get_code_fingerprint
+
+        server_fingerprint = item.get("code_fingerprint")
+        if not isinstance(server_fingerprint, str):
+            server_fingerprint = ""
+        local_fingerprint = get_code_fingerprint()
+        if server_fingerprint == local_fingerprint:
+            return
+        await self._display_queue.put(
+            _local_envelope(
+                events.NoticeEvent(
+                    session_id=self._session_id,
+                    content=(
+                        f"Server runs different code than this client "
+                        f"(server {server_fingerprint or 'unknown'}, client {local_fingerprint}). "
+                        f"Restart it with: klaude server reload --force"
+                    ),
+                    is_error=True,
+                )
+            )
+        )
 
     def _apply_session_info(self, item: dict[str, Any]) -> None:
         info = self._info

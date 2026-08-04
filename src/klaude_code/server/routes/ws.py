@@ -17,10 +17,8 @@ from klaude_code.agent.compaction import should_compact_threshold
 from klaude_code.control.event_bus import EventSubscription
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, message, op, user_interaction
-from klaude_code.protocol.message import ImageFilePart, ImageURLPart, UserInputPayload
+from klaude_code.protocol import events, message, op
 from klaude_code.protocol.models import TaskMetadataItem, Usage
-from klaude_code.server.session_access import load_session_read_only
 from klaude_code.server.session_index import resolve_session_work_dir
 from klaude_code.server.session_state import derive_session_state_from_snapshot
 from klaude_code.server.state import ServerAppState, get_server_state_from_ws
@@ -29,47 +27,9 @@ from klaude_code.session.store_registry import get_store_for_path
 
 router = APIRouter(tags=["websocket"])
 
-# Live attach connections per session (replay-mode clients). Used to decide
-# when an abandoned empty session can be cleaned up on disconnect.
+# Live connections per session. Used to decide when an abandoned empty
+# session can be cleaned up on disconnect.
 _ATTACH_COUNTS: dict[str, int] = {}
-
-
-class MessageFrame(BaseModel):
-    type: Literal["message"]
-    text: str = ""
-    images: list[ImageURLPart | ImageFilePart] | None = None
-
-
-class InterruptFrame(BaseModel):
-    type: Literal["interrupt"]
-
-
-class RespondFrame(BaseModel):
-    type: Literal["respond"]
-    request_id: str
-    status: Literal["submitted", "cancelled"]
-    payload: user_interaction.UserInteractionResponsePayload | None = None
-
-
-class ContinueFrame(BaseModel):
-    type: Literal["continue"]
-
-
-class ModelFrame(BaseModel):
-    type: Literal["model"]
-    model_name: str
-    save_as_default: bool = False
-
-
-class RequestModelFrame(BaseModel):
-    type: Literal["model_request"]
-    initial_search_text: str | None = None
-    save_as_default: bool = False
-
-
-class CompactFrame(BaseModel):
-    type: Literal["compact"]
-    focus: str | None = None
 
 
 class OpFrame(BaseModel):
@@ -93,18 +53,7 @@ class DequeueFollowUpsFrame(BaseModel):
     type: Literal["dequeue_follow_ups"]
 
 
-type IncomingFrame = (
-    MessageFrame
-    | InterruptFrame
-    | RespondFrame
-    | ContinueFrame
-    | ModelFrame
-    | RequestModelFrame
-    | CompactFrame
-    | OpFrame
-    | EmitFrame
-    | DequeueFollowUpsFrame
-)
+type IncomingFrame = OpFrame | EmitFrame | DequeueFollowUpsFrame
 
 
 async def _send_error_frame(
@@ -268,7 +217,7 @@ async def _handle_incoming_frame(
     frame: IncomingFrame,
     websocket: WebSocket,
     *,
-    is_holder: bool,
+    can_input: bool,
 ) -> None:
     state = get_server_state_from_ws(websocket)
     runtime = state.runtime
@@ -276,36 +225,16 @@ async def _handle_incoming_frame(
     if work_dir is None:
         await _send_error_frame(websocket, code="session_not_found", message=f"Session not found: {session_id}")
         return
-    if load_session_read_only(state, session_id=session_id, work_dir=work_dir):
-        await _send_error_frame(
-            websocket,
-            code="session_read_only",
-            message="Session is owned by another runtime and is read-only",
-        )
-        return
 
-    if not is_holder:
+    if not can_input:
         await _send_error_frame(
             websocket,
-            code="session_not_held",
-            message="Session is held by another connection",
+            code="peek_read_only",
+            message="Peek connections cannot send commands",
         )
         return
 
     try:
-        if isinstance(frame, MessageFrame):
-            await runtime.emit_event(
-                events.UserMessageEvent(content=frame.text, session_id=session_id, images=frame.images)
-            )
-            await _submit_user_turn(
-                state,
-                op.RunAgentOperation(
-                    session_id=session_id,
-                    input=UserInputPayload(text=frame.text, images=frame.images),
-                ),
-            )
-            return
-
         if isinstance(frame, OpFrame):
             await _handle_operation_frame(session_id, frame, websocket)
             return
@@ -322,61 +251,13 @@ async def _handle_incoming_frame(
             await runtime.emit_event(event)
             return
 
-        if isinstance(frame, DequeueFollowUpsFrame):
-            actor = runtime.session_registry.get_session_actor(session_id)
-            agent = actor.get_agent() if actor is not None else None
-            texts: list[str] = []
-            if agent is not None:
-                texts = [item.text for item in agent.pop_all_follow_up()]
-                await _emit_follow_up_queue_event(state, session_id)
-            await websocket.send_json({"type": "follow_ups_dequeued", "session_id": session_id, "texts": texts})
-            return
-
-        if isinstance(frame, InterruptFrame):
-            await runtime.submit(op.InterruptOperation(session_id=session_id))
-            return
-
-        if isinstance(frame, RespondFrame):
-            await runtime.submit(
-                op.UserInteractionRespondOperation(
-                    session_id=session_id,
-                    request_id=frame.request_id,
-                    response=user_interaction.UserInteractionResponse(status=frame.status, payload=frame.payload),
-                )
-            )
-            return
-
-        if isinstance(frame, ContinueFrame):
-            await runtime.submit(op.ContinueAgentOperation(session_id=session_id))
-            return
-
-        if isinstance(frame, ModelFrame):
-            await runtime.submit(
-                op.ChangeModelOperation(
-                    session_id=session_id,
-                    model_name=frame.model_name,
-                    save_as_default=frame.save_as_default,
-                )
-            )
-            return
-
-        if isinstance(frame, RequestModelFrame):
-            await runtime.submit(
-                op.RequestModelOperation(
-                    session_id=session_id,
-                    initial_search_text=frame.initial_search_text,
-                    save_as_default=frame.save_as_default,
-                )
-            )
-            return
-
-        await runtime.submit(
-            op.CompactSessionOperation(
-                session_id=session_id,
-                reason="manual",
-                focus=frame.focus,
-            )
-        )
+        actor = runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        texts: list[str] = []
+        if agent is not None:
+            texts = [item.text for item in agent.pop_all_follow_up()]
+            await _emit_follow_up_queue_event(state, session_id)
+        await websocket.send_json({"type": "follow_ups_dequeued", "session_id": session_id, "texts": texts})
         return
     except Exception as exc:
         if isinstance(exc, FutureCancelledError):
@@ -389,25 +270,11 @@ async def _handle_incoming_frame(
 
 
 def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> IncomingFrame:
-    if frame_type == "message":
-        return MessageFrame.model_validate(payload)
-    if frame_type == "interrupt":
-        return InterruptFrame.model_validate(payload)
-    if frame_type == "respond":
-        return RespondFrame.model_validate(payload)
-    if frame_type == "continue":
-        return ContinueFrame.model_validate(payload)
-    if frame_type == "model":
-        return ModelFrame.model_validate(payload)
-    if frame_type == "model_request":
-        return RequestModelFrame.model_validate(payload)
     if frame_type == "op":
         return OpFrame.model_validate(payload)
     if frame_type == "emit":
         return EmitFrame.model_validate(payload)
-    if frame_type == "dequeue_follow_ups":
-        return DequeueFollowUpsFrame.model_validate(payload)
-    return CompactFrame.model_validate(payload)
+    return DequeueFollowUpsFrame.model_validate(payload)
 
 
 def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]:
@@ -415,7 +282,7 @@ def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]
 
     Uses BFS to find SpawnSubAgentEntry items in the parent session and recurse
     into child sessions.  This is needed when there is no in-memory session
-    snapshot (e.g. viewing a TUI-owned session from the web) so that sub-agent
+    snapshot (e.g. reattaching after a server restart) so that sub-agent
     events can be forwarded via session-id matching.
     """
     result: set[str] = set()
@@ -575,7 +442,7 @@ async def _forward_events(
             tracked_child_session_ids = _collect_descendant_session_ids(session_id, work_dir)
             if tracked_child_session_ids:
                 log_debug(
-                    f"[web/ws:{session_id[:8]}] tracked {len(tracked_child_session_ids)} descendant session(s) from history",
+                    f"[ws:{session_id[:8]}] tracked {len(tracked_child_session_ids)} descendant session(s) from history",
                     debug_type=DebugType.EXECUTION,
                 )
 
@@ -652,12 +519,7 @@ async def _forward_events(
         await asyncio.gather(read_task, send_task, return_exceptions=True)
 
 
-async def _send_pending_interaction_snapshots(
-    session_id: str,
-    websocket: WebSocket,
-    *,
-    as_envelopes: bool = False,
-) -> None:
+async def _send_pending_interaction_snapshots(session_id: str, websocket: WebSocket) -> None:
     state = get_server_state_from_ws(websocket)
     get_session_actor = getattr(state.runtime.session_registry, "get_session_actor", None)
     if not callable(get_session_actor):
@@ -672,35 +534,15 @@ async def _send_pending_interaction_snapshots(
 
     requests = cast(list[PendingUserInteractionRequest], pending_requests_snapshot())
     for request in requests:
-        timestamp = time.time()
-        if as_envelopes:
-            # Full envelope shape so attach clients parse it like a live event.
-            request_event = events.UserInteractionRequestEvent(
-                session_id=session_id,
-                request_id=request.request_id,
-                source=request.source,
-                payload=request.payload,
-                tool_call_id=request.tool_call_id,
-            )
-            await websocket.send_json(_synthetic_envelope_dict(request_event))
-            continue
-        event: dict[str, Any] = {
-            "session_id": session_id,
-            "request_id": request.request_id,
-            "source": request.source,
-            "payload": request.payload.model_dump(mode="json"),
-            "timestamp": timestamp,
-        }
-        if request.tool_call_id is not None:
-            event["tool_call_id"] = request.tool_call_id
-        await websocket.send_json(
-            {
-                "event_type": "user.interaction.request",
-                "session_id": session_id,
-                "event": event,
-                "timestamp": timestamp,
-            }
+        # Full envelope shape so clients parse it like a live event.
+        request_event = events.UserInteractionRequestEvent(
+            session_id=session_id,
+            request_id=request.request_id,
+            source=request.source,
+            payload=request.payload,
+            tool_call_id=request.tool_call_id,
         )
+        await websocket.send_json(_synthetic_envelope_dict(request_event))
 
 
 async def _forward_session_list_events(websocket: WebSocket) -> None:
@@ -725,9 +567,8 @@ async def _receive_commands(
     session_id: str,
     websocket: WebSocket,
     *,
-    is_holder: bool = False,
+    can_input: bool = False,
 ) -> None:
-    background_submits: set[asyncio.Task[None]] = set()
     while True:
         try:
             payload = await websocket.receive_json()
@@ -747,18 +588,7 @@ async def _receive_commands(
         if not isinstance(frame_type, str):
             await _send_error_frame(websocket, code="invalid_message", message="Missing message type")
             continue
-        if frame_type not in {
-            "message",
-            "interrupt",
-            "respond",
-            "continue",
-            "model",
-            "model_request",
-            "compact",
-            "op",
-            "emit",
-            "dequeue_follow_ups",
-        }:
+        if frame_type not in {"op", "emit", "dequeue_follow_ups"}:
             await _send_error_frame(websocket, code="unknown_type", message=f"Unknown message type: {frame_type}")
             continue
 
@@ -773,23 +603,15 @@ async def _receive_commands(
             )
             continue
 
-        if isinstance(frame, InterruptFrame):
-            submit_task = asyncio.create_task(_handle_incoming_frame(session_id, frame, websocket, is_holder=is_holder))
-            background_submits.add(submit_task)
-            submit_task.add_done_callback(background_submits.discard)
-            continue
-
-        await _handle_incoming_frame(session_id, frame, websocket, is_holder=is_holder)
+        await _handle_incoming_frame(session_id, frame, websocket, can_input=can_input)
 
 
 @router.websocket("/api/sessions/{session_id}/ws")
 async def session_websocket(websocket: WebSocket, session_id: str) -> None:
     send_task: asyncio.Task[None] | None = None
     recv_task: asyncio.Task[None] | None = None
-    holder_key: str | None = None
-    is_holder = False
     attach_mode = False
-    attach_counted = False
+    counted = False
     try:
         await websocket.accept()
         state = get_server_state_from_ws(websocket)
@@ -801,8 +623,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             await websocket.close(code=4004)
             return
 
-        read_only = load_session_read_only(state, session_id=session_id, work_dir=work_dir)
-        if not state.runtime.session_registry.has_session_actor(session_id) and not read_only:
+        if not state.runtime.session_registry.has_session_actor(session_id):
             try:
                 await state.runtime.submit_and_wait(
                     op.InitAgentOperation(
@@ -823,19 +644,20 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 await websocket.close(code=4005)
                 return
 
+        # Every connected client may type (peek is explicitly read-only);
+        # the session actor serializes execution (§4.9).
+        can_input = not peek_mode
+        _ATTACH_COUNTS[session_id] = _ATTACH_COUNTS.get(session_id, 0) + 1
+        counted = True
+        await websocket.send_json(
+            {
+                "type": "connection_info",
+                "can_input": can_input,
+                "session_id": session_id,
+                "code_fingerprint": state.code_fingerprint,
+            }
+        )
         if attach_mode:
-            # Attach clients never arbitrate a holder: every attached client
-            # may type; the session actor serializes execution (§4.9).
-            can_input = not peek_mode and not read_only
-            _ATTACH_COUNTS[session_id] = _ATTACH_COUNTS.get(session_id, 0) + 1
-            attach_counted = True
-            await websocket.send_json(
-                {
-                    "type": "connection_info",
-                    "is_holder": can_input,
-                    "session_id": session_id,
-                }
-            )
             await websocket.send_json(_build_session_info(state, session_id))
             await websocket.send_json(_load_usage_snapshot(session_id, work_dir, websocket))
             # Subscribe, then cut the tape inside the same event-loop step
@@ -843,7 +665,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             # subscription, everything before it is on the tape.
             subscription = state.subscribe_events(None)
             max_seq = await _send_attach_replay(session_id, websocket, state=state)
-            await _send_pending_interaction_snapshots(session_id, websocket, as_envelopes=True)
+            await _send_pending_interaction_snapshots(session_id, websocket)
             send_task = asyncio.create_task(
                 _forward_events(
                     session_id,
@@ -853,32 +675,14 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                     send_session_info_updates=True,
                 )
             )
-            recv_task = asyncio.create_task(_receive_commands(session_id, websocket, is_holder=can_input))
         else:
-            # Resolve holder key: accept from query param or generate a new one.
-            raw_key = websocket.query_params.get("holder_key")
-            holder_key = raw_key.strip() if raw_key else uuid4().hex
-
-            if not read_only:
-                is_holder = await state.runtime.try_acquire_holder(session_id, holder_key)
-
-            # Send connection info frame with holder status.
-            await websocket.send_json(
-                {
-                    "type": "connection_info",
-                    "is_holder": is_holder,
-                    "session_id": session_id,
-                }
-            )
-
             await websocket.send_json(_load_usage_snapshot(session_id, work_dir, websocket))
-
             await _send_pending_interaction_snapshots(session_id, websocket)
             send_task = asyncio.create_task(_forward_events(session_id, websocket))
-            recv_task = asyncio.create_task(_receive_commands(session_id, websocket, is_holder=is_holder))
+        recv_task = asyncio.create_task(_receive_commands(session_id, websocket, can_input=can_input))
         done, pending = await asyncio.wait({send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED)
         log_debug(
-            f"[web/ws:{session_id[:8]}] first task completed done={len(done)} pending={len(pending)}",
+            f"[ws:{session_id[:8]}] first task completed done={len(done)} pending={len(pending)}",
             debug_type=DebugType.EXECUTION,
         )
 
@@ -888,12 +692,12 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             try:
                 _ = await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=2.0)
                 log_debug(
-                    f"[web/ws:{session_id[:8]}] pending peer task cleanup finished",
+                    f"[ws:{session_id[:8]}] pending peer task cleanup finished",
                     debug_type=DebugType.EXECUTION,
                 )
             except TimeoutError:
                 log_debug(
-                    f"[web/ws:{session_id[:8]}] pending peer task cleanup timed out",
+                    f"[ws:{session_id[:8]}] pending peer task cleanup timed out",
                     debug_type=DebugType.EXECUTION,
                 )
 
@@ -905,16 +709,16 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
     except (WebSocketDisconnect, asyncio.CancelledError, FutureCancelledError):
         return
     finally:
-        log_debug(f"[web/ws:{session_id[:8]}] finally start", debug_type=DebugType.EXECUTION)
+        log_debug(f"[ws:{session_id[:8]}] finally start", debug_type=DebugType.EXECUTION)
         with contextlib.suppress(Exception):
-            log_debug(f"[web/ws:{session_id[:8]}] closing websocket", debug_type=DebugType.EXECUTION)
+            log_debug(f"[ws:{session_id[:8]}] closing websocket", debug_type=DebugType.EXECUTION)
             await websocket.close()
-            log_debug(f"[web/ws:{session_id[:8]}] websocket closed", debug_type=DebugType.EXECUTION)
+            log_debug(f"[ws:{session_id[:8]}] websocket closed", debug_type=DebugType.EXECUTION)
 
-        # Attach-mode cleanup: drop an abandoned empty session once the last
-        # attached client detaches. Running sessions are never touched —
-        # detach must keep the agent alive.
-        if attach_counted:
+        # Drop an abandoned empty session once the last connected client
+        # detaches. Running sessions are never touched — detach must keep
+        # the agent alive.
+        if counted:
             state = get_server_state_from_ws(websocket)
             remaining = _ATTACH_COUNTS.get(session_id, 1) - 1
             if remaining <= 0:
@@ -936,38 +740,6 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                                 ignore_errors=True,
                             )
 
-        # Release holder on disconnect (starts grace period).
-        if is_holder and holder_key is not None:
-            state = get_server_state_from_ws(websocket)
-            with contextlib.suppress(Exception):
-                log_debug(f"[web/ws:{session_id[:8]}] releasing holder", debug_type=DebugType.EXECUTION)
-                await state.runtime.release_holder(session_id, holder_key)
-                log_debug(f"[web/ws:{session_id[:8]}] holder released", debug_type=DebugType.EXECUTION)
-
-            with contextlib.suppress(Exception):
-                registry = cast(Any, state.runtime.session_registry)
-                if not hasattr(registry, "get_session_actor"):
-                    raise RuntimeError
-                runtime = registry.get_session_actor(session_id)
-                agent = runtime.get_agent() if runtime is not None else None
-                if agent is not None:
-                    if agent.session.messages_count != 0:
-                        raise RuntimeError
-                    with contextlib.suppress(Exception):
-                        _ = await state.runtime.close_session(session_id, force=True)
-                    shutil.rmtree(Session.paths(agent.session.work_dir).session_dir(session_id), ignore_errors=True)
-                else:
-                    work_dir = resolve_session_work_dir(state.home_dir, session_id)
-                    if work_dir is None:
-                        raise RuntimeError
-                    raw_meta = get_store_for_path(work_dir).load_meta(session_id)
-                    if raw_meta is None:
-                        raise RuntimeError
-                    messages_count = int(raw_meta.get("messages_count", -1))
-                    if messages_count != 0:
-                        raise RuntimeError
-                    shutil.rmtree(Session.paths(work_dir).session_dir(session_id), ignore_errors=True)
-
         tasks_to_cancel = [task for task in (send_task, recv_task) if task is not None and not task.done()]
         for task in tasks_to_cancel:
             task.cancel()
@@ -975,15 +747,15 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             try:
                 _ = await asyncio.wait_for(asyncio.gather(*tasks_to_cancel, return_exceptions=True), timeout=2.0)
                 log_debug(
-                    f"[web/ws:{session_id[:8]}] final task cleanup finished count={len(tasks_to_cancel)}",
+                    f"[ws:{session_id[:8]}] final task cleanup finished count={len(tasks_to_cancel)}",
                     debug_type=DebugType.EXECUTION,
                 )
             except TimeoutError:
                 log_debug(
-                    f"[web/ws:{session_id[:8]}] final task cleanup timed out count={len(tasks_to_cancel)}",
+                    f"[ws:{session_id[:8]}] final task cleanup timed out count={len(tasks_to_cancel)}",
                     debug_type=DebugType.EXECUTION,
                 )
-        log_debug(f"[web/ws:{session_id[:8]}] finally done", debug_type=DebugType.EXECUTION)
+        log_debug(f"[ws:{session_id[:8]}] finally done", debug_type=DebugType.EXECUTION)
 
 
 async def _wait_for_ws_disconnect(websocket: WebSocket) -> None:

@@ -19,7 +19,7 @@ def _ensure_initialized() -> SkillLoader:
     """Ensure the skill system is initialized and return the loader.
 
     The global singleton is bound to the process CWD at first initialization.
-    Web mode bypasses this via ``get_available_skills_for_work_dir()``.
+    The server bypasses this via ``get_available_skills_for_work_dir()``.
     """
     global _loader, _initialized
     if not _initialized:
@@ -76,7 +76,7 @@ def get_available_skills_for_work_dir(work_dir: Path) -> list[tuple[str, str, st
 
     Unlike get_available_skills() which uses the global singleton tied to
     the process CWD, this creates a fresh loader that discovers project
-    skills relative to *work_dir*. Useful for the web UI where different
+    skills relative to *work_dir*. Useful for the server where different
     sessions may target different project directories.
 
     Returns:

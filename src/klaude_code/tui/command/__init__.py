@@ -49,7 +49,6 @@ def ensure_commands_loaded() -> None:
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
     from .switch_cmd import SwitchCommand
-    from .web_cmd import WebCommand
 
     # Register in desired display order
     register(CopyCommand())
@@ -57,7 +56,6 @@ def ensure_commands_loaded() -> None:
     register(CompactCommand())
     register(ForkSessionCommand())
     register(RefreshTerminalCommand())
-    register(WebCommand())
     register(NewCommand())
     register(ModelCommand())
     register(ManageProvidersCommand())
@@ -95,7 +93,6 @@ def __getattr__(name: str) -> object:
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
         "SwitchCommand": "switch_cmd",
-        "WebCommand": "web_cmd",
     }
     if name in _commands_map:
         import importlib

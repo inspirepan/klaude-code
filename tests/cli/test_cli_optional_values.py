@@ -142,9 +142,7 @@ class TestCliOptionalValues:
         monkeypatch.setattr(tui_runner, "run_attach", _run_attach)
         monkeypatch.setattr(cli_main, "prepare_debug_logging", _prepare_debug_logging)
         monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda **_kwargs: None)
-        monkeypatch.setattr(
-            "klaude_code.session.store_registry.get_store_for_path", lambda _path: _FakeStore()
-        )
+        monkeypatch.setattr("klaude_code.session.store_registry.get_store_for_path", lambda _path: _FakeStore())
         monkeypatch.setattr(model_picker_module, "select_model_interactive", _select_model_interactive)
         monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", lambda: None)
         monkeypatch.setattr(log_module, "log", _noop_log)
@@ -223,9 +221,7 @@ class TestCliOptionalValues:
         monkeypatch.setattr(tui_runner, "run_attach", _run_attach)
         monkeypatch.setattr(cli_main, "prepare_debug_logging", _prepare_debug_logging)
         monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda **_kwargs: None)
-        monkeypatch.setattr(
-            "klaude_code.session.store_registry.get_store_for_path", lambda _path: _FakeStore()
-        )
+        monkeypatch.setattr("klaude_code.session.store_registry.get_store_for_path", lambda _path: _FakeStore())
         monkeypatch.setattr(model_picker_module, "select_model_interactive", _select_model_interactive)
         monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", lambda: None)
         monkeypatch.setattr(log_module, "log", _noop_log)

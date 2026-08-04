@@ -18,6 +18,16 @@ class ServerNotRunningError(RuntimeError):
     pass
 
 
+STALE_SERVER_HINT = (
+    "klaude server is running stale code; finish or kill running sessions, then: klaude server reload --force"
+)
+_RELOAD_WAIT_TIMEOUT = 30.0
+
+# The handshake runs once per process; thin-client commands issue several
+# requests and the check is only meaningful on the first contact.
+_handshake_done = False
+
+
 def request(
     method: str,
     path: str,
@@ -60,12 +70,90 @@ def _spawn_server_detached() -> None:
     )
 
 
-def ensure_server_running(*, startup_timeout: float = 20.0) -> None:
-    """Auto-start the server when it is not reachable, then wait until it is."""
+def _warn(message: str) -> None:
+    print(f"warning: {message}", file=sys.stderr)
+
+
+def _local_code_fingerprint() -> str:
+    from klaude_code.update import get_code_fingerprint
+
+    return get_code_fingerprint()
+
+
+def verify_server_code(status_body: dict[str, Any]) -> None:
+    """Version handshake: reload an idle stale server, warn on a busy one.
+
+    A server started from older code produces confusing artifacts (stuck
+    loading, ghost sessions), so every CLI entry compares fingerprints on
+    first contact. Runs once per process; never raises on mismatch.
+    """
+
+    global _handshake_done
+    if _handshake_done:
+        return
+    _handshake_done = True
+
+    server_fingerprint = status_body.get("code_fingerprint")
+    local_fingerprint = _local_code_fingerprint()
+    if server_fingerprint == local_fingerprint:
+        return
+
+    sessions = status_body.get("sessions") or {}
+    busy = any(int(sessions.get(key) or 0) > 0 for key in ("running", "waiting_input", "queued"))
+    if busy:
+        _warn(STALE_SERVER_HINT)
+        return
 
     try:
-        status, _ = request("GET", "/api/server/status", timeout=3.0)
+        status, _body = request("POST", "/api/server/reload", json_body={"force": False}, timeout=10.0)
+    except ServerNotRunningError:
+        return  # Server went away; the autostart path brings up current code.
+    if status == 409:
+        # A session slipped in between the status check and the reload.
+        _warn(STALE_SERVER_HINT)
+        return
+    if status != 200:
+        _warn(f"klaude server auto-reload failed (HTTP {status}); it may be running stale code")
+        return
+    _wait_for_reloaded_server(local_fingerprint=local_fingerprint)
+
+
+def _wait_for_reloaded_server(*, local_fingerprint: str) -> None:
+    """Block until the reloaded server answers with matching code.
+
+    Reload re-execs the server process in place (same pid), so the only
+    reliable restart signal is the fingerprint itself. Old-process answers
+    during the drain simply do not match and keep the loop polling. On
+    timeout, warn and continue: the follow-up request either works or hits
+    the autostart path.
+    """
+
+    deadline = time.monotonic() + _RELOAD_WAIT_TIMEOUT
+    while time.monotonic() < deadline:
+        time.sleep(0.25)
+        try:
+            status, body = request("GET", "/api/server/status", timeout=3.0)
+        except ServerNotRunningError:
+            continue  # Socket is down while the server re-execs.
+        if status == 200 and isinstance(body, dict) and body.get("code_fingerprint") == local_fingerprint:
+            return
+    _warn("klaude server did not come back on current code after reload; check `klaude server status`")
+
+
+def ensure_server_running(*, startup_timeout: float = 20.0) -> None:
+    """Auto-start the server when it is not reachable, then wait until it is.
+
+    A reachable server also gets the version handshake (see
+    ``verify_server_code``); a freshly spawned one runs this executable's
+    code, so no check is needed.
+    """
+
+    global _handshake_done
+    try:
+        status, body = request("GET", "/api/server/status", timeout=3.0)
         if status == 200:
+            if isinstance(body, dict):
+                verify_server_code(body)
             return
     except ServerNotRunningError:
         pass
@@ -79,6 +167,7 @@ def ensure_server_running(*, startup_timeout: float = 20.0) -> None:
         except ServerNotRunningError:
             continue
         if status == 200:
+            _handshake_done = True
             return
     raise ServerNotRunningError("klaude server did not start in time")
 
@@ -91,6 +180,8 @@ def request_with_autostart(
     params: dict[str, Any] | None = None,
     timeout: float = 30.0,
 ) -> tuple[int, Any]:
+    if not _handshake_done:
+        ensure_server_running()
     try:
         return request(method, path, json_body=json_body, params=params, timeout=timeout)
     except ServerNotRunningError:

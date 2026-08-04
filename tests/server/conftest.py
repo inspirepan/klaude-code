@@ -142,7 +142,7 @@ def app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     async def _state_initializer() -> ServerAppState:
         event_bus = EventBus()
-        runtime = RuntimeFacade(event_bus, LLMClients(main=fake_llm, main_model_alias="fake"), runtime_kind="web")
+        runtime = RuntimeFacade(event_bus, LLMClients(main=fake_llm, main_model_alias="fake"))
         interaction_handler = ServerInteractionHandler()
         holder["event_bus"] = event_bus
         holder["runtime"] = runtime
@@ -239,6 +239,21 @@ def consume_ws_handshake(websocket: Any) -> dict[str, Any]:
     usage_snapshot = websocket.receive_json()
     assert usage_snapshot["event_type"] == "usage.snapshot"
     return usage_snapshot
+
+
+def op_frame(operation: Any) -> dict[str, Any]:
+    """Wrap a protocol operation in the generic WS op frame."""
+    return {"type": "op", "operation": operation.model_dump(mode="json", exclude_none=True)}
+
+
+def send_user_message(websocket: Any, session_id: str, text: str) -> None:
+    """Start a user turn the way the TUI client does: emit echo + RunAgent op."""
+    from klaude_code.protocol import op
+
+    websocket.send_json({"type": "emit", "event_type": "user.message", "event": {"content": text}})
+    websocket.send_json(
+        op_frame(op.RunAgentOperation(session_id=session_id, input=message.UserInputPayload(text=text)))
+    )
 
 
 def extract_text(events: list[dict[str, Any]]) -> str:

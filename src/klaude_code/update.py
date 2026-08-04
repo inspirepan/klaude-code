@@ -7,6 +7,7 @@ and terminal UI without introducing cross-layer imports.
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
 import shutil
@@ -168,6 +169,65 @@ def get_install_source_path() -> str | None:
     if parsed.netloc and parsed.netloc != "localhost":
         return f"//{parsed.netloc}{path}"
     return path
+
+
+_cached_code_fingerprint: str | None = None
+
+
+def get_code_fingerprint() -> str:
+    """Fingerprint of the code this process runs; used for the client/server handshake.
+
+    - git checkout install (editable/local): HEAD commit, plus a digest of
+      dirty files (path/mtime/size) so uncommitted edits change the value
+    - wheel install: package version
+
+    Cached per process: the first call freezes the value, so a long-lived
+    server keeps reporting the code it actually loaded at startup.
+    """
+
+    global _cached_code_fingerprint
+    if _cached_code_fingerprint is None:
+        _cached_code_fingerprint = _compute_code_fingerprint()
+    return _cached_code_fingerprint
+
+
+def _compute_code_fingerprint() -> str:
+    install_info = get_installation_info()
+    if install_info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
+        source_path = get_install_source_path()
+        if source_path is not None:
+            fingerprint = _compute_git_fingerprint(source_path)
+            if fingerprint is not None:
+                return fingerprint
+    return f"pkg:{install_info.version or 'unknown'}"
+
+
+def _compute_git_fingerprint(source_path: str) -> str | None:
+    """HEAD hash plus dirty-state digest; None when not a usable git checkout."""
+
+    repo_path = Path(source_path).expanduser()
+    if not repo_path.is_dir() or shutil.which("git") is None:
+        return None
+    repo = str(repo_path)
+    head = _git_output(repo, ["rev-parse", "HEAD"])
+    if head is None:
+        return None
+    status = _git_output(repo, ["status", "--porcelain", "--ignore-submodules=all"])
+    if not status:
+        return f"git:{head[:12]}"
+    hasher = hashlib.sha256()
+    for line in sorted(status.splitlines()):
+        hasher.update(line.encode())
+        # Stat the file so content edits within an already-dirty file still
+        # move the fingerprint (rename lines are "old -> new"; stat the new).
+        rel_path = line[3:].split(" -> ")[-1].strip().strip('"')
+        try:
+            stat_result = (repo_path / rel_path).stat()
+            hasher.update(f":{stat_result.st_mtime_ns}:{stat_result.st_size}".encode())
+        except OSError:
+            hasher.update(b":missing")
+        hasher.update(b"\n")
+    return f"git:{head[:12]}+{hasher.hexdigest()[:12]}"
 
 
 def _get_installed_version() -> str | None:

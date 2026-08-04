@@ -5,10 +5,10 @@ from klaude_code.protocol import events
 
 
 class ServerDisplay(DisplayABC):
-    """No-op display adapter for web mode.
+    """No-op display adapter for the server.
 
-    Web mode delivers events to clients over WebSocket, so server-side rendering
-    is intentionally disabled.
+    The server delivers events to clients over WebSocket, so server-side
+    rendering is intentionally disabled.
     """
 
     async def consume_envelope(self, envelope: events.EventEnvelope) -> None:

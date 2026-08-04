@@ -11,9 +11,9 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from klaude_code.protocol import message
+from klaude_code.protocol import message, op
 
-from .conftest import AppEnv, receive_events, usage
+from .conftest import AppEnv, op_frame, receive_events, usage
 
 
 def _attach(app_env: AppEnv, session_id: str, **params: str) -> Any:
@@ -82,7 +82,7 @@ def test_attach_idle_session_replays_history(app_env: AppEnv) -> None:
     with _attach(app_env, session_id) as websocket:
         handshake = _consume_attach_handshake(websocket)
 
-    assert handshake["connection_info"]["is_holder"] is True
+    assert handshake["connection_info"]["can_input"] is True
     assert handshake["session_info"]["state"] == "idle"
 
     welcome = [item for item in handshake["replay"] if item.get("event_type") == "welcome"]
@@ -97,7 +97,9 @@ def test_attach_mid_turn_has_no_gap_and_no_duplicates(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
     app_env.fake_llm.enqueue(
         message.AssistantTextDelta(content="chunk-a "),
-        message.AssistantTextDelta(content="chunk-b ", ),
+        message.AssistantTextDelta(
+            content="chunk-b ",
+        ),
         message.AssistantTextDelta(content="chunk-c"),
         message.AssistantMessage(
             parts=[message.TextPart(text="chunk-a chunk-b chunk-c")], stop_reason="stop", usage=usage()
@@ -127,9 +129,7 @@ def test_attach_mid_turn_has_no_gap_and_no_duplicates(app_env: AppEnv) -> None:
     # The assistant text reassembles exactly once, with no repeated chunks.
     def _delta_text(items: list[dict[str, Any]]) -> str:
         return "".join(
-            str(item["event"].get("content", ""))
-            for item in items
-            if item.get("event_type") == "assistant.text.delta"
+            str(item["event"].get("content", "")) for item in items if item.get("event_type") == "assistant.text.delta"
         )
 
     total_text = _delta_text(handshake["replay"]) + _delta_text(live)
@@ -285,10 +285,13 @@ def test_peek_connection_cannot_send(app_env: AppEnv) -> None:
 
     with _attach(app_env, session_id, peek="1") as websocket:
         handshake = _consume_attach_handshake(websocket)
-        assert handshake["connection_info"]["is_holder"] is False
-        websocket.send_json({"type": "message", "text": "should be rejected"})
+        assert handshake["connection_info"]["can_input"] is False
+        websocket.send_json(
+            op_frame(op.RunAgentOperation(session_id=session_id, input=message.UserInputPayload(text="rejected")))
+        )
         frame = websocket.receive_json()
         assert frame["type"] == "error"
+        assert frame["code"] == "peek_read_only"
 
 
 def test_send_steer_interrupts_and_injects(app_env: AppEnv) -> None:
@@ -346,11 +349,7 @@ def test_attach_rehydrates_reclaimed_actor(app_env: AppEnv) -> None:
     # Content may arrive via synthesized history or via the retained tape
     # (both splice to the same transcript); assert across both sources.
     replay_events = _replay_history_events(handshake) + handshake["replay"]
-    contents = [
-        event["event"].get("content")
-        for event in replay_events
-        if event.get("event_type") == "user.message"
-    ]
+    contents = [event["event"].get("content") for event in replay_events if event.get("event_type") == "user.message"]
     assert contents == ["before reclaim"]
     texts = "".join(
         str(event["event"].get("content", ""))

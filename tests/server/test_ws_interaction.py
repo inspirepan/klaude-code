@@ -9,10 +9,19 @@ from typing import Any, ClassVar, cast
 import pytest
 
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
-from klaude_code.protocol import message, user_interaction
+from klaude_code.protocol import message, op, user_interaction
 from klaude_code.server.routes import ws
 
-from .conftest import AppEnv, collect_events_until, consume_ws_handshake, extract_text, usage, wait_for_event
+from .conftest import (
+    AppEnv,
+    collect_events_until,
+    consume_ws_handshake,
+    extract_text,
+    op_frame,
+    send_user_message,
+    usage,
+    wait_for_event,
+)
 
 
 def test_ask_user_question_flow(app_env: AppEnv) -> None:
@@ -54,25 +63,28 @@ def test_ask_user_question_flow(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
-        websocket.send_json({"type": "message", "text": "ask me"})
+        send_user_message(websocket, session_id, "ask me")
 
         interaction_event = wait_for_event(websocket, "user.interaction.request")
         request_id = interaction_event["event"]["request_id"]
         websocket.send_json(
-            {
-                "type": "respond",
-                "request_id": request_id,
-                "status": "submitted",
-                "payload": {
-                    "kind": "ask_user_question",
-                    "answers": [
-                        {
-                            "question_id": "q1",
-                            "selected_option_ids": ["q1_o1"],
-                        }
-                    ],
-                },
-            }
+            op_frame(
+                op.UserInteractionRespondOperation(
+                    session_id=session_id,
+                    request_id=request_id,
+                    response=user_interaction.UserInteractionResponse(
+                        status="submitted",
+                        payload=user_interaction.AskUserQuestionResponsePayload(
+                            answers=[
+                                user_interaction.AskUserQuestionAnswer(
+                                    question_id="q1",
+                                    selected_option_ids=["q1_o1"],
+                                )
+                            ]
+                        ),
+                    ),
+                )
+            )
         )
         events = collect_events_until(websocket, "task.finish")
 
@@ -133,7 +145,8 @@ def test_send_pending_interaction_snapshots_replays_pending_requests(monkeypatch
     assert event["event"]["request_id"] == "req-1"
     assert event["event"]["source"] == "tool"
     assert event["event"]["tool_call_id"] == "call-1"
-    assert event["event"]["payload"] == request.payload.model_dump(mode="json")
+    # Envelope serialization drops None fields.
+    assert event["event"]["payload"] == request.payload.model_dump(mode="json", exclude_none=True)
 
 
 def test_session_websocket_replays_pending_snapshots_before_forwarding_events(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -166,18 +179,8 @@ def test_session_websocket_replays_pending_snapshots_before_forwarding_events(mo
     def _has_session_actor(_session_id: str) -> bool:
         return True
 
-    async def _try_acquire_holder(_session_id: str, _key: str) -> bool:
-        return True
-
-    async def _release_holder(_session_id: str, _key: str) -> bool:
-        return True
-
-    runtime = SimpleNamespace(
-        session_registry=SimpleNamespace(has_session_actor=_has_session_actor),
-        try_acquire_holder=_try_acquire_holder,
-        release_holder=_release_holder,
-    )
-    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"))
+    runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
+    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test")
 
     def _get_server_state(_websocket: object) -> Any:
         return state
@@ -185,16 +188,11 @@ def test_session_websocket_replays_pending_snapshots_before_forwarding_events(mo
     def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
         return Path("/tmp")
 
-    def _load_session_read_only(_state: Any, *, session_id: str, work_dir: Path) -> bool:
-        del session_id, work_dir
-        return False
-
     def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
         return {}
 
     monkeypatch.setattr(ws, "get_server_state_from_ws", _get_server_state)
     monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
-    monkeypatch.setattr(ws, "load_session_read_only", _load_session_read_only)
     monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
     monkeypatch.setattr(ws, "_send_pending_interaction_snapshots", _send_pending_interaction_snapshots)
     monkeypatch.setattr(ws, "_forward_events", _forward_events)
@@ -231,18 +229,8 @@ def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyP
     def _has_session_actor(_session_id: str) -> bool:
         return True
 
-    async def _try_acquire_holder(_session_id: str, _key: str) -> bool:
-        return True
-
-    async def _release_holder(_session_id: str, _key: str) -> bool:
-        return True
-
-    runtime = SimpleNamespace(
-        session_registry=SimpleNamespace(has_session_actor=_has_session_actor),
-        try_acquire_holder=_try_acquire_holder,
-        release_holder=_release_holder,
-    )
-    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"))
+    runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
+    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test")
 
     def _get_server_state(_websocket: object) -> Any:
         return state
@@ -250,15 +238,11 @@ def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyP
     def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
         return Path("/tmp")
 
-    def _load_session_read_only(_state: Any, *, session_id: str, work_dir: Path) -> bool:
-        return False
-
     def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
         return {}
 
     monkeypatch.setattr(ws, "get_server_state_from_ws", _get_server_state)
     monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
-    monkeypatch.setattr(ws, "load_session_read_only", _load_session_read_only)
     monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
     monkeypatch.setattr(ws, "_forward_events", _forward_events)
     monkeypatch.setattr(ws, "_receive_commands", _receive_commands)
@@ -300,18 +284,8 @@ def test_websocket_handler_does_not_hang_on_stubborn_peer_task(monkeypatch: pyte
     def _has_session_actor(_session_id: str) -> bool:
         return True
 
-    async def _try_acquire_holder(_session_id: str, _key: str) -> bool:
-        return True
-
-    async def _release_holder(_session_id: str, _key: str) -> bool:
-        return True
-
-    runtime = SimpleNamespace(
-        session_registry=SimpleNamespace(has_session_actor=_has_session_actor),
-        try_acquire_holder=_try_acquire_holder,
-        release_holder=_release_holder,
-    )
-    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"))
+    runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
+    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test")
 
     def _get_server_state(_websocket: object) -> Any:
         return state
@@ -319,15 +293,11 @@ def test_websocket_handler_does_not_hang_on_stubborn_peer_task(monkeypatch: pyte
     def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
         return Path("/tmp")
 
-    def _load_session_read_only(_state: Any, *, session_id: str, work_dir: Path) -> bool:
-        return False
-
     def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
         return {}
 
     monkeypatch.setattr(ws, "get_server_state_from_ws", _get_server_state)
     monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
-    monkeypatch.setattr(ws, "load_session_read_only", _load_session_read_only)
     monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
     monkeypatch.setattr(ws, "_forward_events", _forward_events)
     monkeypatch.setattr(ws, "_receive_commands", _receive_commands)
@@ -362,6 +332,9 @@ def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPat
         def get_agent(self) -> Any:
             return self._agent
 
+        def snapshot(self) -> Any:
+            return SimpleNamespace(is_idle=True)
+
     actor = _FakeActor()
 
     async def _forward_events(_session_id: str, _websocket: FakeWebSocket) -> None:
@@ -376,33 +349,21 @@ def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPat
     def _get_session_actor(_session_id: str) -> Any:
         return actor
 
-    async def _try_acquire_holder(_session_id: str, _key: str) -> bool:
-        return True
-
-    async def _release_holder(_session_id: str, _key: str) -> bool:
-        return True
-
     async def _close_session(_session_id: str, force: bool = False) -> bool:
         del force
         return True
 
     runtime = SimpleNamespace(
         session_registry=SimpleNamespace(has_session_actor=_has_session_actor, get_session_actor=_get_session_actor),
-        try_acquire_holder=_try_acquire_holder,
-        release_holder=_release_holder,
         close_session=_close_session,
     )
-    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"))
+    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test")
 
     def _get_server_state(_websocket: object) -> Any:
         return state
 
     def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
         return Path("/tmp/work")
-
-    def _load_session_read_only(_state: Any, *, session_id: str, work_dir: Path) -> bool:
-        del session_id, work_dir
-        return False
 
     def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
         return {}
@@ -413,7 +374,6 @@ def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(ws, "get_server_state_from_ws", _get_server_state)
     monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
-    monkeypatch.setattr(ws, "load_session_read_only", _load_session_read_only)
     monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
     monkeypatch.setattr(ws, "_forward_events", _forward_events)
     monkeypatch.setattr(ws, "_receive_commands", _receive_commands)

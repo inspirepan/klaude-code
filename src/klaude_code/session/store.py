@@ -16,14 +16,15 @@ from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
-    SessionOwner,
     SessionRuntimeState,
     SubAgentState,
     TodoItem,
 )
 from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 
-_RUNTIME_META_KEYS = ("session_state", "runtime_owner", "runtime_owner_heartbeat_at", "follow_up_queue")
+# Meta keys owned by direct update_meta writes: a queued history batch carries
+# an older snapshot, so the on-disk value wins when the batch lands.
+_RUNTIME_META_KEYS = ("session_state", "follow_up_queue")
 _DELETE_WINS_META_KEYS = ("follow_up_queue",)
 
 type SessionMetaObserver = Callable[[str, dict[str, Any]], None]
@@ -327,8 +328,6 @@ def build_meta_snapshot(
     messages_count: int,
     model_name: str | None,
     session_state: SessionRuntimeState | None,
-    runtime_owner: SessionOwner | None,
-    runtime_owner_heartbeat_at: float | None,
     archived: bool,
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
@@ -359,8 +358,6 @@ def build_meta_snapshot(
         "messages_count": messages_count,
         "model_name": model_name,
         "session_state": session_state.value if session_state is not None else None,
-        "runtime_owner": runtime_owner.model_dump(mode="json") if runtime_owner is not None else None,
-        "runtime_owner_heartbeat_at": runtime_owner_heartbeat_at,
         "archived": archived,
         "model_config_name": model_config_name,
         "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)

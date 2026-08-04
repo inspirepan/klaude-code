@@ -1,8 +1,8 @@
 """Tests for sub-agent event forwarding through WebSocket.
 
-Covers the scenario where a WebSocket connects to a session that is currently
-executing a sub-agent, and the WebSocket has no in-memory snapshot (e.g. viewing
-a TUI-owned session from the web).
+Covers the scenario where a WebSocket connects to a session whose actor has no
+active root task (e.g. reattaching after a server restart): child sessions are
+discovered from SpawnSubAgentEntry history items and their events forwarded.
 """
 
 from __future__ import annotations
@@ -19,8 +19,7 @@ from fastapi.testclient import TestClient
 from klaude_code.agent.runtime import llm as agent_runtime
 from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.app.runtime_facade import RuntimeFacade
-from klaude_code.control.event_bus import EventBus, event_publish_context
-from klaude_code.control.event_relay import EventRelayPublisher, event_relay_socket_path
+from klaude_code.control.event_bus import EventBus
 from klaude_code.protocol import events, message
 from klaude_code.server.app import create_app
 from klaude_code.server.interaction import ServerInteractionHandler
@@ -42,9 +41,8 @@ def _write_session_meta(
     work_dir: Path,
     session_id: str,
     session_state: str = "running",
-    runtime_kind: str = "tui",
 ) -> None:
-    """Create a session owned by a foreign runtime on disk."""
+    """Create a session on disk (with legacy runtime_owner keys that must be ignored)."""
     store = get_store_for_path(work_dir)
     meta_path = store.paths.meta_file(session_id)
     meta_path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,9 +59,10 @@ def _write_session_meta(
                 "messages_count": 0,
                 "model_name": None,
                 "session_state": session_state,
+                # Legacy keys from the multi-runtime era; parsers must skip them.
                 "runtime_owner": {
                     "runtime_id": "foreign-runtime",
-                    "runtime_kind": runtime_kind,
+                    "runtime_kind": "tui",
                     "pid": 99999,
                 },
                 "runtime_owner_heartbeat_at": time.time(),
@@ -92,30 +91,6 @@ def _write_history_events(work_dir: Path, session_id: str, items: list[message.H
     with open(events_path, "a", encoding="utf-8") as f:
         for item in items:
             f.write(encode_jsonl_line(item))
-
-
-def _publish_remote_event(
-    socket_path: Path,
-    *,
-    session_id: str,
-    task_id: str | None = None,
-    content: str = "from-child",
-) -> None:
-    """Publish an AssistantTextDeltaEvent through the event relay."""
-
-    async def _send() -> None:
-        publisher = EventRelayPublisher(socket_path=socket_path)
-        bus = EventBus(publish_hook=publisher.publish)
-        try:
-            if task_id is not None:
-                with event_publish_context(task_id=task_id):
-                    await bus.publish(events.AssistantTextDeltaEvent(session_id=session_id, content=content))
-            else:
-                await bus.publish(events.AssistantTextDeltaEvent(session_id=session_id, content=content))
-        finally:
-            await publisher.aclose()
-
-    asyncio.run(_send())
 
 
 # ---------------------------------------------------------------------------
@@ -229,9 +204,9 @@ def test_websocket_forwards_child_session_events_without_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """When a WebSocket connects to a TUI-owned session (no in-memory snapshot),
-    events from child sessions discovered via SpawnSubAgentEntry should still
-    be forwarded.
+    """When the attached session has no active root task (e.g. after a server
+    restart), events from child sessions discovered via SpawnSubAgentEntry
+    should still be forwarded.
     """
     home_dir = tmp_path / "home"
     home_dir.mkdir(parents=True, exist_ok=True)
@@ -251,14 +226,16 @@ def test_websocket_forwards_child_session_events_without_snapshot(
     work_dir.mkdir(parents=True, exist_ok=True)
 
     fake_llm = FakeLLMClient()
-    holder: dict[str, RuntimeFacade | ServerLiveEvents] = {}
+    holder: dict[str, Any] = {}
 
     async def _state_initializer() -> ServerAppState:
         event_bus = EventBus()
-        runtime = RuntimeFacade(event_bus, LLMClients(main=fake_llm, main_model_alias="fake"), runtime_kind="web")
-        live_events = await start_server_live_events(event_bus, home_dir=home_dir)
+        runtime = RuntimeFacade(event_bus, LLMClients(main=fake_llm, main_model_alias="fake"))
+        live_events = start_server_live_events(event_bus)
         holder["runtime"] = runtime
         holder["live_events"] = live_events
+        holder["event_bus"] = event_bus
+        holder["loop"] = asyncio.get_running_loop()
         return ServerAppState(
             runtime=runtime,
             event_bus=event_bus,
@@ -282,10 +259,10 @@ def test_websocket_forwards_child_session_events_without_snapshot(
         state_shutdown=_state_shutdown,
     )
 
-    # Set up a foreign (TUI-owned) parent session with a spawned child session
+    # Set up a parent session on disk with a spawned child session
     parent_id = "a" * 32
     child_id = "b" * 32
-    _write_session_meta(work_dir=work_dir, session_id=parent_id, session_state="running", runtime_kind="tui")
+    _write_session_meta(work_dir=work_dir, session_id=parent_id, session_state="running")
     _write_history_events(
         work_dir,
         parent_id,
@@ -302,21 +279,22 @@ def test_websocket_forwards_child_session_events_without_snapshot(
         runtime = holder.get("runtime")
         assert isinstance(runtime, RuntimeFacade)
 
-        # WebSocket connects to the parent session (read-only, no actor, no snapshot)
+        # WebSocket connects to the parent session (actor idle, no root task)
         with client.websocket_connect(f"/api/sessions/{parent_id}/ws") as websocket:
             connection_info = websocket.receive_json()
             assert connection_info["type"] == "connection_info"
-            assert connection_info["is_holder"] is False  # read-only
+            assert connection_info["can_input"] is True
 
             usage_snapshot = websocket.receive_json()
             assert usage_snapshot["event_type"] == "usage.snapshot"
 
-            # Publish an event with the CHILD session_id via relay
-            _publish_remote_event(
-                event_relay_socket_path(home_dir=home_dir),
-                session_id=child_id,
-                content="child-agent-output",
-            )
+            # Publish an event with the CHILD session_id on the app loop's bus
+            event_bus = cast(EventBus, holder["event_bus"])
+            loop = cast(asyncio.AbstractEventLoop, holder["loop"])
+            asyncio.run_coroutine_threadsafe(
+                event_bus.publish(events.AssistantTextDeltaEvent(session_id=child_id, content="child-agent-output")),
+                loop,
+            ).result(timeout=5.0)
 
             # The event should be forwarded because the child session was
             # discovered from SpawnSubAgentEntry in the parent's history
@@ -325,6 +303,3 @@ def test_websocket_forwards_child_session_events_without_snapshot(
             assert child_event["event_type"] == "assistant.text.delta"
             assert child_event["session_id"] == child_id
             assert child_event["event"]["content"] == "child-agent-output"
-
-        # Verify no actor was created for the foreign session
-        assert runtime.session_registry.has_session_actor(parent_id) is False

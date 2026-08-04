@@ -5,9 +5,17 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
-from klaude_code.protocol import message
+from klaude_code.protocol import message, op
 
-from .conftest import AppEnv, collect_events_until, consume_ws_handshake, receive_events, usage
+from .conftest import (
+    AppEnv,
+    collect_events_until,
+    consume_ws_handshake,
+    op_frame,
+    receive_events,
+    send_user_message,
+    usage,
+)
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -70,7 +78,7 @@ def test_non_empty_session_kept_when_websocket_disconnects(app_env: AppEnv) -> N
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
-        websocket.send_json({"type": "message", "text": "hello"})
+        send_user_message(websocket, session_id, "hello")
         _ = collect_events_until(websocket, "task.finish")
 
     response = app_env.client.get("/api/sessions")
@@ -188,10 +196,10 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
 
-        websocket.send_json({"type": "message", "text": "run then interrupt"})
+        send_user_message(websocket, session_id, "run then interrupt")
         _ = collect_events_until(websocket, "task.start")
 
-        websocket.send_json({"type": "interrupt"})
+        websocket.send_json(op_frame(op.InterruptOperation(session_id=session_id)))
         interrupt_finished = None
         for _ in range(200):
             for event in receive_events(websocket):
@@ -267,7 +275,7 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
     assert history_response.status_code == 200
     assert _updated_at_from_meta(meta_path) == initial_updated_at
 
-    ws_url = f"/api/sessions/{session_id}/ws?holder_key=test-holder"
+    ws_url = f"/api/sessions/{session_id}/ws"
     with app_env.client.websocket_connect(ws_url) as websocket:
         consume_ws_handshake(websocket)
     assert _updated_at_from_meta(meta_path) == initial_updated_at
@@ -281,7 +289,7 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
     )
     with app_env.client.websocket_connect(ws_url) as websocket:
         consume_ws_handshake(websocket)
-        websocket.send_json({"type": "message", "text": "hello"})
+        send_user_message(websocket, session_id, "hello")
         _ = collect_events_until(websocket, "task.finish")
 
     deadline = time.time() + 1.0
@@ -422,10 +430,10 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
 
-        websocket.send_json({"type": "message", "text": "run then interrupt"})
+        send_user_message(websocket, session_id, "run then interrupt")
         _ = collect_events_until(websocket, "task.start")
 
-        websocket.send_json({"type": "interrupt"})
+        websocket.send_json(op_frame(op.InterruptOperation(session_id=session_id)))
         interrupt_finished = None
         for _ in range(200):
             for event in receive_events(websocket):
@@ -474,7 +482,7 @@ def test_updated_at_changes_only_when_session_content_changes(app_env: AppEnv) -
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
-        websocket.send_json({"type": "message", "text": "hello"})
+        send_user_message(websocket, session_id, "hello")
         _ = collect_events_until(websocket, "task.finish")
 
     deadline = time.time() + 1.0
@@ -490,9 +498,17 @@ import time
 from pathlib import Path
 from typing import Any
 
-from klaude_code.protocol import message
+from klaude_code.protocol import message, op
 
-from .conftest import AppEnv, collect_events_until, consume_ws_handshake, receive_events, usage
+from .conftest import (
+    AppEnv,
+    collect_events_until,
+    consume_ws_handshake,
+    op_frame,
+    receive_events,
+    send_user_message,
+    usage,
+)
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
     candidates = list((app_env.home_dir / ".klaude" / "projects").glob(f"*/sessions/{session_id}/meta.json"))
@@ -612,10 +628,10 @@ def test_interrupt_transitions_session_state_to_idle(app_env: AppEnv) -> None:
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
 
-        websocket.send_json({"type": "message", "text": "run then interrupt"})
+        send_user_message(websocket, session_id, "run then interrupt")
         _ = collect_events_until(websocket, "task.start")
 
-        websocket.send_json({"type": "interrupt"})
+        websocket.send_json(op_frame(op.InterruptOperation(session_id=session_id)))
         interrupt_finished = None
         for _ in range(200):
             for event in receive_events(websocket):

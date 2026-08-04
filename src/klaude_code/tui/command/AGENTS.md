@@ -52,7 +52,6 @@ Registration order determines display order in slash command completion.
 Commands return `CommandResult` with optional fields:
 - `events` - UI events to display immediately (notices, errors, model changes)
 - `operations` - Operations to submit to the runtime (e.g. `RunAgentOperation`)
-- `web_mode_request` - Request to switch to web UI mode
 
 ### Optional properties
 

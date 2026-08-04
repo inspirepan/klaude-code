@@ -20,7 +20,8 @@ def test_status_endpoint_reports_server_info(app_env: AppEnv) -> None:
     assert isinstance(payload["version"], str) and payload["version"]
     assert payload["socket_path"].endswith("server.sock")
     assert payload["uptime_seconds"] >= 0
-    assert payload["sessions"] == {"loaded": 0, "running": 0, "waiting_input": 0}
+    assert isinstance(payload["code_fingerprint"], str) and payload["code_fingerprint"]
+    assert payload["sessions"] == {"loaded": 0, "running": 0, "waiting_input": 0, "queued": 0}
 
 
 def test_stop_endpoint_triggers_shutdown(app_env: AppEnv) -> None:

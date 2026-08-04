@@ -9,7 +9,7 @@ import pytest
 from klaude_code.protocol import message
 from klaude_code.session.store import JsonlSessionWriter
 
-from .conftest import AppEnv, collect_events_until, consume_ws_handshake, extract_text, usage
+from .conftest import AppEnv, collect_events_until, consume_ws_handshake, extract_text, send_user_message, usage
 
 
 def test_send_message_receive_events_and_history(app_env: AppEnv) -> None:
@@ -27,7 +27,7 @@ def test_send_message_receive_events_and_history(app_env: AppEnv) -> None:
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
 
-        websocket.send_json({"type": "message", "text": "hi"})
+        send_user_message(websocket, session_id, "hi")
         events = collect_events_until(websocket, "operation.finished")
 
     event_types = [event["event_type"] for event in events]
@@ -60,7 +60,7 @@ def test_usage_snapshot_on_reconnect(app_env: AppEnv) -> None:
         first_snapshot = consume_ws_handshake(websocket)
         assert first_snapshot["event"]["usage"]["input_tokens"] == 0
 
-        websocket.send_json({"type": "message", "text": "hello"})
+        send_user_message(websocket, session_id, "hello")
         _ = collect_events_until(websocket, "operation.finished")
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
@@ -87,7 +87,7 @@ def test_multiple_ws_receive_same_events(app_env: AppEnv) -> None:
         consume_ws_handshake(ws1)
         consume_ws_handshake(ws2)
 
-        ws1.send_json({"type": "message", "text": "go"})
+        send_user_message(ws1, session_id, "go")
         events1 = collect_events_until(ws1, "operation.finished")
         events2 = collect_events_until(ws2, "operation.finished")
 
@@ -121,7 +121,7 @@ def test_history_prefers_in_memory_session_while_writer_is_still_flushing(
     try:
         with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
             consume_ws_handshake(websocket)
-            websocket.send_json({"type": "message", "text": "hello"})
+            send_user_message(websocket, session_id, "hello")
             _ = collect_events_until(websocket, "operation.finished")
 
             assert write_started.wait(timeout=1.0)
@@ -133,66 +133,3 @@ def test_history_prefers_in_memory_session_while_writer_is_still_flushing(
             assert "assistant.text.delta" in history_types
     finally:
         release_write.set()
-
-
-def test_second_ws_connection_cannot_send_commands(app_env: AppEnv) -> None:
-    """A non-holder connection must receive session_not_held for write commands."""
-    session_id = app_env.create_session()
-    with (
-        app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as ws_holder,
-        app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as ws_reader,
-    ):
-        holder_info = ws_holder.receive_json()
-        assert holder_info["type"] == "connection_info"
-        assert holder_info["is_holder"] is True
-        _ = ws_holder.receive_json()  # usage.snapshot
-
-        reader_info = ws_reader.receive_json()
-        assert reader_info["type"] == "connection_info"
-        assert reader_info["is_holder"] is False
-        _ = ws_reader.receive_json()  # usage.snapshot
-
-        # Reader tries to send a message -- should be rejected.
-        ws_reader.send_json({"type": "message", "text": "should fail"})
-        error = ws_reader.receive_json()
-        assert error["type"] == "error"
-        assert error["code"] == "session_not_held"
-
-
-def test_rest_write_requires_holder_key_when_held(app_env: AppEnv) -> None:
-    """REST write endpoints enforce holder when a WS connection holds the session."""
-    session_id = app_env.create_session()
-
-    # Acquire holder via WS, then test REST access.
-    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws?holder_key=my-secret-key") as ws:
-        info = ws.receive_json()
-        assert info["is_holder"] is True
-        _ = ws.receive_json()  # usage.snapshot
-
-        # No holder key header while session is held -- should be 409.
-        resp = app_env.client.post(f"/api/sessions/{session_id}/message", json={"text": "hi"})
-        assert resp.status_code == 409
-        assert "held by another" in resp.json()["detail"]
-
-        # Wrong holder key -- should be 409.
-        resp = app_env.client.post(
-            f"/api/sessions/{session_id}/interrupt",
-            headers={"X-Holder-Key": "wrong-key"},
-        )
-        assert resp.status_code == 409
-
-        # Correct holder key -- should succeed.
-        app_env.fake_llm.enqueue(
-            message.AssistantTextDelta(content="ok"),
-            message.AssistantMessage(
-                parts=[message.TextPart(text="ok")],
-                stop_reason="stop",
-                usage=usage(input_tokens=5, output_tokens=1),
-            ),
-        )
-        resp = app_env.client.post(
-            f"/api/sessions/{session_id}/message",
-            json={"text": "hi"},
-            headers={"X-Holder-Key": "my-secret-key"},
-        )
-        assert resp.status_code == 200

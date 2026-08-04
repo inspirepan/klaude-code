@@ -964,18 +964,12 @@ class AgentOperationHandler:
             model_profile_provider=self._model_profile_provider,
         )
 
-        # Transfer holder from old session to new session before clearing.
-        old_holder_key = old_runtime.get_holder_key()
-
         old_runtime.clear_execution_state()
         new_runtime = self._ensure_session_actor(new_session.id)
         new_runtime.set_llm_clients(session_clients)
         new_runtime.set_agent(new_agent)
         if self._primary_session_id == old_session_id:
             self._primary_session_id = new_session.id
-
-        if old_holder_key is not None:
-            new_runtime.try_acquire_holder(old_holder_key)
 
         await self._emit_event(
             events.NoticeEvent(
@@ -1018,17 +1012,12 @@ class AgentOperationHandler:
             model_profile_provider=self._model_profile_provider,
         )
 
-        old_holder_key = old_runtime.get_holder_key()
-
         old_runtime.clear_execution_state()
         new_runtime = self._ensure_session_actor(new_session.id)
         new_runtime.set_llm_clients(session_clients)
         new_runtime.set_agent(new_agent)
         if self._primary_session_id == old_session_id:
             self._primary_session_id = new_session.id
-
-        if old_holder_key is not None:
-            new_runtime.try_acquire_holder(old_holder_key)
 
         await self._emit_event(
             events.WelcomeEvent(

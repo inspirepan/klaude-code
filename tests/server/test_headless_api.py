@@ -208,8 +208,17 @@ def test_send_while_running_queues_follow_up(app_env: AppEnv) -> None:
     assert response.status_code == 200
     assert response.json()["mode"] == "queued"
 
-    _wait_for_state(app_env, session_id, "idle")
-    output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
+    # The session flips to idle briefly between the first turn finishing and
+    # the queue drain starting the follow-up turn, so poll the output instead
+    # of sampling it at the first idle observation.
+    deadline = time.time() + 8.0
+    output: dict[str, Any] = {}
+    while time.time() < deadline:
+        _wait_for_state(app_env, session_id, "idle")
+        output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
+        if output.get("output") == "follow-up reply":
+            break
+        time.sleep(0.05)
     assert output["output"] == "follow-up reply"
 
 

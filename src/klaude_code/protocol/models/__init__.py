@@ -1,7 +1,6 @@
 from klaude_code.protocol.models.common import (
     AssistantPhase,
     RoleType,
-    RuntimeKind,
     StopReason,
     TodoStatusType,
     ToolStatus,
@@ -37,7 +36,7 @@ from klaude_code.protocol.models.file_tracking import (
     build_file_changes_since,
     merge_file_changes,
 )
-from klaude_code.protocol.models.session_runtime import SessionOwner, SessionRuntimeState
+from klaude_code.protocol.models.session_runtime import SessionRuntimeState
 from klaude_code.protocol.models.sub_agent import SubAgentState
 from klaude_code.protocol.models.task_metadata import TaskMetadata, TaskMetadataItem
 from klaude_code.protocol.models.todo import TodoItem, todo_list_str
@@ -97,9 +96,7 @@ __all__ = [
     "ReadPreviewLine",
     "ReadPreviewUIExtra",
     "RoleType",
-    "RuntimeKind",
     "SessionIdUIExtra",
-    "SessionOwner",
     "SessionRuntimeState",
     "SessionStatsUIExtra",
     "SkillActivatedUIItem",

@@ -4,7 +4,6 @@ import sys
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 from uuid import uuid4
 
 import typer
@@ -15,24 +14,19 @@ from klaude_code.agent.agent_profile import (
     VanillaModelProfileProvider,
 )
 from klaude_code.agent.runtime.llm import ModelResolutionError, build_llm_clients
-from klaude_code.app.herdr import HerdrReporter
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import Config, load_config
 from klaude_code.config.config import ModelPreference
 from klaude_code.control.event_bus import EventBus, EventSubscription
-from klaude_code.control.event_relay import EventRelayPublisher, event_relay_socket_path
-from klaude_code.control.session_meta_relay import SessionMetaRelayPublisher, session_meta_relay_socket_path
 from klaude_code.llm.proxy_support import configured_socks_proxy_var, is_missing_socks_proxy_support_error
 from klaude_code.log import DebugType, log, log_debug, set_debug_logging
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.session.session import Session
-from klaude_code.session.store import register_session_meta_observer
 from klaude_code.session.store_registry import close_default_store
 
 SESSION_IDLE_TTL_SECONDS = 30 * 60
 SESSION_IDLE_RECLAIM_INTERVAL_SECONDS = 60
-SESSION_OWNER_HEARTBEAT_INTERVAL_SECONDS = 5
 
 
 @dataclass
@@ -42,8 +36,6 @@ class AppInitConfig:
     model: str | None
     debug: bool
     vanilla: bool
-    runtime_kind: Literal["tui", "web"] = "tui"
-    enable_event_relay_client: bool = True
 
 
 @dataclass
@@ -65,15 +57,11 @@ class AppComponents:
     config: Config
     runtime: RuntimeFacade
     event_bus: EventBus
-    event_relay_publisher: EventRelayPublisher | None
-    session_meta_relay_publisher: SessionMetaRelayPublisher | None
-    unregister_session_meta_relay_observer: Callable[[], None] | None
     event_bus_subscription: SubscriptionHolder
     display: DisplayABC
     display_task: asyncio.Task[None]
     interaction_task: asyncio.Task[None] | None
     idle_reclaim_task: asyncio.Task[None]
-    owner_heartbeat_task: asyncio.Task[None]
 
     async def wait_for_display_idle(self) -> None:
         """Wait until EventBus subscription has consumed pending events."""
@@ -110,12 +98,6 @@ async def _reclaim_idle_sessions_loop(runtime: RuntimeFacade) -> None:
     while True:
         await asyncio.sleep(SESSION_IDLE_RECLAIM_INTERVAL_SECONDS)
         await runtime.reclaim_idle_sessions(idle_for_seconds=SESSION_IDLE_TTL_SECONDS)
-
-
-async def _heartbeat_session_owners_loop(runtime: RuntimeFacade) -> None:
-    while True:
-        await asyncio.sleep(SESSION_OWNER_HEARTBEAT_INTERVAL_SECONDS)
-        await runtime.heartbeat_session_owners()
 
 
 async def _consume_interactions_from_subscription(
@@ -216,27 +198,7 @@ async def initialize_app_components(
     else:
         model_profile_provider = DefaultModelProfileProvider(config=config)
 
-    event_relay_publisher: EventRelayPublisher | None = None
-    session_meta_relay_publisher: SessionMetaRelayPublisher | None = None
-    unregister_session_meta_relay_observer: Callable[[], None] | None = None
-    if init_config.enable_event_relay_client:
-        event_relay_publisher = EventRelayPublisher(socket_path=event_relay_socket_path())
-        session_meta_relay_publisher = SessionMetaRelayPublisher(socket_path=session_meta_relay_socket_path())
-        unregister_session_meta_relay_observer = register_session_meta_observer(
-            lambda session_id, meta: session_meta_relay_publisher.publish_upsert(session_id, meta)
-        )
-
-    herdr_reporter = HerdrReporter.from_env() if init_config.runtime_kind == "tui" else None
-
-    async def _publish_hook(envelope: events.EventEnvelope) -> None:
-        if event_relay_publisher is not None:
-            await event_relay_publisher.publish(envelope)
-        if herdr_reporter is not None:
-            herdr_reporter.consume_event(envelope.event)
-
-    event_bus = EventBus(
-        publish_hook=_publish_hook if event_relay_publisher is not None or herdr_reporter is not None else None
-    )
+    event_bus = EventBus()
     event_bus_subscription = SubscriptionHolder(subscription=event_bus.subscribe(None))
     interaction_subscription = (
         SubscriptionHolder(subscription=event_bus.subscribe(None)) if interaction_handler is not None else None
@@ -247,8 +209,6 @@ async def initialize_app_components(
         llm_clients,
         model_profile_provider=model_profile_provider,
         on_model_change=on_model_change,
-        runtime_kind=init_config.runtime_kind,
-        herdr_reporter=herdr_reporter,
     )
 
     if on_model_change is not None:
@@ -269,9 +229,6 @@ async def initialize_app_components(
     idle_reclaim_task = asyncio.create_task(_reclaim_idle_sessions_loop(runtime))
     _drain_background_task_exception(idle_reclaim_task, label="idle-reclaim")
 
-    owner_heartbeat_task = asyncio.create_task(_heartbeat_session_owners_loop(runtime))
-    _drain_background_task_exception(owner_heartbeat_task, label="owner-heartbeat")
-
     display_task = asyncio.create_task(_consume_display_from_subscription(event_bus, event_bus_subscription, display))
     _drain_background_task_exception(display_task, label="display")
 
@@ -286,15 +243,11 @@ async def initialize_app_components(
         config=config,
         runtime=runtime,
         event_bus=event_bus,
-        event_relay_publisher=event_relay_publisher,
-        session_meta_relay_publisher=session_meta_relay_publisher,
-        unregister_session_meta_relay_observer=unregister_session_meta_relay_observer,
         event_bus_subscription=event_bus_subscription,
         display=display,
         display_task=display_task,
         interaction_task=interaction_task,
         idle_reclaim_task=idle_reclaim_task,
-        owner_heartbeat_task=owner_heartbeat_task,
     )
 
 
@@ -303,7 +256,6 @@ async def initialize_session(
     wait_for_display_idle: Callable[[], Awaitable[None]],
     session_id: str | None = None,
     *,
-    holder_key: str | None = None,
     defer_welcome_context: bool = False,
     defer_replay: bool = False,
 ) -> str | None:
@@ -319,12 +271,7 @@ async def initialize_session(
     )
     await wait_for_display_idle()
 
-    active_session_id = runtime.current_session_id() or resolved_session_id
-
-    if holder_key is not None:
-        await runtime.try_acquire_holder(active_session_id, holder_key)
-
-    return active_session_id
+    return runtime.current_session_id() or resolved_session_id
 
 
 def backfill_session_model_config(
@@ -352,19 +299,10 @@ def backfill_session_model_config(
 async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all runtime components."""
     try:
-        if components.unregister_session_meta_relay_observer is not None:
-            log_debug("[app] cleanup: unregister session meta relay observer", debug_type=DebugType.EXECUTION)
-            components.unregister_session_meta_relay_observer()
-
         log_debug("[app] cleanup: cancel idle reclaim task", debug_type=DebugType.EXECUTION)
         components.idle_reclaim_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await components.idle_reclaim_task
-
-        log_debug("[app] cleanup: cancel owner heartbeat task", debug_type=DebugType.EXECUTION)
-        components.owner_heartbeat_task.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await components.owner_heartbeat_task
 
         log_debug("[app] cleanup: runtime.stop start", debug_type=DebugType.EXECUTION)
         await components.runtime.stop()
@@ -383,18 +321,6 @@ async def cleanup_app_components(components: AppComponents) -> None:
             log_debug("[app] cleanup: publish EndEvent start", debug_type=DebugType.EXECUTION)
             await components.event_bus.publish(events.EndEvent())
             log_debug("[app] cleanup: publish EndEvent done", debug_type=DebugType.EXECUTION)
-
-        if components.event_relay_publisher is not None:
-            with contextlib.suppress(Exception):
-                log_debug("[app] cleanup: event relay publisher close start", debug_type=DebugType.EXECUTION)
-                await components.event_relay_publisher.aclose()
-                log_debug("[app] cleanup: event relay publisher close done", debug_type=DebugType.EXECUTION)
-
-        if components.session_meta_relay_publisher is not None:
-            with contextlib.suppress(Exception):
-                log_debug("[app] cleanup: session meta relay publisher close start", debug_type=DebugType.EXECUTION)
-                components.session_meta_relay_publisher.close()
-                log_debug("[app] cleanup: session meta relay publisher close done", debug_type=DebugType.EXECUTION)
 
         if components.interaction_task is not None:
             with contextlib.suppress(Exception):

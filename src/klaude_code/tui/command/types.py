@@ -30,7 +30,6 @@ class CommandName(str, Enum):
     FORK_SESSION = "fork-session"
     COPY = "copy"
     CONTINUE = "continue"
-    WEB = "web"
     RECAP = "recap"
     GRILL_ME = "grill-me"
     BTW = "btw"

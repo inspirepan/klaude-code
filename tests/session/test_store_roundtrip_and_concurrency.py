@@ -24,7 +24,6 @@ from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
-    SessionOwner,
     SessionRuntimeState,
     SubAgentState,
     TodoItem,
@@ -200,8 +199,6 @@ def _seed_meta(store: JsonlSessionStore, session_id: str, work_dir: Path, **over
         messages_count=overrides.get("messages_count", 1),
         model_name=overrides.get("model_name", "seed-model"),
         session_state=overrides.get("session_state"),
-        runtime_owner=None,
-        runtime_owner_heartbeat_at=None,
         archived=overrides.get("archived", False),
         model_config_name=overrides.get("model_config_name", "seed-config"),
         model_thinking=None,
@@ -276,8 +273,6 @@ class TestUpdateMetaMerge:
             messages_count=9,
             model_name=None,
             session_state=None,
-            runtime_owner=None,
-            runtime_owner_heartbeat_at=None,
             archived=False,
             model_config_name=None,
             model_thinking=None,
@@ -411,11 +406,11 @@ class TestConcurrentMetaUpdates:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """append_history's meta write re-reads and preserves runtime keys
-        (session_state, runtime_owner, ...) written via persist_* helpers.
+        (session_state, follow_up_queue) written via persist_* helpers.
 
         This locks in the read-merge-write protection in _write_batch_sync for
-        _RUNTIME_META_KEYS: a runtime_owner set independently is not clobbered
-        by a subsequent history flush that carries no owner.
+        _RUNTIME_META_KEYS: a session_state set independently is not clobbered
+        by a subsequent history flush carrying an older in-memory snapshot.
         """
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
@@ -426,19 +421,15 @@ class TestConcurrentMetaUpdates:
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("seed"))])
             await session.wait_for_flush()
 
-            owner = SessionOwner(runtime_id="rt-1", runtime_kind="web", pid=4321)
-            Session.persist_runtime_owner(session.id, owner, project_dir)
             Session.persist_runtime_state(session.id, SessionRuntimeState.RUNNING, project_dir)
 
-            # A subsequent history flush (which carries no runtime_owner in its
-            # snapshot, since session.runtime_owner is still None) must NOT erase
-            # the owner / state written above.
+            # A subsequent history flush (whose snapshot still carries the stale
+            # in-memory session_state) must NOT erase the state written above.
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("more"))])
             await session.wait_for_flush()
 
             raw = json.loads(Session.paths(project_dir).meta_file(session.id).read_text(encoding="utf-8"))
             assert raw["session_state"] == SessionRuntimeState.RUNNING.value
-            assert raw["runtime_owner"]["pid"] == 4321
             await close_default_store()
 
         arun(_test())

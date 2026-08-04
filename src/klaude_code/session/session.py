@@ -16,7 +16,6 @@ from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
     SessionIdUIExtra,
-    SessionOwner,
     SessionRuntimeState,
     SubAgentState,
     TaskMetadataItem,
@@ -48,8 +47,6 @@ class Session(BaseModel):
     follow_up_queue: list[message.UserInputPayload] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     model_name: str | None = None
     session_state: SessionRuntimeState | None = None
-    runtime_owner: SessionOwner | None = None
-    runtime_owner_heartbeat_at: float | None = None
     archived: bool = False
 
     # Headless/multiplexer metadata (set by `klaude run`).
@@ -169,8 +166,6 @@ class Session(BaseModel):
             title=meta.title,
             model_name=meta.model_name,
             session_state=meta.session_state,
-            runtime_owner=meta.runtime_owner,
-            runtime_owner_heartbeat_at=meta.runtime_owner_heartbeat_at,
             archived=meta.archived,
             model_config_name=meta.model_config_name,
             model_thinking=meta.model_thinking,
@@ -200,22 +195,6 @@ class Session(BaseModel):
         # Runtime state transitions should not affect session recency ordering.
         # Only content writes (append_history) update `updated_at`.
         store.update_meta(session_id, {"session_state": session_state.value})
-
-    @classmethod
-    def persist_runtime_owner(cls, session_id: str, runtime_owner: SessionOwner | None, work_dir: Path) -> None:
-        store = get_store_for_path(work_dir)
-        store.update_meta(
-            session_id,
-            {
-                "runtime_owner": runtime_owner.model_dump(mode="json") if runtime_owner is not None else None,
-                "runtime_owner_heartbeat_at": time.time() if runtime_owner is not None else None,
-            },
-        )
-
-    @classmethod
-    def persist_runtime_owner_heartbeat(cls, session_id: str, timestamp: float, work_dir: Path) -> None:
-        store = get_store_for_path(work_dir)
-        store.update_meta(session_id, {"runtime_owner_heartbeat_at": timestamp})
 
     def append_history(self, items: Sequence[message.HistoryEvent]) -> None:
         if not items:
@@ -259,8 +238,6 @@ class Session(BaseModel):
             messages_count=self.messages_count,
             model_name=self.model_name,
             session_state=self.session_state,
-            runtime_owner=self.runtime_owner,
-            runtime_owner_heartbeat_at=self.runtime_owner_heartbeat_at,
             archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
@@ -308,8 +285,6 @@ class Session(BaseModel):
             messages_count=self.messages_count,
             model_name=self.model_name,
             session_state=self.session_state,
-            runtime_owner=self.runtime_owner,
-            runtime_owner_heartbeat_at=self.runtime_owner_heartbeat_at,
             archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,

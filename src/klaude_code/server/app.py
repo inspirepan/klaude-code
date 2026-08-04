@@ -10,11 +10,6 @@ from fastapi import FastAPI
 
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.event_bus import EnvelopeBus, EventBus
-from klaude_code.control.session_meta_relay import (
-    SessionMetaRelayMessage,
-    SessionMetaRelayServer,
-    session_meta_relay_socket_path,
-)
 from klaude_code.log import DebugType, log_debug
 from klaude_code.server.headless import HeadlessRuntime
 from klaude_code.server.interaction import ServerInteractionHandler
@@ -24,6 +19,7 @@ from klaude_code.server.session_live import SessionLiveState
 from klaude_code.server.session_tape import SessionEventTapes
 from klaude_code.server.state import ServerAppState, get_server_state_from_app
 from klaude_code.session.store import register_session_meta_observer
+from klaude_code.update import get_code_fingerprint
 
 
 def create_app(
@@ -41,10 +37,12 @@ def create_app(
     @asynccontextmanager
     async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         unregister_meta_observer: Callable[[], None] | None = None
-        session_meta_relay_server: SessionMetaRelayServer | None = None
         if state_initializer is not None:
             app.state.server_state = await state_initializer()
         state = get_server_state_from_app(app)
+        if not state.code_fingerprint:
+            state = replace(state, code_fingerprint=get_code_fingerprint())
+            app.state.server_state = state
         if state.session_live is None:
             state = replace(state, session_live=SessionLiveState(home_dir=state.home_dir, runtime=state.runtime))
             app.state.server_state = state
@@ -70,20 +68,12 @@ def create_app(
         headless.start(state.event_bus)
         session_live.attach_loop(asyncio.get_running_loop())
         unregister_meta_observer = register_session_meta_observer(session_live.apply_meta_update)
-        session_meta_relay_server = SessionMetaRelayServer(
-            socket_path=session_meta_relay_socket_path(home_dir=state.home_dir),
-            on_message=lambda message: _apply_session_meta_message(session_live, message),
-        )
-        await session_meta_relay_server.start()
         try:
             yield
         finally:
             log_debug("[server] lifespan shutdown start", debug_type=DebugType.EXECUTION)
             log_debug("[server] lifespan shutdown: closing headless runtime", debug_type=DebugType.EXECUTION)
             await headless.aclose()
-            log_debug("[server] lifespan shutdown: closing session meta relay", debug_type=DebugType.EXECUTION)
-            await session_meta_relay_server.aclose()
-            log_debug("[server] lifespan shutdown: session meta relay closed", debug_type=DebugType.EXECUTION)
             if unregister_meta_observer is not None:
                 log_debug("[server] lifespan shutdown: unregister meta observer", debug_type=DebugType.EXECUTION)
                 unregister_meta_observer()
@@ -112,6 +102,7 @@ def create_app(
             event_stream=event_stream,
             session_live=SessionLiveState(home_dir=resolved_home_dir, runtime=runtime),
             lifecycle=lifecycle,
+            code_fingerprint=get_code_fingerprint(),
         )
 
     app.include_router(server_router)
@@ -140,12 +131,3 @@ def _headless_max_running() -> int:
         return load_config().headless_max_running
     except Exception:
         return 8
-
-
-def _apply_session_meta_message(session_live: SessionLiveState, message: SessionMetaRelayMessage) -> None:
-    if message.kind == "delete":
-        session_live.apply_deleted(message.session_id)
-        return
-    if message.meta is None:
-        return
-    session_live.apply_meta_update(message.session_id, message.meta)

@@ -106,11 +106,19 @@ def status_command() -> None:
     log(f"  socket:   {server_socket_path()}")
     log(f"  uptime:   {_format_uptime(float(body.get('uptime_seconds', 0)))}")
     log(f"  version:  {body.get('version')}")
+    log(f"  code:     {body.get('code_fingerprint') or 'unknown'}")
     log(
         f"  sessions: {sessions.get('loaded', 0)} loaded, "
         f"{sessions.get('running', 0)} running, "
-        f"{sessions.get('waiting_input', 0)} waiting for input"
+        f"{sessions.get('waiting_input', 0)} waiting for input, "
+        f"{sessions.get('queued', 0)} queued"
     )
+
+    from klaude_code.update import get_code_fingerprint
+
+    local_fingerprint = get_code_fingerprint()
+    if body.get("code_fingerprint") != local_fingerprint:
+        log((f"  stale:    client code is {local_fingerprint}; run: klaude server reload --force", "yellow"))
 
 
 @server_app.command("stop")

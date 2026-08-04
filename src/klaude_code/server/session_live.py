@@ -11,7 +11,6 @@ from uuid import uuid4
 
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.protocol.models import SessionRuntimeState
-from klaude_code.server.session_access import is_session_read_only_for_runtime
 from klaude_code.server.session_index import SessionIndex, SessionSummary
 from klaude_code.server.session_state import derive_session_state_from_snapshot
 
@@ -133,7 +132,6 @@ class SessionLiveState:
             "messages_count": summary.messages_count,
             "model_name": summary.model_name,
             "session_state": runtime_state,
-            "read_only": self._is_session_read_only(summary, runtime_state),
             "archived": summary.archived,
             "todos": summary.todos,
             "file_change_summary": summary.file_change_summary,
@@ -177,19 +175,6 @@ class SessionLiveState:
             return fallback or cast(Literal["idle", "running", "waiting_user_input"], SessionRuntimeState.IDLE.value)
         snapshot = actor.snapshot()
         return derive_session_state_from_snapshot(snapshot)
-
-    def _is_session_read_only(
-        self,
-        summary: SessionSummary,
-        session_state: Literal["idle", "running", "waiting_user_input"],
-    ) -> bool:
-        return is_session_read_only_for_runtime(
-            current_runtime_id=self._runtime.runtime_id,
-            current_runtime_has_actor=self._runtime.session_registry.has_session_actor(summary.id),
-            session_state=session_state,
-            runtime_owner=summary.runtime_owner,
-            runtime_owner_heartbeat_at=summary.runtime_owner_heartbeat_at,
-        )
 
 
 def format_sse_message(event: SessionStreamEvent) -> str:

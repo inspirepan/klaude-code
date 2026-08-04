@@ -8,8 +8,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from klaude_code.protocol.models import SessionOwner
-
 type TodoSummary = dict[str, str]
 type FileChangeSummary = dict[str, list[str] | int | dict[str, dict[str, int]]]
 
@@ -42,8 +40,6 @@ class SessionSummary:
     messages_count: int
     model_name: str | None
     session_state: Literal["idle", "running", "waiting_user_input"] | None
-    runtime_owner: SessionOwner | None
-    runtime_owner_heartbeat_at: float | None
     archived: bool
     todos: list[TodoSummary]
     file_change_summary: FileChangeSummary
@@ -98,18 +94,6 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
     session_state: Literal["idle", "running", "waiting_user_input"] | None = None
     if session_state_raw in {"idle", "running", "waiting_user_input"}:
         session_state = cast(Literal["idle", "running", "waiting_user_input"], session_state_raw)
-    runtime_owner_raw = data.get("runtime_owner")
-    if isinstance(runtime_owner_raw, dict):
-        try:
-            runtime_owner = SessionOwner.model_validate(runtime_owner_raw)
-        except Exception:
-            runtime_owner = None
-    else:
-        runtime_owner = None
-    runtime_owner_heartbeat_raw = data.get("runtime_owner_heartbeat_at")
-    runtime_owner_heartbeat_at = (
-        float(runtime_owner_heartbeat_raw) if isinstance(runtime_owner_heartbeat_raw, int | float) else None
-    )
     archived_raw = data.get("archived")
     archived = archived_raw if isinstance(archived_raw, bool) else False
 
@@ -187,8 +171,6 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
         messages_count=messages_count,
         model_name=model_name,
         session_state=session_state,
-        runtime_owner=runtime_owner,
-        runtime_owner_heartbeat_at=runtime_owner_heartbeat_at,
         archived=archived,
         todos=todos,
         file_change_summary=file_change_summary,

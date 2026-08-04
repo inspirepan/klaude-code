@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import fcntl
 import logging
@@ -17,8 +16,6 @@ import uvicorn.server
 
 from klaude_code.app.runtime import AppInitConfig, cleanup_app_components, initialize_app_components
 from klaude_code.const import LOG_BACKUP_COUNT, LOG_MAX_BYTES
-from klaude_code.control.event_relay import event_relay_socket_path
-from klaude_code.control.session_meta_relay import session_meta_relay_socket_path
 from klaude_code.log import DebugType, log_debug
 from klaude_code.server.app import create_app
 from klaude_code.server.display import ServerDisplay
@@ -71,39 +68,6 @@ class _SingletonLock:
             fcntl.flock(self._file.fileno(), fcntl.LOCK_UN)
         self._file.close()
         self._file = None
-
-
-async def _is_unix_socket_live(socket_path: Path) -> bool:
-    if not socket_path.exists():
-        return False
-    try:
-        reader, writer = await asyncio.open_unix_connection(str(socket_path))
-    except OSError:
-        return False
-    writer.close()
-    with contextlib.suppress(OSError):
-        await writer.wait_closed()
-    del reader
-    return True
-
-
-async def _ensure_relay_sockets_free(*, home_dir: Path) -> None:
-    """Secondary guard behind the flock: relay sockets held by a foreign
-    process (e.g. an older klaude version without the lock) mean another
-    server is alive."""
-
-    socket_conflicts: list[str] = []
-
-    event_socket = event_relay_socket_path(home_dir=home_dir)
-    if await _is_unix_socket_live(event_socket):
-        socket_conflicts.append(f"event relay socket already in use: {event_socket}")
-
-    session_meta_socket = session_meta_relay_socket_path(home_dir=home_dir)
-    if await _is_unix_socket_live(session_meta_socket):
-        socket_conflicts.append(f"session meta relay socket already in use: {session_meta_socket}")
-
-    if socket_conflicts:
-        raise ServerAlreadyRunningError("klaude server is already running:\n" + "\n".join(socket_conflicts))
 
 
 def _attach_server_file_logging(*, debug: bool) -> Path:
@@ -160,29 +124,17 @@ async def start_server(*, debug: bool = False) -> bool:
     lock = _SingletonLock(server_lock_path(home_dir))
     lock.acquire()
     try:
-        await _ensure_relay_sockets_free(home_dir=home_dir)
-
         socket_path = server_socket_path(home_dir)
         # The flock guarantees no live owner; drop any stale socket file.
         socket_path.unlink(missing_ok=True)
 
         interaction_handler = ServerInteractionHandler()
         components = await initialize_app_components(
-            init_config=AppInitConfig(
-                model=None,
-                debug=debug,
-                vanilla=False,
-                runtime_kind="web",
-                enable_event_relay_client=False,
-            ),
+            init_config=AppInitConfig(model=None, debug=debug, vanilla=False),
             display=ServerDisplay(),
             interaction_handler=None,
         )
-        live_events = await start_server_live_events(components.event_bus, home_dir=home_dir)
-        if live_events.relay_error is not None:
-            logging.getLogger("uvicorn.error").warning(
-                "Cross-process live events unavailable: %s", live_events.relay_error
-            )
+        live_events = start_server_live_events(components.event_bus)
 
         lifecycle = ServerLifecycle(socket_path=socket_path)
         app = create_app(

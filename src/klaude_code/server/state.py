@@ -26,6 +26,8 @@ class ServerAppState:
     lifecycle: ServerLifecycle | None = None
     headless: HeadlessRuntime | None = None
     tapes: SessionEventTapes | None = None
+    # Frozen at startup; clients compare it against their own fingerprint.
+    code_fingerprint: str = ""
 
     def subscribe_events(self, session_id: str | None) -> EventSubscription:
         source = self.event_stream or self.event_bus

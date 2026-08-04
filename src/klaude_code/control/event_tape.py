@@ -4,7 +4,7 @@ The interactive TUI re-renders its transcript (Ctrl+O detail toggle, /refresh)
 by replaying this tape through the display state machine. The tape holds
 exactly what the display consumed, in order, so a rebuild reproduces the
 screen — including the in-flight turn that persisted history does not cover
-yet. The tape is display-agnostic on purpose: the web server can host its own
+yet. The tape is display-agnostic on purpose: the server can host its own
 instance fed from the relay bus to backfill mid-run attaches.
 
 The tape inherits the display's delivery guarantees: if the event bus drops a

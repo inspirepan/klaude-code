@@ -13,12 +13,22 @@ from klaude_code.agent.runtime import llm as agent_runtime
 from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.event_bus import EventBus
-from klaude_code.protocol import message, op
+from klaude_code.protocol import message, op, user_interaction
 from klaude_code.session.session import Session
 from klaude_code.session.store import JsonlSessionWriter
 from klaude_code.session.store_registry import close_default_store
 
-from .conftest import AppEnv, FakeLLMClient, arun, collect_events_until, consume_ws_handshake, receive_events, usage
+from .conftest import (
+    AppEnv,
+    FakeLLMClient,
+    arun,
+    collect_events_until,
+    consume_ws_handshake,
+    op_frame,
+    receive_events,
+    send_user_message,
+    usage,
+)
 
 
 def _meta_path_for_session(app_env: AppEnv, session_id: str) -> Path:
@@ -76,7 +86,7 @@ def test_session_state_becomes_idle_after_task_finish(app_env: AppEnv, slow_sess
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
-        websocket.send_json({"type": "message", "text": "hello"})
+        send_user_message(websocket, session_id, "hello")
         _ = collect_events_until(websocket, "task.finish")
 
     _wait_until_idle(meta_path)
@@ -107,7 +117,7 @@ def test_init_agent_creates_idle_meta_before_first_async_flush(
     )
 
     async def _run() -> None:
-        runtime = RuntimeFacade(EventBus(), LLMClients(main=fake_llm, main_model_alias="fake"), runtime_kind="tui")
+        runtime = RuntimeFacade(EventBus(), LLMClients(main=fake_llm, main_model_alias="fake"))
         session_id = "runtime-init-session"
         try:
             await runtime.submit_and_wait(op.InitAgentOperation(session_id=session_id, work_dir=work_dir))
@@ -147,9 +157,9 @@ def test_session_state_becomes_idle_after_interrupt(app_env: AppEnv, slow_sessio
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
-        websocket.send_json({"type": "message", "text": "run then interrupt"})
+        send_user_message(websocket, session_id, "run then interrupt")
         _ = collect_events_until(websocket, "task.start")
-        websocket.send_json({"type": "interrupt"})
+        websocket.send_json(op_frame(op.InterruptOperation(session_id=session_id)))
         _ = collect_events_until(websocket, "task.finish")
 
     _wait_until_idle(meta_path)
@@ -195,7 +205,7 @@ def test_session_state_stays_waiting_during_user_interaction(app_env: AppEnv, sl
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
-        websocket.send_json({"type": "message", "text": "ask me"})
+        send_user_message(websocket, session_id, "ask me")
 
         request_event = None
         for _ in range(200):
@@ -210,11 +220,13 @@ def test_session_state_stays_waiting_during_user_interaction(app_env: AppEnv, sl
 
         request_id = request_event["event"]["request_id"]
         websocket.send_json(
-            {
-                "type": "respond",
-                "request_id": request_id,
-                "status": "cancelled",
-            }
+            op_frame(
+                op.UserInteractionRespondOperation(
+                    session_id=session_id,
+                    request_id=request_id,
+                    response=user_interaction.UserInteractionResponse(status="cancelled", payload=None),
+                )
+            )
         )
         _ = collect_events_until(websocket, "task.finish")
 

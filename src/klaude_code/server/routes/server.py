@@ -6,7 +6,6 @@ from typing import Any, Final
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.session_state import derive_session_state_from_snapshot
 from klaude_code.server.state import ServerAppState, get_server_state
@@ -26,33 +25,40 @@ def _require_lifecycle(state: ServerAppState) -> ServerLifecycle:
     return state.lifecycle
 
 
-def list_active_sessions(runtime: RuntimeFacade) -> list[dict[str, str]]:
-    """Sessions with live work: running tasks or pending interaction requests."""
+def list_active_sessions(state: ServerAppState) -> list[dict[str, str]]:
+    """Sessions with live work: running tasks, pending interactions, or queued runs."""
 
     active: list[dict[str, str]] = []
-    for actor in runtime.session_registry.list_session_actors():
-        state = derive_session_state_from_snapshot(actor.snapshot())
-        if state == "waiting_user_input":
+    for actor in state.runtime.session_registry.list_session_actors():
+        actor_state = derive_session_state_from_snapshot(actor.snapshot())
+        if actor_state == "waiting_user_input":
             active.append({"session_id": actor.session_id, "state": "waiting_input"})
-        elif state == "running":
+        elif actor_state == "running":
             active.append({"session_id": actor.session_id, "state": "running"})
+    if state.headless is not None:
+        seen = {item["session_id"] for item in active}
+        for session_id in state.headless.queued_session_ids():
+            if session_id not in seen:
+                active.append({"session_id": session_id, "state": "queued"})
     return active
 
 
 @router.get("/status")
 async def server_status(state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, Any]:
     lifecycle = _require_lifecycle(state)
-    active_sessions = list_active_sessions(state.runtime)
+    active_sessions = list_active_sessions(state)
     return {
         "ok": True,
         "pid": os.getpid(),
         "version": get_display_version(),
+        "code_fingerprint": state.code_fingerprint,
         "socket_path": str(lifecycle.socket_path),
         "uptime_seconds": lifecycle.uptime_seconds,
         "sessions": {
             "loaded": len(state.runtime.session_registry.list_session_actors()),
             "running": sum(1 for item in active_sessions if item["state"] == "running"),
             "waiting_input": sum(1 for item in active_sessions if item["state"] == "waiting_input"),
+            "queued": sum(1 for item in active_sessions if item["state"] == "queued"),
         },
     }
 
@@ -69,7 +75,7 @@ async def server_stop(state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, An
 @router.post("/reload")
 async def server_reload(request: ReloadRequest, state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, Any]:
     lifecycle = _require_lifecycle(state)
-    active_sessions = list_active_sessions(state.runtime)
+    active_sessions = list_active_sessions(state)
     if active_sessions and not request.force:
         raise HTTPException(
             status_code=409,

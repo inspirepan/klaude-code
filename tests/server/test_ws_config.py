@@ -5,8 +5,9 @@ from typing import Any, cast
 import pytest
 
 from klaude_code.config import load_config
+from klaude_code.protocol import op
 
-from .conftest import AppEnv, consume_ws_handshake, wait_for_event
+from .conftest import AppEnv, consume_ws_handshake, op_frame, wait_for_event
 
 
 def test_change_model_via_ws(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,7 +38,9 @@ def test_change_model_via_ws(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
-        websocket.send_json({"type": "model", "model_name": model_name, "save_as_default": False})
+        websocket.send_json(
+            op_frame(op.ChangeModelOperation(session_id=session_id, model_name=model_name, save_as_default=False))
+        )
         event = wait_for_event(websocket, "model.changed")
 
     assert event["event_type"] == "model.changed"

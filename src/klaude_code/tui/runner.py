@@ -523,9 +523,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
 
     async def _submit_interrupt() -> None:
         with contextlib.suppress(Exception):
-            await client.submit(
-                op.InterruptOperation(session_id=client.session_id, retract_unanswered_input=True)
-            )
+            await client.submit(op.InterruptOperation(session_id=client.session_id, retract_unanswered_input=True))
 
     def _request_interrupt_once() -> None:
         with contextlib.suppress(Exception):
@@ -609,8 +607,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 await asyncio.wait_for(client.wait_for_replay_complete(), timeout=15.0)
             except TimeoutError:
                 await _emit_local_notice(
-                    "Attach replay did not complete — the server may be running older code. "
-                    "Try: klaude server reload"
+                    "Attach replay did not complete — the server may be running older code. Try: klaude server reload"
                 )
             await client.wait_for_display_idle()
             try:
@@ -660,10 +657,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
     async def _handle_command_result(result: CommandResult) -> None:
         for evt in result.events or []:
             await client.emit_local_event(evt)
-        if result.web_mode_request is not None:
-            await _emit_local_notice("The web UI has been removed. Manage the local server with `klaude server`.")
-            return
-
         for operation in result.operations or []:
             if isinstance(operation, op.ClearSessionOperation):
                 # /new: fresh server session in the same directory, same model.
