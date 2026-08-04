@@ -321,6 +321,40 @@ class HeadlessRuntime:
                 )
                 await self._runtime.wait_for(run.id)
 
+    async def _run_one_follow_up(self, agent: Any) -> bool:
+        """Run and acknowledge one durable follow-up after its history flush."""
+        session_id = agent.session.id
+        queued: QueuedUserInput | None = agent.peek_next_follow_up_record()
+        if queued is None:
+            return False
+        if self._should_compact_before_run(agent):
+            compact = op.CompactSessionOperation(session_id=session_id, reason="threshold", will_retry=False)
+            await self._runtime.submit(compact)
+            await self._runtime.wait_for(compact.id)
+            actor = self._runtime.session_registry.get_session_actor(session_id)
+            agent = actor.get_agent() if actor is not None else None
+            if agent is None or self.tracker.is_interrupted(session_id):
+                return False
+            queued = agent.peek_next_follow_up_record()
+            if queued is None:
+                return False
+        # Two-phase pop: the in-memory head goes away now so queue snapshots
+        # (the UI event below, session_info) stop showing a message whose turn
+        # is already on screen — _start_turn blocks until the whole turn
+        # finishes, which kept the entry visibly "pending" for the entire
+        # drained turn. The durable copy stays until the post-turn ack.
+        if not agent.begin_follow_up(queued.id):
+            return False
+        await self._runtime.emit_event(
+            events.FollowUpQueueUpdatedEvent(
+                session_id=session_id,
+                texts=[item.text for item in agent.follow_up_snapshot()],
+            )
+        )
+        await self._start_turn(session_id, queued.input, turn_id=queued.id)
+        next_enqueued_at = time.time() if agent.session.spawn_kind == "headless" else None
+        return agent.acknowledge_follow_up(queued.id, next_enqueued_at=next_enqueued_at)
+
     @staticmethod
     def _should_compact_before_run(agent: Any) -> bool:
         from klaude_code.agent.compaction import should_compact_threshold

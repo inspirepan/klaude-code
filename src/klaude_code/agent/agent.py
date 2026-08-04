@@ -38,7 +38,11 @@ class Agent:
         self.profile: AgentProfile = profile
         self.compact_llm_client: LLMClientABC | None = compact_llm_client
         self._current_task: TaskExecutor | None = None
-        self._follow_up_queue: list[UserInputPayload] = list(session.follow_up_queue)
+        self._follow_up_queue: list[QueuedUserInput] = list(session.follow_up_queue)
+        # Head popped by begin_follow_up but not yet confirmed durable by
+        # acknowledge_follow_up; kept out of snapshots, kept in the persisted
+        # queue (a crash in between re-runs it, deduped by turn id).
+        self._in_flight_follow_up: QueuedUserInput | None = None
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text: str | None = None
         self.request_user_interaction = request_user_interaction
@@ -78,9 +82,15 @@ class Agent:
     def follow_up(self, user_input: UserInputPayload) -> int:
         """Queue a user message to run after the active task completes."""
 
-        self._follow_up_queue.append(user_input)
-        self.session.set_follow_up_queue(self._follow_up_queue)
+        self._follow_up_queue.append(QueuedUserInput(input=user_input))
+        self.session.set_follow_up_queue(self._durable_follow_up_queue())
         return len(self._follow_up_queue)
+
+    def _durable_follow_up_queue(self) -> list[QueuedUserInput]:
+        """The queue as persisted: includes the in-flight head until acked."""
+        if self._in_flight_follow_up is not None:
+            return [self._in_flight_follow_up, *self._follow_up_queue]
+        return list(self._follow_up_queue)
 
     def follow_up_count(self) -> int:
         return len(self._follow_up_queue)
@@ -91,7 +101,7 @@ class Agent:
     def pop_all_follow_up(self) -> tuple[UserInputPayload, ...]:
         messages = tuple(self._follow_up_queue)
         self._follow_up_queue.clear()
-        self.session.set_follow_up_queue(self._follow_up_queue)
+        self.session.set_follow_up_queue(self._durable_follow_up_queue())
         return messages
 
     def peek_next_follow_up(self) -> UserInputPayload | None:
@@ -102,9 +112,35 @@ class Agent:
     def pop_next_follow_up(self) -> UserInputPayload | None:
         if not self._follow_up_queue:
             return None
-        message = self._follow_up_queue.pop(0)
-        self.session.set_follow_up_queue(self._follow_up_queue)
-        return message
+        queued = self._follow_up_queue.pop(0)
+        self.session.set_follow_up_queue(self._durable_follow_up_queue())
+        return queued.input
+
+    def begin_follow_up(self, item_id: str) -> bool:
+        """Two-phase pop, phase 1: drop the head from the in-memory queue.
+
+        Snapshots (queue UI events, session_info) stop showing the message the
+        moment its turn is submitted. The durable copy in session meta keeps
+        it until acknowledge_follow_up confirms the turn reached history — a
+        crash in between re-runs it on restore, deduped by turn id.
+        """
+        if not self._follow_up_queue or self._follow_up_queue[0].id != item_id:
+            return False
+        self._in_flight_follow_up = self._follow_up_queue.pop(0)
+        return True
+
+    def acknowledge_follow_up(self, item_id: str, *, next_enqueued_at: float | None = None) -> bool:
+        if self._in_flight_follow_up is not None and self._in_flight_follow_up.id == item_id:
+            self._in_flight_follow_up = None
+        elif self._follow_up_queue and self._follow_up_queue[0].id == item_id:
+            # Legacy single-phase path: begin_follow_up was not called.
+            self._follow_up_queue.pop(0)
+        else:
+            return False
+        if self._follow_up_queue and next_enqueued_at is not None:
+            self._follow_up_queue[0].enqueued_at = next_enqueued_at
+        self.session.set_follow_up_queue(self._durable_follow_up_queue())
+        return True
 
     def on_interrupt(self) -> Iterable[events.Event]:
         """Handle an interrupt by emitting best-effort cleanup events.
