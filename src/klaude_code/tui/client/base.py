@@ -104,6 +104,10 @@ class RuntimeClient(Protocol):
         """Set whenever running state or the follow-up queue changes."""
         ...
 
+    def connection_lost_event(self) -> asyncio.Event:
+        """Set when the server connection drops for good (not on reattach)."""
+        ...
+
     # -- interactions --
 
     def interaction_requests(self) -> asyncio.Queue[events.UserInteractionRequestEvent]: ...

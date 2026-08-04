@@ -596,6 +596,17 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 input_provider.set_pending_messages(client.follow_up_texts())
                 input_provider.set_agent_running(False)
 
+    # -- connection watcher: auto-detach when the server goes away --
+
+    async def _watch_connection() -> None:
+        await client.connection_lost_event().wait()
+        # The recv loop already queued the "Connection lost … reattach with"
+        # error; let it paint, then end the input loop — a dead connection
+        # has nothing left to attach to.
+        with contextlib.suppress(Exception):
+            await client.wait_for_display_idle()
+        input_provider.request_exit()
+
     # -- interaction consumer --
 
     async def _consume_interactions() -> None:
@@ -764,6 +775,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
     watcher_task: asyncio.Task[None] | None = None
     interaction_task: asyncio.Task[None] | None = None
     startup_task: asyncio.Task[None] | None = None
+    connection_task: asyncio.Task[None] | None = None
     exited_via_ctrl_c = False
 
     try:
@@ -774,6 +786,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         watcher_task = asyncio.create_task(_watch_state())
         interaction_task = asyncio.create_task(_consume_interactions())
         startup_task = asyncio.create_task(_startup_replay())
+        connection_task = asyncio.create_task(_watch_connection())
 
         # Seed prompt state for mid-turn attaches.
         client.state_changed_event().set()
@@ -782,6 +795,8 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         inputs_iter = cast("AsyncGenerator[UserInputPayload]", input_provider.iter_inputs())
         async with contextlib.aclosing(inputs_iter) as inputs:
             async for user_input in inputs:
+                if client.connection_lost_event().is_set():
+                    break
                 if _is_exit_input(user_input.text):
                     break
                 if user_input.text.strip() == "":
@@ -830,7 +845,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         exited_via_ctrl_c = True
     finally:
         tui_display.set_progress_ui_suspended(False)
-        for task in (watcher_task, interaction_task, startup_task):
+        for task in (watcher_task, interaction_task, startup_task, connection_task):
             if task is not None and not task.done():
                 task.cancel()
                 with contextlib.suppress(Exception, asyncio.CancelledError):

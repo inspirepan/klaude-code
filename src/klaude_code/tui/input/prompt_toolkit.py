@@ -253,6 +253,7 @@ class PromptToolkitInput(InputProviderABC):
         self._queued_edit_active = False
         self._agent_running = False
         self._prompt_active = False
+        self._exit_requested = False
         self._prompt_pause_waiter: asyncio.Future[None] | None = None
         self._external_input_pause_count = 0
         self._external_input_resume_event = asyncio.Event()
@@ -305,6 +306,18 @@ class PromptToolkitInput(InputProviderABC):
             watcher.notify_user_activity()
         if self._on_user_activity is not None:
             self._on_user_activity()
+
+    def request_exit(self) -> None:
+        """End the input loop from outside (e.g. the server connection died).
+
+        The active prompt is aborted like a pause; ``_iter_inputs_inner``
+        sees the flag and returns, which ends the runner's input loop and
+        triggers the normal detach path.
+        """
+        self._exit_requested = True
+        if self._prompt_active:
+            with contextlib.suppress(Exception):
+                self._session.app.exit(exception=_PromptPaused())
 
     def set_next_prefill(self, text: str | None) -> None:
         self._next_prefill_text = text
@@ -1101,6 +1114,8 @@ class PromptToolkitInput(InputProviderABC):
     async def _iter_inputs_inner(self) -> AsyncIterator[UserInputPayload]:
         while True:
             await self._external_input_resume_event.wait()
+            if self._exit_requested:
+                return
             if self._pre_prompt is not None:
                 with contextlib.suppress(Exception):
                     self._pre_prompt()
@@ -1143,6 +1158,8 @@ class PromptToolkitInput(InputProviderABC):
                 if self._on_prompt_end is not None:
                     with contextlib.suppress(Exception):
                         self._on_prompt_end()
+            if self._exit_requested:
+                return
             if prompt_paused:
                 continue
             if self._post_prompt is not None:

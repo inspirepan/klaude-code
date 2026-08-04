@@ -79,6 +79,7 @@ class SocketRuntimeClient:
         self._running = False
         self._state_changed = asyncio.Event()
         self._replay_complete = asyncio.Event()
+        self._connection_lost = asyncio.Event()
         self._interrupt_prefill: str | None = None
         self._interaction_queue: asyncio.Queue[events.UserInteractionRequestEvent] = asyncio.Queue()
         self._dequeue_future: asyncio.Future[tuple[str, ...]] | None = None
@@ -114,6 +115,8 @@ class SocketRuntimeClient:
         )
         self._replay_complete = asyncio.Event()
         self._welcome_context_pending = self._welcome_context_provider is not None
+        self._closed = False
+        self._connection_lost.clear()
         self._recv_task = asyncio.create_task(self._recv_loop())
 
     async def close(self) -> None:
@@ -138,6 +141,9 @@ class SocketRuntimeClient:
         self._op_futures.clear()
 
     async def reattach(self, session_id: str) -> None:
+        # A deliberate reconnect: keep the recv loop's cancellation from
+        # taking the connection-lost path (spurious error + auto-detach).
+        self._closed = True
         if self._recv_task is not None and not self._recv_task.done():
             self._recv_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -278,6 +284,9 @@ class SocketRuntimeClient:
     def state_changed_event(self) -> asyncio.Event:
         return self._state_changed
 
+    def connection_lost_event(self) -> asyncio.Event:
+        return self._connection_lost
+
     def interaction_requests(self) -> asyncio.Queue[events.UserInteractionRequestEvent]:
         return self._interaction_queue
 
@@ -308,6 +317,7 @@ class SocketRuntimeClient:
                 # Server went away: surface it and unblock waiters.
                 self._running = False
                 self._replay_complete.set()
+                self._connection_lost.set()
                 self._notify_state_changed()
                 for future in self._op_futures.values():
                     if not future.done():

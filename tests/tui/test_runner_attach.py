@@ -41,6 +41,7 @@ class FakeRuntimeClient:
         self._running = False
         self._follow_ups: list[str] = []
         self._state_changed = asyncio.Event()
+        self._connection_lost = asyncio.Event()
         self._interaction_queue: asyncio.Queue[events.UserInteractionRequestEvent] = asyncio.Queue()
         self._interrupt_prefill: str | None = None
         self._blocked_ops: dict[str, asyncio.Event] = {}
@@ -133,6 +134,9 @@ class FakeRuntimeClient:
     def state_changed_event(self) -> asyncio.Event:
         return self._state_changed
 
+    def connection_lost_event(self) -> asyncio.Event:
+        return self._connection_lost
+
     def interaction_requests(self) -> asyncio.Queue[events.UserInteractionRequestEvent]:
         return self._interaction_queue
 
@@ -152,6 +156,7 @@ class FakeInputProvider:
         self.prefills: list[str | None] = []
         self.interrupt_handler: Callable[[], None] | None = None
         self.startup_loading: list[bool] = []
+        self.exit_requests = 0
         self._script: AsyncGenerator[UserInputPayload] | None = None
         FakeInputProvider.instance = self
 
@@ -182,6 +187,12 @@ class FakeInputProvider:
 
     def set_startup_loading(self, loading: bool) -> None:
         self.startup_loading.append(loading)
+
+    def set_startup_loading_title(self, title: str | None) -> None:
+        del title
+
+    def request_exit(self) -> None:
+        self.exit_requests += 1
 
     def set_prompt_suggestion(self, text: str | None) -> None:
         del text
@@ -577,3 +588,24 @@ def test_esc_then_type_waits_for_wind_down_then_runs(monkeypatch: pytest.MonkeyP
     assert run_ops[0].input.text == "corrected instruction"
     # The corrected input started a fresh turn instead of being queued.
     assert client.ops_of(op.FollowUpAgentOperation) == []
+
+
+def test_connection_lost_exits_input_loop(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        yield UserInputPayload(text="hello before loss")
+        await _settle()
+        client.connection_lost_event().set()
+        await _settle()
+        # A dead connection: this input must be dropped, not submitted.
+        yield UserInputPayload(text="typed after loss")
+        await _settle()
+
+    client = run_scenario(monkeypatch, script)
+
+    submitted_texts = [item.input.text for item in client.ops_of(op.RunAgentOperation)]
+    assert submitted_texts == ["hello before loss"]
+    provider = FakeInputProvider.instance
+    assert provider is not None
+    # The connection watcher asked the prompt layer to end the input loop.
+    assert provider.exit_requests >= 1
+    assert client.closed is True
