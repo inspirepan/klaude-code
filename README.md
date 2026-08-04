@@ -8,7 +8,7 @@ Every klaude command is a thin client of a single local server (Unix socket, aut
 
 ```bash
 id=$(klaude run --group me "fix the failing tests under tests/server/")
-klaude ps                                  # ID / NAME / STATE / MODEL / ACTIVITY
+klaude ps                                  # ID / NAME / TITLE / STATE / MODEL / ACTIVITY
 klaude brief "$id"                         # compact, bounded status report
 klaude wait "$id" --timeout 600            # block until it settles (exit 0/2/3/124)
 klaude output "$id"                        # last assistant message

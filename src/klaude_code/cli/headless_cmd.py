@@ -155,6 +155,207 @@ def _fetch_output(target: str, *, turns: int | None = None, transcript: bool = F
     return _api("GET", f"/api/headless/sessions/{target}/output", params=params)
 
 
+_PS_COLUMNS = ("ID", "NAME", "TITLE", "STATE", "MODEL", "DIR", "ACTIVITY")
+
+
+def _ps_table_rows(rows: list[dict[str, Any]]) -> list[tuple[str, ...]]:
+    table_rows: list[tuple[str, ...]] = []
+    for row in rows:
+        state = str(row.get("state", ""))
+        activity = row.get("activity")
+        if not activity:
+            updated_at = float(row.get("updated_at") or 0.0)
+            prefix = "failed" if state == "failed" else "done"
+            activity = f"{prefix} {_format_relative(updated_at)}" if updated_at else "-"
+        table_rows.append(
+            (
+                _short_id(str(row.get("id", ""))),
+                str(row.get("name") or "-"),
+                _shorten(str(row.get("title") or "-"), 32),
+                state,
+                _shorten(str(row.get("model") or "-"), 20),
+                _shorten(_abbrev_home(str(row.get("work_dir") or "-")), 28),
+                _shorten(str(activity), 60),
+            )
+        )
+    return table_rows
+
+
+def _print_ps_table(rows: list[dict[str, Any]]) -> None:
+    table = [_PS_COLUMNS, *_ps_table_rows(rows)]
+    body_columns = len(_PS_COLUMNS) - 1
+    widths = [max(len(line[column]) for line in table) for column in range(body_columns)]
+    for line in table:
+        cells = [line[column].ljust(widths[column]) for column in range(body_columns)]
+        typer.echo("  ".join([*cells, line[body_columns]]).rstrip())
+
+
+def _build_ps_rich_table(rows: list[dict[str, Any]]) -> Any:
+    from rich import box
+    from rich.table import Table
+
+    table = Table(box=box.SIMPLE, expand=True)
+    for column in _PS_COLUMNS:
+        table.add_column(column, no_wrap=column != "ACTIVITY")
+    for row in _ps_table_rows(rows):
+        table.add_row(*row)
+    if not rows:
+        table.add_row(*["-"] * (len(_PS_COLUMNS) - 1), "no sessions")
+    return table
+
+
+def _watch_ps_rows(
+    fetch: Callable[[], list[dict[str, Any]]],
+    update: Callable[[list[dict[str, Any]]], None],
+    *,
+    interval: float = PS_WATCH_INTERVAL_SECONDS,
+    max_refreshes: int | None = None,
+    sleep: Callable[[float], None] = time.sleep,
+) -> None:
+    """Refresh rows until interrupted; max_refreshes makes tests finite."""
+    refreshes = 0
+    while max_refreshes is None or refreshes < max_refreshes:
+        update(fetch())
+        refreshes += 1
+        if max_refreshes is not None and refreshes >= max_refreshes:
+            return
+        sleep(interval)
+
+
+def _run_ps_watch(fetch: Callable[[], list[dict[str, Any]]]) -> None:
+    from rich.console import Console
+    from rich.live import Live
+
+    console = Console()
+    with Live(_build_ps_rich_table([]), console=console, refresh_per_second=4) as live:
+        _watch_ps_rows(fetch, lambda rows: live.update(_build_ps_rich_table(rows), refresh=True))
+
+
+def _write_follow_text(text: str) -> None:
+    sys.stdout.write(text)
+    sys.stdout.flush()
+
+
+async def _follow_output_stream(
+    session_id: str,
+    *,
+    initial_output: str,
+) -> int:
+    """Consume the server replay/live splice and print this turn's text once."""
+    import asyncio
+    import contextlib
+
+    from websockets.asyncio.client import unix_connect
+
+    from klaude_code.protocol import events
+    from klaude_code.server.paths import server_socket_path
+
+    uri = f"ws://klaude/api/sessions/{session_id}/ws?replay=1&peek=1"
+    streamed_parts: list[str] = []
+    seen_sequences: set[int] = set()
+    terminal_state: str | None = None
+    disconnected = False
+    websocket: Any = None
+
+    try:
+        websocket = await unix_connect(
+            path=str(server_socket_path()),
+            uri=uri,
+            max_size=64 * 1024 * 1024,
+            ping_interval=None,
+        )
+    except Exception as exc:
+        typer.echo(f"error: cannot connect to klaude server WebSocket ({exc})", err=True)
+        return EXIT_FAILED
+
+    try:
+        while terminal_state is None:
+            try:
+                raw = await asyncio.wait_for(websocket.recv(), timeout=FOLLOW_STATE_POLL_INTERVAL_SECONDS)
+            except TimeoutError:
+                raw = None
+            except Exception:
+                disconnected = True
+                break
+
+            if raw is not None:
+                try:
+                    frame = json.loads(raw)
+                except (TypeError, json.JSONDecodeError):
+                    frame = None
+                items = frame if isinstance(frame, list) else [frame]
+                for item in items:
+                    if not isinstance(item, dict) or item.get("session_id") not in (None, session_id):
+                        continue
+                    # Handshake and replay control frames are not event
+                    # envelopes. They do not carry output.
+                    if isinstance(item.get("type"), str):
+                        continue
+                    try:
+                        envelope = events.parse_event_envelope(item)
+                    except ValueError:
+                        continue
+                    sequence = envelope.event_seq
+                    if sequence > 0 and sequence in seen_sequences:
+                        continue
+                    if sequence > 0:
+                        seen_sequences.add(sequence)
+                    event = envelope.event
+                    if isinstance(event, events.AssistantTextDeltaEvent):
+                        content = event.content
+                        streamed_parts.append(content)
+                        _write_follow_text(content)
+                    elif isinstance(event, events.ErrorEvent):
+                        terminal_state = "failed"
+                        typer.echo(
+                            f"error: {event.compact_message or event.error_message or 'agent failed'}",
+                            err=True,
+                        )
+                    elif isinstance(event, events.UserInteractionRequestEvent):
+                        terminal_state = "waiting_input"
+
+            if terminal_state is not None:
+                break
+            rows = await asyncio.to_thread(_fetch_rows, [session_id], None)
+            if not rows:
+                typer.echo("error: session disappeared while following output", err=True)
+                return EXIT_USAGE
+            row = rows[0]
+            state = str(row.get("state") or "idle")
+            if state in ("waiting_input", "failed") or (
+                state not in ("queued", "running") and not bool(row.get("pending"))
+            ):
+                terminal_state = state
+    finally:
+        if websocket is not None:
+            with contextlib.suppress(Exception):
+                await websocket.close()
+
+    result = await asyncio.to_thread(_fetch_output, session_id)
+    final_output = str(result.get("output") or "")
+    streamed = "".join(streamed_parts)
+    if final_output != initial_output and final_output.startswith(streamed):
+        _write_follow_text(final_output[len(streamed) :])
+        streamed = final_output
+    if streamed and not streamed.endswith("\n"):
+        _write_follow_text("\n")
+
+    pending = result.get("pending_request")
+    if isinstance(pending, dict):
+        for line in _pending_request_lines(pending, target=_short_id(session_id)):
+            typer.echo(line)
+
+    final_state = str(result.get("state") or "idle")
+    if (
+        disconnected
+        and terminal_state is None
+        and (final_state in ("queued", "running") or bool(result.get("pending")))
+    ):
+        typer.echo("error: connection to klaude server lost while session was active", err=True)
+        return EXIT_FAILED
+    return _exit_code_for_states([terminal_state or final_state])
+
+
 def _print_output_block(result: dict[str, Any], *, with_header: bool) -> None:
     if with_header:
         name = result.get("name") or "-"

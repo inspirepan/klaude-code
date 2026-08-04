@@ -207,7 +207,7 @@ calling agent: check exactly the agents it spawned, nothing else.
 
   klaude ps a3f2c1,9b01d4,fix-tests --json
 
-  ID       NAME       STATE          MODEL   DIR          ACTIVITY
+  ID       NAME       TITLE          STATE          MODEL   DIR          ACTIVITY
   a3f2c1   fix-tests  running        sonnet  ~/code/proj  Bash: uv run pytest ...
   9b01d4   -          waiting_input  fable   ~/code/x     approval: Edit main.py
   77e0aa   -          idle           opus    ~/code/y     done 12m ago
