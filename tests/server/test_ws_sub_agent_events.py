@@ -23,7 +23,6 @@ from klaude_code.control.event_bus import EventBus
 from klaude_code.protocol import events, message
 from klaude_code.server.app import create_app
 from klaude_code.server.interaction import ServerInteractionHandler
-from klaude_code.server.live_events import ServerLiveEvents, start_server_live_events
 from klaude_code.server.routes.ws import _collect_descendant_session_ids  # pyright: ignore[reportPrivateUsage]
 from klaude_code.server.state import ServerAppState
 from klaude_code.session.codec import encode_jsonl_line
@@ -231,9 +230,7 @@ def test_websocket_forwards_child_session_events_without_snapshot(
     async def _state_initializer() -> ServerAppState:
         event_bus = EventBus()
         runtime = RuntimeFacade(event_bus, LLMClients(main=fake_llm, main_model_alias="fake"))
-        live_events = start_server_live_events(event_bus)
         holder["runtime"] = runtime
-        holder["live_events"] = live_events
         holder["event_bus"] = event_bus
         holder["loop"] = asyncio.get_running_loop()
         return ServerAppState(
@@ -242,13 +239,9 @@ def test_websocket_forwards_child_session_events_without_snapshot(
             interaction_handler=ServerInteractionHandler(),
             work_dir=work_dir,
             home_dir=home_dir,
-            event_stream=live_events.stream,
         )
 
     async def _state_shutdown(state: ServerAppState) -> None:
-        live_events = holder.get("live_events")
-        assert isinstance(live_events, ServerLiveEvents)
-        await live_events.aclose()
         await state.runtime.stop()
         await close_default_store()
 

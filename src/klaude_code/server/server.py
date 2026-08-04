@@ -21,7 +21,6 @@ from klaude_code.server.app import create_app
 from klaude_code.server.display import ServerDisplay
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
-from klaude_code.server.live_events import start_server_live_events
 from klaude_code.server.paths import server_lock_path, server_log_file_path, server_run_dir, server_socket_path
 
 
@@ -134,13 +133,10 @@ async def start_server(*, debug: bool = False) -> bool:
             display=ServerDisplay(),
             interaction_handler=None,
         )
-        live_events = start_server_live_events(components.event_bus)
-
         lifecycle = ServerLifecycle(socket_path=socket_path)
         app = create_app(
             runtime=components.runtime,
             event_bus=components.event_bus,
-            event_stream=live_events.stream,
             interaction_handler=interaction_handler,
             work_dir=Path.cwd(),
             home_dir=home_dir,
@@ -170,9 +166,6 @@ async def start_server(*, debug: bool = False) -> bool:
             await server.serve()
             log_debug("[server] uvicorn server.serve() returned", debug_type=DebugType.EXECUTION)
         finally:
-            log_debug("[server] cleanup start: live events", debug_type=DebugType.EXECUTION)
-            await live_events.aclose()
-            log_debug("[server] cleanup done: live events", debug_type=DebugType.EXECUTION)
             # Interrupts running agents and waits for session flush to disk.
             log_debug("[server] cleanup start: app components", debug_type=DebugType.EXECUTION)
             await cleanup_app_components(components)

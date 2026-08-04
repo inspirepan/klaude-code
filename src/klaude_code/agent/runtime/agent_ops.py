@@ -610,20 +610,27 @@ class AgentOperationHandler:
         self._cancel_prompt_suggestion(operation.session_id)
         self._cancel_auto_away_summary(operation.session_id)
         await self._emit_event(events.PromptSuggestionClearedEvent(session_id=operation.session_id))
-        frozen_input = await self._freeze_user_input_for_history(
-            operation.input,
-            images_dir=Session.paths(agent.session.work_dir).images_dir(agent.session.id),
+        user_message_exists = any(
+            isinstance(item, message.UserMessage) and item.id == operation.id
+            for item in agent.session.conversation_history
         )
-        agent.session.append_history(
-            [
-                message.UserMessage(
-                    parts=message.parts_from_text_and_images(
-                        frozen_input.text,
-                        frozen_input.images,
-                    ),
-                )
-            ]
-        )
+        frozen_input = operation.input
+        if not user_message_exists:
+            frozen_input = await self._freeze_user_input_for_history(
+                operation.input,
+                images_dir=Session.paths(agent.session.work_dir).images_dir(agent.session.id),
+            )
+            agent.session.append_history(
+                [
+                    message.UserMessage(
+                        id=operation.id,
+                        parts=message.parts_from_text_and_images(
+                            frozen_input.text,
+                            frozen_input.images,
+                        ),
+                    )
+                ]
+            )
         if self._should_refresh_session_title_during_task(agent.session.id):
             self._schedule_session_title_refresh(agent.session)
 

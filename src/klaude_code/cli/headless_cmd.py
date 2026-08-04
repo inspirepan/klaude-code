@@ -9,11 +9,14 @@ from __future__ import annotations
 import json
 import sys
 import time
+from collections.abc import Callable
 from typing import Any
 
 import typer
 
 WAIT_POLL_INTERVAL_SECONDS = 1.0
+PS_WATCH_INTERVAL_SECONDS = 1.0
+FOLLOW_STATE_POLL_INTERVAL_SECONDS = 0.25
 
 EXIT_USAGE = 1
 EXIT_WAITING_INPUT = 2
@@ -146,7 +149,12 @@ def _pending_request_lines(pending: dict[str, Any], *, target: str) -> list[str]
     return lines
 
 
-def _fetch_output(target: str, *, turns: int | None = None, transcript: bool = False) -> dict[str, Any]:
+def _fetch_output(
+    target: str,
+    *,
+    turns: int | None = None,
+    transcript: bool = False,
+) -> dict[str, Any]:
     params: dict[str, Any] = {}
     if turns is not None:
         params["turns"] = turns
@@ -384,7 +392,12 @@ def _poll_until_settled(
         if not rows:
             typer.echo("error: no matching sessions", err=True)
             raise typer.Exit(EXIT_USAGE)
-        settled = [row for row in rows if row.get("state") not in ("queued", "running")]
+        settled = [
+            row
+            for row in rows
+            if row.get("state") == "waiting_input"
+            or (row.get("state") not in ("queued", "running") and not bool(row.get("pending")))
+        ]
         if any_mode and settled:
             return rows, False
         if len(settled) == len(rows):
@@ -433,7 +446,7 @@ def run_command(
         "--approval",
         show_default=False,
         help="What to do on permission requests when no human is attached: "
-        "hold = park request, state=waiting_input (default); auto = approve everything (trusted dirs); "
+        "hold = park request, state=waiting_input (default); auto = approve everything; use only in trusted dirs; "
         "deny = reject; agent must work around",
     ),
     wait: bool = typer.Option(False, "--wait", help="Block until finished, print final output"),
@@ -447,7 +460,7 @@ def run_command(
 
     \b
     Examples:
-      klaude run "fix the failing tests under tests/web/"
+      klaude run "fix the failing tests under tests/server/"
       klaude run -C ~/code/proj -m sonnet --name fix-tests "..."
       git diff | klaude run --agent code-reviewer "review this diff"
       klaude run --wait "one-shot question, print answer when done"
@@ -518,6 +531,7 @@ def ps_command(
     states: list[str] | None = STATE_OPTION,
     limit: int = typer.Option(20, "--limit", "-n", show_default=False, help="Max rows (default 20)"),
     show_all: bool = typer.Option(False, "--all", help="Include archived sessions"),
+    watch: bool = typer.Option(False, "--watch", help="Live-refreshing table (human view)"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
     """List sessions known to the server.
@@ -532,16 +546,33 @@ def ps_command(
 
     ACTIVITY is the current tool call when running, the pending request when
     waiting_input, and relative finish time when idle/failed.
+
+    --watch refreshes the human table until Ctrl-C and cannot be combined with
+    --json.
     """
+    if watch and json_:
+        raise typer.BadParameter("--watch and --json are mutually exclusive")
+
     target_list = _split_targets(targets or [])
-    rows = _fetch_rows(
-        target_list,
-        group,
-        states=states,
-        dir_=dir_,
-        limit=0 if show_all else limit,
-        include_archived=show_all,
-    )
+
+    def fetch() -> list[dict[str, Any]]:
+        return _fetch_rows(
+            target_list,
+            group,
+            states=states,
+            dir_=dir_,
+            limit=0 if show_all else limit,
+            include_archived=show_all,
+        )
+
+    if watch:
+        try:
+            _run_ps_watch(fetch)
+        except KeyboardInterrupt:
+            return
+        return
+
+    rows = fetch()
     if json_:
         _print_json({"sessions": rows})
         return
@@ -549,28 +580,7 @@ def ps_command(
         typer.echo("no sessions")
         return
 
-    table = [("ID", "NAME", "STATE", "MODEL", "DIR", "ACTIVITY")]
-    for row in rows:
-        state = str(row.get("state", ""))
-        activity = row.get("activity")
-        if not activity:
-            updated_at = float(row.get("updated_at") or 0.0)
-            prefix = "failed" if state == "failed" else "done"
-            activity = f"{prefix} {_format_relative(updated_at)}" if updated_at else "-"
-        table.append(
-            (
-                _short_id(str(row.get("id", ""))),
-                str(row.get("name") or "-"),
-                state,
-                _shorten(str(row.get("model") or "-"), 20),
-                _shorten(_abbrev_home(str(row.get("work_dir") or "-")), 28),
-                _shorten(str(activity), 60),
-            )
-        )
-    widths = [max(len(line[column]) for line in table) for column in range(5)]
-    for line in table:
-        cells = [line[column].ljust(widths[column]) for column in range(5)]
-        typer.echo("  ".join([*cells, line[5]]).rstrip())
+    _print_ps_table(rows)
 
 
 # -- brief --
@@ -721,6 +731,7 @@ def output_command(
     group: str | None = typer.Option(None, "--group", help="All sessions spawned with this group"),
     turns: int | None = typer.Option(None, "--turns", metavar="N", help="Last N user+assistant turns"),
     transcript: bool = typer.Option(False, "--transcript", help="Full transcript rendered as plain text"),
+    follow: bool = typer.Option(False, "--follow", help="Stream live output until idle (single target)"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
     """Print sessions' output. Default: the last assistant message only.
@@ -733,11 +744,45 @@ def output_command(
 
     When a session is waiting_input, its pending request (type, prompt,
     options) is appended after the output.
+
+    --follow accepts exactly one TARGET. It cannot be combined with --group,
+    --json, --turns, or --transcript.
     """
     target_list = _split_targets(targets or [])
+    if follow:
+        if json_:
+            raise typer.BadParameter("--follow and --json are mutually exclusive")
+        if group or len(target_list) != 1:
+            raise typer.BadParameter("--follow requires exactly one TARGET and cannot be used with --group")
+        if turns is not None or transcript:
+            raise typer.BadParameter("--follow cannot be used with --turns or --transcript")
+
     if not target_list and not group:
         typer.echo("error: give TARGETs, --group, or both", err=True)
         raise typer.Exit(EXIT_USAGE)
+
+    if follow:
+        import asyncio
+
+        initial = _fetch_output(target_list[0])
+        state = str(initial.get("state") or "idle")
+        if state in ("waiting_input", "failed"):
+            pending = initial.get("pending_request")
+            if isinstance(pending, dict):
+                for line in _pending_request_lines(pending, target=_short_id(str(initial.get("id") or ""))):
+                    typer.echo(line)
+            raise typer.Exit(_exit_code_for_states([state]))
+        if state not in ("queued", "running") and not bool(initial.get("pending")):
+            return
+        session_id = str(initial.get("id") or "")
+        initial_output = str(initial.get("output") or "")
+        try:
+            exit_code = asyncio.run(_follow_output_stream(session_id, initial_output=initial_output))
+        except KeyboardInterrupt:
+            return
+        if exit_code:
+            raise typer.Exit(exit_code)
+        return
 
     ids: list[str]
     if target_list and not group:

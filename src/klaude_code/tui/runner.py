@@ -664,9 +664,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         async def _submit_queued() -> None:
             for payload in payloads:
                 with contextlib.suppress(Exception):
-                    await client.submit_and_wait(
-                        op.FollowUpAgentOperation(session_id=client.session_id, input=payload)
-                    )
+                    await client.submit_and_wait(op.FollowUpAgentOperation(session_id=client.session_id, input=payload))
 
         _spawn(_submit_queued())
 

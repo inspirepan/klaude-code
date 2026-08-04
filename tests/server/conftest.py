@@ -77,6 +77,7 @@ class FakeLLMClient(LLMClientABC):
             )
         )
         self._responses: list[tuple[list[message.LLMStreamItem], float]] = []
+        self.call_count = 0
 
     @classmethod
     def create(cls, config: llm_param.LLMConfigParameter) -> LLMClientABC:
@@ -88,6 +89,7 @@ class FakeLLMClient(LLMClientABC):
 
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
         del param
+        self.call_count += 1
         if not self._responses:
             raise RuntimeError("FakeLLMClient has no queued response")
         items, delay_s = self._responses.pop(0)

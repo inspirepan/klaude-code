@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, cast
 
 import pytest
@@ -8,6 +9,12 @@ from klaude_code.config import load_config
 from klaude_code.protocol import op
 
 from .conftest import AppEnv, consume_ws_handshake, op_frame, wait_for_event
+
+
+def _meta_path_for_session(app_env: AppEnv, session_id: str):
+    paths = list((app_env.home_dir / ".klaude" / "projects").glob(f"*/sessions/{session_id}/meta.json"))
+    assert len(paths) == 1
+    return paths[0]
 
 
 def test_change_model_via_ws(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -19,22 +26,7 @@ def test_change_model_via_ws(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -
 
     session_id = app_env.create_session()
 
-    sessions_response = app_env.client.get("/api/sessions")
-    assert sessions_response.status_code == 200
-    sessions_payload = sessions_response.json()
-    groups = cast(list[dict[str, Any]], sessions_payload.get("groups", []))
-    session_summary = next(
-        session
-        for group in groups
-        for session in cast(list[dict[str, Any]], group.get("sessions", []))
-        if session.get("id") == session_id
-    )
-    current_model_name = str(session_summary.get("model_name") or "")
-
-    model_name = next(
-        (name.strip() for name in model_names if name.strip() != current_model_name),
-        "sonnet@anthropic",
-    )
+    model_name = next((name.strip() for name in model_names if name.strip()), "sonnet@anthropic")
 
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
@@ -47,12 +39,17 @@ def test_change_model_via_ws(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -
     assert event["event"]["model_id"]
 
 
-def test_request_model_operation_via_http(app_env: AppEnv) -> None:
+def test_configure_resume_model_rehydrates_from_server_metadata(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
-    response = app_env.client.post(
-        f"/api/sessions/{session_id}/model/request",
-        json={"initial_search_text": "fake", "save_as_default": False},
+    assert app_env.runtime.session_registry.get_session_actor(session_id) is not None
+
+    response = app_env.client.put(
+        f"/api/sessions/{session_id}/model/config",
+        json={"model_name": "resume-model"},
     )
+
     assert response.status_code == 200
-    payload = response.json()
-    assert isinstance(payload.get("operation_id"), str)
+    assert response.json() == {"ok": True}
+    assert app_env.runtime.session_registry.get_session_actor(session_id) is None
+    meta = json.loads(_meta_path_for_session(app_env, session_id).read_text(encoding="utf-8"))
+    assert meta["model_config_name"] == "resume-model"

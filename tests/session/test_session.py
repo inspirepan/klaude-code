@@ -1,7 +1,6 @@
 # pyright: reportPrivateUsage=false, reportUnusedFunction=false
 import asyncio
 import json
-import threading
 import time
 from collections.abc import Coroutine
 from pathlib import Path
@@ -15,7 +14,6 @@ from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
     SessionIdUIExtra,
-    SessionRuntimeState,
     SubAgentState,
     TaskMetadata,
     TaskMetadataItem,
@@ -23,7 +21,7 @@ from klaude_code.protocol.models import (
     Usage,
 )
 from klaude_code.session.session import Session
-from klaude_code.session.store import JsonlSessionWriter, build_meta_snapshot
+from klaude_code.session.store import JsonlSessionWriter
 from klaude_code.session.store_registry import close_default_store
 
 
@@ -170,7 +168,6 @@ class TestSessionPersistence:
                 work_dir=project_dir,
                 title="Persisted title",
                 model_name="test-model",
-                session_state=SessionRuntimeState.RUNNING,
                 archived=True,
                 model_config_name="test-config-model",
                 model_thinking=llm_param.Thinking(reasoning_effort="high"),
@@ -193,7 +190,6 @@ class TestSessionPersistence:
             assert loaded.work_dir == project_dir
             assert loaded.title == "Persisted title"
             assert loaded.model_name == "test-model"
-            assert loaded.session_state == SessionRuntimeState.RUNNING
             assert loaded.archived is True
             assert loaded.model_config_name == "test-config-model"
             assert loaded.model_thinking is not None
@@ -221,7 +217,6 @@ class TestSessionPersistence:
 
         async def _test() -> None:
             session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config-model")
-            session.session_state = SessionRuntimeState.IDLE
             session.append_history(
                 [
                     message.UserMessage(parts=message.text_parts_from_str("Hello")),
@@ -233,7 +228,6 @@ class TestSessionPersistence:
             meta = Session.load_meta(session.id, work_dir=project_dir)
             assert meta.id == session.id
             assert meta.model_name == "test-model"
-            assert meta.session_state == SessionRuntimeState.IDLE
             assert meta.archived is False
             assert meta.model_config_name == "test-config-model"
             assert len(meta.conversation_history) == 0
@@ -252,11 +246,14 @@ class TestSessionPersistence:
             await session.wait_for_flush()
 
             session.set_follow_up_queue(
-                [message.UserInputPayload(text="queued one"), message.UserInputPayload(text="queued two")]
+                [
+                    message.QueuedUserInput(input=message.UserInputPayload(text="queued one")),
+                    message.QueuedUserInput(input=message.UserInputPayload(text="queued two")),
+                ]
             )
 
             loaded = Session.load_meta(session.id, work_dir=project_dir)
-            assert [item.text for item in loaded.follow_up_queue] == ["queued one", "queued two"]
+            assert [item.input.text for item in loaded.follow_up_queue] == ["queued one", "queued two"]
 
             session.set_follow_up_queue([])
             loaded = Session.load_meta(session.id, work_dir=project_dir)
@@ -281,7 +278,7 @@ class TestSessionPersistence:
         async def _test() -> None:
             session = Session(work_dir=project_dir)
             session.ensure_meta_exists()
-            session.follow_up_queue = [message.UserInputPayload(text="stale queued")]
+            session.follow_up_queue = [message.QueuedUserInput(input=message.UserInputPayload(text="stale queued"))]
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("Hello"))])
 
             session.set_follow_up_queue([])
@@ -289,133 +286,6 @@ class TestSessionPersistence:
             await session.wait_for_flush()
             loaded = Session.load_meta(session.id, work_dir=project_dir)
             assert loaded.follow_up_queue == []
-            await close_default_store()
-
-        arun(_test())
-
-    def test_append_history_does_not_overwrite_newer_runtime_state(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        project_dir = tmp_path / "test_project"
-        project_dir.mkdir()
-        monkeypatch.chdir(project_dir)
-
-        original_write_batch_sync = JsonlSessionWriter._write_batch_sync
-
-        def _slow_write_batch_sync(self: JsonlSessionWriter, batch: Any) -> None:
-            time.sleep(0.2)
-            original_write_batch_sync(self, batch)
-
-        monkeypatch.setattr(JsonlSessionWriter, "_write_batch_sync", _slow_write_batch_sync)
-
-        async def _test() -> None:
-            session = Session(work_dir=project_dir)
-            meta_path = Session.paths(project_dir).meta_file(session.id)
-            meta_path.parent.mkdir(parents=True, exist_ok=True)
-            meta_path.write_text(
-                json.dumps(
-                    build_meta_snapshot(
-                        session_id=session.id,
-                        work_dir=project_dir,
-                        title=session.title,
-                        sub_agent_state=session.sub_agent_state,
-                        file_tracker=session.file_tracker,
-                        file_change_summary=session.file_change_summary,
-                        todos=list(session.todos),
-                        user_messages=session.user_messages,
-                        created_at=session.created_at,
-                        updated_at=session.updated_at,
-                        messages_count=session.messages_count,
-                        model_name=session.model_name,
-                        session_state=session.session_state,
-                        archived=session.archived,
-                        model_config_name=session.model_config_name,
-                        model_thinking=session.model_thinking,
-                        next_checkpoint_id=session.next_checkpoint_id,
-                    ),
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Hello"))])
-
-            Session.persist_runtime_state(session.id, SessionRuntimeState.RUNNING, project_dir)
-
-            await session.wait_for_flush()
-
-            loaded = Session.load_meta(session.id, work_dir=project_dir)
-            assert loaded.session_state == SessionRuntimeState.RUNNING
-            await close_default_store()
-
-        arun(_test())
-
-    def test_append_history_does_not_overwrite_runtime_state_updated_during_meta_write(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        project_dir = tmp_path / "test_project"
-        project_dir.mkdir()
-        monkeypatch.chdir(project_dir)
-
-        async def _test() -> None:
-            session = Session(work_dir=project_dir)
-            session.session_state = SessionRuntimeState.RUNNING
-            meta_path = Session.paths(project_dir).meta_file(session.id)
-            meta_path.parent.mkdir(parents=True, exist_ok=True)
-            meta_path.write_text(
-                json.dumps(
-                    build_meta_snapshot(
-                        session_id=session.id,
-                        work_dir=project_dir,
-                        title=session.title,
-                        sub_agent_state=session.sub_agent_state,
-                        file_tracker=session.file_tracker,
-                        file_change_summary=session.file_change_summary,
-                        todos=list(session.todos),
-                        user_messages=session.user_messages,
-                        created_at=session.created_at,
-                        updated_at=session.updated_at,
-                        messages_count=session.messages_count,
-                        model_name=session.model_name,
-                        session_state=session.session_state,
-                        archived=session.archived,
-                        model_config_name=session.model_config_name,
-                        model_thinking=session.model_thinking,
-                        next_checkpoint_id=session.next_checkpoint_id,
-                    ),
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-
-            original_read_text = Path.read_text
-            update_started = threading.Event()
-            update_finished = threading.Event()
-
-            def _read_text(path: Path, *args: Any, **kwargs: Any) -> str:
-                text = original_read_text(path, *args, **kwargs)
-                if path == meta_path and not update_started.is_set():
-                    update_started.set()
-
-                    def _update_runtime_state() -> None:
-                        Session.persist_runtime_state(session.id, SessionRuntimeState.IDLE, project_dir)
-                        update_finished.set()
-
-                    threading.Thread(target=_update_runtime_state, daemon=True).start()
-                    time.sleep(0.05)
-                return text
-
-            monkeypatch.setattr(Path, "read_text", _read_text)
-
-            session.append_history([message.UserMessage(parts=message.text_parts_from_str("Hello"))])
-            await session.wait_for_flush()
-
-            assert update_started.is_set()
-            assert update_finished.wait(timeout=1.0)
-
-            loaded = Session.load_meta(session.id, work_dir=project_dir)
-            assert loaded.session_state == SessionRuntimeState.IDLE
             await close_default_store()
 
         arun(_test())
@@ -1302,7 +1172,6 @@ class TestSessionMetaBrief:
         assert meta.user_messages == []
         assert meta.messages_count == -1
         assert meta.model_name is None
-        assert meta.session_state is None
         assert meta.archived is False
 
 

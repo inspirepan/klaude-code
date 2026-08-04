@@ -155,6 +155,10 @@ def build_prime_guide(config: Any) -> str:
         "- The server caps concurrently running headless agents "
         f"(currently {config.headless_max_running}); extra runs queue as `queued` and `wait` keeps blocking."
     )
+    lines.append(
+        "- `run --approval auto` approves every permission request without checking the directory; "
+        "use it only in trusted directories."
+    )
     lines.append("")
     lines.append("## TARGET rules")
     lines.append("")

@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from klaude_code.app.runtime_facade import RuntimeFacade
-from klaude_code.control.event_bus import EnvelopeBus, EventBus
+from klaude_code.control.event_bus import EventBus
 from klaude_code.log import DebugType, log_debug
 from klaude_code.server.headless import HeadlessRuntime
 from klaude_code.server.interaction import ServerInteractionHandler
@@ -26,7 +26,6 @@ def create_app(
     *,
     runtime: RuntimeFacade | None = None,
     event_bus: EventBus | None = None,
-    event_stream: EnvelopeBus | None = None,
     interaction_handler: ServerInteractionHandler | None = None,
     work_dir: Path,
     home_dir: Path | None = None,
@@ -44,7 +43,7 @@ def create_app(
             state = replace(state, code_fingerprint=get_code_fingerprint())
             app.state.server_state = state
         if state.session_live is None:
-            state = replace(state, session_live=SessionLiveState(home_dir=state.home_dir, runtime=state.runtime))
+            state = replace(state, session_live=SessionLiveState(home_dir=state.home_dir))
             app.state.server_state = state
         if state.tapes is None:
             state = replace(state, tapes=SessionEventTapes(_history_len_getter(state.runtime)))
@@ -66,6 +65,7 @@ def create_app(
         if headless is None:
             raise RuntimeError("headless runtime is not initialized")
         headless.start(state.event_bus)
+        headless.restore(session_live.index.list_all())
         session_live.attach_loop(asyncio.get_running_loop())
         unregister_meta_observer = register_session_meta_observer(session_live.apply_meta_update)
         try:
@@ -99,8 +99,7 @@ def create_app(
             interaction_handler=interaction_handler,
             work_dir=work_dir.resolve(),
             home_dir=resolved_home_dir,
-            event_stream=event_stream,
-            session_live=SessionLiveState(home_dir=resolved_home_dir, runtime=runtime),
+            session_live=SessionLiveState(home_dir=resolved_home_dir),
             lifecycle=lifecycle,
             code_fingerprint=get_code_fingerprint(),
         )

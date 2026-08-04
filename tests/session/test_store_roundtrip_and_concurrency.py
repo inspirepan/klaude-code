@@ -24,7 +24,6 @@ from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
-    SessionRuntimeState,
     SubAgentState,
     TodoItem,
 )
@@ -61,7 +60,6 @@ class TestSaveLoadRoundTrip:
                 model_config_name="config-x",
                 model_thinking=llm_param.Thinking(reasoning_effort="medium"),
                 prompt_cache_key="shared-cache-lineage",
-                session_state=SessionRuntimeState.IDLE,
                 archived=False,
                 next_checkpoint_id=3,
             )
@@ -198,7 +196,6 @@ def _seed_meta(store: JsonlSessionStore, session_id: str, work_dir: Path, **over
         updated_at=1000.0,
         messages_count=overrides.get("messages_count", 1),
         model_name=overrides.get("model_name", "seed-model"),
-        session_state=overrides.get("session_state"),
         archived=overrides.get("archived", False),
         model_config_name=overrides.get("model_config_name", "seed-config"),
         model_thinking=None,
@@ -272,7 +269,6 @@ class TestUpdateMetaMerge:
             updated_at=2000.0,
             messages_count=9,
             model_name=None,
-            session_state=None,
             archived=False,
             model_config_name=None,
             model_thinking=None,
@@ -398,38 +394,6 @@ class TestConcurrentMetaUpdates:
                 if isinstance(it, message.UserMessage)
             ]
             assert texts == [f"msg-{i}" for i in range(total)]
-            await close_default_store()
-
-        arun(_test())
-
-    def test_history_append_preserves_concurrently_written_runtime_state(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """append_history's meta write re-reads and preserves runtime keys
-        (session_state, follow_up_queue) written via persist_* helpers.
-
-        This locks in the read-merge-write protection in _write_batch_sync for
-        _RUNTIME_META_KEYS: a session_state set independently is not clobbered
-        by a subsequent history flush carrying an older in-memory snapshot.
-        """
-        project_dir = tmp_path / "proj"
-        project_dir.mkdir()
-        monkeypatch.chdir(project_dir)
-
-        async def _test() -> None:
-            session = Session(work_dir=project_dir)
-            session.append_history([message.UserMessage(parts=message.text_parts_from_str("seed"))])
-            await session.wait_for_flush()
-
-            Session.persist_runtime_state(session.id, SessionRuntimeState.RUNNING, project_dir)
-
-            # A subsequent history flush (whose snapshot still carries the stale
-            # in-memory session_state) must NOT erase the state written above.
-            session.append_history([message.UserMessage(parts=message.text_parts_from_str("more"))])
-            await session.wait_for_flush()
-
-            raw = json.loads(Session.paths(project_dir).meta_file(session.id).read_text(encoding="utf-8"))
-            assert raw["session_state"] == SessionRuntimeState.RUNNING.value
             await close_default_store()
 
         arun(_test())

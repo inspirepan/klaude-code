@@ -16,7 +16,6 @@ from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
     SessionIdUIExtra,
-    SessionRuntimeState,
     SubAgentState,
     TaskMetadataItem,
     TodoItem,
@@ -30,7 +29,7 @@ from klaude_code.session.history import (
     rebuild_loaded_history,
     update_last_request_usage,
 )
-from klaude_code.session.meta import parse_session_meta, parse_session_state, read_json_dict
+from klaude_code.session.meta import parse_session_meta, read_json_dict
 from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 from klaude_code.session.store_registry import get_store_for_path
 
@@ -44,9 +43,11 @@ class Session(BaseModel):
     file_tracker: dict[str, FileStatus] = Field(default_factory=dict)
     file_change_summary: FileChangeSummary = Field(default_factory=FileChangeSummary)
     todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    follow_up_queue: list[message.UserInputPayload] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    follow_up_queue: list[message.QueuedUserInput] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    headless_queued_turn: message.QueuedUserInput | None = None
+    headless_completed_turn_id: str | None = None
+    headless_failed: bool = False
     model_name: str | None = None
-    session_state: SessionRuntimeState | None = None
     archived: bool = False
 
     # Headless/multiplexer metadata (set by `klaude run`).
@@ -165,7 +166,6 @@ class Session(BaseModel):
             updated_at=meta.updated_at,
             title=meta.title,
             model_name=meta.model_name,
-            session_state=meta.session_state,
             archived=meta.archived,
             model_config_name=meta.model_config_name,
             model_thinking=meta.model_thinking,
@@ -173,6 +173,9 @@ class Session(BaseModel):
             prompt_cache_key=meta.prompt_cache_key,
             next_checkpoint_id=meta.next_checkpoint_id,
             follow_up_queue=meta.follow_up_queue,
+            headless_queued_turn=meta.headless_queued_turn,
+            headless_completed_turn_id=meta.headless_completed_turn_id,
+            headless_failed=meta.headless_failed,
             name=meta.name,
             group=meta.group,
             agent_type=meta.agent_type,
@@ -190,11 +193,41 @@ class Session(BaseModel):
         return session
 
     @classmethod
-    def persist_runtime_state(cls, session_id: str, session_state: SessionRuntimeState, work_dir: Path) -> None:
+    def persist_headless_queued_turn(
+        cls,
+        session_id: str,
+        work_dir: Path,
+        *,
+        queued_turn: message.QueuedUserInput | None = None,
+        expected_turn_id: str | None = None,
+    ) -> bool:
+        updates: dict[str, Any] = {
+            "headless_queued_turn": queued_turn.model_dump(mode="json", exclude_none=True)
+            if queued_turn is not None
+            else None,
+            "headless_queued_prompt": None,
+            "headless_queued_turn_id": None,
+            "headless_queued_at": None,
+        }
         store = get_store_for_path(work_dir)
-        # Runtime state transitions should not affect session recency ordering.
-        # Only content writes (append_history) update `updated_at`.
-        store.update_meta(session_id, {"session_state": session_state.value})
+        if expected_turn_id is not None:
+            return store.update_meta_if_queued_id(
+                session_id,
+                expected_id=expected_turn_id,
+                updates=updates,
+            )
+        return store.update_meta(session_id, updates)
+
+    @classmethod
+    def persist_headless_completed_turn(cls, session_id: str, work_dir: Path, *, turn_id: str) -> bool:
+        return get_store_for_path(work_dir).update_meta(
+            session_id,
+            {"headless_completed_turn_id": turn_id},
+        )
+
+    @classmethod
+    def persist_headless_failed(cls, session_id: str, work_dir: Path, *, failed: bool) -> None:
+        get_store_for_path(work_dir).update_meta(session_id, {"headless_failed": failed or None})
 
     def append_history(self, items: Sequence[message.HistoryEvent]) -> None:
         if not items:
@@ -237,7 +270,6 @@ class Session(BaseModel):
             updated_at=self.updated_at,
             messages_count=self.messages_count,
             model_name=self.model_name,
-            session_state=self.session_state,
             archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
@@ -245,6 +277,9 @@ class Session(BaseModel):
             prompt_cache_key=self.prompt_cache_key,
             next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
+            headless_queued_turn=self.headless_queued_turn,
+            headless_completed_turn_id=self.headless_completed_turn_id,
+            headless_failed=self.headless_failed,
             name=self.name,
             group=self.group,
             agent_type=self.agent_type,
@@ -254,7 +289,7 @@ class Session(BaseModel):
         )
         self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
 
-    def set_follow_up_queue(self, items: Sequence[message.UserInputPayload]) -> None:
+    def set_follow_up_queue(self, items: Sequence[message.QueuedUserInput]) -> None:
         self.follow_up_queue = [item.model_copy(deep=True) for item in items]
         payload = [item.model_dump(mode="json", exclude_none=True) for item in self.follow_up_queue]
         if not self._store.update_meta(self.id, {"follow_up_queue": payload or None}) and payload:
@@ -284,7 +319,6 @@ class Session(BaseModel):
             updated_at=self.updated_at,
             messages_count=self.messages_count,
             model_name=self.model_name,
-            session_state=self.session_state,
             archived=self.archived,
             model_config_name=self.model_config_name,
             model_thinking=self.model_thinking,
@@ -292,6 +326,9 @@ class Session(BaseModel):
             prompt_cache_key=self.prompt_cache_key,
             next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
+            headless_queued_turn=self.headless_queued_turn,
+            headless_completed_turn_id=self.headless_completed_turn_id,
+            headless_failed=self.headless_failed,
             name=self.name,
             group=self.group,
             agent_type=self.agent_type,
@@ -910,7 +947,6 @@ class Session(BaseModel):
         user_messages: list[str] = []
         messages_count: int = -1
         model_name: str | None = None
-        session_state: SessionRuntimeState | None = None
         archived: bool = False
 
     @classmethod
@@ -977,8 +1013,6 @@ class Session(BaseModel):
                 _maybe_backfill_user_messages(session_id=sid, meta=data, user_messages=user_messages)
             messages_count = int(data.get("messages_count", -1))
             model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
-            session_state_raw = data.get("session_state")
-            session_state = parse_session_state(session_state_raw)
             archived_raw = data.get("archived")
             archived = archived_raw if isinstance(archived_raw, bool) else False
 
@@ -993,7 +1027,6 @@ class Session(BaseModel):
                     user_messages=user_messages,
                     messages_count=messages_count,
                     model_name=model_name,
-                    session_state=session_state,
                     archived=archived,
                 )
             )

@@ -13,13 +13,16 @@ import time
 from pathlib import Path
 from typing import Any
 
+from klaude_code.protocol.version import is_protocol_compatible
+
 
 class ServerNotRunningError(RuntimeError):
     pass
 
 
 STALE_SERVER_HINT = (
-    "klaude server is running stale code; finish or kill running sessions, then: klaude server reload --force"
+    "klaude server is running stale code or an incompatible protocol; "
+    "finish or kill running sessions, then: klaude server reload --force"
 )
 _RELOAD_WAIT_TIMEOUT = 30.0
 
@@ -80,12 +83,19 @@ def _local_code_fingerprint() -> str:
     return get_code_fingerprint()
 
 
+def _server_matches(status_body: dict[str, Any], *, local_fingerprint: str) -> bool:
+    return is_protocol_compatible(status_body.get("protocol_version")) and (
+        status_body.get("code_fingerprint") == local_fingerprint
+    )
+
+
 def verify_server_code(status_body: dict[str, Any]) -> None:
-    """Version handshake: reload an idle stale server, warn on a busy one.
+    """Compatibility handshake: reload an idle stale server, warn on a busy one.
 
     A server started from older code produces confusing artifacts (stuck
-    loading, ghost sessions), so every CLI entry compares fingerprints on
-    first contact. Runs once per process; never raises on mismatch.
+    loading, ghost sessions), so every CLI entry compares the protocol and
+    code fingerprint on first contact. Runs once per process; never raises on
+    mismatch.
     """
 
     global _handshake_done
@@ -93,9 +103,8 @@ def verify_server_code(status_body: dict[str, Any]) -> None:
         return
     _handshake_done = True
 
-    server_fingerprint = status_body.get("code_fingerprint")
     local_fingerprint = _local_code_fingerprint()
-    if server_fingerprint == local_fingerprint:
+    if _server_matches(status_body, local_fingerprint=local_fingerprint):
         return
 
     sessions = status_body.get("sessions") or {}
@@ -135,7 +144,7 @@ def _wait_for_reloaded_server(*, local_fingerprint: str) -> None:
             status, body = request("GET", "/api/server/status", timeout=3.0)
         except ServerNotRunningError:
             continue  # Socket is down while the server re-execs.
-        if status == 200 and isinstance(body, dict) and body.get("code_fingerprint") == local_fingerprint:
+        if status == 200 and isinstance(body, dict) and _server_matches(body, local_fingerprint=local_fingerprint):
             return
     _warn("klaude server did not come back on current code after reload; check `klaude server status`")
 

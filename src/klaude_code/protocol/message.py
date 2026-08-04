@@ -4,9 +4,11 @@ History is persisted as HistoryEvent (messages + error/task metadata).
 Streaming-only items are emitted at runtime but never persisted.
 """
 
+import time
 from collections.abc import Sequence
 from datetime import datetime
 from typing import Annotated, Literal, cast
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -362,6 +364,14 @@ class UserInputPayload(BaseModel):
     text: str
     images: Sequence[ImageURLPart | ImageFilePart] | None = None
     queued_edit: bool = Field(default=False, exclude=True)
+
+
+class QueuedUserInput(BaseModel):
+    """A durable user input waiting for a future turn."""
+
+    id: str = Field(default_factory=lambda: uuid4().hex)
+    input: UserInputPayload
+    enqueued_at: float = Field(default_factory=time.time)
 
 
 # Helper functions

@@ -4,8 +4,8 @@ The interactive TUI re-renders its transcript (Ctrl+O detail toggle, /refresh)
 by replaying this tape through the display state machine. The tape holds
 exactly what the display consumed, in order, so a rebuild reproduces the
 screen — including the in-flight turn that persisted history does not cover
-yet. The tape is display-agnostic on purpose: the server can host its own
-instance fed from the relay bus to backfill mid-run attaches.
+yet. The server keeps its separate attach tape in ``server/session_tape.py``;
+this tape only records events consumed by one local display.
 
 The tape inherits the display's delivery guarantees: if the event bus drops a
 subscriber on overflow, the dropped events are missing from both the screen

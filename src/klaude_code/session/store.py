@@ -16,7 +16,6 @@ from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
-    SessionRuntimeState,
     SubAgentState,
     TodoItem,
 )
@@ -24,8 +23,25 @@ from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
 
 # Meta keys owned by direct update_meta writes: a queued history batch carries
 # an older snapshot, so the on-disk value wins when the batch lands.
-_RUNTIME_META_KEYS = ("session_state", "follow_up_queue")
-_DELETE_WINS_META_KEYS = ("follow_up_queue",)
+_RUNTIME_META_KEYS = (
+    "follow_up_queue",
+    "headless_queued_turn",
+    # Read-only compatibility keys for the unshipped WIP format.
+    "headless_queued_prompt",
+    "headless_queued_turn_id",
+    "headless_queued_at",
+    "headless_completed_turn_id",
+    "headless_failed",
+)
+_DELETE_WINS_META_KEYS = (
+    "follow_up_queue",
+    "headless_queued_turn",
+    "headless_queued_prompt",
+    "headless_queued_turn_id",
+    "headless_queued_at",
+    "headless_completed_turn_id",
+    "headless_failed",
+)
 
 type SessionMetaObserver = Callable[[str, dict[str, Any]], None]
 
@@ -215,6 +231,33 @@ class JsonlSessionStore:
             _notify_session_meta_observers(session_id, data)
             return True
 
+    def update_meta_if_queued_id(
+        self,
+        session_id: str,
+        *,
+        expected_id: str,
+        updates: dict[str, Any],
+    ) -> bool:
+        meta_path = self._paths.meta_file(session_id)
+        with self._meta_lock:
+            if not meta_path.exists():
+                return False
+            data = _read_json_dict(meta_path)
+            if data is None:
+                return False
+            queued = data.get("headless_queued_turn")
+            current_id = queued.get("id") if isinstance(queued, dict) else data.get("headless_queued_turn_id")
+            if current_id != expected_id:
+                return False
+            data.update(updates)
+            data = {k: v for k, v in data.items() if v is not None}
+            try:
+                _write_json_dict_atomic(meta_path, data, "u")
+            except OSError:
+                return False
+            _notify_session_meta_observers(session_id, data)
+            return True
+
     def create_meta_if_missing(self, session_id: str, meta: dict[str, Any]) -> bool:
         meta_path = self._paths.meta_file(session_id)
         with self._meta_lock:
@@ -327,13 +370,15 @@ def build_meta_snapshot(
     updated_at: float,
     messages_count: int,
     model_name: str | None,
-    session_state: SessionRuntimeState | None,
     archived: bool,
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
     prompt_cache_key: str | None = None,
     next_checkpoint_id: int = 0,
-    follow_up_queue: Sequence[message.UserInputPayload] = (),
+    follow_up_queue: Sequence[message.QueuedUserInput] = (),
+    headless_queued_turn: message.QueuedUserInput | None = None,
+    headless_completed_turn_id: str | None = None,
+    headless_failed: bool = False,
     model_effort: str | None = None,
     name: str | None = None,
     group: str | None = None,
@@ -357,7 +402,6 @@ def build_meta_snapshot(
         "updated_at": updated_at,
         "messages_count": messages_count,
         "model_name": model_name,
-        "session_state": session_state.value if session_state is not None else None,
         "archived": archived,
         "model_config_name": model_config_name,
         "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
@@ -368,6 +412,11 @@ def build_meta_snapshot(
         "prompt_cache_key": prompt_cache_key,
         "next_checkpoint_id": next_checkpoint_id,
         "follow_up_queue": follow_up_queue_payload or None,
+        "headless_queued_turn": headless_queued_turn.model_dump(mode="json", exclude_none=True)
+        if headless_queued_turn is not None
+        else None,
+        "headless_completed_turn_id": headless_completed_turn_id,
+        "headless_failed": headless_failed or None,
         # Headless/multiplexer metadata (set by `klaude run`).
         "name": name,
         "group": group,

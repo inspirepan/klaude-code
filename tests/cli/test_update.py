@@ -16,6 +16,40 @@ def _fake_which(name: str) -> str:
     return f"/usr/bin/{name}"
 
 
+def _init_fingerprint_repo(repo: Path) -> None:
+    (repo / "src" / "klaude_code").mkdir(parents=True)
+    (repo / "src" / "klaude_code" / "main.py").write_text("value = 1\n", encoding="utf-8")
+    (repo / "pyproject.toml").write_text("[project]\nname = 'demo'\n", encoding="utf-8")
+    (repo / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(repo),
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-qm",
+            "initial",
+        ],
+        check=True,
+    )
+
+
+def test_code_fingerprint_ignores_untracked_files_outside_runtime_paths(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_fingerprint_repo(repo)
+    before = update._compute_git_fingerprint(str(repo))
+
+    (repo / "unrelated-data.bin").write_bytes(b"x" * (2 * 1024 * 1024))
+
+    assert update._compute_git_fingerprint(str(repo)) == before
+
+
 def _make_fake_run(
     calls: list[list[str]],
     *,

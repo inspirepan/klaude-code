@@ -106,6 +106,7 @@ def status_command() -> None:
     log(f"  socket:   {server_socket_path()}")
     log(f"  uptime:   {_format_uptime(float(body.get('uptime_seconds', 0)))}")
     log(f"  version:  {body.get('version')}")
+    log(f"  protocol: {body.get('protocol_version') or 'unknown'}")
     log(f"  code:     {body.get('code_fingerprint') or 'unknown'}")
     log(
         f"  sessions: {sessions.get('loaded', 0)} loaded, "
@@ -114,10 +115,11 @@ def status_command() -> None:
         f"{sessions.get('queued', 0)} queued"
     )
 
+    from klaude_code.protocol.version import is_protocol_compatible
     from klaude_code.update import get_code_fingerprint
 
     local_fingerprint = get_code_fingerprint()
-    if body.get("code_fingerprint") != local_fingerprint:
+    if not is_protocol_compatible(body.get("protocol_version")) or body.get("code_fingerprint") != local_fingerprint:
         log((f"  stale:    client code is {local_fingerprint}; run: klaude server reload --force", "yellow"))
 
 

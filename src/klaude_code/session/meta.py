@@ -12,7 +12,6 @@ from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
-    SessionRuntimeState,
     SubAgentState,
     TodoItem,
 )
@@ -29,14 +28,16 @@ class LoadedSessionMeta:
     updated_at: float
     title: str | None
     model_name: str | None
-    session_state: SessionRuntimeState | None
     archived: bool
     model_config_name: str | None
     model_thinking: llm_param.Thinking | None
     model_effort: str | None
     prompt_cache_key: str | None
     next_checkpoint_id: int
-    follow_up_queue: list[message.UserInputPayload]
+    follow_up_queue: list[message.QueuedUserInput]
+    headless_queued_turn: message.QueuedUserInput | None
+    headless_completed_turn_id: str | None
+    headless_failed: bool
     name: str | None
     group: str | None
     agent_type: str | None
@@ -92,33 +93,65 @@ def _parse_todos(raw: object) -> list[TodoItem]:
     return todos
 
 
-def _parse_follow_up_queue(raw: object) -> list[message.UserInputPayload]:
-    inputs: list[message.UserInputPayload] = []
+def _parse_follow_up_queue(raw: object, *, fallback_enqueued_at: float) -> list[message.QueuedUserInput]:
+    inputs: list[message.QueuedUserInput] = []
     if not isinstance(raw, list):
         return inputs
     for item in cast(list[object], raw):
         if not isinstance(item, dict):
             continue
         try:
-            inputs.append(message.UserInputPayload.model_validate(item))
+            if "input" in item:
+                inputs.append(message.QueuedUserInput.model_validate(item))
+            else:
+                # Legacy queues had payloads only. Their cross-session order
+                # cannot be recovered exactly, so use session recency once.
+                inputs.append(
+                    message.QueuedUserInput(
+                        input=message.UserInputPayload.model_validate(item),
+                        enqueued_at=fallback_enqueued_at,
+                    )
+                )
         except ValidationError:
             continue
     return inputs
+
+
+def _parse_user_input(raw: object) -> message.UserInputPayload | None:
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return message.UserInputPayload.model_validate(raw)
+    except ValidationError:
+        return None
+
+
+def _parse_headless_queued_turn(raw: dict[str, Any], *, fallback_enqueued_at: float) -> message.QueuedUserInput | None:
+    queued = raw.get("headless_queued_turn")
+    if isinstance(queued, dict):
+        try:
+            return message.QueuedUserInput.model_validate(queued)
+        except ValidationError:
+            return None
+
+    # Compatibility for the unshipped WIP format. New writes remove these
+    # three keys, so this path can disappear after that format ages out.
+    prompt = _parse_user_input(raw.get("headless_queued_prompt"))
+    turn_id = _parse_optional_str(raw.get("headless_queued_turn_id"))
+    if prompt is None or turn_id is None:
+        return None
+    queued_at = raw.get("headless_queued_at")
+    return message.QueuedUserInput(
+        id=turn_id,
+        input=prompt,
+        enqueued_at=float(queued_at) if isinstance(queued_at, int | float) else fallback_enqueued_at,
+    )
 
 
 def _parse_optional_str(raw: object) -> str | None:
     if isinstance(raw, str) and raw:
         return raw
     return None
-
-
-def parse_session_state(raw: object) -> SessionRuntimeState | None:
-    if not isinstance(raw, str):
-        return None
-    try:
-        return SessionRuntimeState(raw)
-    except ValueError:
-        return None
 
 
 def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionMeta:
@@ -141,6 +174,8 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
     else:
         model_effort = model_thinking.reasoning_effort if model_thinking is not None else None
 
+    created_at = float(raw.get("created_at", time.time()))
+    updated_at = float(raw.get("updated_at", created_at))
     return LoadedSessionMeta(
         work_dir=Path(work_dir_str),
         sub_agent_state=SubAgentState.model_validate(raw["sub_agent_state"])
@@ -149,18 +184,20 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         file_tracker=_parse_file_tracker(raw.get("file_tracker")),
         file_change_summary=_parse_file_change_summary(raw.get("file_change_summary")),
         todos=_parse_todos(raw.get("todos")),
-        created_at=float(raw.get("created_at", time.time())),
-        updated_at=float(raw.get("updated_at", float(raw.get("created_at", time.time())))),
+        created_at=created_at,
+        updated_at=updated_at,
         title=raw.get("title") if isinstance(raw.get("title"), str) else None,
         model_name=raw.get("model_name") if isinstance(raw.get("model_name"), str) else None,
-        session_state=parse_session_state(raw.get("session_state")),
         archived=archived,
         model_config_name=raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None,
         model_thinking=model_thinking,
         model_effort=model_effort,
         prompt_cache_key=raw.get("prompt_cache_key") if isinstance(raw.get("prompt_cache_key"), str) else None,
         next_checkpoint_id=int(raw.get("next_checkpoint_id", 0)),
-        follow_up_queue=_parse_follow_up_queue(raw.get("follow_up_queue")),
+        follow_up_queue=_parse_follow_up_queue(raw.get("follow_up_queue"), fallback_enqueued_at=updated_at),
+        headless_queued_turn=_parse_headless_queued_turn(raw, fallback_enqueued_at=updated_at),
+        headless_completed_turn_id=_parse_optional_str(raw.get("headless_completed_turn_id")),
+        headless_failed=raw.get("headless_failed") is True,
         name=_parse_optional_str(raw.get("name")),
         group=_parse_optional_str(raw.get("group")),
         agent_type=_parse_optional_str(raw.get("agent_type")),
@@ -170,4 +207,4 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
     )
 
 
-__all__ = ["LoadedSessionMeta", "parse_session_meta", "parse_session_state", "read_json_dict"]
+__all__ = ["LoadedSessionMeta", "parse_session_meta", "read_json_dict"]

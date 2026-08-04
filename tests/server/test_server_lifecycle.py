@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from klaude_code.protocol.version import PROTOCOL_VERSION
 from klaude_code.server import routes
 from klaude_code.server.server import ServerAlreadyRunningError, _SingletonLock  # pyright: ignore[reportPrivateUsage]
 
@@ -21,6 +22,7 @@ def test_status_endpoint_reports_server_info(app_env: AppEnv) -> None:
     assert payload["socket_path"].endswith("server.sock")
     assert payload["uptime_seconds"] >= 0
     assert isinstance(payload["code_fingerprint"], str) and payload["code_fingerprint"]
+    assert payload["protocol_version"] == PROTOCOL_VERSION
     assert payload["sessions"] == {"loaded": 0, "running": 0, "waiting_input": 0, "queued": 0}
 
 

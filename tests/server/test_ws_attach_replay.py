@@ -11,7 +11,9 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from klaude_code.protocol import events as protocol_events
 from klaude_code.protocol import message, op
+from klaude_code.protocol.version import PROTOCOL_VERSION
 
 from .conftest import AppEnv, op_frame, receive_events, usage
 
@@ -59,17 +61,29 @@ def _replay_history_events(handshake: dict[str, Any]) -> list[dict[str, Any]]:
     return result
 
 
+def _history_user_messages(app_env: AppEnv, session_id: str) -> list[str]:
+    actor = app_env.runtime.session_registry.get_session_actor(session_id)
+    assert actor is not None
+    agent = actor.get_agent()
+    assert agent is not None
+    return [
+        event.content
+        for event in agent.session.get_history_item()
+        if isinstance(event, protocol_events.UserMessageEvent)
+    ]
+
+
 def _run_one_turn(app_env: AppEnv, session_id: str, text: str, reply: str) -> None:
     app_env.fake_llm.enqueue(
         message.AssistantTextDelta(content=reply),
         message.AssistantMessage(parts=[message.TextPart(text=reply)], stop_reason="stop", usage=usage()),
     )
-    response = app_env.client.post(f"/api/sessions/{session_id}/message", json={"text": text})
+    response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": text})
     assert response.status_code == 200
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
-        states = app_env.client.get("/api/sessions/running").json()["states"]
-        if session_id not in states:
+        brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
+        if brief["state"] == "idle":
             return
         time.sleep(0.05)
     raise AssertionError("turn did not finish in time")
@@ -83,6 +97,7 @@ def test_attach_idle_session_replays_history(app_env: AppEnv) -> None:
         handshake = _consume_attach_handshake(websocket)
 
     assert handshake["connection_info"]["can_input"] is True
+    assert handshake["connection_info"]["protocol_version"] == PROTOCOL_VERSION
     assert handshake["session_info"]["state"] == "idle"
 
     welcome = [item for item in handshake["replay"] if item.get("event_type") == "welcome"]
@@ -106,7 +121,10 @@ def test_attach_mid_turn_has_no_gap_and_no_duplicates(app_env: AppEnv) -> None:
         ),
         delay_s=0.3,
     )
-    response = app_env.client.post(f"/api/sessions/{session_id}/message", json={"text": "slow question"})
+    response = app_env.client.post(
+        f"/api/headless/sessions/{session_id}/send",
+        json={"text": "slow question"},
+    )
     assert response.status_code == 200
 
     with _attach(app_env, session_id) as websocket:
@@ -134,6 +152,37 @@ def test_attach_mid_turn_has_no_gap_and_no_duplicates(app_env: AppEnv) -> None:
 
     total_text = _delta_text(handshake["replay"]) + _delta_text(live)
     assert total_text == "chunk-a chunk-b chunk-c"
+
+
+def test_headless_websocket_streams_deltas_through_task_finish(app_env: AppEnv) -> None:
+    app_env.fake_llm.enqueue(
+        message.AssistantTextDelta(content="headless "),
+        message.AssistantTextDelta(content="stream"),
+        message.AssistantMessage(parts=[message.TextPart(text="headless stream")], stop_reason="stop", usage=usage()),
+        delay_s=0.2,
+    )
+    response = app_env.client.post(
+        "/api/headless/run",
+        json={"prompt": "stream a reply", "work_dir": str(app_env.work_dir)},
+    )
+    assert response.status_code == 200
+    session_id = response.json()["session_id"]
+
+    with _attach(app_env, session_id, peek="1") as websocket:
+        handshake = _consume_attach_handshake(websocket)
+        collected = [item for item in handshake["replay"] if item.get("event_type")]
+        for _ in range(200):
+            if any(item.get("event_type") == "task.finish" for item in collected):
+                break
+            collected.extend(receive_events(websocket))
+
+    text = "".join(
+        str(item["event"].get("content", ""))
+        for item in collected
+        if item.get("session_id") == session_id and item.get("event_type") == "assistant.text.delta"
+    )
+    assert text == "headless stream"
+    assert any(item.get("session_id") == session_id and item.get("event_type") == "task.finish" for item in collected)
 
 
 def test_two_attached_clients_share_stream_and_both_can_send(app_env: AppEnv) -> None:
@@ -200,9 +249,7 @@ def test_two_attached_clients_share_stream_and_both_can_send(app_env: AppEnv) ->
         assert any(event.get("event_type") == "task.finish" for event in events_1b)
 
     # Two writers, one server: history on disk is consistent and complete.
-    history = app_env.client.get(f"/api/sessions/{session_id}/history").json()["events"]
-    user_messages = [event for event in history if event["event_type"] == "user.message"]
-    assert [event["event"]["content"] for event in user_messages] == ["from client one", "from client two"]
+    assert _history_user_messages(app_env, session_id) == ["from client one", "from client two"]
 
 
 def test_server_drains_interactive_follow_up_queue(app_env: AppEnv) -> None:
@@ -250,7 +297,7 @@ def test_server_drains_interactive_follow_up_queue(app_env: AppEnv) -> None:
                     finishes += 1
                 if event.get("event_type") == "follow.up.queue.updated":
                     queue_updates.append(list(event["event"].get("texts", [])))
-            if finishes >= 2:
+            if finishes >= 2 and [] in queue_updates:
                 break
         assert finishes >= 2
 
@@ -258,9 +305,7 @@ def test_server_drains_interactive_follow_up_queue(app_env: AppEnv) -> None:
     assert ["second"] in queue_updates
     assert [] in queue_updates
 
-    history = app_env.client.get(f"/api/sessions/{session_id}/history").json()["events"]
-    user_messages = [event["event"]["content"] for event in history if event["event_type"] == "user.message"]
-    assert user_messages == ["first", "second"]
+    assert _history_user_messages(app_env, session_id) == ["first", "second"]
 
 
 def test_op_frame_rejects_foreign_session(app_env: AppEnv) -> None:
@@ -311,7 +356,10 @@ def test_send_steer_interrupts_and_injects(app_env: AppEnv) -> None:
         message.AssistantMessage(parts=[message.TextPart(text="steered reply")], stop_reason="stop", usage=usage()),
     )
 
-    response = app_env.client.post(f"/api/sessions/{session_id}/message", json={"text": "long task"})
+    response = app_env.client.post(
+        f"/api/headless/sessions/{session_id}/send",
+        json={"text": "long task"},
+    )
     assert response.status_code == 200
 
     steer = app_env.client.post(
@@ -323,8 +371,8 @@ def test_send_steer_interrupts_and_injects(app_env: AppEnv) -> None:
 
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
-        states = app_env.client.get("/api/sessions/running").json()["states"]
-        if session_id not in states:
+        brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
+        if brief["state"] == "idle":
             break
         time.sleep(0.05)
 
@@ -336,11 +384,13 @@ def test_attach_rehydrates_reclaimed_actor(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
     _run_one_turn(app_env, session_id, "before reclaim", "still here")
 
-    # Simulate the 30min idle actor reclaim: archive closes the actor in the
-    # server loop; the session lives on disk. Attach must rehydrate and
-    # replay from persisted history.
-    assert app_env.client.post(f"/api/sessions/{session_id}/archive").status_code == 200
-    assert app_env.client.post(f"/api/sessions/{session_id}/unarchive").status_code == 200
+    # Simulate the 30min idle actor reclaim. The session stays on disk and
+    # attach must rehydrate it before replaying persisted history.
+    response = app_env.client.put(
+        f"/api/sessions/{session_id}/model/config",
+        json={"model_name": "fake"},
+    )
+    assert response.status_code == 200
     assert not app_env.runtime.session_registry.has_session_actor(session_id)
 
     with _attach(app_env, session_id) as websocket:

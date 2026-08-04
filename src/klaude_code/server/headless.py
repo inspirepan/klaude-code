@@ -1,10 +1,8 @@
 """Headless run management: concurrency slots, run queue, and activity tracking.
 
-`klaude run` spawns background agents through this module. The server keeps a
-global cap on concurrently running headless sessions; runs beyond the cap wait
-in an in-memory queue (state `queued`) until a slot frees. The queue does not
-survive a server restart — queued sessions exist on disk and can be re-run via
-`klaude send`.
+`klaude run` and later headless turns pass through one persistent slot queue.
+Interactive sessions use the same follow-up drain but do not consume headless
+slots.
 """
 
 from __future__ import annotations
@@ -14,16 +12,18 @@ import contextlib
 import json
 import time
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.event_bus import EventBus, EventSubscription
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op
-from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.message import QueuedUserInput, UserInputPayload
+from klaude_code.server.session_index import SessionSummary
 from klaude_code.server.session_tape import SessionEventTapes
+from klaude_code.session.session import Session
 
 _ACTIVITY_ARG_KEYS = (
     "command",
@@ -133,13 +133,16 @@ class SessionActivityTracker:
         entry = self._by_session.get(session_id)
         return entry.interrupted if entry is not None else False
 
+    def restore_failed(self, session_id: str) -> None:
+        self._entry(session_id).failed = True
+
 
 @dataclass
 class QueuedRun:
     session_id: str
-    prompt: UserInputPayload
+    queued: QueuedUserInput
     work_dir: Path
-    enqueued_at: float = field(default_factory=time.time)
+    kind: Literal["turn", "follow_up", "steer"] = "turn"
 
 
 class HeadlessRuntime:
@@ -160,12 +163,17 @@ class HeadlessRuntime:
         self._queue: deque[QueuedRun] = deque()
         self._queued_by_id: dict[str, QueuedRun] = {}
         self._watch_tasks: set[asyncio.Task[None]] = set()
+        self._launch_handoffs: dict[str, asyncio.Future[Any]] = {}
         self._consumer_task: asyncio.Task[None] | None = None
+        self._closing = False
         self._drain_locks: dict[str, asyncio.Lock] = {}
+        self._scheduling_locks: dict[str, asyncio.Lock] = {}
+        self._steering: set[str] = set()
+        self._stopped_sessions: set[str] = set()
         # Sessions with a user turn submitted whose task has not started yet.
         # The registry looks idle in that window; the drain must back off or
         # it would steal the slot and get the user's turn busy-rejected.
-        self._turn_starting: dict[str, float] = {}
+        self._turn_starting: dict[str, str] = {}
 
     @property
     def max_running(self) -> int:
@@ -174,9 +182,53 @@ class HeadlessRuntime:
     def start(self, event_bus: EventBus) -> None:
         if self._consumer_task is not None:
             return
+        self._closing = False
         self._consumer_task = asyncio.create_task(self._consume_events(event_bus))
 
+    def restore(self, summaries: list[SessionSummary]) -> None:
+        """Restore durable queued turns, follow-ups, and failed state."""
+        restored: list[QueuedRun] = []
+        for summary in summaries:
+            if summary.spawn_kind != "headless":
+                continue
+            work_dir = Path(summary.work_dir)
+            session = Session.load(summary.id, work_dir=work_dir)
+            if session.headless_failed:
+                self.tracker.restore_failed(summary.id)
+            if session.headless_queued_turn is not None:
+                queued_turn = session.headless_queued_turn
+                if session.headless_completed_turn_id == queued_turn.id:
+                    Session.persist_headless_queued_turn(
+                        summary.id,
+                        work_dir,
+                        expected_turn_id=queued_turn.id,
+                    )
+                    session.headless_queued_turn = None
+                else:
+                    restored.append(
+                        QueuedRun(
+                            session_id=summary.id,
+                            queued=queued_turn,
+                            work_dir=work_dir,
+                        )
+                    )
+            while session.follow_up_queue and session.headless_completed_turn_id == session.follow_up_queue[0].id:
+                session.set_follow_up_queue(session.follow_up_queue[1:])
+            if session.headless_queued_turn is None and session.follow_up_queue:
+                restored.append(
+                    QueuedRun(
+                        session_id=summary.id,
+                        queued=session.follow_up_queue[0],
+                        work_dir=work_dir,
+                        kind="follow_up",
+                    )
+                )
+        for entry in sorted(restored, key=lambda item: item.queued.enqueued_at):
+            self._enqueue(entry)
+        self._pump()
+
     async def aclose(self) -> None:
+        self._closing = True
         tasks = list(self._watch_tasks)
         if self._consumer_task is not None:
             tasks.append(self._consumer_task)
@@ -187,6 +239,7 @@ class HeadlessRuntime:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
         self._watch_tasks.clear()
+        self._launch_handoffs.clear()
         self._consumer_task = None
 
     async def _consume_events(self, event_bus: EventBus) -> None:
@@ -197,7 +250,14 @@ class HeadlessRuntime:
                 if isinstance(event, events.EndEvent):
                     return
                 self.tracker.consume(event)
+                if isinstance(event, events.ErrorEvent):
+                    await self._persist_failed(event.session_id, failed=True)
                 if isinstance(event, events.TaskStartEvent):
+                    self._turn_starting.pop(event.session_id, None)
+                if (
+                    isinstance(event, events.OperationRejectedEvent)
+                    or (isinstance(event, events.OperationFinishedEvent) and event.status in ("rejected", "failed"))
+                ) and self._turn_starting.get(event.session_id) == event.operation_id:
                     self._turn_starting.pop(event.session_id, None)
                 if isinstance(event, events.TaskFinishEvent) and not self.tracker.is_interrupted(event.session_id):
                     self._schedule_follow_up_drain(event.session_id)
@@ -216,6 +276,23 @@ class HeadlessRuntime:
             subscription = event_bus.subscribe(None)
 
     def _schedule_follow_up_drain(self, session_id: str) -> None:
+        if session_id in self._stopped_sessions or self.tracker.is_failed(session_id):
+            return
+        actor = self._runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        if agent is not None and agent.session.spawn_kind == "headless":
+            queued = agent.peek_next_follow_up_record()
+            if queued is not None:
+                self._enqueue(
+                    QueuedRun(
+                        session_id=session_id,
+                        queued=queued,
+                        work_dir=agent.session.work_dir,
+                        kind="follow_up",
+                    )
+                )
+                self._pump()
+            return
         task = asyncio.create_task(self._drain_follow_up(session_id))
         self._watch_tasks.add(task)
         task.add_done_callback(self._watch_tasks.discard)
@@ -296,30 +373,13 @@ class HeadlessRuntime:
                 if agent.peek_next_follow_up() is None:
                     return
 
-                if self._should_compact_before_run(agent):
-                    compact = op.CompactSessionOperation(session_id=session_id, reason="threshold", will_retry=False)
-                    await self._runtime.submit(compact)
-                    await self._runtime.wait_for(compact.id)
-                    refreshed = registry.get_session_actor(session_id)
-                    agent = refreshed.get_agent() if refreshed is not None else None
-                    if agent is None or self.tracker.is_interrupted(session_id):
-                        return
-
-                follow_up = agent.pop_next_follow_up()
-                if follow_up is None:
+                if not await self._run_one_follow_up(agent):
                     return
-                await self._runtime.emit_event(
-                    events.UserMessageEvent(content=follow_up.text, session_id=session_id, images=follow_up.images)
-                )
-                run = op.RunAgentOperation(session_id=session_id, input=follow_up)
-                await self._runtime.submit(run)
-                await self._runtime.emit_event(
-                    events.FollowUpQueueUpdatedEvent(
-                        session_id=session_id,
-                        texts=[item.text for item in agent.follow_up_snapshot()],
-                    )
-                )
-                await self._runtime.wait_for(run.id)
+
+    async def _run_headless_follow_up(self, entry: QueuedRun) -> None:
+        agent = await self._ensure_agent(entry.session_id, entry.work_dir)
+        if not self.tracker.is_interrupted(entry.session_id):
+            await self._run_one_follow_up(agent)
 
     async def _run_one_follow_up(self, agent: Any) -> bool:
         """Run and acknowledge one durable follow-up after its history flush."""
@@ -345,13 +405,27 @@ class HeadlessRuntime:
         # drained turn. The durable copy stays until the post-turn ack.
         if not agent.begin_follow_up(queued.id):
             return False
-        await self._runtime.emit_event(
-            events.FollowUpQueueUpdatedEvent(
-                session_id=session_id,
-                texts=[item.text for item in agent.follow_up_snapshot()],
+        try:
+            await self._runtime.emit_event(
+                events.FollowUpQueueUpdatedEvent(
+                    session_id=session_id,
+                    texts=[item.text for item in agent.follow_up_snapshot()],
+                )
             )
-        )
-        await self._start_turn(session_id, queued.input, turn_id=queued.id)
+            await self._start_turn(session_id, queued.input, turn_id=queued.id)
+        except BaseException:
+            abort = getattr(agent, "abort_follow_up", None)
+            if abort is not None:
+                abort(queued.id)
+            raise
+        if agent.session.headless_completed_turn_id != queued.id:
+            completed = Session.load_meta(session_id, work_dir=agent.session.work_dir).headless_completed_turn_id
+            if completed != queued.id:
+                abort = getattr(agent, "abort_follow_up", None)
+                if abort is not None:
+                    abort(queued.id)
+                return False
+            agent.session.headless_completed_turn_id = completed
         next_enqueued_at = time.time() if agent.session.spawn_kind == "headless" else None
         return agent.acknowledge_follow_up(queued.id, next_enqueued_at=next_enqueued_at)
 
@@ -368,91 +442,430 @@ class HeadlessRuntime:
         except Exception:
             return False
 
-    def mark_turn_starting(self, session_id: str) -> None:
+    def mark_turn_starting(self, session_id: str, operation_id: str) -> None:
         """Note that a user turn was submitted but its task is not active yet."""
-        self._turn_starting[session_id] = time.time()
+        self._turn_starting[session_id] = operation_id
+
+    def clear_turn_starting(self, session_id: str, operation_id: str) -> None:
+        if self._turn_starting.get(session_id) == operation_id:
+            self._turn_starting.pop(session_id, None)
 
     def turn_start_pending(self, session_id: str) -> bool:
-        started_at = self._turn_starting.get(session_id)
-        if started_at is None:
-            return False
-        if time.time() - started_at > 5.0:
-            # The submission never became a task (e.g. rejected); recover.
-            self._turn_starting.pop(session_id, None)
-            return False
-        return True
+        return session_id in self._turn_starting
 
     def is_queued(self, session_id: str) -> bool:
-        return session_id in self._queued_by_id
+        return session_id in self._queued_by_id and session_id not in self._running
+
+    def can_replace_queued_for_steer(self, session_id: str) -> bool:
+        entry = self._queued_by_id.get(session_id)
+        return entry is not None and entry.kind in ("follow_up", "steer")
+
+    def is_running(self, session_id: str) -> bool:
+        return session_id in self._running
+
+    def running_session_ids(self) -> set[str]:
+        return set(self._running)
+
+    def has_pending(self, session_id: str) -> bool:
+        if session_id in self._queued_by_id or session_id in self._steering or self.turn_start_pending(session_id):
+            return True
+        actor = self._runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        return bool(agent is not None and agent.peek_next_follow_up())
 
     def queued_session_ids(self) -> list[str]:
         return [entry.session_id for entry in self._queue]
 
     async def spawn(self, *, session_id: str, prompt: UserInputPayload, work_dir: Path) -> str:
         """Start a headless run or queue it. Returns "running" or "queued"."""
-        entry = QueuedRun(session_id=session_id, prompt=prompt, work_dir=work_dir)
-        if len(self._running) >= self._max_running:
-            self._queue.append(entry)
-            self._queued_by_id[session_id] = entry
-            return "queued"
-        await self._launch(entry)
-        return "running"
+        entry = QueuedRun(session_id=session_id, queued=QueuedUserInput(input=prompt), work_dir=work_dir)
+        await asyncio.to_thread(
+            Session.persist_headless_queued_turn,
+            session_id,
+            work_dir,
+            queued_turn=entry.queued,
+        )
+        self._enqueue(entry)
+        self._stopped_sessions.discard(session_id)
+        self._pump()
+        return "running" if session_id in self._running else "queued"
 
-    def cancel_queued(self, session_id: str) -> bool:
+    async def send(
+        self,
+        *,
+        session_id: str,
+        prompt: UserInputPayload,
+        work_dir: Path,
+    ) -> str:
+        """Persist and schedule an idle turn, or append behind existing follow-ups."""
+        lock = self._scheduling_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            self._stopped_sessions.discard(session_id)
+            return await self._send_locked(session_id=session_id, prompt=prompt, work_dir=work_dir)
+
+    async def _send_locked(
+        self,
+        *,
+        session_id: str,
+        prompt: UserInputPayload,
+        work_dir: Path,
+    ) -> str:
+        actor = self._runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        busy = (
+            session_id in self._running
+            or session_id in self._queued_by_id
+            or (actor is not None and not actor.snapshot().is_idle)
+        )
+        if busy and agent is None and session_id in self._running:
+            handoff = self._launch_handoffs.get(session_id)
+            if handoff is None:
+                raise RuntimeError(f"missing launch handoff for running session {session_id}")
+            # A cancelled request must not cancel the launch handoff shared by
+            # other requests and the launch task itself.
+            agent = await asyncio.shield(handoff)
+            actor = self._runtime.session_registry.get_session_actor(session_id)
+            registered_agent = actor.get_agent() if actor is not None else None
+            if registered_agent is None or registered_agent is not agent:
+                raise RuntimeError(f"initialized agent is unavailable for session {session_id}")
+        busy = (
+            session_id in self._running
+            or session_id in self._queued_by_id
+            or (actor is not None and not actor.snapshot().is_idle)
+        )
+        has_follow_ups = agent is not None and agent.peek_next_follow_up() is not None
+        session = agent.session if agent is not None else Session.load_meta(session_id, work_dir=work_dir)
+        if session.spawn_kind != "headless":
+            if busy or has_follow_ups:
+                operation_id = await self._runtime.submit(
+                    op.FollowUpAgentOperation(session_id=session_id, input=prompt)
+                )
+                await self._runtime.wait_for(operation_id)
+                self._schedule_follow_up_drain(session_id)
+                return "queued"
+            await self._ensure_agent(session_id, work_dir)
+            await self._runtime.emit_event(
+                events.UserMessageEvent(content=prompt.text, session_id=session_id, images=prompt.images)
+            )
+            run = op.RunAgentOperation(session_id=session_id, input=prompt)
+            self.mark_turn_starting(session_id, run.id)
+            try:
+                await self._runtime.submit(run)
+            except BaseException:
+                self.clear_turn_starting(session_id, run.id)
+                raise
+            return "started"
+        if busy or has_follow_ups:
+            operation_id = await self._runtime.submit(op.FollowUpAgentOperation(session_id=session_id, input=prompt))
+            await self._runtime.wait_for(operation_id)
+            self._schedule_follow_up_drain(session_id)
+            return "queued"
+        entry = QueuedRun(session_id=session_id, queued=QueuedUserInput(input=prompt), work_dir=work_dir)
+        await asyncio.to_thread(
+            Session.persist_headless_queued_turn,
+            session_id,
+            work_dir,
+            queued_turn=entry.queued,
+        )
+        self._enqueue(entry)
+        self._pump()
+        return "started" if session_id in self._running else "queued"
+
+    async def steer(
+        self,
+        *,
+        session_id: str,
+        prompt: UserInputPayload,
+        work_dir: Path,
+    ) -> str:
+        """Schedule a fresh turn without exposing an idle transition."""
+        lock = self._scheduling_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            self._stopped_sessions.discard(session_id)
+            actor = self._runtime.session_registry.get_session_actor(session_id)
+            agent = actor.get_agent() if actor is not None else None
+            session = agent.session if agent is not None else Session.load_meta(session_id, work_dir=work_dir)
+            if session.spawn_kind != "headless":
+                return await self._steer_interactive(session_id, prompt, work_dir)
+
+            queued = self._queued_by_id.get(session_id)
+            if queued is not None:
+                if queued.kind == "turn":
+                    raise RuntimeError("session already has a fresh turn queued")
+                self._queued_by_id.pop(session_id, None)
+                with contextlib.suppress(ValueError):
+                    self._queue.remove(queued)
+
+            entry = QueuedRun(
+                session_id=session_id,
+                queued=QueuedUserInput(input=prompt),
+                work_dir=work_dir,
+                kind="steer",
+            )
+            self._steering.add(session_id)
+            self._enqueue(entry)
+            try:
+                await asyncio.to_thread(
+                    Session.persist_headless_queued_turn,
+                    session_id,
+                    work_dir,
+                    queued_turn=entry.queued,
+                )
+            except BaseException:
+                if self._queued_by_id.get(session_id) is entry:
+                    self._queued_by_id.pop(session_id, None)
+                    with contextlib.suppress(ValueError):
+                        self._queue.remove(entry)
+                raise
+            finally:
+                if self._queued_by_id.get(session_id) is not entry:
+                    self._steering.discard(session_id)
+                    self._pump()
+
+            try:
+                actor = self._runtime.session_registry.get_session_actor(session_id)
+                if actor is not None and not actor.snapshot().is_idle:
+                    await self._runtime.submit_and_wait(op.InterruptOperation(session_id=session_id))
+            finally:
+                self._steering.discard(session_id)
+                self._pump()
+            return "queued" if self._queued_by_id.get(session_id) is entry else "started"
+
+    async def _steer_interactive(
+        self,
+        session_id: str,
+        prompt: UserInputPayload,
+        work_dir: Path,
+    ) -> str:
+        self._steering.add(session_id)
+        try:
+            actor = self._runtime.session_registry.get_session_actor(session_id)
+            if actor is not None and not actor.snapshot().is_idle:
+                await self._runtime.submit_and_wait(op.InterruptOperation(session_id=session_id))
+            await self._ensure_agent(session_id, work_dir)
+            await self._runtime.emit_event(
+                events.UserMessageEvent(content=prompt.text, session_id=session_id, images=prompt.images)
+            )
+            run = op.RunAgentOperation(session_id=session_id, input=prompt)
+            self.mark_turn_starting(session_id, run.id)
+            try:
+                await self._runtime.submit(run)
+            except BaseException:
+                self.clear_turn_starting(session_id, run.id)
+                raise
+        finally:
+            self._steering.discard(session_id)
+        return "started"
+
+    def _enqueue(self, entry: QueuedRun) -> None:
+        if entry.session_id in self._queued_by_id:
+            return
+        self._queue.append(entry)
+        self._queued_by_id[entry.session_id] = entry
+
+    async def cancel_queued(self, session_id: str) -> bool:
+        lock = self._scheduling_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            return await self._cancel_queued_locked(session_id)
+
+    async def prepare_interrupt(self, session_id: str, work_dir: Path) -> bool:
+        """Cancel pending work and prevent a running launch from pumping it again."""
+        lock = self._scheduling_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            cancelled = await self._cancel_queued_locked(session_id)
+            actor = self._runtime.session_registry.get_session_actor(session_id)
+            agent = actor.get_agent() if actor is not None else None
+            if agent is not None:
+                if agent.peek_next_follow_up() is not None:
+                    cancelled = True
+                agent.pop_all_follow_up()
+            elif not cancelled:
+                session = Session.load_meta(session_id, work_dir=work_dir)
+                if session.follow_up_queue:
+                    cancelled = True
+                    session.set_follow_up_queue([])
+            if session_id in self._running or (actor is not None and not actor.snapshot().is_idle):
+                self._stopped_sessions.add(session_id)
+            return cancelled
+
+    async def _cancel_queued_locked(self, session_id: str) -> bool:
         entry = self._queued_by_id.pop(session_id, None)
         if entry is None:
             return False
         with contextlib.suppress(ValueError):
             self._queue.remove(entry)
+        if entry.kind != "follow_up":
+            await asyncio.to_thread(
+                Session.persist_headless_queued_turn,
+                session_id,
+                entry.work_dir,
+                expected_turn_id=entry.queued.id,
+            )
+        else:
+            actor = self._runtime.session_registry.get_session_actor(session_id)
+            agent = actor.get_agent() if actor is not None else None
+            if agent is not None:
+                agent.pop_all_follow_up()
+            else:
+                Session.load_meta(session_id, work_dir=entry.work_dir).set_follow_up_queue([])
+        if session_id in self._running:
+            self._stopped_sessions.add(session_id)
         return True
 
     async def _launch(self, entry: QueuedRun) -> None:
         session_id = entry.session_id
-        self._running.add(session_id)
+        handoff = self._launch_handoffs.get(session_id)
         try:
+            await self._ensure_agent(session_id, entry.work_dir)
+            if entry.kind == "follow_up":
+                await self._run_headless_follow_up(entry)
+                return
+            await self._start_turn(
+                session_id,
+                entry.queued.input,
+                turn_id=entry.queued.id,
+                clear_queued_work_dir=entry.work_dir,
+            )
+        except asyncio.CancelledError:
+            if handoff is not None and not handoff.done():
+                handoff.cancel()
+            raise
+        except Exception as exc:
+            if handoff is not None and not handoff.done():
+                handoff.set_exception(exc)
+            await self._persist_failed(session_id, failed=True)
+            raise
+        finally:
+            if handoff is not None and not handoff.done():
+                handoff.set_exception(RuntimeError(f"launch ended before session {session_id} accepted a turn"))
+            if self._launch_handoffs.get(session_id) is handoff:
+                self._launch_handoffs.pop(session_id, None)
+            self._running.discard(session_id)
+            actor = self._runtime.session_registry.get_session_actor(session_id)
+            agent = actor.get_agent() if actor is not None else None
+            queued = agent.peek_next_follow_up_record() if agent is not None else None
+            if session_id in self._stopped_sessions or self.tracker.is_failed(session_id):
+                queued = None
+            if queued is not None:
+                self._enqueue(
+                    QueuedRun(
+                        session_id=session_id,
+                        queued=queued,
+                        work_dir=entry.work_dir,
+                        kind="follow_up",
+                    )
+                )
+            self._pump()
+
+    async def _ensure_agent(self, session_id: str, work_dir: Path) -> Any:
+        actor = self._runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        if agent is None:
             await self._runtime.submit_and_wait(
                 op.InitAgentOperation(
                     session_id=session_id,
-                    work_dir=entry.work_dir,
+                    work_dir=work_dir,
                     defer_welcome_context=True,
                     defer_replay=True,
                 )
             )
-            await self._runtime.emit_event(
-                events.UserMessageEvent(
-                    content=entry.prompt.text,
-                    session_id=session_id,
-                    images=entry.prompt.images,
-                )
-            )
-            operation_id = await self._runtime.submit(op.RunAgentOperation(session_id=session_id, input=entry.prompt))
-        except Exception:
-            self._running.discard(session_id)
-            self._queued_by_id.pop(session_id, None)
-            self._pump()
-            raise
-        # Only clear the queued flag after the run operation is accepted so
-        # state derivation never reports a spurious `idle` gap.
-        self._queued_by_id.pop(session_id, None)
-        watch_task = asyncio.create_task(self._watch_run(session_id, operation_id))
-        self._watch_tasks.add(watch_task)
-        watch_task.add_done_callback(self._watch_tasks.discard)
+            actor = self._runtime.session_registry.get_session_actor(session_id)
+            agent = actor.get_agent() if actor is not None else None
+        if agent is None:
+            raise RuntimeError(f"failed to initialize headless session {session_id}")
+        return agent
 
-    async def _watch_run(self, session_id: str, operation_id: str) -> None:
-        try:
-            await self._runtime.wait_for(operation_id)
-        finally:
-            self._running.discard(session_id)
-            self._pump()
+    async def _start_turn(
+        self,
+        session_id: str,
+        prompt: UserInputPayload,
+        *,
+        turn_id: str,
+        clear_queued_work_dir: Path | None = None,
+    ) -> None:
+        await self._persist_failed(session_id, failed=False)
+        await self._runtime.emit_event(
+            events.UserMessageEvent(content=prompt.text, session_id=session_id, images=prompt.images)
+        )
+        operation_id = await self._runtime.submit(op.RunAgentOperation(id=turn_id, session_id=session_id, input=prompt))
+        actor = self._runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        if agent is None:
+            raise RuntimeError(f"agent disappeared while submitting turn {turn_id}")
+        self._complete_launch_handoff(session_id, agent)
+        operation_status = await self._runtime.wait_for(operation_id)
+        if operation_status in ("failed", "rejected"):
+            raise RuntimeError(f"headless turn {operation_status} before completion: {turn_id}")
+        actor = self._runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        if agent is None:
+            raise RuntimeError(f"agent disappeared while starting turn {turn_id}")
+        await asyncio.shield(agent.session.wait_for_flush())
+        if self.tracker.is_failed(session_id):
+            raise RuntimeError(f"headless turn failed before completion: {turn_id}")
+        completed_persisted = await asyncio.to_thread(
+            Session.persist_headless_completed_turn,
+            session_id,
+            agent.session.work_dir,
+            turn_id=turn_id,
+        )
+        if not completed_persisted:
+            raise RuntimeError(f"failed to persist headless turn completion: {turn_id}")
+        agent.session.headless_completed_turn_id = turn_id
+        if clear_queued_work_dir is not None:
+            lock = self._scheduling_locks.setdefault(session_id, asyncio.Lock())
+            async with lock:
+                await asyncio.to_thread(
+                    Session.persist_headless_queued_turn,
+                    session_id,
+                    clear_queued_work_dir,
+                    expected_turn_id=turn_id,
+                )
+
+    async def _persist_failed(self, session_id: str, *, failed: bool) -> None:
+        actor = self._runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        if agent is None or agent.session.spawn_kind != "headless":
+            return
+        work_dir = agent.session.work_dir
+        await asyncio.to_thread(Session.persist_headless_failed, session_id, work_dir, failed=failed)
 
     def _pump(self) -> None:
-        while self._queue and len(self._running) < self._max_running:
+        if self._closing:
+            return
+        attempts = len(self._queue)
+        while self._queue and len(self._running) < self._max_running and attempts > 0:
             entry = self._queue.popleft()
+            attempts -= 1
             if entry.session_id not in self._queued_by_id:
                 continue  # cancelled while queued
+            if entry.session_id in self._running:
+                self._queue.append(entry)
+                continue
+            if entry.session_id in self._steering:
+                self._queue.append(entry)
+                continue
+            self._queued_by_id.pop(entry.session_id, None)
+            # Reserve before creating the task. Otherwise this loop starts the
+            # whole queue before any _launch coroutine can update _running.
+            self._running.add(entry.session_id)
+            handoff = asyncio.get_running_loop().create_future()
+            handoff.add_done_callback(self._consume_handoff_exception)
+            self._launch_handoffs[entry.session_id] = handoff
             launch_task = asyncio.create_task(self._launch_logged(entry))
             self._watch_tasks.add(launch_task)
             launch_task.add_done_callback(self._watch_tasks.discard)
+
+    @staticmethod
+    def _consume_handoff_exception(handoff: asyncio.Future[Any]) -> None:
+        """Retrieve unobserved launch failures without changing await behavior."""
+        if not handoff.cancelled():
+            handoff.exception()
+
+    def _complete_launch_handoff(self, session_id: str, agent: Any) -> None:
+        handoff = self._launch_handoffs.get(session_id)
+        if handoff is not None and not handoff.done():
+            handoff.set_result(agent)
 
     async def _launch_logged(self, entry: QueuedRun) -> None:
         try:

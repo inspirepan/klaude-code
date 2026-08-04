@@ -19,6 +19,7 @@ from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, op
 from klaude_code.protocol.models import TaskMetadataItem, Usage
+from klaude_code.protocol.version import PROTOCOL_VERSION
 from klaude_code.server.session_index import resolve_session_work_dir
 from klaude_code.server.session_state import derive_session_state_from_snapshot
 from klaude_code.server.state import ServerAppState, get_server_state_from_ws
@@ -167,8 +168,13 @@ async def _submit_user_turn(state: ServerAppState, run_op: op.RunAgentOperation)
         return
     if state.headless is not None:
         # Guard the submit-to-task-start window against the follow-up drain.
-        state.headless.mark_turn_starting(session_id)
-    await runtime.submit(run_op)
+        state.headless.mark_turn_starting(session_id, run_op.id)
+    try:
+        await runtime.submit(run_op)
+    except BaseException:
+        if state.headless is not None:
+            state.headless.clear_turn_starting(session_id, run_op.id)
+        raise
 
 
 async def _handle_operation_frame(
@@ -545,24 +551,6 @@ async def _send_pending_interaction_snapshots(session_id: str, websocket: WebSoc
         await websocket.send_json(_synthetic_envelope_dict(request_event))
 
 
-async def _forward_session_list_events(websocket: WebSocket) -> None:
-    state = get_server_state_from_ws(websocket)
-    if state.session_live is None:
-        return
-    subscription = state.session_live.stream.subscribe()
-    try:
-        async for event in subscription:
-            await websocket.send_json(
-                {
-                    "type": event.type,
-                    "session_id": event.session_id,
-                    "session": event.session,
-                }
-            )
-    except (WebSocketDisconnect, RuntimeError, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
-        return
-
-
 async def _receive_commands(
     session_id: str,
     websocket: WebSocket,
@@ -654,6 +642,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 "type": "connection_info",
                 "can_input": can_input,
                 "session_id": session_id,
+                "protocol_version": PROTOCOL_VERSION,
                 "code_fingerprint": state.code_fingerprint,
             }
         )
@@ -756,32 +745,3 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                     debug_type=DebugType.EXECUTION,
                 )
         log_debug(f"[ws:{session_id[:8]}] finally done", debug_type=DebugType.EXECUTION)
-
-
-async def _wait_for_ws_disconnect(websocket: WebSocket) -> None:
-    """Block until the client disconnects or sends any message (ignored)."""
-    try:
-        while True:
-            await websocket.receive()
-    except (WebSocketDisconnect, anyio.ClosedResourceError, asyncio.CancelledError, FutureCancelledError):
-        return
-
-
-@router.websocket("/api/sessions/ws")
-async def session_list_websocket(websocket: WebSocket) -> None:
-    try:
-        await websocket.accept()
-        forward_task = asyncio.create_task(_forward_session_list_events(websocket))
-        disconnect_task = asyncio.create_task(_wait_for_ws_disconnect(websocket))
-        try:
-            _done, _pending = await asyncio.wait({forward_task, disconnect_task}, return_when=asyncio.FIRST_COMPLETED)
-        finally:
-            for task in (forward_task, disconnect_task):
-                if not task.done():
-                    task.cancel()
-            await asyncio.gather(forward_task, disconnect_task, return_exceptions=True)
-    except (WebSocketDisconnect, asyncio.CancelledError, FutureCancelledError):
-        return
-    finally:
-        with contextlib.suppress(Exception):
-            await websocket.close()

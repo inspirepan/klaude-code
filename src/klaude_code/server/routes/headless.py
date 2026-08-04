@@ -6,7 +6,6 @@ and bounded serialization all live here so every CLI client stays thin.
 
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from typing import Any, Final, Literal
 from uuid import uuid4
@@ -15,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
-from klaude_code.protocol import events, message, op, user_interaction
+from klaude_code.protocol import message, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.sub_agent import get_all_names
 from klaude_code.server.headless import HeadlessRuntime, format_tool_call_activity
@@ -100,6 +99,8 @@ def _headless_state(state: ServerAppState, headless: HeadlessRuntime, session_id
             return "waiting_input"
         if derived == "running":
             return "running"
+    if headless.is_running(session_id) or headless.turn_start_pending(session_id):
+        return "running"
     if headless.tracker.is_failed(session_id):
         return "failed"
     return "idle"
@@ -186,6 +187,9 @@ def _serialize_row(
         "updated_at": summary.updated_at,
         "archived": summary.archived,
         "activity": _activity_label(state, headless, summary.id, session_state),
+        # This remains true across the idle teardown window between queued
+        # follow-up turns. CLI wait uses it as the stable server contract.
+        "pending": headless.has_pending(summary.id),
     }
     if session_state == "waiting_input":
         pending = _pending_requests(state, summary.id)
@@ -477,6 +481,7 @@ async def get_headless_output(
         "name": summary.name,
         "state": _headless_state(state, headless, summary.id),
         "output": output,
+        "pending": headless.has_pending(summary.id),
     }
     pending = _pending_requests(state, summary.id)
     if pending:
@@ -505,47 +510,26 @@ async def send_headless_message(
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="message text is empty")
-    if headless.is_queued(summary.id):
+    if headless.is_queued(summary.id) and (not payload.steer or not headless.can_replace_queued_for_steer(summary.id)):
         raise HTTPException(status_code=409, detail="session is queued and has not started yet; wait for it first")
 
     user_input = UserInputPayload(text=text)
-    actor = state.runtime.session_registry.get_session_actor(summary.id)
-    busy = actor is not None and not actor.snapshot().is_idle
-    if busy and payload.steer:
-        # Steer: interrupt the running turn, wait for it to wind down, then
-        # inject the message as a fresh turn (Esc + type, as one command).
-        await state.runtime.submit(op.InterruptOperation(session_id=summary.id))
-        deadline = asyncio.get_running_loop().time() + 30.0
-        while asyncio.get_running_loop().time() < deadline:
-            actor = state.runtime.session_registry.get_session_actor(summary.id)
-            if actor is None or actor.snapshot().is_idle:
-                break
-            await asyncio.sleep(0.05)
-        actor = state.runtime.session_registry.get_session_actor(summary.id)
-        if actor is not None and not actor.snapshot().is_idle:
-            raise HTTPException(status_code=504, detail="session did not stop in time; message not delivered")
-        busy = False
-    if busy:
-        # Queue as a follow-up: delivered when the current turn finishes.
-        await state.runtime.submit(op.FollowUpAgentOperation(session_id=summary.id, input=user_input))
-        return {"session_id": summary.id, "mode": "queued"}
-
-    if actor is None or actor.get_agent() is None:
-        try:
-            await state.runtime.submit_and_wait(
-                op.InitAgentOperation(
-                    session_id=summary.id,
-                    work_dir=Path(summary.work_dir),
-                    defer_welcome_context=True,
-                    defer_replay=True,
-                )
+    try:
+        if payload.steer:
+            mode = await headless.steer(
+                session_id=summary.id,
+                prompt=user_input,
+                work_dir=Path(summary.work_dir),
             )
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"failed to load session: {exc}") from exc
-
-    await state.runtime.emit_event(events.UserMessageEvent(content=text, session_id=summary.id))
-    operation_id = await state.runtime.submit(op.RunAgentOperation(session_id=summary.id, input=user_input))
-    return {"session_id": summary.id, "mode": "started", "operation_id": operation_id}
+        else:
+            mode = await headless.send(
+                session_id=summary.id,
+                prompt=user_input,
+                work_dir=Path(summary.work_dir),
+            )
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"failed to schedule message: {exc}") from exc
+    return {"session_id": summary.id, "mode": mode, "pending": True}
 
 
 # -- respond --
@@ -654,11 +638,12 @@ async def interrupt_headless(target: str, state: ServerAppState = STATE_DEP) -> 
     summaries = _load_summaries(state)
     summary = _resolve_target(summaries, target)
 
-    if headless.cancel_queued(summary.id):
-        return {"ok": True, "session_id": summary.id, "was": "queued"}
+    cancelled_queued = await headless.prepare_interrupt(summary.id, Path(summary.work_dir))
 
     actor = state.runtime.session_registry.get_session_actor(summary.id)
     if actor is None or actor.snapshot().is_idle:
+        if cancelled_queued:
+            return {"ok": True, "session_id": summary.id, "was": "queued"}
         return {"ok": True, "session_id": summary.id, "was": "idle"}
 
     await state.runtime.submit(op.InterruptOperation(session_id=summary.id))

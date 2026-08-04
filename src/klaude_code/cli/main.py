@@ -30,8 +30,9 @@ opens an interactive session in the current directory (the server is
 auto-started when needed).
 
 Options:
-  -c, --continue       Resume the latest session in this directory
-  -r, --resume [ID]    Pick a session and resume it
+  -c, --continue       Attach to the latest session in this directory
+  -r, --resume [ID]    Pick a session and attach; if it is running,
+                       attach live instead of forking
   -m, --model TEXT     Select model (see `klaude agents`)
       --vanilla        Minimal mode: basic tools, no system prompts
   -d, --debug          Enable debug logging
@@ -237,17 +238,17 @@ def main_callback(
         help="Select model; pass a value to auto-select on unique match or prefill the picker search, or use --model with no value to open the picker",
         rich_help_panel="LLM",
     ),
-    continue_: bool = typer.Option(False, "--continue", "-c", help="Resume latest session"),
+    continue_: bool = typer.Option(False, "--continue", "-c", help="Attach to the latest session"),
     resume: bool = typer.Option(
         False,
         "--resume",
         "-r",
-        help="Resume a session; use --resume <id> to resume directly, or --resume to pick interactively",
+        help="Attach to a session; use --resume <id> directly, or --resume to pick interactively",
     ),
     resume_by_id: str | None = typer.Option(
         None,
         "--resume-by-id",
-        help="Resume session by ID",
+        help="Attach to session by ID",
         hidden=True,
     ),
     select_model: bool = typer.Option(
@@ -492,8 +493,16 @@ def main_callback(
         elif chosen_model:
             # Resuming: persist the resolved model (explicit -m, the session's
             # own model, or the fallback) so the server rehydrates with it.
-            from klaude_code.session.store_registry import get_store_for_path
+            from klaude_code.cli.uds_client import request
 
-            get_store_for_path(Path.cwd()).update_meta(session_id, {"model_config_name": chosen_model})
+            status, body = request(
+                "PUT",
+                f"/api/sessions/{session_id}/model/config",
+                json_body={"model_name": chosen_model},
+            )
+            if status != 200 or not isinstance(body, dict) or body.get("ok") is not True:
+                detail = body.get("detail") if isinstance(body, dict) else body
+                log((f"Error: failed to configure session model: {detail}", "red"))
+                raise typer.Exit(1)
 
         asyncio.run(run_attach(session_id))

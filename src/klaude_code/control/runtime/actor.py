@@ -111,6 +111,8 @@ class SessionActor:
         self._reject_operation = reject_operation
         self._state = SessionState(idle_since_monotonic=time.monotonic())
         self._control_burst_quota = control_burst_quota
+        self._prefetched_control: op.Operation | _StopSignal | None = None
+        self._prefetched_normal: op.Operation | None = None
         self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop())
 
     async def enqueue(self, operation: op.Operation) -> None:
@@ -136,6 +138,19 @@ class SessionActor:
         if tasks_to_await:
             await asyncio.gather(*tasks_to_await, return_exceptions=True)
 
+        await self.control_mailbox.put(_STOP_SIGNAL)
+        await self._worker_task
+
+        # The worker owns prefetched items until it exits. Clearing them while
+        # _next_item is selecting between both mailboxes can make it execute an
+        # item that shutdown already acknowledged with task_done().
+        if self._prefetched_control is not None:
+            self._prefetched_control = None
+            self.control_mailbox.task_done()
+        if self._prefetched_normal is not None:
+            self._prefetched_normal = None
+            self.normal_mailbox.task_done()
+
         while True:
             try:
                 _ = self.control_mailbox.get_nowait()
@@ -149,8 +164,6 @@ class SessionActor:
             except asyncio.QueueEmpty:
                 break
 
-        await self.control_mailbox.put(_STOP_SIGNAL)
-        await self._worker_task
         self.clear_execution_state()
 
     def set_agent(self, agent: Agent) -> None:
@@ -330,6 +343,8 @@ class SessionActor:
             and not self._state.child_task_ids
             and not self._state.pending_requests
             and not self._state.task_handles
+            and self._prefetched_control is None
+            and self._prefetched_normal is None
             and self.control_mailbox.empty()
             and self.normal_mailbox.empty()
         )
@@ -382,20 +397,22 @@ class SessionActor:
                     self.normal_mailbox.task_done()
 
     async def _next_item(self) -> op.Operation | _StopSignal:
-        if self._state.control_burst_count >= self._control_burst_quota and not self.normal_mailbox.empty():
+        normal_available = self._prefetched_normal is not None or not self.normal_mailbox.empty()
+        control_available = self._prefetched_control is not None or not self.control_mailbox.empty()
+        if self._state.control_burst_count >= self._control_burst_quota and normal_available:
             self._state.control_burst_count = 0
-            return self.normal_mailbox.get_nowait()
+            return self._take_normal()
 
-        if not self.control_mailbox.empty():
-            item = self.control_mailbox.get_nowait()
+        if control_available:
+            item = self._take_control()
             if isinstance(item, _StopSignal):
                 return item
             self._state.control_burst_count += 1
             return item
 
-        if not self.normal_mailbox.empty():
+        if normal_available:
             self._state.control_burst_count = 0
-            return self.normal_mailbox.get_nowait()
+            return self._take_normal()
 
         control_task = asyncio.create_task(self.control_mailbox.get())
         normal_task = asyncio.create_task(self.normal_mailbox.get())
@@ -405,8 +422,20 @@ class SessionActor:
         for task in pending:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
-        selected_task = next(iter(done))
-        selected = selected_task.result()
+        if control_task in done and normal_task in done:
+            control_item = control_task.result()
+            normal_item = normal_task.result()
+            if isinstance(control_item, _StopSignal) or self._state.control_burst_count < self._control_burst_quota:
+                self._prefetched_normal = normal_item
+                selected_task = control_task
+                selected = control_item
+            else:
+                self._prefetched_control = control_item
+                selected_task = normal_task
+                selected = normal_item
+        else:
+            selected_task = next(iter(done))
+            selected = selected_task.result()
         if isinstance(selected, _StopSignal):
             return selected
         if selected_task is control_task:
@@ -414,6 +443,20 @@ class SessionActor:
         else:
             self._state.control_burst_count = 0
         return selected
+
+    def _take_control(self) -> op.Operation | _StopSignal:
+        prefetched = self._prefetched_control
+        if prefetched is not None:
+            self._prefetched_control = None
+            return prefetched
+        return self.control_mailbox.get_nowait()
+
+    def _take_normal(self) -> op.Operation:
+        prefetched = self._prefetched_normal
+        if prefetched is not None:
+            self._prefetched_normal = None
+            return prefetched
+        return self.normal_mailbox.get_nowait()
 
 
 def _is_root_operation(operation: op.Operation) -> bool:

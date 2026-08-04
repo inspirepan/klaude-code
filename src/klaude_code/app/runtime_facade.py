@@ -14,19 +14,20 @@ from klaude_code.control.runtime.registry import OperationLifecycleHooks, Sessio
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op, user_interaction
-from klaude_code.protocol.models import SessionRuntimeState
-from klaude_code.session.session import Session
 
 
 class OperationCompletionAwaiter:
     def __init__(self, event_bus: EventBus) -> None:
         self._subscription = event_bus.subscribe(None)
-        self._futures: dict[str, asyncio.Future[None]] = {}
-        self._completed_operation_ids: set[str] = set()
+        self._futures: dict[
+            str,
+            asyncio.Future[Literal["completed", "rejected", "failed"] | None],
+        ] = {}
+        self._completed_operations: dict[str, Literal["completed", "rejected", "failed"]] = {}
         self._consumer_task: asyncio.Task[None] = asyncio.create_task(self._consume())
 
     def register(self, operation_id: str) -> None:
-        if operation_id in self._futures or operation_id in self._completed_operation_ids:
+        if operation_id in self._futures or operation_id in self._completed_operations:
             raise RuntimeError(f"Operation already registered: {operation_id}")
         loop = asyncio.get_running_loop()
         self._futures[operation_id] = loop.create_future()
@@ -38,18 +39,17 @@ class OperationCompletionAwaiter:
         if not future.done():
             future.cancel()
 
-    async def wait_for(self, operation_id: str) -> None:
-        if operation_id in self._completed_operation_ids:
-            self._completed_operation_ids.discard(operation_id)
-            return
+    async def wait_for(self, operation_id: str) -> Literal["completed", "rejected", "failed"] | None:
+        if operation_id in self._completed_operations:
+            return self._completed_operations.pop(operation_id)
         future = self._futures.get(operation_id)
         if future is None:
-            return
+            return None
         try:
-            await future
+            return await future
         finally:
             self._futures.pop(operation_id, None)
-            self._completed_operation_ids.discard(operation_id)
+            self._completed_operations.pop(operation_id, None)
 
     async def stop(self) -> None:
         if not self._consumer_task.done():
@@ -60,7 +60,7 @@ class OperationCompletionAwaiter:
             if not future.done():
                 future.set_result(None)
         self._futures.clear()
-        self._completed_operation_ids.clear()
+        self._completed_operations.clear()
 
     async def _consume(self) -> None:
         async for envelope in self._subscription:
@@ -70,14 +70,15 @@ class OperationCompletionAwaiter:
             if not isinstance(event, events.OperationFinishedEvent | events.OperationRejectedEvent):
                 continue
             operation_id = event.operation_id
+            status = event.status if isinstance(event, events.OperationFinishedEvent) else "rejected"
             future = self._futures.pop(operation_id, None)
             if future is None:
-                self._completed_operation_ids.add(operation_id)
+                self._completed_operations[operation_id] = status
                 continue
             if future.done():
                 continue
-            self._completed_operation_ids.add(operation_id)
-            future.set_result(None)
+            self._completed_operations[operation_id] = status
+            future.set_result(status)
 
 
 class RuntimeFacade:
@@ -143,43 +144,9 @@ class RuntimeFacade:
             ),
             operation_id=operation.id,
         )
-        await self._sync_session_state_from_snapshot(session_id)
 
     def _on_operation_applied(self, operation: op.Operation) -> None:
         self.session_registry.apply_operation_effect(operation)
-
-    def _derive_session_state_from_snapshot(self, session_id: str) -> SessionRuntimeState:
-        snapshot = self.session_registry.snapshot(session_id)
-        if snapshot is None:
-            return SessionRuntimeState.IDLE
-        if snapshot.pending_request_count > 0:
-            return SessionRuntimeState.WAITING_USER_INPUT
-        if snapshot.active_root_task is not None or snapshot.child_task_count > 0:
-            return SessionRuntimeState.RUNNING
-        return SessionRuntimeState.IDLE
-
-    async def _persist_session_state(self, session_id: str, session_state: SessionRuntimeState) -> None:
-        try:
-            runtime = self.session_registry.get_session_actor(session_id)
-            if runtime is None:
-                return
-            agent = runtime.get_agent()
-            if agent is None:
-                return
-            agent.session.session_state = session_state
-            work_dir = agent.session.work_dir
-        except AttributeError:
-            return
-        await asyncio.to_thread(Session.persist_runtime_state, session_id, session_state, work_dir)
-
-    async def _sync_session_state_from_snapshot(self, session_id: str) -> None:
-        session_state = self._derive_session_state_from_snapshot(session_id)
-        if session_state == SessionRuntimeState.IDLE:
-            runtime = self.session_registry.get_session_actor(session_id)
-            agent = runtime.get_agent() if runtime is not None else None
-            if agent is not None:
-                await agent.session.wait_for_flush()
-        await self._persist_session_state(session_id, session_state)
 
     def _respond_user_interaction(
         self,
@@ -203,11 +170,7 @@ class RuntimeFacade:
             return auto_response
         runtime = self.session_registry.ensure_session_actor(request.session_id)
         future = runtime.open_pending_interaction(request)
-        await self._persist_session_state(request.session_id, SessionRuntimeState.WAITING_USER_INPUT)
-        try:
-            return await future
-        finally:
-            await self._sync_session_state_from_snapshot(request.session_id)
+        return await future
 
     def _headless_auto_interaction_response(
         self,
@@ -299,8 +262,6 @@ class RuntimeFacade:
             ),
             operation_id=operation.id,
         )
-        if _should_mark_running_on_accept(operation):
-            await self._persist_session_state(session_id, SessionRuntimeState.RUNNING)
 
     async def _emit_operation_finished(
         self,
@@ -315,7 +276,6 @@ class RuntimeFacade:
             runtime = self.session_registry.get_session_actor(session_id)
             agent = runtime.get_agent() if runtime is not None else None
             if agent is not None:
-                agent.session.session_state = SessionRuntimeState.IDLE
                 await asyncio.to_thread(agent.session.ensure_meta_exists)
         await self._operation_dispatcher.emit_event(
             events.OperationFinishedEvent(
@@ -329,7 +289,6 @@ class RuntimeFacade:
         )
         if isinstance(operation, op.InitAgentOperation):
             return
-        await self._sync_session_state_from_snapshot(session_id)
 
     async def submit(self, operation: op.Operation) -> str:
         if self._stopped:
@@ -386,7 +345,6 @@ class RuntimeFacade:
 
         closed = await self.session_registry.close_session(session_id, force=force)
         if closed:
-            await self._persist_session_state(session_id, SessionRuntimeState.IDLE)
             for request in cancelled_requests:
                 await self._operation_dispatcher.emit_event(
                     events.UserInteractionCancelledEvent(
@@ -412,8 +370,8 @@ class RuntimeFacade:
         exclude = {primary} if primary is not None else None
         return await self.session_registry.reclaim_idle_sessions(idle_for_seconds=idle_for_seconds, exclude=exclude)
 
-    async def wait_for(self, operation_id: str) -> None:
-        await self._operation_awaiter.wait_for(operation_id)
+    async def wait_for(self, operation_id: str) -> Literal["completed", "rejected", "failed"] | None:
+        return await self._operation_awaiter.wait_for(operation_id)
 
     async def submit_and_wait(self, operation: op.Operation) -> None:
         operation_id = await self.submit(operation)
@@ -421,12 +379,12 @@ class RuntimeFacade:
 
     async def stop(self) -> None:
         self._stopped = True
-        sessions_to_idle: list[tuple[str, Agent]] = []
+        sessions_to_flush: list[Agent] = []
         for runtime in self.session_registry.list_session_actors():
             agent = runtime.get_agent()
             if agent is None:
                 continue
-            sessions_to_idle.append((runtime.session_id, agent))
+            sessions_to_flush.append(agent)
 
         cancelled_requests = self._operation_dispatcher.cancel_pending_user_interactions(session_id=None)
         for request in cancelled_requests:
@@ -457,19 +415,9 @@ class RuntimeFacade:
         if tasks_to_await:
             await asyncio.gather(*tasks_to_await, return_exceptions=True)
 
-        for _session_id, agent in sessions_to_idle:
+        for agent in sessions_to_flush:
             with contextlib.suppress(Exception):
                 await agent.session.wait_for_flush()
-
-        for session_id, agent in sessions_to_idle:
-            agent.session.session_state = SessionRuntimeState.IDLE
-            with contextlib.suppress(Exception):
-                await asyncio.to_thread(
-                    Session.persist_runtime_state,
-                    session_id,
-                    SessionRuntimeState.IDLE,
-                    agent.session.work_dir,
-                )
 
         await self.session_registry.stop()
         await self._operation_awaiter.stop()
@@ -502,15 +450,3 @@ class RuntimeFacade:
                 operation_id=operation.id,
             )
             raise
-
-
-def _should_mark_running_on_accept(operation: op.Operation) -> bool:
-    return isinstance(
-        operation,
-        op.RunAgentOperation
-        | op.RunBashOperation
-        | op.ContinueAgentOperation
-        | op.CompactSessionOperation
-        | op.RequestModelOperation
-        | op.RequestSubAgentModelOperation,
-    )

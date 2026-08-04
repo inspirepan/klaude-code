@@ -37,5 +37,7 @@ def test_prime_guide_mentions_core_loop_and_inventory() -> None:
         "finder",
         "waiting_input",
         "--any",
+        "without checking the directory",
+        "trusted directories",
     ):
         assert needle in guide, f"prime guide is missing: {needle}"

@@ -176,10 +176,10 @@ class SessionRegistry:
         self._background_tasks.clear()
 
         runtimes = list(self._session_actors.values())
-        self._session_actors.clear()
-        self._operation_runtime_ids.clear()
         for runtime in runtimes:
             await runtime.stop()
+        self._session_actors.clear()
+        self._operation_runtime_ids.clear()
 
     async def close_session(self, session_id: str, *, force: bool = False) -> bool:
         runtime = self._session_actors.get(session_id)

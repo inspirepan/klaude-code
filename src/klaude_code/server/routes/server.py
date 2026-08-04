@@ -6,6 +6,7 @@ from typing import Any, Final
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from klaude_code.protocol.version import PROTOCOL_VERSION
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.session_state import derive_session_state_from_snapshot
 from klaude_code.server.state import ServerAppState, get_server_state
@@ -51,6 +52,7 @@ async def server_status(state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, 
         "ok": True,
         "pid": os.getpid(),
         "version": get_display_version(),
+        "protocol_version": PROTOCOL_VERSION,
         "code_fingerprint": state.code_fingerprint,
         "socket_path": str(lifecycle.socket_path),
         "uptime_seconds": lifecycle.uptime_seconds,

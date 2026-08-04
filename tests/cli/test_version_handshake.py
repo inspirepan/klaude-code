@@ -5,6 +5,7 @@ Matrix under test: fingerprint match/mismatch x server idle/busy.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -13,6 +14,7 @@ import pytest
 
 from klaude_code import update
 from klaude_code.cli import uds_client
+from klaude_code.protocol.version import PROTOCOL_VERSION
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -36,8 +38,10 @@ def git_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     repo.mkdir()
     _git(repo, "init")
-    (repo / "mod.py").write_text("x = 1\n", encoding="utf-8")
-    _git(repo, "add", "mod.py")
+    package_dir = repo / "src" / "klaude_code"
+    package_dir.mkdir(parents=True)
+    (package_dir / "mod.py").write_text("x = 1\n", encoding="utf-8")
+    _git(repo, "add", "src/klaude_code/mod.py")
     _git(repo, "commit", "-m", "init")
     return repo
 
@@ -51,19 +55,68 @@ class TestCodeFingerprint:
 
     def test_dirty_file_changes_fingerprint(self, git_repo: Path):
         clean = update._compute_git_fingerprint(str(git_repo))
-        (git_repo / "mod.py").write_text("x = 1\n# tweak\n", encoding="utf-8")
+        (git_repo / "src" / "klaude_code" / "mod.py").write_text("x = 1\n# tweak\n", encoding="utf-8")
         dirty = update._compute_git_fingerprint(str(git_repo))
         assert dirty is not None and dirty != clean
         assert "+" in dirty
 
     def test_untracked_file_changes_fingerprint(self, git_repo: Path):
         clean = update._compute_git_fingerprint(str(git_repo))
-        (git_repo / "new.py").write_text("y = 2\n", encoding="utf-8")
+        (git_repo / "src" / "klaude_code" / "new.py").write_text("y = 2\n", encoding="utf-8")
         assert update._compute_git_fingerprint(str(git_repo)) != clean
+
+    def test_same_size_same_mtime_content_changes_fingerprint(self, git_repo: Path):
+        path = git_repo / "src" / "klaude_code" / "mod.py"
+        path.write_text("x = 2\n", encoding="utf-8")
+        fixed_mtime = path.stat().st_mtime_ns
+        before = update._compute_git_fingerprint(str(git_repo))
+        path.write_text("x = 3\n", encoding="utf-8")
+        os.utime(path, ns=(fixed_mtime, fixed_mtime))
+        after = update._compute_git_fingerprint(str(git_repo))
+        assert before is not None and after is not None and after != before
+
+    def test_deleted_and_renamed_paths_are_fingerprinted(self, git_repo: Path):
+        (git_repo / "src" / "klaude_code" / "mod.py").unlink()
+        deleted = update._compute_git_fingerprint(str(git_repo))
+        assert deleted is not None and "+" in deleted
+
+        _git(git_repo, "restore", "src/klaude_code/mod.py")
+        _git(git_repo, "mv", "src/klaude_code/mod.py", "src/klaude_code/renamed.py")
+        renamed = update._compute_git_fingerprint(str(git_repo))
+        assert renamed is not None and renamed != deleted
+        (git_repo / "src" / "klaude_code" / "renamed.py").write_text("x = 2\n", encoding="utf-8")
+        assert update._compute_git_fingerprint(str(git_repo)) != renamed
+
+    def test_symlink_target_changes_fingerprint(self, git_repo: Path):
+        package_dir = git_repo / "src" / "klaude_code"
+        (package_dir / "one.py").write_text("1\n", encoding="utf-8")
+        (package_dir / "two.py").write_text("2\n", encoding="utf-8")
+        link = package_dir / "current.py"
+        link.symlink_to("one.py")
+        before = update._compute_git_fingerprint(str(git_repo))
+        link.unlink()
+        link.symlink_to("two.py")
+        after = update._compute_git_fingerprint(str(git_repo))
+        assert before is not None and after is not None and after != before
+
+    def test_unreadable_dirty_file_is_fingerprinted(self, git_repo: Path, monkeypatch: pytest.MonkeyPatch):
+        path = git_repo / "src" / "klaude_code" / "mod.py"
+        path.write_text("x = 2\n", encoding="utf-8")
+        readable = update._compute_git_fingerprint(str(git_repo))
+        original_open = Path.open
+
+        def deny_open(self: Path, *args: Any, **kwargs: Any) -> Any:
+            if self == path and args == ("rb",):
+                raise PermissionError(13, "denied", str(path))
+            return original_open(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "open", deny_open)
+        unreadable = update._compute_git_fingerprint(str(git_repo))
+        assert readable is not None and unreadable is not None and unreadable != readable
 
     def test_new_commit_changes_fingerprint(self, git_repo: Path):
         before = update._compute_git_fingerprint(str(git_repo))
-        (git_repo / "mod.py").write_text("x = 2\n", encoding="utf-8")
+        (git_repo / "src" / "klaude_code" / "mod.py").write_text("x = 2\n", encoding="utf-8")
         _git(git_repo, "commit", "-am", "next")
         after = update._compute_git_fingerprint(str(git_repo))
         assert after is not None and after != before
@@ -101,6 +154,7 @@ def _status_body(
     running: int = 0,
     waiting_input: int = 0,
     queued: int = 0,
+    protocol_version: int | None = PROTOCOL_VERSION,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "ok": True,
@@ -109,6 +163,8 @@ def _status_body(
     }
     if fingerprint is not None:
         body["code_fingerprint"] = fingerprint
+    if protocol_version is not None:
+        body["protocol_version"] = protocol_version
     return body
 
 
@@ -194,6 +250,15 @@ class TestVersionHandshake:
         # A pre-handshake server does not report a fingerprint at all.
         uds_client.verify_server_code(_status_body(fingerprint=None))
         assert handshake_env.reload_count == 1
+
+    def test_protocol_mismatch_idle_reloads(self, handshake_env: _FakeServer):
+        uds_client.verify_server_code(_status_body(fingerprint="git:local", protocol_version=PROTOCOL_VERSION + 1))
+        assert handshake_env.reload_count == 1
+
+    def test_missing_protocol_busy_warns(self, handshake_env: _FakeServer, capsys: pytest.CaptureFixture[str]):
+        uds_client.verify_server_code(_status_body(fingerprint="git:local", protocol_version=None, running=1))
+        assert handshake_env.reload_count == 0
+        assert "stale code" in capsys.readouterr().err
 
     def test_reload_conflict_falls_back_to_warning(
         self, handshake_env: _FakeServer, capsys: pytest.CaptureFixture[str]

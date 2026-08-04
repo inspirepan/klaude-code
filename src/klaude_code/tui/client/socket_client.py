@@ -17,6 +17,7 @@ from typing import Any
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op
 from klaude_code.protocol.events import EventEnvelope, parse_event_envelope
+from klaude_code.protocol.version import PROTOCOL_VERSION, is_protocol_compatible
 from klaude_code.server.paths import server_socket_path
 from klaude_code.tui.client.base import SessionInfoSnapshot
 
@@ -362,23 +363,29 @@ class SocketRuntimeClient:
         # Other frames need no client action.
 
     async def _check_server_code(self, item: dict[str, Any]) -> None:
-        """Version handshake: warn (without disconnecting) on a stale server."""
+        """Compatibility handshake: show an error notice for any mismatch."""
         from klaude_code.update import get_code_fingerprint
 
+        server_protocol = item.get("protocol_version")
         server_fingerprint = item.get("code_fingerprint")
         if not isinstance(server_fingerprint, str):
             server_fingerprint = ""
         local_fingerprint = get_code_fingerprint()
-        if server_fingerprint == local_fingerprint:
+        protocol_matches = is_protocol_compatible(server_protocol)
+        fingerprint_matches = server_fingerprint == local_fingerprint
+        if protocol_matches and fingerprint_matches:
             return
+        if not protocol_matches:
+            detail = f"protocol server={server_protocol!r}, client={PROTOCOL_VERSION}"
+        else:
+            detail = f"code server={server_fingerprint or 'unknown'}, client={local_fingerprint}"
         await self._display_queue.put(
             _local_envelope(
                 events.NoticeEvent(
                     session_id=self._session_id,
                     content=(
-                        f"Server runs different code than this client "
-                        f"(server {server_fingerprint or 'unknown'}, client {local_fingerprint}). "
-                        f"Restart it with: klaude server reload --force"
+                        f"Server/client compatibility mismatch ({detail}). "
+                        "Restart the server with: klaude server reload --force"
                     ),
                     is_error=True,
                 )

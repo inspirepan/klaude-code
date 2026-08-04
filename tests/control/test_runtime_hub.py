@@ -234,6 +234,35 @@ def test_runtime_hub_prioritizes_control_queue_over_normal_queue() -> None:
     arun(_test())
 
 
+def test_runtime_hub_keeps_both_operations_when_mailbox_waiters_complete_together() -> None:
+    async def _test() -> None:
+        handled: list[str] = []
+        done = asyncio.Event()
+        normal = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+        control = op.InterruptOperation(session_id="s1")
+
+        async def _handle(operation: op.Operation) -> None:
+            handled.append(operation.id)
+            if len(handled) == 2:
+                done.set()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("non-root/control ops should not be rejected")
+
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
+        hub.ensure_session_actor("s1")
+        await asyncio.sleep(0)
+        await hub.submit(normal)
+        await hub.submit(control)
+
+        await asyncio.wait_for(done.wait(), timeout=1.0)
+        await hub.stop()
+
+        assert handled == [control.id, normal.id]
+
+    arun(_test())
+
+
 def test_runtime_hub_enforces_control_burst_fairness() -> None:
     async def _test() -> None:
         handled: list[str] = []
@@ -855,5 +884,79 @@ def test_runtime_hub_cancel_pending_interactions_cancels_waiter() -> None:
         assert hub.pending_request_count("s1") == 0
 
         await hub.stop()
+
+    arun(_test())
+
+
+def test_runtime_stop_cleans_prefetched_normal_only_after_worker_exits() -> None:
+    async def _test() -> None:
+        first_started = asyncio.Event()
+        release_first = asyncio.Event()
+        handled: list[str] = []
+
+        first = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+        prefetched = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="durable turn"))
+
+        async def _handle(operation: op.Operation) -> None:
+            handled.append(operation.id)
+            if operation.id == first.id:
+                first_started.set()
+                await release_first.wait()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("shutdown should discard the prefetched root operation")
+
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(first)
+        await asyncio.wait_for(first_started.wait(), timeout=1.0)
+        actor = hub.get_session_actor("s1")
+        assert actor is not None
+
+        await actor.normal_mailbox.put(prefetched)
+        actor._prefetched_normal = actor.normal_mailbox.get_nowait()  # pyright: ignore[reportPrivateUsage]
+        assert actor.snapshot().is_idle is False
+
+        stop_task = asyncio.create_task(actor.stop())
+        await asyncio.sleep(0)
+        assert actor._prefetched_normal is prefetched  # pyright: ignore[reportPrivateUsage]
+
+        release_first.set()
+        await asyncio.wait_for(stop_task, timeout=1.0)
+        await asyncio.wait_for(actor.normal_mailbox.join(), timeout=1.0)
+
+        assert handled == [first.id]
+
+    arun(_test())
+
+
+def test_runtime_stop_keeps_actor_registered_until_selected_operation_exits() -> None:
+    async def _test() -> None:
+        operation_started = asyncio.Event()
+        inspect_registry = asyncio.Event()
+        actor_was_registered = False
+
+        operation = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="enabled", budget_tokens=10))
+        hub: SessionRegistry
+
+        async def _handle(_operation: op.Operation) -> None:
+            nonlocal actor_was_registered
+            operation_started.set()
+            await inspect_registry.wait()
+            actor_was_registered = hub.get_session_actor("s1") is not None
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("operation should not be rejected")
+
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
+        await hub.submit(operation)
+        await asyncio.wait_for(operation_started.wait(), timeout=1.0)
+
+        stop_task = asyncio.create_task(hub.stop())
+        await asyncio.sleep(0)
+        inspect_registry.set()
+        await asyncio.wait_for(stop_task, timeout=1.0)
+
+        assert actor_was_registered is True
+        assert hub.get_session_actor("s1") is None
 
     arun(_test())

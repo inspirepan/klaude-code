@@ -7,7 +7,7 @@ from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExe
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, user_interaction
-from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.message import QueuedUserInput, UserInputPayload
 from klaude_code.protocol.models import TaskMetadata
 from klaude_code.session import Session
 from klaude_code.tool import build_todo_context, get_registry
@@ -96,15 +96,20 @@ class Agent:
         return len(self._follow_up_queue)
 
     def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
-        return tuple(self._follow_up_queue)
+        return tuple(item.input for item in self._follow_up_queue)
 
     def pop_all_follow_up(self) -> tuple[UserInputPayload, ...]:
-        messages = tuple(self._follow_up_queue)
+        messages = tuple(item.input for item in self._follow_up_queue)
         self._follow_up_queue.clear()
         self.session.set_follow_up_queue(self._durable_follow_up_queue())
         return messages
 
     def peek_next_follow_up(self) -> UserInputPayload | None:
+        if not self._follow_up_queue:
+            return None
+        return self._follow_up_queue[0].input
+
+    def peek_next_follow_up_record(self) -> QueuedUserInput | None:
         if not self._follow_up_queue:
             return None
         return self._follow_up_queue[0]
@@ -124,9 +129,18 @@ class Agent:
         it until acknowledge_follow_up confirms the turn reached history — a
         crash in between re-runs it on restore, deduped by turn id.
         """
-        if not self._follow_up_queue or self._follow_up_queue[0].id != item_id:
+        if self._in_flight_follow_up is not None or not self._follow_up_queue or self._follow_up_queue[0].id != item_id:
             return False
         self._in_flight_follow_up = self._follow_up_queue.pop(0)
+        return True
+
+    def abort_follow_up(self, item_id: str) -> bool:
+        """Return an unacknowledged in-flight item to the queue head."""
+        if self._in_flight_follow_up is None or self._in_flight_follow_up.id != item_id:
+            return False
+        self._follow_up_queue.insert(0, self._in_flight_follow_up)
+        self._in_flight_follow_up = None
+        self.session.set_follow_up_queue(self._durable_follow_up_queue())
         return True
 
     def acknowledge_follow_up(self, item_id: str, *, next_enqueued_at: float | None = None) -> bool:

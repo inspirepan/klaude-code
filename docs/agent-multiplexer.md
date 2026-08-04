@@ -1,6 +1,6 @@
 # klaude Agent Multiplexer 设计
 
-状态：设计稿（2026-08）
+状态：Phase 1–4 已实现；Phase 5 待办（2026-08）
 决策：移除 web 模块；klaude 变成 agent multiplexer —— 唯一的本地 server 持有全部 agent 执行，TUI 与 CLI 都是客户端。目标使用者有两类：人类（TUI attach）和其他 Agent（如 Claude Code 通过 Bash 调用 CLI）。
 
 已确认的关键决策（2026-08-03）：
@@ -8,7 +8,8 @@
 - TUI 仅作为 server 客户端（tmux 模型），**不保留**本地直连 runtime 的双模式；调试用 `klaude server run` 前台兜底。
 - `run --approval` 默认 `hold`。
 - server 常驻，直到 `server stop` / `server reload`；`reload` 为优雅重启（拾取本地代码改动），非热重载。
-- web 前端与 `klaude web` 命令在 **Phase 1** 一并删除，不等 Phase 4。
+- web 前端、`klaude web` 命令和旧浏览器 REST/SSE session 路由已删除。server 仅保留当前
+  CLI/TUI 使用的 session 创建、resume model 配置和每会话 WS 接口。
 
 本文档以 `--help` 文本作为产品定义：每个命令的 help 就是它的功能规格。help 文本用英文（产品产物），说明性文字用中文。
 
@@ -79,7 +80,7 @@ Discovery:
              --prime for an AI-agent integration guide
 
 Server:
-  server     Manage the local server (status / stop / logs / run)
+  server     Manage the local server (status / stop / reload / logs / run)
 
 Setup:
   conf       Edit config file
@@ -119,7 +120,9 @@ current model/agent inventory, run: klaude agents --prime
 
 `wait` 对 `queued` 视同 `running`，继续阻塞。
 
-单 server 模型下状态就是 server 内存里 actor 的真实状态，不再依赖 meta.json 心跳推断——上一版 web 的「僵尸 running」问题在结构上消失。
+单 server 模型不再用 meta.json 心跳推断运行状态。`server/routes/headless.py::_headless_state` 是 headless API 的单一状态投影入口：actor snapshot 经 `server/session_state.py` 统一映射 `running` / `waiting_input`，headless coordinator 补充 `queued` / `failed`，其余为 `idle`。这里的“单一状态源”指 server 内的实时投影，不是把全部状态压进一个持久字段。
+
+`queued` turn、follow-up queue 和 `failed` 标记已持久化到 session meta，并在 server 启动时由 `server/headless.py::restore` 恢复。它们不是旧式 heartbeat；持久化只用于跨重启恢复，在线查询仍以 server 的状态投影为准。
 
 `idle` 不是终态、没有生存期：server 会空闲回收内存 actor（沿用现有 30min TTL，`app/runtime.py:33`），但会话本体在磁盘上永存，`send` / `attach` 时按需从 `events.jsonl` 重建，跨 server 重启依然可续。对调用方来说「同一个 id 继续对话」永远可用。
 
@@ -157,7 +160,7 @@ return immediately. The agent keeps running after this command exits.
 PROMPT is read from the argument, or from stdin when piped.
 
 Examples:
-  klaude run "fix the failing tests under tests/web/"
+  klaude run "fix the failing tests under tests/server/"
   klaude run -C ~/code/proj -m sonnet --name fix-tests "..."
   git diff | klaude run --agent code-reviewer "review this diff"
   klaude run --wait "one-shot question, print answer when done"
@@ -180,7 +183,8 @@ Options:
                        human is attached:
                          hold  park request, state=waiting_input
                                (default)
-                         auto  approve everything (trusted dirs)
+                         auto  approve everything; use only in
+                               trusted dirs
                          deny  reject; agent must work around
       --wait           Block until finished, print final output
       --timeout SECS   With --wait: exit 124 on timeout
@@ -189,8 +193,8 @@ Options:
 
 `--agent` 的实现注意点（对照现有 sub-agent 机制）：
 
-1. **不要标记 `sub_agent_state`**。现在 sub-agent 会话的 meta 带 `sub_agent_state`，且被会话列表过滤掉（`web/session_index.py` 的 `load_session_summary_from_meta` 直接返回 None）。`run --agent` 创建的是**顶层会话**，需要新的 meta 字段（如 `agent_type`）供 `ps` 展示，而不是复用 `sub_agent_state`。
-2. **模型绑定**。默认模型取 profile 的绑定（`config/sub_agent_model.py` 的 `SubAgentModelResolver`，即 `klaude list` 里 `gpt-5.6-luna (finder)` 这类标注），`-m` 可覆盖。
+1. **不要标记 `sub_agent_state`**。sub-agent 会话的 meta 带 `sub_agent_state`，且被会话索引过滤（`server/session_index.py`）。`run --agent` 创建的是**顶层会话**，使用 `agent_type` 供 `ps` 展示，而不是复用 `sub_agent_state`。
+2. **模型绑定**。默认模型取 profile 的绑定（`config/sub_agent_model.py` 的 `SubAgentModelResolver`，即 `klaude agents` 中 `gpt-5.6-luna (finder)` 这类标注），`-m` 可覆盖。
 3. **`fork_context` 型 profile**（继承父会话上下文的类型）standalone 运行时没有父会话可 fork，按空上下文启动；stdin 管道（如 `git diff |`）是它们获得输入材料的方式。
 
 ### 4.2 `klaude ps`
@@ -224,6 +228,8 @@ Options:
       --watch         Live-refreshing table (human view)
       --json          Machine-readable
 ```
+
+`--watch` 持续刷新直到 Ctrl-C，仅用于人类表格，不能与 `--json` 组合。
 
 作用域的三层设计（回答「已完成的会话会不会淹没列表 / 多个调用方会不会互相干扰」）：
 
@@ -299,6 +305,8 @@ Options:
       --follow        Stream live output until idle (single target)
       --json          Machine-readable
 ```
+
+`--follow` 仅接受单个 TARGET，不能与 `--group`、`--json`、`--turns` 或 `--transcript` 组合。
 
 ### 4.6 `klaude send`
 
@@ -485,7 +493,7 @@ headless 会话（由 `run` 创建、无人 attach）在对话开始注入一条
 
 ### 7.2 策略：`--approval`
 
-模型层的提问被 7.1 压到最少之后，剩余的 `waiting_input` 主要来自 harness 层的权限门（工具审批）。`run --approval` 决定无人值守时的处理：`auto` / `deny` 不产生卡点，`hold`（默认）落为 `waiting_input` 等人处理。
+模型层的提问被 7.1 压到最少之后，剩余的 `waiting_input` 主要来自 harness 层的权限门（工具审批）。`run --approval` 决定无人值守时的处理：`auto` / `deny` 不产生卡点，`hold`（默认）落为 `waiting_input` 等人处理。`auto` 会批准所有权限请求，**不会**自动检查目录是否可信，只能在 trusted dir 中使用。
 
 ### 7.3 暴露：wait / brief / output 都把 pending request 当一等公民
 
@@ -596,19 +604,17 @@ loop-until-dry 同理是纯 bash：`while` 里 `run --wait` 一轮 finder，输�
 
 ## 10. Server 与协议概要
 
-设计细节在实现阶段再展开，这里记录已确认的结论：
-
-- **传输**：uvicorn `--uds ~/.klaude/run/server.sock`。现有 FastAPI 路由和 WS 代码近乎原样迁移。socket + flock 即单例锁（现 `web/server.py:228` 已用「socket 存活 = 已有实例」判定）。
-- **attach 协议**：复用 `web/routes/ws.py` 的帧协议（`message` / `interrupt` / `respond` / `continue` / `model` / `model_request` / `compact` + 事件流下发），它已覆盖 TUI 需要的全部操作面。
-- **回放**：三段拼接，server 侧单锁内完成，无缝隙无竞态：
-  1. `Session.get_history_item()` 从落盘 parts 合成流式边界事件（已存在，`session/session.py:563`，粒度为整块到位）；
-  2. server 侧 per-session `EventTape` 补上进行中未落盘回合（`control/event_tape.py:6-8` 注释预留的正是此用法）；
+- **传输**：uvicorn `--uds ~/.klaude/run/server.sock`；socket + flock 保证单例，实现在 `server/server.py`。
+- **attach 协议**：`server/routes/ws.py` 提供操作帧和事件流；TUI 的 UDS 客户端实现在 `tui/client/socket_client.py`。
+- **回放**：三段拼接，无缝隙无竞态：
+  1. `Session.get_history_item()` 从落盘 parts 合成流式边界事件；
+  2. `server/session_tape.py` 的 per-session tape 补上进行中未落盘回合；
   3. 接实时事件流。
 - **TUI 改造**：TUI 与 runtime 之间抽 `RuntimeClient` 接口，但**只做 UDS 一个实现**（已决策：不保留本地直连双模式）。接口仍然值得抽——单测可以注入内存实现，且隔离 wire 细节。
 - **server 生命周期**：常驻（tmux 语义），退出只经 `server stop` / `server reload`。`reload` = 优雅重启：默认有 running/queued 会话时拒绝并列出，`--force` 先打断（会话可续）；然后 re-exec 新代码、重新 bind socket。与版本握手互补：CLI 握手发现 server 版本/代码指纹过旧且 server 空闲时，自动触发同样的重启路径（代码指纹可复用现有 git checkout 更新追踪）。
 - **headless 交互**：`--approval hold` 时交互请求落为 `waiting_input` 状态，人类 `attach` 或任一客户端 `respond` 均可解锁（完整闭环见 §7）。
 - **并发上限**：server 维护全局 headless 运行槽位（可配置，默认 ~8），超出的 `run` 进 `queued` 排队（见 §9.1）；交互式 attach 会话不占用该配额。
-- **版本握手**：客户端与 server 握手带版本号；不匹配且 server 空闲时自动重启 server。
+- **版本握手**：server status 与 WS `connection_info` 同时返回独立 protocol version 和 code fingerprint。HTTP CLI 遇到任一不匹配时走 stale-server 路径：空闲时自动 reload，busy 时警告；TUI 显示错误 notice。
 
 ### 删除清单（单 server 带来的简化）
 
@@ -625,12 +631,12 @@ loop-until-dry 同理是纯 bash：`while` 里 `run --wait` 一轮 finder，输�
 
 ## 11. 阶段计划
 
-| 阶段 | 内容 | 交付 |
-|---|---|---|
-| 1 | server 化：现 web server 迁 UDS + 单例锁 + `klaude server` 子命令（含 reload）；**同时删除 web 前端（web/dist、web/src）、浏览器路由与 `klaude web` 命令** | server 可独立起停，web UI 退役 |
-| 2 | headless 命令面：`run/ps/brief/wait/output/send(queue)/respond/kill` + `--group` 全套 + server 并发上限 + thin client + `--approval` 策略 + autonomy attachment + `agents --json/--prime` + 纯文本 help | **Claude Code 的异步子 Agent 可用** |
-| 3 | TUI attach：`RuntimeClient`（仅 UDS 实现）、attach + 回放 + detach、`--resume/-c` 切 attach 语义、无 server 自动拉起、`send --steer` | 人类工作流完整切换 |
-| 4 | 大扫除：删除跨进程机制（event/meta relay、runtime_owner/心跳、read_only、holder 仲裁、meta 运行时键回填） | 工程收敛 |
-| 5 | 内部 sub-agent 的 server 化（见 §8）：Agent 工具改走 run 同款操作、子会话入 `ps --tree`、可 attach/kill 单个 subagent、异步 subagent | 内外一套任务机制 |
+| 阶段 | 状态 | 内容 | 交付 |
+|---|---|---|---|
+| 1 | **已实现** | server 化：UDS + 单例锁 + `klaude server` 子命令（含 reload）；删除 web 前端、浏览器路由与 `klaude web` 命令 | server 可独立起停，web UI 退役 |
+| 2 | **已实现** | headless 命令面：`run/ps/brief/wait/output/send(queue)/respond/kill` + `--group` 全套 + server 并发上限 + thin client + `--approval` 策略 + autonomy attachment + `agents --json/--prime` + 纯文本 help | **Claude Code 的异步子 Agent 可用** |
+| 3 | **已实现** | TUI attach：`RuntimeClient`（仅 UDS 实现）、attach + 回放 + detach、`--resume/-c` 切 attach 语义、无 server 自动拉起、`send --steer` | 人类工作流完整切换 |
+| 4 | **已实现** | 大扫除：删除跨进程机制（event/meta relay、runtime_owner/心跳、read_only、holder 仲裁、meta 运行时键回填） | 工程收敛 |
+| 5 | **待办** | 内部 sub-agent 的 server 化（见 §8）：Agent 工具改走 run 同款操作、子会话入 `ps --tree`、可 attach/kill 单个 subagent、异步 subagent | 内外一套任务机制 |
 
-阶段 1–2 完全不动 TUI，价值最早兑现；阶段 3 是改造量最大的一块（交互请求回路过 wire），但 web WS 已证明该回路可走网络；阶段 5 依赖 1–2 的原语，且现有 sub-agent 机制在新架构下功能无损，可以从容后置。
+Phase 5 依赖 Phase 1–2 的原语；现有 sub-agent 已在 server 进程内运行，功能无损，待后续统一管理面。

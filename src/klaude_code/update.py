@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import subprocess
 import threading
 import time
@@ -38,6 +39,7 @@ UPDATE_SOURCE_PYPI = "pypi"
 UPDATE_SOURCE_GIT = "git"
 
 UPGRADE_BRANCH = "main"
+_FINGERPRINT_PATHS = ("src/klaude_code", "pyproject.toml", "uv.lock")
 
 
 class InstallationInfo(NamedTuple):
@@ -178,7 +180,7 @@ def get_code_fingerprint() -> str:
     """Fingerprint of the code this process runs; used for the client/server handshake.
 
     - git checkout install (editable/local): HEAD commit, plus a digest of
-      dirty files (path/mtime/size) so uncommitted edits change the value
+      dirty paths and their current contents
     - wheel install: package version
 
     Cached per process: the first call freezes the value, so a long-lived
@@ -212,22 +214,67 @@ def _compute_git_fingerprint(source_path: str) -> str | None:
     head = _git_output(repo, ["rev-parse", "HEAD"])
     if head is None:
         return None
-    status = _git_output(repo, ["status", "--porcelain", "--ignore-submodules=all"])
+    status = _git_bytes(
+        repo,
+        [
+            "status",
+            "--porcelain=v1",
+            "-z",
+            "--untracked-files=all",
+            "--ignore-submodules=all",
+            "--",
+            *_FINGERPRINT_PATHS,
+        ],
+    )
+    if status is None:
+        return None
     if not status:
         return f"git:{head[:12]}"
     hasher = hashlib.sha256()
-    for line in sorted(status.splitlines()):
-        hasher.update(line.encode())
-        # Stat the file so content edits within an already-dirty file still
-        # move the fingerprint (rename lines are "old -> new"; stat the new).
-        rel_path = line[3:].split(" -> ")[-1].strip().strip('"')
-        try:
-            stat_result = (repo_path / rel_path).stat()
-            hasher.update(f":{stat_result.st_mtime_ns}:{stat_result.st_size}".encode())
-        except OSError:
-            hasher.update(b":missing")
-        hasher.update(b"\n")
+    records = status.split(b"\0")
+    index = 0
+    while index < len(records):
+        record = records[index]
+        index += 1
+        if not record:
+            continue
+        hasher.update(record)
+        hasher.update(b"\0")
+        status_code = record[:2]
+        if (b"R" in status_code or b"C" in status_code) and index < len(records):
+            hasher.update(records[index])
+            hasher.update(b"\0")
+            index += 1
+        rel_path = os.fsdecode(record[3:])
+        _hash_worktree_path(hasher, repo_path / rel_path)
     return f"git:{head[:12]}+{hasher.hexdigest()[:12]}"
+
+
+def _hash_worktree_path(hasher: Any, path: Path) -> None:
+    """Hash one dirty worktree path without following symlinks."""
+
+    try:
+        path_stat = path.lstat()
+    except OSError as exc:
+        hasher.update(f"missing:{exc.errno}\0".encode())
+        return
+    hasher.update(f"mode:{path_stat.st_mode:o}\0".encode())
+    if stat.S_ISLNK(path_stat.st_mode):
+        try:
+            hasher.update(b"symlink:\0" + os.fsencode(os.readlink(path)) + b"\0")
+        except OSError as exc:
+            hasher.update(f"unreadable-symlink:{exc.errno}\0".encode())
+        return
+    if not stat.S_ISREG(path_stat.st_mode):
+        hasher.update(b"non-regular\0")
+        return
+    try:
+        with path.open("rb") as file:
+            while chunk := file.read(1024 * 1024):
+                hasher.update(chunk)
+    except OSError as exc:
+        hasher.update(f"unreadable:{exc.errno}\0".encode())
+    hasher.update(b"\0")
 
 
 def _get_installed_version() -> str | None:
@@ -290,7 +337,13 @@ GIT_QUERY_TIMEOUT = 15
 GIT_FETCH_TIMEOUT = 60
 
 
-def _run_git(repo: str, args: list[str], timeout: int) -> subprocess.CompletedProcess[str] | None:
+def _run_git(
+    repo: str,
+    args: list[str],
+    timeout: int,
+    *,
+    text: bool = True,
+) -> subprocess.CompletedProcess[Any] | None:
     """Run a git command inside ``repo``; return None when git is unusable."""
 
     env = os.environ.copy()
@@ -299,7 +352,7 @@ def _run_git(repo: str, args: list[str], timeout: int) -> subprocess.CompletedPr
         return subprocess.run(
             ["git", "-C", repo, *args],
             capture_output=True,
-            text=True,
+            text=text,
             check=False,
             stdin=subprocess.DEVNULL,
             env=env,
@@ -311,9 +364,16 @@ def _run_git(repo: str, args: list[str], timeout: int) -> subprocess.CompletedPr
 
 def _git_output(repo: str, args: list[str], timeout: int = GIT_QUERY_TIMEOUT) -> str | None:
     result = _run_git(repo, args, timeout)
-    if result is None or result.returncode != 0:
+    if result is None or result.returncode != 0 or not isinstance(result.stdout, str):
         return None
     return result.stdout.strip()
+
+
+def _git_bytes(repo: str, args: list[str], timeout: int = GIT_QUERY_TIMEOUT) -> bytes | None:
+    result = _run_git(repo, args, timeout, text=False)
+    if result is None or result.returncode != 0 or not isinstance(result.stdout, bytes):
+        return None
+    return result.stdout
 
 
 def _fetch_git_version_info(install_info: InstallationInfo, source_path: str) -> VersionInfo | None:
