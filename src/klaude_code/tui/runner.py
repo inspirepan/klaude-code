@@ -34,7 +34,7 @@ from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.models import SessionRuntimeState
 from klaude_code.session.session import Session
-from klaude_code.tui.client import RuntimeClient, SessionInfoSnapshot, SocketRuntimeClient
+from klaude_code.tui.client import ClientConnectionError, RuntimeClient, SessionInfoSnapshot, SocketRuntimeClient
 from klaude_code.tui.client.command_agent import ClientCommandAgent
 from klaude_code.tui.command import (
     dispatch_command,
@@ -385,6 +385,20 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
             tui_display.set_model_name(info.model_config_name)
         if input_provider is not None:
             input_provider.set_pending_messages(info.follow_ups)
+            input_provider.set_startup_loading_title(info.title)
+
+    async def _provide_welcome_context() -> events.WelcomeContextEvent | None:
+        # Injected by the client right behind the attach-handshake welcome,
+        # ahead of the history replay (skills/memories render at the top).
+        try:
+            return await asyncio.to_thread(
+                build_welcome_context_event,
+                session_id=client.session_id,
+                work_dir=_session_work_dir(),
+            )
+        except Exception as exc:
+            log_debug(f"Welcome context initialization failed: {exc}", debug_type=DebugType.EXECUTION)
+            return None
 
     def _report_herdr(event: events.Event) -> None:
         if herdr is None:
@@ -411,6 +425,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         on_envelope=_on_envelope,
         on_session_info=_on_session_info,
         peek=peek,
+        welcome_context_provider=_provide_welcome_context,
     )
 
     def _agent_busy() -> bool:
@@ -618,16 +633,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                     "Attach replay did not complete — the server may be running older code. Try: klaude server reload"
                 )
             await client.wait_for_display_idle()
-            try:
-                context_event = await asyncio.to_thread(
-                    build_welcome_context_event,
-                    session_id=client.session_id,
-                    work_dir=_session_work_dir(),
-                )
-                await client.emit_local_event(context_event)
-                await client.wait_for_display_idle()
-            except Exception as exc:
-                log_debug(f"Welcome context initialization failed: {exc}", debug_type=DebugType.EXECUTION)
         finally:
             input_provider.set_startup_loading(False)
 
@@ -784,34 +789,42 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 if peek:
                     await _emit_local_notice("Read-only attach (--peek): input is disabled.")
                     continue
-                if has_background_command(user_input.text):
-                    await _dispatch_background_command(user_input)
-                    continue
-
-                if interrupt_pending and _agent_busy():
-                    # Esc-then-type: wait for the interrupted turn to wind
-                    # down, then start a fresh turn with this input.
-                    deadline = loop.time() + 10.0
-                    state_changed = client.state_changed_event()
-                    while _agent_busy() and loop.time() < deadline:
-                        with contextlib.suppress(TimeoutError):
-                            await asyncio.wait_for(state_changed.wait(), timeout=0.25)
-                        state_changed.clear()
-
-                if _agent_busy():
-                    if _is_command_shaped(user_input.text):
-                        await _emit_local_notice(
-                            "Commands cannot be queued while the agent is running; press Esc to interrupt first."
-                        )
+                try:
+                    if has_background_command(user_input.text):
+                        await _dispatch_background_command(user_input)
                         continue
-                    _queue_follow_ups(list(_split_queue_edit_payload(user_input)))
-                    continue
 
-                payloads = _split_queue_edit_payload(user_input)
-                first, rest = payloads[0], payloads[1:]
-                await _submit_idle_input(first)
-                if rest:
-                    _queue_follow_ups(rest)
+                    if interrupt_pending and _agent_busy():
+                        # Esc-then-type: wait for the interrupted turn to wind
+                        # down, then start a fresh turn with this input.
+                        deadline = loop.time() + 10.0
+                        state_changed = client.state_changed_event()
+                        while _agent_busy() and loop.time() < deadline:
+                            with contextlib.suppress(TimeoutError):
+                                await asyncio.wait_for(state_changed.wait(), timeout=0.25)
+                            state_changed.clear()
+
+                    if _agent_busy():
+                        if _is_command_shaped(user_input.text):
+                            await _emit_local_notice(
+                                "Commands cannot be queued while the agent is running; press Esc to interrupt first."
+                            )
+                            continue
+                        _queue_follow_ups(list(_split_queue_edit_payload(user_input)))
+                        continue
+
+                    payloads = _split_queue_edit_payload(user_input)
+                    first, rest = payloads[0], payloads[1:]
+                    await _submit_idle_input(first)
+                    if rest:
+                        _queue_follow_ups(rest)
+                except ClientConnectionError as exc:
+                    # The receive loop already surfaced its own error event;
+                    # detach gracefully instead of crashing the input loop.
+                    log_debug(f"send failed, detaching: {exc}", debug_type=DebugType.EXECUTION)
+                    with contextlib.suppress(Exception):
+                        await client.wait_for_display_idle()
+                    break
 
     except KeyboardInterrupt:
         exited_via_ctrl_c = True

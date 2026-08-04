@@ -16,6 +16,15 @@ from typing import Protocol
 from klaude_code.protocol import events, op
 
 
+class ClientConnectionError(Exception):
+    """Send-side operation failed because the server connection is gone.
+
+    The receive loop surfaces its own error event when the socket drops;
+    this lets the input loop distinguish a dead connection from a bug and
+    detach gracefully instead of crashing with a traceback.
+    """
+
+
 @dataclass
 class SessionInfoSnapshot:
     """Client-side mirror of the server's session_info frame."""

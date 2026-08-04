@@ -71,6 +71,7 @@ class PromptBottomBar:
         self._status_collapse_handle: asyncio.TimerHandle | None = None
         self._running_separator_label: str | None = None
         self._startup_loading = False
+        self._startup_loading_title: str | None = None
         self._pending_messages: tuple[str, ...] = ()
 
         self._status_spinner_task: asyncio.Task[None] | None = None
@@ -171,6 +172,14 @@ class PromptBottomBar:
             if self._status_reserved_line_count > 0:
                 self._schedule_status_collapse()
         self._invalidate()
+
+    def set_startup_loading_title(self, title: str | None) -> None:
+        title = (title or "").strip() or None
+        if title == self._startup_loading_title:
+            return
+        self._startup_loading_title = title
+        if self._startup_loading:
+            self._invalidate()
 
     def _cancel_pending_status_collapse(self) -> None:
         handle = self._status_collapse_handle
@@ -304,7 +313,10 @@ class PromptBottomBar:
             fragments.append(("", "\n" * top_padding))
         if not visible_lines:
             if self._startup_loading:
-                fragments.extend([(CLASS_META, f"{spinner} "), (CLASS_META, _STARTUP_LOADING_TEXT)])
+                loading_text = _STARTUP_LOADING_TEXT
+                if self._startup_loading_title:
+                    loading_text = f"Preparing session · {_truncate_line(self._startup_loading_title, 48)}…"
+                fragments.extend([(CLASS_META, f"{spinner} "), (CLASS_META, loading_text)])
                 return fragments
             # A task has been submitted but no status snapshot has arrived yet
             # (agent runtime is still starting up). Show the waiting text

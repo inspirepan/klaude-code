@@ -359,6 +359,9 @@ class PromptToolkitInput(InputProviderABC):
     def set_startup_loading(self, loading: bool) -> None:
         self._bottom_bar.set_startup_loading(loading)
 
+    def set_startup_loading_title(self, title: str | None) -> None:
+        self._bottom_bar.set_startup_loading_title(title)
+
     def _invalidate_app(self) -> None:
         with contextlib.suppress(Exception):
             self._session.app.invalidate()

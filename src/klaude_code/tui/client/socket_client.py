@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import time
 from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
 from typing import Any
@@ -19,10 +20,15 @@ from klaude_code.protocol import events, op
 from klaude_code.protocol.events import EventEnvelope, parse_event_envelope
 from klaude_code.protocol.version import PROTOCOL_VERSION, is_protocol_compatible
 from klaude_code.server.paths import server_socket_path
-from klaude_code.tui.client.base import SessionInfoSnapshot
+from klaude_code.tui.client.base import ClientConnectionError, SessionInfoSnapshot
 
 # Sentinel type for the display queue.
 _DisplayItem = EventEnvelope
+
+# A pending echo swallow older than this is stale: its canonical echo was
+# lost (send failed mid-flight, server dropped the emit). Expire it so it
+# cannot eat a later user message that happens to repeat the same text.
+_ECHO_SWALLOW_TTL_SECONDS = 60.0
 
 
 def _local_envelope(event: events.Event) -> EventEnvelope:
@@ -50,11 +56,14 @@ class SocketRuntimeClient:
         on_envelope: Callable[[EventEnvelope], Awaitable[None]],
         on_session_info: Callable[[SessionInfoSnapshot], None] | None = None,
         peek: bool = False,
+        welcome_context_provider: Callable[[], Awaitable[events.WelcomeContextEvent | None]] | None = None,
     ) -> None:
         self._session_id = session_id
         self._on_envelope = on_envelope
         self._on_session_info = on_session_info
         self._peek = peek
+        self._welcome_context_provider = welcome_context_provider
+        self._welcome_context_pending = False
 
         self._ws: Any = None
         self._recv_task: asyncio.Task[None] | None = None
@@ -74,9 +83,9 @@ class SocketRuntimeClient:
         self._interaction_queue: asyncio.Queue[events.UserInteractionRequestEvent] = asyncio.Queue()
         self._dequeue_future: asyncio.Future[tuple[str, ...]] | None = None
         self._closed = False
-        # Contents of locally echoed user messages whose canonical server
-        # echo must be dropped instead of rendered twice.
-        self._pending_echo_swallows: deque[str] = deque()
+        # (content, monotonic timestamp) of locally echoed user messages whose
+        # canonical server echo must be dropped instead of rendered twice.
+        self._pending_echo_swallows: deque[tuple[str, float]] = deque()
 
     # -- lifecycle --
 
@@ -104,6 +113,7 @@ class SocketRuntimeClient:
             ping_interval=None,
         )
         self._replay_complete = asyncio.Event()
+        self._welcome_context_pending = self._welcome_context_provider is not None
         self._recv_task = asyncio.create_task(self._recv_loop())
 
     async def close(self) -> None:
@@ -174,8 +184,13 @@ class SocketRuntimeClient:
 
     async def _send(self, frame: dict[str, Any]) -> None:
         if self._ws is None:
-            raise RuntimeError("client is not connected")
-        await self._ws.send(json.dumps(frame))
+            raise ClientConnectionError("client is not connected")
+        try:
+            await self._ws.send(json.dumps(frame))
+        except (TypeError, ValueError):
+            raise
+        except Exception as exc:
+            raise ClientConnectionError(f"connection to klaude server lost: {exc}") from exc
 
     async def submit(self, operation: op.Operation) -> str:
         payload = operation.model_dump(mode="json", exclude_none=True)
@@ -208,7 +223,6 @@ class SocketRuntimeClient:
         # for seconds on the first turn). The emit still goes to the server —
         # the session tape and other attached clients need it — and
         # _handle_envelope swallows the matching echo when it comes back.
-        self._pending_echo_swallows.append(event.content)
         await self._display_queue.put(_local_envelope(event))
         await self._send(
             {
@@ -217,6 +231,10 @@ class SocketRuntimeClient:
                 "event": event.model_dump(mode="json", exclude_none=True),
             }
         )
+        # Arm the swallow only after the emit reached the wire: a failed send
+        # produces no canonical echo, and a stale entry would eat the next
+        # user message that repeats the same text.
+        self._pending_echo_swallows.append((event.content, time.monotonic()))
 
     async def emit_local_event(self, event: events.Event) -> None:
         await self._display_queue.put(_local_envelope(event))
@@ -402,7 +420,10 @@ class SocketRuntimeClient:
         info.work_dir = item.get("work_dir")
         info.title = item.get("title")
         info.follow_ups = tuple(str(t) for t in item.get("follow_ups") or [])
-        self._running = info.state == "running"
+        # waiting_user_input is busy too: typing then must queue as a
+        # follow-up. Treating it as idle started a duplicate turn — the local
+        # echo plus the drain's replay rendered the same message twice.
+        self._running = info.state in ("running", "waiting_user_input")
         self._notify_state_changed()
         if self._on_session_info is not None:
             with contextlib.suppress(Exception):
@@ -433,13 +454,37 @@ class SocketRuntimeClient:
                     self._interrupt_prefill = event.content
             elif isinstance(event, events.UserInteractionRequestEvent):
                 self._interaction_queue.put_nowait(event)
-            if (
-                isinstance(event, events.UserMessageEvent)
-                and self._pending_echo_swallows
-                and self._pending_echo_swallows[0] == event.content
-            ):
+            if isinstance(event, events.UserMessageEvent) and self._swallow_pending_echo(event.content):
                 # Canonical echo of a message this client already rendered.
-                self._pending_echo_swallows.popleft()
                 return
+        if (
+            self._welcome_context_pending
+            and isinstance(event, events.WelcomeEvent)
+            and envelope.session_id == self._session_id
+            and not self._replay_complete.is_set()
+        ):
+            # Attach-handshake welcome: chase it with the locally built
+            # context (skills, memories) so the block lands ahead of the
+            # history replay instead of trailing the whole transcript.
+            self._welcome_context_pending = False
+            await self._display_queue.put(envelope)
+            assert self._welcome_context_provider is not None
+            try:
+                context_event = await self._welcome_context_provider()
+            except Exception as exc:
+                log_debug(f"[client] welcome context failed: {exc}", debug_type=DebugType.EXECUTION)
+                return
+            if context_event is not None:
+                await self._display_queue.put(_local_envelope(context_event))
+            return
 
         await self._display_queue.put(envelope)
+
+    def _swallow_pending_echo(self, content: str) -> bool:
+        now = time.monotonic()
+        while self._pending_echo_swallows and now - self._pending_echo_swallows[0][1] > _ECHO_SWALLOW_TTL_SECONDS:
+            self._pending_echo_swallows.popleft()
+        if self._pending_echo_swallows and self._pending_echo_swallows[0][0] == content:
+            self._pending_echo_swallows.popleft()
+            return True
+        return False
