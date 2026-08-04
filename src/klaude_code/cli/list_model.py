@@ -144,11 +144,15 @@ def _pad_text_right(text: Text, width: int) -> Text:
     return out
 
 
-def _build_model_lines(
+def _build_model_rows(
     provider: ProviderConfig,
     config: Config,
-) -> list[Text]:
-    """Build one formatted output line per model under a provider."""
+) -> list[tuple[Text, Text, Text]]:
+    """Build (alias, model id, annotations) cells per model under a provider.
+
+    Cells are returned unpadded; the caller aligns them into global columns
+    so annotations line up across every provider section.
+    """
     provider_disabled = provider.disabled
     provider_available = (not provider_disabled) and (not provider.is_api_key_missing())
 
@@ -186,10 +190,11 @@ def _build_model_lines(
             model_to_agents[selector] = []
         model_to_agents[selector].append(agent_role)
 
-    model_rows: list[tuple[Text, Text, Text | None, Text | None]] = []
+    model_rows: list[tuple[Text, Text, Text]] = []
 
     for model in provider.model_list:
         params: Text | None = None
+        roles: list[str] = []
 
         if provider_disabled:
             name = Text.assemble(
@@ -219,7 +224,6 @@ def _build_model_lines(
             params = Text(" · ", style="dim").join(_get_model_params_display(model))
         else:
             # Build role tags for this model
-            roles: list[str] = []
             selector = f"{model.model_name}@{provider.provider_name}"
             if selector == default_selector:
                 roles.append("main")
@@ -229,39 +233,32 @@ def _build_model_lines(
                 roles = list(dict.fromkeys(roles))
 
             name = Text()
-            if roles:
-                name.append(model.model_name, style=ThemeKey.CONFIG_STATUS_PRIMARY)
-                name.append(f" ({', '.join(roles)})", style="dim")
-            else:
-                name.append(model.model_name, style=ThemeKey.CONFIG_ITEM_NAME)
+            name.append(
+                model.model_name,
+                style=ThemeKey.CONFIG_STATUS_PRIMARY if roles else ThemeKey.CONFIG_ITEM_NAME,
+            )
             model_id = Text()
             model_id.append(model.model_id or "", style=ThemeKey.CONFIG_MODEL_ID)
             params = Text(" · ", style="dim").join(_get_model_params_display(model))
             status = None
 
-        model_rows.append((name, model_id, status, params))
-
-    name_width = max((name.cell_len for name, _, _, _ in model_rows), default=0)
-
-    lines: list[Text] = []
-    for name, model_id, status, params in model_rows:
-        line = _pad_text_right(name, name_width)
-
-        if model_id.plain:
-            line.append(" → ", style="dim")
-            line.append_text(model_id)
-
+        # Annotation column: role bindings first (they answer "which alias do
+        # the agent types use"), then model parameters, then status.
+        trailing = Text()
+        if roles:
+            trailing.append_text(Text(" · ", style="dim").join(Text(role, style="yellow") for role in roles))
         if provider_available and (not provider_disabled) and params is not None and params.plain:
-            line.append(" · ", style="dim")
-            line.append_text(params)
-
+            if trailing.plain:
+                trailing.append(" · ", style="dim")
+            trailing.append_text(params)
         if status is not None:
-            line.append(" · ", style="dim")
-            line.append_text(status)
+            if trailing.plain:
+                trailing.append(" · ", style="dim")
+            trailing.append_text(status)
 
-        lines.append(line)
+        model_rows.append((name, model_id, trailing))
 
-    return lines
+    return model_rows
 
 
 def display_models_and_providers(config: Config, *, show_all: bool = False) -> None:
@@ -281,6 +278,14 @@ def display_models_and_providers(config: Config, *, show_all: bool = False) -> N
 
     printed_any_provider = False
 
+    # Cells are config-only, so rows for every provider are known upfront;
+    # compute global column widths once so alias, model id, and annotations
+    # align across all provider sections (OAuth headers still load async).
+    rows_by_provider = {provider.provider_name: _build_model_rows(provider, config) for provider in sorted_providers}
+    all_rows = [row for rows in rows_by_provider.values() for row in rows]
+    alias_width = max((alias.cell_len for alias, _, _ in all_rows), default=0)
+    model_width = max((model_id.cell_len for _, model_id, _ in all_rows), default=0)
+
     def _print_provider(provider: ProviderConfig, usage_map: dict[LLMClientProtocol, str]) -> None:
         nonlocal printed_any_provider
         if printed_any_provider:
@@ -293,12 +298,19 @@ def display_models_and_providers(config: Config, *, show_all: bool = False) -> N
         )
         console.print(provider_header)
 
-        model_lines = _build_model_lines(provider, config)
-        for index, line in enumerate(model_lines):
-            branch = "╰── " if index == len(model_lines) - 1 else "├── "
-            prefix = Text.assemble(("  ", ""), (branch, ThemeKey.LINES))
-            prefix.append_text(line)
-            console.print(prefix)
+        for alias, model_id, trailing in rows_by_provider[provider.provider_name]:
+            line = Text("  ")
+            line.append_text(_pad_text_right(alias, alias_width))
+            if model_id.plain:
+                line.append(" → ", style="dim")
+                if trailing.plain:
+                    line.append_text(_pad_text_right(model_id, model_width))
+                else:
+                    line.append_text(model_id)
+            if trailing.plain:
+                line.append("  ")
+                line.append_text(trailing)
+            console.print(line)
 
     oauth_provider_groups: dict[LLMClientProtocol, list[ProviderConfig]] = {}
     non_oauth_providers: list[ProviderConfig] = []
