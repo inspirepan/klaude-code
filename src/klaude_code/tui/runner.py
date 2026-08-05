@@ -429,6 +429,12 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
     )
 
     def _agent_busy() -> bool:
+        if interrupt_pending and not client.is_running():
+            # Our Esc was confirmed (InterruptEvent flipped the mirror). The
+            # cancelled turn's OperationFinished trails its wind-down — a
+            # slow provider stream close can take seconds — and must not
+            # hold the prompt busy or delay the retract prefill.
+            return False
         return client.is_running() or bool(local_turn_ops)
 
     def _session_work_dir() -> Path:
@@ -579,6 +585,11 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                         await asyncio.wait_for(state_changed.wait(), timeout=1.0)
                     if _agent_busy():
                         continue
+                if interrupt_pending:
+                    # The interrupted ops' formal finishes trail the task
+                    # wind-down; they must not re-busy the prompt after this
+                    # transition.
+                    local_turn_ops.clear()
                 ui_busy = False
                 input_provider.set_interrupt_handler(None)
                 if restore_sigint is not None:
@@ -596,6 +607,15 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 # idle — applied the other way round, the retracted text sat
                 # in _next_prefill_text and resurfaced after the NEXT turn.
                 input_provider.set_agent_running(False)
+                prefill = client.consume_interrupt_prefill()
+                if prefill is not None:
+                    input_provider.set_next_prefill(prefill)
+                continue
+            if not busy and not ui_busy:
+                # A retract event can trail the idle transition (e.g. the
+                # server flushed the interrupt batch, then stalled before the
+                # retraction). Apply a late prefill instead of shelving it
+                # until some future prompt rebuild.
                 prefill = client.consume_interrupt_prefill()
                 if prefill is not None:
                     input_provider.set_next_prefill(prefill)

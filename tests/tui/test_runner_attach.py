@@ -36,6 +36,7 @@ class FakeRuntimeClient:
         self.reattached_to: list[str] = []
         self.closed = False
         self.dequeue_calls = 0
+        self.hold_run_ops = False
 
         self._info = SessionInfoSnapshot(session_id=session_id, work_dir="/nonexistent-work-dir")
         self._running = False
@@ -52,7 +53,13 @@ class FakeRuntimeClient:
         self._state_changed.set()
 
     def set_prefill(self, text: str | None) -> None:
+        # Mirrors production: arming the retract prefill wakes the watcher.
         self._interrupt_prefill = text
+        self._state_changed.set()
+
+    def release_operations(self) -> None:
+        for gate in self._blocked_ops.values():
+            gate.set()
 
     def ops_of[OpT: op.Operation](self, op_type: type[OpT]) -> list[OpT]:
         return [item for item in self.submitted if isinstance(item, op_type)]
@@ -84,6 +91,9 @@ class FakeRuntimeClient:
 
     async def submit(self, operation: op.Operation) -> str:
         self.submitted.append(operation)
+        if self.hold_run_ops and isinstance(operation, op.RunAgentOperation):
+            # Simulate an operation whose finish trails (task wind-down).
+            self._blocked_ops.setdefault(operation.id, asyncio.Event())
         if isinstance(operation, op.FollowUpAgentOperation):
             self._follow_ups.append(operation.input.text)
             self._info.follow_ups = tuple(self._follow_ups)
@@ -619,3 +629,77 @@ def test_connection_lost_exits_input_loop(monkeypatch: pytest.MonkeyPatch) -> No
     # The connection watcher asked the prompt layer to end the input loop.
     assert provider.exit_requests >= 1
     assert client.closed is True
+
+
+def test_esc_prefill_lands_before_interrupted_op_finishes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The interrupted op's finish trails its wind-down (slow provider stream
+    close); the prefill and idle prompt must not wait seconds for it."""
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client.hold_run_ops = True
+        yield UserInputPayload(text="task to interrupt")
+        await _settle()
+        client.set_running(True)
+        provider = FakeInputProvider.instance
+        assert provider is not None
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            if provider.interrupt_handler is not None:
+                break
+        assert provider.interrupt_handler is not None
+        provider.interrupt_handler()
+        await _settle()
+        await asyncio.sleep(0.05)
+
+        # Server confirms the interrupt; the run op stays unfinished (gate).
+        client.set_prefill("interrupted text")
+        client.set_running(False)
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            if provider.prefills:
+                break
+        # Applied while the operation is still formally in flight.
+        assert "interrupted text" in provider.prefills
+        client.release_operations()
+        await _settle()
+
+    client = run_scenario(monkeypatch, script)
+    provider = FakeInputProvider.instance
+    assert provider is not None
+    assert "interrupted text" in provider.prefills
+    assert client.ops_of(op.InterruptOperation)
+
+
+def test_late_retract_prefill_still_lands(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A retraction that arrives after the idle transition (server stalled
+    mid-batch) must still reach the input box instead of being shelved."""
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client.set_running(True)
+        provider = FakeInputProvider.instance
+        assert provider is not None
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            if provider.interrupt_handler is not None:
+                break
+        assert provider.interrupt_handler is not None
+        provider.interrupt_handler()
+        await _settle()
+        await asyncio.sleep(0.05)
+
+        # Interrupt confirmed with NO prefill yet: the transition runs empty.
+        client.set_running(False)
+        await asyncio.sleep(0.1)
+        # The retraction trails in a later batch.
+        client.set_prefill("late retract text")
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            if "late retract text" in provider.prefills:
+                break
+        yield UserInputPayload(text="")  # keep the loop alive one beat
+        await _settle()
+
+    run_scenario(monkeypatch, script)
+    provider = FakeInputProvider.instance
+    assert provider is not None
+    assert "late retract text" in provider.prefills

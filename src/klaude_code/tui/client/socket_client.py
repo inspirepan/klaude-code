@@ -483,6 +483,9 @@ class SocketRuntimeClient:
             elif isinstance(event, events.UserMessageRetractedEvent):
                 if envelope.operation_id is not None and envelope.operation_id in self._my_op_ids:
                     self._interrupt_prefill = event.content
+                    # Wake the runner's watcher: a retraction that trails the
+                    # idle transition must still reach the input box.
+                    self._notify_state_changed()
             elif isinstance(event, events.UserInteractionRequestEvent):
                 self._interaction_queue.put_nowait(event)
             if isinstance(event, events.UserMessageEvent) and self._swallow_pending_echo(event.content):
