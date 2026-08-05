@@ -201,6 +201,7 @@ class OperationDispatcher:
             work_dir=operation.work_dir,
             defer_welcome_context=operation.defer_welcome_context,
             defer_replay=operation.defer_replay,
+            suppress_welcome=operation.suppress_welcome,
         )
 
     async def replay_session_history(self, session_id: str) -> None:

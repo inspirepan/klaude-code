@@ -293,6 +293,7 @@ class AgentOperationHandler:
         work_dir: Path | None = None,
         defer_welcome_context: bool = False,
         defer_replay: bool = False,
+        suppress_welcome: bool = False,
     ) -> Agent:
         """Return the agent for a session, creating or loading as needed.
 
@@ -348,31 +349,34 @@ class AgentOperationHandler:
             model_profile_provider=profile_provider,
         )
 
-        startup_update = get_startup_update_summary()
+        if not suppress_welcome:
+            startup_update = get_startup_update_summary()
 
-        await self._emit_event(
-            events.WelcomeEvent(
-                session_id=session.id,
-                work_dir=str(session.work_dir),
-                llm_config=session_clients.main.get_llm_config(),
-                title=session.title,
-                loaded_skills={} if defer_welcome_context else get_skill_names_by_location(),
-                loaded_skill_warnings={} if defer_welcome_context else get_skill_warnings_by_location(),
-                loaded_memories=(
-                    {} if defer_welcome_context else get_existing_memory_paths_by_location(work_dir=session.work_dir)
-                ),
-                startup_info=events.WelcomeStartupInfo(
-                    update_info=(
-                        events.WelcomeUpdateInfo(
-                            message=startup_update.message,
-                            level=startup_update.level,
+            await self._emit_event(
+                events.WelcomeEvent(
+                    session_id=session.id,
+                    work_dir=str(session.work_dir),
+                    llm_config=session_clients.main.get_llm_config(),
+                    title=session.title,
+                    loaded_skills={} if defer_welcome_context else get_skill_names_by_location(),
+                    loaded_skill_warnings={} if defer_welcome_context else get_skill_warnings_by_location(),
+                    loaded_memories=(
+                        {}
+                        if defer_welcome_context
+                        else get_existing_memory_paths_by_location(work_dir=session.work_dir)
+                    ),
+                    startup_info=events.WelcomeStartupInfo(
+                        update_info=(
+                            events.WelcomeUpdateInfo(
+                                message=startup_update.message,
+                                level=startup_update.level,
+                            )
+                            if startup_update is not None
+                            else None
                         )
-                        if startup_update is not None
-                        else None
-                    )
-                ),
+                    ),
+                )
             )
-        )
 
         if defer_replay:
             runtime.set_agent(agent)
@@ -434,14 +438,19 @@ class AgentOperationHandler:
         work_dir: Path,
         defer_welcome_context: bool = False,
         defer_replay: bool = False,
+        suppress_welcome: bool = False,
     ) -> None:
         agent = await self.ensure_agent(
             session_id,
             work_dir=work_dir,
             defer_welcome_context=defer_welcome_context,
             defer_replay=defer_replay,
+            suppress_welcome=suppress_welcome,
         )
-        self._primary_session_id = agent.session.id
+        if not suppress_welcome:
+            # Rehydrating a reclaimed actor is not a session switch: it must
+            # not steal the primary-session slot from an interactive TUI.
+            self._primary_session_id = agent.session.id
 
     async def replay_session_history(self, session_id: str) -> None:
         runtime = self._get_session_actor(session_id)

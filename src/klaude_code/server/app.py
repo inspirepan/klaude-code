@@ -68,6 +68,11 @@ def create_app(
         headless.restore(session_live.index.list_all())
         session_live.attach_loop(asyncio.get_running_loop())
         unregister_meta_observer = register_session_meta_observer(session_live.apply_meta_update)
+        # An attached-but-quiet TUI is still in use: keep its agent out of
+        # the idle reaper so typing hours later hits a live actor.
+        from klaude_code.server.routes.ws import attached_session_ids
+
+        state.runtime.set_reclaim_exclusions_provider(attached_session_ids)
         try:
             yield
         finally:

@@ -299,6 +299,9 @@ class InitAgentOperation(Operation):
     work_dir: Path
     defer_welcome_context: bool = False
     defer_replay: bool = False
+    # Rehydrating a reclaimed actor mid-attach: no welcome banner should
+    # appear in the middle of the transcript.
+    suppress_welcome: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_init_agent(self)

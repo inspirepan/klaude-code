@@ -960,3 +960,36 @@ def test_runtime_stop_keeps_actor_registered_until_selected_operation_exits() ->
         assert hub.get_session_actor("s1") is None
 
     arun(_test())
+
+
+def test_actor_loop_survives_operation_failure() -> None:
+    """A crashed operation must not kill the actor loop or pin root state.
+
+    Regression: a handler exception used to propagate out of _run_loop, so
+    every later operation for the session sat in the mailbox forever — an
+    attached client saw a silent, permanent hang.
+    """
+
+    async def _test() -> None:
+        handled: list[str] = []
+        done = asyncio.Event()
+
+        async def _handle(operation: op.Operation) -> None:
+            if operation.id == crash_op.id:
+                raise RuntimeError("boom")
+            handled.append(operation.id)
+            done.set()
+
+        async def _reject(_operation: op.Operation, _active_root_operation_id: str | None) -> None:
+            raise AssertionError("crashed root op must not stay active and reject the next one")
+
+        hub = SessionRegistry(handle_operation=_handle, reject_operation=_reject)
+        crash_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="first"))
+        follow_op = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="second"))
+        await hub.submit(crash_op)
+        await hub.submit(follow_op)
+        await asyncio.wait_for(done.wait(), timeout=2.0)
+        assert handled == [follow_op.id]
+        await hub.stop()
+
+    arun(_test())

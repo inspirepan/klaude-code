@@ -131,6 +131,7 @@ class RuntimeFacade:
         )
         self._operation_awaiter = OperationCompletionAwaiter(event_bus)
         self._stopped = False
+        self._reclaim_exclusions_provider: Callable[[], set[str]] | None = None
 
     async def _reject_operation(self, operation: op.Operation, active_task_id: str | None) -> None:
         session_id = getattr(operation, "session_id", None)
@@ -383,11 +384,24 @@ class RuntimeFacade:
                 )
         return closed
 
+    def set_reclaim_exclusions_provider(self, provider: Callable[[], set[str]] | None) -> None:
+        """Sessions the idle reaper must leave alone (e.g. WS-attached ones)."""
+        self._reclaim_exclusions_provider = provider
+
     async def reclaim_idle_sessions(self, *, idle_for_seconds: float) -> list[str]:
-        # Never reclaim the primary (TUI-active) session.
+        # Never reclaim the primary (TUI-active) session or any session an
+        # exclusion provider vouches for (the server excludes every session
+        # with a live WS attach — an attached-but-quiet TUI is still in use).
+        exclude: set[str] = set()
         primary = self._operation_dispatcher.current_session_id()
-        exclude = {primary} if primary is not None else None
-        return await self.session_registry.reclaim_idle_sessions(idle_for_seconds=idle_for_seconds, exclude=exclude)
+        if primary is not None:
+            exclude.add(primary)
+        if self._reclaim_exclusions_provider is not None:
+            with contextlib.suppress(Exception):
+                exclude |= self._reclaim_exclusions_provider()
+        return await self.session_registry.reclaim_idle_sessions(
+            idle_for_seconds=idle_for_seconds, exclude=exclude or None
+        )
 
     async def wait_for(self, operation_id: str) -> Literal["completed", "rejected", "failed"] | None:
         return await self._operation_awaiter.wait_for(operation_id)

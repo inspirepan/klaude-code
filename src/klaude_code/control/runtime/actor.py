@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
+from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, op, user_interaction
 
 if TYPE_CHECKING:
@@ -389,7 +390,20 @@ class SessionActor:
                         task_id=item.id,
                         kind=_root_task_kind(item),
                     )
-                await self._handle_operation(item)
+                try:
+                    await self._handle_operation(item)
+                except Exception as exc:
+                    # The registry's lifecycle wrapper already emitted the
+                    # failure events and cleared the completed-op state. The
+                    # loop itself must survive a crashed operation: if it
+                    # died, every later operation for this session would sit
+                    # in the mailbox with no consumer — a silent, permanent
+                    # hang for any attached client.
+                    log_debug(
+                        f"[{self.session_id}] operation {item.id[:8]} crashed; actor loop continues: {exc}",
+                        debug_type=DebugType.EXECUTION,
+                    )
+                    self.mark_operation_completed(item.id)
             finally:
                 if isinstance(item, _StopSignal) or _is_control_operation(item):
                     self.control_mailbox.task_done()

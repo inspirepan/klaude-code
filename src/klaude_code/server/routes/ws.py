@@ -33,6 +33,11 @@ router = APIRouter(tags=["websocket"])
 _ATTACH_COUNTS: dict[str, int] = {}
 
 
+def attached_session_ids() -> set[str]:
+    """Sessions with at least one live WS client (TUI attach)."""
+    return {session_id for session_id, count in _ATTACH_COUNTS.items() if count > 0}
+
+
 class OpFrame(BaseModel):
     """Submit any serialized protocol operation bound to the attached session."""
 
@@ -222,6 +227,27 @@ async def _handle_operation_frame(
         await _send_error_frame(websocket, code="invalid_payload", message=f"Failed to submit operation: {exc}")
 
 
+async def _ensure_session_agent(state: ServerAppState, session_id: str, work_dir: Path) -> None:
+    """Rehydrate a reclaimed actor before agent-bound frames.
+
+    The idle reaper may drop the in-memory agent while a client stays
+    attached; an operation dispatched to a fresh actor would then fail with
+    "work_dir is required" (and a dequeue would silently return nothing).
+    """
+    actor = state.runtime.session_registry.get_session_actor(session_id)
+    if actor is not None and actor.get_agent() is not None:
+        return
+    await state.runtime.submit_and_wait(
+        op.InitAgentOperation(
+            session_id=session_id,
+            work_dir=work_dir,
+            defer_welcome_context=True,
+            defer_replay=True,
+            suppress_welcome=True,
+        )
+    )
+
+
 async def _handle_incoming_frame(
     session_id: str,
     frame: IncomingFrame,
@@ -246,6 +272,7 @@ async def _handle_incoming_frame(
 
     try:
         if isinstance(frame, OpFrame):
+            await _ensure_session_agent(state, session_id, work_dir)
             await _handle_operation_frame(session_id, frame, websocket)
             return
 
@@ -261,6 +288,7 @@ async def _handle_incoming_frame(
             await runtime.emit_event(event)
             return
 
+        await _ensure_session_agent(state, session_id, work_dir)
         actor = runtime.session_registry.get_session_actor(session_id)
         agent = actor.get_agent() if actor is not None else None
         texts: list[str] = []

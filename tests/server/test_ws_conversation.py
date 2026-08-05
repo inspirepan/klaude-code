@@ -81,3 +81,38 @@ def test_multiple_ws_receive_same_events(app_env: AppEnv) -> None:
 
     assert extract_text(events1) == "broadcast"
     assert extract_text(events2) == "broadcast"
+
+
+def test_op_after_actor_reclaim_rehydrates_agent(app_env: AppEnv) -> None:
+    """Typing hours later must not fail with "work_dir is required".
+
+    The idle reaper can drop the in-memory agent while the TUI stays
+    attached; the next op frame rehydrates it silently (no welcome banner
+    in the middle of the transcript).
+    """
+    session_id = app_env.create_session()
+    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
+        consume_ws_handshake(websocket)
+
+        # Simulate the idle reaper: drop the actor from under the client.
+        assert app_env.client.portal is not None
+        assert app_env.client.portal.call(app_env.runtime.close_session, session_id)
+        assert not app_env.runtime.session_registry.has_session_actor(session_id)
+
+        app_env.fake_llm.enqueue(
+            message.AssistantTextDelta(content="rehydrated reply"),
+            message.AssistantMessage(
+                parts=[message.TextPart(text="rehydrated reply")],
+                stop_reason="stop",
+                usage=usage(input_tokens=8, output_tokens=3),
+            ),
+        )
+        send_user_message(websocket, session_id, "after reclaim")
+        # The first operation.finished belongs to the silent rehydration
+        # (InitAgentOperation); wait for the actual turn to finish.
+        events = collect_events_until(websocket, "task.finish")
+
+    event_types = [event["event_type"] for event in events]
+    assert "error" not in event_types
+    assert "welcome" not in event_types
+    assert extract_text(events) == "rehydrated reply"
