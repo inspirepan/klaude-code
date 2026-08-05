@@ -502,3 +502,67 @@ def test_operation_finish_rearms_stalled_follow_up_drain(app_env: AppEnv) -> Non
         time.sleep(0.05)
     else:
         raise AssertionError("queued follow-up never ran after the background op finished")
+
+
+def test_event_consumer_survives_poisoned_event(app_env: AppEnv, monkeypatch: Any) -> None:
+    """The headless event consumer holds every drain trigger on the server;
+    one event whose handling raises must not silently kill queue draining
+    for all sessions."""
+    from klaude_code.protocol.message import UserInputPayload
+
+    session_id = app_env.create_session()
+    _run_one_turn(app_env, session_id, "first turn", "first reply")
+
+    from typing import cast
+
+    headless = cast(Any, app_env.client.app).state.server_state.headless
+    assert headless is not None
+
+    # Poison the consumer via an unrelated session's ErrorEvent.
+    poison_session = app_env.create_session()
+    original_persist_failed = headless._persist_failed
+
+    async def _boom(session_id: str, *, failed: bool) -> None:
+        if session_id == poison_session:
+            raise RuntimeError("poisoned event handling")
+        await original_persist_failed(session_id, failed=failed)
+
+    monkeypatch.setattr(headless, "_persist_failed", _boom)
+    assert app_env.client.portal is not None
+    app_env.client.portal.call(
+        app_env.runtime.emit_event,
+        protocol_events.ErrorEvent(session_id=poison_session, error_message="boom", can_retry=True),
+    )
+
+    # The consumer must still be alive: an op-finished kick drains the queue.
+    actor = app_env.runtime.session_registry.get_session_actor(session_id)
+    assert actor is not None
+    agent = actor.get_agent()
+    assert agent is not None
+    agent.follow_up(UserInputPayload(text="queued after poison"))
+    app_env.fake_llm.enqueue(
+        message.AssistantTextDelta(content="still alive reply"),
+        message.AssistantMessage(
+            parts=[message.TextPart(text="still alive reply")],
+            stop_reason="stop",
+            usage=usage(),
+        ),
+    )
+    app_env.client.portal.call(
+        app_env.runtime.emit_event,
+        protocol_events.OperationFinishedEvent(
+            session_id=session_id,
+            operation_id="bg-op",
+            operation_type="generate_away_summary",
+            status="completed",
+        ),
+    )
+
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
+        if "still alive reply" in str(output.get("output", "")):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("consumer died on the poisoned event; queue never drained")

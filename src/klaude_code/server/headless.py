@@ -249,37 +249,49 @@ class HeadlessRuntime:
                 event = envelope.event
                 if isinstance(event, events.EndEvent):
                     return
-                self.tracker.consume(event)
-                if isinstance(event, events.ErrorEvent):
-                    await self._persist_failed(event.session_id, failed=True)
-                if isinstance(event, events.TaskStartEvent):
-                    self._turn_starting.pop(event.session_id, None)
-                if (
-                    isinstance(event, events.OperationRejectedEvent)
-                    or (isinstance(event, events.OperationFinishedEvent) and event.status in ("rejected", "failed"))
-                ) and self._turn_starting.get(event.session_id) == event.operation_id:
-                    self._turn_starting.pop(event.session_id, None)
-                if isinstance(event, events.TaskFinishEvent) and not self.tracker.is_interrupted(event.session_id):
-                    self._schedule_follow_up_drain(event.session_id)
-                if isinstance(event, events.TaskFinishEvent):
-                    self._schedule_tape_reset(event.session_id)
-                # TUI Esc mid-queue: the interrupted turn ends without a
-                # drain-triggering TaskFinish, so continue the queue here.
-                if isinstance(event, events.InterruptEvent) and event.resume_follow_ups:
-                    self._schedule_follow_up_drain(event.session_id)
-                # A follow-up queued onto an already-idle session (submit
-                # raced the turn end) has no TaskFinish coming; drain now.
-                if isinstance(event, events.FollowUpQueueUpdatedEvent) and event.texts:
-                    self._schedule_follow_up_drain(event.session_id)
-                # Background operations (away summary, compaction, ...) hold
-                # the actor busy without any TaskFinish. A drain that gave up
-                # waiting on them must be re-armed when they complete, or a
-                # message queued during the window sits pending forever.
-                if isinstance(event, events.OperationFinishedEvent) and event.status == "completed":
-                    self._schedule_follow_up_drain(event.session_id)
+                try:
+                    await self._consume_one(event)
+                except Exception as exc:
+                    # This loop is the only holder of every drain trigger on
+                    # the server; one bad event must not silently kill queue
+                    # draining for all sessions.
+                    log_debug(
+                        f"[headless] event consumer error on {events.event_type_name(event)}: {exc}",
+                        debug_type=DebugType.EXECUTION,
+                    )
             # Bus dropped this subscriber on overflow; resubscribe.
             log_debug("[headless] activity subscription overflowed; resubscribed", debug_type=DebugType.EVENT_BUS)
             subscription = event_bus.subscribe(None)
+
+    async def _consume_one(self, event: events.Event) -> None:
+        self.tracker.consume(event)
+        if isinstance(event, events.ErrorEvent):
+            await self._persist_failed(event.session_id, failed=True)
+        if isinstance(event, events.TaskStartEvent):
+            self._turn_starting.pop(event.session_id, None)
+        if (
+            isinstance(event, events.OperationRejectedEvent)
+            or (isinstance(event, events.OperationFinishedEvent) and event.status in ("rejected", "failed"))
+        ) and self._turn_starting.get(event.session_id) == event.operation_id:
+            self._turn_starting.pop(event.session_id, None)
+        if isinstance(event, events.TaskFinishEvent) and not self.tracker.is_interrupted(event.session_id):
+            self._schedule_follow_up_drain(event.session_id)
+        if isinstance(event, events.TaskFinishEvent):
+            self._schedule_tape_reset(event.session_id)
+        # TUI Esc mid-queue: the interrupted turn ends without a
+        # drain-triggering TaskFinish, so continue the queue here.
+        if isinstance(event, events.InterruptEvent) and event.resume_follow_ups:
+            self._schedule_follow_up_drain(event.session_id)
+        # A follow-up queued onto an already-idle session (submit
+        # raced the turn end) has no TaskFinish coming; drain now.
+        if isinstance(event, events.FollowUpQueueUpdatedEvent) and event.texts:
+            self._schedule_follow_up_drain(event.session_id)
+        # Background operations (away summary, compaction, ...) hold
+        # the actor busy without any TaskFinish. A drain that gave up
+        # waiting on them must be re-armed when they complete, or a
+        # message queued during the window sits pending forever.
+        if isinstance(event, events.OperationFinishedEvent) and event.status == "completed":
+            self._schedule_follow_up_drain(event.session_id)
 
     def nudge_follow_up_drain(self, session_id: str) -> None:
         """Kick the drain for a session that may hold a persisted queue.
@@ -378,12 +390,22 @@ class HeadlessRuntime:
                     # The finish event races the operation teardown; wait it out.
                     await asyncio.sleep(0.05)
                 else:
+                    # OperationFinished(completed) of whatever holds the actor
+                    # busy re-arms the drain (see _consume_one).
+                    log_debug(
+                        f"[headless] drain gave up waiting for idle: {session_id[:8]}",
+                        debug_type=DebugType.EXECUTION,
+                    )
                     return
                 if agent is None:
                     return
                 if self.tracker.is_interrupted(session_id):
+                    log_debug(f"[headless] drain skip (interrupted): {session_id[:8]}", debug_type=DebugType.EXECUTION)
                     return
                 if self.turn_start_pending(session_id):
+                    log_debug(
+                        f"[headless] drain skip (turn starting): {session_id[:8]}", debug_type=DebugType.EXECUTION
+                    )
                     return
                 if agent.peek_next_follow_up() is None:
                     return
