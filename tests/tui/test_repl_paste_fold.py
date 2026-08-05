@@ -13,9 +13,9 @@ def test_store_saves_twenty_lines_immediately(tmp_path: Path) -> None:
 
     marker = state.store(text, tmp_path)
 
-    assert marker == "[paste #1 +20 lines]"
     files = list(tmp_path.iterdir())
     assert len(files) == 1
+    assert marker == f"[paste #1 +20 lines: {files[0].resolve()}]"
     assert files[0].read_text(encoding="utf-8") == text
 
 
@@ -25,8 +25,9 @@ def test_store_saves_two_thousand_chars_immediately(tmp_path: Path) -> None:
 
     marker = state.store(text, tmp_path)
 
-    assert marker == "[paste #1 2000 chars]"
-    assert len(list(tmp_path.iterdir())) == 1
+    files = list(tmp_path.iterdir())
+    assert len(files) == 1
+    assert marker == f"[paste #1 2000 chars: {files[0].resolve()}]"
 
 
 def test_store_keeps_small_paste_inline(tmp_path: Path) -> None:

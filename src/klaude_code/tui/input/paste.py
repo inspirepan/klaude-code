@@ -4,8 +4,8 @@ prompt_toolkit already parses terminal bracketed paste mode and exposes the
 pasted payload via a `<bracketed-paste>` key event.
 
 We keep the editor buffer small by inserting a marker like:
-- `[paste #3 +42 lines]`  (when many lines)
-- `[paste #3 1205 chars]` (when very long)
+- `[paste #3 +42 lines: /path/to/paste.txt]`  (when many lines)
+- `[paste #3 1205 chars: /path/to/paste.txt]` (when very long)
 
 On submit, each marker becomes a short model-facing reference to the saved file.
 """
@@ -19,7 +19,9 @@ from pathlib import Path
 
 from klaude_code.prompts.attachments import PASTE_REFERENCE_TEMPLATE
 
-_PASTE_MARKER_RE = re.compile(r"\[paste #(?P<id>\d+)(?: (?P<meta>\+\d+ lines|\d+ chars))?\]")
+_PASTE_MARKER_RE = re.compile(
+    r"\[paste #(?P<id>\d+)(?: (?P<meta>\+\d+ lines|\d+ chars))?(?:: [^\]\r\n]+)?\]"
+)
 
 PASTE_FILE_THRESHOLD_LINES = 20
 PASTE_FILE_THRESHOLD_CHARS = 2000
@@ -75,12 +77,13 @@ class PasteBufferState:
         line_count = max(1, len(lines))
         total_chars = len(text)
 
+        resolved_path = file_path.resolve()
         if line_count >= PASTE_FILE_THRESHOLD_LINES:
-            marker = f"[paste #{paste_id} +{line_count} lines]"
+            marker = f"[paste #{paste_id} +{line_count} lines: {resolved_path}]"
         else:
-            marker = f"[paste #{paste_id} {total_chars} chars]"
+            marker = f"[paste #{paste_id} {total_chars} chars: {resolved_path}]"
 
-        self._paste_files[paste_id] = file_path.resolve()
+        self._paste_files[paste_id] = resolved_path
         return marker
 
     def expand_markers(self, text: str, *, consume: bool = True) -> str:

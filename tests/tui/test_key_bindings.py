@@ -59,8 +59,8 @@ def test_large_bracketed_paste_saves_file_and_inserts_marker(tmp_path: Path) -> 
     event = cast(KeyPressEvent, SimpleNamespace(current_buffer=buffer, data=text))
     binding.handler(event)
 
-    assert re.fullmatch(r"\[paste #\d+ 2000 chars\] ", buffer.text)
     paste_file = next(tmp_path.iterdir())
+    assert buffer.text == f"[paste #1 2000 chars: {paste_file.resolve()}] "
     assert paste_file.read_text(encoding="utf-8") == text
 
 
