@@ -407,3 +407,51 @@ def test_attach_rehydrates_reclaimed_actor(app_env: AppEnv) -> None:
         if event.get("event_type") in ("assistant.text.delta", "assistant.text.end")
     )
     assert "still here" in texts
+
+
+def test_attach_drains_queue_persisted_across_restart(app_env: AppEnv) -> None:
+    """A follow-up queued before a restart/reclaim has no live drain trigger
+    (restore only covers headless sessions); attaching must resume it."""
+    from klaude_code.protocol.message import QueuedUserInput, UserInputPayload
+    from klaude_code.session.store_registry import get_store_for_path
+
+    session_id = app_env.create_session()
+    _run_one_turn(app_env, session_id, "first turn", "first reply")
+
+    # Simulate the reclaim/restart: actor gone, queue persisted in meta only.
+    assert app_env.client.portal is not None
+    assert app_env.client.portal.call(app_env.runtime.close_session, session_id)
+    queued = QueuedUserInput(input=UserInputPayload(text="queued while away"))
+    store = get_store_for_path(app_env.work_dir)
+    assert store.update_meta(
+        session_id,
+        {"follow_up_queue": [queued.model_dump(mode="json")]},
+    )
+
+    app_env.fake_llm.enqueue(
+        message.AssistantTextDelta(content="drained reply"),
+        message.AssistantMessage(
+            parts=[message.TextPart(text="drained reply")],
+            stop_reason="stop",
+            usage=usage(input_tokens=8, output_tokens=3),
+        ),
+    )
+
+    with _attach(app_env, session_id) as websocket:
+        _consume_attach_handshake(websocket)
+        events_seen: list[dict[str, Any]] = []
+        for _ in range(300):
+            frame = websocket.receive_json()
+            items = frame if isinstance(frame, list) else [frame]
+            events_seen.extend(item for item in items if isinstance(item, dict))
+            if any(item.get("event_type") == "task.finish" for item in items if isinstance(item, dict)):
+                break
+        else:
+            raise AssertionError("queued follow-up never ran after attach")
+
+    texts = "".join(
+        str(event["event"].get("content", ""))
+        for event in events_seen
+        if event.get("event_type") == "assistant.text.delta"
+    )
+    assert "drained reply" in texts

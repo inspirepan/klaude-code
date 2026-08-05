@@ -275,6 +275,15 @@ class HeadlessRuntime:
             log_debug("[headless] activity subscription overflowed; resubscribed", debug_type=DebugType.EVENT_BUS)
             subscription = event_bus.subscribe(None)
 
+    def nudge_follow_up_drain(self, session_id: str) -> None:
+        """Kick the drain for a session that may hold a persisted queue.
+
+        Interactive sessions are not covered by restore(): a queue persisted
+        before a server restart or an actor reclaim has no event-driven drain
+        trigger left. Attach and rehydration call this so the queue runs.
+        """
+        self._schedule_follow_up_drain(session_id)
+
     def _schedule_follow_up_drain(self, session_id: str) -> None:
         if session_id in self._stopped_sessions or self.tracker.is_failed(session_id):
             return

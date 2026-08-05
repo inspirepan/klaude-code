@@ -246,6 +246,10 @@ async def _ensure_session_agent(state: ServerAppState, session_id: str, work_dir
             suppress_welcome=True,
         )
     )
+    if state.headless is not None:
+        # The rehydrated agent may carry a persisted follow-up queue whose
+        # event-driven drain trigger died with the old actor.
+        state.headless.nudge_follow_up_drain(session_id)
 
 
 async def _handle_incoming_frame(
@@ -701,6 +705,10 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             subscription = state.subscribe_events(None)
             max_seq = await _send_attach_replay(session_id, websocket, state=state)
             await _send_pending_interaction_snapshots(session_id, websocket)
+            if can_input and state.headless is not None:
+                # A queue persisted before a restart/reclaim has no live
+                # drain trigger; attaching is the moment to resume it.
+                state.headless.nudge_follow_up_drain(session_id)
             send_task = asyncio.create_task(
                 _forward_events(
                     session_id,
