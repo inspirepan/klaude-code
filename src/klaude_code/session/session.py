@@ -33,6 +33,8 @@ from klaude_code.session.meta import parse_session_meta, read_json_dict
 from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
 from klaude_code.session.store_registry import get_store_for_path
 
+_FORK_TITLE_PREFIX = "Fork · "
+
 
 def _first_prompt_text(history: Sequence[message.HistoryEvent]) -> str:
     """The spawning prompt of a sub-agent session: its first real user message.
@@ -541,6 +543,10 @@ class Session(BaseModel):
         """
 
         forked = Session(id=new_id or uuid.uuid4().hex, work_dir=self.work_dir)
+
+        # Mark forks in session lists; avoid stacking the prefix when forking a fork.
+        if self.title:
+            forked.title = self.title if self.title.startswith(_FORK_TITLE_PREFIX) else _FORK_TITLE_PREFIX + self.title
 
         forked.sub_agent_state = None
         forked.model_name = self.model_name

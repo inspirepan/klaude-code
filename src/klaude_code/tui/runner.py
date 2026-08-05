@@ -714,6 +714,16 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         client.start_display()
         await client.wait_for_replay_complete()
 
+    async def _switch_to_forked(operation: op.ForkAndSwitchSessionOperation) -> None:
+        await _reattach_to(operation.new_session_id)
+        await client.emit_local_event(
+            events.NoticeEvent(
+                session_id=operation.new_session_id,
+                content=f"Forked session active. To switch back: `klaude -r {operation.original_session_short_id}`",
+                style="fork.notice",
+            )
+        )
+
     async def _handle_command_result(result: CommandResult) -> None:
         for evt in result.events or []:
             await client.emit_local_event(evt)
@@ -730,7 +740,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 await _reattach_to(new_id)
                 continue
             if isinstance(operation, op.ForkAndSwitchSessionOperation):
-                await _reattach_to(operation.new_session_id)
+                await _switch_to_forked(operation)
                 continue
             if isinstance(operation, op.RunAgentOperation):
                 await _submit_turn(operation)
@@ -784,6 +794,11 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 for evt in result.events or []:
                     await client.emit_local_event(evt)
                 for operation in result.operations or []:
+                    if isinstance(operation, op.ForkAndSwitchSessionOperation):
+                        # Session switches must reattach this client; submitting
+                        # to the server would leave the display on the old session.
+                        await _switch_to_forked(operation)
+                        continue
                     await client.submit_and_wait(operation)
                 await client.wait_for_display_idle()
                 await settle_flicker_safe_stdout()

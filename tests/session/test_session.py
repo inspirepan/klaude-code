@@ -892,6 +892,7 @@ class TestForkSessionCommand:
             from klaude_code.tui.command.fork_session_cmd import ForkSessionCommand
 
             session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config")
+            session.title = "修复登录问题"
             session.model_thinking = llm_param.Thinking(type="enabled", budget_tokens=123)
             session.file_tracker["/path/to/file"] = FileStatus(mtime=time.time(), content_sha256="abc")
             session.file_change_summary.record_created("/path/to/created")
@@ -936,6 +937,28 @@ class TestForkSessionCommand:
             assert isinstance(forked.conversation_history[1], message.AssistantMessage)
             assert message.join_text_parts(forked.conversation_history[0].parts) == "Hello"
             assert message.join_text_parts(forked.conversation_history[1].parts) == "Hi"
+            assert forked.title == "Fork · 修复登录问题"
+
+            await close_default_store()
+
+        arun(_test())
+
+    def test_fork_title_prefix(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        project_dir = tmp_path / "test_project"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+
+        async def _test() -> None:
+            history = [message.UserMessage(parts=message.text_parts_from_str("Hello"))]
+
+            untitled = Session(work_dir=project_dir)
+            untitled.append_history(list(history))
+            assert untitled.fork().title is None
+
+            branch = Session(work_dir=project_dir)
+            branch.title = "Fork · 修复登录问题"
+            branch.append_history(list(history))
+            assert branch.fork().title == "Fork · 修复登录问题"
 
             await close_default_store()
 
