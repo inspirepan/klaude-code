@@ -19,9 +19,7 @@ from pathlib import Path
 
 from klaude_code.prompts.attachments import PASTE_REFERENCE_TEMPLATE
 
-_PASTE_MARKER_RE = re.compile(
-    r"\[paste #(?P<id>\d+)(?: (?P<meta>\+\d+ lines|\d+ chars))?(?:: [^\]\r\n]+)?\]"
-)
+_PASTE_MARKER_RE = re.compile(r"\[paste #(?P<id>\d+)(?: (?P<meta>\+\d+ lines|\d+ chars))?(?:: [^\]\r\n]+)?\]")
 
 PASTE_FILE_THRESHOLD_LINES = 20
 PASTE_FILE_THRESHOLD_CHARS = 2000
