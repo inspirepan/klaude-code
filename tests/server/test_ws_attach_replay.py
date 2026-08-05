@@ -455,3 +455,50 @@ def test_attach_drains_queue_persisted_across_restart(app_env: AppEnv) -> None:
         if event.get("event_type") == "assistant.text.delta"
     )
     assert "drained reply" in texts
+
+
+def test_operation_finish_rearms_stalled_follow_up_drain(app_env: AppEnv) -> None:
+    """A message queued while a background op (away summary) holds the actor
+    busy must run once that op completes: the drain's 5s idle-wait gives up,
+    and background ops emit no TaskFinish — OperationFinished re-arms it."""
+    from klaude_code.protocol.message import UserInputPayload
+
+    session_id = app_env.create_session()
+    _run_one_turn(app_env, session_id, "first turn", "first reply")
+
+    actor = app_env.runtime.session_registry.get_session_actor(session_id)
+    assert actor is not None
+    agent = actor.get_agent()
+    assert agent is not None
+    # Queue directly on the agent: mimics the stuck state where the original
+    # drain trigger already fired and gave up (no new queue event coming).
+    agent.follow_up(UserInputPayload(text="queued during summary"))
+
+    app_env.fake_llm.enqueue(
+        message.AssistantTextDelta(content="stalled drained reply"),
+        message.AssistantMessage(
+            parts=[message.TextPart(text="stalled drained reply")],
+            stop_reason="stop",
+            usage=usage(),
+        ),
+    )
+
+    assert app_env.client.portal is not None
+    app_env.client.portal.call(
+        app_env.runtime.emit_event,
+        protocol_events.OperationFinishedEvent(
+            session_id=session_id,
+            operation_id="away-summary-op",
+            operation_type="generate_away_summary",
+            status="completed",
+        ),
+    )
+
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
+        if "stalled drained reply" in str(output.get("output", "")):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("queued follow-up never ran after the background op finished")

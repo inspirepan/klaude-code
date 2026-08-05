@@ -271,6 +271,12 @@ class HeadlessRuntime:
                 # raced the turn end) has no TaskFinish coming; drain now.
                 if isinstance(event, events.FollowUpQueueUpdatedEvent) and event.texts:
                     self._schedule_follow_up_drain(event.session_id)
+                # Background operations (away summary, compaction, ...) hold
+                # the actor busy without any TaskFinish. A drain that gave up
+                # waiting on them must be re-armed when they complete, or a
+                # message queued during the window sits pending forever.
+                if isinstance(event, events.OperationFinishedEvent) and event.status == "completed":
+                    self._schedule_follow_up_drain(event.session_id)
             # Bus dropped this subscriber on overflow; resubscribe.
             log_debug("[headless] activity subscription overflowed; resubscribed", debug_type=DebugType.EVENT_BUS)
             subscription = event_bus.subscribe(None)
