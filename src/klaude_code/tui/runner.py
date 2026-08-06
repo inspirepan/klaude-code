@@ -42,6 +42,7 @@ from klaude_code.tui.command import (
     get_command_info_list,
     has_background_command,
     has_interactive_command,
+    is_registered_command,
 )
 from klaude_code.tui.command.command_abc import CommandResult
 from klaude_code.tui.commands import PromptStatusLine
@@ -80,9 +81,19 @@ def _is_exit_input(text: str) -> bool:
     return text.strip().lower() in {"exit", ":q", "quit"}
 
 
-def _is_command_shaped(text: str) -> bool:
+def _requires_client_dispatch(text: str) -> bool:
+    """Whether this input has to run on the client instead of queueing as text.
+
+    Bash (`!cmd`) and registered slash commands are executed by the TUI, so
+    they cannot sit in the server's text queue. Everything else that merely
+    starts with `/` is plain text for the model — notably `/skill:name`, which
+    the server expands from the message body when the turn runs — and queues
+    like any other message.
+    """
     stripped = text.lstrip()
-    return stripped.startswith(("/", "!", "！"))
+    if stripped.startswith(("!", "！")):
+        return True
+    return is_registered_command(stripped)
 
 
 async def run_attach(session_id: str, *, peek: bool = False) -> None:
@@ -899,9 +910,9 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                             state_changed.clear()
 
                     if _agent_busy():
-                        if _is_command_shaped(user_input.text):
+                        if _requires_client_dispatch(user_input.text):
                             await _emit_local_notice(
-                                "Commands cannot be queued while the agent is running; press Esc to interrupt first."
+                                "This command runs in the client and cannot be queued; press Esc to interrupt first."
                             )
                             continue
                         _queue_follow_ups(list(_split_queue_edit_payload(user_input)))

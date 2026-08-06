@@ -205,4 +205,16 @@ def has_background_command(raw: str) -> bool:
 def command_needs_history(raw: str) -> bool:
     """Whether `raw` resolves to a command that reads conversation history."""
     command = _resolve_command(raw)
-    return command is None or command.needs_history
+    # Unresolved slash text (a `/skill:name` call, a typo) is forwarded to the
+    # agent verbatim by dispatch_command, which only reads the session id.
+    return command is not None and command.needs_history
+
+
+def is_registered_command(raw: str) -> bool:
+    """Whether `raw` resolves to a slash command the client has to dispatch.
+
+    False for text that merely starts with `/` — dispatch_command turns that
+    into a plain agent turn, so it is ordinary text as far as the caller is
+    concerned.
+    """
+    return _resolve_command(raw) is not None

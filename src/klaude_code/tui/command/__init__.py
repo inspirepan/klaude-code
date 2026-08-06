@@ -7,6 +7,7 @@ from .registry import (
     get_commands,
     has_background_command,
     has_interactive_command,
+    is_registered_command,
     is_slash_command_name,
     register,
 )
@@ -120,5 +121,6 @@ __all__ = [
     "get_commands",
     "has_background_command",
     "has_interactive_command",
+    "is_registered_command",
     "is_slash_command_name",
 ]

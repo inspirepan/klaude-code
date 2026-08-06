@@ -411,6 +411,28 @@ def test_failed_queue_submit_rolls_back_mirror_with_notice(monkeypatch: pytest.M
     assert any("lost message" in n.content for n in notices)
 
 
+def test_skill_invocation_while_running_queues_as_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`/skill:name` only looks like a command: the server expands it from the
+    message body, so it must queue like any other text instead of being
+    rejected as a client-dispatched command."""
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client.set_running(True)
+        await _settle()
+        yield UserInputPayload(text="/skill:commit 提交")
+        await _settle()
+        client.set_running(False)
+
+    client = run_scenario(monkeypatch, script)
+
+    follow_ups = client.ops_of(op.FollowUpAgentOperation)
+    assert len(follow_ups) == 1
+    # Queued verbatim: the skill token is resolved server-side at drain time.
+    assert follow_ups[0].input.text == "/skill:commit 提交"
+    notices = [e for e in client.local_events if isinstance(e, events.NoticeEvent)]
+    assert not any("cannot be queued" in n.content for n in notices)
+
+
 def test_command_while_running_is_rejected_with_notice(monkeypatch: pytest.MonkeyPatch) -> None:
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
         client.set_running(True)
