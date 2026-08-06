@@ -36,8 +36,6 @@ SUPPORTED_API_KEYS: tuple[ApiKeyInfo, ...] = (
     ApiKeyInfo("DEEPSEEK_API_KEY", "DeepSeek", "DeepSeek API key"),
     ApiKeyInfo("MOONSHOT_API_KEY", "Moonshot Kimi", "Moonshot API key (Kimi)"),
     ApiKeyInfo("MINIMAX_API_KEY", "MiniMax", "MiniMax API key"),
-    ApiKeyInfo("CEREBRAS_API_KEY", "Cerebras", "Cerebras API key"),
-    ApiKeyInfo("ARK_API_KEY", "Volcengine ARK", "Volcengine ARK API key"),
     ApiKeyInfo("BRAVE_API_KEY", "Brave Search", "Brave Search API key (for WebSearch tool)"),
     ApiKeyInfo("EXA_API_KEY", "Exa Search", "Exa Search API key (for WebSearch tool)"),
 )

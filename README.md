@@ -128,8 +128,6 @@ export YOUTU_API_KEY=xxx                  # Youtu gateway (multi-provider)
 export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models
 export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
 export MINIMAX_API_KEY=xxx               # MiniMax models
-export CEREBRAS_API_KEY=xxx               # Cerebras models
-export ARK_API_KEY=xxx                    # Volcengine ARK Coding Plan
 export GOOGLE_API_KEY=xxx                # Google Gemini models (or GEMINI_API_KEY)
 export EXA_API_KEY=exa-xxx               # Exa Search (optional, WebSearch provider, preferred)
 export BRAVE_API_KEY=BSA-xxx             # Brave Search (optional, WebSearch provider, fallback)
@@ -166,7 +164,7 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 
 | Provider(s) | Credentials |
 |-------------|-------------|
-| `youtu-anthropic`, `youtu-openai`, `youtu-openai-chat`, `youtu-gemini` | `YOUTU_API_KEY` |
+| `youtu-anthropic`, `youtu-openai`, `youtu-gemini` | `YOUTU_API_KEY` |
 | `anthropic` | `ANTHROPIC_API_KEY` |
 | `aws-bedrock` | `AWS_BEDROCK_ACCESS_KEY_ID` + `AWS_BEDROCK_SECRET_ACCESS_KEY` + `AWS_BEDROCK_REGION` (standard `AWS_*` fallbacks are also accepted) |
 | `openai` | `OPENAI_API_KEY` |
@@ -176,10 +174,8 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 | `deepseek` | `DEEPSEEK_API_KEY` |
 | `moonshot-cn`, `moonshot-ai` | `MOONSHOT_API_KEY` |
 | `minimax` | `MINIMAX_API_KEY` |
-| `cerebras` | `CEREBRAS_API_KEY` |
 | `opencode-go`, `opencode-go-anthropic` | `OPENCODE_API_KEY` |
 | `codex` | OAuth via `klaude auth login codex` |
-| `ark-coding-plan` | `ARK_API_KEY` |
 | `openrouter` | `OPENROUTER_API_KEY` |
 
 List all configured providers, models, and agent types:
