@@ -648,6 +648,25 @@ class TestConfig:
         assert models[0].effort == "max"
         assert models[0].disabled is True
 
+    def test_unknown_provider_without_protocol_is_skipped_with_warning(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A stale override of a removed builtin must not abort config loading."""
+        user_config = UserConfig(provider_list=[UserProviderConfig(provider_name="removed-builtin")])
+        builtin_config = Config(
+            provider_list=[
+                ProviderConfig(
+                    provider_name="anthropic",
+                    protocol=llm_param.LLMClientProtocol.ANTHROPIC,
+                )
+            ]
+        )
+
+        merged = merge_configs(user_config, builtin_config)
+
+        assert [p.provider_name for p in merged.provider_list] == ["anthropic"]
+        assert "removed-builtin" in capsys.readouterr().out
+
     @pytest.mark.parametrize("provider_name", ["youtu-anthropic", "anthropic", "aws-bedrock", "openrouter"])
     def test_builtin_opus_max_preserves_xhigh_aliases(self, provider_name: str) -> None:
         config = get_builtin_config()

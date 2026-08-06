@@ -9,8 +9,10 @@ from klaude_code.config.config import (
     ModelConfig,
     ProviderConfig,
     UserProviderConfig,
+    config_path,
     normalize_provider_name,
 )
+from klaude_code.log import log
 
 if TYPE_CHECKING:
     from klaude_code.config.config import UserConfig
@@ -108,9 +110,18 @@ def merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Con
             # Merge with builtin provider; place merged entry first (user priority)
             merged_providers[provider_name] = _merge_provider(builtin_providers[provider_name], user_provider)
         else:
-            # New provider from user - must have protocol
+            # Unknown provider without a protocol: a stale override of a removed
+            # builtin, or an incomplete custom provider. Warn and skip instead of
+            # aborting startup.
             if user_provider.protocol is None:
-                raise ValueError(f"Provider '{provider_name}' requires 'protocol' field (not a builtin provider)")
+                log(
+                    (
+                        f"Warning: skipped provider '{provider_name}' in {config_path}: "
+                        "not a builtin provider and 'protocol' is not set. Remove the entry or add 'protocol'.",
+                        "yellow",
+                    )
+                )
+                continue
             merged_providers[provider_name] = ProviderConfig.model_validate(user_provider.model_dump())
     # Append builtin providers not referenced by user config
     for name, provider in builtin_providers.items():
