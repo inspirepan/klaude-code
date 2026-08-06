@@ -22,6 +22,11 @@ from klaude_code.tool.shell.file_tracking import ShellFileTracker
 
 _STREAM_POLL_INTERVAL_SEC = 0.05
 
+# 128 + SIGPIPE. A downstream stage closing the pipe early (`rg foo | head -5`)
+# is normal, but pipefail reports it as a pipeline failure, so it is normalized
+# back to success. SIGPIPE is absent on Windows.
+_SIGPIPE_EXIT_CODE = 128 + int(getattr(signal, "SIGPIPE", 13))
+
 
 def _build_interrupted_output(command: str, elapsed_seconds: float, stdout: str, stderr: str) -> str:
     parts = [f"Interrupted by user after {elapsed_seconds:.2f} seconds running: {command}"]
@@ -105,7 +110,11 @@ class BashTool(ToolABC):
         # - Always detach stdin (DEVNULL) so interactive programs can't steal REPL input.
         # - Always disable pagers/editors to avoid launching TUI subprocesses that can
         #   leave the terminal in a bad state.
-        cmd = ["bash", "-lc", args.command]
+        # pipefail makes a failing stage surface as a non-zero exit code. Without it
+        # `cmd | tail` always reports tail's status, hiding real failures from the UI
+        # and the model. The prologue sits on its own line so a command that opens
+        # with `#` stays intact.
+        cmd = ["bash", "-lc", f"set -o pipefail\n{args.command}"]
         timeout_sec = max(0.0, args.timeout_ms / 1000.0)
 
         env = os.environ.copy()
@@ -300,6 +309,8 @@ class BashTool(ToolABC):
             stdout = "".join(stdout_chunks)
             stderr = "".join(stderr_chunks)
             rc = proc.returncode if proc.returncode is not None else 1
+            if rc == _SIGPIPE_EXIT_CODE:
+                rc = 0
 
             if rc == 0:
                 output = stdout
@@ -317,13 +328,13 @@ class BashTool(ToolABC):
                 )
             else:
                 await _emit_output_delta(f"\nCommand exited with code {rc}\n")
-                combined = ""
+                # Lead with the exit code so the failure stays visible even when the
+                # output is long enough to be truncated later.
+                combined = f"Command exited with code {rc}\n"
                 if stdout.strip():
                     combined += f"[stdout]\n{stdout}\n"
                 if stderr.strip():
                     combined += f"[stderr]\n{stderr}"
-                if not combined:
-                    combined = f"Command exited with code {rc}"
                 return message.ToolResultMessage(
                     status="success",
                     # Preserve leading whitespace; only trim trailing newlines.
