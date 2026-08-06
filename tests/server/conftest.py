@@ -10,6 +10,7 @@ from typing import Any, TypeVar, cast
 import pytest
 from fastapi.testclient import TestClient
 
+from klaude_code.agent.runtime import agent_ops
 from klaude_code.agent.runtime import llm as agent_runtime
 from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.app.runtime_facade import RuntimeFacade
@@ -133,10 +134,18 @@ def app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(Path, "home", cast(Any, classmethod(_patched_home)))
     monkeypatch.setattr(agent_runtime, "clone_llm_client", _identity_clone)
 
+    fake_llm = FakeLLMClient()
+
+    # Sessions build their clients from the current config; without this they
+    # would resolve real providers and call out to the network.
+    def _fake_default_clients(*_args: Any, **_kwargs: Any) -> LLMClients:
+        return LLMClients(main=fake_llm, main_model_alias="fake")
+
+    monkeypatch.setattr(agent_ops, "build_llm_clients", _fake_default_clients)
+
     work_dir = tmp_path / "work"
     work_dir.mkdir(parents=True, exist_ok=True)
 
-    fake_llm = FakeLLMClient()
     holder: dict[str, RuntimeFacade | EventBus | ServerInteractionHandler] = {}
     lifecycle = ServerLifecycle(socket_path=home_dir / ".klaude" / "run" / "server.sock")
     exit_calls: list[bool] = []

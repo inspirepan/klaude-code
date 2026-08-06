@@ -19,7 +19,12 @@ from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, run_compaction
 from klaude_code.agent.model_fallback import build_fallback_model_config_warn, fallback_llm_client
 from klaude_code.agent.prompt_suggestion import run_prompt_suggestion, should_suggest
-from klaude_code.agent.runtime.llm import LLMClients, clone_llm_clients, create_llm_client_for_candidates
+from klaude_code.agent.runtime.llm import (
+    LLMClients,
+    build_llm_clients,
+    clone_llm_clients,
+    create_llm_client_for_candidates,
+)
 from klaude_code.agent.runtime.sub_agent import SubAgentLauncher
 from klaude_code.agent.session_title import generate_session_title
 from klaude_code.agent.side_question import run_side_question
@@ -174,13 +179,31 @@ class AgentOperationHandler:
 
         return _callback
 
+    def _build_default_llm_clients(self) -> LLMClients:
+        """Build a session's default clients from the current config.
+
+        The startup template pins whatever the config held when the server
+        booted, so reusing it would keep /model, /sub-agent-model and provider
+        changes out of every session created afterwards until the server
+        re-execs. The template stays as a fallback for a config that no longer
+        resolves (e.g. the model a provider toggle just made unavailable).
+        """
+        try:
+            return build_llm_clients(load_config())
+        except Exception as exc:
+            log_debug(
+                f"Falling back to the startup LLM clients: {exc}",
+                debug_type=DebugType.LLM_CONFIG,
+            )
+            return clone_llm_clients(self._llm_clients_template)
+
     def _ensure_session_llm_clients(self, session: Session) -> LLMClients:
         runtime = self._ensure_session_actor(session.id)
         existing = runtime.get_llm_clients()
         if existing is not None:
             return existing
 
-        clients = clone_llm_clients(self._llm_clients_template)
+        clients = self._build_default_llm_clients()
         config = load_config()
 
         model_config_name = session.model_config_name
