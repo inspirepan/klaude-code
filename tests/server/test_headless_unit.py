@@ -12,7 +12,12 @@ from klaude_code.agent.attachments.autonomy import autonomy_attachment
 from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 from klaude_code.protocol import message, op
 from klaude_code.protocol.message import QueuedUserInput, UserInputPayload
-from klaude_code.server.headless import HeadlessRuntime, QueuedRun, format_tool_call_activity
+from klaude_code.server.headless import (
+    HeadlessRuntime,
+    QueuedRun,
+    SessionActivityTracker,
+    format_tool_call_activity,
+)
 from klaude_code.server.routes.headless import _resolve_target  # pyright: ignore[reportPrivateUsage]
 from klaude_code.server.session_index import SessionSummary
 from klaude_code.session.session import Session
@@ -991,3 +996,41 @@ def test_mark_session_active_lifts_kill_latch(tmp_path: Path) -> None:
 
     assert "s1" not in hr._stopped_sessions  # pyright: ignore[reportPrivateUsage]
     assert not hr.tracker.is_failed("s1")
+
+
+def test_recoverable_error_does_not_latch_the_queue() -> None:
+    """A retryable mid-turn error (connection blip) must not mark the session
+    failed: the task loop continues and the turn still finishes."""
+    from klaude_code.protocol import events
+
+    tracker = SessionActivityTracker()
+    tracker.consume(events.TaskStartEvent(session_id="s1"))
+    tracker.consume(events.ErrorEvent(session_id="s1", error_message="APIConnectionError", can_retry=True))
+
+    assert not tracker.is_failed("s1")
+
+
+def test_task_finish_clears_a_stale_failed_flag() -> None:
+    """Defense in depth: TaskFinishEvent is only reached when the task loop
+    completed, so any failed flag left over from mid-turn is stale."""
+    from klaude_code.protocol import events
+
+    tracker = SessionActivityTracker()
+    tracker.consume(events.TaskStartEvent(session_id="s1"))
+    tracker.consume(events.ErrorEvent(session_id="s1", error_message="boom", can_retry=False))
+    assert tracker.is_failed("s1")
+
+    tracker.consume(events.TaskFinishEvent(session_id="s1", task_result=""))
+    assert not tracker.is_failed("s1")
+
+
+def test_fatal_error_without_task_finish_still_latches() -> None:
+    """A fatal error returns before TaskFinishEvent, so the session stays
+    failed and the queue holds until the user acts."""
+    from klaude_code.protocol import events
+
+    tracker = SessionActivityTracker()
+    tracker.consume(events.TaskStartEvent(session_id="s1"))
+    tracker.consume(events.ErrorEvent(session_id="s1", error_message="fatal", can_retry=False))
+
+    assert tracker.is_failed("s1")

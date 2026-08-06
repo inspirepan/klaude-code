@@ -74,7 +74,13 @@ class SessionActivityTracker:
     """Tracks per-session live activity from the event stream.
 
     - current tool call: last ToolCallEvent, cleared on turn boundaries
-    - failed: last turn ended with an ErrorEvent (cleared on the next turn)
+    - failed: the last turn *ended* with a fatal ErrorEvent (cleared on the
+      next turn). Two invariants from agent/task.py keep this honest:
+      ``can_retry=True`` errors continue the task loop, and TaskFinishEvent is
+      only reached once that loop completes — every fatal path returns or
+      raises before it. A mid-turn error the agent recovered from must not
+      leave the session looking failed: that latched the follow-up queue for
+      the rest of the session over a transient connection blip.
     """
 
     def __init__(self) -> None:
@@ -112,12 +118,16 @@ class SessionActivityTracker:
             return
         if isinstance(event, events.TaskFinishEvent):
             entry = self._entry(session_id)
+            # The turn ran to completion, so it did not fail — whatever a
+            # recoverable mid-turn error left behind is stale now.
+            entry.failed = False
             entry.current_tool_call = None
             entry.finished_at = time.time()
             return
         if isinstance(event, events.ErrorEvent):
             entry = self._entry(session_id)
-            entry.failed = True
+            if not event.can_retry:
+                entry.failed = True
             entry.current_tool_call = None
             entry.finished_at = time.time()
 
@@ -273,7 +283,9 @@ class HeadlessRuntime:
 
     async def _consume_one(self, event: events.Event) -> None:
         self.tracker.consume(event)
-        if isinstance(event, events.ErrorEvent):
+        if isinstance(event, events.ErrorEvent) and not event.can_retry:
+            # Retryable errors do not end the turn; persisting them made a
+            # server restart restore a "failed" session that had succeeded.
             await self._persist_failed(event.session_id, failed=True)
         if isinstance(event, events.TaskStartEvent):
             self._turn_starting.pop(event.session_id, None)
