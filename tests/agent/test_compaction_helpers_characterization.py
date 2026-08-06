@@ -52,24 +52,30 @@ def _cfg(*, context_limit: int | None = None, max_tokens: int | None = None) -> 
 
 
 @pytest.mark.parametrize(
-    ("context_limit", "reserve", "keep", "max_summary"),
+    ("context_limit", "max_tokens", "reserve", "keep", "max_summary"),
     [
         # context_limit <= 0 -> defaults
-        (0, 16384, 20000, 13107),
-        (None, 16384, 20000, 13107),
-        # Large limit hits the upper caps (16384 / 20000).
-        (200000, 16384, 20000, 13107),
-        (100000, 16384, 20000, 13107),
-        # Small limit gets clamped by the inner max(2048, ...) / max(4096, ...).
-        (4000, 2048, 1952, 1638),
-        (8000, 2048, 4096, 1638),
-        (30000, 7500, 10500, 6000),
+        (0, None, 16384, 20000, 13107),
+        (None, None, 16384, 20000, 13107),
+        # > 512k window reserves 50% of (context_limit - max_tokens).
+        (1000000, None, 484000, 20000, 13107),
+        (1000000, 128000, 436000, 20000, 13107),
+        (524289, None, 246144, 20000, 13107),
+        # <= 512k window reserves 25%.
+        (524288, None, 123072, 20000, 13107),
+        (200000, None, 42000, 20000, 13107),
+        (100000, None, 17000, 20000, 13107),
+        # Degenerate tiny windows: max_tokens fallback exceeds the limit, so the
+        # ratio applies to the raw context_limit; keep is clamped by max_keep.
+        (4000, None, 1000, 3000, 1024),
+        (8000, None, 2000, 4096, 1600),
+        (30000, None, 7500, 10500, 6000),
     ],
 )
 def test_resolve_compaction_config_threshold(
-    context_limit: int | None, reserve: int, keep: int, max_summary: int
+    context_limit: int | None, max_tokens: int | None, reserve: int, keep: int, max_summary: int
 ) -> None:
-    cfg = _resolve_compaction_config(_cfg(context_limit=context_limit))
+    cfg = _resolve_compaction_config(_cfg(context_limit=context_limit, max_tokens=max_tokens))
     assert (cfg.reserve_tokens, cfg.keep_recent_tokens, cfg.max_summary_tokens) == (reserve, keep, max_summary)
 
 
@@ -78,9 +84,10 @@ def test_resolve_compaction_config_threshold(
     [
         (0, 5000),
         (None, 5000),
+        (1000000, 5000),
         (200000, 5000),
         (100000, 5000),
-        (4000, 1952),
+        (4000, 2048),
         (8000, 2048),
         (30000, 2625),
     ],
@@ -135,11 +142,11 @@ def test_threshold_resolves_config_from_llm_config_when_none(isolated_home: Path
     del isolated_home
     session = Session(id="auto-config", work_dir=tmp_path)
     # context_size just over (effective_limit - reserve). For context_limit=200000,
-    # max_tokens=32000 -> effective=168000; reserve resolved=16384 -> threshold=151616.
+    # max_tokens=32000 -> effective=168000; reserve resolved=42000 -> threshold=126000.
     session.conversation_history = [
         message.AssistantMessage(
             parts=[message.TextPart(text="ok")],
-            usage=Usage(context_size=151_616, context_limit=200_000, max_tokens=32_000),
+            usage=Usage(context_size=126_000, context_limit=200_000, max_tokens=32_000),
         ),
     ]
     result = should_compact_threshold(session=session, config=None, llm_config=_cfg(context_limit=200_000))

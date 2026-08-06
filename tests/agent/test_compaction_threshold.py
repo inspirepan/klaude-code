@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from klaude_code.agent.compaction import CompactionConfig, should_compact_threshold
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import Usage
@@ -97,3 +99,51 @@ def test_threshold_triggers_on_boundary(tmp_path: Path) -> None:
     )
 
     assert should_compact is True
+
+
+@pytest.mark.parametrize(("context_size", "expected"), [(435_999, False), (436_000, True)])
+def test_threshold_large_window_compacts_at_half_of_effective_window(
+    tmp_path: Path, isolated_home: Path, context_size: int, expected: bool
+) -> None:
+    del isolated_home
+    # context_limit > 512k reserves 50% of the effective window:
+    # effective = 1_000_000 - 128_000 = 872_000; trigger at 872_000 * 0.5 = 436_000.
+    session = Session(id="threshold-large-window", work_dir=tmp_path)
+    session.conversation_history = [
+        message.AssistantMessage(
+            parts=[message.TextPart(text="ok")],
+            usage=Usage(context_size=context_size, context_limit=1_000_000, max_tokens=128_000),
+        )
+    ]
+
+    should_compact = should_compact_threshold(
+        session=session,
+        config=None,
+        llm_config=_llm_config(context_limit=1_000_000, max_tokens=128_000),
+    )
+
+    assert should_compact is expected
+
+
+@pytest.mark.parametrize(("context_size", "expected"), [(125_999, False), (126_000, True)])
+def test_threshold_small_window_compacts_at_three_quarters_of_effective_window(
+    tmp_path: Path, isolated_home: Path, context_size: int, expected: bool
+) -> None:
+    del isolated_home
+    # context_limit <= 512k reserves 25% of the effective window:
+    # effective = 200_000 - 32_000 (default max_tokens) = 168_000; trigger at 168_000 * 0.75 = 126_000.
+    session = Session(id="threshold-small-window", work_dir=tmp_path)
+    session.conversation_history = [
+        message.AssistantMessage(
+            parts=[message.TextPart(text="ok")],
+            usage=Usage(context_size=context_size, context_limit=200_000, max_tokens=32_000),
+        )
+    ]
+
+    should_compact = should_compact_threshold(
+        session=session,
+        config=None,
+        llm_config=_llm_config(context_limit=200_000, max_tokens=None),
+    )
+
+    assert should_compact is expected

@@ -88,6 +88,29 @@ class CompactionResult:
         )
 
 
+# Windows larger than this reserve half of the effective window and compact
+# around half full; smaller windows reserve a quarter and compact around
+# three quarters full.
+_LARGE_CONTEXT_WINDOW_TOKENS = 512 * 1024
+_LARGE_WINDOW_RESERVE_RATIO = 0.5
+_SMALL_WINDOW_RESERVE_RATIO = 0.25
+
+
+def autocompact_reserve_tokens(*, context_limit: int, max_tokens: int | None) -> int:
+    """Tokens held back below the usable window before threshold compaction fires.
+
+    The ratio applies to the effective window (context limit minus the output
+    budget), the same basis ``should_compact_threshold`` triggers on.
+    """
+    if context_limit <= 0:
+        return 0
+    effective_window = context_limit - (max_tokens or DEFAULT_MAX_TOKENS)
+    if effective_window <= 0:
+        effective_window = context_limit
+    ratio = _LARGE_WINDOW_RESERVE_RATIO if context_limit > _LARGE_CONTEXT_WINDOW_TOKENS else _SMALL_WINDOW_RESERVE_RATIO
+    return int(effective_window * ratio)
+
+
 def _resolve_compaction_config(
     llm_config: llm_param.LLMConfigParameter,
     *,
@@ -100,7 +123,7 @@ def _resolve_compaction_config(
         reserve = default_reserve
         keep_recent = default_keep
     else:
-        reserve = min(default_reserve, max(2048, int(context_limit * 0.25)))
+        reserve = autocompact_reserve_tokens(context_limit=context_limit, max_tokens=llm_config.max_tokens)
         keep_recent = min(default_keep, max(4096, int(context_limit * 0.35)))
         max_keep = max(0, context_limit - reserve)
         if max_keep:
@@ -111,7 +134,9 @@ def _resolve_compaction_config(
     # tiny sessions (where threshold keep is already small) don't inflate back.
     if reason == CompactionReason.MANUAL:
         keep_recent = min(keep_recent, max(2048, min(8192, keep_recent // 4)))
-    max_summary = max(1024, int(reserve * 0.8))
+    # Summary budget stays capped at the legacy reserve scale; the reserve
+    # itself now scales to a large fraction of the window.
+    max_summary = max(1024, int(min(reserve, default_reserve) * 0.8))
     return CompactionConfig(reserve_tokens=reserve, keep_recent_tokens=keep_recent, max_summary_tokens=max_summary)
 
 

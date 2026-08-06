@@ -164,6 +164,8 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
         # - Old history (to summarize) includes tool calls/results and large outputs.
         # - New task user message is the boundary.
         # - Recent assistant message is large enough to become the kept boundary.
+        #   Sized so cumulative tokens from the tail exceed the manual keep_recent
+        #   budget (2048 for context_limit=3000) exactly at this message.
         history_items: list[message.HistoryEvent] = [
             _text_user("old user: " + ("u" * 2500)),
             message.AssistantMessage(
@@ -200,7 +202,7 @@ def test_compaction_end_to_end_summary_and_llm_history(tmp_path: Path, monkeypat
                 ui_extra=DiffUIExtra(files=[DiffFileDiff(file_path="src/foo.py", lines=[], stats_add=1)]),
             ),
             _text_user("new task: implement foo"),
-            _text_assistant("recent assistant: " + ("r" * 5000)),
+            _text_assistant("recent assistant: " + ("r" * 9000)),
             _text_assistant("tail"),
         ]
         session.append_history(history_items)

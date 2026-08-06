@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 
 from klaude_code.agent.attachments.memory import memory_attachment
 from klaude_code.agent.attachments.skills import available_skills_attachment
+from klaude_code.agent.compaction import autocompact_reserve_tokens
 from klaude_code.agent.token_estimate import IMAGE_TOKENS, MESSAGE_OVERHEAD_TOKENS, estimate_text_tokens
 from klaude_code.const import DEFAULT_MAX_TOKENS
 from klaude_code.log import log_debug
@@ -220,7 +221,7 @@ def _autocompact_reserve(llm_config: llm_param.LLMConfigParameter, context_limit
     if context_limit <= 0:
         return 0
     max_tokens = llm_config.max_tokens or DEFAULT_MAX_TOKENS
-    compaction_reserve = min(16384, max(2048, int(context_limit * 0.25)))
+    compaction_reserve = autocompact_reserve_tokens(context_limit=context_limit, max_tokens=llm_config.max_tokens)
     return min(context_limit, max_tokens + compaction_reserve)
 
 
