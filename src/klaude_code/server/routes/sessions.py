@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from klaude_code.protocol import op
-from klaude_code.server.session_index import resolve_session_work_dir
+from klaude_code.server.session_index import resolve_session_work_dir_fast
 from klaude_code.server.state import ServerAppState, get_server_state
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import get_store_for_path
@@ -76,7 +76,9 @@ async def create_session(
 
 def _check_write_access(state: ServerAppState, session_id: str) -> Path:
     """Validate the session exists; return its work_dir or raise 404."""
-    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+    work_dir = resolve_session_work_dir_fast(
+        state.session_live.index if state.session_live is not None else None, state.home_dir, session_id
+    )
     if work_dir is None:
         raise HTTPException(status_code=404, detail="session not found")
     return work_dir

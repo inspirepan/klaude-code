@@ -923,3 +923,71 @@ class TestChildSessionIndexing:
         )
         resolved = _resolve_target([parent, child], "bbbb")
         assert resolved.id == "bbbb2222"
+
+
+def test_latched_queue_notifies_once_and_revives_on_activity(tmp_path: Path) -> None:
+    """A failed/stopped latch must be visible (one NoticeEvent per episode)
+    and must lift on explicit user activity (mark_session_active)."""
+    emitted: list[Any] = []
+
+    class FakeAgent:
+        def __init__(self) -> None:
+            self.session = SimpleNamespace(id="s1", spawn_kind=None, work_dir=tmp_path)
+
+        def peek_next_follow_up(self) -> UserInputPayload:
+            return UserInputPayload(text="queued")
+
+        def follow_up_count(self) -> int:
+            return 1
+
+    actor = SimpleNamespace(get_agent=lambda: FakeAgent())
+
+    async def _emit_event(event: Any) -> None:
+        emitted.append(event)
+
+    runtime = cast(
+        Any,
+        SimpleNamespace(
+            session_registry=SimpleNamespace(get_session_actor=lambda _sid: actor),
+            emit_event=_emit_event,
+        ),
+    )
+    hr = HeadlessRuntime(runtime, max_running=1)
+
+    async def scenario() -> None:
+        from klaude_code.protocol import events
+
+        hr.tracker.restore_failed("s1")
+        hr._schedule_follow_up_drain("s1")  # pyright: ignore[reportPrivateUsage]
+        hr._schedule_follow_up_drain("s1")  # pyright: ignore[reportPrivateUsage]
+        await asyncio.sleep(0)
+        notices = [e for e in emitted if isinstance(e, events.NoticeEvent)]
+        assert len(notices) == 1
+        assert "paused" in notices[0].content
+
+        hr.mark_session_active("s1")
+        assert not hr.tracker.is_failed("s1")
+
+        # A fresh latch episode notifies again.
+        hr.tracker.restore_failed("s1")
+        hr._schedule_follow_up_drain("s1")  # pyright: ignore[reportPrivateUsage]
+        await asyncio.sleep(0)
+        notices = [e for e in emitted if isinstance(e, events.NoticeEvent)]
+        assert len(notices) == 2
+
+    asyncio.run(scenario())
+
+
+def test_mark_session_active_lifts_kill_latch(tmp_path: Path) -> None:
+    """klaude kill latches the session; TUI attach/submit must lift it or
+    follow-ups queued afterwards never drain."""
+    del tmp_path
+    runtime = cast(Any, SimpleNamespace(session_registry=SimpleNamespace(get_session_actor=lambda _sid: None)))
+    hr = HeadlessRuntime(runtime, max_running=1)
+    hr._stopped_sessions.add("s1")  # pyright: ignore[reportPrivateUsage]
+    hr.tracker.restore_failed("s1")
+
+    hr.mark_session_active("s1")
+
+    assert "s1" not in hr._stopped_sessions  # pyright: ignore[reportPrivateUsage]
+    assert not hr.tracker.is_failed("s1")

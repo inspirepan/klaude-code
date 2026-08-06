@@ -22,6 +22,7 @@ import pytest
 import klaude_code.tui.runner as runner_module
 from klaude_code.protocol import events, op
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.tui.client import ClientConnectionError
 from klaude_code.tui.client.base import SessionInfoSnapshot
 
 # -- fakes ------------------------------------------------------------------
@@ -131,6 +132,15 @@ class FakeRuntimeClient:
 
     def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
         self._info.follow_ups = (*self._info.follow_ups, *texts)
+        self._state_changed.set()
+
+    def remove_optimistic_follow_up(self, text: str) -> None:
+        follow_ups = list(self._info.follow_ups)
+        for idx in range(len(follow_ups) - 1, -1, -1):
+            if follow_ups[idx] == text:
+                del follow_ups[idx]
+                break
+        self._info.follow_ups = tuple(follow_ups)
         self._state_changed.set()
 
     def session_info(self) -> SessionInfoSnapshot:
@@ -374,6 +384,33 @@ def test_input_while_running_queues_follow_up(monkeypatch: pytest.MonkeyPatch) -
     assert client.ops_of(op.RunAgentOperation) == []
 
 
+def test_failed_queue_submit_rolls_back_mirror_with_notice(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A queued submit the server never accepted must not linger in the
+    mirror as forever-pending; it rolls back and the user is told."""
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        original_submit = client.submit
+
+        async def _failing_submit(operation: op.Operation) -> str:
+            if isinstance(operation, op.FollowUpAgentOperation):
+                raise ClientConnectionError("connection to klaude server lost")
+            return await original_submit(operation)
+
+        client.submit = _failing_submit  # type: ignore[method-assign]
+        client.set_running(True)
+        await _settle()
+        yield UserInputPayload(text="lost message")
+        await _settle()
+        client.set_running(False)
+
+    client = run_scenario(monkeypatch, script)
+
+    assert client.follow_up_texts() == ()
+    notices = [e for e in client.local_events if isinstance(e, events.NoticeEvent)]
+    assert any("could not be queued" in n.content for n in notices)
+    assert any("lost message" in n.content for n in notices)
+
+
 def test_command_while_running_is_rejected_with_notice(monkeypatch: pytest.MonkeyPatch) -> None:
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
         client.set_running(True)
@@ -531,7 +568,8 @@ def test_new_command_creates_and_reattaches(monkeypatch: pytest.MonkeyPatch) -> 
     )
 
     class _FakeCommandAgent:
-        def __init__(self, session_id: str, work_dir: Path) -> None:
+        def __init__(self, session_id: str, work_dir: Path, *, load_history: bool = True) -> None:
+            del load_history
             self.session = SimpleNamespace(id=session_id, work_dir=work_dir)
 
         @property
@@ -559,7 +597,7 @@ def test_new_command_creates_and_reattaches(monkeypatch: pytest.MonkeyPatch) -> 
     assert created and created[0]["model"] is None
 
 
-def test_dequeue_pending_messages_returns_mirror_and_pops_remote(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dequeue_pending_messages_returns_server_confirmed_pop(monkeypatch: pytest.MonkeyPatch) -> None:
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
         client.set_running(True)
         await _settle()
@@ -567,7 +605,7 @@ def test_dequeue_pending_messages_returns_mirror_and_pops_remote(monkeypatch: py
         await _settle()
         provider = FakeInputProvider.instance
         assert provider is not None
-        texts = provider.dequeue_fn()
+        texts = await provider.dequeue_fn()
         assert texts == ("msg one",)
         await _settle()
         await asyncio.sleep(0.05)

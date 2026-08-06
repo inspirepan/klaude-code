@@ -437,25 +437,45 @@ async def synchronized_in_terminal() -> AsyncGenerator[None]:
     previous_f = app._running_in_terminal_f
     new_f: asyncio.Future[None] = asyncio.Future()
     app._running_in_terminal_f = new_f
-    if previous_f is not None:
-        await previous_f
+    try:
+        if previous_f is not None:
+            await previous_f
 
-    # Hold the cycle while the terminal is not draining the pty. The erase
-    # and body writes below are synchronous fd-1 writes; issuing them into a
-    # full buffer would block the whole event loop (display, LLM stream)
-    # instead of just delaying this frame. Ordering is safe: later cycles
-    # chain behind this one via app._running_in_terminal_f.
-    await _wait_for_tty_writable()
-    # A partially-drained renderer frame must finish before the erase below,
-    # or the erase sequence lands mid-escape.
-    await _wait_for_renderer_tail_drained()
+        # Hold the cycle while the terminal is not draining the pty. The erase
+        # and body writes below are synchronous fd-1 writes; issuing them into a
+        # full buffer would block the whole event loop (display, LLM stream)
+        # instead of just delaying this frame. Ordering is safe: later cycles
+        # chain behind this one via app._running_in_terminal_f.
+        await _wait_for_tty_writable()
+        # A partially-drained renderer frame must finish before the erase below,
+        # or the erase sequence lands mid-escape.
+        await _wait_for_renderer_tail_drained()
 
-    # Drain any outstanding CPR response before erasing, so a late reply to
-    # the previous redraw's request is not attributed to the request we issue
-    # after this cycle's reset. Input stays attached, so the response is
-    # consumed by the vt100 parser as soon as it arrives.
-    if app.output.responds_to_cpr:
-        await _await_cpr_responses(app, _CPR_WAIT_TIMEOUT_S)
+        # Drain any outstanding CPR response before erasing, so a late reply to
+        # the previous redraw's request is not attributed to the request we issue
+        # after this cycle's reset. Input stays attached, so the response is
+        # consumed by the vt100 parser as soon as it arrives.
+        if app.output.responds_to_cpr:
+            await _await_cpr_responses(app, _CPR_WAIT_TIMEOUT_S)
+    except BaseException:
+        # Cancelled before the cycle began: new_f is already installed in the
+        # chain, and leaving it unresolved would hang every later write cycle
+        # (and run_async's exit) forever. Resolve it — but only after the
+        # still-running previous cycle finishes, so chained waiters cannot
+        # interleave with its writes.
+        if app._running_in_terminal_f is new_f:
+            app._running_in_terminal_f = previous_f
+        if not new_f.done():
+            if previous_f is not None and not previous_f.done():
+
+                def _release(_prev: asyncio.Future[None]) -> None:
+                    if not new_f.done():
+                        new_f.set_result(None)
+
+                previous_f.add_done_callback(_release)
+            else:
+                new_f.set_result(None)
+        raise
 
     output = app.output
 

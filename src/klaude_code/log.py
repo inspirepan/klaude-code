@@ -148,6 +148,24 @@ def log(*objects: str | tuple[str, str]) -> None:
     )
 
 
+def log_info(
+    *objects: str | tuple[str, str] | Callable[[], str],
+    debug_type: DebugType = DebugType.GENERAL,
+) -> None:
+    """Log operational messages that must survive without debug mode.
+
+    Unlike log_debug this is not gated on the debug flag; records reach any
+    attached handler (e.g. the server's file log) at INFO level. With no
+    handler attached the record is dropped silently.
+    """
+    message = _build_message(objects)
+    extra = {
+        "debug_type": debug_type,
+        "debug_type_label": debug_type.value.upper(),
+    }
+    logger.info(message, extra=extra)
+
+
 def log_debug(
     *objects: str | tuple[str, str] | Callable[[], str],
     debug_type: DebugType = DebugType.GENERAL,

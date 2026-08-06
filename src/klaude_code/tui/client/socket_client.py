@@ -255,7 +255,14 @@ class SocketRuntimeClient:
         self._notify_state_changed()
         future: asyncio.Future[tuple[str, ...]] = asyncio.get_running_loop().create_future()
         self._dequeue_future = future
-        await self._send({"type": "dequeue_follow_ups"})
+        try:
+            await self._send({"type": "dequeue_follow_ups"})
+        except Exception:
+            # The frame never reached the server; its queue is untouched.
+            self._info.follow_ups = texts
+            self._notify_state_changed()
+            self._dequeue_future = None
+            raise
         try:
             confirmed = await asyncio.wait_for(future, timeout=5.0)
             return confirmed
@@ -274,6 +281,20 @@ class SocketRuntimeClient:
 
     def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
         self._info.follow_ups = (*self._info.follow_ups, *texts)
+        self._notify_state_changed()
+
+    def remove_optimistic_follow_up(self, text: str) -> None:
+        """Roll back one optimistic entry whose server submit failed.
+
+        Removes the newest matching copy: server-confirmed duplicates of the
+        same text live earlier in the tuple and must stay.
+        """
+        follow_ups = list(self._info.follow_ups)
+        for idx in range(len(follow_ups) - 1, -1, -1):
+            if follow_ups[idx] == text:
+                del follow_ups[idx]
+                break
+        self._info.follow_ups = tuple(follow_ups)
         self._notify_state_changed()
 
     def session_info(self) -> SessionInfoSnapshot:

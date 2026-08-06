@@ -78,7 +78,9 @@ def _attach_server_file_logging(*, debug: bool) -> Path:
     handler.setLevel(logging.DEBUG if debug else logging.INFO)
     handler.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s %(name)s %(message)s"))
     # "uvicorn.error" propagates to "uvicorn"; "uvicorn.access" does not.
-    for logger_name in ("uvicorn", "uvicorn.access"):
+    # "klaude_code" carries the app's own log_info records (drain give-ups,
+    # queue latches, ...) so production incidents leave a trace here.
+    for logger_name in ("uvicorn", "uvicorn.access", "klaude_code"):
         logging.getLogger(logger_name).addHandler(handler)
     return log_path
 

@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.event_bus import EventBus, EventSubscription
-from klaude_code.log import DebugType, log_debug
+from klaude_code.log import DebugType, log_debug, log_info
 from klaude_code.protocol import events, op
 from klaude_code.protocol.message import QueuedUserInput, UserInputPayload
 from klaude_code.server.session_index import SessionSummary
@@ -129,6 +129,11 @@ class SessionActivityTracker:
         entry = self._by_session.get(session_id)
         return entry.failed if entry is not None else False
 
+    def clear_failed(self, session_id: str) -> None:
+        entry = self._by_session.get(session_id)
+        if entry is not None:
+            entry.failed = False
+
     def is_interrupted(self, session_id: str) -> bool:
         entry = self._by_session.get(session_id)
         return entry.interrupted if entry is not None else False
@@ -170,6 +175,9 @@ class HeadlessRuntime:
         self._scheduling_locks: dict[str, asyncio.Lock] = {}
         self._steering: set[str] = set()
         self._stopped_sessions: set[str] = set()
+        # Sessions already told (log + NoticeEvent) that their queue is
+        # latched; cleared when the latch lifts so the next incident notifies.
+        self._drain_latch_noticed: set[str] = set()
         # Sessions with a user turn submitted whose task has not started yet.
         # The registry looks idle in that window; the drain must back off or
         # it would steal the slot and get the user's turn busy-rejected.
@@ -255,12 +263,12 @@ class HeadlessRuntime:
                     # This loop is the only holder of every drain trigger on
                     # the server; one bad event must not silently kill queue
                     # draining for all sessions.
-                    log_debug(
+                    log_info(
                         f"[headless] event consumer error on {events.event_type_name(event)}: {exc}",
                         debug_type=DebugType.EXECUTION,
                     )
             # Bus dropped this subscriber on overflow; resubscribe.
-            log_debug("[headless] activity subscription overflowed; resubscribed", debug_type=DebugType.EVENT_BUS)
+            log_info("[headless] activity subscription overflowed; resubscribed", debug_type=DebugType.EVENT_BUS)
             subscription = event_bus.subscribe(None)
 
     async def _consume_one(self, event: events.Event) -> None:
@@ -289,8 +297,10 @@ class HeadlessRuntime:
         # Background operations (away summary, compaction, ...) hold
         # the actor busy without any TaskFinish. A drain that gave up
         # waiting on them must be re-armed when they complete, or a
-        # message queued during the window sits pending forever.
-        if isinstance(event, events.OperationFinishedEvent) and event.status == "completed":
+        # message queued during the window sits pending forever. A failed
+        # operation frees the actor the same way; the failed/stopped
+        # latches in _schedule_follow_up_drain keep error loops out.
+        if isinstance(event, events.OperationFinishedEvent) and event.status in ("completed", "failed"):
             self._schedule_follow_up_drain(event.session_id)
 
     def nudge_follow_up_drain(self, session_id: str) -> None:
@@ -299,12 +309,29 @@ class HeadlessRuntime:
         Interactive sessions are not covered by restore(): a queue persisted
         before a server restart or an actor reclaim has no event-driven drain
         trigger left. Attach and rehydration call this so the queue runs.
+        Both are explicit client actions, so they also lift the kill/failed
+        latches (revive).
         """
-        self._schedule_follow_up_drain(session_id)
+        self._schedule_follow_up_drain(session_id, revive=True)
 
-    def _schedule_follow_up_drain(self, session_id: str) -> None:
+    def mark_session_active(self, session_id: str) -> None:
+        """Lift the kill/failed latches without scheduling a drain.
+
+        Used right before a user turn submit: the turn's own lifecycle events
+        re-arm the drain, and scheduling one here could race the submit for
+        the idle slot.
+        """
+        self._stopped_sessions.discard(session_id)
+        self.tracker.clear_failed(session_id)
+        self._drain_latch_noticed.discard(session_id)
+
+    def _schedule_follow_up_drain(self, session_id: str, *, revive: bool = False) -> None:
+        if revive:
+            self.mark_session_active(session_id)
         if session_id in self._stopped_sessions or self.tracker.is_failed(session_id):
+            self._notify_drain_latched(session_id)
             return
+        self._drain_latch_noticed.discard(session_id)
         actor = self._runtime.session_registry.get_session_actor(session_id)
         agent = actor.get_agent() if actor is not None else None
         if agent is not None and agent.session.spawn_kind == "headless":
@@ -320,7 +347,46 @@ class HeadlessRuntime:
                 )
                 self._pump()
             return
-        task = asyncio.create_task(self._drain_follow_up(session_id))
+        task = asyncio.create_task(self._drain_follow_up_logged(session_id))
+        self._watch_tasks.add(task)
+        task.add_done_callback(self._watch_tasks.discard)
+
+    async def _drain_follow_up_logged(self, session_id: str) -> None:
+        try:
+            await self._drain_follow_up(session_id)
+        except Exception as exc:
+            # A drained turn that errors raises out of _start_turn; without
+            # this the exception dies unobserved in the fire-and-forget task.
+            log_info(
+                f"[headless] follow-up drain aborted session={session_id[:8]}: {exc}",
+                debug_type=DebugType.EXECUTION,
+            )
+
+    def _notify_drain_latched(self, session_id: str) -> None:
+        """Surface a latched queue instead of dropping the trigger silently.
+
+        Pre-latch behavior was invisible: the TUI kept showing "N pending"
+        with no reason why nothing ran. Logged always; the NoticeEvent tells
+        attached clients how to resume. Notified once per latch episode.
+        """
+        actor = self._runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        if agent is None or agent.peek_next_follow_up() is None:
+            return
+        if session_id in self._drain_latch_noticed:
+            return
+        self._drain_latch_noticed.add(session_id)
+        reason = "session was stopped" if session_id in self._stopped_sessions else "last turn failed"
+        log_info(
+            f"[headless] follow-up queue latched ({reason}), {agent.follow_up_count()} pending: {session_id[:8]}",
+            debug_type=DebugType.EXECUTION,
+        )
+        notice = events.NoticeEvent(
+            session_id=session_id,
+            content=f"Queued messages are paused: {reason}. They resume on your next message.",
+            is_error=True,
+        )
+        task = asyncio.create_task(self._runtime.emit_event(notice))
         self._watch_tasks.add(task)
         task.add_done_callback(self._watch_tasks.discard)
 
@@ -390,9 +456,9 @@ class HeadlessRuntime:
                     # The finish event races the operation teardown; wait it out.
                     await asyncio.sleep(0.05)
                 else:
-                    # OperationFinished(completed) of whatever holds the actor
-                    # busy re-arms the drain (see _consume_one).
-                    log_debug(
+                    # OperationFinished of whatever holds the actor busy
+                    # re-arms the drain (see _consume_one).
+                    log_info(
                         f"[headless] drain gave up waiting for idle: {session_id[:8]}",
                         debug_type=DebugType.EXECUTION,
                     )
@@ -400,7 +466,7 @@ class HeadlessRuntime:
                 if agent is None:
                     return
                 if self.tracker.is_interrupted(session_id):
-                    log_debug(f"[headless] drain skip (interrupted): {session_id[:8]}", debug_type=DebugType.EXECUTION)
+                    log_info(f"[headless] drain skip (interrupted): {session_id[:8]}", debug_type=DebugType.EXECUTION)
                     return
                 if self.turn_start_pending(session_id):
                     log_debug(
@@ -537,7 +603,10 @@ class HeadlessRuntime:
         """Persist and schedule an idle turn, or append behind existing follow-ups."""
         lock = self._scheduling_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
+            # send is the documented retry for a failed session; lift both latches.
             self._stopped_sessions.discard(session_id)
+            self.tracker.clear_failed(session_id)
+            self._drain_latch_noticed.discard(session_id)
             return await self._send_locked(session_id=session_id, prompt=prompt, work_dir=work_dir)
 
     async def _send_locked(
@@ -619,6 +688,8 @@ class HeadlessRuntime:
         lock = self._scheduling_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
             self._stopped_sessions.discard(session_id)
+            self.tracker.clear_failed(session_id)
+            self._drain_latch_noticed.discard(session_id)
             actor = self._runtime.session_registry.get_session_actor(session_id)
             agent = actor.get_agent() if actor is not None else None
             session = agent.session if agent is not None else Session.load_meta(session_id, work_dir=work_dir)
@@ -908,7 +979,7 @@ class HeadlessRuntime:
         try:
             await self._launch(entry)
         except Exception as exc:
-            log_debug(
+            log_info(
                 f"[headless] queued launch failed session={entry.session_id}: {exc}",
                 debug_type=DebugType.EXECUTION,
             )

@@ -37,6 +37,7 @@ from klaude_code.session.session import Session
 from klaude_code.tui.client import ClientConnectionError, RuntimeClient, SessionInfoSnapshot, SocketRuntimeClient
 from klaude_code.tui.client.command_agent import ClientCommandAgent
 from klaude_code.tui.command import (
+    command_needs_history,
     dispatch_command,
     get_command_info_list,
     has_background_command,
@@ -461,11 +462,21 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         background_tasks.add(task)
         task.add_done_callback(background_tasks.discard)
 
+    async def _display_idle_bounded(timeout: float = 5.0) -> None:
+        # The display-queue join has no natural upper bound. Every await of it
+        # sits on a path that holds the input area down (the prompt is erased
+        # between inputs); a flooded or stalled renderer must degrade to
+        # slightly overlapping output, never to a frozen keyboard.
+        try:
+            await asyncio.wait_for(client.wait_for_display_idle(), timeout)
+        except TimeoutError:
+            log_debug("display idle wait timed out; continuing", debug_type=DebugType.EXECUTION)
+
     # -- local display-control helpers --
 
     async def _toggle_transcript() -> None:
         await client.emit_local_event(events.ToggleTranscriptDetailEvent(session_id=client.session_id))
-        await client.wait_for_display_idle()
+        await _display_idle_bounded()
         await settle_flicker_safe_stdout()
 
     def _request_toggle_transcript() -> None:
@@ -490,15 +501,16 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
             )
         )
 
-    async def _dequeue_remote() -> None:
-        with contextlib.suppress(Exception):
-            await client.dequeue_follow_ups()
+    async def _dequeue_pending_messages() -> tuple[str, ...]:
+        # The server-confirmed pop is authoritative. The local mirror can
+        # still list a message whose turn the drain already started; filling
+        # the buffer from the mirror would resubmit a running message.
+        try:
+            texts = await client.dequeue_follow_ups()
+        except Exception:
+            texts = ()
         if input_provider is not None:
             input_provider.set_pending_messages(client.follow_up_texts())
-
-    def _dequeue_pending_messages() -> tuple[str, ...]:
-        texts = client.follow_up_texts()
-        _spawn(_dequeue_remote())
         return texts
 
     def _on_prompt_start() -> None:
@@ -597,7 +609,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                         restore_sigint()
                     restore_sigint = None
                 _stop_prevent_sleep_if_needed()
-                await client.wait_for_display_idle()
+                await _display_idle_bounded()
                 await settle_flicker_safe_stdout()
                 away_summary_coordinator.notify_task_finished()
                 interrupt_pending = False
@@ -628,7 +640,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         # error; let it paint, then end the input loop — a dead connection
         # has nothing left to attach to.
         with contextlib.suppress(Exception):
-            await client.wait_for_display_idle()
+            await _display_idle_bounded()
         input_provider.request_exit()
 
     # -- interaction consumer --
@@ -667,7 +679,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 await _emit_local_notice(
                     "Attach replay did not complete — the server may be running older code. Try: klaude server reload"
                 )
-            await client.wait_for_display_idle()
+            await _display_idle_bounded()
         finally:
             input_provider.set_startup_loading(False)
 
@@ -703,16 +715,31 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
 
         async def _submit_queued() -> None:
             for payload in payloads:
-                with contextlib.suppress(Exception):
+                try:
                     await client.submit_and_wait(op.FollowUpAgentOperation(session_id=client.session_id, input=payload))
+                except Exception:
+                    # A swallowed failure left the mirror showing a message
+                    # the server never accepted: the queue looked pending
+                    # forever and the text was silently lost. Roll back and
+                    # hand the text back to the user instead.
+                    client.remove_optimistic_follow_up(payload.text)
+                    input_provider.set_pending_messages(client.follow_up_texts())
+                    preview = payload.text if len(payload.text) <= 120 else payload.text[:119] + "…"
+                    with contextlib.suppress(Exception):
+                        await _emit_local_notice(f"Message could not be queued (server unreachable): {preview}")
 
         _spawn(_submit_queued())
 
     async def _reattach_to(new_session_id: str) -> None:
-        await client.wait_for_display_idle()
+        await _display_idle_bounded()
         await client.reattach(new_session_id)
         client.start_display()
-        await client.wait_for_replay_complete()
+        try:
+            await asyncio.wait_for(client.wait_for_replay_complete(), timeout=15.0)
+        except TimeoutError:
+            await _emit_local_notice(
+                "Attach replay did not complete — the server may be running older code. Try: klaude server reload"
+            )
 
     async def _switch_to_forked(operation: op.ForkAndSwitchSessionOperation) -> None:
         await _reattach_to(operation.new_session_id)
@@ -748,9 +775,16 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
             await client.submit(operation)
             _track_foreground_op(operation.id)
 
+    def _load_command_agent(raw_text: str) -> ClientCommandAgent:
+        return ClientCommandAgent(
+            client.session_id,
+            _session_work_dir(),
+            load_history=command_needs_history(raw_text),
+        )
+
     async def _dispatch_background_command(user_input: UserInputPayload) -> None:
         try:
-            agent = await asyncio.to_thread(ClientCommandAgent, client.session_id, _session_work_dir())
+            agent = await asyncio.to_thread(_load_command_agent, user_input.text)
             result = await dispatch_command(user_input, agent, submission_id=uuid4().hex)
         except Exception as exc:
             await _emit_local_notice(f"Command failed: {exc}")
@@ -783,7 +817,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         if text.lstrip().startswith("/"):
             run_in_foreground = has_interactive_command(text)
             try:
-                agent = await asyncio.to_thread(ClientCommandAgent, client.session_id, _session_work_dir())
+                agent = await asyncio.to_thread(_load_command_agent, text)
                 result = await dispatch_command(user_input, agent, submission_id=uuid4().hex)
             except Exception as exc:
                 await _emit_local_notice(f"Command failed: {exc}")
@@ -799,12 +833,18 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                         # to the server would leave the display on the old session.
                         await _switch_to_forked(operation)
                         continue
-                    await client.submit_and_wait(operation)
-                await client.wait_for_display_idle()
+                    try:
+                        # The op keeps running server-side after a timeout;
+                        # only the inline wait is bounded — a frozen server
+                        # must not hold the input area down indefinitely.
+                        await asyncio.wait_for(client.submit_and_wait(operation), timeout=30.0)
+                    except TimeoutError:
+                        await _emit_local_notice("The command is taking long; it continues on the server.")
+                await _display_idle_bounded()
                 await settle_flicker_safe_stdout()
                 return
             await _handle_command_result(result)
-            await client.wait_for_display_idle()
+            await _display_idle_bounded()
             return
 
         await _submit_turn(op.RunAgentOperation(session_id=client.session_id, input=user_input))
@@ -877,7 +917,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                     # detach gracefully instead of crashing the input loop.
                     log_debug(f"send failed, detaching: {exc}", debug_type=DebugType.EXECUTION)
                     with contextlib.suppress(Exception):
-                        await client.wait_for_display_idle()
+                        await _display_idle_bounded()
                     break
 
     except KeyboardInterrupt:

@@ -181,19 +181,21 @@ def test_session_websocket_replays_pending_snapshots_before_forwarding_events(mo
         return True
 
     runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
-    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test")
+    state = SimpleNamespace(
+        runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
+    )
 
     def _get_server_state(_websocket: object) -> Any:
         return state
 
-    def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
+    def _resolve_session_work_dir(_index: object, _home_dir: Path, _session_id: str) -> Path:
         return Path("/tmp")
 
-    def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
+    async def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
         return {}
 
     monkeypatch.setattr(ws, "get_server_state_from_ws", _get_server_state)
-    monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
+    monkeypatch.setattr(ws, "resolve_session_work_dir_fast", _resolve_session_work_dir)
     monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
     monkeypatch.setattr(ws, "_send_pending_interaction_snapshots", _send_pending_interaction_snapshots)
     monkeypatch.setattr(ws, "_forward_events", _forward_events)
@@ -231,19 +233,21 @@ def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyP
         return True
 
     runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
-    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test")
+    state = SimpleNamespace(
+        runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
+    )
 
     def _get_server_state(_websocket: object) -> Any:
         return state
 
-    def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
+    def _resolve_session_work_dir(_index: object, _home_dir: Path, _session_id: str) -> Path:
         return Path("/tmp")
 
-    def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
+    async def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
         return {}
 
     monkeypatch.setattr(ws, "get_server_state_from_ws", _get_server_state)
-    monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
+    monkeypatch.setattr(ws, "resolve_session_work_dir_fast", _resolve_session_work_dir)
     monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
     monkeypatch.setattr(ws, "_forward_events", _forward_events)
     monkeypatch.setattr(ws, "_receive_commands", _receive_commands)
@@ -286,19 +290,21 @@ def test_websocket_handler_does_not_hang_on_stubborn_peer_task(monkeypatch: pyte
         return True
 
     runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
-    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test")
+    state = SimpleNamespace(
+        runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
+    )
 
     def _get_server_state(_websocket: object) -> Any:
         return state
 
-    def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
+    def _resolve_session_work_dir(_index: object, _home_dir: Path, _session_id: str) -> Path:
         return Path("/tmp")
 
-    def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
+    async def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
         return {}
 
     monkeypatch.setattr(ws, "get_server_state_from_ws", _get_server_state)
-    monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
+    monkeypatch.setattr(ws, "resolve_session_work_dir_fast", _resolve_session_work_dir)
     monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
     monkeypatch.setattr(ws, "_forward_events", _forward_events)
     monkeypatch.setattr(ws, "_receive_commands", _receive_commands)
@@ -362,15 +368,17 @@ def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPat
         ),
         close_session=_close_session,
     )
-    state = SimpleNamespace(runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test")
+    state = SimpleNamespace(
+        runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
+    )
 
     def _get_server_state(_websocket: object) -> Any:
         return state
 
-    def _resolve_session_work_dir(_home_dir: Path, _session_id: str) -> Path:
+    def _resolve_session_work_dir(_index: object, _home_dir: Path, _session_id: str) -> Path:
         return Path("/tmp/work")
 
-    def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
+    async def _load_usage_snapshot(_session_id: str, _work_dir: Path, _websocket: object) -> dict[str, Any]:
         return {}
 
     def _rmtree(path: Path, ignore_errors: bool = False) -> None:
@@ -378,7 +386,7 @@ def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPat
         cleaned_paths.append(path)
 
     monkeypatch.setattr(ws, "get_server_state_from_ws", _get_server_state)
-    monkeypatch.setattr(ws, "resolve_session_work_dir", _resolve_session_work_dir)
+    monkeypatch.setattr(ws, "resolve_session_work_dir_fast", _resolve_session_work_dir)
     monkeypatch.setattr(ws, "_load_usage_snapshot", _load_usage_snapshot)
     monkeypatch.setattr(ws, "_forward_events", _forward_events)
     monkeypatch.setattr(ws, "_receive_commands", _receive_commands)

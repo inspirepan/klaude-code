@@ -242,6 +242,21 @@ def list_main_sessions(home: Path) -> list[SessionSummary]:
     return summaries
 
 
+def resolve_session_work_dir_fast(index: SessionIndex | None, home: Path, session_id: str) -> Path | None:
+    """Index-first work_dir lookup.
+
+    The disk scan below parses every meta.json in every project until it hits
+    the id — routes used to pay that on every WS frame. The live index answers
+    from memory; the scan stays as a fallback for metas the index hides
+    (legacy sub-agent sessions without a parent link).
+    """
+    if index is not None:
+        summary = index.get(session_id)
+        if summary is not None and summary.work_dir:
+            return Path(summary.work_dir)
+    return resolve_session_work_dir(home, session_id)
+
+
 def resolve_session_work_dir(home: Path, session_id: str) -> Path | None:
     for meta_path in _iter_meta_files(home):
         data = _read_json_dict(meta_path)

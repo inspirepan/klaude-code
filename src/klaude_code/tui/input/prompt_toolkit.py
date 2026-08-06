@@ -216,7 +216,7 @@ class PromptToolkitInput(InputProviderABC):
         get_current_model_provider_name: Callable[[], str | None] | None = None,
         get_current_model_effort: Callable[[], str | None] | None = None,
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
-        dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
+        dequeue_pending_messages: Callable[[], Awaitable[tuple[str, ...]]] | None = None,
         request_interrupt: Callable[[], None] | None = None,
         refresh_status: Callable[[], None] | None = None,
         request_toggle_transcript: Callable[[], None] | None = None,
@@ -379,8 +379,15 @@ class PromptToolkitInput(InputProviderABC):
         with contextlib.suppress(Exception):
             self._session.app.invalidate()
 
-    def set_dequeue_pending_messages(self, dequeue_pending_messages: Callable[[], tuple[str, ...]] | None) -> None:
+    def set_dequeue_pending_messages(
+        self, dequeue_pending_messages: Callable[[], Awaitable[tuple[str, ...]]] | None
+    ) -> None:
         self._dequeue_pending_messages = dequeue_pending_messages
+
+    async def _dequeue_pending_messages_confirmed(self) -> tuple[str, ...]:
+        if self._dequeue_pending_messages is None:
+            return ()
+        return await self._dequeue_pending_messages()
 
     def set_interrupt_handler(self, request_interrupt: Callable[[], None] | None) -> None:
         if request_interrupt is self._request_interrupt:
@@ -461,9 +468,7 @@ class PromptToolkitInput(InputProviderABC):
             open_model_picker=self._open_model_picker,
             get_prompt_suggestion=self._get_prompt_suggestion,
             consume_prompt_suggestion=self._consume_prompt_suggestion,
-            dequeue_pending_messages=lambda: (
-                self._dequeue_pending_messages() if self._dequeue_pending_messages is not None else ()
-            ),
+            dequeue_pending_messages=self._dequeue_pending_messages_confirmed,
             mark_dequeued_messages_for_edit=self._mark_queued_edit_active,
             has_pending_messages=lambda: self._bottom_bar.has_pending_messages,
             is_agent_running=self._is_agent_running,

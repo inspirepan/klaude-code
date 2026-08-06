@@ -20,7 +20,7 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, op
 from klaude_code.protocol.models import TaskMetadataItem, Usage
 from klaude_code.protocol.version import PROTOCOL_VERSION
-from klaude_code.server.session_index import resolve_session_work_dir
+from klaude_code.server.session_index import resolve_session_work_dir_fast
 from klaude_code.server.session_state import derive_session_state_from_snapshot, live_descendant_session_ids
 from klaude_code.server.state import ServerAppState, get_server_state_from_ws
 from klaude_code.session.session import Session
@@ -88,7 +88,7 @@ def _extract_usage_from_history(history: list[message.HistoryEvent]) -> Usage | 
     return None
 
 
-def _load_usage_snapshot(session_id: str, session_work_dir: Path, websocket: WebSocket) -> dict[str, Any]:
+async def _load_usage_snapshot(session_id: str, session_work_dir: Path, websocket: WebSocket) -> dict[str, Any]:
     usage = Usage()
     state = get_server_state_from_ws(websocket)
 
@@ -98,13 +98,18 @@ def _load_usage_snapshot(session_id: str, session_work_dir: Path, websocket: Web
         if in_memory_usage is not None:
             usage = in_memory_usage
 
-    try:
-        session = Session.load(session_id, work_dir=session_work_dir)
-        disk_usage = _extract_usage_from_history(session.conversation_history)
-        if disk_usage is not None:
-            usage = disk_usage
-    except Exception:
-        pass
+    def _disk_usage() -> Usage | None:
+        # Full-history parse; off the loop so an attach to a long session
+        # does not stall every other client.
+        try:
+            session = Session.load(session_id, work_dir=session_work_dir)
+            return _extract_usage_from_history(session.conversation_history)
+        except Exception:
+            return None
+
+    disk_usage = await asyncio.to_thread(_disk_usage)
+    if disk_usage is not None:
+        usage = disk_usage
 
     return {
         "event_type": "usage.snapshot",
@@ -145,6 +150,11 @@ async def _submit_user_turn(state: ServerAppState, run_op: op.RunAgentOperation)
     """
     runtime = state.runtime
     session_id = run_op.session_id
+    if state.headless is not None:
+        # A user turn is an explicit action: lift the kill/failed latches so
+        # follow-ups queued from now on drain again (kill sets a latch that
+        # nothing on the TUI path cleared before).
+        state.headless.mark_session_active(session_id)
 
     def _agent_and_busy() -> tuple[Any, bool]:
         actor = runtime.session_registry.get_session_actor(session_id)
@@ -215,6 +225,10 @@ async def _handle_operation_frame(
         if isinstance(operation, op.InterruptOperation):
             _spawn_ws_task(runtime.submit(operation))
             return
+        if isinstance(operation, op.FollowUpAgentOperation) and state.headless is not None:
+            # Queueing a message is an explicit user action; a queue latched
+            # by a failed turn or a kill must accept and run it.
+            state.headless.mark_session_active(session_id)
         await runtime.submit(operation)
         if isinstance(operation, op.FollowUpAgentOperation):
             # Submit is accepted before execution; the queue event needs the
@@ -261,7 +275,9 @@ async def _handle_incoming_frame(
 ) -> None:
     state = get_server_state_from_ws(websocket)
     runtime = state.runtime
-    work_dir = resolve_session_work_dir(state.home_dir, session_id)
+    work_dir = resolve_session_work_dir_fast(
+        state.session_live.index if state.session_live is not None else None, state.home_dir, session_id
+    )
     if work_dir is None:
         await _send_error_frame(websocket, code="session_not_found", message=f"Session not found: {session_id}")
         return
@@ -479,9 +495,11 @@ async def _forward_events(
     # or reconnecting after a server restart), scan the persisted history for
     # sub-agent sessions so their real-time events are forwarded to this WebSocket.
     if not tracked_task_ids:
-        work_dir = resolve_session_work_dir(state.home_dir, session_id)
+        work_dir = resolve_session_work_dir_fast(
+            state.session_live.index if state.session_live is not None else None, state.home_dir, session_id
+        )
         if work_dir is not None:
-            tracked_child_session_ids = _collect_descendant_session_ids(session_id, work_dir)
+            tracked_child_session_ids = await asyncio.to_thread(_collect_descendant_session_ids, session_id, work_dir)
             if tracked_child_session_ids:
                 log_debug(
                     f"[ws:{session_id[:8]}] tracked {len(tracked_child_session_ids)} descendant session(s) from history",
@@ -655,7 +673,9 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         state = get_server_state_from_ws(websocket)
         attach_mode = websocket.query_params.get("replay") == "1"
         peek_mode = websocket.query_params.get("peek") == "1"
-        work_dir = resolve_session_work_dir(state.home_dir, session_id)
+        work_dir = resolve_session_work_dir_fast(
+            state.session_live.index if state.session_live is not None else None, state.home_dir, session_id
+        )
         if work_dir is None:
             await _send_error_frame(websocket, code="session_not_found", message=f"Session not found: {session_id}")
             await websocket.close(code=4004)
@@ -698,7 +718,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         )
         if attach_mode:
             await websocket.send_json(_build_session_info(state, session_id))
-            await websocket.send_json(_load_usage_snapshot(session_id, work_dir, websocket))
+            await websocket.send_json(await _load_usage_snapshot(session_id, work_dir, websocket))
             # Subscribe, then cut the tape inside the same event-loop step
             # (no await between): everything after the cut reaches the
             # subscription, everything before it is on the tape.
@@ -719,7 +739,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 )
             )
         else:
-            await websocket.send_json(_load_usage_snapshot(session_id, work_dir, websocket))
+            await websocket.send_json(await _load_usage_snapshot(session_id, work_dir, websocket))
             await _send_pending_interaction_snapshots(session_id, websocket)
             send_task = asyncio.create_task(_forward_events(session_id, websocket))
         recv_task = asyncio.create_task(_receive_commands(session_id, websocket, can_input=can_input))

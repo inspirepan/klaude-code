@@ -73,9 +73,10 @@ def _grab_clipboard_image_macos(dest_path: Path) -> bool:
             result = subprocess.run(
                 ["pngpaste", str(dest_path)],
                 capture_output=True,
+                timeout=5.0,
             )
             return result.returncode == 0 and dest_path.exists() and dest_path.stat().st_size > 0
-        except OSError:
+        except (OSError, subprocess.TimeoutExpired):
             pass
 
     # Fallback to osascript with JXA (JavaScript for Automation)
@@ -104,11 +105,12 @@ if (!pngData.isNil()) {{
             ["osascript", "-l", "JavaScript", "-e", script],
             capture_output=True,
             text=True,
+            timeout=10.0,
         )
         return (
             result.returncode == 0 and "true" in result.stdout and dest_path.exists() and dest_path.stat().st_size > 0
         )
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return False
 
 
@@ -120,11 +122,12 @@ def _grab_clipboard_image_linux(dest_path: Path) -> bool:
         result = subprocess.run(
             ["xclip", "-selection", "clipboard", "-t", "image/png", "-o"],
             capture_output=True,
+            timeout=10.0,
         )
         if result.returncode == 0 and result.stdout:
             dest_path.write_bytes(result.stdout)
             return True
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         pass
     return False
 
@@ -144,9 +147,10 @@ def _grab_clipboard_image_windows(dest_path: Path) -> bool:
             ["powershell", "-Command", script],
             capture_output=True,
             text=True,
+            timeout=10.0,
         )
         return result.returncode == 0 and "ok" in result.stdout and dest_path.exists()
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return False
 
 

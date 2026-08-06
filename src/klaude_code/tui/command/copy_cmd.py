@@ -26,6 +26,10 @@ class CopyCommand(CommandABC):
         return "Select a response to copy (or /copy N for the Nth-latest assistant response)"
 
     @property
+    def needs_history(self) -> bool:
+        return True
+
+    @property
     def is_interactive(self) -> bool:
         return True
 

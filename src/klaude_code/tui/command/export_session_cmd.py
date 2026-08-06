@@ -46,6 +46,10 @@ class ExportSessionCommand(CommandABC):
         return "Export current session to HTML"
 
     @property
+    def needs_history(self) -> bool:
+        return True
+
+    @property
     def support_addition_params(self) -> bool:
         return True
 

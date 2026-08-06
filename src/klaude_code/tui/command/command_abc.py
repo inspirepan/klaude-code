@@ -89,6 +89,18 @@ class CommandABC(ABC):
         return False
 
     @property
+    def needs_history(self) -> bool:
+        """Whether run() reads the session's conversation history.
+
+        When False (default), an attached TUI hands the command a meta-only
+        session snapshot: ``session.conversation_history`` is empty and
+        ``messages_count`` is 0. Set True for commands that read either —
+        a full history load on a long session is the single slowest step of
+        command dispatch and freezes the input area while it runs.
+        """
+        return False
+
+    @property
     def support_addition_params(self) -> bool:
         """Whether this command support additional parameters."""
         return False

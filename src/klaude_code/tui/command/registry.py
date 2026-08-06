@@ -200,3 +200,9 @@ def has_background_command(raw: str) -> bool:
     """Whether `raw` resolves to a command that is dispatched without waiting."""
     command = _resolve_command(raw)
     return command is not None and command.runs_in_background
+
+
+def command_needs_history(raw: str) -> bool:
+    """Whether `raw` resolves to a command that reads conversation history."""
+    command = _resolve_command(raw)
+    return command is None or command.needs_history

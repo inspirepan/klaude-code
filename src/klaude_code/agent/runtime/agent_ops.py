@@ -337,9 +337,13 @@ class AgentOperationHandler:
                 "the agent must be initialized via InitAgentOperation first"
             )
 
-        session = (
-            Session.create(work_dir=work_dir) if session_id is None else Session.load(session_id, work_dir=work_dir)
-        )
+        if session_id is None:
+            session = Session.create(work_dir=work_dir)
+        else:
+            # A full history parse of a long session takes seconds; run on
+            # the server's only event loop it froze event forwarding and
+            # every attached client (the "first turn blocks ~4s" incident).
+            session = await asyncio.to_thread(Session.load, session_id, work_dir=work_dir)
 
         runtime = self._ensure_session_actor(session.id)
         existing = runtime.get_agent()
@@ -359,7 +363,10 @@ class AgentOperationHandler:
             from klaude_code.agent.agent_profile import VanillaModelProfileProvider
 
             profile_provider = VanillaModelProfileProvider()
-        profile = profile_provider.build_profile(
+        # System-prompt assembly scans skills and memory files on disk;
+        # keep it off the server's event loop.
+        profile = await asyncio.to_thread(
+            profile_provider.build_profile,
             session_clients.main,
             profile_agent_type,
             work_dir=session.work_dir,
@@ -438,7 +445,10 @@ class AgentOperationHandler:
             from klaude_code.agent.agent_profile import VanillaModelProfileProvider
 
             profile_provider = VanillaModelProfileProvider()
-        profile = profile_provider.build_profile(
+        # Every sub-agent spawn rebuilds a profile (skills/memory disk scan);
+        # on the loop it froze all clients for the duration of each spawn.
+        profile = await asyncio.to_thread(
+            profile_provider.build_profile,
             session_clients.main,
             profile_agent_type,
             work_dir=session.work_dir,

@@ -18,8 +18,14 @@ from klaude_code.session.session import Session
 class ClientCommandAgent:
     """Command-facing agent backed by the on-disk session snapshot."""
 
-    def __init__(self, session_id: str, work_dir: Path) -> None:
-        self.session: Session = Session.load(session_id, work_dir=work_dir)
+    def __init__(self, session_id: str, work_dir: Path, *, load_history: bool = True) -> None:
+        # A full history parse of a long session takes seconds and runs on
+        # every command dispatch; commands that never read the history
+        # (see CommandABC.needs_history) get the cheap meta-only snapshot.
+        if load_history:
+            self.session: Session = Session.load(session_id, work_dir=work_dir)
+        else:
+            self.session = Session.load_meta(session_id, work_dir=work_dir)
 
     @property
     def profile(self) -> None:

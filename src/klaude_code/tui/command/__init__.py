@@ -1,5 +1,6 @@
 from .command_abc import CommandABC, CommandResult
 from .registry import (
+    command_needs_history,
     dispatch_command,
     get_command_info_list,
     get_command_names,
@@ -111,6 +112,7 @@ __all__ = [
     "CommandInfo",
     "CommandName",
     "CommandResult",
+    "command_needs_history",
     "dispatch_command",
     "ensure_commands_loaded",
     "get_command_info_list",

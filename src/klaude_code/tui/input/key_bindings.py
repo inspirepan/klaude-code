@@ -12,7 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import cast
 
@@ -66,7 +66,7 @@ def create_key_bindings(
     open_model_picker: Callable[[], None] | None = None,
     get_prompt_suggestion: Callable[[], str | None] | None = None,
     consume_prompt_suggestion: Callable[[], str | None] | None = None,
-    dequeue_pending_messages: Callable[[], tuple[str, ...]] | None = None,
+    dequeue_pending_messages: Callable[[], Awaitable[tuple[str, ...]]] | None = None,
     mark_dequeued_messages_for_edit: Callable[[str], None] | None = None,
     has_pending_messages: Callable[[], bool] | None = None,
     is_agent_running: Callable[[], bool] | None = None,
@@ -85,7 +85,8 @@ def create_key_bindings(
             or None when there is nothing to suggest.
         consume_prompt_suggestion: Returns and clears the suggestion in one step
             (used when the user accepts it, so it can't be accepted twice).
-        dequeue_pending_messages: Returns and clears all queued messages, if any.
+        dequeue_pending_messages: Pops all queued messages on the server and
+            returns the confirmed texts (empty when the drain got there first).
         has_pending_messages: Returns True while queued messages are available.
         is_agent_running: Returns True while Tab can switch between follow-up and `/btw` input.
         request_interrupt: Requests interruption of the currently running agent task.
@@ -159,17 +160,33 @@ def create_key_bindings(
             buf.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
 
     def _dequeue_pending_to_buffer(event: KeyPressEvent) -> bool:
-        messages = dequeue_pending_messages() if dequeue_pending_messages is not None else ()
-        if not messages:
+        if dequeue_pending_messages is None:
             return False
-        text = merge_dequeued_messages(messages, event.current_buffer.text)
-        with contextlib.suppress(Exception):
-            event.current_buffer.text = text  # type: ignore[reportUnknownMemberType]
-            event.current_buffer.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
-        if mark_dequeued_messages_for_edit is not None:
-            mark_dequeued_messages_for_edit(text)
-        with contextlib.suppress(Exception):
-            event.app.invalidate()  # type: ignore[reportUnknownMemberType]
+        if has_pending_messages is None or not has_pending_messages():
+            return False
+        buffer = event.current_buffer
+        app = event.app
+
+        async def _fill_from_confirmed() -> None:
+            # Fill from the server-confirmed pop, not the local mirror: the
+            # drain may have already started the queue head as a turn, and a
+            # stale mirror would put an already-running message back in the
+            # buffer for a duplicate submit. The confirm is a local-socket
+            # round trip (milliseconds); an empty confirm means nothing to
+            # edit — the message is running and stays out of the buffer.
+            messages = await dequeue_pending_messages()
+            if not messages:
+                return
+            text = merge_dequeued_messages(tuple(messages), buffer.text)
+            with contextlib.suppress(Exception):
+                buffer.text = text  # type: ignore[reportUnknownMemberType]
+                buffer.cursor_position = len(text)  # type: ignore[reportUnknownMemberType]
+            if mark_dequeued_messages_for_edit is not None:
+                mark_dequeued_messages_for_edit(text)
+            with contextlib.suppress(Exception):
+                app.invalidate()  # type: ignore[reportUnknownMemberType]
+
+        app.create_background_task(_fill_from_confirmed())
         return True
 
     def _is_bash_mode_text(text: str) -> bool:
