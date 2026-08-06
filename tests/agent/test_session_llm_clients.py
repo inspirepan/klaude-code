@@ -59,9 +59,9 @@ def _handler(template_alias: str) -> tuple[AgentOperationHandler, _StubActor]:
     handler = AgentOperationHandler(
         emit_event=_emit,
         llm_clients=LLMClients(main=_StubClient("startup-model-id"), main_model_alias=template_alias),
-        model_profile_provider=Any,  # unused by _ensure_session_llm_clients
+        model_profile_provider=Any,  # ty: ignore[invalid-argument-type] # unused by _ensure_session_llm_clients
         on_child_task_state_change=lambda *_args: None,
-        ensure_session_actor=lambda _sid: actor,  # pyright: ignore[reportArgumentType]
+        ensure_session_actor=lambda _sid: actor,  # ty: ignore[invalid-argument-type] # pyright: ignore[reportArgumentType]
         get_session_actor=lambda _sid: None,
         get_session_actor_for_operation=lambda _op: None,
         list_session_actors=lambda: [],
