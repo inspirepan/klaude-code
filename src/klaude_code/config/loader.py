@@ -160,6 +160,18 @@ def _load_user_config() -> _schema.UserConfig | None:
         raise ConfigValidationError(_schema.config_path, message) from e
 
 
+def load_user_config_from_disk() -> _schema.UserConfig | None:
+    """Read the user config file directly, bypassing the process-wide cache.
+
+    Used by ``Config.save`` to merge into the current file instead of
+    overwriting it with a possibly stale in-memory snapshot.
+
+    Raises:
+        ConfigValidationError: the file exists but is not valid.
+    """
+    return _load_user_config()
+
+
 def _load_config_uncached() -> _schema.Config:
     """Load and merge builtin + user config. Always returns a valid Config."""
     builtin_config = get_builtin_config()

@@ -88,3 +88,22 @@ async def server_reload(request: ReloadRequest, state: ServerAppState = _SERVER_
         )
     lifecycle.request_reload()
     return {"ok": True, "pid": os.getpid(), "interrupted": active_sessions}
+
+
+@router.post("/config/reload")
+async def server_config_reload() -> dict[str, Any]:
+    """Drop the cached config so the next read picks up the file on disk.
+
+    ``load_config`` caches for the whole process, so a client that edits
+    ~/.klaude/klaude-config.yaml (e.g. /manage-providers) would otherwise not
+    affect server-side sessions until the server re-execs. Live LLM clients keep
+    the model they were built with; only later resolutions see the new config.
+    """
+    from klaude_code.config import load_config
+
+    load_config.cache_clear()
+    try:
+        load_config()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"ok": True, "pid": os.getpid()}

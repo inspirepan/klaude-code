@@ -27,6 +27,10 @@ class ManageProvidersCommand(CommandABC):
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input
+        # This command runs in the client process while the server owns the
+        # session. Re-read the file first: the cached copy dates from attach and
+        # may miss what the server saved since (model defaults, sub-agent models).
+        load_config.cache_clear()
         config = load_config()
         states = build_provider_states(config)
         if not states:
@@ -67,11 +71,22 @@ class ManageProvidersCommand(CommandABC):
         for state in changed:
             config.set_provider_disabled(state.name, selected[state.name])
         load_config.cache_clear()
+
+        # The server caches config per process; without this it keeps serving the
+        # old provider set until `klaude server reload`. Imported lazily to keep
+        # the socket client out of command-registry loading.
+        from klaude_code.tui.client.server_api import reload_server_config
+
+        reload_error = await asyncio.to_thread(reload_server_config)
+        content = f"Provider settings saved ({len(changed)} changed)."
+        if reload_error is not None:
+            content += f"\nServer still uses the old providers ({reload_error}); run: klaude server reload"
         return CommandResult(
             events=[
                 events.NoticeEvent(
                     session_id=agent.session.id,
-                    content=f"Provider settings saved ({len(changed)} changed).",
+                    content=content,
+                    is_error=reload_error is not None,
                 )
             ]
         )

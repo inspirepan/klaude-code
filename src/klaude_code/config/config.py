@@ -378,6 +378,84 @@ class UserConfig(BaseModel):
         return _normalize_sub_agent_models_payload(data)
 
 
+_MERGEABLE_USER_FIELDS = (
+    "main_model",
+    "fast_model",
+    "compact_model",
+    "sub_agent_model_decision_tree",
+    "theme",
+    "auto_upgrade",
+    "headless_max_running",
+)
+
+
+def _read_user_config_for_merge() -> UserConfig | None:
+    """Read the on-disk user config for a merging save.
+
+    Returns an empty config when the file is absent, and None when it cannot be
+    parsed (the caller then falls back to a full overwrite).
+    """
+    from klaude_code.config.loader import load_user_config_from_disk
+
+    try:
+        return load_user_config_from_disk() or UserConfig()
+    except (OSError, ValueError):
+        return None
+
+
+def _apply_user_config_changes(target: UserConfig, *, baseline: UserConfig, current: UserConfig) -> None:
+    """Apply the ``baseline`` -> ``current`` diff onto ``target`` in place.
+
+    Two rules, in order:
+
+    1. A value this process changed (differs from ``baseline``) overwrites
+       ``target``. The process asked for it, so it wins.
+    2. A value ``target`` does not hold at all keeps ``current``'s. ``target``
+       comes from the file, so an empty slot usually means the file never had it
+       -- writing ``current`` restores it instead of dropping it. The trade-off:
+       a value another process deliberately removed comes back.
+
+    Everything else keeps ``target``'s value, so a writer never rolls back a
+    field it did not touch. Providers merge per ``provider_name``: two processes
+    editing the same provider still race, and the last writer wins for it.
+    """
+    for name in _MERGEABLE_USER_FIELDS:
+        value = getattr(current, name)
+        if value != getattr(baseline, name) or (value is not None and getattr(target, name) is None):
+            setattr(target, name, value)
+
+    for key in set(current.sub_agent_models) | set(baseline.sub_agent_models):
+        value = current.sub_agent_models.get(key)
+        previous = baseline.sub_agent_models.get(key)
+        if value == previous:
+            if value is not None and key not in target.sub_agent_models:
+                target.sub_agent_models[key] = value
+            continue
+        if value is None:
+            # A dropped key can also mean "same as builtin, so omit it" rather
+            # than "clear it", so only delete while nobody else has changed it.
+            if target.sub_agent_models.get(key) == previous:
+                target.sub_agent_models.pop(key, None)
+        else:
+            target.sub_agent_models[key] = value
+
+    baseline_providers = {item.provider_name: item for item in baseline.provider_list}
+    current_providers = {item.provider_name: item for item in current.provider_list}
+
+    removed = set(baseline_providers) - set(current_providers)
+    if removed:
+        target.provider_list = [item for item in target.provider_list if item.provider_name not in removed]
+
+    target_index = {item.provider_name: index for index, item in enumerate(target.provider_list)}
+    for provider_name, provider in current_providers.items():
+        index = target_index.get(provider_name)
+        if index is None:
+            target.provider_list.append(provider)
+            continue
+        if provider != baseline_providers.get(provider_name):
+            target.provider_list[index] = provider
+
+
 class Config(BaseModel):
     """Merged configuration (builtin + user) for runtime use."""
 
@@ -395,6 +473,9 @@ class Config(BaseModel):
 
     # Internal: reference to original user config for saving
     _user_config: UserConfig | None = None
+    # Internal: untouched copy of _user_config as it was loaded, so save() can
+    # tell which user-level fields this process actually changed.
+    _user_config_baseline: UserConfig | None = None
     # Internal: lazily built case-insensitive provider index (casefold name -> providers)
     _provider_index: dict[str, list[ProviderConfig]] | None = None
 
@@ -406,6 +487,8 @@ class Config(BaseModel):
     def set_user_config(self, user_config: UserConfig | None) -> None:
         """Set the user config reference for saving."""
         object.__setattr__(self, "_user_config", user_config)
+        baseline = user_config.model_copy(deep=True) if user_config is not None else None
+        object.__setattr__(self, "_user_config_baseline", baseline)
 
     def set_provider_disabled(self, provider_name: str, disabled: bool) -> None:
         """Set a provider's disabled state and persist it as a user override."""
@@ -813,21 +896,14 @@ class Config(BaseModel):
             if include_disabled or not model.disabled
         ]
 
-    async def save(self) -> None:
-        """Save user config to file without copying full builtin definitions.
+    def _sync_user_config_from_merged(self, user_config: UserConfig) -> None:
+        """Fold merged-config edits back into ``user_config``.
 
-        Only saves user-specific settings like main_model and custom providers.
-        Partial user overrides for builtin providers may be written.
-        Values that match builtin defaults are omitted to keep the file minimal.
+        Only values that differ from builtin defaults are kept, so the saved
+        file stays minimal.
         """
-        # Get user config, creating one if needed
-        user_config = self._user_config
-        if user_config is None:
-            user_config = UserConfig()
-
         builtin = get_builtin_config()
 
-        # Only save values that differ from builtin defaults
         user_config.main_model = self.main_model if self.main_model != builtin.main_model else None
         user_config.fast_model = self.fast_model if self.fast_model != builtin.fast_model else None
         user_config.compact_model = self.compact_model if self.compact_model != builtin.compact_model else None
@@ -847,19 +923,49 @@ class Config(BaseModel):
         user_config.sub_agent_models = user_sub_agent_models
         # Note: provider_list is NOT synced - user providers are already in user_config
 
+    async def save(self) -> None:
+        """Save user config to file without copying full builtin definitions.
+
+        Only saves user-specific settings like main_model and custom providers.
+        Partial user overrides for builtin providers may be written.
+        Values that match builtin defaults are omitted to keep the file minimal.
+
+        The write merges into a fresh read of the file: the server and every TUI
+        client hold their own cached snapshot, so a blind overwrite would roll
+        back whatever another process saved after this snapshot was loaded. Only
+        the fields this process changed (relative to ``_user_config_baseline``)
+        are applied on top of the current file contents.
+        """
+        # Get user config, creating one if needed
+        user_config = self._user_config
+        if user_config is None:
+            user_config = UserConfig()
+
+        self._sync_user_config_from_merged(user_config)
+
+        target = await asyncio.to_thread(_read_user_config_for_merge)
+        if target is None:
+            # File is unreadable or invalid: fall back to a full overwrite from
+            # this process's snapshot rather than dropping the change.
+            target = user_config
+        else:
+            _apply_user_config_changes(
+                target,
+                baseline=self._user_config_baseline or UserConfig(),
+                current=user_config,
+            )
+
         # Keep the saved file compact (exclude defaults), but preserve explicit
         # overrides inside provider_list (e.g. `disabled: false` to re-enable a
         # builtin provider that is disabled by default).
-        config_dict = user_config.model_dump(
+        config_dict = target.model_dump(
             mode="json",
             exclude_none=True,
             exclude_defaults=True,
             exclude={"provider_list"},
         )
 
-        provider_list = [
-            p.model_dump(mode="json", exclude_none=True, exclude_unset=True) for p in user_config.provider_list
-        ]
+        provider_list = [p.model_dump(mode="json", exclude_none=True, exclude_unset=True) for p in target.provider_list]
         if provider_list:
             config_dict["provider_list"] = provider_list
 
@@ -869,3 +975,8 @@ class Config(BaseModel):
             config_path.write_text(yaml_content or "")
 
         await asyncio.to_thread(_save_config)
+
+        # These edits are now on disk. Advance the baseline so a later save only
+        # re-applies changes made from here on, instead of replaying this delta
+        # over whatever another process wrote in the meantime.
+        object.__setattr__(self, "_user_config_baseline", user_config.model_copy(deep=True))

@@ -977,6 +977,119 @@ class TestConfigSave:
         assert providers["my-provider"]["api_key"] == "test-key"
         assert providers["my-provider"]["disabled"] is True
 
+    def test_save_keeps_changes_another_process_wrote_after_load(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A client save must not roll back what the server wrote meanwhile.
+
+        The server and every TUI client cache their own config snapshot, so save
+        merges into a fresh read of the file instead of overwriting it.
+        """
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        # State both processes loaded.
+        test_config_path.write_text(yaml.dump({"main_model": "opus"}))
+        user_config = UserConfig.model_validate(yaml.safe_load(test_config_path.read_text()))
+        config = Config(
+            main_model="opus",
+            provider_list=[
+                ProviderConfig(provider_name="openai", protocol=llm_param.LLMClientProtocol.OPENAI),
+            ],
+        )
+        config.set_user_config(user_config)
+
+        # The server switches the default model and saves.
+        test_config_path.write_text(yaml.dump({"main_model": "sonnet", "sub_agent_models": {"finder": "haiku"}}))
+
+        # The client disables a provider from its now-stale snapshot.
+        config.set_provider_disabled("openai", True)
+        asyncio.run(config.save())
+
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        assert saved_content["main_model"] == "sonnet"
+        assert saved_content["sub_agent_models"] == {"finder": "haiku"}
+        assert saved_content["provider_list"] == [{"provider_name": "openai", "disabled": True}]
+
+    def test_save_wins_over_concurrent_change_for_the_field_it_changed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        test_config_path.write_text(yaml.dump({"main_model": "opus", "theme": "dark"}))
+        user_config = UserConfig.model_validate(yaml.safe_load(test_config_path.read_text()))
+        config = Config(main_model="opus", theme="dark")
+        config.set_user_config(user_config)
+
+        test_config_path.write_text(yaml.dump({"main_model": "sonnet", "theme": "light"}))
+
+        config.main_model = "haiku"
+        asyncio.run(config.save())
+
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        # Changed here -> ours wins; untouched -> the concurrent value survives.
+        assert saved_content["main_model"] == "haiku"
+        assert saved_content["theme"] == "light"
+
+    def test_save_does_not_delete_sub_agent_model_changed_elsewhere(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Omitting a key (same as builtin) must not delete a concurrent change."""
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        builtin_value = get_builtin_config().sub_agent_models.get("finder")
+        test_config_path.write_text(yaml.dump({"sub_agent_models": {"finder": builtin_value or "haiku"}}))
+        user_config = UserConfig.model_validate(yaml.safe_load(test_config_path.read_text()))
+        config = Config(sub_agent_models={"finder": builtin_value or "haiku"})
+        config.set_user_config(user_config)
+
+        test_config_path.write_text(yaml.dump({"sub_agent_models": {"finder": "sonnet"}}))
+
+        config.theme = "dark"
+        asyncio.run(config.save())
+
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        assert saved_content["sub_agent_models"] == {"finder": "sonnet"}
+        assert saved_content["theme"] == "dark"
+
+    def test_second_save_does_not_replay_the_first_change(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        test_config_path.write_text(yaml.dump({"main_model": "opus"}))
+        config = Config(main_model="opus")
+        config.set_user_config(UserConfig.model_validate(yaml.safe_load(test_config_path.read_text())))
+
+        config.main_model = "sonnet"
+        asyncio.run(config.save())
+
+        # Another process takes over the default model.
+        test_config_path.write_text(yaml.dump({"main_model": "haiku"}))
+
+        config.theme = "dark"
+        asyncio.run(config.save())
+
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        assert saved_content["main_model"] == "haiku"
+        assert saved_content["theme"] == "dark"
+
+    def test_save_falls_back_to_full_write_when_file_is_invalid(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        test_config_path = tmp_path / "test-config.yaml"
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+        test_config_path.write_text("main_model: [unclosed\n")
+
+        config = Config(main_model="opus")
+        asyncio.run(config.save())
+
+        saved_content = yaml.safe_load(test_config_path.read_text())
+        assert saved_content["main_model"] == "opus"
+
     def test_set_provider_disabled_prefers_exact_name_when_casefold_names_collide(self) -> None:
         user_config = UserConfig(
             provider_list=[

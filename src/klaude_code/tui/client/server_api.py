@@ -28,6 +28,21 @@ def _request(method: str, path: str, *, json_body: dict[str, Any] | None = None,
     return response.json()
 
 
+def reload_server_config() -> str | None:
+    """Ask the server to re-read ~/.klaude/klaude-config.yaml.
+
+    Config changes written by a client (e.g. /manage-providers) are invisible to
+    the server until it drops its cached copy. Best-effort: returns an error
+    message when the server is unreachable or rejects the new file, so the caller
+    can surface it instead of failing the command.
+    """
+    try:
+        _request("POST", "/api/server/config/reload", timeout=5.0)
+    except Exception as exc:
+        return str(exc)
+    return None
+
+
 def create_server_session(*, work_dir: Path, model: str | None = None, vanilla: bool = False) -> str:
     """Create a new session on the server; return its id."""
     body = _request(
