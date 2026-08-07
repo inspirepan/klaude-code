@@ -237,7 +237,7 @@ class FakeInputProvider:
     def set_stream_lines(self, *args: Any, **kwargs: Any) -> None:
         del args, kwargs
 
-    def set_dequeue_pending_messages(self, fn: Callable[[], tuple[str, ...]]) -> None:
+    def set_dequeue_pending_messages(self, fn: Callable[[], Awaitable[tuple[str, ...]]]) -> None:
         self.dequeue_fn = fn
 
     async def pause_for_external_input(self) -> Callable[[], None]:
@@ -407,7 +407,7 @@ def test_failed_queue_submit_rolls_back_mirror_with_notice(monkeypatch: pytest.M
                 raise ClientConnectionError("connection to klaude server lost")
             return await original_submit(operation)
 
-        client.submit = _failing_submit  # type: ignore[method-assign]
+        monkeypatch.setattr(client, "submit", _failing_submit)
         client.set_running(True)
         await _settle()
         yield UserInputPayload(text="lost message")
