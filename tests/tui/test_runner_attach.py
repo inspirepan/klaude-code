@@ -188,6 +188,7 @@ class FakeInputProvider:
         self.interrupt_handler: Callable[[], None] | None = None
         self.startup_loading: list[bool] = []
         self.exit_requests = 0
+        self.input_text = ""
         self.call_log: list[tuple[str, Any]] = []
         self._script: AsyncGenerator[UserInputPayload] | None = None
         FakeInputProvider.instance = self
@@ -211,6 +212,9 @@ class FakeInputProvider:
 
     def set_interrupt_handler(self, handler: Callable[[], None] | None) -> None:
         self.interrupt_handler = handler
+
+    def has_input_text(self) -> bool:
+        return bool(self.input_text)
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
         self.pending_messages.append(messages)
@@ -500,6 +504,41 @@ def test_esc_submits_interrupt_with_retraction_and_prefill(monkeypatch: pytest.M
     prefill_index = provider.call_log.index(("prefill", "interrupted text"))
     running_cleared_index = provider.call_log.index(("agent_running", False))
     assert running_cleared_index < prefill_index
+
+
+def test_esc_skips_retraction_when_input_box_has_text(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Text in the input box blocks the prefill, so the retraction must not run.
+
+    Retracting anyway drops the interrupted message: the prompt layer refuses
+    to overwrite what the user typed, and the withdrawn text is gone.
+    """
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client.set_active_operation("turn-1")
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            provider = FakeInputProvider.instance
+            if provider is not None and provider.interrupt_handler is not None:
+                break
+        provider = FakeInputProvider.instance
+        assert provider is not None and provider.interrupt_handler is not None
+        # The user typed a follow-up while the turn was running.
+        provider.input_text = "half-written follow-up"
+        provider.interrupt_handler()
+        await _settle()
+        await asyncio.sleep(0.05)
+        client.set_running(False)
+        yield UserInputPayload(text="")
+        await _settle()
+
+    client = run_scenario(monkeypatch, script)
+
+    interrupts = client.ops_of(op.InterruptOperation)
+    assert len(interrupts) == 1
+    assert interrupts[0].retract_unanswered_input is False
+    provider = FakeInputProvider.instance
+    assert provider is not None
+    assert provider.prefills == []
 
 
 def test_esc_latch_clears_when_queue_starts_before_idle_is_observed(monkeypatch: pytest.MonkeyPatch) -> None:

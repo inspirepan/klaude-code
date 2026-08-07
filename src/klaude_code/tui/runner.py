@@ -565,15 +565,22 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
             return
         interrupt_pending = True
         interrupt_target_operation_id = client.active_operation_id()
-        _spawn(_submit_interrupt(interrupt_target_operation_id))
+        # Retract only into an empty input box. The prompt layer refuses to
+        # overwrite text the user already typed, so the prefill would be
+        # dropped and the retracted message lost with no way to recover it.
+        typed_text = False
+        if input_provider is not None:
+            with contextlib.suppress(Exception):
+                typed_text = input_provider.has_input_text()
+        _spawn(_submit_interrupt(interrupt_target_operation_id, retract=not typed_text))
 
-    async def _submit_interrupt(expected_operation_id: str | None) -> None:
+    async def _submit_interrupt(expected_operation_id: str | None, *, retract: bool) -> None:
         with contextlib.suppress(Exception):
             await client.submit(
                 op.InterruptOperation(
                     session_id=client.session_id,
                     expected_operation_id=expected_operation_id,
-                    retract_unanswered_input=True,
+                    retract_unanswered_input=retract,
                     # Esc mid-queue moves on to the next queued message
                     # (matches the pre-attach runner); kill keeps it stopped.
                     resume_follow_ups=True,

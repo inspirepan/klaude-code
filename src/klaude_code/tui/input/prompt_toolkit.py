@@ -319,16 +319,30 @@ class PromptToolkitInput(InputProviderABC):
             with contextlib.suppress(Exception):
                 self._session.app.exit(exception=_PromptPaused())
 
+    def has_input_text(self) -> bool:
+        """Whether the input box currently holds text.
+
+        Esc reads this before asking for a retraction: a prefill has nowhere
+        to land while the buffer is occupied (see ``set_next_prefill``), so
+        retracting would drop the interrupted message with no way back.
+        Between prompts the text lives in the stashed resume/prefill slots,
+        which count the same way.
+        """
+        if self._prompt_active:
+            with contextlib.suppress(Exception):
+                return bool(self._session.default_buffer.text)
+        return bool(self._resumed_buffer_text or self._next_prefill_text)
+
     def set_next_prefill(self, text: str | None) -> None:
         self._next_prefill_text = text
         if not text or not self._prompt_active or self._is_agent_running():
             return
         with contextlib.suppress(Exception):
             if self._session.default_buffer.text:
-                # The user is already typing something else (Esc interrupts
-                # regardless of buffer content). Overwriting it would be worse
-                # than dropping the prefill, and holding the prefill back would
-                # resurface the interrupted text on some later prompt.
+                # The user started typing after the prefill was armed.
+                # Overwriting that would be worse than dropping the prefill,
+                # and holding the prefill back would resurface the interrupted
+                # text on some later prompt.
                 self._next_prefill_text = None
                 return
         with contextlib.suppress(Exception):

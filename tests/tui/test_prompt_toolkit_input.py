@@ -111,6 +111,26 @@ def test_next_prefill_applies_to_idle_empty_prompt() -> None:
     assert prompt_input._next_prefill_text is None
 
 
+def test_has_input_text_reports_the_live_buffer() -> None:
+    prompt_input: Any = _build_input("my own draft")
+    prompt_input._prompt_active = True
+
+    assert prompt_input.has_input_text() is True
+
+    empty_input: Any = _build_input("")
+    empty_input._prompt_active = True
+
+    assert empty_input.has_input_text() is False
+
+
+def test_has_input_text_counts_stashed_text_between_prompts() -> None:
+    # The prompt is rebuilding: the buffer is gone but the text is not.
+    prompt_input: Any = _build_input("")
+    prompt_input._resumed_buffer_text = "half-typed follow up"
+
+    assert prompt_input.has_input_text() is True
+
+
 def test_paused_buffer_text_is_restored_while_agent_runs() -> None:
     async def _run() -> None:
         prompt_input: Any = _build_input("half-typed follow up")
