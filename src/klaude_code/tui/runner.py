@@ -557,19 +557,22 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
     # -- interrupt handling (Esc / Ctrl+C while the agent runs) --
 
     interrupt_pending = False
+    interrupt_target_operation_id: str | None = None
 
     def _start_interrupt_once() -> None:
-        nonlocal interrupt_pending
+        nonlocal interrupt_pending, interrupt_target_operation_id
         if peek or interrupt_pending or not _agent_busy():
             return
         interrupt_pending = True
-        _spawn(_submit_interrupt())
+        interrupt_target_operation_id = client.active_operation_id()
+        _spawn(_submit_interrupt(interrupt_target_operation_id))
 
-    async def _submit_interrupt() -> None:
+    async def _submit_interrupt(expected_operation_id: str | None) -> None:
         with contextlib.suppress(Exception):
             await client.submit(
                 op.InterruptOperation(
                     session_id=client.session_id,
+                    expected_operation_id=expected_operation_id,
                     retract_unanswered_input=True,
                     # Esc mid-queue moves on to the next queued message
                     # (matches the pre-attach runner); kill keeps it stopped.
@@ -584,7 +587,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
     # -- watcher: prompt busy state driven by client mirrors --
 
     async def _watch_state() -> None:
-        nonlocal interrupt_pending
+        nonlocal interrupt_pending, interrupt_target_operation_id
         ui_busy = False
         restore_sigint: Callable[[], None] | None = None
         state_changed = client.state_changed_event()
@@ -593,6 +596,20 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
             state_changed.clear()
             input_provider.set_pending_messages(client.follow_up_texts())
             busy = _agent_busy()
+            if (
+                interrupt_pending
+                and busy
+                and interrupt_target_operation_id is not None
+                and client.active_operation_id() != interrupt_target_operation_id
+            ):
+                # InterruptEvent and the queue's next TaskStart can arrive
+                # before this watcher runs. In that case there is no visible
+                # idle edge: the new operation identity is the authoritative
+                # boundary, and the old Esc must not keep the prompt latched.
+                interrupt_pending = False
+                interrupt_target_operation_id = None
+                local_turn_ops.clear()
+                _ = client.consume_interrupt_prefill()
             if busy and not ui_busy:
                 ui_busy = True
                 input_provider.set_agent_running(True)
@@ -624,6 +641,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 await settle_flicker_safe_stdout()
                 away_summary_coordinator.notify_task_finished()
                 interrupt_pending = False
+                interrupt_target_operation_id = None
                 input_provider.set_pending_messages(client.follow_up_texts())
                 # Clear the running flag BEFORE applying the prefill:
                 # set_next_prefill only restarts the prompt when the agent is

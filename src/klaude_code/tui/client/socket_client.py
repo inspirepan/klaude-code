@@ -77,6 +77,7 @@ class SocketRuntimeClient:
 
         self._info = SessionInfoSnapshot(session_id=session_id)
         self._running = False
+        self._active_operation_id: str | None = None
         self._state_changed = asyncio.Event()
         self._replay_complete = asyncio.Event()
         self._connection_lost = asyncio.Event()
@@ -157,6 +158,7 @@ class SocketRuntimeClient:
         self._session_id = session_id
         self._info = SessionInfoSnapshot(session_id=session_id)
         self._running = False
+        self._active_operation_id = None
         self._interrupt_prefill = None
         # Stale swallows must not eat user messages replayed by the new attach.
         self._pending_echo_swallows.clear()
@@ -275,6 +277,9 @@ class SocketRuntimeClient:
 
     def is_running(self) -> bool:
         return self._running
+
+    def active_operation_id(self) -> str | None:
+        return self._active_operation_id
 
     def follow_up_texts(self) -> tuple[str, ...]:
         return self._info.follow_ups
@@ -494,8 +499,15 @@ class SocketRuntimeClient:
         if envelope.session_id == self._session_id:
             if isinstance(event, events.TaskStartEvent):
                 self._running = True
+                self._active_operation_id = envelope.operation_id
                 self._notify_state_changed()
-            elif isinstance(event, events.TaskFinishEvent | events.InterruptEvent):
+            elif isinstance(event, events.TaskFinishEvent):
+                if self._active_operation_id is None or envelope.operation_id == self._active_operation_id:
+                    self._active_operation_id = None
+                    self._running = False
+                    self._notify_state_changed()
+            elif isinstance(event, events.InterruptEvent):
+                self._active_operation_id = None
                 self._running = False
                 self._notify_state_changed()
             elif isinstance(event, events.FollowUpQueueUpdatedEvent):

@@ -41,6 +41,7 @@ class FakeRuntimeClient:
 
         self._info = SessionInfoSnapshot(session_id=session_id, work_dir="/nonexistent-work-dir")
         self._running = False
+        self._active_operation_id: str | None = None
         self._follow_ups: list[str] = []
         self._state_changed = asyncio.Event()
         self._connection_lost = asyncio.Event()
@@ -51,6 +52,13 @@ class FakeRuntimeClient:
     # test controls
     def set_running(self, running: bool) -> None:
         self._running = running
+        if not running:
+            self._active_operation_id = None
+        self._state_changed.set()
+
+    def set_active_operation(self, operation_id: str) -> None:
+        self._running = True
+        self._active_operation_id = operation_id
         self._state_changed.set()
 
     def set_prefill(self, text: str | None) -> None:
@@ -126,6 +134,9 @@ class FakeRuntimeClient:
 
     def is_running(self) -> bool:
         return self._running
+
+    def active_operation_id(self) -> str | None:
+        return self._active_operation_id
 
     def follow_up_texts(self) -> tuple[str, ...]:
         return self._info.follow_ups
@@ -450,7 +461,7 @@ def test_command_while_running_is_rejected_with_notice(monkeypatch: pytest.Monke
 
 def test_esc_submits_interrupt_with_retraction_and_prefill(monkeypatch: pytest.MonkeyPatch) -> None:
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
-        client.set_running(True)
+        client.set_active_operation("turn-1")
         # Let the watcher install the interrupt handler.
         for _ in range(100):
             await asyncio.sleep(0.01)
@@ -477,6 +488,7 @@ def test_esc_submits_interrupt_with_retraction_and_prefill(monkeypatch: pytest.M
 
     interrupts = client.ops_of(op.InterruptOperation)
     assert len(interrupts) == 1
+    assert interrupts[0].expected_operation_id == "turn-1"
     assert interrupts[0].retract_unanswered_input is True
     assert interrupts[0].resume_follow_ups is True
     provider = FakeInputProvider.instance
@@ -488,6 +500,36 @@ def test_esc_submits_interrupt_with_retraction_and_prefill(monkeypatch: pytest.M
     prefill_index = provider.call_log.index(("prefill", "interrupted text"))
     running_cleared_index = provider.call_log.index(("agent_running", False))
     assert running_cleared_index < prefill_index
+
+
+def test_esc_latch_clears_when_queue_starts_before_idle_is_observed(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client.set_active_operation("turn-1")
+        provider = FakeInputProvider.instance
+        assert provider is not None
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            if provider.interrupt_handler is not None:
+                break
+        assert provider.interrupt_handler is not None
+        provider.interrupt_handler()
+        await _settle()
+
+        # InterruptEvent(false) and the drained queue's TaskStart(true) were
+        # coalesced before the watcher ran; only the operation identity changed.
+        client.set_active_operation("queued-turn")
+        for _ in range(100):
+            await asyncio.sleep(0.01)
+            provider.interrupt_handler()
+            if len(client.ops_of(op.InterruptOperation)) == 2:
+                break
+        client.set_running(False)
+        yield UserInputPayload(text="")
+        await _settle()
+
+    client = run_scenario(monkeypatch, script)
+    interrupts = client.ops_of(op.InterruptOperation)
+    assert [item.expected_operation_id for item in interrupts] == ["turn-1", "queued-turn"]
 
 
 def test_exit_while_running_detaches_without_interrupt(monkeypatch: pytest.MonkeyPatch) -> None:

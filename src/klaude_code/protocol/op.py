@@ -249,6 +249,10 @@ class InterruptOperation(Operation):
 
     type: OperationType = OperationType.INTERRUPT
     session_id: str
+    # Optional turn identity captured by interactive frontends when the user
+    # requests the interrupt. If that turn has already ended, the interrupt is
+    # stale and must not cancel a newer turn in the same session.
+    expected_operation_id: str | None = None
     # Withdraw the interrupted user message from history when the turn
     # produced no visible output. Only frontends that restore the text into
     # their input box (TUI Esc) should set this — otherwise the message would

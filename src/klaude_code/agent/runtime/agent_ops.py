@@ -1133,11 +1133,26 @@ class AgentOperationHandler:
         )
 
     async def interrupt(
-        self, session_id: str, *, retract_unanswered_input: bool = False, resume_follow_ups: bool = False
-    ) -> None:
+        self,
+        session_id: str,
+        *,
+        expected_operation_id: str | None = None,
+        retract_unanswered_input: bool = False,
+        resume_follow_ups: bool = False,
+    ) -> bool:
         runtime = self._get_session_actor(session_id)
         if runtime is None:
-            return
+            return False
+        if expected_operation_id is not None:
+            active_root = runtime.snapshot().active_root_task
+            if active_root is None or active_root.operation_id != expected_operation_id:
+                log_debug(
+                    f"Ignoring stale interrupt for {session_id}: "
+                    f"expected operation {expected_operation_id}, "
+                    f"active operation {active_root.operation_id if active_root is not None else None}",
+                    debug_type=DebugType.EXECUTION,
+                )
+                return False
         agent = runtime.get_agent()
         show_notice = True
         retracted_text: str | None = None
@@ -1167,7 +1182,7 @@ class AgentOperationHandler:
             task.cancel()
         pending_tasks = [task for _task_id, task in tasks_to_cancel if not task.done()]
         if not pending_tasks:
-            return
+            return True
         try:
             _ = await asyncio.wait_for(
                 asyncio.gather(*pending_tasks, return_exceptions=True),
@@ -1178,6 +1193,7 @@ class AgentOperationHandler:
                 f"Interrupt timeout while waiting task cancellation for: {session_id}",
                 debug_type=DebugType.EXECUTION,
             )
+        return True
 
     async def _run_agent_task(
         self,
