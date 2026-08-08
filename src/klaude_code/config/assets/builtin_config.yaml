@@ -633,7 +633,7 @@ provider_list:
   model_list:
 
   - model_name: deepseek-flash
-    model_alias: [ v4-flash, v4-flash:no-thinking, deepseek-flash:no-thinking ]
+    model_alias: [ dsf, v4-flash, v4-flash:no-thinking, deepseek-flash:no-thinking ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
     thinking:
@@ -641,7 +641,7 @@ provider_list:
     cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
 
   - model_name: deepseek-flash:high
-    model_alias: [ v4-flash:high ]
+    model_alias: [ dsfh, v4-flash:high ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
     effort: high
@@ -650,7 +650,7 @@ provider_list:
     cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
 
   - model_name: deepseek-flash:max
-    model_alias: [ v4-flash:max ]
+    model_alias: [ dsfmax, v4-flash:max ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
     effort: max
@@ -659,7 +659,7 @@ provider_list:
     cost: { input: 1, output: 2, cache_read: 0.02, currency: CNY }
 
   - model_name: deepseek
-    model_alias: [ deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high ]
+    model_alias: [ ds, deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high ]
     model_id: deepseek-v4-pro
     context_limit: 1000000
     effort: high
@@ -668,7 +668,7 @@ provider_list:
     cost: { input: 3, output: 6, cache_read: 0.025, currency: CNY }
 
   - model_name: deepseek:max
-    model_alias: [ deepseek-pro:max, v4-pro:max ]
+    model_alias: [ dsmax, deepseek-pro:max, v4-pro:max ]
     model_id: deepseek-v4-pro
     context_limit: 1000000
     effort: max
