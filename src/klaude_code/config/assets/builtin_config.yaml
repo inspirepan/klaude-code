@@ -37,7 +37,7 @@ provider_list:
     effort: medium
     thinking:
       type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+    cost: { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 }
 
   - model_name: sonnet:low
     model_alias: [ sonnet-5:low, sonnet5:low, claude-sonnet-5:low ]
@@ -46,7 +46,7 @@ provider_list:
     effort: low
     thinking:
       type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+    cost: { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 }
 
   - model_name: opus
     model_alias: [ opus-5, opus5, claude-opus-5 ]
@@ -317,7 +317,7 @@ provider_list:
     effort: medium
     thinking:
       type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+    cost: { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 }
 
   - &sonnet_low
     model_name: sonnet:low
@@ -327,7 +327,7 @@ provider_list:
     effort: low
     thinking:
       type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+    cost: { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 }
 
   - &opus
     model_name: opus
@@ -400,7 +400,7 @@ provider_list:
     effort: medium
     thinking:
       type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+    cost: { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 }
 
   - model_name: sonnet:low
     model_alias: [ sonnet-5:low, sonnet5:low, claude-sonnet-5:low ]
@@ -409,7 +409,7 @@ provider_list:
     effort: low
     thinking:
       type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+    cost: { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 }
 
   - model_name: opus
     model_alias: [ opus-5, opus5, claude-opus-5 ]
@@ -1027,7 +1027,7 @@ provider_list:
       sort: throughput
     thinking:
       type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+    cost: { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 }
 
   - model_name: sonnet:low
     model_alias: [ sonnet-5:low, sonnet5:low, claude-sonnet-5:low ]
@@ -1038,7 +1038,7 @@ provider_list:
       sort: throughput
     thinking:
       type: adaptive
-    cost: { input: 3, output: 15, cache_read: 0.3, cache_write: 3.75 }
+    cost: { input: 2, output: 10, cache_read: 0.2, cache_write: 2.5 }
 
   - model_name: opus
     model_alias: [ opus-5, opus5, claude-opus-5 ]
