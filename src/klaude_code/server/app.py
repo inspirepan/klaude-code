@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -14,6 +15,7 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.server.headless import HeadlessRuntime
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
+from klaude_code.server.prevent_sleep import run_prevent_sleep_monitor
 from klaude_code.server.routes import headless_router, server_router, sessions_router, ws_router
 from klaude_code.server.session_live import SessionLiveState
 from klaude_code.server.session_tape import SessionEventTapes
@@ -73,10 +75,18 @@ def create_app(
         from klaude_code.server.routes.ws import attached_session_ids
 
         state.runtime.set_reclaim_exclusions_provider(attached_session_ids)
+        # The server owns the work, so it also owns the idle-sleep assertion;
+        # clients may detach while their sessions keep running.
+        prevent_sleep_task = asyncio.create_task(
+            run_prevent_sleep_monitor(state.runtime.session_registry.all_snapshots)
+        )
         try:
             yield
         finally:
             log_debug("[server] lifespan shutdown start", debug_type=DebugType.EXECUTION)
+            prevent_sleep_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await prevent_sleep_task
             log_debug("[server] lifespan shutdown: closing headless runtime", debug_type=DebugType.EXECUTION)
             await headless.aclose()
             if unregister_meta_observer is not None:

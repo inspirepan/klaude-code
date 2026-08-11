@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import atexit
 import contextlib
 import os
@@ -7,12 +8,16 @@ import signal
 import subprocess
 import sys
 import threading
+from collections.abc import Callable, Iterable
 from types import FrameType
 
+from klaude_code.control.runtime.actor import SessionActorSnapshot
 from klaude_code.log import DebugType, log_debug
+from klaude_code.server.session_state import derive_session_state_from_snapshot
 
 CAFFEINATE_TIMEOUT_SECONDS = 300
 RESTART_INTERVAL_SECONDS = 4 * 60
+MONITOR_POLL_INTERVAL_SECONDS = 5.0
 
 _lock = threading.Lock()
 _caffeinate_process: subprocess.Popen[bytes] | None = None
@@ -22,8 +27,38 @@ _cleanup_registered = False
 _signal_handlers_registered = False
 
 
+async def run_prevent_sleep_monitor(
+    snapshots_provider: Callable[[], Iterable[SessionActorSnapshot]],
+    *,
+    poll_interval: float = MONITOR_POLL_INTERVAL_SECONDS,
+) -> None:
+    """Hold a macOS idle-sleep assertion while any session actor is running.
+
+    Sessions blocked on user interaction do not count as running: a machine
+    waiting on an absent human should be allowed to sleep.
+    """
+
+    if not _is_macos():
+        return
+
+    active = False
+    try:
+        while True:
+            busy = any(derive_session_state_from_snapshot(snapshot) == "running" for snapshot in snapshots_provider())
+            if busy and not active:
+                start_prevent_sleep()
+                active = True
+            elif not busy and active:
+                stop_prevent_sleep()
+                active = False
+            await asyncio.sleep(poll_interval)
+    finally:
+        if active:
+            stop_prevent_sleep()
+
+
 def start_prevent_sleep() -> None:
-    """Prevent macOS idle sleep while TUI work is active."""
+    """Prevent macOS idle sleep while agent work is active."""
 
     global _ref_count
     with _lock:

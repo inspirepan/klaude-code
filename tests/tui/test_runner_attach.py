@@ -301,9 +301,6 @@ def run_scenario(
     monkeypatch.setattr(runner_module, "load_config", lambda: SimpleNamespace(theme="dark"))
     monkeypatch.setattr(runner_module, "install_sigint_interrupt", lambda _cb: (lambda: None))
     monkeypatch.setattr(runner_module, "settle_flicker_safe_stdout", _async_noop)
-    monkeypatch.setattr(runner_module, "start_prevent_sleep", lambda: None)
-    monkeypatch.setattr(runner_module, "stop_prevent_sleep", lambda: None)
-    monkeypatch.setattr(runner_module, "force_stop_prevent_sleep", lambda: None)
     monkeypatch.setattr(
         runner_module,
         "build_welcome_context_event",
@@ -627,9 +624,6 @@ def test_peek_mode_rejects_input(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(runner_module, "load_config", lambda: SimpleNamespace(theme="dark"))
     monkeypatch.setattr(runner_module, "install_sigint_interrupt", lambda _cb: (lambda: None))
     monkeypatch.setattr(runner_module, "settle_flicker_safe_stdout", _async_noop)
-    monkeypatch.setattr(runner_module, "start_prevent_sleep", lambda: None)
-    monkeypatch.setattr(runner_module, "stop_prevent_sleep", lambda: None)
-    monkeypatch.setattr(runner_module, "force_stop_prevent_sleep", lambda: None)
     monkeypatch.setattr(
         runner_module,
         "build_welcome_context_event",

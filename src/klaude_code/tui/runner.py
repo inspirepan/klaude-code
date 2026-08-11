@@ -53,7 +53,6 @@ from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
 from klaude_code.tui.input.pt_theme import CLASS_TOOL_RESULT, configure_pt_theme
 from klaude_code.tui.terminal.color import is_light_terminal_background
 from klaude_code.tui.terminal.control import install_sigint_interrupt
-from klaude_code.tui.terminal.prevent_sleep import force_stop_prevent_sleep, start_prevent_sleep, stop_prevent_sleep
 from klaude_code.tui.terminal.selector import (
     DEFAULT_PICKER_STYLE,
     QuestionPrompt,
@@ -147,23 +146,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         on_status_update=_set_status_lines,
         on_stream_update=_set_stream_lines,
     )
-
-    prevent_sleep_active = False
-
-    def _start_prevent_sleep_if_needed() -> None:
-        nonlocal prevent_sleep_active
-        if prevent_sleep_active:
-            return
-        start_prevent_sleep()
-        prevent_sleep_active = True
-
-    def _stop_prevent_sleep_if_needed() -> bool:
-        nonlocal prevent_sleep_active
-        if not prevent_sleep_active:
-            return False
-        stop_prevent_sleep()
-        prevent_sleep_active = False
-        return True
 
     herdr = HerdrReporter.from_env()
     local_turn_ops: set[str] = set()
@@ -289,7 +271,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
             resume_repl = await _pause_repl_for_external_input()
             restore_progress_ui = _agent_busy()
             tui_display.hide_progress_ui()
-            was_preventing_sleep = _stop_prevent_sleep_if_needed()
 
             try:
                 if request_event.source == "operation_model":
@@ -298,8 +279,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                     selected = await asyncio.to_thread(_pick_option_with_selector_style, payload)
             finally:
                 resume_repl()
-                if was_preventing_sleep:
-                    _start_prevent_sleep_if_needed()
 
             if selected is None:
                 return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
@@ -318,7 +297,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
             )
         resume_repl = await _pause_repl_for_external_input()
         tui_display.hide_progress_ui(flush_open_blocks=False)
-        was_preventing_sleep = _stop_prevent_sleep_if_needed()
 
         prompts: list[QuestionPrompt[str]] = []
         for question in payload.questions:
@@ -343,8 +321,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
             )
         finally:
             resume_repl()
-            if was_preventing_sleep:
-                _start_prevent_sleep_if_needed()
 
         if selections is None:
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
@@ -623,7 +599,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 if not peek:
                     input_provider.set_interrupt_handler(_request_interrupt_once)
                     restore_sigint = install_sigint_interrupt(_request_interrupt_once)
-                _start_prevent_sleep_if_needed()
                 continue
             if not busy and ui_busy:
                 # Debounce the idle gap between server-drained queue turns.
@@ -643,7 +618,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                     with contextlib.suppress(Exception):
                         restore_sigint()
                     restore_sigint = None
-                _stop_prevent_sleep_if_needed()
                 await _display_idle_bounded()
                 await settle_flicker_safe_stdout()
                 away_summary_coordinator.notify_task_finished()
@@ -971,7 +945,6 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         if background_tasks:
             await asyncio.gather(*background_tasks, return_exceptions=True)
 
-        force_stop_prevent_sleep()
         with contextlib.suppress(Exception):
             await away_summary_coordinator.stop()
 
