@@ -96,69 +96,13 @@ def test_cancel_suppresses_pending_settle(monkeypatch: Any) -> None:
     asyncio.run(_test())
 
 
-def test_stale_activity_parks_repaint_until_key_press(monkeypatch: Any) -> None:
+def test_width_change_repaints_without_recent_activity(monkeypatch: Any) -> None:
     async def _test() -> None:
         width = {"value": 100}
         _patch_width(monkeypatch, width)
         fired: list[int] = []
-        watcher = ResizeWatcher(
-            lambda: fired.append(width["value"]),
-            settle_seconds=0.01,
-            recent_activity_seconds=0.0,
-        )
+        watcher = ResizeWatcher(lambda: fired.append(width["value"]), settle_seconds=0.01)
 
-        width["value"] = 80
-        watcher.notify_resize()
-        await asyncio.sleep(0.05)
-        # The user may be scrolled up: no repaint yet.
-        assert fired == []
-
-        watcher.notify_user_activity()
-        assert fired == [80]
-        # Flushing is one-shot.
-        watcher.notify_user_activity()
-        assert fired == [80]
-
-    asyncio.run(_test())
-
-
-def test_parked_repaints_collapse_into_one_flush(monkeypatch: Any) -> None:
-    async def _test() -> None:
-        width = {"value": 100}
-        _patch_width(monkeypatch, width)
-        fired: list[int] = []
-        watcher = ResizeWatcher(
-            lambda: fired.append(width["value"]),
-            settle_seconds=0.01,
-            recent_activity_seconds=0.0,
-        )
-
-        width["value"] = 80
-        watcher.notify_resize()
-        await asyncio.sleep(0.05)
-        width["value"] = 60
-        watcher.notify_resize()
-        await asyncio.sleep(0.05)
-        assert fired == []
-
-        watcher.notify_user_activity()
-        assert fired == [60]
-
-    asyncio.run(_test())
-
-
-def test_recent_activity_repaints_immediately(monkeypatch: Any) -> None:
-    async def _test() -> None:
-        width = {"value": 100}
-        _patch_width(monkeypatch, width)
-        fired: list[int] = []
-        watcher = ResizeWatcher(
-            lambda: fired.append(width["value"]),
-            settle_seconds=0.01,
-            recent_activity_seconds=60.0,
-        )
-
-        watcher.notify_user_activity()
         width["value"] = 80
         watcher.notify_resize()
         await asyncio.sleep(0.05)
@@ -167,22 +111,3 @@ def test_recent_activity_repaints_immediately(monkeypatch: Any) -> None:
     asyncio.run(_test())
 
 
-def test_cancel_drops_parked_repaint(monkeypatch: Any) -> None:
-    async def _test() -> None:
-        width = {"value": 100}
-        _patch_width(monkeypatch, width)
-        fired: list[int] = []
-        watcher = ResizeWatcher(
-            lambda: fired.append(width["value"]),
-            settle_seconds=0.01,
-            recent_activity_seconds=0.0,
-        )
-
-        width["value"] = 80
-        watcher.notify_resize()
-        await asyncio.sleep(0.05)
-        watcher.cancel()
-        watcher.notify_user_activity()
-        assert fired == []
-
-    asyncio.run(_test())

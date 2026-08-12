@@ -298,12 +298,6 @@ class PromptToolkitInput(InputProviderABC):
         app._on_resize = _on_resize_with_transcript  # pyright: ignore[reportPrivateUsage]  # ty: ignore[invalid-assignment]
 
     def _handle_user_activity(self, _sender: object) -> None:
-        watcher = self._resize_watcher
-        if watcher is not None:
-            # A key press is the safe repaint moment: terminals snap the
-            # viewport to the bottom on keyboard input anyway, so flushing a
-            # parked width-change repaint here never moves what the user sees.
-            watcher.notify_user_activity()
         if self._on_user_activity is not None:
             self._on_user_activity()
 

@@ -51,13 +51,10 @@ dynamic UI while an agent task is running:
     (height-only resizes never rewrap scrollback). Do not register a separate
     SIGWINCH handler — prompt-toolkit owns the signal and re-binds it per app
     run.
-  - The repaint erases scrollback (`2J 3J H`), which yanks a scrolled-up
-    reader to the bottom, and the terminal protocol offers no way to query or
-    restore a viewport position. So width repaints are timed, not forced:
-    immediate only when the user pressed a key recently (they are at the
-    prompt, viewport already at the bottom); otherwise parked until the next
-    key press — the moment terminals snap to the bottom on their own. Do not
-    make the resize repaint unconditional.
+  - The repaint erases scrollback (`2J 3J H`) and moves a scrolled-up reader
+    to the bottom. Width repaints still run after the resize burst settles,
+    but they are unconditional so the transcript always rewraps as soon as
+    the new width is known.
 - The detail level itself lives in `tui/transcript_detail.py`, not in a bool on
   each layer. Rules when touching compact/expanded behavior:
   - "Does this event print at all" belongs in the `_HIDDEN_IN` table there.
