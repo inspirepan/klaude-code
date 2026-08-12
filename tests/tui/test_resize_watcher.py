@@ -109,5 +109,3 @@ def test_width_change_repaints_without_recent_activity(monkeypatch: Any) -> None
         assert fired == [80]
 
     asyncio.run(_test())
-
-

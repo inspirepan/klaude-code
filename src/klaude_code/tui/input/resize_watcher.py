@@ -24,6 +24,7 @@ from collections.abc import Callable
 # signal would thrash the terminal. Repaint once, when the width stops moving.
 RESIZE_SETTLE_SECONDS = 0.3
 
+
 class ResizeWatcher:
     """Collapse a resize burst into one width-changed repaint."""
 
