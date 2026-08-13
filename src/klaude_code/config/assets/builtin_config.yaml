@@ -228,9 +228,9 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 5, output: 30, cache_read: 0.5 }
 
-  - model_name: grok-4.5
-    model_alias: [ grok-4.5-latest, grok-build-latest ]
-    model_id: grok-4.5
+  - model_name: grok-4.6
+    model_alias: [ grok-4.6-latest, grok-build-latest ]
+    model_id: grok-4.6
     context_limit: 500000
     thinking:
       reasoning_effort: high
@@ -897,8 +897,8 @@ provider_list:
     context_limit: 256000
     cost: { input: 1, output: 2, cache_read: 0.2 }
 
-  - model_name: grok-4.5
-    model_id: grok-4.5
+  - model_name: grok-4.6
+    model_id: grok-4.6
     max_tokens: 128000
     context_limit: 500000
     thinking:
