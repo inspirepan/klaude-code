@@ -1,7 +1,11 @@
+import re
+from datetime import UTC, datetime
 from enum import Enum
+from functools import lru_cache
 from typing import Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from pydantic.json_schema import JsonSchemaValue
 
 from klaude_code.protocol.message import Message
@@ -42,6 +46,64 @@ class Thinking(BaseModel):
     budget_tokens: int | None = None
 
 
+_TIME_WINDOW_PATTERN = re.compile(r"^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$")
+
+_COST_PRICE_FIELDS = ("input", "output", "cache_read", "cache_write")
+
+
+@lru_cache(maxsize=64)
+def parse_time_window(window: str) -> tuple[int, int]:
+    """Parse a "HH:MM-HH:MM" window into minutes-from-midnight bounds."""
+    match = _TIME_WINDOW_PATTERN.match(window.strip())
+    if match is None:
+        raise ValueError(f"invalid time window {window!r}, expected 'HH:MM-HH:MM'")
+    start_hour, start_minute, end_hour, end_minute = (int(group) for group in match.groups())
+    if start_hour > 24 or end_hour > 24 or start_minute > 59 or end_minute > 59:
+        raise ValueError(f"invalid time window {window!r}, hour must be 0-24 and minute 0-59")
+    return start_hour * 60 + start_minute, end_hour * 60 + end_minute
+
+
+class PeakCost(BaseModel):
+    """Peak-hour price override, per million tokens.
+
+    `windows` are local clock ranges in `timezone` (e.g. "09:00-12:00"); a
+    window may cross midnight ("22:00-02:00"). A price left at 0 keeps the
+    off-peak price of the parent `Cost`.
+    """
+
+    windows: list[str] = []
+    timezone: str = "Asia/Shanghai"
+    input: float = 0.0
+    output: float = 0.0
+    cache_read: float = 0.0
+    cache_write: float = 0.0
+
+    @field_validator("windows")
+    @classmethod
+    def _validate_windows(cls, windows: list[str]) -> list[str]:
+        for window in windows:
+            parse_time_window(window)
+        return windows
+
+    def is_active(self, when: datetime) -> bool:
+        if not self.windows:
+            return False
+        try:
+            local = when.astimezone(ZoneInfo(self.timezone))
+        except (ZoneInfoNotFoundError, ValueError):
+            # Missing tz database entry: fall back to the off-peak price.
+            return False
+        minutes = local.hour * 60 + local.minute
+        for window in self.windows:
+            start, end = parse_time_window(window)
+            if start <= end:
+                if start <= minutes < end:
+                    return True
+            elif minutes >= start or minutes < end:
+                return True
+        return False
+
+
 class Cost(BaseModel):
     """Cost configuration per million tokens."""
 
@@ -50,6 +112,20 @@ class Cost(BaseModel):
     cache_read: float = 0.0  # Cache read price per million tokens
     cache_write: float = 0.0  # Cache write price per million tokens
     currency: Literal["USD", "CNY"] = "USD"  # Currency for cost display
+    peak: PeakCost | None = None  # Time-of-day price override (e.g. DeepSeek peak hours)
+
+    def at(self, when: datetime | None = None) -> "Cost":
+        """Return the price table in effect at `when` (defaults to now)."""
+        if self.peak is None:
+            return self
+        if not self.peak.is_active(when or datetime.now(UTC)):
+            return self
+        overrides: dict[str, Any] = {"peak": None}
+        for field in _COST_PRICE_FIELDS:
+            price = getattr(self.peak, field)
+            if price > 0:
+                overrides[field] = price
+        return self.model_copy(update=overrides)
 
 
 class OpenRouterProviderRouting(BaseModel):

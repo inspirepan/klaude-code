@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from klaude_code.const import THROUGHPUT_MIN_DURATION_SEC
@@ -13,16 +14,21 @@ if TYPE_CHECKING:
     from openai.types import CompletionUsage
 
 
-def calculate_cost(usage: Usage, cost_config: llm_param.Cost | None) -> None:
+def calculate_cost(usage: Usage, cost_config: llm_param.Cost | None, *, at: datetime | None = None) -> None:
     """Calculate and set cost fields on usage based on cost configuration.
 
     Note: input_tokens includes cached_tokens and cache_write_tokens, so we subtract
     both to get the actual non-cached input tokens for cost calculation.
+
+    `at` is the moment the request was made; it selects the peak or off-peak
+    price for models with time-of-day pricing.
     """
     if cost_config is None:
         return
     if not any((usage.input_tokens, usage.cached_tokens, usage.cache_write_tokens, usage.output_tokens)):
         return
+
+    cost_config = cost_config.at(at)
 
     # Set currency
     usage.currency = cost_config.currency
@@ -91,8 +97,13 @@ class MetadataTracker:
                 if time_duration >= THROUGHPUT_MIN_DURATION_SEC:
                     self._usage.throughput_tps = self._usage.output_tokens / time_duration
 
-        # Calculate cost if config is available
-        calculate_cost(self._usage, self._cost_config)
+        # Calculate cost if config is available; price by request start time so a
+        # long response is billed at the tier it started in.
+        calculate_cost(
+            self._usage,
+            self._cost_config,
+            at=datetime.fromtimestamp(self._request_start_time, tz=UTC),
+        )
 
         return self._usage
 
