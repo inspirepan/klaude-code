@@ -188,6 +188,18 @@ async def _submit_user_turn(state: ServerAppState, run_op: op.RunAgentOperation)
     if busy:
         await runtime.submit(op.FollowUpAgentOperation(session_id=session_id, input=run_op.input))
         await _emit_follow_up_queue_event(state, session_id)
+        # The turn was absorbed into the follow-up queue, so the run operation
+        # itself will never reach the registry. Clients that track it as a
+        # foreground turn (TUI local_turn_ops) need a terminal lifecycle event,
+        # or their busy mirror sticks forever — a permanent "Loading…" prompt.
+        await runtime.emit_event(
+            events.OperationFinishedEvent(
+                session_id=session_id,
+                operation_id=run_op.id,
+                operation_type=run_op.type.value,
+                status="completed",
+            )
+        )
         return
     if state.headless is not None:
         # Guard the submit-to-task-start window against the follow-up drain.

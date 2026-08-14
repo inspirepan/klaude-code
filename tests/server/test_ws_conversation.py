@@ -3,7 +3,15 @@ from __future__ import annotations
 
 from klaude_code.protocol import message
 
-from .conftest import AppEnv, collect_events_until, consume_ws_handshake, extract_text, send_user_message, usage
+from .conftest import (
+    AppEnv,
+    collect_events_until,
+    consume_ws_handshake,
+    extract_text,
+    op_frame,
+    send_user_message,
+    usage,
+)
 
 
 def test_send_message_and_receive_events(app_env: AppEnv) -> None:
@@ -116,3 +124,52 @@ def test_op_after_actor_reclaim_rehydrates_agent(app_env: AppEnv) -> None:
     assert "error" not in event_types
     assert "welcome" not in event_types
     assert extract_text(events) == "rehydrated reply"
+
+
+def test_run_op_queued_while_busy_gets_terminal_lifecycle_event(app_env: AppEnv) -> None:
+    """A RunAgentOperation absorbed into the follow-up queue must still finish.
+
+    The TUI tracks its submitted turn ids and holds the prompt busy until a
+    terminal lifecycle event arrives. The busy conversion used to drop the
+    operation silently, leaving the client on a permanent "Loading…" prompt.
+    """
+    from klaude_code.protocol import op
+
+    app_env.fake_llm.enqueue(
+        message.AssistantTextDelta(content="slow "),
+        message.AssistantTextDelta(content="reply"),
+        message.AssistantMessage(
+            parts=[message.TextPart(text="slow reply")],
+            stop_reason="stop",
+            usage=usage(input_tokens=5, output_tokens=2),
+        ),
+        delay_s=0.3,
+    )
+    # Reply for the queued follow-up once the drain runs it.
+    app_env.fake_llm.enqueue(
+        message.AssistantMessage(
+            parts=[message.TextPart(text="queued reply")],
+            stop_reason="stop",
+            usage=usage(input_tokens=5, output_tokens=2),
+        ),
+    )
+
+    session_id = app_env.create_session()
+    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
+        consume_ws_handshake(websocket)
+
+        send_user_message(websocket, session_id, "first turn")
+        _ = collect_events_until(websocket, "task.start")
+
+        # Second turn while the first is still streaming: absorbed as follow-up.
+        queued_op = op.RunAgentOperation(session_id=session_id, input=message.UserInputPayload(text="second turn"))
+        websocket.send_json(op_frame(queued_op))
+
+        # The first turn keeps streaming; collect until its task.finish. The
+        # converted op's lifecycle event and the queue update arrive in between.
+        events = collect_events_until(websocket, "task.finish")
+
+    event_types = [event["event_type"] for event in events]
+    assert "follow.up.queue.updated" in event_types
+    finished_ids = [event["event"]["operation_id"] for event in events if event["event_type"] == "operation.finished"]
+    assert queued_op.id in finished_ids
