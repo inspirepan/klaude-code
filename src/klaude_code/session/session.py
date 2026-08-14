@@ -677,16 +677,25 @@ class Session(BaseModel):
                 pending_tool_calls.clear()
 
             # Emit task boundary before user message to produce inter-step separators during replay
-            if isinstance(it, message.UserMessage) and had_any_step:
-                yield from _flush_task_finish(msg_ts)
-                yield events.TaskStartEvent(
-                    session_id=self.id,
-                    sub_agent_state=self.sub_agent_state,
-                    model_id=self.model_name,
-                    effort=self.model_effort,
-                    timestamp=msg_ts,
-                    parent_session_id=parent_session_id,
-                )
+            if isinstance(it, message.UserMessage):
+                if had_any_step:
+                    yield from _flush_task_finish(msg_ts)
+                    yield events.TaskStartEvent(
+                        session_id=self.id,
+                        sub_agent_state=self.sub_agent_state,
+                        model_id=self.model_name,
+                        effort=self.model_effort,
+                        timestamp=msg_ts,
+                        parent_session_id=parent_session_id,
+                    )
+                # A retracted turn leaves only its InterruptEntry behind; with
+                # no assistant step there is no pending finish, so the flush
+                # cannot consume the interrupt flag. Leaked across this turn
+                # boundary it would suppress the TaskFinishEvent of a COMPLETED
+                # turn — a dangling TaskStart that revives the spinner
+                # ("Loading…") on every tape rebuild (resize/Ctrl+O) of an
+                # idle session.
+                prev_step_interrupted = False
 
             if self.need_step_start(prev_item, it):
                 yield events.StepStartEvent(session_id=self.id, timestamp=msg_ts)
@@ -849,6 +858,11 @@ class Session(BaseModel):
                     yield events.TaskMetadataEvent(
                         session_id=self.id, metadata=mt, is_partial=mt.is_partial, timestamp=msg_ts
                     )
+                    # The metadata item is written exactly at turn end, so the
+                    # finish is settled here (matching the live metadata→finish
+                    # order). Deferring it to the next boundary let a following
+                    # retracted turn's InterruptEntry suppress it.
+                    yield from _flush_task_finish(msg_ts)
                 case message.TaskFileChangeSummaryEntry() as summary:
                     yield events.TaskFileChangeSummaryEvent(session_id=self.id, summary=summary, timestamp=msg_ts)
                 case message.DeveloperMessage() as dm:
