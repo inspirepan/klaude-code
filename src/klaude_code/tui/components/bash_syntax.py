@@ -1,5 +1,6 @@
 """Bash command syntax highlighting for terminal display."""
 
+import functools
 import re
 import shlex
 from typing import Any
@@ -243,8 +244,14 @@ def highlight_bash_command(command: str) -> Text:
     return result
 
 
+@functools.lru_cache(maxsize=512)
 def summarize_bash_command(command: str) -> str:
-    """Return a conservative one-line summary of a shell command."""
+    """Return a conservative one-line summary of a shell command.
+
+    Cached: the status bar re-summarizes the same command on every spinner
+    refresh, and shlex parsing is the hot path. Output only depends on the
+    command string and the process cwd/home, both stable for the process.
+    """
 
     command = _strip_heredoc_bodies(command)
     source = " ".join(command.replace("\\\n", " ").split())

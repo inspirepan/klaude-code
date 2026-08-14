@@ -955,6 +955,7 @@ class DisplayStateMachine:
         self._pending_sub_agent_results: dict[str, events.ToolResultEvent] = {}
         self._unspawned_sub_agents_by_batch: dict[str, int] = {}
         self._last_time_marker_ts: float | None = None
+        self._rebuilding: bool = False
 
     @property
     def _compact(self) -> bool:
@@ -1284,6 +1285,10 @@ class DisplayStateMachine:
         return text
 
     def _spinner_update_commands(self) -> list[RenderCommand]:
+        if self._rebuilding:
+            # A rebuild filters SpinnerUpdate out (_REBUILD_SUPPRESSED_COMMANDS);
+            # computing status lines per taped event dominated large repaints.
+            return []
         sub_agent_lines = self._sub_agent_status_lines()
         side_question_lines = self._side_question_status_lines()
         if sub_agent_lines:
@@ -1325,6 +1330,7 @@ class DisplayStateMachine:
         # A rebuild repaints the terminal view from the display's event tape; clear
         # session state so it is reconstructed from the taped events.
         self._reset_sessions()
+        self._rebuilding = True
         return [SpinnerStop(), PrintBlankLine()]
 
     def end_rebuild(self, *, drop_dangling_tasks: bool = False) -> list[RenderCommand]:
@@ -1343,6 +1349,7 @@ class DisplayStateMachine:
         Repaints from the display's own tape (toggle/refresh) must NOT drop —
         their tape does include the live turn.
         """
+        self._rebuilding = False
         if drop_dangling_tasks:
             for session in self._sessions.values():
                 session.task_active = False
@@ -1385,6 +1392,9 @@ class DisplayStateMachine:
         return event_type in self._EVENT_HANDLERS
 
     def transition(self, event: events.Event) -> list[RenderCommand]:
+        # Self-heal: a rebuild that died mid-loop never ran end_rebuild; the
+        # flag must not keep suppressing live spinner updates forever.
+        self._rebuilding = False
         return self._transition(event)
 
     def _transition(self, event: events.Event) -> list[RenderCommand]:
