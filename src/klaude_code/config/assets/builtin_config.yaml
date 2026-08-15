@@ -840,7 +840,7 @@ provider_list:
     cost: { input: 3, output: 15, cache_read: 0.3 }
 
   - model_name: deepseek-flash
-    model_alias: [ v4-flash, deepseek-v4-flash ]
+    model_alias: [ dsf, v4-flash, deepseek-v4-flash ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
     thinking:
@@ -848,7 +848,7 @@ provider_list:
     cost: &opencode_go_flash_cost { input: 0.14, output: 0.28, cache_read: 0.0028 }
 
   - model_name: deepseek-flash:high
-    model_alias: [ v4-flash:high ]
+    model_alias: [ dsfh, v4-flash:high ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
     thinking:
@@ -856,7 +856,7 @@ provider_list:
     cost: *opencode_go_flash_cost
 
   - model_name: deepseek-flash:max
-    model_alias: [ v4-flash:max ]
+    model_alias: [ dsfmax, v4-flash:max ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
     thinking:
@@ -864,7 +864,7 @@ provider_list:
     cost: *opencode_go_flash_cost
 
   - model_name: deepseek
-    model_alias: [ deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high, deepseek-v4-pro ]
+    model_alias: [ ds, deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high, deepseek-v4-pro ]
     model_id: deepseek-v4-pro
     context_limit: 1000000
     thinking:
@@ -872,7 +872,7 @@ provider_list:
     cost: &opencode_go_pro_cost { input: 0.435, output: 0.87, cache_read: 0.003625 }
 
   - model_name: deepseek:max
-    model_alias: [ deepseek-pro:max, v4-pro:max, deepseek-v4-pro:max ]
+    model_alias: [ dsmax, deepseek-pro:max, v4-pro:max, deepseek-v4-pro:max ]
     model_id: deepseek-v4-pro
     context_limit: 1000000
     thinking:
