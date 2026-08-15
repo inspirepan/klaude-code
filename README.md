@@ -174,7 +174,7 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 | `deepseek` | `DEEPSEEK_API_KEY` |
 | `moonshot-cn`, `moonshot-ai` | `MOONSHOT_API_KEY` |
 | `minimax` | `MINIMAX_API_KEY` |
-| `opencode-go`, `opencode-go-anthropic` | `OPENCODE_API_KEY` |
+| `opencode-go`, `opencode-go-responses` | `OPENCODE_API_KEY` |
 | `codex` | OAuth via `klaude auth login codex` |
 | `openrouter` | `OPENROUTER_API_KEY` |
 
