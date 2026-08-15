@@ -514,6 +514,21 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         if not _agent_busy():
             tui_display.hide_progress_ui()
 
+    # Follow terminal light/dark switches (mode-2031 reports) only when the
+    # user did not pin a theme in config. The startup OSC-11 detection above
+    # seeds the current value; each report re-themes both UI layers and
+    # repaints the transcript from the event tape.
+    current_theme = theme
+
+    def _on_terminal_color_scheme_change(new_theme: str) -> None:
+        nonlocal current_theme
+        if new_theme == current_theme:
+            return
+        current_theme = new_theme
+        configure_pt_theme(new_theme)
+        tui_display.set_theme(new_theme)
+        _request_refresh_transcript()
+
     input_provider = PromptToolkitInput(
         pre_prompt=_pre_prompt,
         on_prompt_start=_on_prompt_start,
@@ -527,6 +542,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         command_info_provider=get_command_info_list,
         request_toggle_transcript=_request_toggle_transcript,
         request_refresh_transcript=_request_refresh_transcript,
+        on_color_scheme_change=_on_terminal_color_scheme_change if cfg.theme is None else None,
     )
     input_provider.set_dequeue_pending_messages(_dequeue_pending_messages)
 

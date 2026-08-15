@@ -170,7 +170,18 @@ def _build_style_rules(palette: Palette) -> list[tuple[str, str]]:
     ]
 
 
+# One Style per theme: wrapping ``get_base_style`` in a DynamicStyle makes
+# prompt_toolkit re-query it on every render, and a stable object per theme
+# keeps its attrs cache valid until the theme actually flips.
+_style_cache: dict[str, Style] = {}
+
+
 def get_base_style() -> Style:
     """Return the shared prompt_toolkit Style for the current theme."""
 
-    return Style(_build_style_rules(_palette()))
+    _ensure_configured()
+    style = _style_cache.get(_theme_name)
+    if style is None:
+        style = Style(_build_style_rules(_palette()))
+        _style_cache[_theme_name] = style
+    return style

@@ -73,6 +73,7 @@ def create_key_bindings(
     request_interrupt: Callable[[], None] | None = None,
     is_interrupt_available: Callable[[], bool] | None = None,
     request_toggle_transcript: Callable[[], None] | None = None,
+    on_color_scheme_change: Callable[[str], None] | None = None,
     paste_dir: Path | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
@@ -91,6 +92,8 @@ def create_key_bindings(
         is_agent_running: Returns True while Tab can switch between follow-up and `/btw` input.
         request_interrupt: Requests interruption of the currently running agent task.
         is_interrupt_available: Returns True while Escape can interrupt a task.
+        on_color_scheme_change: Called with "dark"/"light" when the terminal
+            pushes a mode-2031 color-scheme report (system theme switch).
 
     Returns:
         KeyBindings instance with all REPL handlers configured
@@ -445,6 +448,23 @@ def create_key_bindings(
         if marker:
             with contextlib.suppress(Exception):
                 event.current_buffer.insert_text(marker)  # pyright: ignore[reportUnknownMemberType]
+
+    if on_color_scheme_change is not None:
+
+        @kb.add(Keys.Ignore)
+        def _(event: KeyPressEvent) -> None:
+            """Turn mode-2031 color-scheme reports into theme switches.
+
+            All other ``Keys.Ignore`` presses (e.g. CSI-u key releases) keep
+            prompt_toolkit's default no-op behavior.
+            """
+            from klaude_code.tui.input.color_scheme import theme_from_key_data
+
+            data = getattr(event, "data", "")
+            theme = theme_from_key_data(data) if isinstance(data, str) else None
+            if theme is not None and on_color_scheme_change is not None:
+                with contextlib.suppress(Exception):
+                    on_color_scheme_change(theme)
 
     @kb.add(Keys.BracketedPaste, filter=enabled)
     def _(event: KeyPressEvent) -> None:

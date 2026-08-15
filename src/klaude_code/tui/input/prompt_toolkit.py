@@ -23,6 +23,7 @@ from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.processors import Processor, Transformation, TransformationInput
 from prompt_toolkit.output.color_depth import ColorDepth
+from prompt_toolkit.styles import DynamicStyle
 from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.app.ports import InputProviderABC
@@ -33,6 +34,11 @@ from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.common import format_model_with_effort
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
+from klaude_code.tui.input.color_scheme import (
+    COLOR_SCHEME_REPORT_DISABLE,
+    COLOR_SCHEME_REPORT_ENABLE,
+    install_color_scheme_sequences,
+)
 from klaude_code.tui.input.completers import (
     AT_TOKEN_PATTERN,
     SKILL_TOKEN_PATTERN,
@@ -221,6 +227,7 @@ class PromptToolkitInput(InputProviderABC):
         refresh_status: Callable[[], None] | None = None,
         request_toggle_transcript: Callable[[], None] | None = None,
         request_refresh_transcript: Callable[[], None] | None = None,
+        on_color_scheme_change: Callable[[str], None] | None = None,
     ):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
@@ -238,6 +245,7 @@ class PromptToolkitInput(InputProviderABC):
         self._refresh_status = refresh_status
         self._request_toggle_transcript = request_toggle_transcript
         self._request_refresh_transcript = request_refresh_transcript
+        self._on_color_scheme_change = on_color_scheme_change
         self._resize_watcher: ResizeWatcher | None = None
         self._next_prefill_text: str | None = None
         self._resumed_buffer_text: str | None = None
@@ -269,6 +277,9 @@ class PromptToolkitInput(InputProviderABC):
         # parsed, so a leaked kitty keyboard mode cannot turn Ctrl+<key> into a
         # task-interrupting Escape plus garbage text.
         install_csi_u_sequences()
+        # Same defense for mode-2031 color-scheme reports, which additionally
+        # feed the theme-switch callback when one is configured.
+        install_color_scheme_sequences()
 
         self._session = self._build_prompt_session(prompt)
         self._session.app.key_processor.before_key_press += self._handle_user_activity
@@ -483,6 +494,7 @@ class PromptToolkitInput(InputProviderABC):
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
             request_toggle_transcript=self._request_toggle_transcript,
+            on_color_scheme_change=self._handle_color_scheme_change if self._on_color_scheme_change else None,
         )
 
         return PromptSession(
@@ -505,8 +517,19 @@ class PromptToolkitInput(InputProviderABC):
             # instead of being snapped to the xterm-256 palette.
             color_depth=ColorDepth.TRUE_COLOR,
             # Pull the shared theme so hex colors here match the rich UI.
-            style=get_base_style(),
+            # DynamicStyle re-queries per render, so a runtime theme switch
+            # (mode-2031 report) restyles the prompt without a rebuild.
+            style=DynamicStyle(get_base_style),
         )
+
+    def _handle_color_scheme_change(self, theme: str) -> None:
+        """Forward a terminal color-scheme report and repaint the bottom UI."""
+        callback = self._on_color_scheme_change
+        if callback is None:
+            return
+        with contextlib.suppress(Exception):
+            callback(theme)
+        self._invalidate_app()
 
     def _build_placeholder(self) -> FormattedText:
         """Build placeholder showing repo/directory name, Git branch, and model.
@@ -1110,19 +1133,31 @@ class PromptToolkitInput(InputProviderABC):
         # Clear any kitty keyboard-protocol flags leaked into the terminal by
         # a previous program; the REPL expects legacy key encoding. Terminals
         # without kitty protocol silently ignore the sequence.
+        follow_color_scheme = self._on_color_scheme_change is not None
         with contextlib.suppress(Exception):
             sys.stdout.write(KITTY_KEYBOARD_RESET)
+            if follow_color_scheme:
+                sys.stdout.write(COLOR_SCHEME_REPORT_ENABLE)
             sys.stdout.flush()
 
-        # Keep one StdoutProxy alive for the entire input session instead of
-        # rebuilding it on every prompt_async iteration. The proxy's close()
-        # joins its background flush thread, which can block up to
-        # ``sleep_between_writes`` seconds waiting for the throttle sleep to
-        # finish — that delay was visible as an empty input area between a
-        # follow-up submission and the next prompt being rendered.
-        with flicker_safe_patch_stdout():
-            async for payload in self._iter_inputs_inner():
-                yield payload
+        try:
+            # Keep one StdoutProxy alive for the entire input session instead of
+            # rebuilding it on every prompt_async iteration. The proxy's close()
+            # joins its background flush thread, which can block up to
+            # ``sleep_between_writes`` seconds waiting for the throttle sleep to
+            # finish — that delay was visible as an empty input area between a
+            # follow-up submission and the next prompt being rendered.
+            with flicker_safe_patch_stdout():
+                async for payload in self._iter_inputs_inner():
+                    yield payload
+        finally:
+            # Leaving the mode set would spray CSI ? 997 reports into the
+            # shell on every later theme switch.
+            if follow_color_scheme:
+                with contextlib.suppress(Exception):
+                    stream = getattr(sys, "__stdout__", None) or sys.stdout
+                    stream.write(COLOR_SCHEME_REPORT_DISABLE)
+                    stream.flush()
 
     async def _iter_inputs_inner(self) -> AsyncIterator[UserInputPayload]:
         while True:

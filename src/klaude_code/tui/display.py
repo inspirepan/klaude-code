@@ -301,6 +301,11 @@ class TUIDisplay(DisplayABC):
         with contextlib.suppress(Exception):
             self._renderer.refresh_prompt_status()
 
+    def set_theme(self, theme: str | None) -> None:
+        """Swap the rich palette at runtime; pair with a RefreshDisplayEvent
+        so the already-printed transcript repaints in the new colors."""
+        self._renderer.set_theme(theme)
+
     def set_model_name(self, model_name: str | None) -> None:
         """Set model name for terminal title updates."""
         self._machine.set_model_name(model_name)

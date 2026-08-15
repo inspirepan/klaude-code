@@ -304,6 +304,17 @@ class TUICommandRenderer:
         self._continuous_block_session_id: str | None = None
         self._detail = detail if detail is not None else TranscriptDetail()
 
+    def set_theme(self, theme: str | None) -> None:
+        """Swap palettes at runtime (terminal light/dark switch).
+
+        Pushing the new app + markdown themes shadows every key of the
+        previous pair on the console's theme stack; already-printed
+        scrollback keeps its old colors until the next full repaint.
+        """
+        self.themes = get_theme(theme)
+        self.console.push_theme(self.themes.app_theme)
+        self.console.push_theme(self.themes.markdown_theme)
+
     def set_transcript_detail(self, detail: Detail) -> None:
         # The preview only exists in compact mode, and the rebuild that follows
         # a toggle re-derives it from the tape; drop the current one either way
