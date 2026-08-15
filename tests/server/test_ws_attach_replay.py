@@ -83,7 +83,7 @@ def _run_one_turn(app_env: AppEnv, session_id: str, text: str, reply: str) -> No
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
         brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
-        if brief["state"] == "idle":
+        if brief["state"] == "completed":
             return
         time.sleep(0.05)
     raise AssertionError("turn did not finish in time")
@@ -372,7 +372,7 @@ def test_send_steer_interrupts_and_injects(app_env: AppEnv) -> None:
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
         brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
-        if brief["state"] == "idle":
+        if brief["state"] == "completed":
             break
         time.sleep(0.05)
 

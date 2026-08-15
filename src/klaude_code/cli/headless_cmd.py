@@ -223,18 +223,16 @@ def _fetch_output(
     return _api("GET", f"/api/headless/sessions/{target}/output", params=params)
 
 
-_PS_COLUMNS = ("ID", "NAME", "TITLE", "STATE", "MODEL", "DIR", "ACTIVITY")
+_PS_COLUMNS = ("ID", "NAME", "TITLE", "STATE", "LAST", "MODEL", "DIR", "ACTIVITY")
 
 
 def _ps_table_rows(rows: list[dict[str, Any]]) -> list[tuple[str, ...]]:
     table_rows: list[tuple[str, ...]] = []
     for row in rows:
         state = str(row.get("state", ""))
-        activity = row.get("activity")
-        if not activity:
-            updated_at = float(row.get("updated_at") or 0.0)
-            prefix = "failed" if state == "failed" else "done"
-            activity = f"{prefix} {_format_relative(updated_at)}" if updated_at else "-"
+        updated_at = float(row.get("updated_at") or 0.0)
+        last_active = _format_relative(updated_at) if updated_at else "-"
+        activity = row.get("activity") or "-"
         if row.get("parent_session_id"):
             name = f"└─ {row.get('agent_type') or 'sub-agent'}"
         else:
@@ -245,6 +243,7 @@ def _ps_table_rows(rows: list[dict[str, Any]]) -> list[tuple[str, ...]]:
                 name,
                 _shorten(str(row.get("title") or "-"), 32),
                 state,
+                last_active,
                 _shorten(str(row.get("model") or "-"), 20),
                 _shorten(_abbrev_home(str(row.get("work_dir") or "-")), 28),
                 _shorten(str(activity), 60),
@@ -267,9 +266,9 @@ _PS_STATE_STYLES = {
     "waiting_input": "yellow",
     "queued": "cyan",
     "failed": "red",
-    "idle": "dim",
+    "completed": "dim",
 }
-_PS_COLUMN_STYLES = {"ID": "cyan", "MODEL": "dim", "DIR": "dim"}
+_PS_COLUMN_STYLES = {"ID": "cyan", "LAST": "dim", "MODEL": "dim", "DIR": "dim"}
 
 
 def _build_ps_rich_table(rows: list[dict[str, Any]]) -> Any:
@@ -287,7 +286,7 @@ def _build_ps_rich_table(rows: list[dict[str, Any]]) -> Any:
             if column == "STATE":
                 style = _PS_STATE_STYLES.get(state, "")
             elif column == "ACTIVITY":
-                style = "dim" if state in ("idle", "failed") else ""
+                style = "dim" if state in ("idle", "completed", "failed") else ""
             else:
                 style = _PS_COLUMN_STYLES.get(column, "")
             rich_cells.append(Text(cell, style=style))
@@ -630,16 +629,18 @@ def ps_command(
 ) -> None:
     """List sessions known to the server.
 
-    Active sessions (queued, running, waiting_input) always sort first, then by
-    most recently updated. With TARGETs — ids, unique prefixes, or names;
+    Active sessions (queued, running, waiting_input) always sort first, then
+    idle (attached) ones, then history — each group by most recently updated. With TARGETs — ids, unique prefixes, or names;
     space- or comma-separated — show only those sessions. This is the usual
     form for a calling agent: check exactly the agents it spawned, nothing else.
 
     \b
       klaude ps a3f2c1,9b01d4,fix-tests --json
 
-    ACTIVITY is the current tool call when running, the pending request when
-    waiting_input, and relative finish time when idle/failed.
+    STATE is completed once a session's last turn is over and no client is
+    attached; idle means a TUI is attached and waiting at the prompt. LAST is
+    the relative time of the session's most recent activity. ACTIVITY is the
+    current tool call when running and the pending request when waiting_input.
 
     Sub-agent sessions spawned by an Agent tool call are hidden by default;
     --tree lists them under their parent (the limit counts top-level rows).
@@ -787,7 +788,7 @@ def wait_command(
     instead. Give TARGETs, --group, or both.
 
     \b
-    Exit codes: 0 all idle · 2 some waiting_input · 3 some failed · 124 timeout.
+    Exit codes: 0 all completed · 2 some waiting_input · 3 some failed · 124 timeout.
 
     \b
     Examples:
@@ -835,7 +836,7 @@ def output_command(
     group: str | None = typer.Option(None, "--group", help="All sessions spawned with this group"),
     turns: int | None = typer.Option(None, "--turns", metavar="N", help="Last N user+assistant turns"),
     transcript: bool = typer.Option(False, "--transcript", help="Full transcript rendered as plain text"),
-    follow: bool = typer.Option(False, "--follow", help="Stream live output until idle (single target)"),
+    follow: bool = typer.Option(False, "--follow", help="Stream live output until the turn finishes (single target)"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
     """Print sessions' output. Default: the last assistant message only.

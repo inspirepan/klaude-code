@@ -18,6 +18,7 @@ from klaude_code.protocol import message, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.sub_agent import get_all_names
 from klaude_code.server.headless import HeadlessRuntime, format_tool_call_activity
+from klaude_code.server.routes.ws import input_attached_session_ids
 from klaude_code.server.session_index import SessionSummary
 from klaude_code.server.session_state import derive_session_state_from_snapshot, live_descendant_session_ids
 from klaude_code.server.state import ServerAppState, get_server_state
@@ -27,10 +28,10 @@ router = APIRouter(prefix="/api/headless", tags=["headless"])
 STATE_DEP: Final = Depends(get_server_state)
 STATES_QUERY: Final = Query(None, alias="state")
 
-type HeadlessState = Literal["queued", "running", "waiting_input", "idle", "failed"]
+type HeadlessState = Literal["queued", "running", "waiting_input", "idle", "completed", "failed"]
 
 ACTIVE_STATES: Final = ("queued", "running", "waiting_input")
-VALID_STATES: Final = ("queued", "running", "waiting_input", "idle", "failed")
+VALID_STATES: Final = ("queued", "running", "waiting_input", "idle", "completed", "failed")
 
 
 # -- shared helpers --
@@ -107,7 +108,12 @@ def _headless_state(state: ServerAppState, headless: HeadlessRuntime, session_id
         return "running"
     if headless.tracker.is_failed(session_id):
         return "failed"
-    return "idle"
+    # No work left: a live TUI attach means a human is at the prompt (idle);
+    # otherwise the session's last turn is over (completed). Headless sessions
+    # never attach, so they flip to completed the moment the turn finishes.
+    if session_id in input_attached_session_ids():
+        return "idle"
+    return "completed"
 
 
 def _pending_requests(state: ServerAppState, session_id: str) -> list[PendingUserInteractionRequest]:
@@ -416,7 +422,13 @@ async def list_headless_sessions(
     if states:
         rows = [row for row in rows if row["state"] in states]
 
-    rows.sort(key=lambda row: (0 if row["state"] in ACTIVE_STATES else 1, -float(row["updated_at"])))
+    # Active sessions first, then attached-but-quiet ones, then history.
+    rows.sort(
+        key=lambda row: (
+            0 if row["state"] in ACTIVE_STATES else 1 if row["state"] == "idle" else 2,
+            -float(row["updated_at"]),
+        )
+    )
     if limit > 0 and not targets:
         if include_children:
             # The limit counts top-level sessions; their children ride along.

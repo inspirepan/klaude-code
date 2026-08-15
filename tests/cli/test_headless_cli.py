@@ -42,8 +42,8 @@ def test_split_targets_mixes_spaces_and_commas() -> None:
 
 
 def test_exit_code_severity_order() -> None:
-    assert _exit_code_for_states(["idle", "idle"]) == 0
-    assert _exit_code_for_states(["idle", "waiting_input"]) == EXIT_WAITING_INPUT
+    assert _exit_code_for_states(["completed", "idle"]) == 0
+    assert _exit_code_for_states(["completed", "waiting_input"]) == EXIT_WAITING_INPUT
     assert _exit_code_for_states(["waiting_input", "failed"]) == EXIT_FAILED
 
 
@@ -104,6 +104,24 @@ def test_watch_loop_supports_finite_refreshes() -> None:
     assert sleeps == [0.5]
 
 
+def test_ps_table_rows_show_last_active_and_plain_activity() -> None:
+    import time
+
+    from klaude_code.cli.headless_cmd import _PS_COLUMNS, _ps_table_rows  # pyright: ignore[reportPrivateUsage]
+
+    now = time.time()
+    rows = [
+        {"id": "a" * 32, "state": "completed", "updated_at": now - 300, "title": "t", "work_dir": "/w"},
+        {"id": "b" * 32, "state": "running", "updated_at": now, "activity": "Bash: ls"},
+    ]
+    table = _ps_table_rows(rows)
+    last_index = _PS_COLUMNS.index("LAST")
+    activity_index = _PS_COLUMNS.index("ACTIVITY")
+    assert table[0][last_index] == "5m ago"
+    assert table[0][activity_index] == "-"
+    assert table[1][activity_index] == "Bash: ls"
+
+
 def test_ps_watch_and_json_are_mutually_exclusive() -> None:
     from klaude_code.cli.main import app
 
@@ -147,17 +165,17 @@ def test_output_follow_rejects_incompatible_options(args: list[str], message: st
     assert message in result.output
 
 
-def test_output_follow_idle_returns_without_connecting(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_output_follow_completed_returns_without_connecting(monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.cli.main import app
 
     monkeypatch.setattr(
         headless_cmd,
         "_fetch_output",
-        lambda *_args, **_kwargs: {"id": "session-id", "state": "idle", "pending": False, "output": "old"},
+        lambda *_args, **_kwargs: {"id": "session-id", "state": "completed", "pending": False, "output": "old"},
     )
 
     async def fail_if_connected(*_args: object, **_kwargs: object) -> int:
-        raise AssertionError("idle follow must not connect")
+        raise AssertionError("completed follow must not connect")
 
     monkeypatch.setattr(headless_cmd, "_follow_output_stream", fail_if_connected)
 
@@ -201,14 +219,14 @@ def test_follow_stream_prints_each_delta_once_and_exits_on_finish(
         return FakeWebSocket()
 
     def fetch_rows(*_args: object, **_kwargs: object) -> list[dict[str, Any]]:
-        return [{"id": "session-id", "state": "idle" if finished else "running", "pending": False}]
+        return [{"id": "session-id", "state": "completed" if finished else "running", "pending": False}]
 
     monkeypatch.setattr(websocket_client, "unix_connect", fake_connect)
     monkeypatch.setattr(headless_cmd, "_fetch_rows", fetch_rows)
     monkeypatch.setattr(
         headless_cmd,
         "_fetch_output",
-        lambda *_args, **_kwargs: {"id": "session-id", "state": "idle", "output": "hello world"},
+        lambda *_args, **_kwargs: {"id": "session-id", "state": "completed", "output": "hello world"},
     )
 
     exit_code = asyncio.run(headless_cmd._follow_output_stream("session-id", initial_output=""))  # pyright: ignore[reportPrivateUsage]
@@ -236,14 +254,14 @@ def test_follow_stream_fills_connection_race_from_final_output(
     monkeypatch.setattr(
         headless_cmd,
         "_fetch_rows",
-        lambda *_args, **_kwargs: [{"id": "session-id", "state": "idle", "pending": False}],
+        lambda *_args, **_kwargs: [{"id": "session-id", "state": "completed", "pending": False}],
     )
     monkeypatch.setattr(
         headless_cmd,
         "_fetch_output",
         lambda *_args, **_kwargs: {
             "id": "session-id",
-            "state": "idle",
+            "state": "completed",
             "pending": False,
             "output": "completed before connect",
         },

@@ -115,22 +115,23 @@ current model/agent inventory, run: klaude agents --prime
 | `queued` | 已创建，等待 server 并发槽位（全局并发上限，见 §9.1） |
 | `running` | 有活跃 task 在执行 |
 | `waiting_input` | 卡在交互请求（审批 / 提问 / 模型选择）上 |
-| `idle` | 回合结束，可 send / attach 继续 |
+| `idle` | 无任务，但有可输入的 TUI attach 着（人在提示符前待命） |
+| `completed` | 回合结束且无人 attach（headless 跑完、TUI 退出、历史会话），可 send / attach 继续 |
 | `failed` | 上一回合以错误结束（仍可 send 重试） |
 
 `wait` 对 `queued` 视同 `running`，继续阻塞。
 
-单 server 模型不再用 meta.json 心跳推断运行状态。`server/routes/headless.py::_headless_state` 是 headless API 的单一状态投影入口：actor snapshot 经 `server/session_state.py` 统一映射 `running` / `waiting_input`，headless coordinator 补充 `queued` / `failed`，其余为 `idle`。这里的“单一状态源”指 server 内的实时投影，不是把全部状态压进一个持久字段。
+单 server 模型不再用 meta.json 心跳推断运行状态。`server/routes/headless.py::_headless_state` 是 headless API 的单一状态投影入口：actor snapshot 经 `server/session_state.py` 统一映射 `running` / `waiting_input`，headless coordinator 补充 `queued` / `failed`，其余按是否有可输入的 WS attach（`routes/ws.py::input_attached_session_ids`，peek 只读连接不算）分为 `idle` / `completed`。这里的“单一状态源”指 server 内的实时投影，不是把全部状态压进一个持久字段。
 
 `queued` turn、follow-up queue 和 `failed` 标记已持久化到 session meta，并在 server 启动时由 `server/headless.py::restore` 恢复。它们不是旧式 heartbeat；持久化只用于跨重启恢复，在线查询仍以 server 的状态投影为准。
 
-`idle` 不是终态、没有生存期：server 会空闲回收内存 actor（沿用现有 30min TTL，`app/runtime.py:33`），但会话本体在磁盘上永存，`send` / `attach` 时按需从 `events.jsonl` 重建，跨 server 重启依然可续。对调用方来说「同一个 id 继续对话」永远可用。
+`completed` 不是终态、没有生存期：server 会空闲回收内存 actor（沿用现有 30min TTL，`app/runtime.py:33`），但会话本体在磁盘上永存，`send` / `attach` 时按需从 `events.jsonl` 重建，跨 server 重启依然可续。对调用方来说「同一个 id 继续对话」永远可用。
 
 ### 3.3 退出码（脚本 / Agent 依赖）
 
 | code | 含义 |
 |---|---|
-| 0 | 成功（`wait`：全部 idle 结束） |
+| 0 | 成功（`wait`：全部 completed 结束） |
 | 1 | 用法错误 / target 不存在 / 歧义 |
 | 2 | `wait`：有会话停在 `waiting_input` |
 | 3 | `wait`：有会话 `failed` |
@@ -207,7 +208,8 @@ Options:
 Usage: klaude ps [OPTIONS] [TARGET...]
 
 List sessions known to the server. Active sessions (queued, running,
-waiting_input) always sort first, then by most recently updated.
+waiting_input) always sort first, then idle (attached) ones, then
+history — each group by most recently updated.
 
 With TARGETs — ids, unique prefixes, or names; space- or comma-
 separated — show only those sessions. This is the usual form for a
@@ -215,13 +217,16 @@ calling agent: check exactly the agents it spawned, nothing else.
 
   klaude ps a3f2c1,9b01d4,fix-tests --json
 
-  ID       NAME       TITLE            STATE          MODEL   DIR          ACTIVITY
-  a3f2c1   fix-tests  修复失败的测试     running        sonnet  ~/code/proj  Bash: uv run pytest ...
-  9b01d4   -          调整登录流程       waiting_input  fable   ~/code/x     approval: Edit main.py
-  77e0aa   -          -                idle           opus    ~/code/y     done 12m ago
+  ID       NAME       TITLE            STATE          LAST     MODEL   DIR          ACTIVITY
+  a3f2c1   fix-tests  修复失败的测试     running        3s ago   sonnet  ~/code/proj  Bash: uv run pytest ...
+  9b01d4   -          调整登录流程       waiting_input  2m ago   fable   ~/code/x     approval: Edit main.py
+  77e0aa   -          -                completed      12m ago  opus    ~/code/y     -
 
-ACTIVITY is the current tool call when running, the pending request
-when waiting_input, and relative finish time when idle/failed.
+STATE is completed once a session's last turn is over and no client is
+attached; idle means a TUI is attached and waiting at the prompt. LAST
+is the relative time of the session's most recent activity. ACTIVITY is
+the current tool call when running and the pending request when
+waiting_input.
 
 Options:
       --group NAME    Only sessions spawned with `run --group NAME`
@@ -243,7 +248,7 @@ Options:
 
 1. **TARGET 列表**（Agent 主用）：调用方从 `run` 拿到 id，之后 `ps id1,id2,...` 只看自己那几个。`brief` 看单个细节，`ps` 看多个概览，对应关系类似 TaskGet 与 TaskList。
 2. **`--group`**（Agent 兜底）：TARGET 方案的弱点是 id 只存在于调用方的对话上下文里，上下文压缩后可能丢失。调用方给自己起一个稳定的组名（如自己的 session id 或「项目+目的」），每次 `run --group X`，随时 `ps --group X` 全量找回。一个 meta 字段 + 一个过滤器，成本极低。
-3. **默认视图**（人类主用）：不加参数时全局展示，但 active 永远排最前 + 默认只取最近 20 行——旧的 idle 会话天然沉底出屏。想翻全部历史用 `--all` 或 `--resume` 选择器。
+3. **默认视图**（人类主用）：不加参数时全局展示，但 active 永远排最前 + 默认只取最近 20 行——旧的 completed 会话天然沉底出屏。想翻全部历史用 `--all` 或 `--resume` 选择器。
 
 `wait` / `kill` 的多 TARGET 参数同样接受逗号分隔。
 
@@ -276,7 +281,7 @@ Block until the given agents leave the queued/running states, then
 print each one's final output, or its pending question when it
 stopped at waiting_input. Give TARGETs, --group, or both.
 
-Exit codes: 0 all idle · 2 some waiting_input · 3 some failed ·
+Exit codes: 0 all completed · 2 some waiting_input · 3 some failed ·
 124 timeout.
 
 Examples:
@@ -310,7 +315,7 @@ Options:
       --group NAME    All sessions spawned with this group
       --turns N       Last N user+assistant turns
       --transcript    Full transcript rendered as plain text
-      --follow        Stream live output until idle (single target)
+      --follow        Stream live output until the turn finishes (single target)
       --json          Machine-readable
 ```
 
@@ -323,7 +328,7 @@ Usage: klaude send [OPTIONS] TARGET TEXT...
 
 Send a message to a session.
 
-  idle session:     starts a new turn immediately — the follow-up
+  completed session: starts a new turn immediately — the follow-up
                     keeps the full conversation context
   running session:  queued by default; delivered when the current
                     turn finishes (like typing while klaude works)
@@ -475,10 +480,10 @@ Commands:
 判断：**排队与事后追问远多于实时 steer**，依据是 Claude Code 自身 Task 工具的实际使用模式：
 
 1. 调用方 Agent 不是流式观察者，而是轮询者。它按事件（完成通知）或间隔（ps/brief）感知子 agent，等它发现跑偏时，「打断 + 重新下达更好的 prompt」（`kill` + `run`）几乎总是比中途注入一句纠偏更干净——steer 的价值窗口要求实时盯着看，而那是人类 attach TUI 的使用方式。
-2. 最高频、最有价值的原语是**对已完成会话的追问**（对应 Claude Code 的 SendMessage：agent 保留全部上下文继续下一轮）。这在本设计里就是 `send` 到 idle 会话，成本最低、收益最大。
+2. 最高频、最有价值的原语是**对已完成会话的追问**（对应 Claude Code 的 SendMessage：agent 保留全部上下文继续下一轮）。这在本设计里就是 `send` 到 completed 会话，成本最低、收益最大。
 3. 次高频是**排队**：任务还在跑，把下一步指示排上（对应人类在 TUI 里边跑边打字）。klaude 已有 `follow_up_queue` 基础设施，接近免费。
 
-因此 `send` 的语义分层如上文 4.6：默认排队 / idle 即发，`--steer` 作为显式旗标。实现顺序：**queue 语义先做（Phase 2），`--steer` 后做（Phase 3+）**——steer 需要打断当前 step 并注入消息的运行时支持，成本高而预期使用频率低；人类用户在 attach 的 TUI 里已经有 Esc 打断这条路。
+因此 `send` 的语义分层如上文 4.6：默认排队 / completed 即发，`--steer` 作为显式旗标。实现顺序：**queue 语义先做（Phase 2），`--steer` 后做（Phase 3+）**——steer 需要打断当前 step 并注入消息的运行时支持，成本高而预期使用频率低；人类用户在 attach 的 TUI 里已经有 Esc 打断这条路。
 
 ---
 

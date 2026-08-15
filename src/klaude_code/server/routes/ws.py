@@ -31,11 +31,19 @@ router = APIRouter(tags=["websocket"])
 # Live connections per session. Used to decide when an abandoned empty
 # session can be cleaned up on disconnect.
 _ATTACH_COUNTS: dict[str, int] = {}
+# Input-capable connections per session (peek viewers excluded). A session
+# with one of these has a human at a prompt: ps reports it idle, not completed.
+_INPUT_ATTACH_COUNTS: dict[str, int] = {}
 
 
 def attached_session_ids() -> set[str]:
     """Sessions with at least one live WS client (TUI attach)."""
     return {session_id for session_id, count in _ATTACH_COUNTS.items() if count > 0}
+
+
+def input_attached_session_ids() -> set[str]:
+    """Sessions with at least one live WS client that can type (no peek viewers)."""
+    return {session_id for session_id, count in _INPUT_ATTACH_COUNTS.items() if count > 0}
 
 
 class OpFrame(BaseModel):
@@ -668,6 +676,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
     recv_task: asyncio.Task[None] | None = None
     attach_mode = False
     counted = False
+    input_counted = False
     try:
         await websocket.accept()
         state = get_server_state_from_ws(websocket)
@@ -707,6 +716,9 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         can_input = not peek_mode
         _ATTACH_COUNTS[session_id] = _ATTACH_COUNTS.get(session_id, 0) + 1
         counted = True
+        if can_input:
+            _INPUT_ATTACH_COUNTS[session_id] = _INPUT_ATTACH_COUNTS.get(session_id, 0) + 1
+            input_counted = True
         await websocket.send_json(
             {
                 "type": "connection_info",
@@ -773,6 +785,23 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         return
     finally:
         log_debug(f"[ws:{session_id[:8]}] finally start", debug_type=DebugType.EXECUTION)
+        # Decrement before the first await: when the connection dies via task
+        # cancellation, every await below re-raises CancelledError and would
+        # skip the bookkeeping, leaking a phantom attach.
+        remaining = 0
+        if input_counted:
+            remaining_input = _INPUT_ATTACH_COUNTS.get(session_id, 1) - 1
+            if remaining_input <= 0:
+                _INPUT_ATTACH_COUNTS.pop(session_id, None)
+            else:
+                _INPUT_ATTACH_COUNTS[session_id] = remaining_input
+        if counted:
+            remaining = _ATTACH_COUNTS.get(session_id, 1) - 1
+            if remaining <= 0:
+                _ATTACH_COUNTS.pop(session_id, None)
+            else:
+                _ATTACH_COUNTS[session_id] = remaining
+
         with contextlib.suppress(Exception):
             log_debug(f"[ws:{session_id[:8]}] closing websocket", debug_type=DebugType.EXECUTION)
             await websocket.close()
@@ -783,11 +812,6 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
         # the agent alive.
         if counted:
             state = get_server_state_from_ws(websocket)
-            remaining = _ATTACH_COUNTS.get(session_id, 1) - 1
-            if remaining <= 0:
-                _ATTACH_COUNTS.pop(session_id, None)
-            else:
-                _ATTACH_COUNTS[session_id] = remaining
             if remaining <= 0:
                 with contextlib.suppress(Exception):
                     registry = cast(Any, state.runtime.session_registry)

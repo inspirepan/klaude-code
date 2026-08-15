@@ -86,7 +86,7 @@ def _wait_for_state(app_env: AppEnv, target: str, state: str, *, timeout: float 
     row: dict[str, Any] = {}
     while time.time() < deadline:
         row = _get_row(app_env, target)
-        if row["state"] == state and (state != "idle" or not row["pending"]):
+        if row["state"] == state and (state != "completed" or not row["pending"]):
             return row
         time.sleep(0.05)
     raise AssertionError(f"session {target} did not reach state {state}; last row: {row}")
@@ -104,7 +104,7 @@ def test_run_creates_headless_session_and_finishes(app_env: AppEnv) -> None:
     session_id = body["session_id"]
     assert body["state"] in ("running", "queued")
 
-    row = _wait_for_state(app_env, session_id, "idle")
+    row = _wait_for_state(app_env, session_id, "completed")
     assert row["name"] == "worker"
     assert row["group"] == "team"
     assert row["agent_type"] == "main"
@@ -124,6 +124,34 @@ def test_run_creates_headless_session_and_finishes(app_env: AppEnv) -> None:
 
     # Name resolves as a target.
     assert _get_row(app_env, "worker")["id"] == session_id
+
+
+def test_attached_session_reports_idle_until_detach(app_env: AppEnv) -> None:
+    _enqueue_text_reply(app_env, "all done")
+    body = _run(app_env, "say done")
+    session_id = body["session_id"]
+    _wait_for_state(app_env, session_id, "completed")
+
+    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws?replay=1") as websocket:
+        info = websocket.receive_json()
+        assert info["type"] == "connection_info"
+        row = _wait_for_state(app_env, session_id, "idle")
+        assert row["state"] == "idle"
+
+    _wait_for_state(app_env, session_id, "completed")
+
+
+def test_peek_attach_keeps_session_completed(app_env: AppEnv) -> None:
+    _enqueue_text_reply(app_env, "all done")
+    body = _run(app_env, "say done")
+    session_id = body["session_id"]
+    _wait_for_state(app_env, session_id, "completed")
+
+    # A read-only viewer (output --follow) is not a human at a prompt.
+    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws?replay=1&peek=1") as websocket:
+        info = websocket.receive_json()
+        assert info["type"] == "connection_info"
+        assert _get_row(app_env, session_id)["state"] == "completed"
 
 
 def test_run_rejects_duplicate_name(app_env: AppEnv) -> None:
@@ -164,15 +192,15 @@ def test_run_queues_beyond_max_running(app_env: AppEnv) -> None:
     assert fourth["state"] == "queued"
     assert {_get_row(app_env, item["session_id"])["state"] for item in (second, third, fourth)} == {"queued"}
 
-    _wait_for_state(app_env, first["session_id"], "idle")
+    _wait_for_state(app_env, first["session_id"], "completed")
     # _pump must reserve the one slot before creating a launch task. The old
     # implementation started all three queued runs in this transition.
     queued_states = [_get_row(app_env, item["session_id"])["state"] for item in (second, third, fourth)]
     assert queued_states.count("running") == 1
     assert queued_states.count("queued") == 2
-    _wait_for_state(app_env, second["session_id"], "idle")
-    _wait_for_state(app_env, third["session_id"], "idle")
-    _wait_for_state(app_env, fourth["session_id"], "idle")
+    _wait_for_state(app_env, second["session_id"], "completed")
+    _wait_for_state(app_env, third["session_id"], "completed")
+    _wait_for_state(app_env, fourth["session_id"], "completed")
 
     output = app_env.client.get(f"/api/headless/sessions/{second['session_id']}/output").json()
     assert output["output"] == "second done"
@@ -189,22 +217,22 @@ def test_kill_cancels_queued_session(app_env: AppEnv) -> None:
 
     response = app_env.client.post(f"/api/headless/sessions/{second['session_id']}/interrupt")
     assert response.json()["was"] == "queued"
-    _wait_for_state(app_env, first["session_id"], "idle")
-    assert _get_row(app_env, second["session_id"])["state"] == "idle"
+    _wait_for_state(app_env, first["session_id"], "completed")
+    assert _get_row(app_env, second["session_id"])["state"] == "completed"
 
 
 def test_send_idle_session_starts_new_turn(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "turn one")
     body = _run(app_env, "start")
     session_id = body["session_id"]
-    _wait_for_state(app_env, session_id, "idle")
+    _wait_for_state(app_env, session_id, "completed")
 
     _enqueue_text_reply(app_env, "turn two")
     response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "again"})
     assert response.status_code == 200
     assert response.json()["mode"] == "started"
 
-    _wait_for_state(app_env, session_id, "idle")
+    _wait_for_state(app_env, session_id, "completed")
     output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
     assert output["output"] == "turn two"
 
@@ -212,7 +240,7 @@ def test_send_idle_session_starts_new_turn(app_env: AppEnv) -> None:
 def test_send_idle_headless_session_obeys_global_slot(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "existing done")
     existing = _run(app_env, "existing")
-    _wait_for_state(app_env, existing["session_id"], "idle")
+    _wait_for_state(app_env, existing["session_id"], "completed")
 
     headless = _headless_runtime(app_env)
     headless._max_running = 1  # type: ignore[attr-defined] # pyright: ignore[reportPrivateUsage]
@@ -231,8 +259,8 @@ def test_send_idle_headless_session_obeys_global_slot(app_env: AppEnv) -> None:
     assert row["state"] == "queued"
     assert row["pending"] is True
 
-    _wait_for_state(app_env, blocker["session_id"], "idle")
-    _wait_for_state(app_env, existing["session_id"], "idle")
+    _wait_for_state(app_env, blocker["session_id"], "completed")
+    _wait_for_state(app_env, existing["session_id"], "completed")
     output = app_env.client.get(f"/api/headless/sessions/{existing['session_id']}/output").json()
     assert output["output"] == "sent done"
 
@@ -259,8 +287,8 @@ def test_send_interactive_session_does_not_consume_headless_slot(app_env: AppEnv
     assert response.json()["mode"] == "started"
     assert interactive_id not in headless.queued_session_ids()
     assert headless.is_running(interactive_id) is False
-    _wait_for_state(app_env, interactive_id, "idle")
-    _wait_for_state(app_env, blocker["session_id"], "idle")
+    _wait_for_state(app_env, interactive_id, "completed")
+    _wait_for_state(app_env, blocker["session_id"], "completed")
 
 
 def test_send_while_running_queues_follow_up(app_env: AppEnv) -> None:
@@ -317,7 +345,7 @@ def test_waiting_input_brief_and_respond(app_env: AppEnv) -> None:
     assert response.status_code == 200
     assert response.json()["status"] == "submitted"
 
-    _wait_for_state(app_env, session_id, "idle")
+    _wait_for_state(app_env, session_id, "completed")
     output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
     assert output["output"] == "You chose A"
 
@@ -325,7 +353,7 @@ def test_waiting_input_brief_and_respond(app_env: AppEnv) -> None:
 def test_respond_without_pending_request_conflicts(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "done")
     body = _run(app_env, "no questions")
-    _wait_for_state(app_env, body["session_id"], "idle")
+    _wait_for_state(app_env, body["session_id"], "completed")
     response = app_env.client.post(
         f"/api/headless/sessions/{body['session_id']}/respond",
         json={"action": "option", "option": 1},
@@ -339,8 +367,8 @@ def test_approval_deny_auto_answers_questions(app_env: AppEnv) -> None:
     body = _run(app_env, "ask me", approval="deny")
     session_id = body["session_id"]
 
-    row = _wait_for_state(app_env, session_id, "idle")
-    assert row["state"] == "idle"
+    row = _wait_for_state(app_env, session_id, "completed")
+    assert row["state"] == "completed"
     output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
     assert output["output"] == "worked around"
     assert "pending_request" not in output
@@ -354,7 +382,7 @@ def test_kill_interrupts_running_session(app_env: AppEnv) -> None:
 
     response = app_env.client.post(f"/api/headless/sessions/{session_id}/interrupt")
     assert response.status_code == 200
-    _wait_for_state(app_env, session_id, "idle")
+    _wait_for_state(app_env, session_id, "completed")
 
 
 def test_kill_running_session_cancels_queued_follow_up(app_env: AppEnv) -> None:
@@ -370,11 +398,11 @@ def test_kill_running_session_cancels_queued_follow_up(app_env: AppEnv) -> None:
     killed = app_env.client.post(f"/api/headless/sessions/{session_id}/interrupt")
     assert killed.status_code == 200
     assert killed.json()["was"] == "running"
-    _wait_for_state(app_env, session_id, "idle")
+    _wait_for_state(app_env, session_id, "completed")
     time.sleep(0.8)
 
     row = _get_row(app_env, session_id)
-    assert row["state"] == "idle"
+    assert row["state"] == "completed"
     assert row["pending"] is False
     session = Session.load_meta(session_id, work_dir=app_env.work_dir)
     assert session.follow_up_queue == []
@@ -411,11 +439,11 @@ def test_steer_starts_fresh_scheduled_turn(app_env: AppEnv) -> None:
     while time.time() < deadline:
         row = _get_row(app_env, session_id)
         output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
-        if row["state"] == "idle" and not output["pending"]:
+        if row["state"] == "completed" and not output["pending"]:
             break
         assert row["state"] in ("queued", "running") or row["pending"] is True
         time.sleep(0.05)
-    assert row["state"] == "idle"
+    assert row["state"] == "completed"
     assert output["pending"] is False
     assert output["output"] == "steered result"
 
@@ -431,7 +459,7 @@ def test_failed_persists_and_clears_when_next_turn_starts(app_env: AppEnv) -> No
     _enqueue_text_reply(app_env, "recovered")
     response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "retry"})
     assert response.status_code == 200
-    _wait_for_state(app_env, session_id, "idle")
+    _wait_for_state(app_env, session_id, "completed")
     assert "headless_failed" not in json.loads(meta_path.read_text())
 
 
@@ -440,8 +468,8 @@ def test_ps_group_filter_and_target_resolution(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "b")
     first = _run(app_env, "task a", group="fanout", name="alpha")
     second = _run(app_env, "task b")
-    _wait_for_state(app_env, first["session_id"], "idle")
-    _wait_for_state(app_env, second["session_id"], "idle")
+    _wait_for_state(app_env, first["session_id"], "completed")
+    _wait_for_state(app_env, second["session_id"], "completed")
 
     grouped = app_env.client.get("/api/headless/sessions", params={"group": "fanout"}).json()["sessions"]
     assert [row["id"] for row in grouped] == [first["session_id"]]
@@ -460,11 +488,11 @@ def test_output_turns_and_transcript(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "first answer")
     body = _run(app_env, "first question")
     session_id = body["session_id"]
-    _wait_for_state(app_env, session_id, "idle")
+    _wait_for_state(app_env, session_id, "completed")
 
     _enqueue_text_reply(app_env, "second answer")
     app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "second question"})
-    _wait_for_state(app_env, session_id, "idle")
+    _wait_for_state(app_env, session_id, "completed")
 
     default = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
     assert default["output"] == "second answer"

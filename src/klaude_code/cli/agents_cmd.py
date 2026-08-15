@@ -13,7 +13,7 @@ from typing import Any
 import typer
 
 EXIT_CODES_TABLE = [
-    ("0", "success (`wait`: all sessions ended idle)"),
+    ("0", "success (`wait`: all sessions completed)"),
     ("1", "usage error / target not found / ambiguous target"),
     ("2", "`wait`: some session stopped at waiting_input"),
     ("3", "`wait`: some session failed"),
@@ -187,8 +187,9 @@ def build_prime_guide(config: Any) -> str:
     lines.append("")
     lines.append(
         "States: queued (waiting for a server slot) · running · waiting_input "
-        "(parked on a question/approval — answer with `klaude respond`) · idle "
-        "(turn finished; `send` continues it) · failed (last turn errored; `send` retries)."
+        "(parked on a question/approval — answer with `klaude respond`) · completed "
+        "(turn finished; `send` continues it) · idle (a TUI is attached, waiting at "
+        "the prompt) · failed (last turn errored; `send` retries)."
     )
     return "\n".join(lines)
 
