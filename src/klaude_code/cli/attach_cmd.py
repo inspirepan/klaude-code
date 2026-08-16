@@ -34,15 +34,22 @@ def run_attach_tui(session_id: str, *, peek: bool = False, debug: bool = False) 
 
     from klaude_code.cli.main import prepare_debug_logging
     from klaude_code.cli.uds_client import ensure_server_running
+    from klaude_code.log import log
     from klaude_code.tui.runner import run_attach
 
     ensure_server_running()
-    debug_enabled, log_path = prepare_debug_logging(debug)
+    try:
+        debug_enabled, log_path = prepare_debug_logging(debug)
+    except Exception as exc:
+        log((f"Error: failed to enable debug logging: {exc}", "red"))
+        raise typer.Exit(1) from None
+    del debug_enabled
     if log_path:
-        from klaude_code.log import log
+        from klaude_code.app.log_viewer import start_log_viewer
 
         log(f"Debug log: {log_path}")
-    del debug_enabled
+        viewer_url = start_log_viewer(log_path)
+        log(f"Log viewer: {viewer_url}")
     asyncio.run(run_attach(session_id, peek=peek))
 
 

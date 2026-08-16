@@ -28,6 +28,15 @@ def _request(method: str, path: str, *, json_body: dict[str, Any] | None = None,
     return response.json()
 
 
+def enable_server_debug_logging() -> Path:
+    """Enable debug file logging on the server; return the log path."""
+    body = _request("POST", "/api/server/debug", json_body={"enabled": True}, timeout=5.0)
+    log_file = body.get("log_file")
+    if not isinstance(log_file, str) or not log_file:
+        raise RuntimeError("server did not return a debug log file")
+    return Path(log_file)
+
+
 def reload_server_config() -> str | None:
     """Ask the server to re-read ~/.klaude/klaude-config.yaml.
 

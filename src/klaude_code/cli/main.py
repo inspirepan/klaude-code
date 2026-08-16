@@ -455,16 +455,6 @@ def main_callback(
             elif isinstance(main_model, str):
                 chosen_model = main_model
 
-        _debug_enabled, log_path = prepare_debug_logging(debug)
-
-        if log_path:
-            log(f"Debug log: {log_path}")
-
-            from klaude_code.app.log_viewer import start_log_viewer
-
-            viewer_url = start_log_viewer(log_path)
-            log(f"Log viewer: {viewer_url}")
-
         # TUI = client of the single local server: auto-start it, create the
         # session server-side when needed, then attach (replay + live).
         from klaude_code.cli.uds_client import ServerNotRunningError, ensure_server_running
@@ -476,6 +466,23 @@ def main_callback(
             log((f"Error: could not start the klaude server: {exc}", "red"))
             log(("Hint: run `klaude server run` in another terminal to see why", "yellow"))
             raise typer.Exit(1) from None
+
+        # Debug logging must be enabled on the server (where agent/LLM work
+        # runs). Do this after the server is reachable.
+        try:
+            _debug_enabled, log_path = prepare_debug_logging(debug)
+        except Exception as exc:
+            log((f"Error: failed to enable debug logging: {exc}", "red"))
+            raise typer.Exit(1) from None
+        del _debug_enabled
+
+        if log_path:
+            log(f"Debug log: {log_path}")
+
+            from klaude_code.app.log_viewer import start_log_viewer
+
+            viewer_url = start_log_viewer(log_path)
+            log(f"Log viewer: {viewer_url}")
 
         if session_id is None:
             from klaude_code.cli.uds_client import request

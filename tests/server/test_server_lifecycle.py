@@ -59,6 +59,34 @@ def test_reload_endpoint_refuses_active_sessions(app_env: AppEnv, monkeypatch: p
     assert app_env.lifecycle.reload_requested is True
 
 
+def test_debug_endpoint_enables_file_logging(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.log import DebugType, is_debug_enabled, log_debug, logger, set_debug_logging
+
+    log_dir = app_env.home_dir / ".klaude" / "logs"
+    monkeypatch.setattr("klaude_code.log.DEFAULT_DEBUG_LOG_DIR", log_dir)
+    monkeypatch.setattr("klaude_code.log.DEFAULT_DEBUG_LOG_FILE", log_dir / "debug.log")
+
+    try:
+        response = app_env.client.post("/api/server/debug", json={"enabled": True})
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["ok"] is True
+        assert payload["enabled"] is True
+        log_path = Path(payload["log_file"])
+        assert log_path.is_file()
+        assert log_path.is_relative_to(log_dir)
+        assert is_debug_enabled()
+
+        log_debug("viewer-probe", debug_type=DebugType.LLM_PAYLOAD)
+        for handler in logger.handlers:
+            handler.flush()
+        text = log_path.read_text(encoding="utf-8")
+        assert "LLM_PAYLOAD" in text
+        assert "viewer-probe" in text
+    finally:
+        set_debug_logging(False)
+
+
 def test_singleton_lock_rejects_second_holder(tmp_path: Path) -> None:
     lock_path = tmp_path / "run" / "server.lock"
     first = _SingletonLock(lock_path)

@@ -20,6 +20,10 @@ class ReloadRequest(BaseModel):
     force: bool = False
 
 
+class DebugRequest(BaseModel):
+    enabled: bool = True
+
+
 def _require_lifecycle(state: ServerAppState) -> ServerLifecycle:
     if state.lifecycle is None:
         raise HTTPException(status_code=503, detail="Server lifecycle is not available")
@@ -88,6 +92,24 @@ async def server_reload(request: ReloadRequest, state: ServerAppState = _SERVER_
         )
     lifecycle.request_reload()
     return {"ok": True, "pid": os.getpid(), "interrupted": active_sessions}
+
+
+@router.post("/debug")
+async def server_debug(request: DebugRequest) -> dict[str, Any]:
+    """Enable or disable debug file logging in the server process.
+
+    Agent/LLM work lives here, so client-side ``--debug`` / ``/debug`` must
+    flip this switch rather than creating an empty local log file.
+    """
+    from klaude_code.log import get_current_log_file, is_debug_enabled, set_debug_logging
+
+    set_debug_logging(request.enabled, write_to_file=True)
+    log_file = get_current_log_file()
+    return {
+        "ok": True,
+        "enabled": is_debug_enabled(),
+        "log_file": str(log_file) if log_file is not None else None,
+    }
 
 
 @router.post("/config/reload")
