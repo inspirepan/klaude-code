@@ -9,8 +9,10 @@ into sub-agent sessions.  Keep dependency-free.
 # ---------------------------------------------------------------------------
 
 FINDER_SUMMARY = (
-    "Searches the codebase by functionality or concept rather than exact match. Use it instead of\n"
-    "chaining greps yourself. Give it the research goal plus any keyword queries worth prioritizing.\n"
+    "Searches the codebase by functionality or concept rather than exact match, and returns only the\n"
+    "conclusion -- the intermediate file dumps stay out of your context. Default choice for any search\n"
+    "beyond a single known-target lookup. Give it the research goal plus any keyword queries worth\n"
+    "prioritizing.\n"
     "(Tools: Bash, Read)"
 )
 

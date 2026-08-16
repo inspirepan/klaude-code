@@ -47,9 +47,12 @@ PREFER_TOOL_OVER_SPECULATION_INST = (
 BASH_SPECIALIZED_TOOL_INST = """- Use specialized file tools for reads/edits instead of Bash fallbacks."""
 
 AGENT_FINDER_INST = (
-    "- For broad codebase exploration, cross-directory tracing, concept-based searches, or when you "
-    'would otherwise chain multiple search steps, use `Agent` with `type="finder"` instead of '
-    "doing all searches yourself."
+    '- Delegate codebase searches to `Agent` with `type="finder"` by default: questions that span '
+    "several files or directories, concept-based searches, or anything likely to take more than one "
+    "search round. The finder reads through the noise and you keep only the conclusion in context. "
+    "Search directly only for a single-step lookup where you already know the file, symbol, or exact "
+    "string -- and if that first attempt misses, switch to finder instead of chaining more greps "
+    "yourself. Once delegated, wait for the result; do not repeat the search."
 )
 
 EDIT_VALIDATION_LOOP_INST = (
