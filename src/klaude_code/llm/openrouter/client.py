@@ -23,6 +23,8 @@ from klaude_code.log import DebugType, is_debug_enabled, log_debug
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.model_id import model_supports_temperature, supports_adaptive_thinking
 
+_OPENROUTER_USER_AGENT = "klaude-code/2"
+
 
 def build_payload(
     param: llm_param.LLMCallParameter,
@@ -113,6 +115,7 @@ class OpenRouterClient(LLMClientABC):
         client = openai.AsyncOpenAI(
             api_key=config.api_key,
             base_url=OPENROUTER_BASE_URL,
+            default_headers={"User-Agent": _OPENROUTER_USER_AGENT},
             timeout=create_http_timeout(),
         )
         self.client: openai.AsyncOpenAI = client

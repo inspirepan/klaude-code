@@ -45,6 +45,7 @@ def test_google_vertex_client_loads_credentials_with_cloud_platform_scope(monkey
     assert captured["client_kwargs"]["location"] == "global"
     http_options = captured["client_kwargs"]["http_options"]
     assert http_options.timeout == int(LLM_HTTP_TIMEOUT_TOTAL * 1000)
+    assert http_options.headers == {"user-agent": "klaude-code/2"}
 
 
 def test_google_vertex_client_sets_timeout_when_custom_base_url(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -67,3 +68,4 @@ def test_google_vertex_client_sets_timeout_when_custom_base_url(monkeypatch: pyt
     assert http_options.base_url == "https://vertex.example.com"
     assert http_options.api_version == ""
     assert http_options.timeout == int(LLM_HTTP_TIMEOUT_TOTAL * 1000)
+    assert http_options.headers == {"user-agent": "klaude-code/2"}

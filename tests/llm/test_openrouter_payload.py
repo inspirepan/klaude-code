@@ -1,7 +1,29 @@
+from types import SimpleNamespace
+from typing import Any
+
 import pytest
 
-from klaude_code.llm.openrouter.client import build_payload
+from klaude_code.llm.openrouter.client import OpenRouterClient, build_payload
 from klaude_code.protocol import llm_param, message
+
+
+def test_openrouter_client_sets_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class _FakeAsyncOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(
+        "klaude_code.llm.openrouter.client.openai",
+        SimpleNamespace(AsyncOpenAI=_FakeAsyncOpenAI),
+    )
+
+    config = llm_param.LLMConfigParameter(protocol=llm_param.LLMClientProtocol.OPENROUTER)
+
+    _ = OpenRouterClient(config)
+
+    assert captured["kwargs"]["default_headers"] == {"User-Agent": "klaude-code/2"}
 
 
 @pytest.mark.parametrize(

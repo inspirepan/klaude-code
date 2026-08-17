@@ -87,6 +87,10 @@ class BedrockStreamError(Exception):
 # ContextVar is automatically copied into the worker thread by asyncio.to_thread.
 _SESSION_ID_CTX: contextvars.ContextVar[str | None] = contextvars.ContextVar("_bedrock_session_id", default=None)
 
+# Appended to the botocore user agent (converse path) and sent as the
+# User-Agent header (anthropic messages path).
+_BEDROCK_USER_AGENT_EXTRA = "klaude-code/2"
+
 
 def _inject_session_id_header(request: Any, **_: Any) -> None:
     session_id = _SESSION_ID_CTX.get()
@@ -630,6 +634,7 @@ class BedrockClient(LLMClientABC):
             config=Config(
                 connect_timeout=LLM_HTTP_TIMEOUT_CONNECT,
                 read_timeout=LLM_HTTP_TIMEOUT_READ,
+                user_agent_extra=_BEDROCK_USER_AGENT_EXTRA,
             ),
         )
         self.client.meta.events.register("before-sign.bedrock-runtime", _inject_session_id_header)
@@ -643,6 +648,7 @@ class BedrockClient(LLMClientABC):
             aws_session_token=config.aws_session_token,
             aws_region=config.aws_region,
             aws_profile=config.aws_profile,
+            default_headers={"User-Agent": _BEDROCK_USER_AGENT_EXTRA},
             timeout=create_http_timeout(),
         )
 

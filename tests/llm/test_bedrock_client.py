@@ -1,4 +1,4 @@
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 import pytest
 
@@ -34,6 +34,76 @@ def test_bedrock_client_reports_missing_optional_dependencies(monkeypatch: pytes
 
     with pytest.raises(ModuleNotFoundError, match="Bedrock support requires boto3 and botocore"):
         BedrockClient.create(config)
+
+
+def test_bedrock_converse_client_appends_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    import sys
+    from types import ModuleType, SimpleNamespace
+
+    captured: dict[str, Any] = {}
+
+    def _fake_config(**kwargs: Any) -> Any:
+        captured["config_kwargs"] = kwargs
+        return SimpleNamespace(**kwargs)
+
+    fake_botocore = ModuleType("botocore")
+    fake_config_module = ModuleType("botocore.config")
+    cast(Any, fake_config_module).Config = _fake_config
+
+    class _FakeBoto3Client:
+        meta = SimpleNamespace(events=SimpleNamespace(register=lambda *a, **k: None))
+
+    class _FakeSession:
+        def __init__(self, **kwargs: Any) -> None:
+            pass
+
+        def client(self, *args: Any, **kwargs: Any) -> Any:
+            captured["client_args"] = args
+            return _FakeBoto3Client()
+
+    fake_boto3 = ModuleType("boto3")
+    cast(Any, fake_boto3).Session = _FakeSession
+
+    monkeypatch.setitem(sys.modules, "boto3", fake_boto3)
+    monkeypatch.setitem(sys.modules, "botocore", fake_botocore)
+    monkeypatch.setitem(sys.modules, "botocore.config", fake_config_module)
+    monkeypatch.setattr(bedrock_client_module, "BEDROCK_USE_CONVERSE_STREAM", True)
+    monkeypatch.setattr(bedrock_client_module, "find_spec", lambda name: object())
+
+    config = llm_param.LLMConfigParameter(
+        provider_name="bedrock-test",
+        protocol=llm_param.LLMClientProtocol.BEDROCK,
+        aws_access_key="test-access-key",
+        aws_secret_key="test-secret-key",
+        aws_region="us-east-1",
+    )
+
+    _ = BedrockClient(config)
+
+    assert captured["config_kwargs"]["user_agent_extra"] == "klaude-code/2"
+
+
+def test_bedrock_messages_client_sets_user_agent(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+
+    class _FakeAsyncAnthropicBedrock:
+        def __init__(self, **kwargs: Any) -> None:
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr("anthropic.AsyncAnthropicBedrock", _FakeAsyncAnthropicBedrock)
+    monkeypatch.setattr(bedrock_client_module, "BEDROCK_USE_CONVERSE_STREAM", False)
+
+    config = llm_param.LLMConfigParameter(
+        provider_name="bedrock-test",
+        protocol=llm_param.LLMClientProtocol.BEDROCK,
+        aws_access_key="test-access-key",
+        aws_secret_key="test-secret-key",
+        aws_region="us-east-1",
+    )
+
+    _ = BedrockClient(config)
+
+    assert captured["kwargs"]["default_headers"] == {"User-Agent": "klaude-code/2"}
 
 
 def test_bedrock_request_uses_converse_fields_for_opus_47(monkeypatch: pytest.MonkeyPatch) -> None:

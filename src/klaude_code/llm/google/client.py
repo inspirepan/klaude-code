@@ -49,6 +49,25 @@ from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 # Unified format for Google thought signatures
 GOOGLE_THOUGHT_SIGNATURE_FORMAT = "google"
 
+# Lowercase key: the SDK prepends its own telemetry label to an existing
+# "user-agent" header instead of emitting a duplicate header.
+_GOOGLE_USER_AGENT = "klaude-code/2"
+
+
+def build_google_http_options(base_url: str | None) -> HttpOptions:
+    if base_url:
+        # If base_url already contains version path, don't append api_version.
+        return HttpOptions(
+            base_url=str(base_url),
+            api_version="",
+            timeout=int(LLM_HTTP_TIMEOUT_TOTAL * 1000),
+            headers={"user-agent": _GOOGLE_USER_AGENT},
+        )
+    return HttpOptions(
+        timeout=int(LLM_HTTP_TIMEOUT_TOTAL * 1000),
+        headers={"user-agent": _GOOGLE_USER_AGENT},
+    )
+
 
 def support_thinking(model_id: str | None) -> bool:
     return supports_google_thinking(model_id)
@@ -446,14 +465,7 @@ class GoogleLLMStream(LLMStreamABC):
 class GoogleClient(LLMClientABC):
     def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
-        http_options = HttpOptions(timeout=int(LLM_HTTP_TIMEOUT_TOTAL * 1000))
-        if config.base_url:
-            # If base_url already contains version path, don't append api_version.
-            http_options = HttpOptions(
-                base_url=str(config.base_url),
-                api_version="",
-                timeout=int(LLM_HTTP_TIMEOUT_TOTAL * 1000),
-            )
+        http_options = build_google_http_options(config.base_url)
 
         self.client = Client(
             api_key=config.api_key,
