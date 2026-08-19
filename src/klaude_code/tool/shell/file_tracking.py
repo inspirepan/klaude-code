@@ -44,8 +44,8 @@ def hash_file_content_sha256(file_path: str) -> str | None:
 def resolve_in_dir(base_dir: str, path: str) -> str:
     """Resolve `path` against `base_dir`, leaving already-absolute paths alone."""
     if os.path.isabs(path):
-        return os.path.abspath(path)
-    return os.path.abspath(os.path.join(base_dir, path))
+        return os.path.normpath(path)
+    return os.path.normpath(os.path.join(base_dir, path))
 
 
 class ShellFileTracker:

@@ -14,6 +14,7 @@ from klaude_code.const import (
     TRUNCATE_HEAD_MAX_LINES,
 )
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.workspace import active_work_dir
 
 
 def format_pascal_case(name: str) -> str:
@@ -33,12 +34,12 @@ def format_model_with_effort(model: str | None, effort: str | None) -> str:
 
 
 def shorten_path(path: str) -> str:
-    """Shorten an absolute path against the current working or home directory."""
+    """Shorten an absolute path against the session workspace or home directory."""
 
     path_obj = Path(path)
     if path_obj.is_absolute():
         try:
-            relative = path_obj.relative_to(Path.cwd())
+            relative = path_obj.relative_to(active_work_dir())
             return str(relative) if relative.parts else "."
         except ValueError:
             pass

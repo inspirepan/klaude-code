@@ -22,6 +22,7 @@ from pathlib import Path
 
 from klaude_code.const import get_system_temp
 from klaude_code.protocol.message import ImageFilePart
+from klaude_code.tui.workspace import active_work_dir
 
 # ---------------------------------------------------------------------------
 # Constants and marker syntax
@@ -291,7 +292,7 @@ def extract_images_from_text(text: str) -> list[ImageFilePart]:
             continue
         p = Path(path_str).expanduser()
         if not p.is_absolute():
-            p = (Path.cwd() / p).resolve()
+            p = (active_work_dir() / p).resolve()
         image_part = _create_image_file_part(str(p))
         if image_part:
             images.append(image_part)

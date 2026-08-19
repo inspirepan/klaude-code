@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from pathlib import Path
 from typing import TypeVar
 
 _T = TypeVar("_T")
@@ -13,7 +14,7 @@ def _safe_skill_call(fn: Callable[[], _T], default: _T) -> _T:
         return default
 
 
-def get_skill_names_by_location() -> dict[str, list[str]]:
+def get_skill_names_by_location(work_dir: Path) -> dict[str, list[str]]:
     """Return available skill names grouped by location.
 
     The UI should not import the skill system directly. Core can expose a
@@ -29,7 +30,7 @@ def get_skill_names_by_location() -> dict[str, list[str]]:
 
     def _collect() -> dict[str, list[str]]:
         result: dict[str, list[str]] = {"user": [], "project": [], "system": []}
-        for name, _desc, location in get_available_skills():
+        for name, _desc, location in get_available_skills(work_dir):
             if location == "user":
                 result["user"].append(name)
             elif location == "project":
@@ -48,7 +49,7 @@ def get_skill_names_by_location() -> dict[str, list[str]]:
     return _safe_skill_call(_collect, {})
 
 
-def get_skill_warnings_by_location() -> dict[str, list[str]]:
+def get_skill_warnings_by_location(work_dir: Path) -> dict[str, list[str]]:
     """Return skill discovery warnings grouped by location."""
 
     try:
@@ -56,10 +57,10 @@ def get_skill_warnings_by_location() -> dict[str, list[str]]:
     except Exception:
         return {}
 
-    return _safe_skill_call(get_skill_warnings_by_location, {})
+    return _safe_skill_call(lambda: get_skill_warnings_by_location(work_dir), {})
 
 
-def warmup_skill_inventory() -> None:
+def warmup_skill_inventory(work_dir: Path) -> None:
     """Load the shared skill inventory for later welcome and attachment use."""
-    get_skill_names_by_location()
-    get_skill_warnings_by_location()
+    get_skill_names_by_location(work_dir)
+    get_skill_warnings_by_location(work_dir)

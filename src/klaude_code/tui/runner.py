@@ -62,6 +62,7 @@ from klaude_code.tui.terminal.selector import (
     select_questions,
 )
 from klaude_code.tui.terminal.title import update_terminal_title
+from klaude_code.tui.workspace import set_active_work_dir
 
 
 def _split_queue_edit_payload(user_input: UserInputPayload) -> tuple[UserInputPayload, ...]:
@@ -369,6 +370,11 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
     # -- client wiring --
 
     def _on_session_info(info: SessionInfoSnapshot) -> None:
+        if info.work_dir:
+            # Completers, drag-drop conversion, and path shortening key off
+            # the session's directory, which differs from the process CWD
+            # when attached to a session rooted elsewhere.
+            set_active_work_dir(Path(info.work_dir))
         if info.model_config_name:
             tui_display.set_model_name(info.model_config_name)
         if input_provider is not None:

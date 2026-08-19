@@ -9,6 +9,7 @@ from klaude_code.tui.command import is_slash_command_name
 from klaude_code.tui.components.bash_syntax import highlight_bash_command
 from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.workspace import active_work_dir
 
 USER_MESSAGE_MARK = "❯ "
 
@@ -40,7 +41,7 @@ def render_at_and_skill_patterns(
         skill_name = skill_token.removeprefix("//skill:").removeprefix("/skill:")
 
         if available_skill_names is None:
-            available_skill_names = set(list_skill_names())
+            available_skill_names = set(list_skill_names(active_work_dir()))
 
         short = skill_name.split(":")[-1] if ":" in skill_name else skill_name
         if skill_name in available_skill_names or short in available_skill_names:
@@ -70,7 +71,7 @@ def build_user_input_lines(content: str) -> list[Text]:
             continue
 
         if available_skill_names is None and "/" in line:
-            available_skill_names = set(list_skill_names())
+            available_skill_names = set(list_skill_names(active_work_dir()))
         # Handle slash command on first line
         if i == 0 and line.startswith("/"):
             splits = line.split(" ", maxsplit=1)

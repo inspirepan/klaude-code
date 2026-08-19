@@ -63,8 +63,26 @@ src = ["src"]
 exclude = ["src/klaude_code/skill/assets"]
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I", "UP", "SIM", "RUF"]
+select = ["E", "F", "B", "I", "UP", "SIM", "RUF", "TID251"]
 ignore = ["RUF001", "RUF002", "RUF003", "E501"]
+
+# The server process hosts sessions rooted in different directories, so its
+# CWD is meaningless for session work. Server-side code must resolve paths
+# via the session/context work_dir (klaude_code.workspace.resolve_workspace_path).
+# CWD is only legitimate in client processes (cli/, tui/) — allowlisted below.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"os.getcwd".msg = "server-side code must use the session/context work_dir (see klaude_code.workspace)"
+"pathlib.Path.cwd".msg = "server-side code must use the session/context work_dir (see klaude_code.workspace)"
+"os.path.abspath".msg = "use klaude_code.workspace.resolve_workspace_path with the session/context work_dir"
+
+[tool.ruff.lint.per-file-ignores]
+# Client processes: the CWD is the user's real directory.
+"src/klaude_code/cli/**" = ["TID251"]
+"src/klaude_code/tui/workspace.py" = ["TID251"]  # the sanctioned client-side fallback
+"src/klaude_code/tui/runner.py" = ["TID251"]
+"src/klaude_code/tui/terminal/**" = ["TID251"]
+"src/klaude_code/app/**" = ["TID251"]  # client-side app bootstrap helpers
+"tests/**" = ["TID251"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["klaude_code"]

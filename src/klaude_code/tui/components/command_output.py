@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
@@ -9,6 +7,7 @@ from klaude_code.protocol.models import SessionIdUIExtra
 from klaude_code.session import Session
 from klaude_code.tui.components.common import truncate_middle
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.workspace import active_work_dir
 
 
 def render_notice(e: events.NoticeEvent) -> RenderableType:
@@ -127,7 +126,7 @@ def _render_fork_session_output(e: events.NoticeEvent) -> RenderableType:
 
     grid = Table.grid(padding=(0, 1))
     session_id = e.ui_extra.session_id
-    short_id = Session.shortest_unique_prefix(session_id, work_dir=Path.cwd())
+    short_id = Session.shortest_unique_prefix(session_id, work_dir=active_work_dir())
     grid.add_column(style=ThemeKey.TOOL_RESULT, overflow="fold")
 
     grid.add_row(Text("Session forked. Resume command copied to clipboard:", style=ThemeKey.TOOL_RESULT))

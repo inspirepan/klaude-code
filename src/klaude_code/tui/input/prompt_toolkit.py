@@ -29,6 +29,7 @@ from prompt_toolkit.utils import get_cwidth
 from klaude_code.app.ports import InputProviderABC
 from klaude_code.config import load_config
 from klaude_code.config.model_matcher import match_model_from_config
+from klaude_code.const import project_key_from_path
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.commands import PromptStatusLine
@@ -73,6 +74,7 @@ from klaude_code.tui.input.pt_theme import (
 )
 from klaude_code.tui.input.resize_watcher import ResizeWatcher
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
+from klaude_code.tui.workspace import active_work_dir
 
 # Style class tokens used by the REPL prompt. The concrete colors live in
 # ``pt_theme.py`` so that hex values follow the resolved light/dark palette.
@@ -111,27 +113,26 @@ class _BtwPlaceholderProcessor(Processor):
 
 
 def _get_git_info_cached() -> tuple[str | None, str | None]:
-    """TTL-cached wrapper around :func:`_get_git_info`, keyed by cwd."""
+    """TTL-cached wrapper around :func:`_get_git_info`, keyed by the workspace dir."""
     global _git_info_cache
     now = time.monotonic()
-    cwd = Path.cwd()
+    base = active_work_dir()
     if _git_info_cache is not None:
-        cached_at, cached_cwd, cached_info = _git_info_cache
-        if cached_cwd == cwd and now - cached_at < _GIT_INFO_CACHE_TTL_S:
+        cached_at, cached_base, cached_info = _git_info_cache
+        if cached_base == base and now - cached_at < _GIT_INFO_CACHE_TTL_S:
             return cached_info
-    info = _get_git_info()
-    _git_info_cache = (now, cwd, info)
+    info = _get_git_info(base)
+    _git_info_cache = (now, base, info)
     return info
 
 
-def _get_git_info() -> tuple[str | None, str | None]:
+def _get_git_info(base: Path) -> tuple[str | None, str | None]:
     """Return (repo_display, branch) by reading .git directly, no subprocess.
 
     repo_display is "org/repo" parsed from the origin remote URL, or None.
     branch is the current branch name, or None for detached HEAD / non-git.
     """
-    cwd = Path.cwd()
-    for directory in [cwd, *cwd.parents]:
+    for directory in [base, *base.parents]:
         git_path = directory / ".git"
         if not git_path.exists():
             continue
@@ -470,7 +471,7 @@ class PromptToolkitInput(InputProviderABC):
 
     def _build_prompt_session(self, prompt: str) -> PromptSession[str]:
         """Build the prompt_toolkit PromptSession with key bindings and styles."""
-        project = str(Path.cwd()).strip("/").replace("/", "-")
+        project = project_key_from_path(active_work_dir())
         history_path = Path.home() / ".klaude" / "projects" / project / "input" / "input_history.txt"
         history_path.parent.mkdir(parents=True, exist_ok=True)
         history_path.touch(exist_ok=True)
@@ -572,7 +573,8 @@ class PromptToolkitInput(InputProviderABC):
         """Build the idle prompt context shown below the input frame."""
 
         repo_display, branch = _get_git_info_cached()
-        cwd_name = Path.cwd().name or str(Path.cwd())
+        work_dir = active_work_dir()
+        cwd_name = work_dir.name or str(work_dir)
         dir_name = repo_display or cwd_name
         current_model: str | None = None
         if self._get_current_model_config_name is not None:
@@ -594,7 +596,7 @@ class PromptToolkitInput(InputProviderABC):
                 effort = self._get_current_model_effort()
 
         parts = [dir_name]
-        # Show cwd in brackets when it differs from the repo name
+        # Show the workspace dir in brackets when it differs from the repo name
         if repo_display and cwd_name != repo_display.rsplit("/", 1)[-1]:
             parts.append(f"[{cwd_name}]")
         if branch:
@@ -1218,7 +1220,7 @@ class PromptToolkitInput(InputProviderABC):
             line = expand_paste_markers(line)
 
             # Convert drag-and-drop file:// URIs that may have bypassed bracketed paste.
-            line = convert_dropped_text(line, cwd=Path.cwd())
+            line = convert_dropped_text(line, cwd=active_work_dir())
 
             # Extract images referenced in the input text
             images = extract_images_from_text(line)

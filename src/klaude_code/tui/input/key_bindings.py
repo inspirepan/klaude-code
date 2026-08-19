@@ -26,6 +26,7 @@ from prompt_toolkit.keys import Keys
 
 from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.paste import store_paste
+from klaude_code.tui.workspace import active_work_dir
 
 QUEUED_MESSAGE_EDIT_SEPARATOR = "\n--- split ---\n"
 _QUEUED_MESSAGE_SEPARATOR_RE = re.compile(r"(?im)^\s*---(?:\s+split)?\s*---\s*$|^\s*---\s*$")
@@ -491,7 +492,7 @@ def create_key_bindings(
         if marker is not None:
             data = marker + " "
         else:
-            converted = convert_dropped_text(data, cwd=Path.cwd())
+            converted = convert_dropped_text(data, cwd=active_work_dir())
             if converted != data and converted and not converted.endswith((" ", "\t", "\n")):
                 converted += " "
             data = converted
@@ -637,7 +638,7 @@ def create_key_bindings(
             current_text = buf.text  # type: ignore[reportUnknownMemberType]
         except Exception:
             current_text = ""
-        prepared = convert_dropped_text(current_text, cwd=Path.cwd())
+        prepared = convert_dropped_text(current_text, cwd=active_work_dir())
         if prepared != current_text:
             with contextlib.suppress(Exception):
                 buf.text = prepared  # type: ignore[reportUnknownMemberType]

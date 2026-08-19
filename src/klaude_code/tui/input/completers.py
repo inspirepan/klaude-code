@@ -35,6 +35,7 @@ from klaude_code.const import COMPLETER_CACHE_TTL_SEC, COMPLETER_CMD_TIMEOUT_SEC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol.input_syntax import AT_COMPLETION_PATTERN, SKILL_COMPLETION_PATTERN
 from klaude_code.tui.command.types import CommandInfo
+from klaude_code.tui.workspace import active_work_dir
 
 # Pattern to match @token for completion refresh (used by key bindings).
 # Supports both plain tokens like `@src/file.py` and quoted tokens like
@@ -344,7 +345,7 @@ class _SlashCommandCompleter(Completer):
         try:
             from klaude_code.skill import get_available_skills
 
-            return get_available_skills()
+            return get_available_skills(active_work_dir())
         except (ImportError, RuntimeError):
             return []
 
@@ -416,7 +417,7 @@ class _SkillCompleter(Completer):
             # Import here to avoid circular imports
             from klaude_code.skill import get_available_skills
 
-            return get_available_skills()
+            return get_available_skills(active_work_dir())
         except (ImportError, RuntimeError):
             return []
 
@@ -466,7 +467,7 @@ class _AtFilesCompleter(Completer):
 
     Behavior:
     - Only triggers when the cursor is after an "@…" token (until whitespace).
-    - Completes paths relative to the current working directory.
+    - Completes paths relative to the session workspace directory.
     - Uses the Git index inside repositories and an in-process scan elsewhere.
     - Caches Git indexes and query results to avoid excessive spawning.
     - Inserts a trailing space after completion to stop further triggering.
@@ -528,7 +529,7 @@ class _AtFilesCompleter(Completer):
 
         token_start_in_input = len(text_before) - len(f"@{frag}")
 
-        cwd = Path.cwd()
+        cwd = active_work_dir()
 
         # If no fragment yet, show lightweight suggestions from current directory
         if search_frag.strip() == "":

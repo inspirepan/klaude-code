@@ -388,8 +388,10 @@ class AgentOperationHandler:
                     work_dir=str(session.work_dir),
                     llm_config=session_clients.main.get_llm_config(),
                     title=session.title,
-                    loaded_skills={} if defer_welcome_context else get_skill_names_by_location(),
-                    loaded_skill_warnings={} if defer_welcome_context else get_skill_warnings_by_location(),
+                    loaded_skills={} if defer_welcome_context else get_skill_names_by_location(session.work_dir),
+                    loaded_skill_warnings=(
+                        {} if defer_welcome_context else get_skill_warnings_by_location(session.work_dir)
+                    ),
                     loaded_memories=(
                         {}
                         if defer_welcome_context
@@ -1073,8 +1075,8 @@ class AgentOperationHandler:
                 work_dir=str(new_agent.session.work_dir),
                 llm_config=session_clients.main.get_llm_config(),
                 title=new_agent.session.title,
-                loaded_skills=get_skill_names_by_location(),
-                loaded_skill_warnings=get_skill_warnings_by_location(),
+                loaded_skills=get_skill_names_by_location(new_agent.session.work_dir),
+                loaded_skill_warnings=get_skill_warnings_by_location(new_agent.session.work_dir),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=new_agent.session.work_dir),
             )
         )
@@ -1115,8 +1117,8 @@ class AgentOperationHandler:
                 work_dir=str(new_agent.session.work_dir),
                 llm_config=session_clients.main.get_llm_config(),
                 title=new_agent.session.title,
-                loaded_skills=get_skill_names_by_location(),
-                loaded_skill_warnings=get_skill_warnings_by_location(),
+                loaded_skills=get_skill_names_by_location(new_agent.session.work_dir),
+                loaded_skill_warnings=get_skill_warnings_by_location(new_agent.session.work_dir),
                 loaded_memories=get_existing_memory_paths_by_location(work_dir=new_agent.session.work_dir),
             )
         )
