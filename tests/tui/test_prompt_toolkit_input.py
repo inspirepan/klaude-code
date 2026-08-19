@@ -584,6 +584,23 @@ def test_input_window_max_height_keeps_minimum_row_on_tiny_terminal() -> None:
     assert prompt_input._get_max_input_window_rows(8) == 1
 
 
+def test_picker_reserved_rows_count_bottom_layout_and_input() -> None:
+    prompt_input: Any = _build_input("")
+
+    output = SimpleNamespace(get_size=lambda: SimpleNamespace(rows=20, columns=80))
+    with patch("klaude_code.tui.input.prompt_toolkit.get_app", return_value=SimpleNamespace(output=output)):
+        # bar 2 (spacer + status) + rules 2 + footer 2 + input 1.
+        assert prompt_input._get_picker_reserved_rows() == 7
+
+
+def test_picker_reserved_rows_grow_with_multiline_input() -> None:
+    prompt_input: Any = _build_input("one\ntwo\nthree")
+
+    output = SimpleNamespace(get_size=lambda: SimpleNamespace(rows=20, columns=80))
+    with patch("klaude_code.tui.input.prompt_toolkit.get_app", return_value=SimpleNamespace(output=output)):
+        assert prompt_input._get_picker_reserved_rows() == 9
+
+
 def test_input_footer_renders_metadata_below_context_line() -> None:
     prompt_input: Any = _build_input("")
     prompt_input.set_status_lines(

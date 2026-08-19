@@ -679,6 +679,7 @@ class PromptToolkitInput(InputProviderABC):
             search_placeholder="type to search",
             list_height=20,
             on_select=self._handle_model_selected,
+            get_reserved_rows=self._get_picker_reserved_rows,
         )
         self._model_picker = model_picker
 
@@ -982,6 +983,22 @@ class PromptToolkitInput(InputProviderABC):
             + self._get_completion_panel_height()
             + self._get_input_footer_height()
         )
+
+    def _get_picker_reserved_rows(self) -> int:
+        """Rows the REPL layout occupies around the model picker overlay.
+
+        The overlay subtracts these from the terminal height so its list
+        shrinks on short terminals instead of pushing the layout past the
+        screen, which prompt_toolkit renders as "Window too small...".
+        """
+        input_rows = 1
+        with contextlib.suppress(Exception):
+            size = get_app().output.get_size()
+            input_rows = min(
+                self._estimate_input_visual_rows(size.columns),
+                self._get_max_input_window_rows(size.rows),
+            )
+        return self._get_reserved_non_input_rows() + max(1, input_rows)
 
     def _estimate_input_visual_rows(self, columns: int) -> int:
         try:

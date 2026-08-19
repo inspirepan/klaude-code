@@ -786,6 +786,22 @@ def select_question[T](
 # SelectOverlay: embedded overlay for existing prompt_toolkit Application
 # ---------------------------------------------------------------------------
 
+# Fallback for the host application's rows around an embedded overlay (prompt
+# line, rules, footer) when no ``get_reserved_rows`` callback is provided.
+_OVERLAY_FALLBACK_HOST_ROWS = 3
+
+
+def _overlay_list_cap(*, configured_height: int, terminal_rows: int, overhead_rows: int) -> int:
+    """Rows an embedded overlay list may use on the current terminal.
+
+    Shrinks with the terminal height and floors at one row so short terminals
+    show fewer items instead of overflowing the enclosing HSplit, which
+    prompt_toolkit renders as "Window too small...".
+    """
+    if terminal_rows <= 0:
+        return max(1, configured_height)
+    return max(1, min(configured_height, terminal_rows - overhead_rows))
+
 
 class SelectOverlay[T]:
     """Embedded single-choice selector overlay for an existing prompt_toolkit Application.
@@ -804,11 +820,15 @@ class SelectOverlay[T]:
         highlight_pointed_item: bool = True,
         on_select: Callable[[T], Coroutine[Any, Any, None] | None] | None = None,
         on_cancel: Callable[[], Coroutine[Any, Any, None] | None] | None = None,
+        get_reserved_rows: Callable[[], int] | None = None,
     ) -> None:
         self._pointer = pointer
         self._use_search_filter = use_search_filter
         self._search_placeholder = search_placeholder
         self._list_height = max(1, list_height)
+        # Host callback reporting how many rows the surrounding layout keeps
+        # for itself while the overlay is open, so the list can shrink to fit.
+        self._get_reserved_rows = get_reserved_rows
         self._highlight_pointed_item = highlight_pointed_item
         self._on_select = on_select
         self._on_cancel = on_cancel
@@ -972,13 +992,22 @@ class SelectOverlay[T]:
         )
 
         def get_list_height() -> int:
-            # Dynamic height: min of configured height and available terminal space
-            # Overhead: header(1) + search(1) + frame borders(2) + prompt area(3)
-            overhead = 7
+            # Dynamic height: min of configured height and available terminal
+            # space. The overlay's own chrome is the frame borders (2), the
+            # header row, and the optional search row; the host's rows come
+            # from ``get_reserved_rows`` (fallback: a rough prompt-area guess).
+            chrome_rows = 3 + (1 if self._use_search_filter else 0)
+            host_rows = _OVERLAY_FALLBACK_HOST_ROWS
+            if self._get_reserved_rows is not None:
+                with contextlib.suppress(Exception):
+                    host_rows = max(0, int(self._get_reserved_rows()))
             try:
-                terminal_height = get_app().output.get_size().rows
-                available = max(3, terminal_height - overhead)
-                cap = min(self._list_height, available)
+                terminal_rows = get_app().output.get_size().rows
+                cap = _overlay_list_cap(
+                    configured_height=self._list_height,
+                    terminal_rows=terminal_rows,
+                    overhead_rows=chrome_rows + host_rows,
+                )
             except Exception:
                 cap = self._list_height
 
