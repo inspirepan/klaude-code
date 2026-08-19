@@ -22,6 +22,7 @@ from klaude_code.tool.core.registry import register
 from klaude_code.tool.file import apply_patch as apply_patch_module
 from klaude_code.tool.file._utils import hash_text_sha256
 from klaude_code.tool.file.diff_builder import build_structured_file_diff, build_unified_diff_text
+from klaude_code.workspace import WorkspaceEscapeError, resolve_workspace_path
 
 
 class ApplyPatchHandler:
@@ -57,18 +58,11 @@ class ApplyPatchHandler:
         if not normalized_start.startswith("*** Begin Patch"):
             raise ap.DiffError("apply_patch content must start with *** Begin Patch")
 
-        workspace_root = os.path.realpath(str(work_dir))
-
         def resolve_path(path: str) -> str:
-            candidate = os.path.realpath(path if os.path.isabs(path) else os.path.join(workspace_root, path))
-            if not os.path.isabs(path):
-                try:
-                    common = os.path.commonpath([workspace_root, candidate])
-                except ValueError:
-                    raise ap.DiffError(f"Path escapes workspace: {path}") from None
-                if common != workspace_root:
-                    raise ap.DiffError(f"Path escapes workspace: {path}")
-            return candidate
+            try:
+                return str(resolve_workspace_path(path, work_dir, strict=True))
+            except WorkspaceEscapeError as error:
+                raise ap.DiffError(str(error)) from None
 
         def open_fn(path: str) -> str:
             resolved = resolve_path(path)

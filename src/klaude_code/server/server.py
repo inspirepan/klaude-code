@@ -118,6 +118,12 @@ async def start_server(*, debug: bool = False) -> bool:
 
     home_dir = Path.home()
 
+    # The server hosts sessions from many directories; its own CWD carries no
+    # meaning. Pin it to home so any residual CWD-relative code fails loudly
+    # instead of resolving against whatever directory launched the process,
+    # and so the daemon never pins a project directory.
+    os.chdir(home_dir)
+
     run_dir = server_run_dir(home_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     os.chmod(run_dir, 0o700)
@@ -140,7 +146,6 @@ async def start_server(*, debug: bool = False) -> bool:
             runtime=components.runtime,
             event_bus=components.event_bus,
             interaction_handler=interaction_handler,
-            work_dir=Path.cwd(),
             home_dir=home_dir,
             lifecycle=lifecycle,
         )

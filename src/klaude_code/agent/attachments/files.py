@@ -29,6 +29,7 @@ from klaude_code.protocol.models import (
 from klaude_code.session import Session
 from klaude_code.skill.loader import discover_skills_near_paths
 from klaude_code.tool import BashTool, ReadTool
+from klaude_code.workspace import resolve_workspace_path
 
 from . import truncate_text_by_lines
 from .memory import Memory, discover_memory_files_near_paths, format_memory_content
@@ -66,15 +67,15 @@ class AtFileRef:
         self.line_end = line_end
 
 
-def _parse_at_file_ref(raw: str) -> AtFileRef:
+def _parse_at_file_ref(raw: str, work_dir: Path) -> AtFileRef:
     match = re.match(r"^(.+?)#L(\d+)(?:-(\d+))?$", raw)
     if not match:
         return AtFileRef(raw)
 
     base_path = match.group(1)
-    if Path(raw).resolve().exists():
+    if resolve_workspace_path(raw, work_dir).exists():
         return AtFileRef(raw)
-    if not Path(base_path).resolve().exists():
+    if not resolve_workspace_path(base_path, work_dir).exists():
         return AtFileRef(raw)
 
     line_start = int(match.group(2))
@@ -96,7 +97,7 @@ def get_at_patterns(session: Session) -> list[AtFileRef]:
                 for match in AT_FILE_PATTERN.finditer(content):
                     path_str = match.group("quoted") or match.group("plain")
                     if path_str:
-                        refs.append(_parse_at_file_ref(path_str))
+                        refs.append(_parse_at_file_ref(path_str, session.work_dir))
             return refs
     return []
 
@@ -111,7 +112,7 @@ async def _load_at_file(
     discovered_memories: list[Memory],
     skill_discovery_paths: list[str],
 ) -> None:
-    path = Path(ref.path).resolve()
+    path = resolve_workspace_path(ref.path, session.work_dir)
     path_str = str(path)
     tool_context = build_attachment_tool_context(session)
 

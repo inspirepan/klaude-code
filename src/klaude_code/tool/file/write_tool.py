@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import os
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -22,6 +21,7 @@ from klaude_code.tool.file._utils import (
     write_text,
 )
 from klaude_code.tool.file.diff_builder import build_structured_diff, build_structured_file_diff
+from klaude_code.workspace import resolve_workspace_path
 
 
 class WriteArguments(BaseModel):
@@ -61,7 +61,7 @@ class WriteTool(ToolABC):
         except ValueError as e:  # pragma: no cover - defensive
             return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {e}")
 
-        file_path = os.path.abspath(args.file_path)
+        file_path = str(resolve_workspace_path(args.file_path, context.work_dir))
 
         if is_directory(file_path):
             return message.ToolResultMessage(

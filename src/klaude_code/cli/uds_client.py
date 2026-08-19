@@ -60,12 +60,16 @@ def request(
 def _spawn_server_detached() -> None:
     argv0 = Path(sys.argv[0])
     if argv0.exists() and os.access(argv0, os.X_OK):
-        command = [str(argv0), "server", "run"]
+        command = [str(argv0.resolve()), "server", "run"]
     else:
         launcher = "from klaude_code.cli.main import app; app()"
         command = [sys.executable, "-c", launcher, "server", "run"]
+    # The daemon must not inherit this client's CWD: it outlives the client,
+    # serves sessions from many directories, and would otherwise pin whatever
+    # directory the first `klaude` invocation happened to run in.
     subprocess.Popen(
         command,
+        cwd=str(Path.home()),
         stdin=subprocess.DEVNULL,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,

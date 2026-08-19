@@ -110,9 +110,7 @@ class AppEnv:
     exit_calls: list[bool]
 
     def create_session(self, work_dir: Path | None = None) -> str:
-        payload: dict[str, str] = {}
-        if work_dir is not None:
-            payload["work_dir"] = str(work_dir)
+        payload: dict[str, str] = {"work_dir": str(work_dir if work_dir is not None else self.work_dir)}
         response = self.client.post("/api/sessions", json=payload)
         assert response.status_code == 200
         return str(response.json()["session_id"])
@@ -162,7 +160,6 @@ def app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
             runtime=runtime,
             event_bus=event_bus,
             interaction_handler=interaction_handler,
-            work_dir=work_dir,
             home_dir=home_dir,
             lifecycle=lifecycle,
         )
@@ -172,7 +169,6 @@ def app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         await close_default_store()
 
     app = create_app(
-        work_dir=work_dir,
         home_dir=home_dir,
         state_initializer=_state_initializer,
         state_shutdown=_state_shutdown,

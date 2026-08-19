@@ -276,7 +276,9 @@ def _render_turns(history: list[message.HistoryEvent], turns: int) -> str:
 
 class HeadlessRunRequest(BaseModel):
     prompt: str
-    work_dir: str | None = None
+    # Required: the server has no meaningful CWD of its own, so there is no
+    # sane default to fall back to.
+    work_dir: str
     model: str | None = None
     agent: str = "main"
     name: str | None = None
@@ -323,7 +325,7 @@ async def run_headless(payload: HeadlessRunRequest, state: ServerAppState = STAT
     if not prompt:
         raise HTTPException(status_code=400, detail="prompt is empty")
 
-    work_dir = Path(payload.work_dir).expanduser() if payload.work_dir else state.work_dir
+    work_dir = Path(payload.work_dir).expanduser()
     if not work_dir.exists() or not work_dir.is_dir():
         raise HTTPException(status_code=400, detail=f"work_dir does not exist: {work_dir}")
     work_dir = work_dir.resolve()

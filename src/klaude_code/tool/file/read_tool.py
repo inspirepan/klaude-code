@@ -20,6 +20,7 @@ from klaude_code.tool.core.registry import register
 from klaude_code.tool.file import read_handlers
 from klaude_code.tool.file._read_core import _is_supported_image_file
 from klaude_code.tool.file._utils import file_exists, is_blocked_device_path, is_directory, read_text
+from klaude_code.workspace import resolve_workspace_path
 
 
 def _is_binary_file(file_path: str) -> bool:
@@ -174,7 +175,7 @@ class ReadTool(ToolABC):
 
     @classmethod
     async def call_with_args(cls, args: ReadTool.ReadArguments, context: ToolContext) -> message.ToolResultMessage:
-        file_path = os.path.abspath(args.file_path)
+        file_path = str(resolve_workspace_path(args.file_path, context.work_dir))
         char_per_line, line_cap, max_chars = cls._effective_limits()
 
         if is_directory(file_path):

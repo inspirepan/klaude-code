@@ -19,7 +19,6 @@ class ServerAppState:
     runtime: RuntimeFacade
     event_bus: EventBus
     interaction_handler: ServerInteractionHandler
-    work_dir: Path
     home_dir: Path
     session_live: SessionLiveState | None = None
     lifecycle: ServerLifecycle | None = None

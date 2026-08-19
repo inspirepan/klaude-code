@@ -18,7 +18,9 @@ _SERVER_STATE_DEP: Final = Depends(get_server_state)
 
 
 class CreateSessionRequest(BaseModel):
-    work_dir: str | None = None
+    # Required: the server has no meaningful CWD of its own, so there is no
+    # sane default to fall back to.
+    work_dir: str
     model: str | None = None
     vanilla: bool = False
 
@@ -32,7 +34,7 @@ async def create_session(
     payload: CreateSessionRequest,
     state: ServerAppState = _SERVER_STATE_DEP,
 ) -> dict[str, str]:
-    target_work_dir = Path(payload.work_dir).expanduser() if payload.work_dir else state.work_dir
+    target_work_dir = Path(payload.work_dir).expanduser()
     if not target_work_dir.exists() or not target_work_dir.is_dir():
         raise HTTPException(status_code=400, detail=f"work_dir does not exist: {target_work_dir}")
     target_work_dir = target_work_dir.resolve()

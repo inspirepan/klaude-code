@@ -237,7 +237,6 @@ def test_websocket_forwards_child_session_events_without_snapshot(
             runtime=runtime,
             event_bus=event_bus,
             interaction_handler=ServerInteractionHandler(),
-            work_dir=work_dir,
             home_dir=home_dir,
         )
 
@@ -246,7 +245,6 @@ def test_websocket_forwards_child_session_events_without_snapshot(
         await close_default_store()
 
     app = create_app(
-        work_dir=work_dir,
         home_dir=home_dir,
         state_initializer=_state_initializer,
         state_shutdown=_state_shutdown,
