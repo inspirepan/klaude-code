@@ -186,32 +186,37 @@ class WebSearchTool(ToolABC):
 
         max_results = min(max(args.max_results, 1), WEB_SEARCH_MAX_RESULTS_LIMIT)
 
-        try:
-            exa_api_key = os.environ.get("EXA_API_KEY") or get_auth_env("EXA_API_KEY") or ""
-            provider = "exa"
-            provider_api_key = exa_api_key
+        # Build provider chain in priority order; on failure, fall back to the next one.
+        providers: list[tuple[str, str]] = []
+        exa_api_key = os.environ.get("EXA_API_KEY") or get_auth_env("EXA_API_KEY") or ""
+        if exa_api_key:
+            providers.append(("exa", exa_api_key))
+        brave_api_key = os.environ.get("BRAVE_API_KEY") or get_auth_env("BRAVE_API_KEY") or ""
+        if brave_api_key:
+            providers.append(("brave", brave_api_key))
 
-            if not provider_api_key:
-                brave_api_key = os.environ.get("BRAVE_API_KEY") or get_auth_env("BRAVE_API_KEY") or ""
-                provider = "brave"
-                provider_api_key = brave_api_key
+        if not providers:
+            return message.ToolResultMessage(
+                status="error",
+                output_text="Search failed: missing EXA_API_KEY or BRAVE_API_KEY. Please set one and try again.",
+            )
 
-            if not provider_api_key:
-                return message.ToolResultMessage(
-                    status="error",
-                    output_text="Search failed: missing EXA_API_KEY or BRAVE_API_KEY. Please set one and try again.",
-                )
-
+        errors: list[str] = []
+        for provider, provider_api_key in providers:
             # Check cache
             cache_key = make_cache_key("search", provider, query, str(max_results))
             cached = get_cached(cache_key)
             if cached is not None:
                 return message.ToolResultMessage(status="success", output_text=cached)
 
-            if provider == "brave":
-                results = await asyncio.to_thread(_search_brave, query, max_results, provider_api_key)
-            else:
-                results = await asyncio.to_thread(_search_exa, query, max_results, provider_api_key)
+            try:
+                if provider == "brave":
+                    results = await asyncio.to_thread(_search_brave, query, max_results, provider_api_key)
+                else:
+                    results = await asyncio.to_thread(_search_exa, query, max_results, provider_api_key)
+            except Exception as e:
+                errors.append(f"{provider}: {e}")
+                continue
 
             formatted = _format_results(results)
             wrapped = wrap_web_content(formatted, source="Web Search", include_warning=False)
@@ -222,8 +227,7 @@ class WebSearchTool(ToolABC):
                 output_text=wrapped,
             )
 
-        except Exception as e:
-            return message.ToolResultMessage(
-                status="error",
-                output_text=f"Search failed: {e}",
-            )
+        return message.ToolResultMessage(
+            status="error",
+            output_text=f"Search failed: {'; '.join(errors)}",
+        )

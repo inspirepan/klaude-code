@@ -168,7 +168,7 @@ class TestApiKeySelection:
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
 
         assert result.status == "success"
-        mock_get_auth_env.assert_called_once_with("EXA_API_KEY")
+        assert mock_get_auth_env.call_args_list[0].args[0] == "EXA_API_KEY"
         mock_search_exa.assert_called_once()
         assert mock_search_exa.call_args.args[2] == "exa-auth-key"
 
@@ -189,7 +189,8 @@ class TestApiKeySelection:
             result = asyncio.run(WebSearchTool.call(args, _tool_context()))
 
         assert result.status == "success"
-        mock_get_auth_env.assert_not_called()
+        # Auth env must not be consulted for EXA_API_KEY when the process env provides it.
+        assert all(call.args[0] != "EXA_API_KEY" for call in mock_get_auth_env.call_args_list)
         mock_search_exa.assert_called_once()
         assert mock_search_exa.call_args.args[2] == "exa-env-key"
 
@@ -253,3 +254,67 @@ class TestApiKeySelection:
         mock_search_exa.assert_not_called()
         mock_search_brave.assert_called_once()
         assert mock_search_brave.call_args.args[2] == "brave-env-key"
+
+
+class TestProviderFailureFallback:
+    """When the primary provider's request fails, the next provider with a key is tried."""
+
+    def test_falls_back_to_brave_when_exa_request_fails(self) -> None:
+        web_cache.clear()
+
+        def _failing_exa(_query: str, _max_results: int, _api_key: str) -> list[SearchResult]:
+            raise ConnectionError("exa unreachable")
+
+        with (
+            patch.dict(os.environ, {"EXA_API_KEY": "exa-key", "BRAVE_API_KEY": "brave-key"}),
+            patch("klaude_code.tool.web.web_search_tool._search_exa", side_effect=_failing_exa) as mock_search_exa,
+            patch("klaude_code.tool.web.web_search_tool._search_brave", side_effect=_fake_brave) as mock_search_brave,
+        ):
+            args = WebSearchTool.WebSearchArguments(query="exa down, brave up").model_dump_json()
+            result = asyncio.run(WebSearchTool.call(args, _tool_context()))
+
+        assert result.status == "success"
+        mock_search_exa.assert_called_once()
+        mock_search_brave.assert_called_once()
+        assert result.output_text is not None
+        assert "Result 1" in result.output_text
+
+    def test_error_when_all_providers_fail(self) -> None:
+        web_cache.clear()
+
+        def _failing_exa(_query: str, _max_results: int, _api_key: str) -> list[SearchResult]:
+            raise ConnectionError("exa unreachable")
+
+        def _failing_brave(_query: str, _max_results: int, _api_key: str) -> list[SearchResult]:
+            raise TimeoutError("brave timed out")
+
+        with (
+            patch.dict(os.environ, {"EXA_API_KEY": "exa-key", "BRAVE_API_KEY": "brave-key"}),
+            patch("klaude_code.tool.web.web_search_tool._search_exa", side_effect=_failing_exa),
+            patch("klaude_code.tool.web.web_search_tool._search_brave", side_effect=_failing_brave),
+        ):
+            args = WebSearchTool.WebSearchArguments(query="both providers down").model_dump_json()
+            result = asyncio.run(WebSearchTool.call(args, _tool_context()))
+
+        assert result.status == "error"
+        assert result.output_text is not None
+        assert "exa: exa unreachable" in result.output_text
+        assert "brave: brave timed out" in result.output_text
+
+    def test_error_when_exa_fails_and_no_brave_key(self) -> None:
+        web_cache.clear()
+
+        def _failing_exa(_query: str, _max_results: int, _api_key: str) -> list[SearchResult]:
+            raise ConnectionError("exa unreachable")
+
+        with (
+            patch.dict(os.environ, {"EXA_API_KEY": "exa-key"}),
+            patch("klaude_code.tool.web.web_search_tool.get_auth_env", return_value=""),
+            patch("klaude_code.tool.web.web_search_tool._search_exa", side_effect=_failing_exa),
+        ):
+            args = WebSearchTool.WebSearchArguments(query="exa down, no brave key").model_dump_json()
+            result = asyncio.run(WebSearchTool.call(args, _tool_context()))
+
+        assert result.status == "error"
+        assert result.output_text is not None
+        assert "exa: exa unreachable" in result.output_text
