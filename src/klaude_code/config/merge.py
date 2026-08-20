@@ -9,6 +9,8 @@ from klaude_code.config.config import (
     ModelConfig,
     ProviderConfig,
     UserProviderConfig,
+    WebSearchConfig,
+    WebSearchProviderConfig,
     config_path,
     normalize_provider_name,
 )
@@ -68,6 +70,34 @@ def _merge_provider(builtin: ProviderConfig, user: UserProviderConfig) -> Provid
     return ProviderConfig.model_validate(merged_data)
 
 
+def _merge_web_search(user: WebSearchConfig | None, builtin: WebSearchConfig) -> WebSearchConfig:
+    """Merge user web_search config with builtin defaults.
+
+    Strategy: the user's ``providers`` list replaces the builtin list (its
+    membership AND order define the chain), but each entry's unset fields
+    (api_key/base_url/model) inherit from the builtin entry of the same name,
+    so reordering only requires listing provider names.
+    """
+    if user is None:
+        return builtin.model_copy(deep=True)
+    builtin_by_name = {p.provider: p for p in builtin.providers}
+    merged_providers: list[WebSearchProviderConfig] = []
+    for entry in user.providers:
+        base = builtin_by_name.get(entry.provider)
+        if base is None:
+            merged_providers.append(entry)
+            continue
+        merged_providers.append(
+            WebSearchProviderConfig(
+                provider=entry.provider,
+                api_key=entry.api_key if entry.api_key is not None else base.api_key,
+                base_url=entry.base_url if entry.base_url is not None else base.base_url,
+                model=entry.model if entry.model is not None else base.model,
+            )
+        )
+    return WebSearchConfig(providers=merged_providers)
+
+
 def merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Config:
     """Merge user config with builtin config.
 
@@ -91,6 +121,7 @@ def merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Con
             sub_agent_models=dict(builtin_config.sub_agent_models),
             sub_agent_model_decision_tree=builtin_config.sub_agent_model_decision_tree,
             theme=builtin_config.theme,
+            web_search=_merge_web_search(None, builtin_config.web_search),
             provider_list=revalidated_providers,
         )
         merged.set_user_config(None)
@@ -149,6 +180,7 @@ def merge_configs(user_config: UserConfig | None, builtin_config: Config) -> Con
             if user_config.headless_max_running is not None
             else builtin_config.headless_max_running
         ),
+        web_search=_merge_web_search(user_config.web_search, builtin_config.web_search),
         provider_list=revalidated_providers,
     )
     # Keep reference to user config for saving

@@ -23,12 +23,12 @@ class TestBraveSearch:
             pytest.skip("BRAVE_API_KEY not set")
 
     def test_search_returns_results(self) -> None:
-        results = _search_brave("Python programming language", 5, os.environ["BRAVE_API_KEY"])
+        results = _search_brave("Python programming language", 5, os.environ["BRAVE_API_KEY"]).results
         assert len(results) > 0
         assert all(isinstance(r, SearchResult) for r in results)
 
     def test_result_fields_populated(self) -> None:
-        results = _search_brave("what is rust programming", 3, os.environ["BRAVE_API_KEY"])
+        results = _search_brave("what is rust programming", 3, os.environ["BRAVE_API_KEY"]).results
         assert len(results) > 0
         first = results[0]
         assert first.url.startswith("http")
@@ -37,12 +37,12 @@ class TestBraveSearch:
         assert first.position == 1
 
     def test_positions_sequential(self) -> None:
-        results = _search_brave("machine learning", 5, os.environ["BRAVE_API_KEY"])
+        results = _search_brave("machine learning", 5, os.environ["BRAVE_API_KEY"]).results
         for i, r in enumerate(results):
             assert r.position == i + 1
 
     def test_format_results_xml(self) -> None:
-        results = _search_brave("Python asyncio", 3, os.environ["BRAVE_API_KEY"])
+        results = _search_brave("Python asyncio", 3, os.environ["BRAVE_API_KEY"]).results
         formatted = _format_results(results)
         assert formatted.startswith("<search_results>")
         assert formatted.endswith("</search_results>")

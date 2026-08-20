@@ -111,6 +111,13 @@ WEB_FETCH_MAX_REDIRECTS = 10  # Maximum number of redirects to follow
 URL_FILENAME_MAX_LENGTH = 80  # Maximum length for extracting filename from URL
 WEB_SEARCH_DEFAULT_MAX_RESULTS = 10  # Default number of search results
 WEB_SEARCH_MAX_RESULTS_LIMIT = 20  # Maximum number of search results allowed
+WEB_SEARCH_LLM_TIMEOUT_SEC = (
+    60  # Timeout for LLM-backed search providers (deepseek/openai); one search costs a model turn
+)
+WEB_SEARCH_DEEPSEEK_MAX_TOKENS = 4096  # max_tokens for the DeepSeek Anthropic Messages search call
+WEB_SEARCH_DEEPSEEK_MAX_USES = 5  # max_uses for the DeepSeek native web_search server tool
+WEB_SEARCH_DEEPSEEK_API_VERSION = "2023-06-01"  # anthropic-version header for the DeepSeek search call
+WEB_SEARCH_SNIPPET_MAX_CHARS = 2000  # Per-result snippet length cap
 WEB_CACHE_TTL_SECONDS = 900  # TTL for web search/fetch cache (15 minutes)
 WEB_CACHE_MAX_ENTRIES = 100  # Maximum entries in web cache
 

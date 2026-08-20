@@ -1190,6 +1190,30 @@ provider_list:
       - z-ai
     cost: { input: 1.4, output: 4.4, cache_read: 0.26 }
 
+# ######################################## web search ########################################
+# WebSearch tool provider chain. Providers are tried in list order; a provider
+# is skipped when its API key is not set. Users can override the whole list
+# (membership and order) via `web_search` in klaude-config.yaml; unset fields
+# of an entry inherit from the builtin entry of the same provider.
+web_search:
+  providers:
+  - provider: exa
+    api_key: ${EXA_API_KEY}
+  - provider: brave
+    api_key: ${BRAVE_API_KEY}
+  # LLM-backed search: one Anthropic Messages call ({base_url}/v1/messages)
+  # with the native web_search server tool.
+  - provider: deepseek
+    api_key: ${DEEPSEEK_API_KEY}
+    base_url: https://api.deepseek.com/anthropic
+    model: deepseek-v4-flash
+  # LLM-backed search: one Responses API call ({base_url}/responses) with the
+  # hosted web_search tool.
+  - provider: openai
+    api_key: ${OPENAI_API_KEY}
+    base_url: https://api.openai.com/v1
+    model: gpt-5.6-luna
+
 sub_agent_model_decision_tree: |
   - Omit `model` for specialized agents (`finder`, `code-reviewer`, `code-maintenance-reviewer`); their configured defaults are chosen for their roles. Pick a model only for `general-purpose` and `general-purpose-fork-context`.
   - If the user asks for a specific model or provider, pass that selector exactly.

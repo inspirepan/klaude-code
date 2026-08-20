@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from dataclasses import field as dc_field
 from enum import Enum
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -296,6 +296,49 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
         return self.get_resolved_api_key() is None
 
 
+WebSearchProviderName = Literal["exa", "brave", "deepseek", "openai"]
+
+
+class WebSearchProviderConfig(BaseModel):
+    """One web search provider entry; list order in ``WebSearchConfig`` is priority order."""
+
+    provider: WebSearchProviderName
+    # API key value; supports ${ENV_VAR} syntax (resolved via os.environ > klaude-auth.json).
+    api_key: str | None = None
+    # Endpoint base; only used by the LLM-backed providers (deepseek/openai).
+    base_url: str | None = None
+    # Model ID; only used by the LLM-backed providers (deepseek/openai).
+    model: str | None = None
+
+
+class WebSearchConfig(BaseModel):
+    """Web search provider chain. Providers are tried in list order."""
+
+    providers: list[WebSearchProviderConfig] = Field(default_factory=lambda: [])
+
+
+def default_web_search_config() -> WebSearchConfig:
+    """Builtin web search defaults. Mirrors the ``web_search`` section of builtin_config.yaml."""
+    return WebSearchConfig(
+        providers=[
+            WebSearchProviderConfig(provider="exa", api_key="${EXA_API_KEY}"),
+            WebSearchProviderConfig(provider="brave", api_key="${BRAVE_API_KEY}"),
+            WebSearchProviderConfig(
+                provider="deepseek",
+                api_key="${DEEPSEEK_API_KEY}",
+                base_url="https://api.deepseek.com/anthropic",
+                model="deepseek-v4-flash",
+            ),
+            WebSearchProviderConfig(
+                provider="openai",
+                api_key="${OPENAI_API_KEY}",
+                base_url="https://api.openai.com/v1",
+                model="gpt-5.6-luna",
+            ),
+        ]
+    )
+
+
 class UserProviderConfig(BaseModel):
     """User provider configuration (allows partial overrides).
 
@@ -370,6 +413,8 @@ class UserConfig(BaseModel):
     auto_upgrade: bool | None = None
     # Max concurrently running headless sessions (spawned via `klaude run`).
     headless_max_running: int | None = None
+    # Web search provider chain override; None means "use builtin defaults".
+    web_search: WebSearchConfig | None = None
     provider_list: list[UserProviderConfig] = Field(default_factory=lambda: [])
 
     @model_validator(mode="before")
@@ -386,6 +431,7 @@ _MERGEABLE_USER_FIELDS = (
     "theme",
     "auto_upgrade",
     "headless_max_running",
+    "web_search",
 )
 
 
@@ -469,6 +515,8 @@ class Config(BaseModel):
     # Max concurrently running headless sessions (spawned via `klaude run`);
     # further `run` requests queue on the server until a slot frees.
     headless_max_running: int = 8
+    # Web search provider chain (merged builtin defaults + user override).
+    web_search: WebSearchConfig = Field(default_factory=default_web_search_config)
     provider_list: list[ProviderConfig] = Field(default_factory=lambda: [])
 
     # Internal: reference to original user config for saving
@@ -914,6 +962,7 @@ class Config(BaseModel):
         )
         user_config.theme = self.theme if self.theme != builtin.theme else None
         user_config.auto_upgrade = self.auto_upgrade if self.auto_upgrade != builtin.auto_upgrade else None
+        user_config.web_search = self.web_search if self.web_search != builtin.web_search else None
 
         # For sub_agent_models, only save entries that differ from builtin
         user_sub_agent_models: dict[str, ModelPreference] = {}
