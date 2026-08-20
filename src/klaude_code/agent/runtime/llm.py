@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from dataclasses import field as dataclass_field
 from typing import override
 
-from klaude_code.config import Config
+from klaude_code.config import Config, load_config
 from klaude_code.config.config import ModelConfigCandidate, ModelPreference, format_model_preference
 from klaude_code.config.sub_agent_model import SubAgentModelResolver
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
@@ -95,6 +95,15 @@ class FallbackLLMClient(LLMClientABC):
 
     @override
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
+        disabled_reason = await asyncio.to_thread(self._disabled_by_current_config)
+        if disabled_reason is not None:
+            metadata_tracker = MetadataTracker(cost_config=self.get_llm_config().cost)
+            return error_llm_stream(
+                metadata_tracker,
+                error=(
+                    f"model_not_available: {self.active_candidate.selector}: {disabled_reason} (see /manage-providers)"
+                ),
+            )
         try:
             client = self._clients.get(self._active_index)
             if client is None:
@@ -106,6 +115,25 @@ class FallbackLLMClient(LLMClientABC):
                 error=f"model_not_available: failed to initialize {self.active_candidate.selector}: {exc}",
             )
         return await client.call(param)
+
+    def _disabled_by_current_config(self) -> str | None:
+        """Call-time disable check so provider toggles reach live sessions.
+
+        Candidates snapshot their provider config at build time, so a
+        /manage-providers change would otherwise never affect an already-built
+        client. The "model_not_available" error it produces is fallbackable:
+        the task loop advances the chain and retries. Runs off the event loop
+        because load_config() re-reads the file after a cache clear.
+        """
+        candidate = self.active_candidate
+        try:
+            config = load_config()
+        except Exception:
+            return None  # an unreadable config must not block live sessions
+        return config.get_candidate_disabled_reason(
+            provider_name=candidate.provider,
+            model_name=candidate.model_name,
+        )
 
     async def warmup(self) -> None:
         """Best-effort creation of the active provider client off the event loop."""

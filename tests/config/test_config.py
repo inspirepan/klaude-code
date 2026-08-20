@@ -2468,3 +2468,51 @@ class TestOutOfBoxExperience:
         # Anthropic models should be available
         available = config.iter_model_entries(only_available=True)
         assert any(m.model_name == "sonnet" for m in available)
+
+
+# =============================================================================
+# get_candidate_disabled_reason Tests
+# =============================================================================
+
+
+class TestGetCandidateDisabledReason:
+    """Call-time disable check used by FallbackLLMClient."""
+
+    def _make_config(self, *, provider_disabled: bool = False, model_disabled: bool = False) -> Config:
+        return Config(
+            provider_list=[
+                ProviderConfig(
+                    provider_name="test-provider",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="test-api-key",
+                    base_url="https://api.example.com/v1",
+                    disabled=provider_disabled,
+                    model_list=[
+                        ModelConfig(model_name="test-model", model_id="test-model-v1", disabled=model_disabled)
+                    ],
+                )
+            ],
+            main_model="test-model",
+        )
+
+    def test_enabled_candidate_returns_none(self) -> None:
+        config = self._make_config()
+        assert config.get_candidate_disabled_reason(provider_name="test-provider", model_name="test-model") is None
+
+    def test_disabled_provider_returns_reason(self) -> None:
+        config = self._make_config(provider_disabled=True)
+        reason = config.get_candidate_disabled_reason(provider_name="test-provider", model_name="test-model")
+        assert reason == "provider 'test-provider' is disabled"
+
+    def test_disabled_model_returns_reason(self) -> None:
+        config = self._make_config(model_disabled=True)
+        reason = config.get_candidate_disabled_reason(provider_name="test-provider", model_name="test-model")
+        assert reason == "model 'test-model' is disabled in provider 'test-provider'"
+
+    def test_unknown_provider_keeps_snapshot_running(self) -> None:
+        config = self._make_config(provider_disabled=True)
+        assert config.get_candidate_disabled_reason(provider_name="gone-provider", model_name="test-model") is None
+
+    def test_model_missing_from_provider_keeps_snapshot_running(self) -> None:
+        config = self._make_config()
+        assert config.get_candidate_disabled_reason(provider_name="test-provider", model_name="renamed-model") is None

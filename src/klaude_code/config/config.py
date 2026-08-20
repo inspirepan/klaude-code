@@ -565,6 +565,26 @@ class Config(BaseModel):
         else:
             user_provider.disabled = disabled
 
+    def get_candidate_disabled_reason(self, *, provider_name: str, model_name: str) -> str | None:
+        """Return why a resolved candidate is disabled, or None if usable.
+
+        Live LLM clients snapshot their provider config at build time; this is
+        the call-time check that lets a disable toggle reach sessions that are
+        already running. Only explicit disable flags count: a provider or model
+        that no longer exists in the config keeps running on its snapshot.
+        """
+        reason: str | None = None
+        for provider in self._providers_for(provider_name):
+            if provider.disabled:
+                reason = f"provider '{provider.provider_name}' is disabled"
+                continue
+            model = _find_model(provider, model_name)
+            if model is not None and model.disabled:
+                reason = f"model '{model_name}' is disabled in provider '{provider.provider_name}'"
+                continue
+            return None
+        return reason
+
     def _get_provider_index(self) -> dict[str, list[ProviderConfig]]:
         """Return a cached case-insensitive index: casefold(provider_name) -> providers.
 

@@ -15,7 +15,7 @@ from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.compaction import CompactionResult
 from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
-from klaude_code.config.config import ModelConfigCandidate
+from klaude_code.config.config import Config, ModelConfigCandidate
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.usage import MetadataTracker, error_stream_items
 from klaude_code.protocol import events, llm_param, message
@@ -33,6 +33,13 @@ def arun[T](coro: Coroutine[Any, Any, T]) -> T:
 @pytest.fixture(autouse=True)
 def _isolate_home(isolated_home: Path) -> Path:  # pyright: ignore[reportUnusedFunction]
     return isolated_home
+
+
+@pytest.fixture(autouse=True)
+def _hermetic_provider_config(monkeypatch: pytest.MonkeyPatch) -> None:  # pyright: ignore[reportUnusedFunction]
+    # FallbackLLMClient.call() consults load_config() for provider disable
+    # toggles; the developer's real ~/.klaude config must not leak in.
+    monkeypatch.setattr(runtime_llm, "load_config", lambda: Config(provider_list=[]))
 
 
 # ---------------------------------------------------------------------------
