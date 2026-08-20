@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.filters import Always
+from prompt_toolkit.input import Input
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent, merge_key_bindings
 from prompt_toolkit.key_binding.defaults import load_key_bindings
 from prompt_toolkit.keys import Keys
@@ -15,6 +16,7 @@ from prompt_toolkit.layout import HSplit, Layout, Window
 from prompt_toolkit.layout.containers import ScrollOffsets
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
+from prompt_toolkit.output import Output
 from prompt_toolkit.output.color_depth import ColorDepth
 
 from klaude_code.config.builtin_config import get_builtin_config
@@ -131,11 +133,14 @@ def _list_height() -> Dimension:
 def manage_providers_interactive(
     states: list[ProviderState],
     search_states: list[SearchProviderState],
+    *,
+    _input: Input | None = None,
+    _output: Output | None = None,
 ) -> ManageProvidersResult | None:
     """Manage LLM provider states and the web search chain; return the selection when saved."""
     if not states and not search_states:
         return None
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
+    if _input is None and (not sys.stdin.isatty() or not sys.stdout.isatty()):
         return None
 
     pointed_at = 0
@@ -151,7 +156,7 @@ def manage_providers_interactive(
             ("class:question", "Manage providers\n"),
             (
                 "class:meta",
-                "Up/Down move  Space toggle  Tab jump section  Alt+Up/Down reorder search  Enter on Save  s save  Esc cancel\n",
+                "Up/Down move  Space toggle  Tab jump section  K/J or Alt+Up/Down reorder search  Enter on Save  s save  Esc cancel\n",
             ),
         ]
 
@@ -301,6 +306,16 @@ def manage_providers_interactive(
         if move_search_item(1):
             event.app.invalidate()
 
+    @kb.add("K", eager=True)
+    def _(event: KeyPressEvent) -> None:
+        if move_search_item(-1):
+            event.app.invalidate()
+
+    @kb.add("J", eager=True)
+    def _(event: KeyPressEvent) -> None:
+        if move_search_item(1):
+            event.app.invalidate()
+
     @kb.add(" ", eager=True)
     def _(event: KeyPressEvent) -> None:
         activate(event)
@@ -314,7 +329,12 @@ def manage_providers_interactive(
     def _(event: KeyPressEvent) -> None:
         save_result(event.app)
 
-    @kb.add(Keys.Escape, eager=True)
+    # NOT eager: an eager lone-Escape binding fires as soon as the ESC byte
+    # arrives and shadows the ("escape", "up"/"down") Alt-arrow sequences
+    # (Alt+Up would instantly cancel the dialog). Without eager, the key
+    # processor waits up to `timeoutlen` for a sequence continuation; a lone
+    # Esc still cancels after that short delay.
+    @kb.add(Keys.Escape)
     @kb.add(Keys.ControlC, eager=True)
     @kb.add(Keys.ControlQ, eager=True)
     def _(event: KeyPressEvent) -> None:
@@ -342,6 +362,13 @@ def manage_providers_interactive(
         full_screen=False,
         erase_when_done=True,
         color_depth=ColorDepth.TRUE_COLOR,
+        input=_input,
+        output=_output,
     )
+    # Keep Esc-cancel responsive while giving ("escape", ...) sequences room to
+    # complete: ttimeoutlen paces the byte parser, timeoutlen paces key-sequence
+    # resolution (defaults of 0.5s/1.0s would make cancel feel stuck).
+    app.ttimeoutlen = 0.05
+    app.timeoutlen = 0.3
     app.renderer.cpr_not_supported_callback = lambda: None
     return app.run()

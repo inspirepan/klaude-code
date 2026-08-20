@@ -1,3 +1,6 @@
+from prompt_toolkit.input import create_pipe_input
+from prompt_toolkit.output import DummyOutput
+
 from klaude_code.config.config import (
     Config,
     ProviderConfig,
@@ -7,6 +10,7 @@ from klaude_code.config.config import (
 )
 from klaude_code.protocol.llm_param import LLMClientProtocol
 from klaude_code.tui.command import provider_manager
+from klaude_code.tui.command.provider_manager import SearchProviderState
 
 
 def _provider(name: str, api_key: str | None = None) -> ProviderConfig:
@@ -106,3 +110,39 @@ class TestBuildWebSearchConfig:
         builtin_exa = default_web_search_config().providers[0]
         assert result.providers[0].provider == "exa"
         assert result.providers[0].api_key == builtin_exa.api_key
+
+
+class TestInteractiveKeyBindings:
+    """Drive the interactive app through a pipe to lock in key-binding behavior."""
+
+    def _search_states(self) -> list[SearchProviderState]:
+        return [
+            SearchProviderState(name="exa", enabled=True, has_api_key=True, model=None),
+            SearchProviderState(name="brave", enabled=True, has_api_key=True, model=None),
+            SearchProviderState(name="deepseek", enabled=True, has_api_key=True, model="deepseek-v4-flash"),
+            SearchProviderState(name="openai", enabled=False, has_api_key=False, model="gpt-5.6-luna"),
+        ]
+
+    def _run_with_keys(self, keys: str) -> provider_manager.ManageProvidersResult | None:
+        with create_pipe_input() as inp:
+            inp.send_text(keys)
+            return provider_manager.manage_providers_interactive(
+                [], self._search_states(), _input=inp, _output=DummyOutput()
+            )
+
+    def test_alt_down_reorders_instead_of_exiting(self) -> None:
+        """Regression: an eager lone-Escape binding used to cancel the dialog on Alt+arrows."""
+        # Pointer starts on the first search row (exa): Alt+Down swaps exa/brave, "s" saves.
+        result = self._run_with_keys("\x1b[1;3Bs")
+        assert result is not None
+        assert result.search_provider_names == ["brave", "exa", "deepseek"]
+
+    def test_k_j_reorder_and_space_toggle(self) -> None:
+        # J moves exa below brave (pointer follows), Space disables exa, s saves.
+        result = self._run_with_keys("J s")
+        assert result is not None
+        assert result.search_provider_names == ["brave", "deepseek"]
+
+    def test_lone_escape_still_cancels(self) -> None:
+        result = self._run_with_keys("\x1b")
+        assert result is None
