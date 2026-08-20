@@ -87,7 +87,7 @@ class ManageProvidersCommand(CommandABC):
         # The server caches config per process; without this it keeps serving the
         # old provider set until `klaude server reload`. Imported lazily to keep
         # the socket client out of command-registry loading.
-        from klaude_code.tui.client.server_api import reload_server_config
+        from klaude_code.tui.client.server_api import reload_server_config, server_code_is_stale
 
         reload_error = await asyncio.to_thread(reload_server_config)
         changes = [f"{len(changed)} provider(s)"] if changed else []
@@ -97,6 +97,8 @@ class ManageProvidersCommand(CommandABC):
         content = f"Provider settings saved ({'; '.join(changes)})."
         if reload_error is not None:
             content += f"\nServer still uses the old providers ({reload_error}); run: klaude server reload"
+        elif await asyncio.to_thread(server_code_is_stale):
+            content += "\nServer is running older code; behavior changes need: klaude server reload --force"
         return CommandResult(
             events=[
                 events.NoticeEvent(

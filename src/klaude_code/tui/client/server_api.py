@@ -52,6 +52,28 @@ def reload_server_config() -> str | None:
     return None
 
 
+def server_code_is_stale() -> bool:
+    """True when the running server executes different code than this client.
+
+    A config reload only drops the server's cached config; behavior that changed
+    between the server's code and this client's (e.g. a rewritten tool) still
+    follows the server's older code until `klaude server reload --force`.
+    """
+    try:
+        body: Any = _request("GET", "/api/server/status", timeout=3.0)
+    except Exception:
+        return False
+    if not isinstance(body, dict):
+        return False
+
+    from klaude_code.protocol.version import is_protocol_compatible
+    from klaude_code.update import get_code_fingerprint
+
+    if not is_protocol_compatible(body.get("protocol_version")):
+        return True
+    return body.get("code_fingerprint") != get_code_fingerprint()
+
+
 def create_server_session(*, work_dir: Path, model: str | None = None, vanilla: bool = False) -> str:
     """Create a new session on the server; return its id."""
     body = _request(
