@@ -73,10 +73,24 @@ def adapt_sub_agent_tools_for_model(
     return adapted_tools
 
 
+def _append_look_at_for_text_only_model(
+    agent_tools: list[llm_param.ToolSchema], supports_vision: bool
+) -> list[llm_param.ToolSchema]:
+    """Give models without image input the LookAt tool as their way to see images."""
+    if supports_vision:
+        return agent_tools
+    tool_names = {tool.name for tool in agent_tools}
+    if tools.READ not in tool_names or tools.LOOK_AT in tool_names:
+        return agent_tools
+    return [*agent_tools, *get_tool_schemas([tools.LOOK_AT])]
+
+
 def load_agent_tools(
     model_name: str,
     sub_agent_type: tools.SubAgentType | None = None,
     config: Config | None = None,
+    *,
+    supports_vision: bool = True,
 ) -> list[llm_param.ToolSchema]:
     """Get tools for an agent based on model and agent type.
 
@@ -84,12 +98,14 @@ def load_agent_tools(
         model_name: The model name.
         sub_agent_type: If None, returns main agent tools. Otherwise returns sub-agent tools.
         config: Config for optional tool decisions.
+        supports_vision: Whether the model accepts image input; when False, LookAt is added.
     """
 
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
         if profile.tool_set:
-            return adapt_sub_agent_tools_for_model(model_name, get_tool_schemas(list(profile.tool_set)))
+            schemas = adapt_sub_agent_tools_for_model(model_name, get_tool_schemas(list(profile.tool_set)))
+            return _append_look_at_for_text_only_model(schemas, supports_vision)
         # Empty tool_set means inherit main agent tools; fall through below
 
     # Main agent tools = common + model-specific diff + common
@@ -107,8 +123,8 @@ def load_agent_tools(
         # Sub-agents that inherit the main tool set still get the any-GPT
         # diff-tool adaptation (Edit/Write -> apply_patch), like tool_set
         # profiles above.
-        return adapt_sub_agent_tools_for_model(model_name, schemas)
-    return schemas
+        schemas = adapt_sub_agent_tools_for_model(model_name, schemas)
+    return _append_look_at_for_text_only_model(schemas, supports_vision)
 
 
 def load_agent_attachments(
@@ -168,7 +184,12 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         work_dir: Path,
     ) -> AgentProfile:
         model_name = llm_client.model_name
-        agent_tools = load_agent_tools(model_name, sub_agent_type, config=self._config)
+        agent_tools = load_agent_tools(
+            model_name,
+            sub_agent_type,
+            config=self._config,
+            supports_vision=llm_client.get_llm_config().supports_vision,
+        )
         agent_system_prompt = load_system_prompt(
             model_name, sub_agent_type, available_tools=agent_tools, work_dir=work_dir
         )

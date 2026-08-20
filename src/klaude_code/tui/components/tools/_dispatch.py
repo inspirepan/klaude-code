@@ -35,6 +35,7 @@ from klaude_code.tui.components.tools._file import (
     render_edit_tool_call,
     render_write_tool_call,
 )
+from klaude_code.tui.components.tools._look_at import render_look_at_tool_call
 from klaude_code.tui.components.tools._question import (
     render_ask_user_question_summary,
     render_ask_user_question_tool_call,
@@ -71,6 +72,8 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
     match e.tool_name:
         case tools.READ:
             return render_read_tool_call(e.arguments)
+        case tools.LOOK_AT:
+            return render_look_at_tool_call(e.arguments)
         case tools.EDIT:
             return render_edit_tool_call(e.arguments)
         case tools.WRITE:

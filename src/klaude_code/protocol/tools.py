@@ -3,6 +3,7 @@ APPLY_PATCH = "apply_patch"
 EDIT = "Edit"
 
 READ = "Read"
+LOOK_AT = "LookAt"
 WRITE = "Write"
 TODO_WRITE = "TodoWrite"
 WEB_FETCH = "WebFetch"

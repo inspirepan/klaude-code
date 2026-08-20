@@ -24,6 +24,10 @@ _MAX_ROWS = 35
 # Minimum visible width (in terminal columns) for very tall diagrams.
 _MIN_READABLE_COLS = 50
 
+# Portrait images (taller than wide in pixels) get a narrower width budget:
+# at full width their scaled height dominates the transcript.
+_PORTRAIT_WIDTH_RATIO = 0.6
+
 # Upper bound for row expansion when preserving readability of tall diagrams.
 _MAX_TALL_ROWS = 120
 
@@ -107,6 +111,8 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
         dimensions = _get_png_dimensions(data)
         if dimensions is not None:
             img_width, img_height = dimensions
+            if img_height > img_width:
+                target_cols = max(int(target_cols * _PORTRAIT_WIDTH_RATIO), 1)
             img_cols = max(img_width // _PIXELS_PER_COL, 1)
             img_rows = max(img_height // _PIXELS_PER_ROW, 1)
             exceeds_width = img_cols > target_cols

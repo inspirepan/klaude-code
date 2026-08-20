@@ -215,6 +215,10 @@ class LLMConfigModelParameter(BaseModel):
     # - "long": Anthropic cache_control ttl=1h / OpenAI extended prompt cache when supported
     cache_retention: Literal["short", "long"] | None = None
 
+    # Whether the model accepts image input. When False, image parts are
+    # stripped from requests and replaced with text placeholders.
+    supports_vision: bool = True
+
     # Cost configuration (USD per million tokens)
     cost: Cost | None = None
 

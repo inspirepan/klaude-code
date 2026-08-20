@@ -85,6 +85,56 @@ def missing_image_placeholder(image: ImagePart) -> str:
     return f"[image unavailable: referenced image file could not be read;{source_text}]"
 
 
+def vision_unsupported_placeholder(image: ImagePart) -> str:
+    source = image.source_file_path if isinstance(image, message.ImageURLPart) else image.file_path
+    if source is None and isinstance(image, message.ImageURLPart) and not image.url.startswith("data:"):
+        source = image.url
+    source_text = f" path={source}" if source else ""
+    return (
+        f"[image not sent: current model does not support image input;{source_text}. Use the LookAt tool to view it.]"
+    )
+
+
+def strip_images_for_text_only_model(messages: list[message.Message]) -> list[message.Message]:
+    """Replace image parts with text placeholders for models without vision.
+
+    Returns copies of affected messages; history message objects are shared
+    across requests and must never be mutated in place.
+    """
+    result: list[message.Message] = []
+    for msg in messages:
+        if not isinstance(msg, (message.UserMessage, message.DeveloperMessage, message.ToolResultMessage)):
+            result.append(msg)
+            continue
+        image_parts = [p for p in msg.parts if isinstance(p, (message.ImageURLPart, message.ImageFilePart))]
+        if not image_parts:
+            result.append(msg)
+            continue
+        if isinstance(msg, message.ToolResultMessage):
+            # ToolResultMessage.parts must not include text parts; append
+            # placeholders to output_text instead.
+            new_parts = [p for p in msg.parts if not isinstance(p, (message.ImageURLPart, message.ImageFilePart))]
+            suffix = "\n".join(vision_unsupported_placeholder(part) for part in image_parts)
+            output_text = msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE
+            result.append(
+                msg.model_copy(
+                    update={
+                        "parts": new_parts,
+                        "output_text": f"{output_text}\n{suffix}" if output_text else suffix,
+                    }
+                )
+            )
+        else:
+            new_parts = [
+                message.TextPart(text=vision_unsupported_placeholder(part))
+                if isinstance(part, (message.ImageURLPart, message.ImageFilePart))
+                else part
+                for part in msg.parts
+            ]
+            result.append(msg.model_copy(update={"parts": new_parts}))
+    return result
+
+
 def _frozen_url_part(image: ImagePart, request_url: str) -> message.ImageURLPart:
     return message.ImageURLPart(
         url=request_url,
@@ -495,4 +545,8 @@ def apply_config_defaults(param: "LLMCallParameter", config: "LLMConfigParameter
         param.fast_mode = config.fast_mode
     if param.cache_retention is None:
         param.cache_retention = config.cache_retention
+    if param.supports_vision:
+        param.supports_vision = config.supports_vision
+    if not param.supports_vision:
+        param.input = strip_images_for_text_only_model(param.input)
     return param

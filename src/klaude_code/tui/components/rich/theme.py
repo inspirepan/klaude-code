@@ -203,6 +203,7 @@ class ThemeKey(str, Enum):
     TOOL_PARAM_FILE_PATH_SKILL_FILE = "tool.param.file_path_skill_file"
     TOOL_PARAM = "tool.param"
     TOOL_PARAM_BOLD = "tool.param.bold"
+    TOOL_PARAM_QUESTION = "tool.param.question"
     TOOL_RESULT = "tool.result"
     TOOL_RESULT_LINK = "tool.result.link"
     TOOL_RESULT_QUESTION = "tool.result.question"
@@ -373,6 +374,8 @@ def get_theme(theme: str | None = None) -> Themes:
                 ThemeKey.TOOL_PARAM_FILE_PATH_SKILL_FILE.value: palette.blue,
                 ThemeKey.TOOL_PARAM.value: palette.green,
                 ThemeKey.TOOL_PARAM_BOLD.value: "bold " + palette.green,
+                # The question is the model's own gloss: keep it quiet, the path carries the colour.
+                ThemeKey.TOOL_PARAM_QUESTION.value: palette.grey1,
                 ThemeKey.TOOL_RESULT.value: palette.grey_green,
                 ThemeKey.TOOL_RESULT_LINK.value: "underline " + palette.blue,
                 ThemeKey.TOOL_RESULT_QUESTION.value: palette.cyan,

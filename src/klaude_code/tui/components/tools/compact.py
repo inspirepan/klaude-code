@@ -10,6 +10,7 @@ from klaude_code.tui.components.tools._common import (
     MARK_BASH,
     MARK_EDIT,
     MARK_GENERIC,
+    MARK_LOOK_AT,
     MARK_PLAN,
     MARK_QUESTION,
     MARK_READ,
@@ -37,6 +38,7 @@ BASH_DESCRIPTION_MIN_TERMINAL_WIDTH = TOOL_SUBJECT_INDENT + BASH_DESCRIPTION_COL
 _COMPACT_MARKS: dict[str, str] = {
     tools.BASH: MARK_BASH,
     tools.READ: MARK_READ,
+    tools.LOOK_AT: MARK_LOOK_AT,
     tools.EDIT: MARK_EDIT,
     tools.APPLY_PATCH: MARK_EDIT,
     tools.WRITE: MARK_WRITE,

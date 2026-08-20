@@ -7,6 +7,7 @@ from klaude_code.tui.components.tools._common import (
     MARK_BASH,
     MARK_EDIT,
     MARK_GENERIC,
+    MARK_LOOK_AT,
     MARK_PLAN,
     MARK_QUESTION,
     MARK_READ,
@@ -38,6 +39,7 @@ from klaude_code.tui.components.tools._file import (
     render_edit_tool_call,
     render_write_tool_call,
 )
+from klaude_code.tui.components.tools._look_at import render_look_at_tool_call
 from klaude_code.tui.components.tools._presentation import get_tool_active_form
 from klaude_code.tui.components.tools._question import (
     render_ask_user_question_summary,
@@ -71,6 +73,7 @@ __all__ = [
     "MARK_BASH",
     "MARK_EDIT",
     "MARK_GENERIC",
+    "MARK_LOOK_AT",
     "MARK_PLAN",
     "MARK_QUESTION",
     "MARK_READ",
@@ -105,6 +108,7 @@ __all__ = [
     "render_fallback_tool_result",
     "render_generic_tool_call",
     "render_generic_tool_result",
+    "render_look_at_tool_call",
     "render_markdown_doc",
     "render_path",
     "render_read_preview",

@@ -73,23 +73,47 @@ def test_print_kitty_image_skips_conversion_for_png_bytes_with_svg_suffix(
     assert write_calls == [""]
 
 
-def test_print_kitty_image_expands_rows_for_tall_image_readability(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    png_path = tmp_path / "tall.png"
-    png_path.write_bytes(_png_bytes(width=303, height=1219))
-
+def _rendered_size_params(
+    monkeypatch: pytest.MonkeyPatch,
+    png_path: Path,
+    *,
+    terminal_cols: int,
+) -> list[str]:
     size_params: list[str] = []
 
     def _write_kitty_graphics(out: io.StringIO, encoded_data: str, *, size_param: str) -> None:
         size_params.append(size_param)
 
     monkeypatch.setattr(terminal_image, "_write_kitty_graphics", _write_kitty_graphics)
-    monkeypatch.setattr(terminal_image.shutil, "get_terminal_size", lambda: os.terminal_size((80, 24)))
+    monkeypatch.setattr(terminal_image.shutil, "get_terminal_size", lambda: os.terminal_size((terminal_cols, 24)))
 
     terminal_image.print_kitty_image(png_path, file=io.StringIO())
+    return size_params
 
-    assert size_params == ["c=50"]
+
+def test_print_kitty_image_expands_rows_for_tall_image_readability(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    png_path = tmp_path / "tall.png"
+    png_path.write_bytes(_png_bytes(width=303, height=1219))
+
+    # Readability boost is capped by the portrait width budget (80 * 0.6 = 48).
+    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=80) == ["c=48"]
+
+
+def test_print_kitty_image_caps_portrait_width_to_ratio(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    png_path = tmp_path / "screenshot.png"
+    # Phone-screenshot shape: without the portrait budget this rendered at c=100.
+    png_path.write_bytes(_png_bytes(width=1080, height=2400))
+
+    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=120) == ["c=60"]
+
+
+def test_print_kitty_image_keeps_full_width_for_landscape(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    png_path = tmp_path / "wide.png"
+    png_path.write_bytes(_png_bytes(width=1800, height=900))
+
+    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=120) == ["c=100"]
 
 
 def test_print_kitty_image_falls_back_when_unsupported(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

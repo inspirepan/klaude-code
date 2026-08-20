@@ -30,6 +30,7 @@ _TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     tools.APPLY_PATCH: ToolDefinition("Patch", "Patching"),
     tools.EDIT: ToolDefinition("Edit", "Editing"),
     tools.READ: ToolDefinition("Read", "Reading"),
+    tools.LOOK_AT: ToolDefinition("Look At", "Looking At Image"),
     tools.WRITE: ToolDefinition("Write", "Writing"),
     tools.TODO_WRITE: ToolDefinition("Update To-Dos", "Updating Todos"),
     tools.WEB_FETCH: ToolDefinition("Fetch Web", "Fetching Web"),

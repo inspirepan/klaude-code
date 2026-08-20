@@ -14,6 +14,7 @@ from .core.runner import run_tool
 from .file.apply_patch import DiffError, process_patch
 from .file.apply_patch_tool import ApplyPatchTool
 from .file.edit_tool import EditTool
+from .file.look_at_tool import LookAtTool
 from .file.read_tool import ReadTool
 from .file.write_tool import WriteTool
 from .handoff_tool import HandoffTool
@@ -33,6 +34,7 @@ __all__ = [
     "EditTool",
     "FileTracker",
     "HandoffTool",
+    "LookAtTool",
     "ReadTool",
     "RequestUserInteraction",
     "RewindTool",

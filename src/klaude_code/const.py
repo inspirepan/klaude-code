@@ -72,6 +72,8 @@ READ_GLOBAL_LINE_CAP = _get_int_env("KLAUDE_READ_GLOBAL_LINE_CAP", 2000)  # Maxi
 READ_MAX_CHARS = _get_int_env("KLAUDE_READ_MAX_CHARS", 50000)  # Maximum total characters to read
 READ_MAX_IMAGE_BYTES = _get_int_env("KLAUDE_READ_MAX_IMAGE_BYTES", 64 * 1024 * 1024)  # Max image size (64MB)
 BINARY_CHECK_SIZE = 8192  # Bytes to check for binary file detection
+LOOK_AT_TIMEOUT_SEC = 120  # Timeout for the LookAt vision-model call (seconds)
+LOOK_AT_MAX_TOKENS = 2000  # max_tokens for the LookAt vision-model call
 EDIT_MAX_FILE_SIZE = 1024 * 1024 * 1024  # Maximum file size for edit/write operations (1 GiB, prevents OOM)
 
 # Device paths that would hang the process: infinite output or blocking input.

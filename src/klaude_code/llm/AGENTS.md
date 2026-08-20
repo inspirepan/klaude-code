@@ -20,6 +20,10 @@ This keeps `events.jsonl` small, avoids replaying large blobs through every step
 
 Provider adapters convert `ImageFilePart` to provider-specific image blocks through helpers in `llm/image.py` and `llm/input_common.py`. Keep this conversion deterministic for the same file bytes. Before base64 encoding, use the shared Pillow-based optimization and request budget rather than adding provider-local image rewriting. When the media budget is exceeded, `apply_inline_image_budget()` preserves the most recent contiguous media suffix and inserts omitted-image text for dropped or missing images.
 
+## Non-Vision Models
+
+Models with `supports_vision: false` in config (e.g. glm, deepseek) must never receive image blocks. `apply_config_defaults()` in `llm/input_common.py` strips image parts from `param.input` via `strip_images_for_text_only_model()` before any provider conversion runs: user/developer image parts become text placeholders, tool-result image parts are dropped with a placeholder appended to `output_text`. The placeholder names the image path and points the model at the `LookAt` tool, which routes the image through a vision-capable fast model. Because the strip happens at request time, history images and mid-session model switches are covered automatically; stripped copies never mutate shared history objects.
+
 ## Compaction And Summaries
 
 The fallback serializer in `agent/compaction/compaction.py` records image file paths or URLs in an
