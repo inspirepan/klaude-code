@@ -134,6 +134,9 @@ class BashTool(ToolABC):
                 "TERM": "dumb",
                 # Make Python CLI scripts flush progress output even when stdout is not a TTY.
                 "PYTHONUNBUFFERED": "1",
+                # Identify the calling session so a nested `klaude send`
+                # attributes agent-to-agent messages to this agent.
+                "KLAUDE_SESSION_ID": context.session_id,
             }
         )
 

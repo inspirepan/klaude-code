@@ -237,6 +237,64 @@ def test_send_idle_session_starts_new_turn(app_env: AppEnv) -> None:
     assert output["output"] == "turn two"
 
 
+def test_send_with_from_label_wraps_agent_message(app_env: AppEnv) -> None:
+    _enqueue_text_reply(app_env, "turn one")
+    body = _run(app_env, "start")
+    session_id = body["session_id"]
+    _wait_for_state(app_env, session_id, "completed")
+
+    _enqueue_text_reply(app_env, "turn two")
+    response = app_env.client.post(
+        f"/api/headless/sessions/{session_id}/send",
+        json={"text": "hello from a peer", "sender": "reviewer"},
+    )
+    assert response.status_code == 200
+    _wait_for_state(app_env, session_id, "completed")
+
+    output = app_env.client.get(f"/api/headless/sessions/{session_id}/output", params={"transcript": True}).json()
+    assert '<agent-message from="reviewer">' in output["output"]
+    assert "hello from a peer" in output["output"]
+
+
+def test_send_with_sender_session_id_resolves_label(app_env: AppEnv) -> None:
+    _enqueue_text_reply(app_env, "sender done")
+    sender = _run(app_env, "I am the sender", name="peer-agent")
+    _wait_for_state(app_env, sender["session_id"], "completed")
+
+    _enqueue_text_reply(app_env, "target turn one")
+    target = _run(app_env, "I am the target")
+    target_id = target["session_id"]
+    _wait_for_state(app_env, target_id, "completed")
+
+    _enqueue_text_reply(app_env, "target turn two")
+    response = app_env.client.post(
+        f"/api/headless/sessions/{target_id}/send",
+        json={"text": "message across agents", "sender_session_id": sender["session_id"]},
+    )
+    assert response.status_code == 200
+    _wait_for_state(app_env, target_id, "completed")
+
+    output = app_env.client.get(f"/api/headless/sessions/{target_id}/output", params={"transcript": True}).json()
+    short_id = sender["session_id"][:8]
+    assert f'<agent-message from="peer-agent" session="{short_id}">' in output["output"]
+
+
+def test_send_without_sender_stays_plain(app_env: AppEnv) -> None:
+    _enqueue_text_reply(app_env, "turn one")
+    body = _run(app_env, "start")
+    session_id = body["session_id"]
+    _wait_for_state(app_env, session_id, "completed")
+
+    _enqueue_text_reply(app_env, "turn two")
+    response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "plain operator text"})
+    assert response.status_code == 200
+    _wait_for_state(app_env, session_id, "completed")
+
+    output = app_env.client.get(f"/api/headless/sessions/{session_id}/output", params={"transcript": True}).json()
+    assert "plain operator text" in output["output"]
+    assert "<agent-message" not in output["output"]
+
+
 def test_send_idle_headless_session_obeys_global_slot(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "existing done")
     existing = _run(app_env, "existing")

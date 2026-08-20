@@ -528,6 +528,41 @@ async def get_headless_output(
 class HeadlessSendRequest(BaseModel):
     text: str
     steer: bool = False
+    # Sender identity for agent-to-agent messages. `sender` is a display
+    # label (`klaude send --from`); `sender_session_id` is the sending
+    # session, auto-filled by the CLI from KLAUDE_SESSION_ID.
+    sender: str | None = None
+    sender_session_id: str | None = None
+
+
+def _sanitize_sender_label(label: str) -> str:
+    cleaned = "".join(ch for ch in label if ch not in '<>"&')
+    return " ".join(cleaned.split())[:64]
+
+
+def _tag_agent_message(text: str, payload: HeadlessSendRequest, summaries: list[SessionSummary]) -> str:
+    """Wrap a message sent by another agent so the target can tell it apart
+    from operator input. The tag is plain text on purpose: it survives
+    history, replay, compaction, and `klaude output` without renderer support.
+    Attribution is advisory, not a security boundary.
+    """
+    label = _sanitize_sender_label(payload.sender or "")
+    sender_id = (payload.sender_session_id or "").strip()
+    short_id = ""
+    if sender_id:
+        matches = [s for s in summaries if s.id == sender_id or s.id.startswith(sender_id)]
+        if len(matches) == 1:
+            short_id = matches[0].id[:8]
+            if not label:
+                label = _sanitize_sender_label(matches[0].name or "") or short_id
+        elif not label:
+            label = _sanitize_sender_label(sender_id[:8])
+    if not label:
+        return text
+    attrs = f' from="{label}"'
+    if short_id and short_id != label:
+        attrs += f' session="{short_id}"'
+    return f"<agent-message{attrs}>\n{text}\n</agent-message>"
 
 
 @router.post("/sessions/{target}/send")
@@ -543,6 +578,7 @@ async def send_headless_message(
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="message text is empty")
+    text = _tag_agent_message(text, payload, summaries)
     if headless.is_queued(summary.id) and (not payload.steer or not headless.can_replace_queued_for_steer(summary.id)):
         raise HTTPException(status_code=409, detail="session is queued and has not started yet; wait for it first")
 

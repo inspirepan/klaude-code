@@ -7,6 +7,7 @@ socket. Heavy imports stay inside functions so each invocation starts fast.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import time
 from collections.abc import Callable
@@ -911,9 +912,24 @@ def output_command(
 
 
 def _send_message(
-    target: str, text: str, *, wait: bool, timeout: float | None, json_: bool, steer: bool = False
+    target: str,
+    text: str,
+    *,
+    wait: bool,
+    timeout: float | None,
+    json_: bool,
+    steer: bool = False,
+    sender: str | None = None,
 ) -> None:
-    body = _api("POST", f"/api/headless/sessions/{target}/send", json_body={"text": text, "steer": steer})
+    json_body: dict[str, Any] = {"text": text, "steer": steer}
+    if sender:
+        json_body["sender"] = sender
+    # Inside a klaude agent's Bash tool this identifies the calling session,
+    # so agent-to-agent sends are attributed even without --from.
+    sender_session_id = os.environ.get("KLAUDE_SESSION_ID")
+    if sender_session_id:
+        json_body["sender_session_id"] = sender_session_id
+    body = _api("POST", f"/api/headless/sessions/{target}/send", json_body=json_body)
     session_id = str(body.get("session_id", ""))
     mode = str(body.get("mode", ""))
 
@@ -944,6 +960,13 @@ def send_command(
     steer: bool = typer.Option(False, "--steer", help="Deliver immediately, interrupting work"),
     wait: bool = typer.Option(False, "--wait", help="Block until the resulting turn finishes"),
     timeout: float | None = typer.Option(None, "--timeout", metavar="SECS", help="With --wait"),
+    sender: str | None = typer.Option(
+        None,
+        "--from",
+        metavar="NAME",
+        help="Sender label; the target sees the message wrapped in "
+        '<agent-message from="NAME"> instead of as plain operator input',
+    ),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
     """Send a message to a session.
@@ -967,6 +990,12 @@ def send_command(
       klaude send "$id" --wait "now write tests for the edge cases you found"
       klaude send "$id" --wait "one of them fails, here is the log: ..."
 
+    Sender identity: with --from NAME (or automatically when sent from
+    inside a klaude agent, via KLAUDE_SESSION_ID) the target receives the
+    text wrapped in an <agent-message from="..."> tag, so it can tell
+    another agent's message apart from its operator's. Attribution is
+    advisory, not a security boundary.
+
     Note: send does NOT answer a pending interaction — a session parked
     at waiting_input needs `klaude respond`.
     """
@@ -974,7 +1003,7 @@ def send_command(
     if not message:
         typer.echo("error: message text is empty", err=True)
         raise typer.Exit(EXIT_USAGE)
-    _send_message(target, message, wait=wait, timeout=timeout, json_=json_, steer=steer)
+    _send_message(target, message, wait=wait, timeout=timeout, json_=json_, steer=steer, sender=sender)
 
 
 # -- respond --
