@@ -156,7 +156,7 @@ def manage_providers_interactive(
             ("class:question", "Manage providers\n"),
             (
                 "class:meta",
-                "Up/Down move  Space toggle  Tab jump section  K/J or Alt+Up/Down reorder search  Enter on Save  s save  Esc cancel\n",
+                "Up/Down move  Space toggle  Tab jump section  j/k or Alt+Up/Down reorder search  Enter on Save  s save  Esc cancel\n",
             ),
         ]
 
@@ -307,11 +307,13 @@ def manage_providers_interactive(
             event.app.invalidate()
 
     @kb.add("K", eager=True)
+    @kb.add("k", eager=True)
     def _(event: KeyPressEvent) -> None:
         if move_search_item(-1):
             event.app.invalidate()
 
     @kb.add("J", eager=True)
+    @kb.add("j", eager=True)
     def _(event: KeyPressEvent) -> None:
         if move_search_item(1):
             event.app.invalidate()

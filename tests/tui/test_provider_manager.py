@@ -138,10 +138,15 @@ class TestInteractiveKeyBindings:
         assert result.search_provider_names == ["brave", "exa", "deepseek"]
 
     def test_k_j_reorder_and_space_toggle(self) -> None:
-        # J moves exa below brave (pointer follows), Space disables exa, s saves.
-        result = self._run_with_keys("J s")
+        # j moves exa below brave (pointer follows), Space disables exa, s saves.
+        result = self._run_with_keys("j s")
         assert result is not None
         assert result.search_provider_names == ["brave", "deepseek"]
+
+    def test_uppercase_k_j_also_reorder(self) -> None:
+        result = self._run_with_keys("Js")
+        assert result is not None
+        assert result.search_provider_names == ["brave", "exa", "deepseek"]
 
     def test_lone_escape_still_cancels(self) -> None:
         result = self._run_with_keys("\x1b")
