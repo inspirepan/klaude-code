@@ -26,6 +26,11 @@ def test_builtin_marks_glm_and_deepseek_as_non_vision() -> None:
     assert _find_model("openrouter", "glm").supports_vision is False
 
 
+def test_builtin_deepseek_vision_model_accepts_images() -> None:
+    assert _find_model("deepseek", "deepseek-flash-vision").supports_vision is True
+    assert _find_model("deepseek", "deepseek-flash-vision:high").supports_vision is True
+
+
 def test_builtin_keeps_other_models_vision_capable() -> None:
     assert _find_model("anthropic", "sonnet").supports_vision is True
     assert _find_model("openai", "gpt-5.6-luna").supports_vision is True

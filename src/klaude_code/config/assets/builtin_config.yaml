@@ -674,6 +674,24 @@ provider_list:
       type: enabled
     cost: *deepseek_flash_cost
 
+  # Vision variant shares the flash price card; images bill as input tokens.
+  - model_name: deepseek-flash-vision
+    model_alias: [ dsfv, v4-flash-vision, v4-flash-vision:no-thinking ]
+    model_id: deepseek-v4-flash-vision-exp
+    context_limit: 1000000
+    thinking:
+      type: disabled
+    cost: *deepseek_flash_cost
+
+  - model_name: deepseek-flash-vision:high
+    model_alias: [ dsfvh, v4-flash-vision:high ]
+    model_id: deepseek-v4-flash-vision-exp
+    context_limit: 1000000
+    effort: high
+    thinking:
+      type: enabled
+    cost: *deepseek_flash_cost
+
   - model_name: deepseek
     model_alias: [ ds, deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high ]
     model_id: deepseek-v4-pro
