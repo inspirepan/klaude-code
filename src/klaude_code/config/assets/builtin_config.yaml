@@ -958,16 +958,6 @@ provider_list:
   api_key: ${OPENROUTER_API_KEY}
   model_list:
 
-  - model_name: gpt-5.5
-    model_id: openai/gpt-5.5
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: medium
-      reasoning_summary: concise
-    cost: { input: 5, output: 30, cache_read: 0.5 }
-
   - model_name: gpt-5.6-sol
     model_alias: [ gpt-5.6 ]
     model_id: openai/gpt-5.6-sol
@@ -1031,16 +1021,6 @@ provider_list:
       reasoning_effort: max
       reasoning_summary: concise
     cost: { input: 0.2, output: 1.2, cache_read: 0.02, cache_write: 0.25 }
-
-  - model_name: gpt-5.5:xhigh
-    model_id: openai/gpt-5.5
-    max_tokens: 128000
-    context_limit: 400000
-    verbosity: low
-    thinking:
-      reasoning_effort: xhigh
-      reasoning_summary: concise
-    cost: { input: 5, output: 30, cache_read: 0.5 }
 
   - model_name: fable
     model_id: anthropic/claude-fable-5
@@ -1172,17 +1152,6 @@ provider_list:
       reasoning_effort: high
     cost: { input: 3, output: 15, cache_read: 0.3 }
 
-  - model_name: kimi:code
-    model_alias: [ k2.7-code, kimi-k2.7-code ]
-    model_id: moonshotai/kimi-k2.7-code
-    context_limit: 262144
-    provider_routing:
-      only:
-      - fireworks
-      - moonshotai/int4
-      - novita
-    cost: { input: 0.95, output: 4, cache_read: 0.19 }
-
   - model_name: minimax
     model_alias: [ m3, minimax-m3 ]
     model_id: minimax/minimax-m3
@@ -1192,15 +1161,27 @@ provider_list:
     cost: { input: 0.6, output: 2.4, cache_read: 0.12 }
 
   - model_name: glm
-    model_alias: [ glm-5.1 ]
-    model_id: z-ai/glm-5.1
-    context_limit: 202752
+    model_alias: [ glm-5.3 ]
+    model_id: z-ai/glm-5.3
+    context_limit: 1000000
     supports_vision: false
     provider_routing:
       only:
       - fireworks
       - z-ai
     cost: { input: 1.4, output: 4.4, cache_read: 0.26 }
+
+  # Free stealth preview (released 2026-08-20); reasoning is mandatory and
+  # cannot be disabled. Prompts/completions are retained by the anonymous
+  # provider (not used for training) -- do not send sensitive data.
+  - model_name: ox-alpha
+    model_alias: [ ox, stealth/ox-alpha ]
+    model_id: stealth/ox-alpha
+    max_tokens: 131072
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: max
+    cost: { input: 0, output: 0 }
 
 # ######################################## web search ########################################
 # WebSearch tool provider chain. Providers are tried in list order; a provider
