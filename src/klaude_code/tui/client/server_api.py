@@ -6,8 +6,29 @@ Lives in the tui layer (not cli) so the runner can create sessions for
 
 from __future__ import annotations
 
+import functools
 from pathlib import Path
 from typing import Any
+
+from klaude_code.protocol.env_sync import ENV_SYNC_HEADER, encode_env_header
+
+
+@functools.cache
+def _client_env_header() -> str | None:
+    """Return the env-sync header, or None when nothing referenced is set.
+
+    Mirrors ``cli/uds_client``: the server daemon's env is frozen at launch,
+    so the /new path must carry this terminal's env vars too. Computed once
+    per process.
+    """
+    try:
+        from klaude_code.config import load_config
+
+        values = load_config().referenced_env_values()
+    except Exception:
+        # Never let an env-header failure break the actual request.
+        return None
+    return encode_env_header(values) if values else None
 
 
 def _request(method: str, path: str, *, json_body: dict[str, Any] | None = None, timeout: float = 30.0) -> Any:
@@ -16,7 +37,11 @@ def _request(method: str, path: str, *, json_body: dict[str, Any] | None = None,
     from klaude_code.server.paths import server_socket_path
 
     transport = httpx.HTTPTransport(uds=str(server_socket_path()))
-    with httpx.Client(transport=transport, base_url="http://klaude", timeout=timeout) as client:
+    headers = None
+    env_header = _client_env_header()
+    if env_header is not None:
+        headers = {ENV_SYNC_HEADER: env_header}
+    with httpx.Client(transport=transport, base_url="http://klaude", timeout=timeout, headers=headers) as client:
         response = client.request(method, path, json=json_body)
     if response.status_code >= 400:
         detail: Any

@@ -301,8 +301,10 @@ def _resolve_run_model(model: str | None, agent: str) -> str | None:
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=f"unknown model '{model}': {exc}") from exc
         if not candidates:
+            from klaude_code.config.config import describe_model_unavailable
+
             diagnosis = config.diagnose_model(model)
-            raise HTTPException(status_code=400, detail=f"model '{model}' is unavailable ({diagnosis.detail})")
+            raise HTTPException(status_code=400, detail=describe_model_unavailable(model, diagnosis))
         return model
 
     if agent != "main":

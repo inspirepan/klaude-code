@@ -20,7 +20,30 @@ type ModelPreference = str | list[str] | None
 
 # Pattern to match ${ENV_VAR} and ${PRIMARY|FALLBACK} syntax
 _ENV_VAR_PATTERN = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*(?:\|[A-Za-z_][A-Za-z0-9_]*)*)\}$")
+# Unanchored variant for extracting every ${...} reference from a value.
+_ENV_REF_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*(?:\|[A-Za-z_][A-Za-z0-9_]*)*)\}")
 _REMOVED_PROVIDER_NAMES = {"copilot", "github-copilot"}
+
+
+def _collect_env_var_names(value: Any, names: set[str]) -> None:
+    """Recursively collect environment variable names from a config value."""
+    if isinstance(value, str):
+        for expression in _ENV_REF_PATTERN.findall(value):
+            names.update(name for name in expression.split("|") if name)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _collect_env_var_names(item, names)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            _collect_env_var_names(item, names)
+
+
+def describe_model_unavailable(model_selector: str, diagnosis: "ModelDiagnosis") -> str:
+    """Render a model availability failure as a 400 detail string."""
+    detail = f"model '{model_selector}' is unavailable"
+    if diagnosis.detail:
+        detail += f" ({diagnosis.detail})"
+    return detail
 
 
 class RemovedProviderError(ValueError):
@@ -666,6 +689,26 @@ class Config(BaseModel):
             return False
 
         return any(_find_model(provider, model_name) is not None for provider in self.provider_list)
+
+    def referenced_env_vars(self) -> frozenset[str]:
+        """Names of env vars referenced by ${VAR} syntax in the merged config.
+
+        Credential resolution reads ``os.environ`` live, so a long-running daemon
+        sees whatever env it was launched with. Clients use this set to send the
+        referenced variables along with each request, letting the daemon's
+        availability checks follow the caller's terminal instead.
+        """
+        names: set[str] = set()
+        _collect_env_var_names(self.model_dump(), names)
+        return frozenset(names)
+
+    def referenced_env_values(self) -> dict[str, str]:
+        """Env var values referenced by the merged config, present in this process.
+
+        Returns only variables that are actually set; the CLI sends exactly
+        these to the server with every request.
+        """
+        return {name: os.environ[name] for name in self.referenced_env_vars() if name in os.environ}
 
     def diagnose_model(self, model_selector: str, *, max_suggestions: int = 3) -> ModelDiagnosis:
         """Diagnose whether a selector is available and suggest close alternatives.

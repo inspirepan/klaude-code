@@ -2,16 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
 
 from fastapi import FastAPI
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.event_bus import EventBus
 from klaude_code.log import DebugType, log_debug
+from klaude_code.protocol.env_sync import ENV_SYNC_HEADER_ASGI, decode_env_header
 from klaude_code.server.headless import HeadlessRuntime
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
@@ -22,6 +25,35 @@ from klaude_code.server.session_tape import SessionEventTapes
 from klaude_code.server.state import ServerAppState, get_server_state_from_app
 from klaude_code.session.store import register_session_meta_observer
 from klaude_code.update import get_code_fingerprint
+
+
+class _EnvSyncMiddleware:
+    """Apply the client's referenced env vars to the server process env.
+
+    The daemon's ``os.environ`` is frozen at launch, so the CLI sends the env
+    vars its config references (see ``uds_client._client_env_header``) with
+    every request. Merging them keeps credential resolution in step with the
+    caller's terminal; a later reload re-execs with the updated env.
+
+    Pure ASGI on purpose: it only inspects the request header and passes the
+    scope through untouched. ``BaseHTTPMiddleware`` would wrap every response
+    in a task group and buffer the body, perturbing event-loop scheduling for
+    a change that only needs to peek at one header. A malformed header is
+    ignored.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            for name, value in scope.get("headers") or []:
+                if name == ENV_SYNC_HEADER_ASGI:
+                    payload = decode_env_header(value)
+                    if payload:
+                        os.environ.update(payload)
+                    break
+        await self.app(scope, receive, send)
 
 
 def create_app(
@@ -121,6 +153,7 @@ def create_app(
     app.include_router(sessions_router)
     app.include_router(headless_router)
     app.include_router(ws_router)
+    app.add_middleware(_EnvSyncMiddleware)
 
     return app
 

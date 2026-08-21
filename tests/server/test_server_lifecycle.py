@@ -5,6 +5,9 @@ from pathlib import Path
 
 import pytest
 
+from klaude_code.config.config import Config, ModelConfig, ProviderConfig
+from klaude_code.protocol import llm_param
+from klaude_code.protocol.env_sync import encode_env_header
 from klaude_code.protocol.version import PROTOCOL_VERSION
 from klaude_code.server import routes
 from klaude_code.server.server import ServerAlreadyRunningError, _SingletonLock  # pyright: ignore[reportPrivateUsage]
@@ -57,6 +60,54 @@ def test_reload_endpoint_refuses_active_sessions(app_env: AppEnv, monkeypatch: p
     assert forced.status_code == 200
     assert app_env.exit_calls == [True]
     assert app_env.lifecycle.reload_requested is True
+
+
+def test_env_sync_middleware_merges_client_env(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KLAUDE_SYNC_TEST_KEY", "")
+    payload = encode_env_header({"KLAUDE_SYNC_TEST_KEY": "from-client"})
+
+    response = app_env.client.get("/api/server/status", headers={"X-Klaude-Env": payload})
+
+    assert response.status_code == 200
+    assert os.environ.get("KLAUDE_SYNC_TEST_KEY") == "from-client"
+
+
+def test_env_sync_middleware_ignores_malformed_header(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("KLAUDE_SYNC_TEST_KEY", "")
+    response = app_env.client.get("/api/server/status", headers={"X-Klaude-Env": "!!!not-base64-json!!!"})
+
+    assert response.status_code == 200
+    assert os.environ.get("KLAUDE_SYNC_TEST_KEY") in (None, "")
+
+
+def _env_sync_test_config() -> Config:
+    """Deterministic config: one provider whose key comes from ${KLAUDE_SYNC_TEST_KEY}."""
+    return Config(
+        provider_list=[
+            ProviderConfig(
+                provider_name="env-provider",
+                protocol=llm_param.LLMClientProtocol.OPENAI,
+                api_key="${KLAUDE_SYNC_TEST_KEY}",
+                model_list=[ModelConfig(model_name="env-model", model_id="env/test-model")],
+            )
+        ]
+    )
+
+
+def test_create_session_accepts_model_after_env_sync(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The client's env header reaches the availability check (user's `-m ox` flow)."""
+    monkeypatch.setenv("KLAUDE_SYNC_TEST_KEY", "")
+    monkeypatch.setattr("klaude_code.config.load_config", _env_sync_test_config)
+    payload_body = {"work_dir": str(app_env.work_dir), "model": "env-model"}
+
+    baseline = app_env.client.post("/api/sessions", json=payload_body)
+    assert baseline.status_code == 400
+    assert "is unavailable" in baseline.json()["detail"]
+
+    env_header = encode_env_header({"KLAUDE_SYNC_TEST_KEY": "sk-fake-for-test"})
+    with_env = app_env.client.post("/api/sessions", json=payload_body, headers={"X-Klaude-Env": env_header})
+    assert with_env.status_code == 200
+    assert "session_id" in with_env.json()
 
 
 def test_debug_endpoint_enables_file_logging(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -50,7 +50,10 @@ async def create_session(
         except Exception as exc:
             raise HTTPException(status_code=500, detail=f"failed to load config: {exc}") from exc
         if not candidates:
-            raise HTTPException(status_code=400, detail=f"model '{payload.model}' is unavailable")
+            from klaude_code.config.config import describe_model_unavailable
+
+            diagnosis = config.diagnose_model(payload.model)
+            raise HTTPException(status_code=400, detail=describe_model_unavailable(payload.model, diagnosis))
 
     # Persist meta first (model/vanilla are read when the agent is built),
     # then spin up the actor so follow-up REST/WS calls find it.

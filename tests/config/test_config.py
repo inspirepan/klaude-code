@@ -17,6 +17,7 @@ from klaude_code.config.config import (
     RemovedProviderError,
     UserConfig,
     UserProviderConfig,
+    WebSearchConfig,
     config_path,
     parse_env_var_syntax,
     prioritize_model_preference,
@@ -194,6 +195,57 @@ class TestConfig:
         )
 
         assert config.get_first_available_model(config.fast_model) == "fallback-model"
+
+    def test_referenced_env_vars_extracts_env_usage(self, sample_model_config: ModelConfig) -> None:
+        config = Config(
+            provider_list=[
+                ProviderConfig(
+                    provider_name="env-provider",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="${PRIMARY_KEY}",
+                    base_url="${BASE_URL|FALLBACK_URL}",
+                    model_list=[sample_model_config],
+                ),
+                ProviderConfig(
+                    provider_name="plain-provider",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="literal-key",
+                    model_list=[sample_model_config],
+                ),
+            ]
+        )
+
+        refs = config.referenced_env_vars()
+
+        # Provider fields with ${VAR} / ${A|B} syntax are extracted.
+        assert {"PRIMARY_KEY", "BASE_URL", "FALLBACK_URL"} <= refs
+        # Nested defaults (web_search providers) are scanned too.
+        assert {"EXA_API_KEY", "BRAVE_API_KEY"} <= refs
+        # Plain strings contribute no names.
+        assert "literal-key" not in refs
+
+    def test_referenced_env_vars_empty_without_refs(self, sample_provider: ProviderConfig) -> None:
+        config = Config(provider_list=[sample_provider], web_search=WebSearchConfig(providers=[]))
+
+        assert config.referenced_env_vars() == frozenset()
+
+    def test_referenced_env_values_only_include_set_vars(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        config = Config(
+            provider_list=[
+                ProviderConfig(
+                    provider_name="env-provider",
+                    protocol=llm_param.LLMClientProtocol.OPENAI,
+                    api_key="${KLAUDE_SET_VAR}",
+                    base_url="${KLAUDE_UNSET_VAR}",
+                    model_list=[ModelConfig(model_name="m", model_id="m-id")],
+                )
+            ],
+            web_search=WebSearchConfig(providers=[]),
+        )
+        monkeypatch.setenv("KLAUDE_SET_VAR", "present")
+        monkeypatch.delenv("KLAUDE_UNSET_VAR", raising=False)
+
+        assert config.referenced_env_values() == {"KLAUDE_SET_VAR": "present"}
 
     def test_iter_model_config_candidates_expands_providers_then_model_preferences(self) -> None:
         config = Config(
