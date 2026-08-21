@@ -77,8 +77,12 @@ def _merge_web_search(user: WebSearchConfig | None, builtin: WebSearchConfig) ->
     membership AND order define the chain), but each entry's unset fields
     (api_key/base_url/model) inherit from the builtin entry of the same name,
     so reordering only requires listing provider names.
+
+    A ``web_search: {}`` section (``providers`` never set) is not an override:
+    it inherits the builtin chain. Only an explicit ``providers: []`` disables
+    web search.
     """
-    if user is None:
+    if user is None or "providers" not in user.model_fields_set:
         return builtin.model_copy(deep=True)
     builtin_by_name = {p.provider: p for p in builtin.providers}
     merged_providers: list[WebSearchProviderConfig] = []

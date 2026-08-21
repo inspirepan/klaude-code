@@ -62,6 +62,18 @@ class TestWebSearchMerge:
         assert entry.api_key == "${DEEPSEEK_API_KEY}"
         assert entry.base_url == "https://api.deepseek.com/anthropic"
 
+    def test_empty_web_search_section_inherits_builtin(self) -> None:
+        """A bare `web_search: {}` in the YAML is not an override; builtin chain applies."""
+        user = UserConfig.model_validate({"web_search": {}})
+        merged = merge_configs(user, get_builtin_config())
+        assert merged.web_search == default_web_search_config()
+
+    def test_explicit_empty_providers_disables_search(self) -> None:
+        """An explicit `providers: []` means the user opted out of web search."""
+        user = UserConfig.model_validate({"web_search": {"providers": []}})
+        merged = merge_configs(user, get_builtin_config())
+        assert merged.web_search.providers == []
+
 
 class TestWebSearchSave:
     def test_save_writes_web_search_override(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
