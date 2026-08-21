@@ -60,12 +60,16 @@ def build_payload(
         "tool_choice": "auto",
         "parallel_tool_calls": True,
         "store": False,
-        "temperature": param.temperature,
         "max_output_tokens": param.max_tokens,
         "input": inputs,
         "instructions": strip_system_prompt_boundary(param.system),
         "tools": tools,
     }
+
+    # Strict OpenAI-compatible upstreams reject explicit null for temperature;
+    # only send it when set.
+    if param.temperature is not None:
+        payload["temperature"] = param.temperature
 
     if not is_volces_base_url:
         payload["prompt_cache_key"] = param.prompt_cache_key or param.session_id or ""

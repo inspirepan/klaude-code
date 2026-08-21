@@ -32,17 +32,25 @@ def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreatePa
             "budget": param.thinking.budget_tokens,
         }
 
+    temperature = param.temperature
+    reasoning_effort = param.thinking.reasoning_effort if param.thinking else None
+
     payload: CompletionCreateParamsStreaming = {
         "model": str(param.model_id),
         "tool_choice": "auto",
         "parallel_tool_calls": True,
         "stream": True,
         "messages": messages,
-        "temperature": param.temperature,
         "max_tokens": param.max_tokens,
         "tools": tools,
-        "reasoning_effort": param.thinking.reasoning_effort if param.thinking else None,
     }
+
+    # Strict OpenAI-compatible upstreams (e.g. opencode zen -> DeepSeek) reject
+    # explicit nulls for these optional fields; only send them when set.
+    if temperature is not None:
+        payload["temperature"] = temperature
+    if reasoning_effort is not None:
+        payload["reasoning_effort"] = reasoning_effort
 
     if param.verbosity:
         # Our verbosity literal ("max") is wider than the SDK's TypedDict declaration.
