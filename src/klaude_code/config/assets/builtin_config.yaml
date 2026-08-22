@@ -891,6 +891,15 @@ provider_list:
       reasoning_effort: max
     cost: *opencode_go_flash_cost
 
+  # Vision variant shares the flash price card.
+  - model_name: deepseek-flash-vision
+    model_alias: [ dsfv, v4-flash-vision ]
+    model_id: deepseek-v4-flash-vision-exp
+    context_limit: 1000000
+    thinking:
+      reasoning_effort: low
+    cost: *opencode_go_flash_cost
+
   - model_name: deepseek
     model_alias: [ ds, deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high, deepseek-v4-pro ]
     model_id: deepseek-v4-pro
