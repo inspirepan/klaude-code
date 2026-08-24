@@ -900,6 +900,22 @@ provider_list:
       reasoning_effort: low
     cost: *opencode_go_flash_cost
 
+  - model_name: deepseek-flash-vision:high
+    model_alias: [ dsfvh, v4-flash-vision:high ]
+    model_id: deepseek-v4-flash-vision-exp
+    context_limit: 1000000
+    thinking:
+      reasoning_effort: high
+    cost: *opencode_go_flash_cost
+
+  - model_name: deepseek-flash-vision:max
+    model_alias: [ dsfvmax, v4-flash-vision:max ]
+    model_id: deepseek-v4-flash-vision-exp
+    context_limit: 1000000
+    thinking:
+      reasoning_effort: max
+    cost: *opencode_go_flash_cost
+
   - model_name: deepseek
     model_alias: [ ds, deepseek-pro, deepseek-pro:high, v4-pro, v4-pro:high, deepseek-v4-pro ]
     model_id: deepseek-v4-pro
