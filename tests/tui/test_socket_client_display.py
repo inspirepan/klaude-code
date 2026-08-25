@@ -118,6 +118,61 @@ def test_failed_emit_does_not_arm_echo_swallow() -> None:
     assert not client._pending_echo_swallows
 
 
+def test_fatal_turn_end_releases_busy_via_operation_finished() -> None:
+    """A turn dying on a fatal error emits no TaskFinishEvent; the run_agent
+    OperationFinishedEvent must release the busy state instead."""
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+
+    start = _local_envelope(events.TaskStartEvent(session_id="session-id")).model_copy(
+        update={"operation_id": "op-1"}
+    )
+    finish = _local_envelope(
+        events.OperationFinishedEvent(
+            session_id="session-id",
+            operation_id="op-1",
+            operation_type="run_agent",
+            status="completed",
+        )
+    )
+
+    async def scenario() -> None:
+        await client._handle_envelope(start)
+        assert client.is_running() is True
+        await client._handle_envelope(
+            _local_envelope(
+                events.ErrorEvent(session_id="session-id", error_message="Step failed", can_retry=False)
+            )
+        )
+        assert client.is_running() is True
+        await client._handle_envelope(finish)
+        assert client.is_running() is False
+
+    asyncio.run(scenario())
+
+
+def test_stale_operation_finished_does_not_release_new_turn() -> None:
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+
+    start = _local_envelope(events.TaskStartEvent(session_id="session-id")).model_copy(
+        update={"operation_id": "op-2"}
+    )
+    stale_finish = _local_envelope(
+        events.OperationFinishedEvent(
+            session_id="session-id",
+            operation_id="op-1",
+            operation_type="run_agent",
+            status="completed",
+        )
+    )
+
+    async def scenario() -> None:
+        await client._handle_envelope(start)
+        await client._handle_envelope(stale_finish)
+        assert client.is_running() is True
+
+    asyncio.run(scenario())
+
+
 def test_waiting_user_input_counts_as_busy() -> None:
     client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
 

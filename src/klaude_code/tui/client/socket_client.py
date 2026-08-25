@@ -510,6 +510,16 @@ class SocketRuntimeClient:
                 self._active_operation_id = None
                 self._running = False
                 self._notify_state_changed()
+            elif isinstance(event, events.OperationFinishedEvent) and event.operation_type == "run_agent":
+                # A turn that dies on a fatal error ends without a
+                # TaskFinishEvent; the server finishes the run_agent operation
+                # only after its task has wound down, so treat that as the
+                # terminal signal and release the busy state.
+                if self._active_operation_id is None or event.operation_id == self._active_operation_id:
+                    self._active_operation_id = None
+                    if self._running:
+                        self._running = False
+                        self._notify_state_changed()
             elif isinstance(event, events.FollowUpQueueUpdatedEvent):
                 self._info.follow_ups = tuple(event.texts)
                 self._notify_state_changed()
