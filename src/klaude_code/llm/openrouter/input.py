@@ -155,7 +155,20 @@ def convert_history_to_input(
             append_system_message(flattened_system, cache_control=False)
 
     attached = apply_inline_image_budget(attach_developer_messages(history), max_dimension=MAX_IMAGE_DIMENSION)
+
+    # Image user messages extracted from tool results are held back until all
+    # tool messages for the current assistant tool_calls block are emitted:
+    # strict providers reject a user message interleaved between the tool
+    # messages answering one tool_calls block.
+    pending_image_messages: list[chat.ChatCompletionMessageParam] = []
+
+    def flush_pending_image_messages() -> None:
+        messages.extend(pending_image_messages)
+        pending_image_messages.clear()
+
     for msg, attachment in attached:
+        if not isinstance(msg, message.ToolResultMessage):
+            flush_pending_image_messages()
         match msg:
             case message.SystemMessage():
                 system_text = "\n".join(part.text for part in msg.parts)
@@ -170,11 +183,12 @@ def convert_history_to_input(
                     _rewrite_tool_message_for_claude(tool_msg)
                 messages.append(cast(chat.ChatCompletionMessageParam, tool_msg))
                 if user_msg is not None:
-                    messages.append(cast(chat.ChatCompletionMessageParam, user_msg))
+                    pending_image_messages.append(cast(chat.ChatCompletionMessageParam, user_msg))
             case message.AssistantMessage():
                 messages.append(_assistant_message_to_openrouter(msg, model_name))
             case _:
                 continue
+    flush_pending_image_messages()
 
     if use_cache_control and not has_explicit_system_cache_control:
         for msg in reversed(messages):

@@ -9,6 +9,9 @@ from klaude_code.llm.input_common import (
     build_tool_message,
     build_tool_message_for_chat_completions,
 )
+from klaude_code.llm.openai_compatible.input import (
+    convert_history_to_input as openai_convert_history_to_input,
+)
 from klaude_code.llm.openrouter.input import (
     _add_cache_control,  # pyright: ignore[reportPrivateUsage]
     _rewrite_tool_message_for_claude,  # pyright: ignore[reportPrivateUsage]
@@ -183,3 +186,45 @@ def test_openrouter_claude_with_tool_images_keeps_tool_list_and_user_image_messa
         {"type": "text", "text": "Attached image(s) from tool result:"},
         {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
     ]
+
+
+def _parallel_tool_call_history_with_images() -> list[message.Message]:
+    return [
+        message.AssistantMessage(
+            parts=[
+                message.ToolCallPart(call_id="call_1", tool_name="Read", arguments_json="{}"),
+                message.ToolCallPart(call_id="call_2", tool_name="Read", arguments_json="{}"),
+            ],
+            stop_reason="tool_use",
+        ),
+        _make_tool_result(
+            "[image] a.png",
+            call_id="call_1",
+            parts=[message.ImageURLPart(url="data:image/png;base64,AA==", id=None)],
+        ),
+        _make_tool_result(
+            "[image] b.png",
+            call_id="call_2",
+            parts=[message.ImageURLPart(url="data:image/png;base64,BB==", id=None)],
+        ),
+    ]
+
+
+def test_openai_compatible_parallel_tool_images_keep_tool_messages_contiguous() -> None:
+    # Strict providers require every tool message answering a tool_calls block
+    # to come before any other role; image user messages must not interleave.
+    messages = openai_convert_history_to_input(_parallel_tool_call_history_with_images())
+
+    roles = [m["role"] for m in messages]
+    assert roles == ["assistant", "tool", "tool", "user", "user"]
+    assert messages[1]["tool_call_id"] == "call_1"
+    assert messages[2]["tool_call_id"] == "call_2"
+
+
+def test_openrouter_parallel_tool_images_keep_tool_messages_contiguous() -> None:
+    messages = convert_history_to_input(_parallel_tool_call_history_with_images(), model_name="gpt-5.4")
+
+    roles = [m["role"] for m in messages]
+    assert roles == ["assistant", "tool", "tool", "user", "user"]
+    assert messages[1]["tool_call_id"] == "call_1"
+    assert messages[2]["tool_call_id"] == "call_2"
