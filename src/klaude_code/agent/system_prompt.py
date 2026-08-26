@@ -73,10 +73,10 @@ AGENT_REVIEW_INST = (
     "verifying the change, not extra scope. You wrote the code, so "
     "you share its blind spots; re-reading your own diff is not a review. The reviewer starts from a fresh "
     "context with only the diff and is told to assume the code is wrong -- that separation finds the bugs a "
-    "self-check misses. Run one review pass per task; re-run the reviewer only when a fix is high-risk or hard to "
-    "verify. Treat findings as claims to check against the code, not as orders: fix the confirmed ones that fall "
-    "within your change, report the rest, validate the fixes yourself, and tell the user which findings you "
-    "rejected and why."
+    "self-check misses. One review pass per task is the norm. Treat findings as claims to check against the code, "
+    "not as orders: fix the confirmed ones that fall within your change, report the rest, validate the fixes "
+    "yourself, and tell the user which findings you rejected and why. A second pass is warranted only when the "
+    "fixes themselves added substantial new logic rather than line-level corrections, and there is never a third."
 )
 
 REWIND_CHECKPOINT_INST = """- After each new user message, the system automatically injects a `<system-reminder>Checkpoint N</system-reminder>` marker into the conversation. These markers are rewind targets -- use the `Rewind` tool with a checkpoint ID to roll back conversation history to that point."""
