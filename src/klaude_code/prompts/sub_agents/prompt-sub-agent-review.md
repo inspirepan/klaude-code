@@ -61,7 +61,7 @@ When the prompt includes findings from a prior review round:
 
 - Focus primarily on verifying that those specific issues have been correctly fixed.
 - Check for any **new** bugs introduced by the fixes themselves.
-- Use the provided diff scope (which should cover only the fix commits) rather than re-reviewing the entire original changeset.
+- Use the provided diff scope (which should cover only the fix, given as commits or as files and functions) rather than re-reviewing the entire original changeset.
 - Do NOT re-report issues from the prior round that have been resolved.
 - If an earlier finding was only partially fixed or incorrectly fixed, report that explicitly.
 

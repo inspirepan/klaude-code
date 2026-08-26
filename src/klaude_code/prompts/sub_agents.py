@@ -9,10 +9,11 @@ into sub-agent sessions.  Keep dependency-free.
 # ---------------------------------------------------------------------------
 
 FINDER_SUMMARY = (
-    "Searches the codebase by functionality or concept rather than exact match, and returns only the\n"
-    "conclusion -- the intermediate file dumps stay out of your context. Default choice for any search\n"
-    "beyond a single known-target lookup. Give it the research goal plus any keyword queries worth\n"
-    "prioritizing.\n"
+    "Searches the codebase by concept, or exhaustively by exact match (all call sites, all usages), and\n"
+    "returns a short answer plus file paths (usually with line ranges) to Read -- the intermediate file dumps\n"
+    "stay out of your context. Default choice for any codebase question beyond a known file or a single exact\n"
+    "identifier. Launch several in one message when a task has several questions. Give each the research goal\n"
+    "plus any keyword queries worth prioritizing.\n"
     "(Tools: Bash, Read)"
 )
 
@@ -31,9 +32,9 @@ FORK_CONTEXT_SUMMARY = (
 )
 
 REVIEW_SUMMARY = (
-    "Finds real bugs in proposed changes: regressions, race conditions, security issues, data loss,\n"
-    "compatibility breaks. Use it on complex or multi-file changes whose logic could hide a subtle\n"
-    "failure. Returns findings with priority levels.\n"
+    "Adversarial correctness reviewer: starts from a fresh context with only the diff and assumes it is\n"
+    "wrong until the code proves otherwise. Finds real bugs: regressions, race conditions, security issues,\n"
+    "data loss, compatibility breaks. Returns findings with priority levels.\n"
     "(Tools: Bash, Read)"
 )
 
@@ -53,7 +54,7 @@ FORK_CONTEXT_WITH_ROLE_PROMPT = (
     "You are now acting as a specialized sub-agent. "
     "The conversation history above was forked from the parent session "
     "-- use it as background context only. "
-    "Do NOT use the Agent tool to spawn sub-agents. "
+    "Do NOT use the Agent tool to spawn sub-agents; search directly. "
     "Do NOT use the Rewind tool.\n\n"
 )
 
@@ -61,6 +62,7 @@ FORK_CONTEXT_GENERAL_PROMPT = (
     "You are a newly spawned agent with the full conversation context "
     "from the parent session. Treat the next user message as your new task, "
     "and use the conversation history as background context. "
-    "Do NOT use the Agent tool to spawn sub-agents. "
+    "Do NOT use the Agent tool to spawn sub-agents: search directly, and leave reviewing your diff "
+    "to the parent agent. "
     "Do NOT use the Rewind tool."
 )

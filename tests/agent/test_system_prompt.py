@@ -12,6 +12,7 @@ from klaude_code.agent.system_prompt import (
     split_system_prompt_for_cache,
     strip_system_prompt_boundary,
 )
+from klaude_code.protocol import llm_param, tools
 
 
 def test_load_main_base_prompt_routes_by_model_family(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -77,3 +78,25 @@ def test_strip_system_prompt_boundary_restores_plain_prompt_text() -> None:
     prompt = "static\n\n__SYSTEM_PROMPT_DYNAMIC_BOUNDARY__\n\ndynamic"
 
     assert strip_system_prompt_boundary(prompt) == "static\n\ndynamic"
+
+
+@pytest.mark.parametrize(
+    ("tool_names", "expect_finder", "expect_review"),
+    [
+        ((tools.BASH, tools.READ), False, False),
+        ((tools.BASH, tools.READ, tools.AGENT), True, False),
+        ((tools.BASH, tools.READ, tools.EDIT), False, False),
+        ((tools.BASH, tools.READ, tools.EDIT, tools.AGENT), True, True),
+        ((tools.BASH, tools.READ, tools.WRITE, tools.AGENT), True, True),
+        ((tools.BASH, tools.READ, tools.APPLY_PATCH, tools.AGENT), True, True),
+    ],
+)
+def test_dynamic_tool_strategy_gates_agent_delegation_on_available_tools(
+    tool_names: tuple[str, ...], expect_finder: bool, expect_review: bool
+) -> None:
+    schemas = [llm_param.ToolSchema(name=name, type="function", description="", parameters={}) for name in tool_names]
+
+    prompt = system_prompt_module.build_dynamic_tool_strategy_prompt(schemas)
+
+    assert (system_prompt_module.AGENT_FINDER_INST in prompt) is expect_finder
+    assert (system_prompt_module.AGENT_REVIEW_INST in prompt) is expect_review

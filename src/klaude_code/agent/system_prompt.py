@@ -47,18 +47,34 @@ PREFER_TOOL_OVER_SPECULATION_INST = (
 BASH_SPECIALIZED_TOOL_INST = """- Use specialized file tools for reads/edits instead of Bash fallbacks."""
 
 AGENT_FINDER_INST = (
-    '- Delegate codebase searches to `Agent` with `type="finder"` by default: questions that span '
-    "several files or directories, concept-based searches, or anything likely to take more than one "
-    "search round. The finder reads through the noise and you keep only the conclusion in context. "
-    "Search directly only for a single-step lookup where you already know the file, symbol, or exact "
-    "string -- and if that first attempt misses, switch to finder instead of chaining more greps "
-    "yourself. Once delegated, wait for the result; do not repeat the search."
+    '- Delegate codebase searches to `Agent` with `type="finder"`. Search directly only when you already know the '
+    "file, or when one exact identifier will match in one place; every other codebase question goes to finder. "
+    "When a task starts in unfamiliar code and you cannot name the files involved, launch one finder per question "
+    "(where X lives, who calls Y, how Z is wired) in a single message, then Read only what it points to. Switch to "
+    "finder the moment a direct search misses or returns more hits than you will read. Every grep hit and file you "
+    "open yourself is context you carry forward; a finder call costs one summary. Once delegated, wait for the "
+    "result; do not repeat the search yourself."
 )
 
 EDIT_VALIDATION_LOOP_INST = (
     "- After making changes, run the most relevant validation available: targeted unit tests for the changed behavior, "
     "type checks or linters when applicable, build checks for affected packages, or a minimal smoke command when full "
     "validation is too expensive. If validation cannot be run in this environment, say so and describe the next best check."
+)
+
+AGENT_REVIEW_INST = (
+    "- Before you report a code change as done -- once the change is complete and your own validation passes, or "
+    'you have established it cannot run here -- launch `Agent` with `type="code-reviewer"` on the diff of this '
+    "task. This applies to every change that alters behavior, however small; changes a sub-agent made on your "
+    "behalf count as yours. Skip it only for mechanical or self-evidently correct edits, even when they span many "
+    "files: typo fixes, renames, comment or doc edits, single-value config edits, and code the user called a "
+    "throwaway experiment. The review is part of verifying the change, not extra scope. You wrote the code, so "
+    "you share its blind spots; re-reading your own diff is not a review. The reviewer starts from a fresh "
+    "context with only the diff and is told to assume the code is wrong -- that separation finds the bugs a "
+    "self-check misses. Run one review pass per task; re-run the reviewer only when a fix is high-risk or hard to "
+    "verify. Treat findings as claims to check against the code, not as orders: fix the confirmed ones that fall "
+    "within your change, report the rest, validate the fixes yourself, and tell the user which findings you "
+    "rejected and why."
 )
 
 REWIND_CHECKPOINT_INST = """- After each new user message, the system automatically injects a `<system-reminder>Checkpoint N</system-reminder>` marker into the conversation. These markers are rewind targets -- use the `Rewind` tool with a checkpoint ID to roll back conversation history to that point."""
@@ -98,11 +114,20 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
     if tools.BASH in tool_name_set:
         strategy_lines.append(BASH_SPECIALIZED_TOOL_INST)
 
+    has_edit_tool = tools.EDIT in tool_name_set or tools.WRITE in tool_name_set or tools.APPLY_PATCH in tool_name_set
+
     if tools.AGENT in tool_name_set:
         strategy_lines.append(AGENT_FINDER_INST)
 
-    if tools.EDIT in tool_name_set or tools.WRITE in tool_name_set or tools.APPLY_PATCH in tool_name_set:
+    if has_edit_tool:
         strategy_lines.append(EDIT_VALIDATION_LOOP_INST)
+
+    # Self-review needs both: something to review (edit tools) and a reviewer to launch (Agent).
+    # Dedicated-prompt sub-agents never see this and plain general-purpose sub-agents lack the Agent
+    # tool; fork-context sub-agents inherit both, so their identity switch tells them to leave
+    # review to the parent.
+    if tools.AGENT in tool_name_set and has_edit_tool:
+        strategy_lines.append(AGENT_REVIEW_INST)
 
     if tools.REWIND in tool_name_set:
         strategy_lines.append(REWIND_CHECKPOINT_INST)
