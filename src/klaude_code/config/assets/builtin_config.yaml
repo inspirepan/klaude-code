@@ -848,12 +848,32 @@ provider_list:
   base_url: https://opencode.ai/zen/go/v1
   model_list:
 
+  # Docs list tiered rates (>200K prompt bills 2x); tiering is not supported
+  # here, so the cheaper <=200K rates are used.
+  - model_name: grok-4.6
+    model_alias: [ grok ]
+    model_id: grok-4.6
+    max_tokens: 128000
+    context_limit: 500000
+    thinking:
+      reasoning_effort: high
+    cost: { input: 2, output: 6, cache_read: 0.5 }
+
   - model_name: glm-5.3
     model_alias: [ glm ]
     model_id: glm-5.3
     context_limit: 1000000
     supports_vision: false
     cost: { input: 1.4, output: 4.4, cache_read: 0.26 }
+
+  - model_name: glm-5.3-flash
+    model_alias: [ glm-flash ]
+    model_id: glm-5.3-flash
+    max_tokens: 131072
+    context_limit: 1048576
+    thinking:
+      reasoning_effort: max
+    cost: { input: 0.15, output: 0.5, cache_read: 0.03 }
 
   - model_name: kimi
     model_alias: [ k3, kimi-k3 ]
@@ -1214,17 +1234,14 @@ provider_list:
       - z-ai
     cost: { input: 1.4, output: 4.4, cache_read: 0.26 }
 
-  # Free stealth preview (released 2026-08-20); reasoning is mandatory and
-  # cannot be disabled. Prompts/completions are retained by the anonymous
-  # provider (not used for training) -- do not send sensitive data.
-  - model_name: ox-alpha
-    model_alias: [ ox, stealth/ox-alpha ]
-    model_id: stealth/ox-alpha
+  - model_name: glm-flash
+    model_alias: [ glm-5.3-flash ]
+    model_id: z-ai/glm-5.3-flash
     max_tokens: 131072
     context_limit: 1048576
     thinking:
       reasoning_effort: max
-    cost: { input: 0, output: 0 }
+    cost: { input: 0.15, output: 0.5, cache_read: 0.03 }
 
 # ######################################## web search ########################################
 # WebSearch tool provider chain. Providers are tried in list order; a provider
