@@ -19,43 +19,55 @@ from .types import CommandName
 def _build_rewind_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
     """Build SelectItem list for rewind points.
 
-    Differs from the /fork picker in two ways: the separator wording says the
-    discarded tail will be summarized (not silently dropped), and every point
-    is selectable — rewinding at the very first user message summarizes the
-    whole conversation into a fresh session. Compaction-boundary points are
-    excluded: there is no user message at that index to anchor the summary's
-    pivot quote on.
+    Differs from the /fork picker in three ways: the separator wording says the
+    discarded tail will be summarized (not silently dropped), every point is
+    selectable — rewinding at the very first user message summarizes the whole
+    conversation into a fresh session — and "rewind entire conversation" sits
+    at the TOP: it corresponds to the very start of the conversation, and with
+    the dim transform pointing at it greys out the whole list (everything gets
+    summarized). Compaction-boundary points are excluded: there is no user
+    message at that index to anchor the summary's pivot quote on.
     """
 
     items: list[SelectItem[int]] = []
-    for i, fp in enumerate(fork_points):
-        if fp.kind == "compaction":
-            continue
-        is_first = i == 0
+    end_points = [fp for fp in fork_points if fp.kind == "end"]
+    user_points = [fp for fp in fork_points if fp.kind != "end"]
 
+    for fp in end_points:
+        items.append(
+            SelectItem(
+                title=[
+                    ("class:separator", "----- rewind entire conversation (summarize everything) -----\n\n"),
+                    ("class:text", "\n"),
+                ],
+                value=fp.history_index,
+                search_text="rewind entire conversation",
+                selectable=True,
+            )
+        )
+
+    first_user = True
+    for fp in user_points:
         title_parts: list[tuple[str, str]] = []
-        if not is_first:
-            if fp.kind == "end":
-                title_parts.append(
-                    ("class:separator", "----- rewind entire conversation (summarize everything) -----\n\n")
-                )
-            else:
-                title_parts.append(("class:separator", "----- fork from here with summary below -----\n\n"))
+        # The topmost user boundary needs no divider: nothing above it can be
+        # summarized.
+        if not first_user:
+            title_parts.append(("class:separator", "----- fork from here with summary below -----\n\n"))
+        first_user = False
 
-        if fp.kind == "user":
-            title_parts.append(("class:msg", f"user:   {_truncate(fp.user_message)}\n"))
-            if fp.tool_call_stats:
-                tool_parts = [f"{name} × {count}" for name, count in fp.tool_call_stats.items()]
-                title_parts.append(("class:meta", f"tools:  {', '.join(tool_parts)}\n"))
-            if fp.last_assistant_summary:
-                title_parts.append(("class:assistant", f"ai:     {fp.last_assistant_summary}\n"))
+        title_parts.append(("class:msg", f"user:   {_truncate(fp.user_message)}\n"))
+        if fp.tool_call_stats:
+            tool_parts = [f"{name} × {count}" for name, count in fp.tool_call_stats.items()]
+            title_parts.append(("class:meta", f"tools:  {', '.join(tool_parts)}\n"))
+        if fp.last_assistant_summary:
+            title_parts.append(("class:assistant", f"ai:     {fp.last_assistant_summary}\n"))
 
         title_parts.append(("class:text", "\n"))
         items.append(
             SelectItem(
                 title=title_parts,
                 value=fp.history_index,
-                search_text=fp.user_message if fp.kind == "user" else "rewind entire conversation",
+                search_text=fp.user_message,
                 selectable=True,
             )
         )

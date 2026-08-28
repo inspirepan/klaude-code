@@ -9,6 +9,7 @@ def _style_for(tokens: list[tuple[str, str]], text: str) -> str:
 
 
 def _fork_points() -> list[ForkPoint]:
+    # _build_fork_points order: chronological user points, "end" appended last.
     return [
         ForkPoint(kind="user", history_index=0, tool_call_stats={}, user_message="before"),
         ForkPoint(kind="user", history_index=2, tool_call_stats={}, user_message="selected"),
@@ -26,40 +27,55 @@ def _separator_style(item: SelectItem[int], item_index: int, pointed_index: int)
     return next(style for style, text in styled if "class:separator" in style.split())
 
 
-def test_rewind_picker_highlights_boundary_and_dims_summarized_content() -> None:
-    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3], 1, "→", item_style_transform=_style_fork_item)
-
-    # The divider right above the pointed row marks the selected boundary;
-    # the other from-here dividers stay plain.
+def test_rewind_picker_puts_entire_conversation_on_top() -> None:
     items = _items()
-    assert "class:fork.selected-separator" in _separator_style(items[1], 1, 1)
-    assert "class:fork.selected-separator" not in _separator_style(items[2], 2, 1)
-    assert "class:fork.excluded" not in _style_for(tokens, "user:   before\n")
 
-    # Everything from the pivot onward is summarized, not kept verbatim.
-    for text in (
-        "user:   selected\n",
-        "user:   after\n",
-    ):
+    assert items[0].value == -1
+    assert items[0].selectable is True
+    assert items[0].title[0] == (
+        "class:separator",
+        "----- rewind entire conversation (summarize everything) -----\n\n",
+    )
+    # Chronological user points follow, each with a from-here divider above
+    # except the topmost user boundary.
+    assert [item.value for item in items[1:]] == [0, 2, 4]
+    assert "class:separator" not in {style for style, _ in items[1].title}
+
+
+def test_rewind_picker_highlights_boundary_and_dims_summarized_content() -> None:
+    # Pointing at the second user point: everything from it onward greys out —
+    # including the pointed row itself (the pivot is summarized, not kept).
+    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3], 2, "→", item_style_transform=_style_fork_item)
+
+    assert "class:fork.selected-separator" in _separator_style(_items()[2], 2, 2)
+    assert "class:fork.excluded" not in _style_for(tokens, "user:   before\n")
+    assert "class:fork.excluded" in _style_for(tokens, "user:   selected\n")
+    assert "class:fork.excluded" in _style_for(tokens, "user:   after\n")
+
+
+def test_rewind_picker_pointing_at_entire_conversation_dims_everything() -> None:
+    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3], 0, "→", item_style_transform=_style_fork_item)
+
+    assert "class:fork.selected-separator" in _separator_style(_items()[0], 0, 0)
+    for text in ("user:   before\n", "user:   selected\n", "user:   after\n"):
         assert "class:fork.excluded" in _style_for(tokens, text)
 
 
 def test_rewind_picker_updates_dimmed_range_when_pointer_moves() -> None:
-    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3], 2, "→", item_style_transform=_style_fork_item)
+    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3], 3, "→", item_style_transform=_style_fork_item)
 
     assert "class:fork.excluded" not in _style_for(tokens, "user:   selected\n")
     assert "class:fork.excluded" in _style_for(tokens, "user:   after\n")
-    # The boundary divider above the pointed row turns green; the end
+    # The boundary divider above the pointed row turns green; the top
     # divider does not.
-    assert "class:fork.selected-separator" in _separator_style(_items()[2], 2, 2)
-    assert "class:fork.selected-separator" not in _separator_style(_items()[3], 3, 2)
+    assert "class:fork.selected-separator" in _separator_style(_items()[3], 3, 3)
+    assert "class:fork.selected-separator" not in _separator_style(_items()[0], 0, 3)
 
 
 def test_rewind_picker_end_point_is_selectable_and_labeled() -> None:
-    items = _items()
+    end_item = _items()[0]
 
-    end_item = items[-1]
     assert end_item.value == -1
     assert end_item.selectable is True
     # Every rewind point is selectable, including the very first user message.
-    assert all(item.selectable for item in items)
+    assert all(item.selectable for item in _items())
