@@ -31,7 +31,9 @@ def _build_rewind_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[
 
     items: list[SelectItem[int]] = []
     end_points = [fp for fp in fork_points if fp.kind == "end"]
-    user_points = [fp for fp in fork_points if fp.kind != "end"]
+    # Chronological order: user points + model-rewind boundaries interleaved
+    # as they appear in history.
+    ordered_points = [fp for fp in fork_points if fp.kind != "end"]
 
     for fp in end_points:
         items.append(
@@ -47,14 +49,35 @@ def _build_rewind_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[
         )
 
     first_user = True
-    for fp in user_points:
+    for fp in ordered_points:
         title_parts: list[tuple[str, str]] = []
+
+        if fp.kind == "rewind":
+            # A model-Rewind boundary: pivoting here keeps the pre-rewind
+            # history verbatim and summarizes the post-rewind redo work.
+            # Always follows at least one user point, so it gets a divider.
+            # Rewind boundaries never consume the first-user flag and never
+            # anchor the "topmost user boundary" case.
+            title_parts.append(("class:separator", "----- fork from here with summary below -----\n\n"))
+            title_parts.append(("class:meta", f"rewind: {_truncate(fp.rewind_note)}\n"))
+            title_parts.append(("class:text", "\n"))
+            items.append(
+                SelectItem(
+                    title=title_parts,
+                    value=fp.history_index,
+                    search_text=f"rewind {fp.rewind_note} {fp.rewind_rationale}",
+                    selectable=True,
+                )
+            )
+            continue
+
         # The topmost user boundary needs no divider: nothing above it can be
         # summarized. It is also not selectable — "rewind entire conversation"
         # on top already covers summarizing everything.
-        if not first_user:
-            title_parts.append(("class:separator", "----- fork from here with summary below -----\n\n"))
+        is_first_user = first_user
         first_user = False
+        if not is_first_user:
+            title_parts.append(("class:separator", "----- fork from here with summary below -----\n\n"))
 
         title_parts.append(("class:msg", f"user:   {_truncate(fp.user_message)}\n"))
         if fp.tool_call_stats:
@@ -69,7 +92,7 @@ def _build_rewind_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[
                 title=title_parts,
                 value=fp.history_index,
                 search_text=fp.user_message,
-                selectable=fp is not user_points[0],
+                selectable=not is_first_user,
             )
         )
     return items
@@ -167,11 +190,17 @@ class RewindCommand(CommandABC):
             )
             return CommandResult(events=[event])
 
-        # Anchor the pivot by exact text: the picker indexes the client's
-        # rebuilt history view, which the server re-derives and validates
-        # against (indices alone are ambiguous for compacted sessions).
+        # Anchor the pivot by exact text (user pivots) or checkpoint id
+        # (model-rewind pivots): the picker indexes the client's rebuilt
+        # history view, which the server re-derives and validates against
+        # (indices alone are ambiguous for compacted sessions).
         selected = next((fp for fp in fork_points if fp.history_index == result), None)
-        pivot_text = selected.user_message if selected is not None and selected.kind == "user" else None
+        pivot_text = None
+        pivot_checkpoint_id = None
+        if selected is not None and selected.kind == "user":
+            pivot_text = selected.user_message
+        elif selected is not None and selected.kind == "rewind":
+            pivot_checkpoint_id = selected.rewind_checkpoint_id
 
         return CommandResult(
             events=[
@@ -185,6 +214,7 @@ class RewindCommand(CommandABC):
                     session_id=agent.session.id,
                     pivot_index=result,
                     pivot_text=pivot_text,
+                    pivot_checkpoint_id=pivot_checkpoint_id,
                 )
             ],
         )

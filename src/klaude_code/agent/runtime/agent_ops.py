@@ -1163,6 +1163,21 @@ class AgentOperationHandler:
             session_id=operation.session_id,
         )
 
+    @staticmethod
+    def _pivot_matches(pivot_item: message.HistoryEvent | None, operation: op.RewindWithSummaryOperation) -> bool:
+        """Anchor check: user-message pivots match by exact text; model-rewind
+        pivots (RewindEntry) match by checkpoint id."""
+        if operation.pivot_checkpoint_id is not None:
+            return (
+                isinstance(pivot_item, message.RewindEntry)
+                and pivot_item.checkpoint_id == operation.pivot_checkpoint_id
+            )
+        return (
+            isinstance(pivot_item, message.UserMessage)
+            and operation.pivot_text is not None
+            and message.join_text_parts(pivot_item.parts) == operation.pivot_text
+        )
+
     async def _run_rewind_task(self, agent: Agent, operation: op.RewindWithSummaryOperation, task_id: str) -> None:
         session_id = operation.session_id
         session = agent.session
@@ -1189,11 +1204,7 @@ class AgentOperationHandler:
             await asyncio.to_thread(Session.load, session.id, work_dir=session.work_dir)
         ).conversation_history
         pivot_item = loaded_view[pivot_index] if 0 <= pivot_index < len(loaded_view) else None
-        if pivot_index >= 0 and (
-            not isinstance(pivot_item, message.UserMessage)
-            or operation.pivot_text is None
-            or message.join_text_parts(pivot_item.parts) != operation.pivot_text
-        ):
+        if pivot_index >= 0 and not self._pivot_matches(pivot_item, operation):
             await self._emit_event(
                 events.NoticeEvent(
                     session_id=session_id,

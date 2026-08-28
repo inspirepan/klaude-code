@@ -65,7 +65,7 @@ def _style_fork_item(
 class ForkPoint:
     """A fork point in conversation history."""
 
-    kind: Literal["user", "compaction", "end"]
+    kind: Literal["user", "compaction", "end", "rewind"]
     history_index: int  # -1 means fork entire conversation
     tool_call_stats: dict[str, int]  # tool_name -> count
     user_message: str = ""
@@ -73,6 +73,10 @@ class ForkPoint:
     compaction_summary_preview: str = ""
     compaction_first_kept_index: int | None = None
     compaction_tokens_before: int | None = None
+    # kind == "rewind" (model Rewind tool boundary; only /rewind offers it)
+    rewind_note: str = ""
+    rewind_rationale: str = ""
+    rewind_checkpoint_id: int | None = None
 
 
 def _truncate(text: str, max_len: int = 60) -> str:
@@ -137,15 +141,19 @@ def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list
 
     Fork points are:
     - Each UserMessage position (for UI display, including first which would be empty session)
+    - Each model-Rewind boundary (RewindEntry; only meaningful to /rewind)
     - The latest CompactionEntry boundary (just after it)
     - The end of the conversation (fork entire conversation)
     """
     fork_points: list[ForkPoint] = []
     user_indices: list[int] = []
+    rewind_indices: list[int] = []
 
     for i, item in enumerate(conversation_history):
         if isinstance(item, message.UserMessage):
             user_indices.append(i)
+        elif isinstance(item, message.RewindEntry):
+            rewind_indices.append(i)
 
     # For each UserMessage, create a fork point at that position
     for i, user_idx in enumerate(user_indices):
@@ -176,6 +184,23 @@ def _build_fork_points(conversation_history: list[message.HistoryEvent]) -> list
                 tool_call_stats=tool_stats,
                 user_message=user_text or "(empty)",
                 last_assistant_summary=_truncate(last_assistant_content) if last_assistant_content else "",
+            )
+        )
+
+    # Model-Rewind boundaries: a rewind point sits exactly on the entry, so
+    # pivoting there keeps the pre-rewind history and summarizes the
+    # post-rewind redo work.
+    for idx in rewind_indices:
+        entry = conversation_history[idx]
+        assert isinstance(entry, message.RewindEntry)
+        fork_points.append(
+            ForkPoint(
+                kind="rewind",
+                history_index=idx,
+                tool_call_stats={},
+                rewind_note=entry.note,
+                rewind_rationale=entry.rationale,
+                rewind_checkpoint_id=entry.checkpoint_id,
             )
         )
 
@@ -217,6 +242,10 @@ def _build_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
     items: list[SelectItem[int]] = []
 
     for i, fp in enumerate(fork_points):
+        if fp.kind == "rewind":
+            # Model-rewind boundaries are a /rewind-only anchor; /fork forks
+            # at user messages where the boundary has no meaning.
+            continue
         is_first = i == 0
 
         # Build the title

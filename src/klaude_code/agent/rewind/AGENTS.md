@@ -39,6 +39,11 @@ summarized instead of lost.
   summary-as-UserMessage]`.
 - Lossless: the original session is untouched (append-only) and remains
   switchable (`klaude -r <short-id>`).
+- Pivot anchors: user messages (exact-text match) AND model-Rewind
+  boundaries (RewindEntry, matched by checkpoint id) — anchoring on the
+  boundary keeps the pre-rewind history verbatim and summarizes only the
+  post-rewind redo work. The summary request quotes whichever boundary
+  block applies (`build_user_pivot_quote` / `build_rewind_boundary_quote`).
 - The summary prompt is `FORK_SUMMARY_PROMPT` in `prompts/compaction.py`
   (9-section detailed style, with the pivot message quoted explicitly so the
   model cannot guess the boundary). This is NOT the compact `## Goal`

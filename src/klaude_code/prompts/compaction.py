@@ -196,15 +196,13 @@ FORK_SUMMARY_USER_PREFIX = (
     "where the notes leave off; do not redo completed work.\n\n"
 )
 
-FORK_SUMMARY_PROMPT = """This is a meta-instruction for conversation rewind, not part of the conversation to summarize. The user rewound this session to an earlier point. Everything from the following message ONWARD — the message itself, every user message after it, every assistant reply, tool call, and result since — is about to be removed from the session and replaced by your summary. Nothing BEFORE this message may be summarized:
+FORK_SUMMARY_PROMPT = """This is a meta-instruction for conversation rewind, not part of the conversation to summarize. The user rewound this session to an earlier point. Everything from the following boundary ONWARD — every user message, assistant reply, tool call, and result since — is about to be removed from the session and replaced by your summary. Nothing BEFORE this boundary may be summarized:
 
-<pivot-user-message>
-__PIVOT_MESSAGE__
-</pivot-user-message>
+__PIVOT_QUOTE__
 
 __SCOPE_NOTE__
 
-Produce a structured context summary of the work done from the pivot message onward, so a fresh instance can continue the session without the removed tail.
+Produce a structured context summary of the work done from the pivot boundary onward, so a fresh instance can continue the session without the removed tail.
 
 Do NOT call any tools. Do NOT continue the task. ONLY output the structured summary text in the exact format below.
 Do NOT include this meta-instruction, these tool/continuation/output-format rules, or any wording from this message as user constraints, preferences, progress, decisions, next steps, or critical context.
@@ -216,7 +214,7 @@ Your summary should include the following sections:
 3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Include full code snippets where applicable and a note on why each file matters.
 4. Errors and fixes: List errors encountered and how they were fixed. Pay special attention to feedback where the user told you to do something differently.
 5. Problem Solving: Document problems solved and any ongoing troubleshooting.
-6. All user messages: List ALL user messages from the summarized portion that are not tool results, in order, starting with the pivot message. These carry the user's evolving intent.
+6. All user messages: List ALL user messages from the summarized portion that are not tool results, in order, starting at the pivot boundary. These carry the user's evolving intent.
 7. Pending Tasks: Outline tasks that were explicitly requested but are not finished.
 8. Current Work: Describe precisely what was being worked on immediately before the rewind.
 9. Optional Next Step: List the next step directly in line with the most recent work. Include verbatim quotes showing where the work left off. If the last task was concluded, say so instead of inventing next steps.
@@ -226,14 +224,34 @@ IMPORTANT: Do NOT include any content from <system-reminder> tags in your summar
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 
 
-def build_fork_summary_prompt(*, pivot_text: str, inline_conversation: bool = False) -> str:
+def build_user_pivot_quote(text: str) -> str:
+    """Boundary quote block for a user-message pivot (truncated by the caller)."""
+    return f"<pivot-user-message>\n{text}\n</pivot-user-message>"
+
+
+def build_rewind_boundary_quote(*, note: str, rationale: str) -> str:
+    """Boundary quote block for a model-Rewind pivot.
+
+    The entry itself is a marker, not a message; quoting its note/rationale
+    gives the summarizer the same deterministic boundary anchor a user message
+    would.
+    """
+    lines = ["<pivot-rewind-boundary>", f"Rewind note: {note}"]
+    if rationale:
+        lines.append(f"Rationale: {rationale}")
+    lines.append("The conversation resumes immediately after this rewind boundary.")
+    lines.append("</pivot-rewind-boundary>")
+    return "\n".join(lines)
+
+
+def build_fork_summary_prompt(*, pivot_quote: str, inline_conversation: bool = False) -> str:
     """Build the /rewind summary instruction.
 
-    ``pivot_text`` is quoted verbatim (truncated by the caller) so the model
-    locates the boundary deterministically instead of guessing where the kept
-    prefix ends. ``inline_conversation=True`` selects the wording for the
-    non-cache-sharing fallback, where the serialized tail is embedded in the
-    same request message instead of living in the transcript above.
+    ``pivot_quote`` is the verbatim boundary block (see the builders above) so
+    the model locates the boundary deterministically instead of guessing where
+    the kept prefix ends. ``inline_conversation=True`` selects the wording for
+    the non-cache-sharing fallback, where the serialized tail is embedded in
+    the same request message instead of living in the transcript above.
     """
     if inline_conversation:
         scope_note = (
@@ -244,7 +262,7 @@ def build_fork_summary_prompt(*, pivot_text: str, inline_conversation: bool = Fa
     else:
         scope_note = (
             "The conversation to summarize is the part of the transcript above this message "
-            "that follows the pivot message. The kept prefix is already in context; do not "
+            "that follows the pivot boundary. The kept prefix is already in context; do not "
             "restate it beyond what the sections below require."
         )
-    return FORK_SUMMARY_PROMPT.replace("__PIVOT_MESSAGE__", pivot_text).replace("__SCOPE_NOTE__", scope_note)
+    return FORK_SUMMARY_PROMPT.replace("__PIVOT_QUOTE__", pivot_quote).replace("__SCOPE_NOTE__", scope_note)

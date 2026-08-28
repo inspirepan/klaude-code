@@ -21,7 +21,12 @@ from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.cache_safe import CacheSafeParams, build_cache_safe_messages, is_cache_sharable
 from klaude_code.agent.compaction.compaction import serialize_conversation
 from klaude_code.llm import LLMClientABC
-from klaude_code.prompts.compaction import FORK_SUMMARY_USER_PREFIX, build_fork_summary_prompt
+from klaude_code.prompts.compaction import (
+    FORK_SUMMARY_USER_PREFIX,
+    build_fork_summary_prompt,
+    build_rewind_boundary_quote,
+    build_user_pivot_quote,
+)
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import Usage
 from klaude_code.session.session import Session
@@ -78,24 +83,26 @@ def _tail_messages(history: list[message.HistoryEvent], pivot_index: int) -> lis
     return out
 
 
-def _pivot_text(history: list[message.HistoryEvent], pivot_index: int) -> str:
-    """Verbatim quote of the pivot user message for boundary anchoring."""
+def _pivot_quote(history: list[message.HistoryEvent], pivot_index: int) -> str:
+    """Verbatim boundary block so the model anchors the cut deterministically."""
 
     if 0 <= pivot_index < len(history):
         item = history[pivot_index]
+        if isinstance(item, message.RewindEntry):
+            return build_rewind_boundary_quote(note=item.note, rationale=item.rationale)
         if isinstance(item, message.UserMessage):
             text = message.join_text_parts(item.parts).strip()
             if text:
                 if len(text) > _PIVOT_QUOTE_MAX_CHARS:
                     text = text[:_PIVOT_QUOTE_MAX_CHARS] + "...(truncated)"
-                return text
-    return "(session start)"
+                return build_user_pivot_quote(text)
+    return build_user_pivot_quote("(session start)")
 
 
 def build_rewind_instruction(history: list[message.HistoryEvent], pivot_index: int) -> message.UserMessage:
     """Trailing instruction message for the cache-sharing fork request."""
 
-    prompt_text = build_fork_summary_prompt(pivot_text=_pivot_text(history, pivot_index))
+    prompt_text = build_fork_summary_prompt(pivot_quote=_pivot_quote(history, pivot_index))
     return message.UserMessage(parts=[message.TextPart(text=prompt_text)])
 
 
@@ -182,7 +189,7 @@ async def run_rewind_summary(
 
     # Fallback: serialized standalone request on the summarizer client. No
     # cache prefix to protect, so only the output budget is set.
-    prompt_text = build_fork_summary_prompt(pivot_text=_pivot_text(history, pivot_index), inline_conversation=True)
+    prompt_text = build_fork_summary_prompt(pivot_quote=_pivot_quote(history, pivot_index), inline_conversation=True)
     input_messages: list[message.Message] = [
         message.UserMessage(
             parts=[

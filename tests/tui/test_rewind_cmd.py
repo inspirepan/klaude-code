@@ -9,10 +9,20 @@ def _style_for(tokens: list[tuple[str, str]], text: str) -> str:
 
 
 def _fork_points() -> list[ForkPoint]:
-    # _build_fork_points order: chronological user points, "end" appended last.
+    # _build_fork_points order: chronological user points + rewind
+    # boundaries, "end" appended last. The rewind boundary sits between
+    # "selected" and "after" (the model rewound back to after "selected").
     return [
         ForkPoint(kind="user", history_index=0, tool_call_stats={}, user_message="before"),
         ForkPoint(kind="user", history_index=2, tool_call_stats={}, user_message="selected"),
+        ForkPoint(
+            kind="rewind",
+            history_index=3,
+            tool_call_stats={},
+            rewind_note="keep A-C",
+            rewind_rationale="explore branches",
+            rewind_checkpoint_id=2,
+        ),
         ForkPoint(kind="user", history_index=4, tool_call_stats={}, user_message="after"),
         ForkPoint(kind="end", history_index=-1, tool_call_stats={}),
     ]
@@ -36,49 +46,57 @@ def test_rewind_picker_puts_entire_conversation_on_top() -> None:
         "class:separator",
         "----- rewind entire conversation (summarize everything) -----\n\n",
     )
-    # Chronological user points follow, each with a from-here divider above
-    # except the topmost user boundary.
-    assert [item.value for item in items[1:]] == [0, 2, 4]
+    # Chronological points follow: user points + the model-rewind boundary
+    # between them, each non-first item with a from-here divider above.
+    assert [item.value for item in items[1:]] == [0, 2, 3, 4]
     assert "class:separator" not in {style for style, _ in items[1].title}
+    rewind_row = next(text for _, text in items[3].title if text.startswith("rewind:"))
+    assert rewind_row == "rewind: keep A-C\n"
 
 
 def test_rewind_picker_highlights_boundary_and_dims_summarized_content() -> None:
     # Pointing at the second user point: everything from it onward greys out —
     # including the pointed row itself (the pivot is summarized, not kept).
-    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3], 2, "→", item_style_transform=_style_fork_item)
+    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3, 4], 2, "→", item_style_transform=_style_fork_item)
 
     assert "class:fork.selected-separator" in _separator_style(_items()[2], 2, 2)
     assert "class:fork.excluded" not in _style_for(tokens, "user:   before\n")
     assert "class:fork.excluded" in _style_for(tokens, "user:   selected\n")
+    assert "class:fork.excluded" in _style_for(tokens, "rewind: keep A-C\n")
     assert "class:fork.excluded" in _style_for(tokens, "user:   after\n")
 
 
 def test_rewind_picker_pointing_at_entire_conversation_dims_everything() -> None:
-    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3], 0, "→", item_style_transform=_style_fork_item)
+    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3, 4], 0, "→", item_style_transform=_style_fork_item)
 
     assert "class:fork.selected-separator" in _separator_style(_items()[0], 0, 0)
-    for text in ("user:   before\n", "user:   selected\n", "user:   after\n"):
+    for text in ("user:   before\n", "user:   selected\n", "rewind: keep A-C\n", "user:   after\n"):
         assert "class:fork.excluded" in _style_for(tokens, text)
 
 
 def test_rewind_picker_updates_dimmed_range_when_pointer_moves() -> None:
-    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3], 3, "→", item_style_transform=_style_fork_item)
+    tokens = _build_choices_tokens(_items(), [0, 1, 2, 3, 4], 4, "→", item_style_transform=_style_fork_item)
 
     assert "class:fork.excluded" not in _style_for(tokens, "user:   selected\n")
+    assert "class:fork.excluded" not in _style_for(tokens, "rewind: keep A-C\n")
     assert "class:fork.excluded" in _style_for(tokens, "user:   after\n")
     # The boundary divider above the pointed row turns green; the top
     # divider does not.
-    assert "class:fork.selected-separator" in _separator_style(_items()[3], 3, 3)
-    assert "class:fork.selected-separator" not in _separator_style(_items()[0], 0, 3)
+    assert "class:fork.selected-separator" in _separator_style(_items()[4], 4, 4)
+    assert "class:fork.selected-separator" not in _separator_style(_items()[0], 0, 4)
 
 
 def test_rewind_picker_selectability() -> None:
     items = _items()
 
+    # Layout: entire-conversation, before, selected, rewind boundary, after.
+    assert [item.value for item in items] == [-1, 0, 2, 3, 4]
+
     # "Rewind entire conversation" is selectable...
-    assert items[0].value == -1
     assert items[0].selectable is True
     # ...and covers the whole conversation, so the first user point (an exact
     # duplicate of it) stays non-selectable, matching /fork's convention.
     assert items[1].selectable is False
-    assert [item.selectable for item in items[2:]] == [True, True]
+    # Model-rewind boundaries and later user points are selectable.
+    assert [item.selectable for item in items[2:]] == [True, True, True]
+    assert items[3].search_text == "rewind keep A-C explore branches"
