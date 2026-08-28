@@ -6,7 +6,13 @@ from klaude_code.protocol import events, message, op
 from klaude_code.tui.terminal.selector import SelectItem, select_one
 
 from .command_abc import Agent, CommandABC, CommandResult
-from .fork_session_cmd import ForkPoint, _build_fork_points, _fork_select_style, _truncate
+from .fork_session_cmd import (
+    ForkPoint,
+    _build_fork_points,
+    _fork_select_style,
+    _style_fork_item,
+    _truncate,
+)
 from .types import CommandName
 
 
@@ -34,7 +40,7 @@ def _build_rewind_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[
                     ("class:separator", "----- rewind entire conversation (summarize everything) -----\n\n")
                 )
             else:
-                title_parts.append(("class:separator", "----- rewind from here -----\n\n"))
+                title_parts.append(("class:separator", "----- fork from here with summary below -----\n\n"))
 
         if fp.kind == "user":
             title_parts.append(("class:msg", f"user:   {_truncate(fp.user_message)}\n"))
@@ -85,6 +91,9 @@ def _select_rewind_point_sync(fork_points: list[ForkPoint]) -> int | Literal["ca
             style=_fork_select_style(),
             initial_value=last_value,
             highlight_pointed_item=True,
+            # Same visual grammar as /fork: the pointed boundary's separator
+            # turns green; rows at/after it dim (summarized, not kept).
+            item_style_transform=_style_fork_item,
         )
         if result is None:
             return "cancelled"
