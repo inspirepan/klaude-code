@@ -72,10 +72,13 @@ def test_rewind_picker_updates_dimmed_range_when_pointer_moves() -> None:
     assert "class:fork.selected-separator" not in _separator_style(_items()[0], 0, 3)
 
 
-def test_rewind_picker_end_point_is_selectable_and_labeled() -> None:
-    end_item = _items()[0]
+def test_rewind_picker_selectability() -> None:
+    items = _items()
 
-    assert end_item.value == -1
-    assert end_item.selectable is True
-    # Every rewind point is selectable, including the very first user message.
-    assert all(item.selectable for item in _items())
+    # "Rewind entire conversation" is selectable...
+    assert items[0].value == -1
+    assert items[0].selectable is True
+    # ...and covers the whole conversation, so the first user point (an exact
+    # duplicate of it) stays non-selectable, matching /fork's convention.
+    assert items[1].selectable is False
+    assert [item.selectable for item in items[2:]] == [True, True]

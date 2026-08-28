@@ -19,14 +19,14 @@ from .types import CommandName
 def _build_rewind_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[int]]:
     """Build SelectItem list for rewind points.
 
-    Differs from the /fork picker in three ways: the separator wording says the
-    discarded tail will be summarized (not silently dropped), every point is
-    selectable — rewinding at the very first user message summarizes the whole
-    conversation into a fresh session — and "rewind entire conversation" sits
-    at the TOP: it corresponds to the very start of the conversation, and with
-    the dim transform pointing at it greys out the whole list (everything gets
-    summarized). Compaction-boundary points are excluded: there is no user
-    message at that index to anchor the summary's pivot quote on.
+    Differs from the /fork picker in three ways: the separator wording says
+    the discarded tail will be summarized (not silently dropped), "rewind
+    entire conversation" sits at the TOP — it corresponds to the very start of
+    the conversation, and with the dim transform pointing at it greys out the
+    whole list (everything gets summarized) — and the topmost user point is
+    not selectable (that case is already covered by the top entry, matching
+    /fork's convention). Compaction-boundary points are excluded: there is no
+    user message at that index to anchor the summary's pivot quote on.
     """
 
     items: list[SelectItem[int]] = []
@@ -50,7 +50,8 @@ def _build_rewind_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[
     for fp in user_points:
         title_parts: list[tuple[str, str]] = []
         # The topmost user boundary needs no divider: nothing above it can be
-        # summarized.
+        # summarized. It is also not selectable — "rewind entire conversation"
+        # on top already covers summarizing everything.
         if not first_user:
             title_parts.append(("class:separator", "----- fork from here with summary below -----\n\n"))
         first_user = False
@@ -68,7 +69,7 @@ def _build_rewind_select_items(fork_points: list[ForkPoint]) -> list[SelectItem[
                 title=title_parts,
                 value=fp.history_index,
                 search_text=fp.user_message,
-                selectable=True,
+                selectable=fp is not user_points[0],
             )
         )
     return items
