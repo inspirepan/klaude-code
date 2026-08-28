@@ -36,6 +36,31 @@ def _fork_select_style() -> BaseStyle:
     )
 
 
+def _style_fork_item(
+    title: list[tuple[str, str]],
+    item_index: int,
+    pointed_item_index: int,
+) -> list[tuple[str, str]]:
+    """Show the selected boundary and dim history excluded by that boundary."""
+    excluded = item_index >= pointed_item_index
+    styled: list[tuple[str, str]] = []
+
+    for style, text in title:
+        classes = set(style.split())
+        extra_classes: list[str] = []
+
+        if excluded and classes.intersection({"class:msg", "class:meta", "class:assistant"}):
+            extra_classes.append("class:fork.excluded")
+
+        if item_index == pointed_item_index and "class:separator" in classes:
+            extra_classes.append("class:fork.selected-separator")
+
+        combined_style = " ".join((style, *extra_classes)).strip()
+        styled.append((combined_style, text))
+
+    return styled
+
+
 @dataclass
 class ForkPoint:
     """A fork point in conversation history."""
@@ -281,6 +306,7 @@ def _select_fork_point_sync(fork_points: list[ForkPoint]) -> int | Literal["canc
             style=_fork_select_style(),
             initial_value=last_value,
             highlight_pointed_item=True,
+            item_style_transform=_style_fork_item,
         )
         if result is None:
             return "cancelled"

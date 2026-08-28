@@ -143,6 +143,8 @@ def _build_style_rules(palette: Palette) -> list[tuple[str, str]]:
         # --- Fork / session selector decorations -------------------------
         ("separator", f"fg:{palette.grey2}"),
         ("separator.highlighted", f"fg:{palette.green}"),
+        ("fork.excluded", f"fg:{palette.grey2}"),
+        ("fork.selected-separator", f"fg:{palette.green}"),
         # Faintest structural line color, mirrors ``ThemeKey.LINES`` in the
         # rich theme (grey3). Used for low-contrast dividers such as the
         # provider-group separator in the model picker.

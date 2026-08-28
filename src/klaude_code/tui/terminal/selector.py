@@ -425,6 +425,7 @@ def _build_choices_tokens[T](
     *,
     empty_message: str = "(no items)",
     highlight_pointed_item: bool = True,
+    item_style_transform: (Callable[[list[tuple[str, str]], int, int], list[tuple[str, str]]] | None) = None,
 ) -> list[tuple[str, str]]:
     """Build formatted tokens for the choice list."""
     if not visible_indices:
@@ -433,6 +434,7 @@ def _build_choices_tokens[T](
     tokens: list[tuple[str, str]] = []
     pointer_pad = " " * (2 + len(pointer))
     pointed_prefix = f" {pointer} "
+    pointed_item_index = visible_indices[pointed_at % len(visible_indices)]
 
     for pos, idx in enumerate(visible_indices):
         is_pointed = pos == pointed_at
@@ -446,6 +448,9 @@ def _build_choices_tokens[T](
             title_tokens = _restyle_title(items[idx].title, "class:highlighted")
         else:
             title_tokens = items[idx].title
+
+        if item_style_transform is not None:
+            title_tokens = item_style_transform(title_tokens, idx, pointed_item_index)
 
         title_tokens = _indent_multiline_tokens(title_tokens, pointer_pad)
         tokens.extend(title_tokens)
@@ -557,6 +562,7 @@ def select_one[T](
     initial_search_text: str | None = None,
     search_placeholder: str = "type to search",
     highlight_pointed_item: bool = True,
+    item_style_transform: (Callable[[list[tuple[str, str]], int, int], list[tuple[str, str]]] | None) = None,
 ) -> T | None:
     """Terminal single-choice selector based on prompt_toolkit."""
     if not items:
@@ -594,6 +600,7 @@ def select_one[T](
             pointer,
             empty_message="(no match)" if filter_text and not matched else "(no items)",
             highlight_pointed_item=highlight_pointed_item,
+            item_style_transform=item_style_transform,
         )
 
     def move_pointed_at(delta: int) -> None:
