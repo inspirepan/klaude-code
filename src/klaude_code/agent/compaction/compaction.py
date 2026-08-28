@@ -24,6 +24,7 @@ from klaude_code.prompts.compaction import (
     COMPACT_FORK_UPDATE_PROMPT,
     COMPACTION_CONTINUATION_INSTRUCTION,
     COMPACTION_SUMMARY_PREFIX,
+    FORK_SUMMARY_USER_PREFIX,
     SUMMARIZATION_PROMPT,
     SUMMARIZATION_SYSTEM_PROMPT,
     TASK_PREFIX_SUMMARIZATION_PROMPT,
@@ -201,7 +202,11 @@ def _estimate_tokens_after_last_successful_usage(session: Session) -> int:
     last_usage_idx = _last_successful_usage_index(history)
     if last_usage_idx is None:
         return 0
-    return sum(_estimate_tokens(item) for item in history[last_usage_idx + 1 :] if isinstance(item, message.Message))
+    return sum(
+        _estimate_tokens(item)
+        for item in history[last_usage_idx + 1 :]
+        if isinstance(item, (message.Message, message.ForkSummaryEntry))
+    )
 
 
 def _last_successful_usage_index(history: list[message.HistoryEvent]) -> int | None:
@@ -606,7 +611,7 @@ def _find_cut_index(history: list[message.HistoryEvent], start_index: int, keep_
         item = history[idx]
         if isinstance(item, message.CompactionEntry):
             continue
-        if isinstance(item, message.Message):
+        if isinstance(item, (message.Message, message.ForkSummaryEntry)):
             tokens += _estimate_tokens(item)
         # Never cut on a tool result; keeping tool results without their corresponding
         # assistant tool call breaks LLM-facing history.
@@ -725,11 +730,17 @@ def _find_task_start_index(history: list[message.HistoryEvent], start_index: int
 def collect_messages(history: list[message.HistoryEvent], start_index: int, end_index: int) -> list[message.Message]:
     if end_index < start_index:
         return []
-    return [
-        item
-        for item in history[start_index:end_index]
-        if isinstance(item, message.Message) and not isinstance(item, message.SystemMessage)
-    ]
+    out: list[message.Message] = []
+    for item in history[start_index:end_index]:
+        if isinstance(item, message.SystemMessage):
+            continue
+        if isinstance(item, message.Message):
+            out.append(item)
+        elif isinstance(item, message.ForkSummaryEntry):
+            # A /rewind summary is ordinary LLM-facing history; project it so
+            # the non-cache-sharing summary path does not silently drop it.
+            out.append(message.UserMessage(parts=[message.TextPart(text=FORK_SUMMARY_USER_PREFIX + item.summary)]))
+    return out
 
 
 async def _build_summary(
@@ -963,11 +974,18 @@ def _truncate_text(text: str, max_chars: int) -> str:
 
 
 def estimate_history_tokens(history: list[message.HistoryEvent]) -> int:
-    return sum(_estimate_tokens(item) for item in history if isinstance(item, message.Message))
+    # ForkSummaryEntry projects into the LLM-facing view (as a UserMessage),
+    # so its text counts toward the context estimate like a real message.
+    return sum(
+        _estimate_tokens(item) for item in history if isinstance(item, (message.Message, message.ForkSummaryEntry))
+    )
 
 
-def _estimate_tokens(msg: message.Message) -> int:
+def _estimate_tokens(msg: message.Message | message.ForkSummaryEntry) -> int:
     chars = 0
+    if isinstance(msg, message.ForkSummaryEntry):
+        chars = len(FORK_SUMMARY_USER_PREFIX) + len(msg.summary)
+        return max(1, (chars + 3) // 4)
     if isinstance(msg, message.UserMessage):
         chars = sum(len(part.text) for part in msg.parts if isinstance(part, message.TextPart))
         chars += _count_image_tokens(msg.parts)

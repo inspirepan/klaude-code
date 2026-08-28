@@ -268,6 +268,9 @@ class OperationDispatcher:
             original_session_short_id=operation.original_session_short_id,
         )
 
+    async def handle_rewind_with_summary(self, operation: op.RewindWithSummaryOperation) -> None:
+        await self._agent_operation_handler.rewind_with_summary(operation)
+
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
 

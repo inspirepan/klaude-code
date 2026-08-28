@@ -411,6 +411,17 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 herdr.report_session_state(event.session_id, SessionRuntimeState.RUNNING)
 
     async def _on_envelope(envelope: events.EventEnvelope) -> None:
+        event = envelope.event
+        # Runner-level control event: intercept before the display machine —
+        # the summary panel itself replays from ForkSummaryEntry after the
+        # switch (see _switch_to_rewounded). Only the client that submitted
+        # the op reacts; replayed/stale ready events must not hijack a switch.
+        if isinstance(event, events.ForkSummaryReadyEvent):
+            if event.operation_id in local_turn_ops:
+                # Spawn: _reattach_to drains the display queue, which can
+                # never settle while this consumer is still inside it.
+                _spawn(_switch_to_rewound(event))
+            return
         _report_herdr(envelope.event)
         await tui_display.consume_envelope(envelope)
 
@@ -725,10 +736,13 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         client.state_changed_event().set()
 
         async def _await_done() -> None:
-            with contextlib.suppress(Exception):
+            # CancelledError is not Exception: a cancelled op future (e.g. a
+            # sibling waiter timing out) must still release the busy state.
+            try:
                 await client.wait_for(operation_id)
-            local_turn_ops.discard(operation_id)
-            client.state_changed_event().set()
+            finally:
+                local_turn_ops.discard(operation_id)
+                client.state_changed_event().set()
 
         _spawn(_await_done())
 
@@ -773,15 +787,40 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                 "Attach replay did not complete — the server may be running older code. Try: klaude server reload"
             )
 
-    async def _switch_to_forked(operation: op.ForkAndSwitchSessionOperation) -> None:
+    async def _switch_to_forked(operation: op.ForkAndSwitchSessionOperation, notice: str | None = None) -> None:
         await _reattach_to(operation.new_session_id)
         await client.emit_local_event(
             events.NoticeEvent(
                 session_id=operation.new_session_id,
-                content=f"Forked session active. To switch back: `klaude -r {operation.original_session_short_id}`",
+                content=notice
+                or f"Forked session active. To switch back: `klaude -r {operation.original_session_short_id}`",
                 style="fork.notice",
             )
         )
+
+    async def _switch_to_rewound(event: events.ForkSummaryReadyEvent) -> None:
+        # The rewind op normally finishes right after ForkSummaryReadyEvent
+        # (the handler returns immediately after emitting it). Drain the op's
+        # completion so local_turn_ops busy-tracking ends cleanly, then switch.
+        # Bounded: a lost OperationFinished must not strand the client on the
+        # old session.
+        busy_token = f"rewind-switch-{event.operation_id}"
+        local_turn_ops.add(busy_token)
+        client.state_changed_event().set()
+        try:
+            with contextlib.suppress(Exception):
+                await asyncio.wait_for(client.wait_for(event.operation_id), timeout=10.0)
+            await _switch_to_forked(
+                op.ForkAndSwitchSessionOperation(
+                    session_id=event.session_id,
+                    new_session_id=event.new_session_id,
+                    original_session_short_id=event.original_session_short_id,
+                ),
+                notice=f"Rewound session active. To switch back: `klaude -r {event.original_session_short_id}`",
+            )
+        finally:
+            local_turn_ops.discard(busy_token)
+            client.state_changed_event().set()
 
     async def _handle_command_result(result: CommandResult) -> None:
         for evt in result.events or []:
@@ -864,6 +903,15 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
                         # Session switches must reattach this client; submitting
                         # to the server would leave the display on the old session.
                         await _switch_to_forked(operation)
+                        continue
+                    if isinstance(operation, op.RewindWithSummaryOperation):
+                        # Summary generation can run long; submit without the
+                        # bounded inline wait. ForkSummaryReadyEvent
+                        # (intercepted in _on_envelope) drives the switch when
+                        # the new session is ready; _track_foreground_op keeps
+                        # the prompt busy meanwhile.
+                        await client.submit(operation)
+                        _track_foreground_op(operation.id)
                         continue
                     try:
                         # The op keeps running server-side after a timeout;

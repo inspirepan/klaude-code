@@ -47,6 +47,7 @@ from klaude_code.tui.commands import (
     RenderDeveloperMessage,
     RenderError,
     RenderForkCacheHitRate,
+    RenderForkSummary,
     RenderHandoff,
     RenderInterrupt,
     RenderNotice,
@@ -1588,6 +1589,17 @@ class DisplayStateMachine:
                 kept_brief = tuple((item.item_type, item.count, item.preview) for item in e.kept_items_brief)
                 cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
         return cmds
+
+    def _handle_ForkSummaryEvent(self, e: events.ForkSummaryEvent, *, s: _SessionState) -> list[RenderCommand]:
+        del s
+        return [
+            RenderForkSummary(
+                summary=e.summary,
+                source_message_count=e.source_message_count,
+                tokens_before=e.tokens_before,
+                cache_hit_rate=e.cache_hit_rate,
+            )
+        ]
 
     def _handle_ForkCacheHitRateEvent(
         self, e: events.ForkCacheHitRateEvent, *, s: _SessionState

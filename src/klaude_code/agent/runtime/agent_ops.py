@@ -16,9 +16,10 @@ from klaude_code.agent.attachments.memory import get_existing_memory_paths_by_lo
 from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
-from klaude_code.agent.compaction import CompactionReason, run_compaction
+from klaude_code.agent.compaction import CompactionReason, get_last_context_tokens, run_compaction
 from klaude_code.agent.model_fallback import build_fallback_model_config_warn, fallback_llm_client
 from klaude_code.agent.prompt_suggestion import run_prompt_suggestion, should_suggest
+from klaude_code.agent.rewind.summary import run_rewind_summary
 from klaude_code.agent.runtime.llm import (
     LLMClients,
     build_llm_clients,
@@ -1132,6 +1133,180 @@ class AgentOperationHandler:
                 content=f"Forked session active. To switch back: `klaude -r {original_session_short_id}`",
                 style="fork.notice",
             )
+        )
+
+    async def rewind_with_summary(self, operation: op.RewindWithSummaryOperation) -> None:
+        """User-facing `/rewind`: summarize the tail into a forked session.
+
+        The summary generation runs as a registered task (it can take a while);
+        completion is delivered via ForkSummaryReadyEvent on the CURRENT
+        session's stream, and frontends switch themselves over. The session is
+        only forked after the summary succeeds, so failures leave nothing
+        behind. See ``agent/rewind/AGENTS.md``.
+        """
+        agent = await self.ensure_agent(operation.session_id)
+
+        task_id = uuid4().hex
+
+        async def _run_with_event_context() -> None:
+            with event_publish_context(task_id=task_id):
+                try:
+                    await self._run_rewind_task(agent, operation, task_id)
+                finally:
+                    self._remove_task(session_id=operation.session_id, task_id=task_id)
+
+        task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
+        self._register_task(
+            operation_id=operation.id,
+            task_id=task_id,
+            task=task,
+            session_id=operation.session_id,
+        )
+
+    async def _run_rewind_task(self, agent: Agent, operation: op.RewindWithSummaryOperation, task_id: str) -> None:
+        session_id = operation.session_id
+        session = agent.session
+        pivot_index = operation.pivot_index
+        # Reject up front: queued follow-ups would start draining on this
+        # session the moment the rewind op finishes — right as the client
+        # switches away — and a mid-summary queue drain would mutate the
+        # history the summary request reads.
+        if agent.follow_up_count() > 0:
+            await self._emit_event(
+                events.NoticeEvent(
+                    session_id=session_id,
+                    content="Rewind unavailable: messages are queued in this session. Drain or clear the queue first.",
+                    is_error=True,
+                )
+            )
+            return
+        # Resolve the pivot in the SAME view the client's picker indexed: a
+        # fresh Session.load off the append-only disk stream. Rebuilding the
+        # LIVE list is wrong — rewind truncates and retract drops messages in
+        # place, so rebuild is not idempotent on it.
+        await session.wait_for_flush()
+        loaded_view = (
+            await asyncio.to_thread(Session.load, session.id, work_dir=session.work_dir)
+        ).conversation_history
+        pivot_item = loaded_view[pivot_index] if 0 <= pivot_index < len(loaded_view) else None
+        if pivot_index >= 0 and (
+            not isinstance(pivot_item, message.UserMessage)
+            or operation.pivot_text is None
+            or message.join_text_parts(pivot_item.parts) != operation.pivot_text
+        ):
+            await self._emit_event(
+                events.NoticeEvent(
+                    session_id=session_id,
+                    content="Rewind failed: the selected message no longer matches the session history.",
+                    is_error=True,
+                )
+            )
+            return
+
+        tokens_before = get_last_context_tokens(session)
+        try:
+            session_clients = self.get_session_llm_clients(session_id)
+            result = await run_rewind_summary(
+                session=session,
+                active_view=loaded_view,
+                pivot_index=pivot_index,
+                llm_client=session_clients.get_compact_client(),
+                main_profile=agent.profile,
+                tokens_before=tokens_before,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log_debug(f"[Rewind] summary failed session={session_id}: {exc}", debug_type=DebugType.EXECUTION)
+            await self._emit_event(
+                events.NoticeEvent(
+                    session_id=session_id,
+                    content=f"Rewind failed: {exc}",
+                    is_error=True,
+                )
+            )
+            return
+
+        # Copy the kept prefix from the loaded view (fork(until_index=0) only
+        # clones metadata); the live list would drag in content the client's
+        # picker never saw (compacted-away history).
+        new_session = session.fork(until_index=0)
+        kept = [item.model_copy(deep=True) for item in loaded_view[:pivot_index]] if pivot_index > 0 else []
+        new_session.append_history(
+            [
+                *kept,
+                message.ForkSummaryEntry(
+                    summary=result.text,
+                    source_session_id=session.id,
+                    source_pivot_index=pivot_index,
+                    source_message_count=result.message_count,
+                    tokens_before=result.tokens_before,
+                    cache_hit_rate=result.cache_hit_rate,
+                ),
+            ]
+        )
+        await new_session.wait_for_flush()
+
+        if agent.follow_up_count() > 0:
+            await self._emit_event(
+                events.NoticeEvent(
+                    session_id=session_id,
+                    content="Note: messages queued during the rewind will run in the original session. "
+                    "Switch back with `klaude -r` to follow them.",
+                )
+            )
+
+        await self._emit_event(
+            events.ForkSummaryReadyEvent(
+                session_id=session_id,
+                operation_id=operation.id,
+                new_session_id=new_session.id,
+                original_session_short_id=Session.shortest_unique_prefix(session.id, work_dir=session.work_dir),
+            )
+        )
+
+        # Suggested next prompt for the landed session. Deliberately bypasses
+        # should_suggest()'s early-conversation gate: the new session has no
+        # assistant turns yet, but the summary gives the predictor plenty to
+        # work with. The event rides the new session's stream; if the client
+        # attaches after it was published, replay restores it from the entry.
+        task = asyncio.create_task(
+            self._generate_rewind_prompt_suggestion(session_id=new_session.id, work_dir=new_session.work_dir)
+        )
+        self._prompt_suggestion_tasks[new_session.id] = task
+
+        def _cleanup(completed: asyncio.Task[None]) -> None:
+            if self._prompt_suggestion_tasks.get(new_session.id) is completed:
+                self._prompt_suggestion_tasks.pop(new_session.id, None)
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                _ = completed.exception()
+
+        task.add_done_callback(_cleanup)
+
+    async def _generate_rewind_prompt_suggestion(self, *, session_id: str, work_dir: Path) -> None:
+        # Resolve through the runtime so the entry lands on the SAME Session
+        # object the live agent uses — fork()'s in-memory copy goes stale once
+        # the client attaches and ensure_agent loads its own instance.
+        agent = await self.ensure_agent(session_id, work_dir=work_dir, suppress_welcome=True, defer_replay=True)
+        session = agent.session
+        try:
+            result = await run_prompt_suggestion(session=session, main_profile=agent.profile)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log_debug(
+                f"[PromptSuggestion] generation failed session={session.id}: {exc}",
+                debug_type=DebugType.EXECUTION,
+            )
+            return
+        if result is None or result.suggestion is None:
+            return
+        session.append_history([message.PromptSuggestionEntry(text=result.suggestion)])
+        # Flush before the ready event: the client may reattach and replay
+        # immediately, and replay must include this entry.
+        await session.wait_for_flush()
+        await self._emit_event(
+            events.PromptSuggestionReadyEvent(session_id=session.id, text=result.suggestion),
         )
 
     async def interrupt(

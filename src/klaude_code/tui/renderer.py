@@ -56,6 +56,7 @@ from klaude_code.tui.commands import (
     RenderDeveloperMessage,
     RenderError,
     RenderForkCacheHitRate,
+    RenderForkSummary,
     RenderHandoff,
     RenderInterrupt,
     RenderNotice,
@@ -1533,6 +1534,51 @@ class TUICommandRenderer:
         self.print(line)
         self.print()
 
+    def display_fork_summary(
+        self,
+        *,
+        summary: str,
+        source_message_count: int,
+        tokens_before: int | None,
+        cache_hit_rate: float | None,
+    ) -> None:
+        """Render the `/rewind` summary panel (ForkSummaryEntry)."""
+        self.print(
+            Rule(
+                Text("Rewind Summary", style=ThemeKey.REWIND),
+                characters="=",
+                style=ThemeKey.LINES,
+            )
+        )
+        self.print()
+
+        meta_parts: list[str] = []
+        if source_message_count:
+            plural = "messages" if source_message_count != 1 else "message"
+            meta_parts.append(f"Summarized {source_message_count} {plural}")
+        if tokens_before is not None:
+            meta_parts.append(f"~{format_number(tokens_before)} tokens")
+        if meta_parts:
+            self.print(Text("  " + " · ".join(meta_parts), style=ThemeKey.REWIND_INFO))
+            self.print()
+
+        terminal_width = shutil.get_terminal_size().columns
+        panel_width = min(100, terminal_width) - MARKDOWN_LEFT_MARGIN
+        self.console.push_theme(self.themes.markdown_theme)
+        panel = Panel(
+            NoInsetMarkdown(summary, code_theme=self.themes.code_theme, style=ThemeKey.REWIND_NOTE),
+            box=box.SIMPLE,
+            border_style=ThemeKey.LINES,
+            style=ThemeKey.REWIND_NOTE,
+            width=panel_width,
+        )
+        self.print(Padding(panel, (0, 0, 0, MARKDOWN_LEFT_MARGIN)))
+        self.console.pop_theme()
+
+        if cache_hit_rate is not None:
+            self.print(Text(f"  cache hit {round(cache_hit_rate * 100)}%", style=ThemeKey.METADATA_DIM))
+            self.print()
+
     def display_handoff(self, summary: str) -> None:
         self.print(
             Rule(
@@ -1801,6 +1847,18 @@ class TUICommandRenderer:
                         input_tokens=input_tokens,
                         cache_hit_rate=cache_hit_rate,
                         fallback_used=fallback_used,
+                    )
+                case RenderForkSummary(
+                    summary=summary,
+                    source_message_count=source_message_count,
+                    tokens_before=tokens_before,
+                    cache_hit_rate=cache_hit_rate,
+                ):
+                    self.display_fork_summary(
+                        summary=summary,
+                        source_message_count=source_message_count,
+                        tokens_before=tokens_before,
+                        cache_hit_rate=cache_hit_rate,
                     )
                 case RenderHandoff(summary=summary):
                     self.display_handoff(summary)

@@ -168,6 +168,32 @@ class SideQuestionEntry(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+class ForkSummaryEntry(BaseModel):
+    """Summary of a `/rewind`'s discarded tail, carried into the forked session.
+
+    Appended by RewindWithSummaryOperation to the NEW session right after the
+    kept prefix. LLM-facing paths translate it to a UserMessage (see
+    ``Session.get_llm_history``), so — unlike the sidecar entries — it DOES
+    enter model context. It is NOT a compaction boundary: never return it from
+    compaction boundary scans (``_find_last_compaction``) and never give it a
+    ``first_kept_index``; future auto-compaction treats it as ordinary history.
+    """
+
+    summary: str
+    source_session_id: str
+    # Index of the pivot UserMessage in the source session's
+    # conversation_history; -1 means the entire conversation was summarized.
+    source_pivot_index: int
+    # Number of Message items that were summarized away.
+    source_message_count: int
+    tokens_before: int | None = None
+    # Share of the forked summary request's prompt served from the parent's
+    # cache; persisted so replay renders the same panel (SideQuestionEntry
+    # convention).
+    cache_hit_rate: float | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
 class FallbackModelConfigWarnEntry(BaseModel):
     """Persisted record of a runtime model fallback."""
 
@@ -350,6 +376,7 @@ HistoryEvent = (
     | AwaySummaryEntry
     | PromptSuggestionEntry
     | SideQuestionEntry
+    | ForkSummaryEntry
 )
 
 StreamItem = AssistantTextDelta | ThinkingTextDelta | ToolCallStartDelta

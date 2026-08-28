@@ -28,6 +28,7 @@ class CommandName(str, Enum):
     STATUS = "status"
     CONTEXT = "context"
     FORK_SESSION = "fork-session"
+    REWIND = "rewind"
     COPY = "copy"
     CONTINUE = "continue"
     RECAP = "recap"

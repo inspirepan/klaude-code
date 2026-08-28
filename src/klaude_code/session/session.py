@@ -10,6 +10,7 @@ from typing import Any, cast
 from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
 from klaude_code.const import ProjectPaths
+from klaude_code.prompts.compaction import FORK_SUMMARY_USER_PREFIX
 from klaude_code.prompts.messages import CHECKPOINT_TEMPLATE, REWIND_REMINDER_TEMPLATE, TOOL_INTERRUPTED_MESSAGE
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import (
@@ -496,6 +497,12 @@ class Session(BaseModel):
                         message.TextPart(text=REWIND_REMINDER_TEMPLATE.format(rationale=item.rationale, note=item.note))
                     ]
                 )
+            if isinstance(item, message.ForkSummaryEntry):
+                # ForkSummaryEntry sits at the END of the new session's kept
+                # prefix (unlike CompactionEntry, which projects as a leading
+                # boundary message). Continuation is covered by the prefix
+                # wording; the entry text stays pure summary.
+                return message.UserMessage(parts=[message.TextPart(text=FORK_SUMMARY_USER_PREFIX + item.summary)])
             return item
 
         last_compaction: message.CompactionEntry | None = None
@@ -901,6 +908,15 @@ class Session(BaseModel):
                         kept_from_index=ce.first_kept_index,
                         summary=ce.summary,
                         kept_items_brief=ce.kept_items_brief,
+                        timestamp=msg_ts,
+                    )
+                case message.ForkSummaryEntry() as fs:
+                    yield events.ForkSummaryEvent(
+                        session_id=self.id,
+                        summary=fs.summary,
+                        source_message_count=fs.source_message_count,
+                        tokens_before=fs.tokens_before,
+                        cache_hit_rate=fs.cache_hit_rate,
                         timestamp=msg_ts,
                     )
                 case message.CacheHitRateEntry() as cr:

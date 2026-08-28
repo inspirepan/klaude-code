@@ -181,3 +181,70 @@ Use this EXACT format:
 - [Preserve important context, add new if needed]
 
 IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. Keep each section concise. Preserve exact file paths, function names, and error messages."""
+
+# ---------------------------------------------------------------------------
+# /rewind (fork-with-summary)
+# ---------------------------------------------------------------------------
+
+# Prependended to the ForkSummaryEntry summary when it is translated to a
+# UserMessage in the new session's LLM-facing view. Covers continuation so the
+# entry text itself stays pure summary (unlike CompactionEntry, whose stored
+# text carries COMPACTION_CONTINUATION_INSTRUCTION).
+FORK_SUMMARY_USER_PREFIX = (
+    "The messages above are kept verbatim from before a rewind. The notes below summarize "
+    "everything that happened after them in the original session. Continue the work from "
+    "where the notes leave off; do not redo completed work.\n\n"
+)
+
+FORK_SUMMARY_PROMPT = """This is a meta-instruction for conversation rewind, not part of the conversation to summarize. The user rewound this session to an earlier point. Everything from the following message ONWARD — the message itself, every user message after it, every assistant reply, tool call, and result since — is about to be removed from the session and replaced by your summary. Nothing BEFORE this message may be summarized:
+
+<pivot-user-message>
+__PIVOT_MESSAGE__
+</pivot-user-message>
+
+__SCOPE_NOTE__
+
+Produce a structured context summary of the work done from the pivot message onward, so a fresh instance can continue the session without the removed tail.
+
+Do NOT call any tools. Do NOT continue the task. ONLY output the structured summary text in the exact format below.
+Do NOT include this meta-instruction, these tool/continuation/output-format rules, or any wording from this message as user constraints, preferences, progress, decisions, next steps, or critical context.
+
+Your summary should include the following sections:
+
+1. Primary Request and Intent: Capture the user's explicit requests and intents from the summarized portion (the pivot message and everything after it).
+2. Key Technical Concepts: List important technical concepts, technologies, and frameworks discussed in the summarized portion.
+3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Include full code snippets where applicable and a note on why each file matters.
+4. Errors and fixes: List errors encountered and how they were fixed. Pay special attention to feedback where the user told you to do something differently.
+5. Problem Solving: Document problems solved and any ongoing troubleshooting.
+6. All user messages: List ALL user messages from the summarized portion that are not tool results, in order, starting with the pivot message. These carry the user's evolving intent.
+7. Pending Tasks: Outline tasks that were explicitly requested but are not finished.
+8. Current Work: Describe precisely what was being worked on immediately before the rewind.
+9. Optional Next Step: List the next step directly in line with the most recent work. Include verbatim quotes showing where the work left off. If the last task was concluded, say so instead of inventing next steps.
+
+IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
+
+Keep each section concise. Preserve exact file paths, function names, and error messages."""
+
+
+def build_fork_summary_prompt(*, pivot_text: str, inline_conversation: bool = False) -> str:
+    """Build the /rewind summary instruction.
+
+    ``pivot_text`` is quoted verbatim (truncated by the caller) so the model
+    locates the boundary deterministically instead of guessing where the kept
+    prefix ends. ``inline_conversation=True`` selects the wording for the
+    non-cache-sharing fallback, where the serialized tail is embedded in the
+    same request message instead of living in the transcript above.
+    """
+    if inline_conversation:
+        scope_note = (
+            "The conversation to summarize is provided below, inside <conversation> tags. "
+            "It contains the entire tail being removed; nothing else from the session is "
+            "available to you."
+        )
+    else:
+        scope_note = (
+            "The conversation to summarize is the part of the transcript above this message "
+            "that follows the pivot message. The kept prefix is already in context; do not "
+            "restate it beyond what the sections below require."
+        )
+    return FORK_SUMMARY_PROMPT.replace("__PIVOT_MESSAGE__", pivot_text).replace("__SCOPE_NOTE__", scope_note)

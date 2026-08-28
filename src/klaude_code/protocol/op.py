@@ -46,6 +46,7 @@ class OperationType(Enum):
     INIT_AGENT = "init_agent"
     GENERATE_AWAY_SUMMARY = "generate_away_summary"
     ASK_SIDE_QUESTION = "ask_side_question"
+    REWIND_WITH_SUMMARY = "rewind_with_summary"
 
 
 class Operation(BaseModel):
@@ -242,6 +243,30 @@ class ForkAndSwitchSessionOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_fork_and_switch_session(self)
+
+
+class RewindWithSummaryOperation(Operation):
+    """User-facing `/rewind`: summarize the tail ``[pivot..end]`` into a
+    ForkSummaryEntry appended to a newly forked session, then emit
+    ForkSummaryReadyEvent so frontends can switch.
+
+    ``pivot_index`` indexes the pivot UserMessage in the session's
+    conversation_history (validated server-side); -1 rewinds the entire
+    conversation. See ``agent/rewind/AGENTS.md`` — this is the user rewind
+    (fork + summary), not the model's in-place `Rewind` tool.
+    """
+
+    type: OperationType = OperationType.REWIND_WITH_SUMMARY
+    session_id: str
+    pivot_index: int
+    # Exact text of the pivot UserMessage as the picker saw it. The picker
+    # indexes its own loaded (rebuilt) history view, which diverges from the
+    # server's live list for compacted sessions — the server resolves the
+    # pivot in the equivalent rebuilt space and rejects on text mismatch.
+    pivot_text: str | None = None
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_rewind_with_summary(self)
 
 
 class InterruptOperation(Operation):

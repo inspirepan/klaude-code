@@ -29,6 +29,7 @@ EXPECTED_HANDLED_EVENT_NAMES = {
     "SideQuestionEvent",
     "SideQuestionStartEvent",
     "SideQuestionFailedEvent",
+    "ForkSummaryEvent",
     "SessionStatsEvent",
     "ContextUsageEvent",
     "ModelChangedEvent",

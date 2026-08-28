@@ -37,6 +37,9 @@ _SKIPPED_EVENT_TYPES = (
     events.WelcomeContextEvent,
     events.ReplayHistoryEvent,
     events.EndEvent,
+    # Ephemeral runner-level control events; replaying them to a later attach
+    # would hijack the client back to the forked session.
+    events.ForkSummaryReadyEvent,
 )
 
 

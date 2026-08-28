@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         InterruptOperation,
         RequestModelOperation,
         RequestSubAgentModelOperation,
+        RewindWithSummaryOperation,
         RunAgentOperation,
         RunBashOperation,
         UserInteractionRespondOperation,
@@ -119,4 +120,8 @@ class OperationHandler(Protocol):
 
     async def handle_ask_side_question(self, operation: AskSideQuestionOperation) -> None:
         """Handle a `/btw` side question operation."""
+        ...
+
+    async def handle_rewind_with_summary(self, operation: RewindWithSummaryOperation) -> None:
+        """Handle a `/rewind` operation (fork + tail summary)."""
         ...

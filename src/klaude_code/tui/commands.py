@@ -256,6 +256,16 @@ class RenderCompactionSummary(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderForkSummary(RenderCommand):
+    """`/rewind` summary panel (ForkSummaryEntry replay/live)."""
+
+    summary: str
+    source_message_count: int
+    tokens_before: int | None = None
+    cache_hit_rate: float | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class RenderForkCacheHitRate(RenderCommand):
     fork_label: str
     cache_read_tokens: int

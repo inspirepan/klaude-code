@@ -129,6 +129,7 @@ DURABLE_EVENT_TYPES = frozenset(
         "away.summary",
         "prompt.suggestion.ready",
         "side.question",
+        "fork.summary",
     }
 )
 
@@ -225,6 +226,31 @@ class SideQuestionFailedEvent(Event):
     request_id: str
     question: str
     error: str
+
+
+class ForkSummaryEvent(Event):
+    """A `/rewind` summary panel. Persisted via ForkSummaryEntry, so replay
+    renders the same panel (footer metadata comes from the entry fields)."""
+
+    summary: str
+    source_message_count: int
+    tokens_before: int | None = None
+    cache_hit_rate: float | None = None
+
+
+class ForkSummaryReadyEvent(Event):
+    """Server-side rewind finished preparing the new session.
+
+    Ephemeral runner-level control event: the TUI intercepts it (before the
+    display machine) and reattaches to ``new_session_id``. ``operation_id``
+    lets the client drain the rewind op's completion before switching, so the
+    foreground-busy tracking ends cleanly. Not persisted — the summary panel
+    itself replays from ForkSummaryEntry in the new session.
+    """
+
+    operation_id: str
+    new_session_id: str
+    original_session_short_id: str
 
 
 class PromptSuggestionReadyEvent(Event):
@@ -545,6 +571,7 @@ type ReplayEventUnion = (
     | AwaySummaryEvent
     | PromptSuggestionReadyEvent
     | SideQuestionEvent
+    | ForkSummaryEvent
 )
 
 
