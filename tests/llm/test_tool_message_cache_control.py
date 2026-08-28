@@ -217,8 +217,8 @@ def test_openai_compatible_parallel_tool_images_keep_tool_messages_contiguous() 
 
     roles = [m["role"] for m in messages]
     assert roles == ["assistant", "tool", "tool", "user", "user"]
-    assert messages[1]["tool_call_id"] == "call_1"
-    assert messages[2]["tool_call_id"] == "call_2"
+    assert cast(chat.ChatCompletionToolMessageParam, messages[1])["tool_call_id"] == "call_1"
+    assert cast(chat.ChatCompletionToolMessageParam, messages[2])["tool_call_id"] == "call_2"
 
 
 def test_openrouter_parallel_tool_images_keep_tool_messages_contiguous() -> None:
@@ -226,5 +226,5 @@ def test_openrouter_parallel_tool_images_keep_tool_messages_contiguous() -> None
 
     roles = [m["role"] for m in messages]
     assert roles == ["assistant", "tool", "tool", "user", "user"]
-    assert messages[1]["tool_call_id"] == "call_1"
-    assert messages[2]["tool_call_id"] == "call_2"
+    assert cast(chat.ChatCompletionToolMessageParam, messages[1])["tool_call_id"] == "call_1"
+    assert cast(chat.ChatCompletionToolMessageParam, messages[2])["tool_call_id"] == "call_2"

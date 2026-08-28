@@ -123,9 +123,7 @@ def test_fatal_turn_end_releases_busy_via_operation_finished() -> None:
     OperationFinishedEvent must release the busy state instead."""
     client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
 
-    start = _local_envelope(events.TaskStartEvent(session_id="session-id")).model_copy(
-        update={"operation_id": "op-1"}
-    )
+    start = _local_envelope(events.TaskStartEvent(session_id="session-id")).model_copy(update={"operation_id": "op-1"})
     finish = _local_envelope(
         events.OperationFinishedEvent(
             session_id="session-id",
@@ -139,9 +137,7 @@ def test_fatal_turn_end_releases_busy_via_operation_finished() -> None:
         await client._handle_envelope(start)
         assert client.is_running() is True
         await client._handle_envelope(
-            _local_envelope(
-                events.ErrorEvent(session_id="session-id", error_message="Step failed", can_retry=False)
-            )
+            _local_envelope(events.ErrorEvent(session_id="session-id", error_message="Step failed", can_retry=False))
         )
         assert client.is_running() is True
         await client._handle_envelope(finish)
@@ -153,9 +149,7 @@ def test_fatal_turn_end_releases_busy_via_operation_finished() -> None:
 def test_stale_operation_finished_does_not_release_new_turn() -> None:
     client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
 
-    start = _local_envelope(events.TaskStartEvent(session_id="session-id")).model_copy(
-        update={"operation_id": "op-2"}
-    )
+    start = _local_envelope(events.TaskStartEvent(session_id="session-id")).model_copy(update={"operation_id": "op-2"})
     stale_finish = _local_envelope(
         events.OperationFinishedEvent(
             session_id="session-id",
