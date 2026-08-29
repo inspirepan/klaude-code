@@ -63,6 +63,7 @@ from klaude_code.tui.commands import (
     RenderTimeMarker,
     RenderToolCall,
     RenderToolResult,
+    RenderTurnTiming,
     RenderUserMessage,
     RenderWelcome,
     RenderWelcomeContext,
@@ -2105,8 +2106,28 @@ class DisplayStateMachine:
             s.task_metadata = e.metadata.main_agent
         cmds.append(EndThinkingStream(e.session_id))
         cmds.append(EndAssistantStream(e.session_id))
+        if self._compact and not s.is_sub_agent:
+            timing = self._turn_timing_command(e)
+            if timing is not None:
+                cmds.append(timing)
         cmds.append(RenderTaskMetadata(e))
         return cmds
+
+    def _turn_timing_command(self, e: events.TaskMetadataEvent) -> RenderTurnTiming | None:
+        """Build the one-line turn timing marker for the compact (brief) view.
+
+        The marker is emitted only when the finished turn has a known duration.
+        The expanded view already carries coarse wall-clock time via
+        ``RenderTimeMarker``, so this stays a compact-mode affordance.
+        """
+        duration = e.metadata.main_agent.task_duration_s
+        if duration is None:
+            return None
+        # Derive the start from the metadata end time so the printed span always
+        # agrees with the duration. A replayed first TaskStartEvent can carry the
+        # session creation time instead of the turn's actual start.
+        label = f"{_format_time_marker_label(e.timestamp - duration)} → {_format_time_marker_label(e.timestamp)}"
+        return RenderTurnTiming(label=label, duration_s=duration)
 
     def _handle_TaskFileChangeSummaryEvent(
         self, e: events.TaskFileChangeSummaryEvent, *, s: _SessionState

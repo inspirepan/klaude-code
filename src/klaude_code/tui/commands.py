@@ -57,6 +57,18 @@ class RenderTimeMarker(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class RenderTurnTiming(RenderCommand):
+    """One-line wall-clock timing of a finished main-agent turn (compact/brief view).
+
+    Rendered directly above the task metadata block; the expanded view gets its
+    coarse clock from ``RenderTimeMarker`` instead.
+    """
+
+    label: str
+    duration_s: float
+
+
+@dataclass(frozen=True, slots=True)
 class RenderTaskStart(RenderCommand):
     event: events.TaskStartEvent
 

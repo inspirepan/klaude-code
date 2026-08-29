@@ -72,6 +72,7 @@ from klaude_code.tui.commands import (
     RenderTimeMarker,
     RenderToolCall,
     RenderToolResult,
+    RenderTurnTiming,
     RenderUserMessage,
     RenderWelcome,
     RenderWelcomeContext,
@@ -102,7 +103,7 @@ from klaude_code.tui.components import thinking as c_thinking
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
-from klaude_code.tui.components.common import format_more_lines_indicator
+from klaude_code.tui.components.common import format_elapsed_compact, format_more_lines_indicator
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText
@@ -1383,6 +1384,11 @@ class TUICommandRenderer:
         self.print(renderable)
         self.print()
 
+    def display_turn_timing(self, label: str, duration_s: float) -> None:
+        """Print the compact-view one-line turn timing above the metadata block."""
+        self.print(Text(f"⌛︎ Worked for {format_elapsed_compact(duration_s)} · {label}", style=ThemeKey.METADATA_GREEN))
+        self.print()
+
     def display_task_file_change_summary(self, event: events.TaskFileChangeSummaryEvent) -> None:
         if not self._visible(event):
             return
@@ -1812,6 +1818,8 @@ class TUICommandRenderer:
                     self._open_continuous_block(event.session_id)
                 case RenderTaskMetadata(event=event):
                     self.display_task_metadata(event)
+                case RenderTurnTiming(label=label, duration_s=duration_s):
+                    self.display_turn_timing(label, duration_s)
                 case RenderTaskFileChangeSummary(event=event):
                     self.display_task_file_change_summary(event)
                 case RenderSubAgentBatchSummary(summaries=summaries):

@@ -247,7 +247,7 @@ def test_compact_task_metadata_uses_status_bar_token_symbols() -> None:
     event = events.TaskMetadataEvent(session_id="test", metadata=TaskMetadataItem(main_agent=metadata))
 
     assert _render_metadata(event, width=120, compact=True) == (
-        "• gpt-5.6-sol@openrouter ↑5k ◎20k ⊕5k ↓2k ∵382 $0.0207 18s\n"
+        "• gpt-5.6-sol@openrouter ↑5k ◎20k ⊕5k ↓2k ∵382 $0.0207\n"
     )
 
 
@@ -283,7 +283,7 @@ def test_compact_task_metadata_shows_sub_agents_and_currency_totals() -> None:
     )
 
     assert _render_metadata(event, width=160, compact=True).splitlines() == [
-        "• main-model@main ↑1k ↓200 ¥0.0200 20s",
+        "• main-model@main ↑1k ↓200 ¥0.0200",
         "  ├─ Finder: scan repo sub-model@sub ↑2k ↓300 $0.0100 5s",
         "  ├─ GeneralPurpose: apply fix other-model@other ↑3k ↓400 ¥0.0300 8s",
         "  ╰─ total cost ¥0.0500 $0.0100",
@@ -311,7 +311,7 @@ def test_compact_task_metadata_preserves_tokens_duration_and_interrupt_on_narrow
         is_partial=True,
     )
 
-    assert _render_metadata(event, width=35, compact=True).strip() == "• ↑50k ◎200k ↓100k 18s interrupted"
+    assert _render_metadata(event, width=35, compact=True).strip() == "• ↑50k ◎200k ↓100k ∵20k interrupted"
 
 
 def test_compact_sub_agent_truncates_identity_before_input_and_output_tokens() -> None:

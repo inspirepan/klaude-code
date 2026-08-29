@@ -450,6 +450,7 @@ def _build_compact_row(
     prefix: str,
     max_width: int,
     interrupted: bool = False,
+    show_duration: bool = True,
 ) -> Text:
     sub_agent_name = format_pascal_case(metadata.sub_agent_name) if metadata.sub_agent_name else ""
     description = " ".join((metadata.description or "").split())
@@ -481,7 +482,7 @@ def _build_compact_row(
         if show_cost and cost is not None:
             currency, value = cost
             groups.append(Text(f"{_currency_symbol(currency)}{value:.4f}", style=ThemeKey.METADATA_DIM))
-        if include_tail and metadata.task_duration_s is not None:
+        if include_tail and show_duration and metadata.task_duration_s is not None:
             groups.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA_DIM))
         if include_tail and interrupted:
             groups.append(Text("interrupted", style=ThemeKey.INTERRUPT))
@@ -546,7 +547,7 @@ def _build_compact_row(
             return line
 
     tail_groups: list[Text] = []
-    if metadata.task_duration_s is not None:
+    if show_duration and metadata.task_duration_s is not None:
         tail_groups.append(Text(format_elapsed_compact(metadata.task_duration_s), style=ThemeKey.METADATA_DIM))
     if interrupted:
         tail_groups.append(Text("interrupted", style=ThemeKey.INTERRUPT))
@@ -610,6 +611,9 @@ class _CompactTaskMetadataRenderable:
                 prefix="•",
                 max_width=max_width,
                 interrupted=self.interrupted,
+                # The main-agent duration is already shown on the turn timing
+                # line above this block (compact view only).
+                show_duration=False,
             )
         ]
 
