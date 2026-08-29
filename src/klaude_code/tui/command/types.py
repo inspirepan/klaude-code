@@ -18,7 +18,6 @@ class CommandName(str, Enum):
     LOGOUT = "logout"
     SWITCH = "switch"
     DEBUG = "debug"
-    EXPORT_SESSION = "export-session"
     MODEL = "model"
     MANAGE_PROVIDERS = "manage-providers"
     SUB_AGENT_MODEL = "sub-agent-model"

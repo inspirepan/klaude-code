@@ -3,7 +3,7 @@
 Commands receive an ``Agent``-shaped object (see tui/command/command_abc.py).
 When the TUI is a server client there is no in-process agent; the server and
 the TUI share one machine, so a read-only disk load of the session satisfies
-the read paths (/copy, /export-session, /fork-session). ``profile`` is None —
+the read paths (/copy, /fork-session). ``profile`` is None —
 commands must already handle profile-less agents.
 """
 
