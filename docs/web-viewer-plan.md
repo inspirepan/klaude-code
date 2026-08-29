@@ -12,7 +12,8 @@ web 查看器所需的全部数据能力：
 - WS attach 自动按需加载磁盘 session（`server/routes/ws.py:705-722` 的
   `InitAgentOperation` 路径），多客户端并发订阅互不影响，`peek=1` 只读模式现成。
 - replay 机制完整：磁盘 `history.jsonl` 全量 + 内存事件磁带切片补齐进行中状态，
-  按 seq 去重无遗漏（`server/routes/ws.py:441-609`）。
+  实时磁带按 `event_seq` 去重无遗漏（`server/routes/ws.py:441-609`）。磁盘 history
+  条目自身没有 `event_seq`，分页与定位使用 append-only 行索引，不能混用两种编号。
 - 事件流实时：EventBus 广播后 5ms 微批次转发（`_BATCH_WINDOW_SECONDS = 0.005`），
   与 TUI 看到的是同一条流。
 - 事件粒度足够重建轨迹：`user.message` / `assistant.text.*` / `thinking.*` /
@@ -54,16 +55,16 @@ list**（SYSTEM/CONTEXT/USER/ASSISTANT/TOOL 行），左槽圆点是每次 LLM �
 | 11 | thinking | 不独立成行，并入 ASSISTANT 详情检查器 |
 | 12 | 图片 | URL 图直接渲染；本地图加 `/api/file` 端点渲染（路径包含检查，根限 work_dir） |
 | 13 | Markdown | 内嵌 markdown-it 单文件进 assets，客户端渲染，`html: false`（与 export 同一安全姿势）；账本行永远纯文本单行 |
-| 14 | 检查器 | 照搬截图：Summary/Preview/Raw 三 tab + Request Timing 块 |
+| 14 | 检查器 | 照搬截图：Summary/Preview/Raw 三 tab + Request Timing 块；旧历史无持久 timing 时显示“未知” |
 | 15 | 账本语义 | 单视图：append-only 全量显示，被 rewind/compaction 丢弃的行置灰+划线留在原位 |
-| 16 | 请求圆点 | 覆盖全部 LLM 调用：主会话 step、compaction、/btw 侧问、sub-agent fork |
-| 17 | 时间轴 | 全交互照搬：三泳道真实时间投影、拖拽框选聚焦、滚轮缩放、右键平移、hover tooltip |
+| 16 | 请求圆点 | 覆盖全部 LLM 调用：主会话 step、compaction、/btw 侧问、sub-agent fork；新请求统一持久化请求记录，旧历史尽力重建 |
+| 17 | 时间轴 | 全交互照搬：DOM/CSS 三泳道真实时间投影、拖拽框选聚焦、滚轮缩放、右键平移、hover tooltip |
 | 18 | TCP 端口 | server 启动即绑 `127.0.0.1:8765`（占用顺延），`klaude web` 仅打开浏览器 |
 | 19 | 鉴权 | 持久 token 文件 `~/.klaude/web-token`（0600，首次启动生成），URL `?token=` 长期有效，首次访问后种 cookie |
 | 20 | debug 日志 | 常驻 DEBUG 全量（已落地）；payload 内 base64 图片截断为占位（已落地）；轮转 50MB×10 + 目录总量 500MB（已落地） |
 | 21 | export | 立即删除，不做导出按钮（已完成） |
-| 22 | 搜索 | 客户端全文索引已加载行（无截断）+ 服务端搜索端点覆盖未加载历史 |
-| 23 | 长账本 | 服务端历史分页端点（尾部打开、顶部"加载更早"补页）+ 手写窗口化渲染（可视区+overscan，行高测量缓存） |
+| 22 | 搜索 | 客户端全文索引已加载行（无截断）+ 服务端搜索端点覆盖未加载历史，结果使用 history 行索引定位 |
+| 23 | 长账本 | 服务端历史分页端点（尾部打开、顶部"加载更早"补页）+ 手写窗口化渲染（可视区+overscan，离散固定行高） |
 | 24 | 列表实时性 | 列表页 5s 轮询；会话内轨迹走 WS 实时 |
 | 25 | 前端组织 | 无构建原生 ES modules 多文件，server 静态伺服，不引入打包工具 |
 
@@ -101,6 +102,10 @@ list**（SYSTEM/CONTEXT/USER/ASSISTANT/TOOL 行），左槽圆点是每次 LLM �
 | `RewindEntry` / `RetractEntry` | 标记点与目标 checkpoint 之间的消息被丢弃 | REWIND 标记行 + 被丢弃区间整段置灰划线 |
 | `CompactionEntry` | `[0:first_kept_index]` 被 summary 替换 | COMPACT 标记行 + 被压缩前缀置灰（可折叠为"已压缩 N 条"） |
 
+账本必须以原始 JSONL 行为数据源，并用一遍状态扫描计算每行当前是否有效。
+`rebuild_loaded_history()` 只用于模型输入和现有 replay；它会删除失效区间，不能作为账本数据源。
+每行使用零基、append-only 的 `history_index` 作为稳定标识。prepend 更早页后，已有行标识不变。
+
 Meta 行（`convert_history_to_input` 的 `case _` 忽略，模型不可见）：
 
 | klaude entry | 账本渲染 |
@@ -128,18 +133,40 @@ Meta 行（`convert_history_to_input` 的 `case _` 忽略，模型不可见）�
     TTFT（推导值：首个 `thinking.start`/`text.start` − `step.start`）、
     Generation、Throughput（output_tokens ÷ 生成时长）。
 
+请求身份与持久化规则：
+
+- live 主会话与 sub-agent 请求优先按 `response_id` 聚合；`StepStartEvent` 没有
+  `response_id`，按同 session/task 中紧随其后的 response 关联。旧 history 中
+  `AssistantMessage.response_id` 可能为空，此时使用 session 内 step 顺序生成仅供展示的稳定键。
+- 新增模型不可见的 `LLMRequestEntry`，统一记录所有新 LLM 调用，而不是从当前
+  session 配置猜测历史请求。字段至少包含：`request_id`、`kind`（step/compaction/
+  side_question/sub_agent/fork）、锚点（`response_id`、`history_index` 或关联 entry id）、
+  provider/model/options、status、usage、started/first_token/completed 时间戳和 tool call 数；
+  options 使用现有安全 dump 规则，禁止持久化 API key、云凭证和授权头。
+  history codec 将它当作 sidecar entry；`convert_history_to_input` 必须忽略它。
+- compaction、`/btw` 和 fork 当前没有完整持久化 Usage/Timing，实施 M4 时由各调用点
+  写入同一种 `LLMRequestEntry`。`SideQuestionEntry` 另补可选 `request_id`，用于与请求记录关联。
+- 旧会话没有 `LLMRequestEntry`：主 step 可从 `AssistantMessage` 尽力重建 Usage 和结果；
+  compaction、`/btw`、fork 只显示现有字段。无法恢复的 Options、TTFT、Generation 和
+  Throughput 显示“未知”，不得显示 0 或套用当前模型配置。
+
 #### 记录检查器（点账本行）
 
 照搬截图：Summary（来源/状态/tokens 分解含 cache 与成本）+ Preview
 （markdown-it 渲染）+ Raw（原始 entry JSON）三 tab；ASSISTANT 行附 Thinking
 区块与 Request Timing。
 
+完整 SYSTEM 文本与工具 schema 不放进会重复刷新的 `session_info` 帧。检查器首次打开
+SYSTEM 行时，通过按需只读端点获取一次，并在客户端缓存。
+
 #### 泳道时间轴
 
 - 三泳道：Input（user 消息时刻）、Model（step 区间，区分 TTFT 段与生成段）、
-  Tools（tool.start→result 区间）。数据全部来自 envelope 时间戳。
+  Tools（tool.start→result 区间）。live 数据来自 envelope 时间戳；历史数据优先来自
+  `LLMRequestEntry`，旧历史缺失的区间只画时刻标记或标为 timing unavailable。
 - 交互照搬 deepseek：拖拽框选区间聚焦账本、滚轮缩放时间域、右键平移、
-  hover 出精确时刻 tooltip。canvas 手写，注意缩放锚点与框选数学。
+  hover 出精确时刻 tooltip。参考实现实际使用绝对定位 DOM + CSS 变量，不是 canvas；
+  本项目沿用该方式，复用其缩放锚点、框选、边缘自动平移数学。
 - 跟随语义：初始与流式更新停留尾部；向上滚动暂停跟随。
 
 ### 日志 tab `/logs`
@@ -159,18 +186,25 @@ Meta 行（`convert_history_to_input` 的 `case _` 忽略，模型不可见）�
 3. **新增 REST 端点**：
    - `GET /api/web/sessions`：会话清单（磁盘全量 + 活跃状态 + 目录/模型/更新时间），
      数据来自 `SessionLiveIndex` + `session_registry` + headless 队列。
-   - `GET /api/web/sessions/{id}/history?before_seq=N&limit=M`：历史分页，
-     尾部打开、向前补页。
+   - `GET /api/web/sessions/{id}/history?before_index=N&limit=M`：原始历史分页。
+     `before_index` 是零基 JSONL 行索引且为 exclusive；省略时返回尾页。响应中的每项带
+     `history_index`，并返回 `next_before_index` 与 `has_more`。
    - `GET /api/web/sessions/{id}/search?q=...`：服务端搜索 `history.jsonl`，
-     返回匹配 entry 的 seq 列表，前端跳转定位并按需加载所在页。
+     返回匹配 entry 的 `history_index` 列表，前端跳转定位并按需加载所在页。
    - `GET /api/web/file?path=...`：本地图片渲染，`resolve()` 后做路径包含检查，
      根限该 session 的 work_dir 与 session 图片目录。
-4. **事件/帧 schema 补充**（小改动）：
+   - `GET /api/web/sessions/{id}/system-context`：按需返回该 session 当前恢复出的完整
+     system prompt、工具目录与 schema；仅供 SYSTEM 检查器使用，不随状态帧重复广播。
+4. **历史与事件 schema 补充**：
    - `AssistantTextEndEvent` 增加 `stop_reason` 字段（live 时检查器可见，
      持久化本来就有）。
-   - attach 时的 `session_info` 帧带上 system prompt、工具目录、当前模型配置
-     （provider/model/effort/maxTokens），供 SYSTEM 行与请求 Options tab 使用。
-5. **TTFT 不新增记录**：v1 用推导值（见上）。若日后要做分析再加显式字段。
+   - attach 时的 `session_info` 只补当前模型的轻量摘要（provider/model/effort/
+     maxTokens）和 SYSTEM 端点可用状态，不携带完整 prompt/schema。
+   - 新增上述 `LLMRequestEntry` 及 live 对应事件，持久化每次调用的配置、Usage、状态和
+     timing；新字段均可选，保证旧 history 可解码。
+5. **TTFT 策略**：live 可由事件时间戳推导；新请求同时写入 `LLMRequestEntry` 供重启后
+   查看。现有 replay 会把同一 AssistantMessage 合成的事件赋成同一 `created_at`，因此
+   旧会话不得据此计算 TTFT/Generation。
 
 ## 常驻 debug 日志（已完成）
 
@@ -208,23 +242,31 @@ Meta 行（`convert_history_to_input` 的 `case _` 忽略，模型不可见）�
 - 位置：`src/klaude_code/server/web/`（静态目录随 wheel 打包，现有机制已验证
   `.html/.css/.js` 资产进 wheel）。
 - 无构建原生 ES modules：`index.html` + `api.js`（WS/REST 封装）、`ledger.js`
-  （账本+窗口化）、`timeline.js`（canvas 泳道）、`inspector.js`（检查器）、
+  （账本+窗口化）、`timeline.js`（DOM/CSS 泳道）、`inspector.js`（检查器）、
   `json-tree.js`（从 log_viewer.html 抽出复用）、`search.js`、`copy.js`（文案字典）。
 - 内嵌资产：`fonts/`（Iosevka 400/700 woff2 + OFL 许可）、`vendor/markdown-it.min.js`。
 - 设计 token 集中一个 CSS `:root`：暖米色板 + OKLCH 调出的徽章色 + 圆角/阴影
   梯度（遵循 better-ui 的同心圆角与"阴影做层级、边框做结构"）。
 - 数字一律表格数字（better-typography）；时间戳/duration/token 计数等宽对齐。
 - 动效克制：hover/选中即时反馈，不用 `transition: all`。
+- 账本主体是单行省略，采用 30px 内容行、20px 折叠摘要、9px 末尾请求边界等离散
+  固定高度；窗口化用上下 spacer + overscan。prepend 前记录 `scrollHeight/scrollTop`，
+  渲染后补偿高度差保持视觉锚点，不引入通用动态测量缓存。
 
 ## 里程碑
 
-1. **M1 地基**：TCP 双绑定 + token 中间件 + 静态伺服 + 会话清单端点 + 列表页。
-   顺带清理 `web/` 残留目录。（export 删除已完成。）
+1. **M1 地基**：预绑定 UDS 与 TCP socket，并由同一个
+   `uvicorn.Server.serve(sockets=[...])` 承载（lifespan 只运行一次）；TCP 从 8765
+   占用顺延，实际端口通过 UDS `/api/server/status` 暴露给 `klaude web`。随后完成 token
+   中间件、静态伺服、会话清单端点和列表页。顺带清理仍存在的根 `web/` 残留目录。
+   （export 删除已完成。）
 2. **M2 账本**：历史分页端点 + WS attach + 账本渲染（entry 映射、置灰语义、
    sub-agent 嵌套）+ 记录检查器（三 tab）。
-3. **M3 时间轴**：canvas 三泳道 + 全交互（框选/缩放/平移/tooltip）+ 账本联动。
-4. **M4 请求圆点**：圆点锚定 + 请求检查器（Summary/Options/Usage/Timing）+
-   事件 schema 补充（stop_reason、session_info 帧扩展）。
+3. **M3 时间轴**：DOM/CSS 三泳道 + 全交互（框选/缩放/平移/tooltip）+ 账本联动；
+   对旧历史的 timing 缺失做明确降级。
+4. **M4 请求圆点**：先落地统一 `LLMRequestEntry` 与各调用点持久化，再完成圆点锚定、
+   请求检查器（Summary/Options/Usage/Timing）和事件 schema 补充（stop_reason、轻量
+   session_info、按需 system-context）。
 5. **M5 搜索**：客户端全文索引 + 服务端搜索端点 + 跳转定位。
 6. **M6 日志 tab**：log viewer 迁入 server（路由与页面）+ `/debug` 命令退化为
    打开 tab + 删除 `app/log_viewer.py` 独立服务。
