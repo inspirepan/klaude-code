@@ -10,7 +10,7 @@ from openai.types import responses
 from openai.types.responses.response_create_params import Reasoning, ResponseCreateParamsBase
 
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.llm.http import create_http_timeout
+from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_responses.input import convert_history_to_input, convert_tool_schema
 from klaude_code.llm.openai_responses.prompt_cache import build_prompt_cache_payload
@@ -430,12 +430,14 @@ class ResponsesClient(LLMClientABC):
                 api_version=config.azure_api_version,
                 default_headers={"User-Agent": _OPENAI_USER_AGENT},
                 timeout=create_http_timeout(),
+                http_client=create_async_http_client(),
             )
         return AsyncOpenAI(
             api_key=config.api_key,
             base_url=config.base_url,
             default_headers={"User-Agent": _OPENAI_USER_AGENT},
             timeout=create_http_timeout(),
+            http_client=create_async_http_client(),
         )
 
     def _build_payload(self, param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase:

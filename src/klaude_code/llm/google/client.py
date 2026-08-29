@@ -29,6 +29,7 @@ from google.genai.types import (
 from klaude_code.const import LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.google.input import convert_history_to_contents, convert_tool_schema
+from klaude_code.llm.http import create_async_http_client
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.json_stable import dumps_canonical_json
 from klaude_code.llm.registry import register
@@ -55,18 +56,18 @@ _GOOGLE_USER_AGENT = "klaude-code/2"
 
 
 def build_google_http_options(base_url: str | None) -> HttpOptions:
+    # Passing a custom async client also pins genai to its httpx backend (it
+    # would otherwise prefer aiohttp when that package is installed).
+    kwargs: dict[str, Any] = {
+        "timeout": int(LLM_HTTP_TIMEOUT_TOTAL * 1000),
+        "headers": {"user-agent": _GOOGLE_USER_AGENT},
+        "httpx_async_client": create_async_http_client(),
+    }
     if base_url:
         # If base_url already contains version path, don't append api_version.
-        return HttpOptions(
-            base_url=str(base_url),
-            api_version="",
-            timeout=int(LLM_HTTP_TIMEOUT_TOTAL * 1000),
-            headers={"user-agent": _GOOGLE_USER_AGENT},
-        )
-    return HttpOptions(
-        timeout=int(LLM_HTTP_TIMEOUT_TOTAL * 1000),
-        headers={"user-agent": _GOOGLE_USER_AGENT},
-    )
+        kwargs["base_url"] = str(base_url)
+        kwargs["api_version"] = ""
+    return HttpOptions(**kwargs)
 
 
 def support_thinking(model_id: str | None) -> bool:

@@ -9,7 +9,7 @@ from klaude_code.auth.xai.exceptions import XaiNotLoggedInError
 from klaude_code.auth.xai.oauth import XaiOAuth
 from klaude_code.auth.xai.token_manager import XaiTokenManager
 from klaude_code.llm.client import LLMStreamABC
-from klaude_code.llm.http import create_http_timeout
+from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.openai_responses.client import ResponsesClient
 from klaude_code.llm.registry import register
 from klaude_code.protocol import llm_param
@@ -42,6 +42,7 @@ class XaiOAuthClient(ResponsesClient):
             base_url=XAI_BASE_URL,
             default_headers={"User-Agent": XAI_USER_AGENT},
             timeout=create_http_timeout(),
+            http_client=create_async_http_client(),
         )
 
     def _ensure_valid_token(self) -> None:

@@ -32,10 +32,12 @@ async def run_prevent_sleep_monitor(
     *,
     poll_interval: float = MONITOR_POLL_INTERVAL_SECONDS,
 ) -> None:
-    """Hold a macOS idle-sleep assertion while any session actor is running.
+    """Hold macOS sleep assertions while any session actor is running.
 
-    Sessions blocked on user interaction do not count as running: a machine
-    waiting on an absent human should be allowed to sleep.
+    Covers idle sleep plus system sleep (e.g. lid close) on AC power; battery
+    lid-close sleep cannot be overridden. Sessions blocked on user interaction
+    do not count as running: a machine waiting on an absent human should be
+    allowed to sleep.
     """
 
     if not _is_macos():
@@ -58,7 +60,7 @@ async def run_prevent_sleep_monitor(
 
 
 def start_prevent_sleep() -> None:
-    """Prevent macOS idle sleep while agent work is active."""
+    """Prevent macOS idle sleep (and system sleep on AC power) while agent work is active."""
 
     global _ref_count
     with _lock:
@@ -69,7 +71,7 @@ def start_prevent_sleep() -> None:
 
 
 def stop_prevent_sleep() -> None:
-    """Release one active idle-sleep prevention request."""
+    """Release one active sleep-prevention request."""
 
     global _ref_count
     with _lock:
@@ -81,7 +83,7 @@ def stop_prevent_sleep() -> None:
 
 
 def force_stop_prevent_sleep() -> None:
-    """Release all idle-sleep prevention state immediately."""
+    """Release all sleep-prevention state immediately."""
 
     global _ref_count
     with _lock:
@@ -133,8 +135,11 @@ def _spawn_caffeinate_locked() -> None:
         _register_exit_signal_handlers_locked()
 
     try:
+        # -i blocks idle sleep; -s additionally blocks system sleep (e.g.
+        # lid close) but only while on AC power. Battery lid-close sleep
+        # cannot be overridden.
         _caffeinate_process = subprocess.Popen(
-            ["caffeinate", "-i", "-t", str(CAFFEINATE_TIMEOUT_SECONDS)],
+            ["caffeinate", "-i", "-s", "-t", str(CAFFEINATE_TIMEOUT_SECONDS)],
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,

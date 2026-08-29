@@ -11,7 +11,7 @@ from klaude_code.const import (
     OPENROUTER_BASE_URL,
 )
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.llm.http import create_http_timeout
+from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
 from klaude_code.llm.openai_compatible.stream import OpenAILLMStream
@@ -120,6 +120,7 @@ class OpenRouterClient(LLMClientABC):
             base_url=OPENROUTER_BASE_URL,
             default_headers={"User-Agent": _OPENROUTER_USER_AGENT},
             timeout=create_http_timeout(),
+            http_client=create_async_http_client(),
         )
         self.client: openai.AsyncOpenAI = client
 

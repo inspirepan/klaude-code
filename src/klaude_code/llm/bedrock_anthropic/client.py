@@ -40,7 +40,7 @@ from klaude_code.const import (
 from klaude_code.llm.anthropic.client import AnthropicLLMStream, AnthropicStreamStateManager, build_payload
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.llm.http import create_http_timeout, create_image_fetch_timeout
+from klaude_code.llm.http import create_async_http_client, create_http_timeout, create_image_fetch_timeout
 from klaude_code.llm.image import detect_mime_type_from_bytes, parse_data_url
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
@@ -635,6 +635,7 @@ class BedrockClient(LLMClientABC):
                 connect_timeout=LLM_HTTP_TIMEOUT_CONNECT,
                 read_timeout=LLM_HTTP_TIMEOUT_READ,
                 user_agent_extra=_BEDROCK_USER_AGENT_EXTRA,
+                tcp_keepalive=True,
             ),
         )
         self.client.meta.events.register("before-sign.bedrock-runtime", _inject_session_id_header)
@@ -650,6 +651,7 @@ class BedrockClient(LLMClientABC):
             aws_profile=config.aws_profile,
             default_headers={"User-Agent": _BEDROCK_USER_AGENT_EXTRA},
             timeout=create_http_timeout(),
+            http_client=create_async_http_client(),
         )
 
     @classmethod

@@ -152,6 +152,7 @@ def test_bedrock_converse_client_uses_botocore_config_timeouts(monkeypatch: pyte
         "connect_timeout": 15.0,
         "read_timeout": 285.0,
         "user_agent_extra": "klaude-code/2",
+        "tcp_keepalive": True,
     }
     # No "total" concept exists in botocore Config; this is the distinct shape.
     assert "timeout" not in config_kwargs

@@ -29,7 +29,7 @@ from klaude_code.const import (
 )
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.llm.http import create_http_timeout
+from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.model_workarounds import (
     insert_empty_thinking_before_first_tool_call,
@@ -440,6 +440,7 @@ class AnthropicClient(LLMClientABC):
                 base_url=config.base_url,
                 default_headers={"User-Agent": _ANTHROPIC_USER_AGENT},
                 timeout=create_http_timeout(),
+                http_client=create_async_http_client(),
             )
         finally:
             if saved_auth_token is not None:
