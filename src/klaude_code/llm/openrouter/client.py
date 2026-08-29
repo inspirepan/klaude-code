@@ -1,5 +1,5 @@
 import asyncio
-import json
+import os
 from typing import Any, Literal, cast, override
 
 import httpx
@@ -19,7 +19,7 @@ from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude
 from klaude_code.llm.openrouter.reasoning import ReasoningStreamHandler
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
-from klaude_code.log import DebugType, is_debug_enabled, log_debug
+from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.model_id import model_supports_temperature, supports_adaptive_thinking
 
@@ -37,7 +37,10 @@ def build_payload(
         "usage": {"include": True},  # To get the cache tokens at the end of the response
     }
 
-    if is_debug_enabled():
+    # Debug echo is opt-in via env var: the server keeps debug logging always
+    # on, so gating on is_debug_enabled() would inflate every production
+    # response with the echoed upstream body.
+    if os.environ.get("KLAUDE_OPENROUTER_DEBUG_ECHO"):
         extra_body["debug"] = {
             "echo_upstream_body": True
         }  # https://openrouter.ai/docs/api/reference/errors-and-debugging#debug-option-shape
@@ -141,7 +144,7 @@ class OpenRouterClient(LLMClientABC):
             extra_headers["x-session-id"] = param.session_id
 
         log_debug(
-            lambda: json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
+            lambda: debug_json({**payload, **extra_body}),
             debug_type=DebugType.LLM_PAYLOAD,
         )
 

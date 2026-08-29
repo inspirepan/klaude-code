@@ -22,7 +22,7 @@ from klaude_code.llm.stream_parts import (
     build_partial_parts,
 )
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
-from klaude_code.log import DebugType, log_debug
+from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import AssistantPhase, StopReason, Usage
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
@@ -456,7 +456,7 @@ class ResponsesClient(LLMClientABC):
         payload = await asyncio.to_thread(self._build_payload, param)
 
         log_debug(
-            lambda: json.dumps(payload, ensure_ascii=False, default=str),
+            lambda: debug_json(payload),
             debug_type=DebugType.LLM_PAYLOAD,
         )
         extra_headers: dict[str, str] = {}

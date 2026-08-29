@@ -1,5 +1,4 @@
 import asyncio
-import json
 from typing import Any, Literal, cast, override
 
 import httpx
@@ -13,7 +12,7 @@ from klaude_code.llm.openai_compatible.input import convert_history_to_input, co
 from klaude_code.llm.openai_compatible.stream import DefaultReasoningHandler, OpenAILLMStream
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
-from klaude_code.log import DebugType, log_debug
+from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param
 
 _OPENAI_USER_AGENT = "klaude-code/2"
@@ -100,7 +99,7 @@ class OpenAICompatibleClient(LLMClientABC):
             return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
 
         log_debug(
-            lambda: json.dumps({**payload, **extra_body}, ensure_ascii=False, default=str),
+            lambda: debug_json({**payload, **extra_body}),
             debug_type=DebugType.LLM_PAYLOAD,
         )
 

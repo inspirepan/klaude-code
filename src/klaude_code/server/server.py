@@ -16,7 +16,7 @@ import uvicorn.server
 
 from klaude_code.app.runtime import AppInitConfig, cleanup_app_components, initialize_app_components
 from klaude_code.const import LOG_BACKUP_COUNT, LOG_MAX_BYTES
-from klaude_code.log import DebugType, log_debug
+from klaude_code.log import DebugType, log_debug, set_debug_logging
 from klaude_code.server.app import create_app
 from klaude_code.server.display import ServerDisplay
 from klaude_code.server.interaction import ServerInteractionHandler
@@ -160,6 +160,10 @@ async def start_server(*, debug: bool = False) -> bool:
         # uvicorn.Config.__init__ runs dictConfig and resets the uvicorn logger
         # handlers, so the log file handler must attach after it.
         log_path = _attach_server_file_logging(debug=debug)
+        # Debug file logging is always on in the server process (agent/LLM work
+        # lives here): the web log viewer and `/debug` read this file. The
+        # /api/server/debug endpoint remains as the off switch.
+        set_debug_logging(True, write_to_file=True)
         log_debug(f"[server] log file: {log_path}", debug_type=DebugType.EXECUTION)
         server = _QuietServer(config)
 

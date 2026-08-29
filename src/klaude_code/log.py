@@ -1,8 +1,7 @@
-import gzip
+import contextlib
 import json
 import logging
 import os
-import shutil
 import subprocess
 from base64 import b64encode
 from collections.abc import Callable, Iterable
@@ -17,10 +16,10 @@ from rich.logging import RichHandler
 from rich.text import Text
 
 from klaude_code.const import (
+    DEBUG_LOG_BACKUP_COUNT,
+    DEBUG_LOG_MAX_BYTES,
     DEFAULT_DEBUG_LOG_DIR,
     DEFAULT_DEBUG_LOG_FILE,
-    LOG_BACKUP_COUNT,
-    LOG_MAX_BYTES,
 )
 
 # Module-level logger
@@ -53,23 +52,7 @@ _debug_enabled = False
 _current_log_file: Path | None = None
 
 LOG_RETENTION_DAYS = 3
-LOG_MAX_TOTAL_BYTES = 200 * 1024 * 1024
-
-
-class GzipRotatingFileHandler(RotatingFileHandler):
-    """Rotating file handler that gzips rolled files."""
-
-    def rotation_filename(self, default_name: str) -> str:
-        """Append .gz to rotation targets."""
-
-        return f"{default_name}.gz"
-
-    def rotate(self, source: str, dest: str) -> None:
-        """Compress the rotated file and remove the original."""
-
-        with open(source, "rb") as source_file, gzip.open(dest, "wb") as dest_file:
-            shutil.copyfileobj(source_file, dest_file)
-        Path(source).unlink(missing_ok=True)
+LOG_MAX_TOTAL_BYTES = 500 * 1024 * 1024
 
 
 def set_debug_logging(
@@ -116,14 +99,22 @@ def set_debug_logging(
         _prune_old_logs(DEFAULT_DEBUG_LOG_DIR, LOG_RETENTION_DAYS, LOG_MAX_TOTAL_BYTES)
 
     if use_file and file_path is not None:
-        _file_handler = GzipRotatingFileHandler(
+        # Plain rotating handler: rollover runs inside emit() on the server's
+        # event loop, and gzipping 50MB there would stall every session.
+        _file_handler = RotatingFileHandler(
             file_path,
-            maxBytes=LOG_MAX_BYTES,
-            backupCount=LOG_BACKUP_COUNT,
+            maxBytes=DEBUG_LOG_MAX_BYTES,
+            backupCount=DEBUG_LOG_BACKUP_COUNT,
             encoding="utf-8",
         )
         _file_handler.setLevel(logging.DEBUG)
-        _file_handler.setFormatter(logging.Formatter("[%(asctime)s] %(debug_type_label)-12s %(message)s"))
+        # Foreign records (e.g. logging.getLogger(__name__) in agent/) carry
+        # no debug_type_label; default it instead of dropping the record.
+        _file_handler.setFormatter(
+            logging.Formatter(
+                "[%(asctime)s] %(debug_type_label)-12s %(message)s", defaults={"debug_type_label": "GENERAL"}
+            )
+        )
         logger.addHandler(_file_handler)
     else:
         # Console handler with Rich formatting
@@ -236,6 +227,11 @@ def _resolve_log_file(log_file: str | os.PathLike[str] | None) -> Path:
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.touch(exist_ok=True)
+    # The debug log contains full conversation payloads; keep it owner-only.
+    with contextlib.suppress(OSError):
+        os.chmod(DEFAULT_DEBUG_LOG_DIR, 0o700)
+        os.chmod(path.parent, 0o700)
+        os.chmod(path, 0o600)
     _refresh_latest_symlink(path)
     return path
 
@@ -325,6 +321,18 @@ _DEBUG_TRUNCATE_PREFIX_CHARS = 96
 # Keys whose values should be truncated (e.g., signatures, large payloads)
 _TRUNCATE_KEYS = {"thought_signature", "thoughtSignature"}
 
+# Credential keys redacted at any nesting depth; the server writes the debug
+# log unconditionally, so defense-in-depth beyond the call-site excludes.
+_SECRET_KEYS = {"api_key", "aws_access_key", "aws_secret_key", "aws_session_token", "authorization", "x-api-key"}
+
+# Sibling keys that mark a dict's "data" field as a media blob (provider image
+# blocks: Anthropic ``media_type``, Google ``mime_type``, OpenAI ``mimeType``).
+_MIME_TYPE_KEYS = ("media_type", "mime_type", "mimeType")
+
+# Data-URL strings (OpenAI chat ``image_url`` blocks) longer than this are
+# truncated; the prefix keeps the mime type identifiable.
+_DATA_URL_MIN_CHARS = 1024
+
 
 def _truncate_debug_str(value: str, *, prefix_chars: int = _DEBUG_TRUNCATE_PREFIX_CHARS) -> str:
     if len(value) <= prefix_chars:
@@ -339,6 +347,8 @@ def _sanitize_debug_value(value: object) -> object:
         encoded = b64encode(bytes(value)).decode("ascii")
         return _truncate_debug_str(encoded)
     if isinstance(value, str):
+        if value.startswith("data:") and len(value) > _DATA_URL_MIN_CHARS:
+            return _truncate_debug_str(value)
         return value
     if isinstance(value, list):
         return [_sanitize_debug_value(v) for v in cast(list[object], value)]
@@ -350,6 +360,9 @@ def _sanitize_debug_value(value: object) -> object:
 def _sanitize_debug_dict(obj: dict[object, object]) -> dict[object, object]:
     sanitized: dict[object, object] = {}
     for k, v in obj.items():
+        if k in _SECRET_KEYS:
+            sanitized[k] = "***" if v else v
+            continue
         if k in _TRUNCATE_KEYS:
             if isinstance(v, str):
                 sanitized[k] = _truncate_debug_str(v)
@@ -358,8 +371,8 @@ def _sanitize_debug_dict(obj: dict[object, object]) -> dict[object, object]:
             continue
         sanitized[k] = _sanitize_debug_value(v)
 
-    # Truncate inline image payloads (data field with mime_type indicates image blob)
-    if "data" in sanitized and ("mime_type" in sanitized or "mimeType" in sanitized):
+    # Truncate inline image payloads (data field next to a media/mime type key)
+    if "data" in sanitized and any(k in sanitized for k in _MIME_TYPE_KEYS):
         data = sanitized.get("data")
         if isinstance(data, str):
             sanitized["data"] = _truncate_debug_str(data)
@@ -372,4 +385,4 @@ def _sanitize_debug_dict(obj: dict[object, object]) -> dict[object, object]:
 
 def debug_json(value: object) -> str:
     """Serialize a value to JSON for debug logging, truncating large payloads."""
-    return json.dumps(_sanitize_debug_value(value), ensure_ascii=False)
+    return json.dumps(_sanitize_debug_value(value), ensure_ascii=False, default=str)

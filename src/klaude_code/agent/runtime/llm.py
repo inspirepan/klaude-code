@@ -25,6 +25,11 @@ def _default_sub_clients() -> dict[SubAgentType, LLMClientABC]:
     return {}
 
 
+# Credential fields excluded when dumping LLM configs into the debug log; the
+# server writes that log unconditionally, so plaintext keys must never land in it.
+_LLM_CONFIG_SECRET_FIELDS = {"api_key", "aws_access_key", "aws_secret_key", "aws_session_token"}
+
+
 class ModelResolutionError(ValueError):
     """Raised when a configured model preference cannot be resolved.
 
@@ -150,7 +155,7 @@ class FallbackLLMClient(LLMClientABC):
                 log_debug(
                     "Creating fallback LLM client",
                     candidate.selector,
-                    candidate.llm_config.model_dump_json(exclude_none=True),
+                    candidate.llm_config.model_dump_json(exclude_none=True, exclude=_LLM_CONFIG_SECRET_FIELDS),
                     debug_type=DebugType.LLM_CONFIG,
                 )
                 client = create_llm_client(candidate.llm_config)
@@ -215,7 +220,7 @@ def build_llm_clients(
 
     log_debug(
         "Main LLM config",
-        llm_config.model_dump_json(exclude_none=True),
+        llm_config.model_dump_json(exclude_none=True, exclude=_LLM_CONFIG_SECRET_FIELDS),
         debug_type=DebugType.LLM_CONFIG,
     )
 
@@ -231,7 +236,7 @@ def build_llm_clients(
         fast_llm_config = fast_candidate.llm_config
         log_debug(
             "Fast LLM config",
-            fast_llm_config.model_dump_json(exclude_none=True),
+            fast_llm_config.model_dump_json(exclude_none=True, exclude=_LLM_CONFIG_SECRET_FIELDS),
             debug_type=DebugType.LLM_CONFIG,
         )
         fast_client = create_llm_client_for_candidates([fast_candidate])
@@ -242,7 +247,7 @@ def build_llm_clients(
         compact_llm_config = compact_candidates[0].llm_config
         log_debug(
             "Compact LLM config",
-            compact_llm_config.model_dump_json(exclude_none=True),
+            compact_llm_config.model_dump_json(exclude_none=True, exclude=_LLM_CONFIG_SECRET_FIELDS),
             debug_type=DebugType.LLM_CONFIG,
         )
         compact_client = create_llm_client_for_candidates(compact_candidates)

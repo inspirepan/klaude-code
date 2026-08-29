@@ -46,7 +46,7 @@ from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
 from klaude_code.llm.stop_reason import map_stop_reason
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
-from klaude_code.log import DebugType, log_debug
+from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.prompts.messages import CLAUDE_CODE_IDENTITY
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.model_id import model_supports_temperature, supports_adaptive_thinking
@@ -696,7 +696,7 @@ class BedrockClient(LLMClientABC):
 
         payload = await asyncio.to_thread(build_payload, param)
         log_debug(
-            lambda: json.dumps(payload, ensure_ascii=False, default=str),
+            lambda: debug_json(payload),
             debug_type=DebugType.LLM_PAYLOAD,
         )
 

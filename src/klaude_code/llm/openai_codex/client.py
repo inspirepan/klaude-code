@@ -1,7 +1,6 @@
 """Codex LLM client using ChatGPT subscription via OAuth."""
 
 import asyncio
-import json
 from typing import Any, cast, override
 
 import httpx
@@ -24,7 +23,7 @@ from klaude_code.llm.openai_responses.input import convert_history_to_input, con
 from klaude_code.llm.openai_responses.prompt_cache import build_prompt_cache_payload
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
-from klaude_code.log import DebugType, log_debug
+from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
@@ -164,7 +163,7 @@ class CodexClient(LLMClientABC):
             extra_headers["x-session-id"] = session_id
 
         log_debug(
-            lambda: json.dumps(payload, ensure_ascii=False, default=str),
+            lambda: debug_json(payload),
             debug_type=DebugType.LLM_PAYLOAD,
         )
         try:

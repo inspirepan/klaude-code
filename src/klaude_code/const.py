@@ -236,6 +236,8 @@ DEFAULT_DEBUG_LOG_DIR = Path.home() / ".klaude" / "logs"  # Default debug log di
 DEFAULT_DEBUG_LOG_FILE = DEFAULT_DEBUG_LOG_DIR / "debug.log"  # Default debug log file path
 LOG_MAX_BYTES = 10 * 1024 * 1024  # Maximum log file size before rotation (10MB)
 LOG_BACKUP_COUNT = 3  # Number of backup log files to keep
+DEBUG_LOG_MAX_BYTES = 50 * 1024 * 1024  # Debug log rotation threshold (50MB)
+DEBUG_LOG_BACKUP_COUNT = 10  # Debug log rotated files to keep
 
 # =============================================================================
 # Project Paths
