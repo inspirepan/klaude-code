@@ -1,6 +1,6 @@
-/** Standalone entry: mounts the forked trajectory view over a fixture snapshot. */
+/** Entry point: hash routing over the forked trajectory view. */
 
-import { StrictMode, useCallback, useState } from 'react'
+import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../theme/base.css'
 import '../theme/design-platform.css'
@@ -11,51 +11,63 @@ import { TrajectoryView } from '../trajectory/TrajectoryView.tsx'
 import type { TrajectorySessionState } from '../trajectory/TrajectoryView.tsx'
 import { t } from '../locale.ts'
 import { FIXTURE_SNAPSHOT } from './fixture.ts'
+import { HomePage } from './home-page.tsx'
+import { SessionPage } from './session-page.tsx'
+import { useActualDuration } from './duration.ts'
+import { renderImages } from './render-images.tsx'
 
-const DURATION_KEY = 'dsh.trajectory.duration'
+type Route =
+  | { readonly name: 'home' }
+  | { readonly name: 'session'; readonly sessionId: string }
+  | { readonly name: 'fixture' }
 
-const SESSION: TrajectorySessionState = {
+const FIXTURE_SESSION: TrajectorySessionState = {
   openState: 'open',
   loadingOlder: false,
   hasMore: false,
 }
 
-/** Read the persisted duration preference; storage may be unavailable. */
-function readActualDuration(): boolean {
-  try {
-    return window.localStorage.getItem(DURATION_KEY) === 'true'
-  } catch {
-    return false
+function parseRoute(hash: string): Route {
+  const path = hash.replace(/^#/, '')
+  const session = /^\/s\/([^/?#]+)/.exec(path)
+  if (session?.[1] !== undefined) {
+    return { name: 'session', sessionId: decodeURIComponent(session[1]) }
   }
+  if (path === '/fixture') return { name: 'fixture' }
+  return { name: 'home' }
 }
 
-/** The image slot is unimplemented until the file endpoint lands. */
-function renderImages(): null {
-  return null
-}
-
-function App() {
-  const [actualDuration, setStoredActualDuration] = useState(readActualDuration)
-  const setActualDuration = useCallback((next: boolean) => {
-    setStoredActualDuration(next)
-    try {
-      window.localStorage.setItem(DURATION_KEY, String(next))
-    } catch {
-      // A private window with storage blocked keeps the in-memory preference.
-    }
+function useRoute(): Route {
+  const [route, setRoute] = useState(() => parseRoute(window.location.hash))
+  useEffect(() => {
+    const onChange = () => { setRoute(parseRoute(window.location.hash)) }
+    window.addEventListener('hashchange', onChange)
+    return () => { window.removeEventListener('hashchange', onChange) }
   }, [])
-  const loadOlder = useCallback(() => Promise.resolve(false), [])
+  return route
+}
+
+/** The hand-written snapshot, so the ledger renders with no server running. */
+function FixturePage() {
+  const [actualDuration, setActualDuration] = useActualDuration()
   return (
     <TrajectoryView
       snapshot={FIXTURE_SNAPSHOT}
-      session={SESSION}
+      session={FIXTURE_SESSION}
       actualDuration={actualDuration}
       setActualDuration={setActualDuration}
-      loadOlder={loadOlder}
+      loadOlder={() => Promise.resolve(false)}
       renderImages={renderImages}
       t={t}
     />
   )
+}
+
+function App() {
+  const route = useRoute()
+  if (route.name === 'session') return <SessionPage key={route.sessionId} sessionId={route.sessionId} />
+  if (route.name === 'fixture') return <FixturePage />
+  return <HomePage />
 }
 
 const host = document.getElementById('root')

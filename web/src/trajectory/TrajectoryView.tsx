@@ -25,6 +25,9 @@ import {
   type TrajectoryTimeRange,
 } from './timeline.ts'
 import { trajectoryRecordId } from './trajectory-record.ts'
+// klaude: the REST adapter's per-record ledger facts are applied to the folded
+// layout here, once, so table / timeline / search all see the same cells
+import { applyTrajectoryAnnotations } from '../adapter/annotate.ts'
 import { TrajectorySearchIndex } from './trajectory-search-index.ts'
 import type { TrajectorySnapshot } from './trajectory-contract.ts'
 import css from './views.module.css'
@@ -289,8 +292,9 @@ export function TrajectoryView({
   ])
   const partialTurn = partial?.turn ?? null
   const partialStep = partial?.step ?? null
+  const annotations = inspection.annotations // klaude: adapter annotations
   const finalized = useMemo(() => {
-    const turns = deriveTrajectoryLayout({
+    const turns = applyTrajectoryAnnotations(deriveTrajectoryLayout({ // klaude
       nodes,
       eventLocations,
       partial: partialTurn === null || partialStep === null
@@ -299,11 +303,11 @@ export function TrajectoryView({
       runningCalls,
       requests,
       callSchemas,
-    }, t)
+    }, t), annotations)
     return { turns, lastIndex: lastCellIndex(turns) }
   }, [
     nodes, eventLocations, partialTurn, partialStep,
-    runningCalls, requests, callSchemas, t,
+    runningCalls, requests, callSchemas, annotations, t,
   ])
   const timelinePartialSignature = partialStructureSignature(partial)
   const timelinePartial = useMemo<TrajectorySnapshot['partial']>(() => partial === null
@@ -424,7 +428,7 @@ export function TrajectoryView({
         const cell = cells[i]
         if (cell?.kind !== 'message') continue
         const next = cells[i + 1]
-        if (next?.kind === 'tool' || next?.kind === 'subtool') {
+        if (next?.kind === 'tool') { // klaude: nested-call kind dropped (D2)
           ids.push(trajectoryRecordId(cell))
         }
       }

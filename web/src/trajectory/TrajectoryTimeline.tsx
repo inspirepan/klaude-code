@@ -91,7 +91,9 @@ function timelineKindLabel(kind: TrajectoryCellKind, t: TrajectoryTranslate): st
     case 'compacted': return t('kind.compacted')
     case 'message': return t('kind.assistant')
     case 'tool': return t('kind.tool')
-    case 'subtool': return t('kind.subtool')
+    // klaude: UX spec D2 row kinds (the upstream nested-call kind is dropped)
+    case 'rewind': return t('kind.rewind')
+    case 'btw': return t('kind.btw')
   }
 }
 
@@ -708,6 +710,8 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
                       data-timeline-record-index={span.index}
                       data-assistant-timing={ttftFraction === null ? undefined : 'true'}
                       data-error={span.isError || undefined}
+                      // klaude: UX spec D3
+                      data-discarded={span.discarded || undefined}
                       data-equal-duration={mode === 'time' || undefined}
                       data-current={span.index === selectedIndex || undefined}
                       data-hovered={hover?.recordIndex === span.index || undefined}

@@ -2,7 +2,9 @@
 
 import type { HTMLAttributes } from 'react'
 // klaude: upstream cross-package imports -> the local flattened contract
-import type { ConversationPromptSnapshot, ImageAttachmentRef } from '../contract/index.ts'
+import type {
+  ConversationPromptSnapshot, ImageAttachmentRef, SubAgentLink, TrajectoryDiscarded,
+} from '../contract/index.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 
 /** Closed set of trajectory record kinds. */
@@ -13,7 +15,8 @@ export type TrajectoryCellKind =
   | 'compacted'
   | 'message'
   | 'tool'
-  | 'subtool'
+  | 'rewind' // klaude: legacy RewindEntry row (UX spec D2)
+  | 'btw' // klaude: `/btw` side question row (UX spec D2); upstream nested-call kind dropped
 
 /** Recorded inputs needed to derive assistant TTFT and decode throughput. */
 export interface AssistantMetricDetail {
@@ -96,6 +99,16 @@ export interface TrajectoryCellProps extends HTMLAttributes<HTMLDivElement> {
   think?: number
   /** Whether the legacy standalone cell renders its selection treatment. */
   selected?: boolean
+  // klaude: adapter annotations applied between the fold and its consumers
+  // (src/adapter/annotate.ts); upstream has no ledger-status concept.
+  /** Zero-based `events.jsonl` line this record came from. */
+  lineIndex?: number
+  /** Set when the model no longer sees this row (UX spec D3). */
+  discarded?: TrajectoryDiscarded
+  /** Set on a user row klaude synthesized rather than a human typing it. */
+  auto?: true
+  /** Sub-agent session started by this Agent tool call (UX spec D4). */
+  subAgent?: SubAgentLink
 }
 
 /**

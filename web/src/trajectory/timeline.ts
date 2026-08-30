@@ -21,6 +21,8 @@ export interface TrajectoryTimelineSpan extends TrajectoryTimeRange {
   kind: TrajectoryCellKind
   label: string
   lane: number
+  /** klaude: set when the record's row is discarded (UX spec D3). */
+  discarded?: true
 }
 
 /** One turn boundary in the active timeline domain. */
@@ -49,7 +51,9 @@ export function formatTimelineOffset(
 }
 
 function laneFor(kind: TrajectoryCellKind): number {
-  if (kind === 'tool' || kind === 'subtool') return 2
+  // klaude: the upstream nested-call kind dropped (UX spec D2); 'rewind' and 'btw' take the Input
+  // lane through the default below.
+  if (kind === 'tool') return 2
   if (kind === 'message' || kind === 'compacted') return 1
   return 0
 }
@@ -105,6 +109,7 @@ export function deriveTrajectoryTimeline(
       kind: cell.kind,
       label: cell.text,
       lane: laneFor(cell.kind),
+      ...(cell.discarded === undefined ? {} : { discarded: true as const }), // klaude: D3
     })))
   }
 
@@ -136,6 +141,7 @@ function deriveTimedTimeline(
             kind: cell.kind,
             label: cell.text,
             lane: laneFor(cell.kind),
+            ...(cell.discarded === undefined ? {} : { discarded: true as const }), // klaude: D3
           }]
       }),
     )

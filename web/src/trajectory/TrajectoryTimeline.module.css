@@ -207,10 +207,25 @@
   );
 }
 
-.span[data-timeline-span='tool'],
-.span[data-timeline-span='subtool'] {
+/* klaude: the nested-call span selector went with that kind (UX spec D2). */
+.span[data-timeline-span='tool'] {
   background: var(--dsw-alias-state-warn-label);
   opacity: 1;
+}
+
+/* klaude: UX spec D2 row kinds share the Input lane's neutral treatment. */
+.span[data-timeline-span='btw'] {
+  background: var(--dsw-alias-state-business-primary);
+  opacity: 0.6;
+}
+
+.span[data-timeline-span='rewind'] {
+  background: var(--dsw-alias-label-tertiary);
+}
+
+/* klaude: UX spec D3 — a discarded record keeps its slot but recedes. */
+.span[data-discarded='true'] {
+  opacity: 0.22;
 }
 
 .span[data-error='true'] {

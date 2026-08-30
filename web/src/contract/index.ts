@@ -13,6 +13,11 @@ export type {
   MessageImageSource,
   MessageImagesOwnerProps,
   RenderMessageImages,
+  TrajectoryDiscardedStatus,
+  TrajectoryDiscarded,
+  SubAgentLink,
+  TrajectoryRecordAnnotation,
+  TrajectoryAnnotations,
 } from './types.ts'
 
 export type {

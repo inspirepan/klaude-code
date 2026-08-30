@@ -1,0 +1,28 @@
+/* Image gallery for the trajectory record inspector (UX spec D5). */
+.gallery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0;
+}
+
+.gallery[data-align='end'] {
+  justify-content: flex-end;
+}
+
+.item {
+  display: block;
+  overflow: hidden;
+  max-width: 100%;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 4px;
+  background: var(--dsw-alias-bg-layer-2);
+  line-height: 0;
+}
+
+.image {
+  display: block;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}

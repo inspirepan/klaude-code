@@ -7,6 +7,8 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 // the local flattened contract
 import {
   IconChevronRightOutline14,
+  IconQuestionOutline14, // klaude: BTW row icon (UX spec D2)
+  IconRefreshOutline14, // klaude: REWIND row icon (UX spec D2)
   IconSettingsOutline16,
   IconSparkle16,
   IconUserOutline16,
@@ -47,7 +49,9 @@ const KIND_LABEL_KEY: Record<TrajectoryCellKind, TrajectoryKey> = {
   compacted: 'kind.compacted',
   message: 'kind.assistant',
   tool: 'kind.tool',
-  subtool: 'kind.subtool',
+  // klaude: the upstream nested-call kind dropped, 'rewind' + 'btw' added (UX spec D2)
+  rewind: 'kind.rewind',
+  btw: 'kind.btw',
 }
 
 function ToolWrenchIcon(): ReactNode {
@@ -118,7 +122,9 @@ const KIND_ICON: Record<TrajectoryCellKind, ReactNode> = {
   compacted: <CompactedIcon />,
   message: <IconSparkle16 size={13} />,
   tool: <ToolWrenchIcon />,
-  subtool: <ToolWrenchIcon />,
+  // klaude: UX spec D2 row kinds
+  rewind: <IconRefreshOutline14 size={13} />,
+  btw: <IconQuestionOutline14 size={13} />,
 }
 
 interface TableRecord {
@@ -597,7 +603,7 @@ function summarizeTurn(
       .filter(key => requestGroups.has(key)),
   ).size
   const toolCalls = records.filter(record =>
-    record.cell.kind === 'tool' || record.cell.kind === 'subtool',
+    record.cell.kind === 'tool', // klaude: the upstream nested-call kind dropped (UX spec D2)
   ).length
   return [
     t(steps === 1 ? 'summary.steps.one' : 'summary.steps.other', { count: steps }),
@@ -652,7 +658,7 @@ function assistantToolCalls(
   for (let i = at + 1; i < records.length; i++) {
     const record = records[i]
     if (record === undefined) break
-    if (record.cell.kind !== 'tool' && record.cell.kind !== 'subtool') break
+    if (record.cell.kind !== 'tool') break // klaude: the upstream nested-call kind dropped
     calls.push(record)
   }
   return calls
@@ -691,7 +697,7 @@ function collapseAssistantRecords(
       if (
         candidate === undefined
         || candidate.collapsedSummary !== undefined
-        || (candidate.cell.kind !== 'tool' && candidate.cell.kind !== 'subtool')
+        || candidate.cell.kind !== 'tool' // klaude: the upstream nested-call kind dropped
       ) break
       calls.push(candidate)
     }
@@ -715,7 +721,7 @@ function stateOf(record: TableRecord): RecordState {
   if (record.cell.isError) return 'error'
   if (record.cell.kind === 'compacted' && record.cell.timeSeconds === null) return 'running'
   if (
-    (record.cell.kind === 'tool' || record.cell.kind === 'subtool')
+    record.cell.kind === 'tool' // klaude: the upstream nested-call kind dropped
     && record.cell.outputDetail === undefined
   ) return 'running'
   return 'complete'
@@ -869,7 +875,9 @@ function messageSourceLabel(source: unknown, t: TrajectoryTranslate): string {
     return t('source.unknown')
   }
   const properties = source as Record<string, unknown>
-  const kind = properties.kind
+  // klaude: raw events.jsonl entries carry their persisted class name in
+  // `type`; upstream sources discriminate on `kind`.
+  const kind = properties.kind ?? properties.type
   if (kind === 'user') return t('source.user')
   if (kind === 'plugin') {
     const plugin = properties.plugin
@@ -903,9 +911,16 @@ function MessageSource({ record, t }: { record: TableRecord; t: TrajectoryTransl
   )
 }
 
+/** klaude: record kinds whose body is the message input text. */
+function isMarkdownInputRecord(kind: TrajectoryCellKind): boolean {
+  return kind === 'user' || kind === 'context' || kind === 'rewind' || kind === 'btw'
+}
+
 function isMarkdownRecord(record: TableRecord): boolean {
   return record.cell.kind === 'user'
     || record.cell.kind === 'context'
+    || record.cell.kind === 'rewind' // klaude: UX spec D2 kinds read as text records
+    || record.cell.kind === 'btw'
     || record.cell.kind === 'message'
 }
 
@@ -913,25 +928,12 @@ function parentRecords(
   records: readonly TableRecord[],
   record: TableRecord,
 ): ParentRecords {
-  if (record.cell.kind !== 'tool' && record.cell.kind !== 'subtool') return {}
+  // klaude: the upstream nested-call kind dropped (UX spec D2) — with no nested dispatch there is
+  // no intermediate tool parent to walk back to
+  if (record.cell.kind !== 'tool') return {}
   const at = records.findIndex(candidate => candidate.cell.index === record.cell.index)
   if (at === -1) return {}
-  let tool: TableRecord | undefined
-  if (record.cell.kind === 'subtool') {
-    for (let i = at - 1; i >= 0; i--) {
-      const candidate = records[i]
-      if (
-        candidate === undefined
-        || candidate.turn !== record.turn
-        || candidate.group !== record.group
-      ) break
-      if (candidate.cell.kind === 'tool') {
-        tool = candidate
-        break
-      }
-    }
-  }
-  const parentCallId = tool?.cell.callId ?? record.cell.callId
+  const parentCallId = record.cell.callId
   let message: TableRecord | undefined
   if (parentCallId !== undefined) {
     message = records.find(candidate =>
@@ -940,11 +942,11 @@ function parentRecords(
       && candidate.cell.sourceBlocks?.some(block => block.callId === parentCallId) === true,
     )
   }
-  return { ...(message === undefined ? {} : { message }), ...(tool === undefined ? {} : { tool }) }
+  return message === undefined ? {} : { message }
 }
 
 function markdownSource(record: TableRecord): string | undefined {
-  if (record.cell.kind === 'user' || record.cell.kind === 'context') {
+  if (isMarkdownInputRecord(record.cell.kind)) { // klaude: + 'rewind' / 'btw'
     return record.cell.inputDetail
   }
   if (record.cell.kind === 'message' || record.cell.kind === 'compacted') {
@@ -992,7 +994,7 @@ function recordDisplayText(cell: TrajectoryCellProps, t: TrajectoryTranslate): s
     return preview === '' ? cell.text : `${cell.text} · ${preview}`
   }
   if (cell.text !== '') return cell.text
-  const markdown = cell.kind === 'user' || cell.kind === 'context'
+  const markdown = isMarkdownInputRecord(cell.kind) // klaude: + 'rewind' / 'btw'
     ? cell.inputDetail
     : cell.kind === 'message'
       ? cell.outputDetail ?? cell.thinkingDetail
@@ -1010,7 +1012,7 @@ function toolCallTextParts(
   kind: TrajectoryCellKind,
   text: string,
 ): ToolCallTextParts | undefined {
-  if (kind !== 'tool' && kind !== 'subtool') return undefined
+  if (kind !== 'tool') return undefined // klaude: the upstream nested-call kind dropped
   const separator = text.indexOf(' · ')
   if (separator === -1) return { name: text }
   return {
@@ -1988,11 +1990,10 @@ export function TrajectoryTable({
           && selectedRequestRecords.some(record => stateOf(record) === 'running')
           ? 'running'
           : 'complete')
+  // klaude: the companion nested-call count (and its summary row) is dropped
+  // with the upstream nested-call kind (UX spec D2)
   const selectedRequestToolCalls = selectedRequestRecords.filter(
     record => record.cell.kind === 'tool',
-  ).length
-  const selectedRequestSubtoolCalls = selectedRequestRecords.filter(
-    record => record.cell.kind === 'subtool',
   ).length
   const selectedRequestResultTemplate = selectedRequestInfo?.resultSeq === undefined
     ? selectedRequestAssistant
@@ -2115,7 +2116,7 @@ export function TrajectoryTable({
   const openRecordSummary = (target: TableRecord) => {
     const targetAt = allRecords.findIndex(record => record.cell.index === target.cell.index)
     if (target.turn !== null && collapsedTurns.has(target.turn)) onToggleTurn(target.turn)
-    if (target.cell.kind === 'tool' || target.cell.kind === 'subtool') {
+    if (target.cell.kind === 'tool') { // klaude: nested-call kind dropped (D2)
       for (let i = targetAt - 1; i >= 0; i--) {
         const candidate = allRecords[i]
         if (candidate === undefined || candidate.turn !== target.turn) break
@@ -2442,6 +2443,9 @@ export function TrajectoryTable({
                       data-group-start={record.groupStart || undefined}
                       data-turn-start={record.turnStart || undefined}
                       data-error={record.cell.isError || undefined}
+                      // klaude: UX spec D3 discarded row + non-human user tag
+                      data-discarded={record.cell.discarded?.status}
+                      data-auto={record.cell.auto || undefined}
                       data-running={stateOf(record) === 'running' || undefined}
                       data-turn-end={record.turnEnd || undefined}
                       data-collapsed-summary={record.collapsedSummaryKind}
@@ -2554,6 +2558,8 @@ export function TrajectoryTable({
                               className={css.kindSlot}
                             >
                               <span
+                                // klaude: the nested-call branch is dropped; 'rewind' and
+                                // 'btw' take their badge class from css[kind] (UX spec D2)
                                 className={`${css.kindTag} ${
                                   record.cell.kind === 'system'
                                     ? css.systemNeutral
@@ -2565,9 +2571,7 @@ export function TrajectoryTable({
                                           ? css.toolAmber
                                           : record.cell.kind === 'message'
                                             ? css.assistantVioletBright
-                                            : record.cell.kind === 'subtool'
-                                              ? css.subtoolAmber
-                                              : css[record.cell.kind]
+                                            : css[record.cell.kind]
                                 }`}
                                 data-role-kind={record.cell.kind}
                               >
@@ -2753,6 +2757,7 @@ export function TrajectoryTable({
                   )
                   : selected !== undefined && (
                     <>
+                      {/* klaude: nested-call branch dropped (UX spec D2) */}
                       <span className={`${css.kindTag} ${
                         selected.cell.kind === 'context'
                           ? css.contextGreen
@@ -2762,9 +2767,7 @@ export function TrajectoryTable({
                               ? css.toolAmber
                               : selected.cell.kind === 'message'
                                 ? css.assistantVioletBright
-                                : selected.cell.kind === 'subtool'
-                                  ? css.subtoolAmber
-                                  : css[selected.cell.kind]
+                                : css[selected.cell.kind]
                       }`}
                       >
                         {t(KIND_LABEL_KEY[selected.cell.kind])}
@@ -2854,12 +2857,6 @@ export function TrajectoryTable({
                     <dt>{t('details.toolCalls')}</dt>
                     <dd>{selectedRequestToolCalls}</dd>
                   </div>
-                  {selectedRequestSubtoolCalls > 0 && (
-                    <div>
-                      <dt>{t('details.subtoolCalls')}</dt>
-                      <dd>{selectedRequestSubtoolCalls}</dd>
-                    </div>
-                  )}
                   {selectedRequestInfo.error !== undefined && (
                     <div>
                       <dt>{t('details.error')}</dt>
@@ -3097,6 +3094,29 @@ export function TrajectoryTable({
                       {statusLabel(selectedState, t)}
                     </dd>
                   </div>
+                  {/* klaude: UX spec D4 — sub-agent sessions are separate trajectories */}
+                  {selected.cell.subAgent !== undefined && (
+                    <div>
+                      <dt>{t('kind.sub')}</dt>
+                      <dd className={css.overviewParentLinks}>
+                        <a
+                          className={css.overviewHierarchyNavLink}
+                          href={`#/s/${selected.cell.subAgent.sessionId}`}
+                        >
+                          <span>
+                            {t('details.subAgentSession')}
+                            {selected.cell.subAgent.type === ''
+                              ? ''
+                              : ` · ${selected.cell.subAgent.type}`}
+                          </span>
+                          <IconChevronRightOutline14
+                            className={css.overviewHierarchyJumpIconTight}
+                            size={11}
+                          />
+                        </a>
+                      </dd>
+                    </div>
+                  )}
                   {selected.cell.kind === 'message' && (
                     <TokenRows cell={selected.cell} t={t} />
                   )}
@@ -3152,7 +3172,7 @@ export function TrajectoryTable({
                       <RecordTiming record={selected} t={t} />
                     </OverviewSection>
                   )}
-                  {(selected.cell.kind === 'tool' || selected.cell.kind === 'subtool') && (
+                  {selected.cell.kind === 'tool' && ( // klaude: nested-call kind dropped (D2)
                     <OverviewSection label={t('tab.timing')} onOpen={() => { activateTab('timing') }}>
                       <RecordTiming record={selected} t={t} />
                     </OverviewSection>

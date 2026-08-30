@@ -21,9 +21,9 @@ deepseek-harness and is now maintained here. **We do not sync with upstream.**
 | `src/contract/` | `packages/client/ui-conversation/src/client/contract/` (3 files) + 2 local | 5 | 472 |
 | `src/css-modules.d.ts` | `packages/client/ui-trajectory/src/css-modules.d.ts` | 1 | 6 |
 
-Written by klaude, not copied: `src/locale.ts`, `src/app/`, `src/contract/types.ts`,
-`src/contract/index.ts`, `index.html`, `package.json`, `tsconfig.json`,
-`vite.config.ts`.
+Written by klaude, not copied: `src/adapter/`, `src/locale.ts`, `src/app/`,
+`src/contract/types.ts`, `src/contract/index.ts`, `index.html`, `package.json`,
+`tsconfig.json`, `vite.config.ts`.
 
 ## Files dropped from the copy
 
@@ -87,15 +87,65 @@ Every deviation carries a trailing or leading `// klaude:` comment so
 | `trajectory-record.ts` | Same two imports → `../contract/index.ts`. |
 | `trajectory-contract.ts` | Imports → `../contract/index.ts`; trimmed to `TrajectoryRequestHeaderState` + `TrajectorySnapshot`; dropped `TrajectoryContribution`, `TrajectoryConversationViewNode`, `UseTrajectory` and the two `declare module` augmentations. |
 | `trajectory-preview.ts` | `@deepseek-ai/dsh-client-ui-primitives` → `../ui-primitives/index.ts`. |
-| `locales.ts` | Dropped the `declare module '@deepseek-ai/dsh-client-ui-slots'` `LocaleNamespaceMap` augmentation; `TrajectoryTranslate` is now re-exported from `../locale.ts` instead of aliasing `TranslateNS<'trajectory'>`. Both dictionaries (`zh` 174 keys, `en` 174 keys) are untouched. |
-| `TrajectoryTable.tsx` | Import block: primitives → `../ui-primitives/index.ts`; conversation + attachment types → `../contract/index.ts`. |
-| `TrajectoryTimeline.tsx` | `Tooltip` import → `../ui-primitives/index.ts`. |
+| `locales.ts` | Dropped the `declare module '@deepseek-ai/dsh-client-ui-slots'` `LocaleNamespaceMap` augmentation; `TrajectoryTranslate` is now re-exported from `../locale.ts` instead of aliasing `TranslateNS<'trajectory'>`. Both dictionaries carry 175 keys each (M2 swapped two row-kind keys for three; see below). |
+| `TrajectoryTable.tsx` | Import block: primitives → `../ui-primitives/index.ts`; conversation + attachment types → `../contract/index.ts`. Plus the M2 deviations, below. |
+| `TrajectoryTimeline.tsx` | `Tooltip` import → `../ui-primitives/index.ts`; `timelineKindLabel` row kinds; `data-discarded` on the span. |
 | `TrajectoryToolbar.tsx` | `IconSearchOutline16` import → `../ui-primitives/index.ts`; prop `t: TranslateNS<typeof NS>` → `t: TrajectoryTranslate`. |
 | `TrajectoryView.tsx` | See below. |
 
-`timeline.ts`, `trajectory-search-index.ts`, `trajectory-virtual-rows.ts`,
-`copy-codes.ts` and all four `*.module.css` files are **byte-identical** to
-upstream.
+`trajectory-search-index.ts`, `trajectory-virtual-rows.ts` and `copy-codes.ts`
+are **byte-identical** to upstream.
+
+#### M2 deviation edits (2026-08-30)
+
+Every line carries a `// klaude:` (or `/* klaude: */`) marker. Grouped by
+deviation:
+
+**D2 — row kinds** (drop the upstream nested-call kind, add `rewind` + `btw`):
+
+| File | Change |
+|---|---|
+| `trajectory-record.ts` | `TrajectoryCellKind`: nested-call kind out, `rewind` / `btw` in. |
+| `TrajectoryTable.tsx` | `KIND_LABEL_KEY`, `KIND_ICON` (+ `IconRefreshOutline14` / `IconQuestionOutline14` imports), `summarizeTurn`, `assistantToolCalls`, `collapseAssistantRecords`, `stateOf`, `parentRecords` (the nested-call parent walk is gone), `toolCallTextParts`, `openRecordSummary`, both kind-tag class chains, the record-overview timing section, and the removed nested-call count row in the request summary. `isMarkdownRecord` / `markdownSource` / `recordDisplayText` gained the new `isMarkdownInputRecord` helper so `rewind` / `btw` read as text records. |
+| `TrajectoryTimeline.tsx` | `timelineKindLabel` cases. |
+| `timeline.ts` | `laneFor` (both new kinds fall to lane 0 through the default). |
+| `layout.ts` | `expandSubCalls` emits `kind: 'tool'`. |
+| `locales.ts` | `kind.rewind` / `kind.btw` replace `kind.subtool`; `details.subAgentSession` replaces `details.subtoolCalls` (both dictionaries). |
+| `TrajectoryTable.module.css` | `.rewind` / `.btw` badges replace the nested-call badge; the nested-call row selectors are gone. |
+| `TrajectoryTimeline.module.css` | span colours for the two kinds. |
+
+**D3 — discarded rows**:
+
+| File | Change |
+|---|---|
+| `trajectory-record.ts` | `TrajectoryCellProps.discarded` / `lineIndex` / `auto` / `subAgent`. |
+| `trajectory-contract.ts` | `TrajectorySnapshot.annotations`. |
+| `TrajectoryView.tsx` | Applies `applyTrajectoryAnnotations` inside the `finalized` memo. |
+| `TrajectoryTable.tsx` | `data-discarded` and `data-auto` on the row. |
+| `timeline.ts` | `TrajectoryTimelineSpan.discarded`, set in both projections. |
+| `TrajectoryTimeline.tsx` | `data-discarded` on the span. |
+| `TrajectoryTable.module.css` | Dim + line-through mirroring `data-timeline-focus="outside"`, and the `auto` chip. |
+| `TrajectoryTimeline.module.css` | `.span[data-discarded='true'] { opacity: .22 }`. |
+
+**D4 — sub-agent link**: `TrajectoryTable.tsx` renders an
+`#/s/{sessionId}` link in the record overview when the cell carries `subAgent`.
+
+**D8 — bottom clearance**: `views.module.css` `--dsh-composer-height` fallback
+`152px` → `0px`.
+
+**Row identity**: `layout.ts` keys an assistant record on `node.seq` instead of
+`assistant\0turn\0step`, so prepending an older page (which renumbers turns)
+cannot change a row's React key.
+
+**Source label**: `TrajectoryTable.tsx` `messageSourceLabel` falls back to
+`source.type` — klaude's raw entries carry the persisted class name there.
+
+**D5 / D6 / D7 / D9 need no vendored edit**: the image slot is a plain prop
+(`src/app/render-images.tsx`), the English badge overrides live in
+`src/locale.ts`, the duration preference lives in `src/app/duration.ts`, and
+request numbering already falls out of `TrajectoryView`'s upstream
+`requestNumbers` memo once the adapter emits a `RequestView` per assistant
+message and per compaction.
 
 #### `TrajectoryView.tsx` in detail
 
@@ -130,6 +180,10 @@ three deleted files (`invariant.ts`, `ansi.ts`, `TerminalBlock.*`) and that one
 
 ### `src/contract/`
 
+`types.ts` also declares the adapter's annotation contract
+(`TrajectoryDiscarded`, `SubAgentLink`, `TrajectoryRecordAnnotation`,
+`TrajectoryAnnotations`), re-exported from `index.ts`.
+
 | File | `// klaude:` changes |
 |---|---|
 | `records.ts` | Cross-package imports (`dsh-commands/brand`, `dsh-llm/brand`, `dsh-llm/types`, `dsh-attachment`, `dsh-llm-retry/types`, `dsh-tool-todo/client`) → `./types.ts`. Dropped `ModelRetryNode`, `TurnErrorNode`, `TurnMaxTokensNode`, `CommandNode`, `UnknownSurfaceNode` and the `TodoItem` re-export; `ConversationNode` is now the six arms `layout.ts` handles (user / steering / assistant / context / tool-result / compaction). |
@@ -163,8 +217,9 @@ as upstream's does (`packages/client/locale/src/client/index.ts:447-455`:
    `copy.prettyJson`, `copy.compactJson`, `copy.optionsHint`,
    `json.collapseNode`, `json.expandNode`, `markdown.footnotes`), verbatim from
    `packages/client/locale/src/locales/zh.ts`;
-2. the vendored `zh` trajectory dictionary (174 keys);
-3. English overrides for the nine `kind.*` badge keys (decision #4).
+2. the vendored `zh` trajectory dictionary (175 keys);
+3. English overrides for the `kind.*` badge keys, `REWIND` and `BTW` included
+   (decision #4 / UX spec D6).
 
 ## Third-party dependencies
 
@@ -201,16 +256,25 @@ The tsconfig keeps upstream's `allowImportingTsExtensions`,
   first. Decide before M1 whether to commit `dist` or to build in the release
   pipeline, and add a `wheel-exclude` for `web/node_modules/` either way.
 - **Feature deviations from
-  [`docs/web-viewer-ux-spec.md`](../docs/web-viewer-ux-spec.md) §12 are not
-  implemented yet** — this step keeps upstream behavior. Still to do: D1 timeline
-  scale model, D2 drop `subtool` / add `rewind` + `btw`, D3 `data-discarded`
-  rows, D4 sub-agent links, D5 the real `renderImages`, D8 the
-  `--dsh-composer-height` fallback (`views.module.css:27` still falls back to
-  upstream's `152px`), D9 request numbering.
-- `renderImages` in `src/app/main.tsx` is a no-op that renders nothing — the same
-  behavior as an upstream host with no image plugin registered.
-- `src/app/fixture.ts` is scaffolding; it goes away when the REST/WS adapter lands.
-- Upstream's `ui-trajectory/tests/` were not carried over.
+  [`docs/web-viewer-ux-spec.md`](../docs/web-viewer-ux-spec.md) §12**: D2, D3,
+  D4, D5, D6, D7, D8 and D9 are **done** (M2 part 1). Still open: **D1** timeline
+  scale model (M3), **D10** (nothing to do — klaude never packs chunk rows),
+  **D11** cold-session live state (needs the WS channel, M2 part 2).
+- `src/app/fixture.ts` stays as the `#/fixture` route so the ledger can be
+  eyeballed with no server running.
+- **Turn ordinals are window-relative.** The history endpoint carries no absolute
+  turn number, so `Turn N` is counted from the oldest loaded human user message
+  and shifts when an older page is prepended. Row keys do not shift (see the
+  `layout.ts` identity edit). An absolute `turn_index` per row — or a
+  `turn_offset` on the history response — would remove the label shift.
+- **Compaction requests report a zero-length call.** Until `LLMRequestEntry`
+  lands (M4) the COMPACT row has no recorded end, so the adapter sets
+  `completedAt = startedAt`; a `null` would render the marker as pending, which
+  is worse. Usage and Options stay unknown.
+- `callSchemas` is always empty: klaude does not persist the tool catalog, so the
+  tool inspector's Schema tab is empty until the M4 system-context endpoint.
+- Upstream's `ui-trajectory/tests/` were not carried over; `src/adapter/*.test.ts`
+  (vitest, `pnpm test`) covers the projection instead.
 - Two vendored `ui-primitives` files still name upstream packages in JSDoc
   (`useAnchoredPosition.ts:10`, `relative-time.ts:6` `@module @deepseek-ai/…`),
   and several carry the phrase "cordis-free" in prose plus one

@@ -1,7 +1,7 @@
 // klaude: upstream cross-package imports -> the local flattened contract
 import type {
   ConversationLocation, ConversationNode, ConversationPromptSnapshot, PartialAssistant,
-  RequestPromptChange, RequestView, RunningToolCall,
+  RequestPromptChange, RequestView, RunningToolCall, TrajectoryAnnotations,
 } from '../contract/index.ts'
 
 /** Request-header facts retained by the Trajectory target. */
@@ -25,4 +25,6 @@ export interface TrajectorySnapshot {
   readonly callSchemas: ReadonlyMap<string, ConversationPromptSnapshot['tools'][number]>
   readonly partial: PartialAssistant | null
   readonly runningCalls: readonly RunningToolCall[]
+  /** klaude: per-record ledger facts `layout.ts` cannot derive (src/adapter). */
+  readonly annotations?: TrajectoryAnnotations
 }

@@ -26,7 +26,8 @@ export const zh = {
   'kind.message': '消息',
   'kind.assistant': '助手',
   'kind.tool': '工具',
-  'kind.subtool': '子工具',
+  'kind.rewind': '回退', // klaude: UX spec D2 row kinds (nested-call kind dropped)
+  'kind.btw': '侧问',
   'kind.sub': '子项',
   'column.input': '输入',
   'column.output': '输出',
@@ -151,7 +152,7 @@ export const zh = {
   'details.provider': '提供方',
   'details.model': '模型',
   'details.toolCalls': '工具调用',
-  'details.subtoolCalls': '子工具调用',
+  'details.subAgentSession': '打开子会话轨迹', // klaude: UX spec D4 (nested-call count row dropped)
   'details.error': '错误',
   'details.failure.auth': 'API 密钥无效',
   'details.retry': '重试',
@@ -212,7 +213,8 @@ export const en: Record<TrajectoryKey, string> = {
   'kind.message': 'Message',
   'kind.assistant': 'ASSISTANT',
   'kind.tool': 'TOOL',
-  'kind.subtool': 'SUBTOOL',
+  'kind.rewind': 'REWIND', // klaude: UX spec D2 row kinds (nested-call kind dropped)
+  'kind.btw': 'BTW',
   'kind.sub': 'Sub',
   'column.input': 'Input',
   'column.output': 'Output',
@@ -337,7 +339,7 @@ export const en: Record<TrajectoryKey, string> = {
   'details.provider': 'Provider',
   'details.model': 'Model',
   'details.toolCalls': 'Tool calls',
-  'details.subtoolCalls': 'Subtool calls',
+  'details.subAgentSession': 'Open sub-agent session', // klaude: UX spec D4 (nested-call count row dropped)
   'details.error': 'Error',
   'details.failure.auth': 'API key is invalid',
   'details.retry': 'Retry',

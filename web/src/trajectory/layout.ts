@@ -720,7 +720,10 @@ function expandAssistant(
     .join('\n\n')
   const message: TrajectoryCellProps = {
     index: ++index,
-    recordId: `assistant\u0000${node.turn}\u0000${node.step}`,
+    // klaude: identity keyed on the durable events.jsonl line instead of
+    // turn/step — prepending an older page renumbers turns, and row keys must
+    // survive it (seq = line_index * 8 + 1, src/adapter/seq.ts)
+    recordId: `assistant\u0000${node.seq}`,
     kind: 'message',
     sourceSeq: node.seq,
     text: messageText !== '' || thinkingText !== ''
@@ -1009,7 +1012,9 @@ function expandSubCalls(
       callId: sub.callId,
       cell: {
         index: ++index,
-        kind: 'subtool',
+        // klaude: the upstream nested-call kind is dropped (UX spec D2); klaude has no
+        // run_code sub-dispatch, so a nested call renders as an ordinary tool
+        kind: 'tool',
         callId: sub.callId,
         ...(settled
           ? (sub.call !== null

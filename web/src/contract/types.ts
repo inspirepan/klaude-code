@@ -102,3 +102,49 @@ export interface MessageImagesOwnerProps {
 
 /** Renderer for one group of record images; renders nothing when unimplemented. */
 export type RenderMessageImages = (owner: MessageImagesOwnerProps) => ReactNode
+
+/**
+ * Ledger statuses that mean "the model stopped seeing this row". The row stays
+ * in place, greyed and struck through (UX spec D3); `events.jsonl` is
+ * append-only, so discarded content must remain visible.
+ */
+export type TrajectoryDiscardedStatus = 'retracted' | 'compacted' | 'rewound'
+
+/** Why one ledger row no longer reaches the model. */
+export interface TrajectoryDiscarded {
+  readonly status: TrajectoryDiscardedStatus
+  /** `events.jsonl` line of the marker that invalidated the row. */
+  readonly droppedBy: number | null
+}
+
+/** Sub-agent session started by one Agent tool call (UX spec D4). */
+export interface SubAgentLink {
+  readonly sessionId: string
+  readonly type: string
+  readonly desc: string
+}
+
+/**
+ * Row facts the klaude adapter knows but `layout.ts` cannot derive: ledger
+ * status, the originating raw line, the two klaude-only row kinds, the
+ * non-human user tag and the sub-agent session behind an Agent call.
+ */
+export interface TrajectoryRecordAnnotation {
+  /** Zero-based `events.jsonl` line the record came from. */
+  readonly lineIndex?: number
+  /** Overrides the kind `layout.ts` assigned (`rewind` / `btw`). */
+  readonly kind?: 'rewind' | 'btw'
+  readonly discarded?: TrajectoryDiscarded
+  /** A user row klaude synthesized rather than a human typing it. */
+  readonly auto?: true
+  readonly subAgent?: SubAgentLink
+}
+
+/**
+ * Annotations addressed by the identities a projected cell keeps: the source
+ * seq for message-backed rows, the call id for tool rows (which carry no seq).
+ */
+export interface TrajectoryAnnotations {
+  readonly bySeq: ReadonlyMap<number, TrajectoryRecordAnnotation>
+  readonly byCallId: ReadonlyMap<string, TrajectoryRecordAnnotation>
+}

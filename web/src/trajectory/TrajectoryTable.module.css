@@ -196,6 +196,35 @@
   opacity: 0.24;
 }
 
+/* klaude: UX spec D3 — retracted / compacted / rewound rows stay in place,
+   dimmed like a row outside the timeline focus and struck through. */
+.table tbody tr[data-discarded] {
+  opacity: 0.42;
+}
+
+.table tbody tr[data-discarded] .contentText,
+.table tbody tr[data-discarded] .resultPreview,
+.table tbody tr[data-discarded] .collapsedTurnContent {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+/* klaude: non-human user rows (bash mode, retry continuations, fork context)
+   carry a small `auto` chip in front of their preview. */
+.table tbody tr[data-auto] .contentText::before {
+  content: 'auto';
+  display: inline-block;
+  margin-right: 6px;
+  padding: 0 4px;
+  border-radius: 3px;
+  vertical-align: 1px;
+  color: var(--dsw-alias-label-caption);
+  background: var(--dsw-alias-bg-module-platform);
+  font: 400 9px/14px var(--ds-font-family-code);
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
 .table tbody tr:not([data-collapsed-summary]):not([data-virtual-spacer]):not([data-history-load]):not([data-selected='true']):hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
@@ -704,15 +733,22 @@
   background: var(--dsw-alias-state-warn-tertiary);
 }
 
-.subtoolAmber {
+/* klaude: UX spec D2 — the upstream nested-call badge is replaced by the two
+   klaude row kinds; both read as neutral side channels next to the model flow. */
+.rewind {
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.btw {
   color: color-mix(
     in srgb,
-    var(--dsw-alias-state-warn-label) 62%,
-    var(--dsw-alias-label-tertiary)
+    var(--dsw-alias-state-business-primary) 72%,
+    var(--dsw-alias-label-secondary)
   );
   background: color-mix(
     in srgb,
-    var(--dsw-alias-state-warn-tertiary) 58%,
+    var(--dsw-alias-state-business-tertiary) 62%,
     var(--dsw-alias-bg-layer-1)
   );
 }
@@ -806,16 +842,12 @@
   font: 400 12px/18px var(--ds-font-family-code);
 }
 
+/* klaude: the nested-call row selectors (code font + 26px indent) went with the
+   upstream nested-call kind (UX spec D2). */
 .table tbody tr[data-kind='tool'] .contentText,
-.table tbody tr[data-kind='subtool'] .contentText,
-.table tbody tr[data-kind='tool'] .resultPreview,
-.table tbody tr[data-kind='subtool'] .resultPreview {
+.table tbody tr[data-kind='tool'] .resultPreview {
   font-family: var(--ds-font-family-code);
   font-size: 12px;
-}
-
-.table tbody tr[data-kind='subtool'] .content {
-  padding-left: 26px;
 }
 
 .inlineResult {

@@ -3,7 +3,7 @@
  *
  * Upstream threads a namespace-bound `TranslateNS<'trajectory'>` supplied by
  * the locale plugin. This fork ships one language (the upstream `zh`
- * dictionary, 174 keys) plus the shared `common` keys the trajectory surface
+ * dictionary, 175 keys) plus the shared `common` keys the trajectory surface
  * reaches for, and formats `{name}` params the way upstream's translator does
  * (packages/client/locale/src/client/index.ts).
  */
@@ -44,7 +44,8 @@ const KIND_OVERRIDES: Readonly<Record<string, string>> = {
   'kind.compacted': 'COMPACTED',
   'kind.assistant': 'ASSISTANT',
   'kind.tool': 'TOOL',
-  'kind.subtool': 'SUBTOOL',
+  'kind.rewind': 'REWIND',
+  'kind.btw': 'BTW',
   'kind.message': 'Message',
   'kind.sub': 'Sub',
 }
