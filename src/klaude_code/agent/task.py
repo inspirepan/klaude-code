@@ -17,6 +17,7 @@ from klaude_code.agent.compaction import (
     run_compaction,
     should_compact_threshold,
 )
+from klaude_code.agent.connectivity import is_connectivity_error
 from klaude_code.agent.handoff import HandoffManager, run_handoff
 from klaude_code.agent.model_fallback import (
     build_fallback_model_config_warn,
@@ -30,6 +31,7 @@ from klaude_code.const import (
     MAX_EMPTY_RESPONSE_RETRIES,
     MAX_FAILED_STEP_RETRIES,
     MAX_RETRY_DELAY_S,
+    OFFLINE_RETRY_WINDOW_S,
 )
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
@@ -704,6 +706,8 @@ class TaskExecutor:
             step_succeeded = False
             last_error_message: str | None = None
             failed_attempts = 0
+            unreachable_since: float | None = None
+            unreachable_attempts = 0
 
             while failed_attempts <= MAX_FAILED_STEP_RETRIES:
                 step_context = StepExecutionContext(
@@ -780,6 +784,19 @@ class TaskExecutor:
                     break
                 except StepError as e:
                     last_error_message = str(e)
+                    # A step that streamed part of an answer before dropping
+                    # appended that partial text to history for continuation, so
+                    # retrying it again is not free: those attempts stay on the
+                    # bounded budget even when the drop looks like a transport
+                    # failure.
+                    endpoint_unreachable = (
+                        is_connectivity_error(last_error_message) and not step.preserved_partial_output
+                    )
+                    if not endpoint_unreachable:
+                        # Any answer from the endpoint, even an error one, ends
+                        # the unreachable stretch.
+                        unreachable_since = None
+                        unreachable_attempts = 0
                     if is_context_overflow(last_error_message):
                         yield events.CompactionStartEvent(
                             session_id=session_ctx.session_id,
@@ -821,14 +838,36 @@ class TaskExecutor:
                     if is_fallbackable_llm_error(last_error_message):
                         break
 
+                    if endpoint_unreachable:
+                        # The endpoint was never reached, so this failure says
+                        # nothing about the request. Spending the step budget on
+                        # it kills a task left running across an OS suspend long
+                        # before the user is back. The budget is monotonic time,
+                        # which does not advance while the machine is suspended,
+                        # so it measures awake time without a reachable endpoint.
+                        now = time.monotonic()
+                        if unreachable_since is None:
+                            unreachable_since = now
+                        unreachable_for = now - unreachable_since
+                        if unreachable_for >= OFFLINE_RETRY_WINDOW_S:
+                            break
+                        unreachable_attempts += 1
+                        delay = _retry_delay_seconds(unreachable_attempts)
+                        yield _retry_notice(
+                            f"Endpoint unreachable for {unreachable_for:.0f}s, retrying in {delay:.1f}s",
+                            last_error_message,
+                            session_ctx.session_id,
+                        )
+                        await asyncio.sleep(delay)
+                        continue
+
                     if failed_attempts < MAX_FAILED_STEP_RETRIES:
                         retry_number = failed_attempts + 1
                         delay = _retry_delay_seconds(retry_number)
-                        error_msg = f"Retrying {retry_number}/{MAX_FAILED_STEP_RETRIES} in {delay:.1f}s"
-                        if last_error_message:
-                            error_msg = f"{error_msg} - {last_error_message}"
-                        yield events.ErrorEvent(
-                            error_message=error_msg, can_retry=True, session_id=session_ctx.session_id
+                        yield _retry_notice(
+                            f"Retrying {retry_number}/{MAX_FAILED_STEP_RETRIES} in {delay:.1f}s",
+                            last_error_message,
+                            session_ctx.session_id,
                         )
                         failed_attempts += 1
                         await asyncio.sleep(delay)
@@ -838,15 +877,15 @@ class TaskExecutor:
                     self._current_step = None
 
             if not step_succeeded:
-                log_debug(
-                    "Maximum consecutive failed steps reached, aborting task",
-                    debug_type=DebugType.EXECUTION,
-                )
-                final_error = (
-                    "Step failed after model fallback candidates were exhausted."
-                    if last_error_message and is_fallbackable_llm_error(last_error_message)
-                    else f"Step failed after {MAX_FAILED_STEP_RETRIES} retries."
-                )
+                if last_error_message and is_fallbackable_llm_error(last_error_message):
+                    final_error = "Step failed after model fallback candidates were exhausted."
+                elif unreachable_since is not None:
+                    final_error = (
+                        f"Endpoint stayed unreachable for {OFFLINE_RETRY_WINDOW_S / 60:.0f} minutes of awake time."
+                    )
+                else:
+                    final_error = f"Step failed after {MAX_FAILED_STEP_RETRIES} retries."
+                log_debug(f"Aborting task: {final_error}", debug_type=DebugType.EXECUTION)
                 if last_error_message:
                     final_error = f"{last_error_message}\n{final_error}"
                 yield events.ErrorEvent(error_message=final_error, can_retry=False, session_id=session_ctx.session_id)
@@ -968,3 +1007,9 @@ def _retry_delay_seconds(attempt: int) -> float:
     capped_attempt = max(1, attempt)
     delay = INITIAL_RETRY_DELAY_S * (2 ** (capped_attempt - 1))
     return min(delay, MAX_RETRY_DELAY_S)
+
+
+def _retry_notice(headline: str, error_message: str | None, session_id: str) -> events.ErrorEvent:
+    """Build the retryable error event shown before waiting out a backoff."""
+    full_message = f"{headline} - {error_message}" if error_message else headline
+    return events.ErrorEvent(error_message=full_message, can_retry=True, session_id=session_id)

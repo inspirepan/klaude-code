@@ -990,9 +990,10 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
 
         collected = await harness.run_task("try again")
 
-        error_messages = [e.error_message for e in collected if isinstance(e, events.ErrorEvent)]
+        error_events = [e for e in collected if isinstance(e, events.ErrorEvent)]
+        error_messages = [e.error_message for e in error_events]
         # Retry happened.
-        assert any("Retrying" in msg for msg in error_messages)
+        assert any(e.can_retry for e in error_events)
         # But no false cache-break alert despite cached 52,000 -> 0 on the error step.
         assert not any("cache break" in msg.lower() for msg in error_messages)
 

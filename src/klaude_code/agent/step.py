@@ -152,10 +152,20 @@ class StepExecutor:
         self._llm_stream: LLMStreamABC | None = None
         self._accumulated_assistant_text: list[str] = []
         self._visible_output_started = False
+        self._preserved_partial_output = False
 
     @property
     def should_show_interrupt_notice(self) -> bool:
         return self._visible_output_started
+
+    @property
+    def preserved_partial_output(self) -> bool:
+        """True when the failed step appended its partial output to history.
+
+        Each such retry costs one more copy of the partial answer in the prompt,
+        so the retry policy keeps those attempts on the bounded budget.
+        """
+        return self._preserved_partial_output
 
     @property
     def task_finished(self) -> bool:
@@ -226,6 +236,7 @@ class StepExecutor:
                     session_ctx.append_history(
                         [message.UserMessage(parts=[message.TextPart(text=continuation_prompt)])]
                     )
+                    self._preserved_partial_output = True
             yield events.StepEndEvent(session_id=session_ctx.session_id)
             raise StepError(self._step_result.stream_error.error)
 
