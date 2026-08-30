@@ -276,7 +276,9 @@
 
 /* Right-aligned with a floor width, so the counts line up down the column. */
 .messages {
-  min-width: 42px;
+  /* Own column between model and time: fixed width so counts line up across rows. */
+  width: 64px;
+  margin-left: 10px;
   text-align: right;
 }
 

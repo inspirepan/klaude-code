@@ -96,12 +96,13 @@ function SessionRow({
           <span className={css.orphan}>child of {node.orphanParent.slice(0, 8)}</span>
         )}
         <span className={css.spacer} />
-        {messages !== null && (
-          <span className={css.messages} title={t('klaude.sessionList.messagesTitle', { count: messages })}>
-            {t('klaude.sessionList.messages', { count: messages })}
-          </span>
-        )}
         {row.model != null && row.model !== '' && <span className={css.model}>{row.model}</span>}
+        <span
+          className={css.messages}
+          title={messages !== null ? t('klaude.sessionList.messagesTitle', { count: messages }) : undefined}
+        >
+          {messages !== null ? t('klaude.sessionList.messages', { count: messages }) : ''}
+        </span>
         <span className={css.time}>{relativeUpdated(row.updated_at, now)}</span>
       </a>
       {node.orphanParent !== null && (
