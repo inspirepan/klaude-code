@@ -832,8 +832,7 @@
 
 .toolCallNameTypeface {
   color: var(--dsw-alias-label-primary);
-  font: 400 12px/18px Menlo, Consolas, 'Liberation Mono', 'PingFang SC',
-    'Microsoft YaHei';
+  font: 400 12px/18px var(--ds-font-family-code); /* klaude: was a hardcoded Menlo stack; follow the code-font token (Paper Mono) */
 }
 
 .toolCallPayload {

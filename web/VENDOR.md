@@ -446,3 +446,4 @@ The tsconfig keeps upstream's `allowImportingTsExtensions`,
 - 2026-08-30: copied `ui-theme/src/styles/gradient-shadow-text.css` (light block only) — it defines the `--dsw-font-*` composite font tokens the trajectory CSS consumes; without it every `font: var(--dsw-font-…)` declaration was dropped.
 
 - 2026-08-30: code font is Paper Mono (OFL) self-hosted from `src/theme/fonts/` via `theme/fonts.css`; `--ds-font-family-code` in `base.css` lists it first (klaude change, not upstream).
+- 2026-08-30: `TrajectoryTable.module.css` `.toolCallNameTypeface` now uses `var(--ds-font-family-code)` instead of upstream's hardcoded Menlo stack, so tool names render in Paper Mono like the payload.
