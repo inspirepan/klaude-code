@@ -1,0 +1,9 @@
+/* klaude: self-hosted code font. Paper Mono (OFL, see fonts/OFL-PaperMono.txt),
+   variable weight axis 100–800 so every weight the UI asks for comes from one file. */
+@font-face {
+  font-family: 'Paper Mono';
+  src: url('./fonts/PaperMono-Variable.woff2') format('woff2');
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}

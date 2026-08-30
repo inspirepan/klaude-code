@@ -3,6 +3,7 @@
 import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import '../theme/base.css'
+import '../theme/fonts.css' // klaude: Paper Mono @font-face
 import '../theme/design-platform.css'
 import '../theme/gradient-shadow-text.css' // klaude: defines the --dsw-font-* composites the trajectory CSS consumes
 import '../theme/scrollbar.css'
