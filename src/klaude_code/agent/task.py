@@ -24,7 +24,6 @@ from klaude_code.agent.model_fallback import (
     fallback_llm_client,
     is_fallbackable_llm_error,
 )
-from klaude_code.agent.rewind import RewindManager
 from klaude_code.agent.step import StepError, StepExecutionContext, StepExecutor
 from klaude_code.const import (
     INITIAL_RETRY_DELAY_S,
@@ -36,7 +35,7 @@ from klaude_code.const import (
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
-from klaude_code.protocol import events, llm_param, message, tools, user_interaction
+from klaude_code.protocol import events, llm_param, message, user_interaction
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
@@ -280,15 +279,11 @@ class TaskExecutor:
         self._current_step: StepExecutor | None = None
         self._started_at: float = 0.0
         self._metadata_accumulator: MetadataAccumulator | None = None
-        self._rewind_manager: RewindManager | None = None
         self._handoff_manager: HandoffManager | None = None
         self._current_user_input_text: str | None = None
         self._task_visible_output_started = False
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text: str | None = None
-
-    def _has_tool(self, tool_name: str) -> bool:
-        return any(tool.name == tool_name for tool in self._context.profile.tools)
 
     @staticmethod
     def _developer_message_key(item: message.DeveloperMessage) -> str:
@@ -465,7 +460,7 @@ class TaskExecutor:
         """Run a single threshold/overflow compaction with model-fallback retries.
 
         Shared loop for the THRESHOLD and OVERFLOW paths. On success applies the
-        compaction entry, syncs rewind checkpoints and yields ``CompactionEndEvent``.
+        compaction entry and yields ``CompactionEndEvent``.
         On a non-fallbackable failure it yields the aborted ``CompactionEndEvent``
         and records the error in ``result`` so the caller can emit the
         reason-specific ``ErrorEvent`` and choose its control flow. ``result`` also
@@ -489,9 +484,6 @@ class TaskExecutor:
                 log_debug(f"[Compact:{reason.value}] result", str(compaction.to_entry()), debug_type=DebugType.RESPONSE)
                 _reset_attachment_loaded_flags(ctx.session.file_tracker)
                 session_ctx.append_history([compaction.to_entry()])
-                if self._rewind_manager is not None:
-                    self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                    self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
                 metadata_accumulator.cache.notify_compaction()
                 yield events.CompactionEndEvent(
                     session_id=session_ctx.session_id,
@@ -570,9 +562,6 @@ class TaskExecutor:
             log_debug("[Handoff] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
             _reset_attachment_loaded_flags(ctx.session.file_tracker)
             session_ctx.append_history([result.to_entry()])
-            if self._rewind_manager is not None:
-                self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
             metadata_accumulator.cache.notify_compaction()
             yield events.CompactionEndEvent(
                 session_id=session_ctx.session_id,
@@ -625,13 +614,8 @@ class TaskExecutor:
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text = None
         file_change_baseline = session_ctx.file_change_summary.model_copy(deep=True)
-        has_user_input = bool(user_input.text.strip() or user_input.images)
 
         if ctx.sub_agent_state is None:
-            if self._has_tool(tools.REWIND):
-                self._rewind_manager = RewindManager()
-                self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
             self._handoff_manager = HandoffManager()
 
         llm_config = ctx.profile.llm_client.get_llm_config()
@@ -650,12 +634,6 @@ class TaskExecutor:
         self._metadata_accumulator = MetadataAccumulator(model_name=profile.llm_client.model_name)
         metadata_accumulator = self._metadata_accumulator
         metadata_accumulator.cache.restore_previous_usage(ctx.session.last_request_usage)
-
-        if self._rewind_manager is not None and has_user_input:
-            checkpoint_id = ctx.session.create_checkpoint()
-            self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-            user_msg = ctx.session.get_user_message_before_checkpoint(checkpoint_id) or ""
-            self._rewind_manager.register_checkpoint(checkpoint_id, user_msg)
 
         skip_threshold_compaction = False
         empty_response_retries = 0
@@ -717,7 +695,6 @@ class TaskExecutor:
                     tools=profile.tools,
                     tool_registry=ctx.tool_registry,
                     sub_agent_state=ctx.sub_agent_state,
-                    rewind_manager=self._rewind_manager,
                     handoff_manager=self._handoff_manager,
                     prev_step_input_tokens=metadata_accumulator.prev_step_input_tokens,
                 )
@@ -890,33 +867,6 @@ class TaskExecutor:
                     final_error = f"{last_error_message}\n{final_error}"
                 yield events.ErrorEvent(error_message=final_error, can_retry=False, session_id=session_ctx.session_id)
                 return
-
-            if self._rewind_manager is not None:
-                pending = self._rewind_manager.fetch_pending()
-                if pending is not None:
-                    try:
-                        entry = ctx.session.revert_to_checkpoint(pending.checkpoint_id, pending.note, pending.rationale)
-                    except ValueError as exc:
-                        yield events.ErrorEvent(
-                            error_message=str(exc),
-                            can_retry=False,
-                            session_id=session_ctx.session_id,
-                        )
-                    else:
-                        messages_discarded = entry.reverted_from_index - len(ctx.session.conversation_history)
-                        session_ctx.append_history([entry])
-                        self._rewind_manager.set_n_checkpoints(ctx.session.n_checkpoints)
-                        self._rewind_manager.sync_checkpoints(ctx.session.get_checkpoint_user_messages())
-                        metadata_accumulator.cache.notify_compaction()
-                        yield events.RewindEvent(
-                            session_id=session_ctx.session_id,
-                            checkpoint_id=pending.checkpoint_id,
-                            note=pending.note,
-                            rationale=pending.rationale,
-                            original_user_message=entry.original_user_message,
-                            messages_discarded=messages_discarded,
-                        )
-                        continue
 
             if self._handoff_manager is not None:
                 pending_handoff = self._handoff_manager.fetch_pending()

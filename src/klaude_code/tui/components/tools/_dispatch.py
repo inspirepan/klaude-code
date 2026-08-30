@@ -42,7 +42,6 @@ from klaude_code.tui.components.tools._question import (
     render_ask_user_question_tool_result,
 )
 from klaude_code.tui.components.tools._read import render_read_preview, render_read_tool_call
-from klaude_code.tui.components.tools._rewind import render_rewind_tool_call
 from klaude_code.tui.components.tools._todo import render_todo, render_todo_message
 from klaude_code.tui.components.tools._web import (
     extract_web_result_for_display,
@@ -84,8 +83,6 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_apply_patch_tool_call(e.arguments)
         case tools.TODO_WRITE:
             return None
-        case tools.REWIND:
-            return render_rewind_tool_call(e.arguments)
         case tools.WEB_FETCH:
             return render_web_fetch_tool_call(e.arguments)
         case tools.WEB_SEARCH:

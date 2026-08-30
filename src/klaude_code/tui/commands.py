@@ -294,6 +294,7 @@ class RenderHandoff(RenderCommand):
 
 @dataclass(frozen=True, slots=True)
 class RenderRewind(RenderCommand):
+    # Legacy: only emitted when replaying an old session's RewindEntry.
     checkpoint_id: int
     note: str
     rationale: str

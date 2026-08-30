@@ -11,12 +11,11 @@ import pytest
 import klaude_code.agent.task as task_module
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
-from klaude_code.protocol import events, message, tools
+from klaude_code.protocol import events, message
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
 from klaude_code.tool.core.context import build_todo_context
 from klaude_code.tool.core.registry import get_tool_schemas
-from klaude_code.tool.rewind_tool import RewindTool
 
 
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
@@ -88,14 +87,14 @@ def _build_executor(
             session=session,
             session_ctx=session_ctx,
             profile=_build_profile(tool_names=profile_tool_names),
-            tool_registry={tools.REWIND: RewindTool},
+            tool_registry={},
             sub_agent_state=None,
         )
     )
     return executor, StubStepExecutor
 
 
-def test_run_with_user_input_creates_single_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_multi_step_task_runs_every_step(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     project_dir = tmp_path / "test_project"
     project_dir.mkdir()
     monkeypatch.chdir(project_dir)
@@ -103,67 +102,11 @@ def test_run_with_user_input_creates_single_checkpoint(tmp_path: Path, monkeypat
     async def _test() -> None:
         session = Session.create(work_dir=project_dir)
         session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
-        executor, _ = _build_executor(session, monkeypatch, [True], profile_tool_names=[tools.REWIND])
-
-        _ = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
-
-        assert session.n_checkpoints == 1
-        await close_default_store()
-
-    arun(_test())
-
-
-def test_multi_step_task_still_creates_one_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    project_dir = tmp_path / "test_project"
-    project_dir.mkdir()
-    monkeypatch.chdir(project_dir)
-
-    async def _test() -> None:
-        session = Session.create(work_dir=project_dir)
-        session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
-        executor, stub_step = _build_executor(session, monkeypatch, [False, True], profile_tool_names=[tools.REWIND])
+        executor, stub_step = _build_executor(session, monkeypatch, [False, True])
 
         _ = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
 
         assert stub_step.created_count == 2
-        assert session.n_checkpoints == 1
-        await close_default_store()
-
-    arun(_test())
-
-
-def test_continue_with_empty_input_does_not_create_checkpoint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    project_dir = tmp_path / "test_project"
-    project_dir.mkdir()
-    monkeypatch.chdir(project_dir)
-
-    async def _test() -> None:
-        session = Session.create(work_dir=project_dir)
-        executor, _ = _build_executor(session, monkeypatch, [True])
-
-        _ = [event async for event in executor.run(message.UserInputPayload(text="   "))]
-
-        assert session.n_checkpoints == 0
-        await close_default_store()
-
-    arun(_test())
-
-
-def test_user_input_without_rewind_tool_does_not_create_checkpoint(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    project_dir = tmp_path / "test_project"
-    project_dir.mkdir()
-    monkeypatch.chdir(project_dir)
-
-    async def _test() -> None:
-        session = Session.create(work_dir=project_dir)
-        session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
-        executor, _ = _build_executor(session, monkeypatch, [True])
-
-        _ = [event async for event in executor.run(message.UserInputPayload(text="hello"))]
-
-        assert session.n_checkpoints == 0
         await close_default_store()
 
     arun(_test())

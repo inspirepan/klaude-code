@@ -72,7 +72,7 @@ Tools receive a `ToolContext` with:
 - `session_id` - Session that owns the tool call
 - `request_user_interaction` - Callback for asking the user questions
 - `run_subtask` - Callback for spawning sub-agent tasks
-- `handoff_manager` / `rewind_manager` - Session-control interfaces
+- `handoff_manager` - Session-control interface
 - `emit_tool_output_delta` - Optional callback for streaming tool output
 
 Tools should NOT import from `agent`, `app`, `tui`, or `web` layers (enforced by import-linter).

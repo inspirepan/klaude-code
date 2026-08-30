@@ -365,6 +365,7 @@ class CompactionEndEvent(Event):
 
 
 class RewindEvent(Event):
+    # Legacy: only replayed from old sessions that hold a RewindEntry.
     checkpoint_id: int
     note: str
     rationale: str

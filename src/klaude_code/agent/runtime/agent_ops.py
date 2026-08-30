@@ -1165,13 +1165,7 @@ class AgentOperationHandler:
 
     @staticmethod
     def _pivot_matches(pivot_item: message.HistoryEvent | None, operation: op.RewindWithSummaryOperation) -> bool:
-        """Anchor check: user-message pivots match by exact text; model-rewind
-        pivots (RewindEntry) match by checkpoint id."""
-        if operation.pivot_checkpoint_id is not None:
-            return (
-                isinstance(pivot_item, message.RewindEntry)
-                and pivot_item.checkpoint_id == operation.pivot_checkpoint_id
-            )
+        """Anchor check: pivots are UserMessages, matched by exact text."""
         return (
             isinstance(pivot_item, message.UserMessage)
             and operation.pivot_text is not None

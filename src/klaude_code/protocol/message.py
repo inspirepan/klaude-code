@@ -86,6 +86,7 @@ class CompactionEntry(BaseModel):
 
 
 class RewindEntry(BaseModel):
+    # Legacy: RewindEntry is no longer written; kept so old sessions load.
     checkpoint_id: int
     note: str
     rationale: str

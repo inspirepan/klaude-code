@@ -61,7 +61,6 @@ class TestSaveLoadRoundTrip:
                 model_thinking=llm_param.Thinking(reasoning_effort="medium"),
                 prompt_cache_key="shared-cache-lineage",
                 archived=False,
-                next_checkpoint_id=3,
             )
             session.todos = [
                 TodoItem(content="alpha", status="completed"),
@@ -104,7 +103,6 @@ class TestSaveLoadRoundTrip:
             assert loaded.model_thinking.reasoning_effort == "medium"
             assert loaded.model_effort is None
             assert loaded.prompt_cache_key == "shared-cache-lineage"
-            assert loaded.next_checkpoint_id == 3
             assert loaded.archived is False
             assert [t.content for t in loaded.todos] == ["alpha", "beta"]
             assert [t.status for t in loaded.todos] == ["completed", "pending"]

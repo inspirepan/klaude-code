@@ -19,7 +19,7 @@ FILE_UNCHANGED_STUB = (
 # Session interruption
 TOOL_INTERRUPTED_MESSAGE = "Tool call was interrupted before completing (session was interrupted or restarted)."
 
-# Checkpoint / rewind
+# Legacy: RewindEntry is no longer written; kept so old sessions load.
 CHECKPOINT_TEMPLATE = "<system-reminder>Checkpoint {checkpoint_id}</system-reminder>"
 
 REWIND_REMINDER_TEMPLATE = (

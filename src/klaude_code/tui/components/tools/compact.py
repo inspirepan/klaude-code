@@ -14,7 +14,6 @@ from klaude_code.tui.components.tools._common import (
     MARK_PLAN,
     MARK_QUESTION,
     MARK_READ,
-    MARK_REWIND,
     MARK_WEB_FETCH,
     MARK_WEB_SEARCH,
     MARK_WRITE,
@@ -45,7 +44,6 @@ _COMPACT_MARKS: dict[str, str] = {
     tools.TODO_WRITE: MARK_PLAN,
     tools.WEB_FETCH: MARK_WEB_FETCH,
     tools.WEB_SEARCH: MARK_WEB_SEARCH,
-    tools.REWIND: MARK_REWIND,
     tools.ASK_USER_QUESTION: MARK_QUESTION,
 }
 

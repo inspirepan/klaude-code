@@ -372,7 +372,6 @@ def build_meta_snapshot(
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
     prompt_cache_key: str | None = None,
-    next_checkpoint_id: int = 0,
     follow_up_queue: Sequence[message.QueuedUserInput] = (),
     headless_queued_turn: message.QueuedUserInput | None = None,
     headless_completed_turn_id: str | None = None,
@@ -411,7 +410,6 @@ def build_meta_snapshot(
         "model_effort": model_effort,
         "model_effort_recorded": True,
         "prompt_cache_key": prompt_cache_key,
-        "next_checkpoint_id": next_checkpoint_id,
         "follow_up_queue": follow_up_queue_payload or None,
         "headless_queued_turn": headless_queued_turn.model_dump(mode="json", exclude_none=True)
         if headless_queued_turn is not None

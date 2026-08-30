@@ -11,7 +11,7 @@ Writes the fork-summary request. Two paths:
 - Fallback: the tail ``[pivot..end]`` is serialized into a standalone request
   on the summarizer client. No cache reuse; summary format is preserved.
 
-See ``agent/rewind/AGENTS.md`` for the two-rewind vocabulary rules.
+See ``agent/rewind/AGENTS.md``.
 """
 
 import asyncio
@@ -24,7 +24,6 @@ from klaude_code.llm import LLMClientABC
 from klaude_code.prompts.compaction import (
     FORK_SUMMARY_USER_PREFIX,
     build_fork_summary_prompt,
-    build_rewind_boundary_quote,
     build_user_pivot_quote,
 )
 from klaude_code.protocol import llm_param, message
@@ -88,8 +87,6 @@ def _pivot_quote(history: list[message.HistoryEvent], pivot_index: int) -> str:
 
     if 0 <= pivot_index < len(history):
         item = history[pivot_index]
-        if isinstance(item, message.RewindEntry):
-            return build_rewind_boundary_quote(note=item.note, rationale=item.rationale)
         if isinstance(item, message.UserMessage):
             text = message.join_text_parts(item.parts).strip()
             if text:

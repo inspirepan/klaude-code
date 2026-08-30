@@ -47,7 +47,7 @@ klaude agents --prime    # paste into your agent's CLAUDE.md / AGENTS.md
 - **Output truncation**: Large outputs saved to file system with snapshot links
 - **Agent Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `//skill` or `/skill`)
 - **Prompt caching**: Append-only persisted history and stable request prefixes maximize cache hits
-- **Context management**: Auto-compaction, Rewind (rollback to checkpoint), Handoff (compress and continue in fresh context)
+- **Context management**: Auto-compaction, Handoff (compress and continue in fresh context), `/rewind` (fork back to an earlier point with the discarded tail summarized)
 - **Auto memory**: Persistent cross-session memory per project (`~/.klaude/projects/<project>/memory/`)
 - **Local server**: Managed with `klaude server` (status / stop / reload / logs / run)
 - **Sessions**: Resumable with `--continue`, forkable with `/fork-session`
@@ -397,7 +397,7 @@ klaude server logs      # tail server logs
 Klaude is designed to maximize prefix cache hit rates across LLM API calls. Cache pricing varies by
 provider and model, but cache hits generally reduce input cost and latency.
 
-**Append-only persisted history.** New messages, tool results, compaction entries, and rewind entries
+**Append-only persisted history.** New messages, tool results, and compaction entries
 are appended to `events.jsonl`. The active LLM-facing view may omit or summarize earlier events,
 but ordinary consecutive requests keep unchanged prefixes byte-identical whenever possible.
 
@@ -418,7 +418,7 @@ The agent automatically manages context window limits:
 - **Auto-compaction**: When the conversation approaches the model's context limit, the LLM-facing
   view replaces older messages with a compact summary while persisted events remain append-only.
   The agent also recovers from context overflow errors by compacting and retrying.
-- **Rewind**: The agent can roll back the conversation to a previous checkpoint (automatically inserted at key points). File system changes are preserved; only conversation history is rewound.
+- **`/rewind`**: The user can rewind to an earlier user message. The session forks and the discarded tail is carried over as a summary, so nothing is lost and the original session stays resumable.
 - **Handoff**: The agent can compress the current conversation into a summary and continue in a fresh context. Useful for very long sessions where context quality degrades.
 
 ### Auto Memory

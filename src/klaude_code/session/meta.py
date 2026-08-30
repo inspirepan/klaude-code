@@ -33,7 +33,6 @@ class LoadedSessionMeta:
     model_thinking: llm_param.Thinking | None
     model_effort: str | None
     prompt_cache_key: str | None
-    next_checkpoint_id: int
     follow_up_queue: list[message.QueuedUserInput]
     headless_queued_turn: message.QueuedUserInput | None
     headless_completed_turn_id: str | None
@@ -194,7 +193,6 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         model_thinking=model_thinking,
         model_effort=model_effort,
         prompt_cache_key=raw.get("prompt_cache_key") if isinstance(raw.get("prompt_cache_key"), str) else None,
-        next_checkpoint_id=int(raw.get("next_checkpoint_id", 0)),
         follow_up_queue=_parse_follow_up_queue(raw.get("follow_up_queue"), fallback_enqueued_at=updated_at),
         headless_queued_turn=_parse_headless_queued_turn(raw, fallback_enqueued_at=updated_at),
         headless_completed_turn_id=_parse_optional_str(raw.get("headless_completed_turn_id")),

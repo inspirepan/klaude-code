@@ -9,7 +9,6 @@ TODO_WRITE = "TodoWrite"
 WEB_FETCH = "WebFetch"
 WEB_SEARCH = "WebSearch"
 AGENT = "Agent"
-REWIND = "Rewind"
 HANDOFF = "Handoff"
 ASK_USER_QUESTION = "AskUserQuestion"
 

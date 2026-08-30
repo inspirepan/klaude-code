@@ -11,7 +11,6 @@ from klaude_code.tui.components.tools._common import (
     MARK_PLAN,
     MARK_QUESTION,
     MARK_READ,
-    MARK_REWIND,
     MARK_WEB_FETCH,
     MARK_WEB_SEARCH,
     MARK_WRITE,
@@ -47,7 +46,6 @@ from klaude_code.tui.components.tools._question import (
     render_ask_user_question_tool_result,
 )
 from klaude_code.tui.components.tools._read import render_read_preview, render_read_tool_call
-from klaude_code.tui.components.tools._rewind import render_rewind_tool_call
 from klaude_code.tui.components.tools._todo import (
     MARK_TODO_COMPLETED,
     MARK_TODO_IN_PROGRESS,
@@ -77,7 +75,6 @@ __all__ = [
     "MARK_PLAN",
     "MARK_QUESTION",
     "MARK_READ",
-    "MARK_REWIND",
     "MARK_TODO_COMPLETED",
     "MARK_TODO_IN_PROGRESS",
     "MARK_TODO_PENDING",
@@ -113,7 +110,6 @@ __all__ = [
     "render_path",
     "render_read_preview",
     "render_read_tool_call",
-    "render_rewind_tool_call",
     "render_todo",
     "render_todo_message",
     "render_todo_write_tool_call",

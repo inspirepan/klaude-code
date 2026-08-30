@@ -1614,6 +1614,7 @@ class TUICommandRenderer:
 
     def display_rewind(
         self,
+        # Legacy: RewindEntry is no longer written; kept so old sessions replay.
         checkpoint_id: int,
         note: str,
         rationale: str,

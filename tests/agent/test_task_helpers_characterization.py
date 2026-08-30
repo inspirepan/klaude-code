@@ -113,35 +113,6 @@ def _fallback_client() -> FallbackLLMClient:
 
 
 # ---------------------------------------------------------------------------
-# _has_tool
-# ---------------------------------------------------------------------------
-
-
-def test_has_tool_matches_by_schema_name(isolated_home: Path, tmp_path: Path) -> None:
-    del isolated_home
-    executor, _ctx, _session = _build_executor(
-        tmp_path=tmp_path,
-        llm_client=_StubClient(_config("openai", "m")),
-        tools=[_tool_schema("Bash"), _tool_schema("Read")],
-    )
-    assert executor._has_tool("Bash") is True  # pyright: ignore[reportPrivateUsage]
-    assert executor._has_tool("Read") is True  # pyright: ignore[reportPrivateUsage]
-    assert executor._has_tool("Write") is False  # pyright: ignore[reportPrivateUsage]
-    # Case-sensitive membership.
-    assert executor._has_tool("bash") is False  # pyright: ignore[reportPrivateUsage]
-
-
-def test_has_tool_false_when_no_tools(isolated_home: Path, tmp_path: Path) -> None:
-    del isolated_home
-    executor, _ctx, _session = _build_executor(
-        tmp_path=tmp_path,
-        llm_client=_StubClient(_config("openai", "m")),
-        tools=[],
-    )
-    assert executor._has_tool("Bash") is False  # pyright: ignore[reportPrivateUsage]
-
-
-# ---------------------------------------------------------------------------
 # _developer_message_key (attachment dedup key)
 # ---------------------------------------------------------------------------
 

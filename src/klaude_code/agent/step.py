@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 
 from klaude_code.agent.connectivity import is_connectivity_error
 from klaude_code.agent.handoff import HandoffManager
-from klaude_code.agent.rewind import RewindManager
 from klaude_code.agent.suspend import SuspendDetector, suspend_notice
 from klaude_code.const import (
     RETRY_PRESERVE_PARTIAL_MESSAGE,
@@ -51,7 +50,6 @@ class StepExecutionContext:
     tools: list[llm_param.ToolSchema]
     tool_registry: dict[str, type[ToolABC]]
     sub_agent_state: SubAgentState | None = None
-    rewind_manager: RewindManager | None = None
     handoff_manager: HandoffManager | None = None
     prev_step_input_tokens: int = 0
 
@@ -471,7 +469,6 @@ class StepExecutor:
             work_dir=session_ctx.work_dir,
             file_change_summary=session_ctx.file_change_summary,
             run_subtask=session_ctx.run_subtask,
-            rewind_manager=ctx.rewind_manager,
             handoff_manager=ctx.handoff_manager,
             request_user_interaction=session_ctx.request_user_interaction,
         )

@@ -252,8 +252,7 @@ class RewindWithSummaryOperation(Operation):
 
     ``pivot_index`` indexes the pivot UserMessage in the session's
     conversation_history (validated server-side); -1 rewinds the entire
-    conversation. See ``agent/rewind/AGENTS.md`` — this is the user rewind
-    (fork + summary), not the model's in-place `Rewind` tool.
+    conversation. See ``agent/rewind/AGENTS.md``.
     """
 
     type: OperationType = OperationType.REWIND_WITH_SUMMARY
@@ -264,9 +263,6 @@ class RewindWithSummaryOperation(Operation):
     # server's live list for compacted sessions — the server resolves the
     # pivot in the equivalent rebuilt space and rejects on text mismatch.
     pivot_text: str | None = None
-    # Set instead of pivot_text when the pivot is a model-Rewind boundary
-    # (RewindEntry); the server validates it against the entry at pivot_index.
-    pivot_checkpoint_id: int | None = None
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_rewind_with_summary(self)

@@ -1,33 +1,12 @@
-# Rewind: Two Distinct Concepts
+# Rewind: `/rewind` (fork + summary)
 
-The word "rewind" names two unrelated-by-mechanism features. Do not merge
-them, do not share flow control between them, and keep their vocabulary
-separate.
+"Rewind" now names exactly one feature: the user rewinds the conversation to
+an earlier point and the discarded tail is summarized instead of lost.
 
-## 1. Agent rewind (this package)
+The model-invoked `Rewind` tool and its checkpoint markers were removed. Only
+the read path survives, so old session files still load — see "Legacy" below.
 
-The model rolls back its own context mid-task.
-
-- Model-invoked `Rewind` tool (`protocol/tools.py` `REWIND`, implemented in
-  `tool/rewind_tool.py`). The model passes a `checkpoint_id` it saw in an
-  auto-injected `<system-reminder>Checkpoint N</system-reminder>` marker.
-- Semantics: **in-place truncation** of active history back to the checkpoint.
-  The discarded tail is **lost** (no summary, no recovery). The session id and
-  the session file do not change.
-- `manager.py` (this package) holds per-task-run state only: checkpoint
-  registration (`agent/task.py` registers one checkpoint per user message),
-  validation, and a single-slot pending request (`send_rewind` raises if one
-  is already pending). `agent/task.py` fetches the pending request between
-  steps and applies it.
-- Persisted as `RewindEntry` (`protocol/message.py`). At load time
-  `_apply_rewind_entry_to_history` (`session/history.py`) truncates again;
-  the entry **stays in active history** so recorded indices (e.g.
-  `CompactionEntry.first_kept_index`) still line up after a reload.
-
-## 2. User rewind (`/rewind` TUI command)
-
-The user rewinds the conversation to an earlier point; the discarded tail is
-summarized instead of lost.
+## User rewind (`/rewind` TUI command)
 
 - Semantics: **fork to a new session**. The server-side
   `RewindWithSummaryOperation` summarizes messages `[pivot..end]` via the
@@ -39,11 +18,8 @@ summarized instead of lost.
   summary-as-UserMessage]`.
 - Lossless: the original session is untouched (append-only) and remains
   switchable (`klaude -r <short-id>`).
-- Pivot anchors: user messages (exact-text match) AND model-Rewind
-  boundaries (RewindEntry, matched by checkpoint id) — anchoring on the
-  boundary keeps the pre-rewind history verbatim and summarizes only the
-  post-rewind redo work. The summary request quotes whichever boundary
-  block applies (`build_user_pivot_quote` / `build_rewind_boundary_quote`).
+- Pivot anchors: user messages, matched by exact text. The summary request
+  quotes the pivot block (`build_user_pivot_quote`).
 - The summary prompt is `FORK_SUMMARY_PROMPT` in `prompts/compaction.py`
   (9-section detailed style, with the pivot message quoted explicitly so the
   model cannot guess the boundary). This is NOT the compact `## Goal`
@@ -55,20 +31,33 @@ summarized instead of lost.
 
 ## Naming rules
 
-- The model tool owns the plain word "rewind" for in-place truncation.
-  `/rewind` command copy must state that the discarded tail is summarized
-  into a new session.
 - Fork artifact names stay fork-based even though the UI says rewind:
   `ForkSummaryEntry`, `ForkSummaryReadyEvent`, `FORK_SUMMARY_PROMPT`.
 - The user-command operation is `RewindWithSummaryOperation` — never a bare
-  `RewindOperation` (that would read as the model-tool flow).
+  `RewindOperation`.
+
+## Legacy: the removed model `Rewind` tool
+
+Sessions written before the removal may contain `RewindEntry` and `Rewind`
+tool calls. Nothing writes them any more; the read path is kept so those files
+still load and replay:
+
+- `protocol/message.py` — `RewindEntry` model (decode only)
+- `session/history.py` — `find_checkpoint_index_in_history` and
+  `_apply_rewind_entry_to_history`, applied by `rebuild_loaded_history`
+- `session/session.py` — `get_llm_history` materializes `RewindEntry` as a
+  `DeveloperMessage(REWIND_REMINDER_TEMPLATE)`; `get_history_item` replays it
+  as `RewindEvent`
+- `prompts/messages.py` — `CHECKPOINT_TEMPLATE`, `REWIND_REMINDER_TEMPLATE`
+- `tui/machine.py` + `tui/renderer.py` — `RewindEvent` → `RenderRewind` notice
+
+Historical `Rewind` tool calls have no dedicated renderer any more; they fall
+through to the generic tool renderer.
 
 ## File map
 
-- `agent/rewind/manager.py` (this package) — agent-rewind pending state only
-- `tool/rewind_tool.py` — model `Rewind` tool entry point
-- `protocol/message.py` — `RewindEntry`, `ForkSummaryEntry`
-- `session/history.py` — load-time application of `RewindEntry`
+- `agent/rewind/summary.py` — suffix summary generation
+- `protocol/message.py` — `ForkSummaryEntry`
 - `tui/command/rewind_cmd.py` — `/rewind` command (fork-point picker)
 - `agent/runtime/agent_ops.py` — `RewindWithSummaryOperation` handler
   (summary generation, fork, entry append, switch event)

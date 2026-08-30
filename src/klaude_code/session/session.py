@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 
 from klaude_code.const import ProjectPaths
 from klaude_code.prompts.compaction import FORK_SUMMARY_USER_PREFIX
-from klaude_code.prompts.messages import CHECKPOINT_TEMPLATE, REWIND_REMINDER_TEMPLATE, TOOL_INTERRUPTED_MESSAGE
+from klaude_code.prompts.messages import REWIND_REMINDER_TEMPLATE, TOOL_INTERRUPTED_MESSAGE
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
@@ -23,9 +23,7 @@ from klaude_code.protocol.models import (
     Usage,
 )
 from klaude_code.session.history import (
-    extract_checkpoint_id,
     extract_xml_tag,
-    find_checkpoint_index_in_history,
     last_request_usage,
     rebuild_loaded_history,
     update_last_request_usage,
@@ -78,8 +76,6 @@ class Session(BaseModel):
     parent_session_id: str | None = None
     # Vanilla mode (basic tools, no system prompts) is a per-session flag.
     vanilla: bool = False
-
-    next_checkpoint_id: int = 0
 
     model_config_name: str | None = None
     model_thinking: llm_param.Thinking | None = None
@@ -190,7 +186,6 @@ class Session(BaseModel):
             model_thinking=meta.model_thinking,
             model_effort=meta.model_effort,
             prompt_cache_key=meta.prompt_cache_key,
-            next_checkpoint_id=meta.next_checkpoint_id,
             follow_up_queue=meta.follow_up_queue,
             headless_queued_turn=meta.headless_queued_turn,
             headless_completed_turn_id=meta.headless_completed_turn_id,
@@ -294,7 +289,6 @@ class Session(BaseModel):
             model_thinking=self.model_thinking,
             model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
-            next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
             headless_queued_turn=self.headless_queued_turn,
             headless_completed_turn_id=self.headless_completed_turn_id,
@@ -343,7 +337,6 @@ class Session(BaseModel):
             model_thinking=self.model_thinking,
             model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
-            next_checkpoint_id=self.next_checkpoint_id,
             follow_up_queue=self.follow_up_queue,
             headless_queued_turn=self.headless_queued_turn,
             headless_completed_turn_id=self.headless_completed_turn_id,
@@ -357,70 +350,6 @@ class Session(BaseModel):
             vanilla=self.vanilla,
         )
         self._store.create_meta_if_missing(self.id, meta)
-
-    @property
-    def n_checkpoints(self) -> int:
-        return self.next_checkpoint_id
-
-    def create_checkpoint(self) -> int:
-        checkpoint_id = self.next_checkpoint_id
-        self.next_checkpoint_id += 1
-        checkpoint_msg = message.DeveloperMessage(
-            parts=[message.TextPart(text=CHECKPOINT_TEMPLATE.format(checkpoint_id=checkpoint_id))]
-        )
-        self.append_history([checkpoint_msg])
-        return checkpoint_id
-
-    def find_checkpoint_index(self, checkpoint_id: int) -> int | None:
-        return find_checkpoint_index_in_history(self.conversation_history, checkpoint_id)
-
-    def get_user_message_before_checkpoint(self, checkpoint_id: int) -> str | None:
-        checkpoint_idx = self.find_checkpoint_index(checkpoint_id)
-        if checkpoint_idx is None:
-            return None
-
-        for i in range(checkpoint_idx - 1, -1, -1):
-            item = self.conversation_history[i]
-            if isinstance(item, message.UserMessage):
-                return message.join_text_parts(item.parts)
-        return None
-
-    def get_checkpoint_user_messages(self) -> dict[int, str]:
-        checkpoints: dict[int, str] = {}
-        last_user_message = ""
-        for item in self.conversation_history:
-            if isinstance(item, message.UserMessage):
-                last_user_message = message.join_text_parts(item.parts)
-                continue
-            if not isinstance(item, message.DeveloperMessage):
-                continue
-            text = message.join_text_parts(item.parts)
-            checkpoint_id = extract_checkpoint_id(text)
-            if checkpoint_id is None:
-                continue
-            checkpoints[checkpoint_id] = last_user_message
-        return checkpoints
-
-    def revert_to_checkpoint(self, checkpoint_id: int, note: str, rationale: str) -> message.RewindEntry:
-        target_idx = self.find_checkpoint_index(checkpoint_id)
-        if target_idx is None:
-            raise ValueError(f"Checkpoint {checkpoint_id} not found")
-
-        user_message = self.get_user_message_before_checkpoint(checkpoint_id) or ""
-        reverted_from = len(self.conversation_history)
-        entry = message.RewindEntry(
-            checkpoint_id=checkpoint_id,
-            note=note,
-            rationale=rationale,
-            reverted_from_index=reverted_from,
-            original_user_message=user_message,
-        )
-
-        self.conversation_history = self.conversation_history[: target_idx + 1]
-        self.next_checkpoint_id = checkpoint_id + 1
-        self._invalidate_messages_count_cache()
-        self._user_messages_cache = None
-        return entry
 
     def retract_last_user_message(self, text: str) -> bool:
         """Withdraw the most recent user message from active history.
@@ -491,6 +420,7 @@ class Session(BaseModel):
         history = self.conversation_history if until_index is None else self.conversation_history[:until_index]
 
         def _convert(item: message.HistoryEvent) -> message.HistoryEvent:
+            # Legacy: RewindEntry is no longer written; kept so old sessions load.
             if isinstance(item, message.RewindEntry):
                 return message.DeveloperMessage(
                     parts=[
@@ -561,7 +491,6 @@ class Session(BaseModel):
         forked.model_thinking = self.model_thinking.model_copy(deep=True) if self.model_thinking is not None else None
         forked.model_effort = self.model_effort
         forked.prompt_cache_key = self.prompt_cache_key
-        forked.next_checkpoint_id = self.next_checkpoint_id
         forked.file_tracker = {k: v.model_copy(deep=True) for k, v in self.file_tracker.items()}
         forked.file_change_summary = self.file_change_summary.model_copy(deep=True)
         forked.todos = [todo.model_copy(deep=True) for todo in self.todos]
@@ -888,6 +817,7 @@ class Session(BaseModel):
                     # retraction); the withdrawn turn renders as if never sent.
                     pass
                 case message.RewindEntry() as be:
+                    # Legacy: RewindEntry is no longer written; kept so old sessions load.
                     yield events.RewindEvent(
                         session_id=self.id,
                         checkpoint_id=be.checkpoint_id,

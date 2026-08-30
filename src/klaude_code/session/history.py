@@ -7,7 +7,6 @@ from klaude_code.prompts.messages import CHECKPOINT_TEMPLATE
 from klaude_code.protocol import message
 from klaude_code.protocol.models import Usage
 
-_CHECKPOINT_RE = re.compile(r"<system-reminder>Checkpoint (\d+)</system-reminder>")
 _XML_TAG_RE_CACHE: dict[str, re.Pattern[str]] = {}
 
 
@@ -21,17 +20,11 @@ def extract_xml_tag(text: str, tag: str) -> str:
     return match.group(1) if match else ""
 
 
-def extract_checkpoint_id(text: str) -> int | None:
-    match = _CHECKPOINT_RE.search(text)
-    if match is None:
-        return None
-    return int(match.group(1))
-
-
 def find_checkpoint_index_in_history(
     history: Sequence[message.HistoryEvent],
     checkpoint_id: int,
 ) -> int | None:
+    # Legacy: RewindEntry is no longer written; kept so old sessions load.
     target_text = CHECKPOINT_TEMPLATE.format(checkpoint_id=checkpoint_id)
     for idx, item in enumerate(history):
         if not isinstance(item, message.DeveloperMessage):
@@ -46,6 +39,7 @@ def _apply_rewind_entry_to_history(
     history: list[message.HistoryEvent],
     entry: message.RewindEntry,
 ) -> list[message.HistoryEvent]:
+    # Legacy: RewindEntry is no longer written; kept so old sessions load.
     target_idx = find_checkpoint_index_in_history(history, entry.checkpoint_id)
     if target_idx is None:
         return [*history, entry]
@@ -80,6 +74,7 @@ def rebuild_loaded_history(raw_history: Iterable[message.HistoryEvent]) -> list[
     active_history: list[message.HistoryEvent] = []
     for item in raw_history:
         if isinstance(item, message.RewindEntry):
+            # Legacy: RewindEntry is no longer written; kept so old sessions load.
             active_history = _apply_rewind_entry_to_history(active_history, item)
             continue
         if isinstance(item, message.RetractEntry):
@@ -130,7 +125,6 @@ def last_request_usage(history: Iterable[message.HistoryEvent]) -> Usage | None:
 
 
 __all__ = [
-    "extract_checkpoint_id",
     "extract_xml_tag",
     "find_checkpoint_index_in_history",
     "last_request_usage",

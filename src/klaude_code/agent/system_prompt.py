@@ -79,8 +79,6 @@ AGENT_REVIEW_INST = (
     "fixes themselves added substantial new logic rather than line-level corrections, and there is never a third."
 )
 
-REWIND_CHECKPOINT_INST = """- After each new user message, the system automatically injects a `<system-reminder>Checkpoint N</system-reminder>` marker into the conversation. These markers are rewind targets -- use the `Rewind` tool with a checkpoint ID to roll back conversation history to that point."""
-
 EXTERNAL_REFS_INST = """- Pull in external references when uncertainty or risk is meaningful: unclear APIs/behavior, security-sensitive flows, migrations, performance-critical paths, or best-in-class patterns proven in open source or other language ecosystems. Prefer official docs first, then source."""
 
 
@@ -130,9 +128,6 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
     # review to the parent.
     if tools.AGENT in tool_name_set and has_edit_tool:
         strategy_lines.append(AGENT_REVIEW_INST)
-
-    if tools.REWIND in tool_name_set:
-        strategy_lines.append(REWIND_CHECKPOINT_INST)
 
     lines = ["", "", "# Using your tools"]
     lines.extend(strategy_lines)

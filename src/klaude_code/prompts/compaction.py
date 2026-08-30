@@ -229,20 +229,6 @@ def build_user_pivot_quote(text: str) -> str:
     return f"<pivot-user-message>\n{text}\n</pivot-user-message>"
 
 
-def build_rewind_boundary_quote(*, note: str, rationale: str) -> str:
-    """Boundary quote block for a model-Rewind pivot.
-
-    The entry itself is a marker, not a message; quoting its note/rationale
-    gives the summarizer the same deterministic boundary anchor a user message
-    would.
-    """
-    lines = ["<pivot-rewind-boundary>", f"Rewind note: {note}"]
-    if rationale:
-        lines.append(f"Rationale: {rationale}")
-    lines.append("The conversation resumes immediately after this rewind boundary.")
-    lines.append("</pivot-rewind-boundary>")
-    return "\n".join(lines)
-
 
 def build_fork_summary_prompt(*, pivot_quote: str, inline_conversation: bool = False) -> str:
     """Build the /rewind summary instruction.

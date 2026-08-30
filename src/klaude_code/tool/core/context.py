@@ -75,10 +75,6 @@ class HandoffManagerABC(Protocol):
     def send_handoff(self, goal: str) -> str: ...
 
 
-class RewindManagerABC(Protocol):
-    def send_rewind(self, checkpoint_id: int, note: str, rationale: str) -> str: ...
-
-
 @dataclass(frozen=True)
 class ToolContext:
     """Tool execution context.
@@ -97,7 +93,6 @@ class ToolContext:
     register_sub_agent_metadata_getter: Callable[[GetMetadataFn], None] | None = None
     register_sub_agent_progress_getter: Callable[[GetProgressFn], None] | None = None
     register_tool_interrupt_result_getter: Callable[[GetInterruptResultFn], None] | None = None
-    rewind_manager: RewindManagerABC | None = None
     handoff_manager: HandoffManagerABC | None = None
     request_user_interaction: RequestUserInteraction | None = None
     emit_tool_output_delta: EmitToolOutputDelta | None = None
@@ -118,9 +113,6 @@ class ToolContext:
         self, callback: Callable[[GetInterruptResultFn], None] | None
     ) -> ToolContext:
         return replace(self, register_tool_interrupt_result_getter=callback)
-
-    def with_rewind_manager(self, manager: RewindManagerABC | None) -> ToolContext:
-        return replace(self, rewind_manager=manager)
 
     def with_handoff_manager(self, manager: HandoffManagerABC | None) -> ToolContext:
         return replace(self, handoff_manager=manager)

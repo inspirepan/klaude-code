@@ -1,3 +1,4 @@
-from klaude_code.agent.rewind.manager import RewindManager, RewindRequest
+"""User rewind (`/rewind`): fork the session and summarize the discarded tail.
 
-__all__ = ["RewindManager", "RewindRequest"]
+See ``AGENTS.md`` in this package.
+"""

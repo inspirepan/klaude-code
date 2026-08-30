@@ -108,7 +108,6 @@ FAST_TOOLS: frozenset[str] = frozenset(
         tools.BASH,
         tools.TODO_WRITE,
         tools.APPLY_PATCH,
-        tools.REWIND,
     }
 )
 
@@ -1623,6 +1622,7 @@ class DisplayStateMachine:
         return cmds
 
     def _handle_RewindEvent(self, e: events.RewindEvent, *, s: _SessionState) -> list[RenderCommand]:
+        # Legacy: RewindEntry is no longer written; kept so old sessions replay.
         cmds: list[RenderCommand] = []
         cmds.append(
             RenderRewind(

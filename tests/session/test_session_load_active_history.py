@@ -20,24 +20,37 @@ def _text(item: message.HistoryEvent) -> str | None:
     return None
 
 
-def test_load_applies_rewind_semantics(isolated_home: Path, tmp_path: Path) -> None:
+def _checkpoint_marker(checkpoint_id: int) -> message.DeveloperMessage:
+    """A checkpoint marker exactly as pre-removal sessions wrote it."""
+    return message.DeveloperMessage(
+        parts=message.text_parts_from_str(f"<system-reminder>Checkpoint {checkpoint_id}</system-reminder>")
+    )
+
+
+def test_load_applies_legacy_rewind_semantics(isolated_home: Path, tmp_path: Path) -> None:
+    """Legacy on-disk shape: nothing writes RewindEntry any more, but old files must load."""
     del isolated_home
     project_dir = tmp_path / "project"
     project_dir.mkdir()
 
     async def _test() -> None:
         session = Session.create(work_dir=project_dir)
-        session.append_history([message.UserMessage(parts=message.text_parts_from_str("hello"))])
-        checkpoint_id = session.create_checkpoint()
+        checkpoint_id = 0
         session.append_history(
             [
+                message.UserMessage(parts=message.text_parts_from_str("hello")),
+                _checkpoint_marker(checkpoint_id),
                 message.AssistantMessage(parts=message.text_parts_from_str("discarded assistant")),
                 message.UserMessage(parts=message.text_parts_from_str("discarded user")),
+                message.RewindEntry(
+                    checkpoint_id=checkpoint_id,
+                    note="keep only hello",
+                    rationale="test rewind",
+                    reverted_from_index=4,
+                    original_user_message="hello",
+                ),
             ]
         )
-
-        rewind_entry = session.revert_to_checkpoint(checkpoint_id, "keep only hello", "test rewind")
-        session.append_history([rewind_entry])
         await session.wait_for_flush()
 
         loaded = Session.load(session.id, work_dir=project_dir)
@@ -266,26 +279,37 @@ def test_load_ignores_a_retract_entry_whose_anchor_drifted(isolated_home: Path, 
     arun(_test())
 
 
-def test_load_replays_rewind_before_dropping_compacted_prefix(isolated_home: Path, tmp_path: Path) -> None:
+def test_load_replays_legacy_rewind_before_dropping_compacted_prefix(
+    isolated_home: Path, tmp_path: Path
+) -> None:
     del isolated_home
     project_dir = tmp_path / "project"
     project_dir.mkdir()
 
     async def _test() -> None:
         session = Session.create(work_dir=project_dir)
-        session.append_history([message.UserMessage(parts=message.text_parts_from_str("before checkpoint"))])
-        checkpoint_id = session.create_checkpoint()
+        checkpoint_id = 0
         session.append_history(
             [
+                message.UserMessage(parts=message.text_parts_from_str("before checkpoint")),
+                _checkpoint_marker(checkpoint_id),
                 message.AssistantMessage(parts=message.text_parts_from_str("before compaction")),
                 message.UserMessage(parts=message.text_parts_from_str("also discarded")),
             ]
         )
         session.append_history([message.CompactionEntry(summary="summary", first_kept_index=2)])
         session.append_history([message.UserMessage(parts=message.text_parts_from_str("after compaction"))])
-
-        rewind_entry = session.revert_to_checkpoint(checkpoint_id, "rewind to checkpoint", "test rewind")
-        session.append_history([rewind_entry])
+        session.append_history(
+            [
+                message.RewindEntry(
+                    checkpoint_id=checkpoint_id,
+                    note="rewind to checkpoint",
+                    rationale="test rewind",
+                    reverted_from_index=6,
+                    original_user_message="before checkpoint",
+                )
+            ]
+        )
         await session.wait_for_flush()
 
         loaded = Session.load(session.id, work_dir=project_dir)

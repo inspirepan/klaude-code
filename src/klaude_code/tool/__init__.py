@@ -18,7 +18,6 @@ from .file.look_at_tool import LookAtTool
 from .file.read_tool import ReadTool
 from .file.write_tool import WriteTool
 from .handoff_tool import HandoffTool
-from .rewind_tool import RewindTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
 from .todo.todo_write_tool import TodoWriteTool
@@ -37,7 +36,6 @@ __all__ = [
     "LookAtTool",
     "ReadTool",
     "RequestUserInteraction",
-    "RewindTool",
     "RunSubtask",
     "SafetyCheckResult",
     "TodoContext",

@@ -54,8 +54,7 @@ FORK_CONTEXT_WITH_ROLE_PROMPT = (
     "You are now acting as a specialized sub-agent. "
     "The conversation history above was forked from the parent session "
     "-- use it as background context only. "
-    "Do NOT use the Agent tool to spawn sub-agents; search directly. "
-    "Do NOT use the Rewind tool.\n\n"
+    "Do NOT use the Agent tool to spawn sub-agents; search directly.\n\n"
 )
 
 FORK_CONTEXT_GENERAL_PROMPT = (
@@ -63,6 +62,5 @@ FORK_CONTEXT_GENERAL_PROMPT = (
     "from the parent session. Treat the next user message as your new task, "
     "and use the conversation history as background context. "
     "Do NOT use the Agent tool to spawn sub-agents: search directly, and leave reviewing your diff "
-    "to the parent agent. "
-    "Do NOT use the Rewind tool."
+    "to the parent agent."
 )

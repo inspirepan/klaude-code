@@ -36,7 +36,6 @@ _TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     tools.WEB_FETCH: ToolDefinition("Fetch Web", "Fetching Web"),
     tools.WEB_SEARCH: ToolDefinition("Search Web", "Searching Web"),
     tools.AGENT: ToolDefinition("Agent", "Running Task"),
-    tools.REWIND: ToolDefinition("Rewind", "Rewinding"),
     tools.ASK_USER_QUESTION: ToolDefinition("Agent has a question for you", "Questioning"),
     tools.HANDOFF: ToolDefinition("Handoff", "Packing Context"),
 }
@@ -140,12 +139,6 @@ def get_tool_call_presentation(tool_name: str, arguments: str) -> ToolCallPresen
 
     if tool_name == tools.WEB_FETCH:
         return ToolCallPresentation(name, one_line(args.get("url", "")), "path")
-
-    if tool_name == tools.REWIND:
-        checkpoint_id = args.get("checkpoint_id")
-        rationale = one_line(args.get("rationale", ""))
-        checkpoint = f"Checkpoint {checkpoint_id}" if isinstance(checkpoint_id, int) else ""
-        return ToolCallPresentation(name, " - ".join(part for part in (checkpoint, rationale) if part))
 
     if tool_name == tools.ASK_USER_QUESTION:
         questions = args.get("questions")
