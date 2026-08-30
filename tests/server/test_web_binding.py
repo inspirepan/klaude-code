@@ -180,10 +180,15 @@ def test_web_api_routes_are_reachable_over_tcp(live_server: LiveServer) -> None:
     assert live_server.tcp_get("/api/web/sessions/nosuch/meta").status_code == 404
     assert live_server.tcp_get("/api/web/sessions/nosuch/history").status_code == 404
     assert live_server.tcp_get("/api/web/sessions/nosuch/system-context").status_code == 404
+    assert live_server.tcp_get("/api/web/sessions/nosuch/search?q=x").status_code == 404
 
 
 def test_web_api_routes_honour_the_host_guard(live_server: LiveServer) -> None:
-    for path in ("/api/web/sessions/nosuch/meta", "/api/web/sessions/nosuch/system-context"):
+    for path in (
+        "/api/web/sessions/nosuch/meta",
+        "/api/web/sessions/nosuch/system-context",
+        "/api/web/sessions/nosuch/search?q=x",
+    ):
         assert live_server.tcp_get(path, host="evil.com").status_code == 421
 
 

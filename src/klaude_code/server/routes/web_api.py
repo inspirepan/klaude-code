@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 
 from klaude_code.const import get_system_temp
@@ -25,6 +25,7 @@ from klaude_code.server import system_context
 from klaude_code.server.routes.headless import session_state_for
 from klaude_code.server.session_index import resolve_session_work_dir_fast
 from klaude_code.server.state import ServerAppState, get_server_state
+from klaude_code.session import search
 from klaude_code.session.store import JsonlSessionStore
 from klaude_code.session.store_registry import get_store_for_path
 from klaude_code.workspace import resolve_workspace_path
@@ -34,6 +35,12 @@ _STATE_DEP: Final = Depends(get_server_state)
 
 DEFAULT_HISTORY_LIMIT: Final = 500
 MAX_HISTORY_LIMIT: Final = 2000
+DEFAULT_SEARCH_LIMIT: Final = 200
+MAX_SEARCH_LIMIT: Final = 2000
+
+# Required, non-empty and bounded: a query is scanned against every line, so an
+# unbounded one would be a cheap way to make the server chew through the file.
+_QUERY_PARAM: Final = Query(min_length=1, max_length=search.MAX_QUERY_CHARS)
 
 # Raster images only. SVG is scriptable and would run in the viewer's origin,
 # so it is refused rather than served with a defused content type.
@@ -176,6 +183,62 @@ def _read_history_page(
         "rows": rows,
         "has_more": has_more,
         "next_before_line": next_before_line,
+    }
+
+
+@router.get("/sessions/{session_id}/search")
+async def search_session_history(
+    session_id: str,
+    q: str = _QUERY_PARAM,
+    limit: int = DEFAULT_SEARCH_LIMIT,
+    state: ServerAppState = _STATE_DEP,
+) -> dict[str, Any]:
+    """Term search over the whole ledger, including the lines nobody loaded.
+
+    The client live-filters the rows it already holds (plan decision #22); this
+    answers for the rest and returns ``line_index`` so it can jump there. The
+    text semantics match the client's index — lowercase, whitespace-split, AND
+    over substrings — so a hit here still matches once that page is on screen.
+    """
+    ref = _resolve_session(state, session_id)
+    terms = search.split_terms(q)
+    if not terms:
+        raise HTTPException(status_code=422, detail="q must contain at least one search term")
+    clamped = max(1, min(limit, MAX_SEARCH_LIMIT))
+    return await asyncio.to_thread(_search_history, ref.store, session_id, q, terms, clamped)
+
+
+def _search_history(
+    store: JsonlSessionStore,
+    session_id: str,
+    query: str,
+    terms: list[str],
+    limit: int,
+) -> dict[str, Any]:
+    scan = store.search_history(session_id, terms, limit)
+    # Same whole-file scans the paging endpoint slices: a jump target needs the
+    # status (greyed out or not) and the turn it belongs to.
+    statuses = store.scan_history_lines(session_id).statuses
+    ordinals = store.scan_turn_ordinals(session_id)
+    matches: list[dict[str, Any]] = []
+    for hit in scan.hits:
+        status = statuses[hit.line_index] if 0 <= hit.line_index < len(statuses) else None
+        matches.append(
+            {
+                "line_index": hit.line_index,
+                "turn_index": ordinals.for_line(hit.line_index).turn_index,
+                "kind": hit.kind,
+                "status": status.status if status is not None else "unknown",
+                "snippet": search.snippet_for(hit.text, terms),
+            }
+        )
+    return {
+        "session_id": session_id,
+        "query": query,
+        "terms": terms,
+        "matches": matches,
+        "total": scan.total,
+        "truncated": scan.total > limit,
     }
 
 

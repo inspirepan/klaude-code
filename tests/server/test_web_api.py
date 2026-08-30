@@ -533,6 +533,242 @@ def test_history_serves_the_llm_request_entry_as_a_sidecar_row(app_env: AppEnv) 
     assert (rows[1]["turn_index"], rows[1]["step_index"], rows[1]["auto"]) == (1, None, None)
 
 
+# -- search --
+
+
+def _search(app_env: AppEnv, session_id: str, q: str, **params: int) -> dict[str, Any]:
+    response = app_env.client.get(f"/api/web/sessions/{session_id}/search", params={"q": q, **params})
+    assert response.status_code == 200, response.text
+    return dict(response.json())
+
+
+def test_search_returns_every_matching_line_with_its_ledger_coordinates(app_env: AppEnv) -> None:
+    session_id = "find0001"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [_user("where is the widget"), _assistant("no widget here"), _user("unrelated")],
+    )
+
+    payload = _search(app_env, session_id, "widget")
+
+    assert payload == {
+        "session_id": session_id,
+        "query": "widget",
+        "terms": ["widget"],
+        "matches": [
+            {
+                "line_index": 0,
+                "turn_index": 1,
+                "kind": "UserMessage",
+                "status": "active",
+                "snippet": "UserMessage where is the widget",
+            },
+            {
+                "line_index": 1,
+                "turn_index": 1,
+                "kind": "AssistantMessage",
+                "status": "active",
+                "snippet": "AssistantMessage no widget here",
+            },
+        ],
+        "total": 2,
+        "truncated": False,
+    }
+
+
+def test_search_requires_every_term_and_ignores_case(app_env: AppEnv) -> None:
+    session_id = "find0002"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [_user("Alpha and Beta"), _user("alpha only"), _user("beta only")],
+    )
+
+    both = _search(app_env, session_id, "ALPHA   beta")
+
+    assert both["terms"] == ["alpha", "beta"]
+    assert [match["line_index"] for match in both["matches"]] == [0]
+    # Each term on its own still matches the lines that carry it.
+    assert [match["line_index"] for match in _search(app_env, session_id, "alpha")["matches"]] == [0, 1]
+    assert [match["line_index"] for match in _search(app_env, session_id, "Beta")["matches"]] == [0, 2]
+
+
+def test_search_reaches_every_text_bearing_entry_type(app_env: AppEnv) -> None:
+    session_id = "find0003"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [
+            _user("tokenuser"),
+            message.AssistantMessage(parts=[message.ThinkingTextPart(text="tokenthinking")]),
+            message.AssistantMessage(
+                parts=[
+                    message.ToolCallPart(
+                        call_id="call-77",
+                        tool_name="Grep",
+                        arguments_json='{"pattern": "tokenargument"}',
+                    )
+                ]
+            ),
+            message.ToolResultMessage(
+                call_id="call-77",
+                tool_name="Grep",
+                status="success",
+                output_text="tokenresult",
+            ),
+            message.DeveloperMessage(parts=[message.TextPart(text="tokendeveloper")]),
+            message.SideQuestionEntry(question="tokenquestion", answer="tokenanswer"),
+            message.ForkSummaryEntry(
+                summary="tokenfork", source_session_id="src", source_pivot_index=-1, source_message_count=0
+            ),
+            message.RewindEntry(
+                checkpoint_id=1,
+                note="tokennote",
+                rationale="tokenrationale",
+                reverted_from_index=0,
+                original_user_message="x",
+            ),
+            message.CompactionEntry(summary="tokencompaction", first_kept_index=0, first_kept_line=9),
+            _user("tail"),
+        ],
+    )
+
+    expected = {
+        "tokenuser": (0, "UserMessage"),
+        "tokenthinking": (1, "AssistantMessage"),
+        "tokenargument": (2, "AssistantMessage"),
+        "call-77": (2, "AssistantMessage"),  # the tool call id, on both sides of the call
+        "tokenresult": (3, "ToolResultMessage"),
+        "tokendeveloper": (4, "DeveloperMessage"),
+        "tokenquestion": (5, "SideQuestionEntry"),
+        "tokenanswer": (5, "SideQuestionEntry"),
+        "tokenfork": (6, "ForkSummaryEntry"),
+        "tokennote": (7, "RewindEntry"),
+        "tokenrationale": (7, "RewindEntry"),
+        "tokencompaction": (8, "CompactionEntry"),
+    }
+    for token, (line_index, kind) in expected.items():
+        matches = _search(app_env, session_id, token)["matches"]
+        found = [(match["line_index"], match["kind"]) for match in matches]
+        assert (line_index, kind) in found, f"{token!r} did not match line {line_index}"
+
+    # The call id is searchable from the result side too, and the tool name
+    # reaches both lines.
+    assert [match["line_index"] for match in _search(app_env, session_id, "call-77")["matches"]] == [2, 3]
+    assert [match["line_index"] for match in _search(app_env, session_id, "grep")["matches"]] == [2, 3]
+
+
+def test_search_ignores_image_parts_but_keeps_the_text_beside_them(app_env: AppEnv) -> None:
+    session_id = "find0004"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [
+            message.UserMessage(
+                parts=[
+                    message.TextPart(text="look at this"),
+                    message.ImageURLPart(url="data:image/png;base64,tokenbinary"),
+                ]
+            )
+        ],
+    )
+
+    assert _search(app_env, session_id, "look")["total"] == 1
+    assert _search(app_env, session_id, "tokenbinary")["total"] == 0
+
+
+def test_search_still_finds_discarded_rows_and_reports_their_status(app_env: AppEnv) -> None:
+    session_id = "find0005"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [
+            _user("needle in the compacted prefix"),
+            _user("needle that was retracted"),
+            message.RetractEntry(retracted_text="needle that was retracted", retracted_line=1),
+            message.CompactionEntry(summary="recap", first_kept_index=1, first_kept_line=4),
+            _user("needle after the cut"),
+        ],
+    )
+
+    matches = _search(app_env, session_id, "needle")["matches"]
+
+    assert [(match["line_index"], match["status"]) for match in matches] == [
+        (0, "compacted"),
+        (1, "retracted"),
+        # The retract entry quotes the withdrawn text, so it matches too.
+        (2, "compacted"),
+        (4, "active"),
+    ]
+
+
+def test_search_skips_lines_it_cannot_decode(app_env: AppEnv) -> None:
+    session_id = "find0006"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [
+            _user("needle one"),
+            '{"type": "NoSuchEntry", "data": {"text": "needle two"}}\n',
+            "{not json at all needle three\n",
+            _user("needle four"),
+        ],
+    )
+
+    payload = _search(app_env, session_id, "needle")
+
+    assert [match["line_index"] for match in payload["matches"]] == [0, 3]
+    assert payload["total"] == 2
+    assert "unknown" not in {match["status"] for match in payload["matches"]}
+
+
+def test_search_limits_the_matches_but_counts_them_all(app_env: AppEnv) -> None:
+    session_id = "find0007"
+    _write_session(app_env.work_dir, session_id, [_user(f"needle {i}") for i in range(10)])
+
+    payload = _search(app_env, session_id, "needle", limit=4)
+
+    assert [match["line_index"] for match in payload["matches"]] == [0, 1, 2, 3]
+    assert (payload["total"], payload["truncated"]) == (10, True)
+    # The limit is clamped, never rejected, exactly like the history page.
+    assert len(_search(app_env, session_id, "needle", limit=0)["matches"]) == 1
+    everything = _search(app_env, session_id, "needle", limit=9999)
+    assert len(everything["matches"]) == 10
+    assert everything["truncated"] is False
+
+
+def test_search_snippet_windows_around_the_first_hit(app_env: AppEnv) -> None:
+    session_id = "find0008"
+    filler = "x" * 400
+    _write_session(app_env.work_dir, session_id, [_user(f"{filler} needle {filler}")])
+
+    snippet = _search(app_env, session_id, "needle")["matches"][0]["snippet"]
+
+    assert "needle" in snippet
+    assert snippet.startswith("…") and snippet.endswith("…")
+    assert len(snippet) <= 160
+    # A short line needs no window at all.
+    _write_session(app_env.work_dir, "find0009", [_user("just a needle")])
+    assert _search(app_env, "find0009", "needle")["matches"][0]["snippet"] == "UserMessage just a needle"
+
+
+def test_search_rejects_a_query_without_terms(app_env: AppEnv) -> None:
+    session_id = "find0010"
+    _write_session(app_env.work_dir, session_id, [_user("hi")])
+    url = f"/api/web/sessions/{session_id}/search"
+
+    assert app_env.client.get(url).status_code == 422
+    assert app_env.client.get(url, params={"q": ""}).status_code == 422
+    assert app_env.client.get(url, params={"q": "   "}).status_code == 422
+    assert app_env.client.get(url, params={"q": "x" * 501}).status_code == 422
+    assert app_env.client.get(url, params={"q": "x" * 500}).status_code == 200
+
+
+def test_search_of_an_unknown_session_is_404(app_env: AppEnv) -> None:
+    assert app_env.client.get("/api/web/sessions/nope/search", params={"q": "x"}).status_code == 404
+
+
 # -- system context --
 
 

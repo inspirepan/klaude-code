@@ -21,6 +21,7 @@ from klaude_code.protocol.models import (
 from klaude_code.session.codec import decode_jsonl_line, encode_conversation_item, encode_jsonl_line
 from klaude_code.session.history import ScanResult, scan_history
 from klaude_code.session.ledger import TurnOrdinals, scan_turn_ordinals
+from klaude_code.session.search import SearchScan, scan_search
 
 # Meta keys owned by direct update_meta writes: a queued history batch carries
 # an older snapshot, so the on-disk value wins when the batch lands.
@@ -423,6 +424,16 @@ class JsonlSessionStore:
         with self._history_cache_lock:
             self._ordinals_cache[session_id] = (key, result)
         return result
+
+    def search_history(self, session_id: str, terms: Sequence[str], limit: int) -> SearchScan:
+        """Lines whose searchable text contains every term, ascending by line.
+
+        Reads the decode cache directly, so a warm session costs one pass over
+        its text (~30 ms for a 20 MB / 6k-line session) and no separate index
+        is kept. Undecodable lines are skipped; discarded ones are not (see
+        ``session/search.py``).
+        """
+        return scan_search(self._cached_rows(session_id), terms, limit)
 
     def _events_stat_key(self, session_id: str) -> tuple[int, int] | None:
         try:
