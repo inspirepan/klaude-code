@@ -11,7 +11,7 @@ export default defineConfig({
     target: 'es2022',
     outDir: '../src/klaude_code/server/web',
     emptyOutDir: true,
-    sourcemap: true,
+    sourcemap: false, // klaude: keep the shipped bundle small (maps added ~6.6 MB to the wheel)
   },
   resolve: {
     dedupe: ['react', 'react-dom'],
