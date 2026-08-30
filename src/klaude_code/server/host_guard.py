@@ -26,7 +26,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 ALLOWED_HOSTNAMES = frozenset({"localhost", "127.0.0.1"})
 
 _REJECT_STATUS = 421  # Misdirected Request
-_REJECT_BODY = b"klaude web viewer only accepts Host: localhost or 127.0.0.1\n"
+_REJECT_BODY = b"klaude trace viewer only accepts Host: localhost or 127.0.0.1\n"
 
 
 def hostname_from_host_header(raw: str) -> str:

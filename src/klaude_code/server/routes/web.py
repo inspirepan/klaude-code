@@ -38,7 +38,7 @@ def is_web_bundle_available() -> bool:
 def missing_bundle_html() -> str:
     return f"""<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>klaude web viewer is not built</title></head>
+<head><meta charset="utf-8"><title>klaude trace viewer is not built</title></head>
 <body style="font-family: system-ui, sans-serif; margin: 3rem auto; max-width: 40rem; line-height: 1.6">
 <h1>Web bundle not built</h1>
 <p>The klaude server is running, but the viewer's static files are missing from

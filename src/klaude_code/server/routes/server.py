@@ -60,7 +60,7 @@ async def server_status(state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, 
         "protocol_version": PROTOCOL_VERSION,
         "code_fingerprint": state.code_fingerprint,
         "socket_path": str(lifecycle.socket_path),
-        # None when no loopback port could be bound; `klaude web` reports that.
+        # None when no loopback port could be bound; `klaude trace` reports that.
         "web_port": state.web_port,
         "web_url": web_url(state.web_port) if state.web_port is not None else None,
         "uptime_seconds": lifecycle.uptime_seconds,

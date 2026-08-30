@@ -184,9 +184,9 @@ async def start_server(*, debug: bool = False) -> bool:
             listen_logger = logging.getLogger("uvicorn.error")
             listen_logger.info("klaude server listening on unix socket %s", socket_path)
             if web_port is not None:
-                listen_logger.info("klaude web viewer on %s", web_url(web_port))
+                listen_logger.info("klaude trace viewer on %s", web_url(web_port))
             else:
-                # Not fatal: the CLI/TUI only need the Unix socket. `klaude web`
+                # Not fatal: the CLI/TUI only need the Unix socket. `klaude trace`
                 # reports the missing port instead.
                 listen_logger.warning("no free loopback port for the web viewer; running without it")
 

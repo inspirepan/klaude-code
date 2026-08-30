@@ -15,7 +15,7 @@ from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.headless_cmd import register_headless_commands
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
 from klaude_code.cli.server_cmd import register_server_commands
-from klaude_code.cli.web_cmd import register_web_command
+from klaude_code.cli.trace_cmd import register_trace_command
 
 # Product spec: docs/agent-multiplexer.md §2. Plain text on purpose — help is
 # read by agents as often as by humans, so no rich panels or box drawing.
@@ -52,7 +52,7 @@ Background agents:
 
 Attach:
   attach     Open the TUI on a session: replay, then follow live
-  web        Open the read-only browser viewer for all sessions
+  trace      Open the read-only browser trajectory viewer for all sessions
 
 Discovery:
   agents     Show agent types and models; --json for machines,
@@ -208,7 +208,7 @@ register_self_upgrade_commands(app)
 register_server_commands(app)
 register_headless_commands(app)
 register_attach_command(app)
-register_web_command(app)
+register_trace_command(app)
 register_agents_command(app)
 
 

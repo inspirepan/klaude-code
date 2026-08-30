@@ -1,7 +1,7 @@
 # klaude Web 会话查看器方案
 
 > 状态：实施中。已落地：M0-1 删 checkpoint（`7c3723f6`）、M0-2 坐标统一 + 行号 + `scan_history`
-> （`e2350d67`）、M1 双 socket / Host guard / 静态伺服 / `klaude web` / 删 log viewer（`f2950f92`）、
+> （`e2350d67`）、M1 双 socket / Host guard / 静态伺服 / `klaude trace` / 删 log viewer（`f2950f92`）、
 > M2-B 磁盘历史分页 API + `HistoryAppendedEvent`（`7e93dc34`）、M2-F1 适配器 + 轨迹页（`17bbc715`）、
 > M2-B2 行上 turn/step/auto（`d57073b4`）、M2-F2 列表页 + WS 在线状态（`e9b89759`）、
 > M3 泳道 D1（`e0714f61`）、M4-B `LLMRequestEntry`/`stop_reason`/system-context（`c4d670b7`）、
@@ -93,7 +93,7 @@ list**（SYSTEM/CONTEXT/USER/ASSISTANT/TOOL 行），左槽圆点是每次 LLM �
 | 15 | 账本语义 | 单视图：append-only 全量显示，被 retract/compaction（及旧会话 rewind）丢弃的行置灰+划线留在原位；状态由 server 一遍扫描给出（见"账本状态计算"） |
 | 16 | 请求圆点 | 覆盖全部 LLM 调用。主会话 step 直接用持久化的 `AssistantMessage.usage`；compaction / `/btw` / fork 新增 `LLMRequestEntry` 持久化；旧记录尽力重建 |
 | 17 | 时间轴 | **修订（刻意偏离）**：固定每条最小宽度 + 原生横向滚动，尾部跟随；保留 deepseek 全部手势（滚轮缩放改 px/记录、右键拖动、左键框选、hover tooltip、双击/Esc 清除）。上游是"全域塞进容器 + 缩放/平移窗口"，记录越多每条越窄 |
-| 18 | TCP 端口 | server 启动即绑 `127.0.0.1:8765`（占用顺延），`klaude web` 仅打开浏览器；**先删 log viewer 再占端口** |
+| 18 | TCP 端口 | server 启动即绑 `127.0.0.1:8765`（占用顺延），`klaude trace` 仅打开浏览器；**先删 log viewer 再占端口** |
 | 19 | 鉴权 | 不做。只绑 `127.0.0.1`，保留 Host 头校验防 DNS rebinding |
 | 20 | debug 日志 | 常驻 DEBUG 全量；payload 图片占位；轮转 50MB×10 + 目录总量 500MB（均已落地） |
 | 21 | export | 已删除，不做导出按钮 |

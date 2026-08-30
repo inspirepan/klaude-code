@@ -1,4 +1,4 @@
-"""`klaude web` — open the browser session viewer hosted by the local server."""
+"""`klaude trace` — open the browser trajectory viewer hosted by the local server."""
 
 from __future__ import annotations
 
@@ -31,13 +31,13 @@ def _resolve_web_url() -> str:
     return str(url) if url else f"http://127.0.0.1:{port}"
 
 
-def register_web_command(app: typer.Typer) -> None:
-    @app.command("web")
-    def web_command(  # pyright: ignore[reportUnusedFunction]
+def register_trace_command(app: typer.Typer) -> None:
+    @app.command("trace")
+    def trace_command(  # pyright: ignore[reportUnusedFunction]
         no_open: bool = typer.Option(False, "--no-open", help="Print the URL without opening a browser"),
         print_url: bool = typer.Option(False, "--print-url", help="Print the URL only, for scripts"),
     ) -> None:
-        """Open the web session viewer in a browser.
+        """Open the trajectory viewer in a browser.
 
         The viewer is served by the local server on loopback and is read-only:
         it shows every session's trajectory live, but never sends input.
@@ -51,7 +51,7 @@ def register_web_command(app: typer.Typer) -> None:
         if print_url:
             print(url)
             return
-        log(f"klaude web viewer: {url}")
+        log(f"klaude trace viewer: {url}")
         if no_open:
             return
         if not webbrowser.open(url):
