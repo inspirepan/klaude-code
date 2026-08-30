@@ -395,7 +395,7 @@ ui-trajectory 的四个 CSS 文件共消费 40 个 theme/`--dsh` token，全部�
 
 | # | 偏离 | 上游 | klaude | 原因 |
 |---|---|---|---|---|
-| D1 | 泳道尺度模型 | 全域塞进容器；缩放/平移改域窗口；未缩放时记录越多每条越窄 | `trackWidth = max(容器, N × pxPerRecord)`，`overflow-x: auto`，位于尾部时自动跟随新记录；滚轮缩放改 `pxPerRecord`（以光标为锚换算 `scrollLeft`）；右键拖动改 `scrollLeft`；框选/hover/双击/Esc/更早历史按钮不变；`sequence`/`duration` 两种域模式与空闲压缩保留 | 作者要求记录多时不压窄、可直接横滚 |
+| D1 | 泳道尺度模型 | 全域塞进容器；缩放/平移改域窗口；未缩放时记录越多每条越窄 | **已实现（M3）**：`contentWidth = max(W, fullDuration × p)`，`p` 默认 `6 px/记录`（sequence）或 `0.004 px/ms`（duration，240px/分钟），夹在 `[W/fullDuration, W/min(4 记录 \| 20ms, fullDuration)]`；track `overflow-x: auto`；滚轮 `p' = p × exp(−deltaY × 0.0015)` 并按光标锚点换算 `scrollLeft`（横向 deltaX 直接滚动）；右键拖动与原生滚动条改 `scrollLeft`；距右缘 ≤2px 时跟随新记录；选中项变更时最小距离滚动露出（180ms ease-out）；加载更早历史按新增宽度补 `scrollLeft`；`…` 按钮仅在 `scrollLeft === 0` 显示，且首次挂载钉在尾部；框选/hover/tooltip/双击/Esc/空闲压缩不变；缩放按模式各自记忆。数学在 `timeline.ts` 纯函数，常量见 `web/src/trajectory/README-timeline.md` | 作者要求记录多时不压窄、可直接横滚 |
 | D2 | 行类型 | 7 种：system/user/context/compacted/message/tool/subtool | 删 `subtool`；新增 `rewind`（仅旧会话）与 `btw` | klaude 无 run_code 子派发；有 `/btw` 侧问与历史 `RewindEntry` |
 | D3 | 丢弃行 | 无概念 | 行级 `data-discarded`：置灰 + 划线，留在原位；状态由 server 一遍扫描下发（retracted/compacted/rewound） | append-only 账本必须可视被丢弃内容 |
 | D4 | sub-agent | 无 | 不嵌套。子会话是列表页独立行（parent badge，可按父折叠）；父轨迹 Agent 工具 TOOL 行的检查器有"打开子会话"链接 | 简化；子会话本身就有完整 `events.jsonl` |
