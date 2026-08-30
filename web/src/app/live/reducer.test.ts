@@ -283,3 +283,56 @@ describe('landed rows retire the live projection', () => {
     expect(applyLandedRows(streaming, [])).toBe(streaming)
   })
 })
+
+describe('stop reason', () => {
+  it('records the reason the final text block reported', () => {
+    const state = feed(
+      OPEN,
+      envelope('assistant.text.start', { response_id: 'r1' }),
+      envelope('assistant.text.delta', { response_id: 'r1', content: 'done' }),
+      envelope('assistant.text.end', { response_id: 'r1', stop_reason: 'end_turn' }),
+    )
+    expect(state.partial?.stopReason).toBe('end_turn')
+    expect(state.partial?.stopReasonAt).toBe(1_800_000_000_000)
+    expect(state.partial?.openBlock).toBeNull()
+  })
+
+  it('records an error the same way a landed row does', () => {
+    const state = feed(
+      OPEN,
+      envelope('assistant.text.delta', { response_id: 'r1', content: 'half' }),
+      envelope('assistant.text.end', { response_id: 'r1', stop_reason: 'error' }),
+    )
+    expect(state.partial?.stopReason).toBe('error')
+  })
+
+  it('ignores a block a tool call cut short, which carries no key at all', () => {
+    const state = feed(
+      OPEN,
+      envelope('assistant.text.delta', { response_id: 'r1', content: 'calling' }),
+      envelope('assistant.text.end', { response_id: 'r1' }),
+    )
+    expect(state.partial?.stopReason).toBeNull()
+    expect(state.partial?.openBlock).toBeNull()
+  })
+
+  it('clears it when the next response opens', () => {
+    const state = feed(
+      OPEN,
+      envelope('assistant.text.delta', { response_id: 'r1', content: 'first' }),
+      envelope('assistant.text.end', { response_id: 'r1', stop_reason: 'end_turn' }),
+      envelope('assistant.text.delta', { response_id: 'r2', content: 'second' }),
+    )
+    expect(state.partial?.responseId).toBe('r2')
+    expect(state.partial?.stopReason).toBeNull()
+  })
+
+  it('stamps the start of the response it belongs to', () => {
+    const state = feed(
+      OPEN,
+      envelope('assistant.text.start', { response_id: 'r1' }, { timestamp: 1_800_000_001 }),
+      envelope('assistant.text.delta', { response_id: 'r1', content: 'x' }, { timestamp: 1_800_000_002 }),
+    )
+    expect(state.partial?.startedAt).toBe(1_800_000_001_000)
+  })
+})

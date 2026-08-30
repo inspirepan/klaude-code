@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 // ui-slots inject/locale/render-slot faces and the client-store snapshot handle
 // are replaced by the explicit TrajectoryViewProps below.
 import type {
-  AssistantBlock, AssistantMessageNode, RenderMessageImages,
+  AssistantBlock, AssistantMessageNode, RenderMessageImages, RequestView,
 } from '../contract/index.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import {
@@ -25,6 +25,7 @@ import {
   type TrajectoryTimeRange,
 } from './timeline.ts'
 import { trajectoryRecordId } from './trajectory-record.ts'
+import type { AssistantMetricDetail } from './trajectory-record.ts' // klaude: request-owned timing
 // klaude: the REST adapter's per-record ledger facts are applied to the folded
 // layout here, once, so table / timeline / search all see the same cells
 import { applyTrajectoryAnnotations } from '../adapter/annotate.ts'
@@ -130,6 +131,29 @@ function requestUsage(value: unknown): TrajectoryUsage | undefined {
   }
 }
 
+/**
+ * klaude: recorded boundaries of an LLM call made outside a step.
+ *
+ * An ordinary step reads TTFT and throughput off its assistant record; a
+ * compaction / `/btw` / `/rewind` call has no such record, so `RequestView`
+ * carries them and the inspector prints the same panel from here.
+ */
+function requestMetrics(
+  request: RequestView | undefined,
+  usage: TrajectoryUsage | undefined,
+): AssistantMetricDetail | undefined {
+  const timing = request?.timing
+  if (timing === undefined) return undefined
+  return {
+    timingRecorded: true,
+    stepStartTime: timing.stepStartTime,
+    firstTokenTime: timing.firstTokenTime,
+    completedTime: timing.completedTime,
+    usageProvided: usage !== undefined,
+    outputTokens: usage?.output ?? null,
+  }
+}
+
 function addUsage(
   total: TrajectoryUsage | undefined,
   usage: TrajectoryUsage | undefined,
@@ -225,6 +249,7 @@ export function TrajectoryView({
     let cumulativeUsage: TrajectoryUsage | undefined
     for (const [index, entry] of orderedRequests.entries()) {
       const usage = requestUsage(entry.request?.usage ?? entry.node?.usage)
+      const metrics = requestMetrics(entry.request, usage) // klaude
       cumulativeUsage = addUsage(cumulativeUsage, usage)
       if (entry.request?.purpose !== 'compaction') {
         const request = entry.request
@@ -257,6 +282,7 @@ export function TrajectoryView({
           ...(requestConfig === undefined ? {} : { requestConfig }),
           ...(usage === undefined ? {} : { usage }),
           ...(cumulativeUsage === undefined ? {} : { cumulativeUsage }),
+          ...(metrics === undefined ? {} : { metrics }), // klaude
         })
         continue
       }
@@ -283,6 +309,7 @@ export function TrajectoryView({
         ...(request.requestConfig === undefined ? {} : { requestConfig: request.requestConfig }),
         ...(usage === undefined ? {} : { usage }),
         ...(cumulativeUsage === undefined ? {} : { cumulativeUsage }),
+        ...(metrics === undefined ? {} : { metrics }), // klaude
       })
     }
 

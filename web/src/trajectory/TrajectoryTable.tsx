@@ -449,6 +449,11 @@ interface TrajectoryRequestNumberBase {
   requestConfig?: AssistantRequestConfig
   usage?: TrajectoryUsage
   cumulativeUsage?: TrajectoryUsage
+  // klaude: an LLM call made outside a step (compaction / `/btw` / `/rewind`)
+  // records its own boundaries — there is no assistant record to read them
+  // from, so the request carries them (src/adapter/llm-request.ts).
+  /** Recorded call timing when the request, not a message, owns it. */
+  metrics?: AssistantMetricDetail
 }
 
 /** One purpose-discriminated request identity paired with its session-global number. */
@@ -1567,6 +1572,8 @@ function RequestTiming({
   request: TrajectoryRequestNumber | undefined
   t: TrajectoryTranslate
 }) {
+  // klaude: a recorded out-of-step call carries its own TTFT/throughput inputs
+  if (request?.metrics !== undefined) return <AssistantTimingPanel metrics={request.metrics} t={t} />
   if (assistant !== undefined) return <RecordTiming record={assistant} t={t} />
   if (request?.startedAt !== undefined) {
     const duration = request.completedAt === null || request.completedAt === undefined
@@ -1996,7 +2003,9 @@ export function TrajectoryTable({
     record => record.cell.kind === 'tool',
   ).length
   const selectedRequestResultTemplate = selectedRequestInfo?.resultSeq === undefined
-    ? selectedRequestAssistant
+    // klaude: a request whose only record is its own dot row has no result to
+    // link to — an out-of-step call that produced no ledger row, or one that failed
+    ? selectedRequestAssistant?.cell.requestOnly === true ? undefined : selectedRequestAssistant
     : allRecords.find(record => record.cell.sourceSeq === selectedRequestInfo.resultSeq)
   const selectedRequestResult = selectedRequestResultTemplate === undefined
     ? undefined
@@ -2953,6 +2962,10 @@ export function TrajectoryTable({
                 after={selectedPrompt}
                 t={t}
               />
+            )}
+            {/* klaude: a rebuilt system context is today's prompt files, not a recording */}
+            {promptSelected && selectedPrompt.caveat !== undefined && (
+              <p className={css.noPayload}>{selectedPrompt.caveat}</p>
             )}
             {promptSelected && activeTab === 'system-prompt' && (
               selectedPrompt.system === ''

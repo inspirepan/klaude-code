@@ -2,7 +2,7 @@
 // with inspectRequestPrompt (see below)
 import type { ContentBlock, ToolSchema } from './types.ts'
 import type {
-  AssistantProvenanceView, AssistantRequestConfig,
+  AssistantProvenanceView, AssistantRequestConfig, AssistantTiming,
 } from './records.ts'
 
 export type {
@@ -17,6 +17,12 @@ export interface ConversationPromptSnapshot {
   system: string
   /** Complete tool catalog sent with the request, including tools that were never called. */
   tools: readonly ToolSchema[]
+  // klaude: klaude persists neither the prompt nor the catalog, so the SYSTEM
+  // row is served on demand by `/api/web/sessions/{id}/system-context`. A
+  // `rebuilt` answer reflects today's prompt files rather than what the session
+  // sent, and says so here (src/adapter/system-context.ts).
+  /** Provenance warning to print above the snapshot; absent when it was recorded live. */
+  caveat?: string
 }
 
 /** System/tool change introduced while preparing one ordinary request. */
@@ -55,6 +61,13 @@ interface RequestViewBase {
   provenance?: AssistantProvenanceView
   requestConfig?: AssistantRequestConfig
   usage?: unknown
+  // klaude: `LLMRequestEntry` records the boundaries of the LLM calls that
+  // happen outside a step (compaction / `/btw` / `/rewind`), which have no
+  // assistant record to hang `AssistantTiming` on. Present only when the call
+  // was recorded; the request inspector then prints the full timing panel
+  // instead of Started/Duration (src/adapter/snapshot.ts).
+  /** Recorded call boundaries when the request itself, not a message, carries them. */
+  timing?: AssistantTiming
   /** Assistant message or compaction summary sequence produced by this request. */
   resultSeq?: number
 }

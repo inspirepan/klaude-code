@@ -50,11 +50,22 @@ const KIND_OVERRIDES: Readonly<Record<string, string>> = {
   'kind.sub': 'Sub',
 }
 
+/**
+ * Keys that exist only in this fork, because only klaude has the fact behind
+ * them. Upstream records the prompt with the request; klaude serves it on
+ * demand and sometimes has to rebuild it (`server/system_context.py`).
+ */
+const KLAUDE_KEYS: Readonly<Record<string, string>> = {
+  'klaude.systemContext.rebuilt':
+    '按今天的提示词文件与工具集重建，不是本会话当时发送的内容——会话运行时的提示词可能不同。',
+}
+
 /** Namespace lookup order: trajectory, then common; overrides win. */
 const DICTIONARY: Readonly<Record<string, string>> = {
   ...COMMON_ZH,
   ...trajectoryZh,
   ...KIND_OVERRIDES,
+  ...KLAUDE_KEYS,
 }
 
 /**

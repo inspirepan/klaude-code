@@ -41,6 +41,18 @@ export interface LivePartial {
   readonly openBlock: 'text' | 'reasoning' | null
   /** Set by `step.start`: the next delta opens a fresh response. */
   readonly stale: boolean
+  /** Epoch ms of the first event of this response; null before one arrived. */
+  readonly startedAt: number | null
+  /**
+   * `stop_reason` of the text block the final `AssistantMessage` closed.
+   *
+   * Only such a block carries one: a block cut short by a tool call has no
+   * `stop_reason` key at all (and neither does an old tape), which is why an
+   * absent value leaves this null instead of recording one.
+   */
+  readonly stopReason: string | null
+  /** Epoch ms the stop reason arrived. */
+  readonly stopReasonAt: number | null
 }
 
 /** Everything the viewer learns from one session's socket. */
@@ -139,6 +151,7 @@ function envelopeTime(envelope: LiveEnvelope): number {
 
 const EMPTY_PARTIAL: LivePartial = {
   blocks: [], responseId: null, openBlock: null, stale: false,
+  startedAt: null, stopReason: null, stopReasonAt: null,
 }
 
 /**
@@ -156,6 +169,22 @@ function openResponse(partial: LivePartial | null, responseId: string | null): L
   return partial.responseId === null && responseId !== null
     ? { ...partial, responseId }
     : partial
+}
+
+/**
+ * `openResponse`, plus the start stamp a fresh response has not got yet.
+ * @param partial - Current partial, or null when none is open.
+ * @param responseId - `response_id` the incoming event carried, or null.
+ * @param envelope - The event, for its timestamp.
+ * @returns The partial the event belongs to, with `startedAt` filled in.
+ */
+function opened(
+  partial: LivePartial | null,
+  responseId: string | null,
+  envelope: LiveEnvelope,
+): LivePartial {
+  const next = openResponse(partial, responseId)
+  return next.startedAt === null ? { ...next, startedAt: envelopeTime(envelope) } : next
 }
 
 /** Append delta text to the trailing block of `kind`, or start one. */
@@ -219,14 +248,14 @@ function reduceEnvelope(state: LiveState, envelope: LiveEnvelope): LiveState {
 
   switch (envelope.event_type) {
     case 'thinking.start':
-      return { ...state, partial: { ...openResponse(state.partial, responseId), openBlock: 'reasoning', stale: false } }
+      return { ...state, partial: { ...opened(state.partial, responseId, envelope), openBlock: 'reasoning', stale: false } }
     case 'assistant.text.start':
-      return { ...state, partial: { ...openResponse(state.partial, responseId), openBlock: 'text', stale: false } }
+      return { ...state, partial: { ...opened(state.partial, responseId, envelope), openBlock: 'text', stale: false } }
     case 'thinking.delta':
       return {
         ...state,
         partial: extend(
-          { ...openResponse(state.partial, responseId), stale: false },
+          { ...opened(state.partial, responseId, envelope), stale: false },
           'reasoning',
           readString(event.content) ?? '',
         ),
@@ -235,13 +264,30 @@ function reduceEnvelope(state: LiveState, envelope: LiveEnvelope): LiveState {
       return {
         ...state,
         partial: extend(
-          { ...openResponse(state.partial, responseId), stale: false },
+          { ...opened(state.partial, responseId, envelope), stale: false },
           'text',
           readString(event.content) ?? '',
         ),
       }
+    case 'assistant.text.end': {
+      // The one event that reports why generation stopped — and only when the
+      // block was closed by the final AssistantMessage. `splice.ts` turns it
+      // into the same request status a landed `stop_reason` produces.
+      if (state.partial === null) return state
+      const stopReason = readString(event.stop_reason)
+      if (stopReason === null && state.partial.openBlock === null) return state
+      return {
+        ...state,
+        partial: {
+          ...state.partial,
+          openBlock: null,
+          ...(stopReason === null
+            ? {}
+            : { stopReason, stopReasonAt: envelopeTime(envelope) }),
+        },
+      }
+    }
     case 'thinking.end':
-    case 'assistant.text.end':
     case 'response.complete':
       return state.partial === null || state.partial.openBlock === null
         ? state
@@ -272,7 +318,7 @@ function reduceEnvelope(state: LiveState, envelope: LiveEnvelope): LiveState {
       // the partial when a response is already open (an idle socket has none).
       // `openResponse` still runs, so a call that opens a new step lands in a
       // fresh partial instead of extending the previous one.
-      const base = state.partial === null ? null : openResponse(state.partial, responseId)
+      const base = state.partial === null ? null : opened(state.partial, responseId, envelope)
       const partial: LivePartial | null = base === null
         ? null
         : {

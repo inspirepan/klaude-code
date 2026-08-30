@@ -1,6 +1,8 @@
 /** Same-origin REST client for the klaude web endpoints. */
 
-import type { HistoryPage, SessionListRow, SessionMeta } from '../adapter/index.ts'
+import type {
+  HistoryPage, SessionListRow, SessionMeta, SystemContext,
+} from '../adapter/index.ts'
 
 /** Rows requested per history page (the server's own default). */
 export const HISTORY_PAGE_LIMIT = 500
@@ -85,4 +87,39 @@ export async function fetchSessions(
     signal,
   )
   return page.sessions ?? []
+}
+
+/**
+ * System prompt + tool catalogue behind the SYSTEM row, cached per page load.
+ *
+ * Tens of kilobytes that never change inside one session view, so the page
+ * asks once and every later caller gets the same promise. The failure is
+ * cached too — as an "unavailable" answer rather than a rejection — because a
+ * missing SYSTEM row is not a reason to fail the trajectory. The server keeps
+ * its own 30s cache, so a reload is cheap either way.
+ */
+const systemContextCache = new Map<string, Promise<SystemContext>>()
+
+/** Drop the client-side system-context cache (tests). */
+export function clearSystemContextCache(): void {
+  systemContextCache.clear()
+}
+
+/**
+ * Fetch one session's system context.
+ * @param sessionId - Session id.
+ * @returns The endpoint payload; `available: false` when it could not be built
+ *   (including when the request itself failed).
+ */
+export function fetchSystemContext(sessionId: string): Promise<SystemContext> {
+  const cached = systemContextCache.get(sessionId)
+  if (cached !== undefined) return cached
+  const pending = getJson<SystemContext>(
+    `/api/web/sessions/${encodeURIComponent(sessionId)}/system-context`,
+  ).catch((error: unknown): SystemContext => ({
+    available: false,
+    reason: error instanceof Error ? error.message : String(error),
+  }))
+  systemContextCache.set(sessionId, pending)
+  return pending
 }

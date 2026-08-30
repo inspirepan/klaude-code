@@ -89,7 +89,7 @@ Every deviation carries a trailing or leading `// klaude:` comment so
 | `trajectory-contract.ts` | Imports → `../contract/index.ts`; trimmed to `TrajectoryRequestHeaderState` + `TrajectorySnapshot`; dropped `TrajectoryContribution`, `TrajectoryConversationViewNode`, `UseTrajectory` and the two `declare module` augmentations. |
 | `trajectory-preview.ts` | `@deepseek-ai/dsh-client-ui-primitives` → `../ui-primitives/index.ts`. |
 | `locales.ts` | Dropped the `declare module '@deepseek-ai/dsh-client-ui-slots'` `LocaleNamespaceMap` augmentation; `TrajectoryTranslate` is now re-exported from `../locale.ts` instead of aliasing `TranslateNS<'trajectory'>`. Both dictionaries carry 175 keys each (M2 swapped two row-kind keys for three; see below). |
-| `TrajectoryTable.tsx` | Import block: primitives → `../ui-primitives/index.ts`; conversation + attachment types → `../contract/index.ts`. Plus the M2 deviations, below. |
+| `TrajectoryTable.tsx` | Import block: primitives → `../ui-primitives/index.ts`; conversation + attachment types → `../contract/index.ts`. Plus the M2 and M4 deviations, below. |
 | `TrajectoryTimeline.tsx` | `Tooltip` import → `../ui-primitives/index.ts`; `timelineKindLabel` row kinds; `data-discarded` on the span. Plus the M3 scroller (D1), below. |
 | `TrajectoryToolbar.tsx` | `IconSearchOutline16` import → `../ui-primitives/index.ts`; prop `t: TranslateNS<typeof NS>` → `t: TrajectoryTranslate`. |
 | `TrajectoryView.tsx` | See below. |
@@ -105,6 +105,8 @@ source root.
 **M2 part 2 (session list + live WS state) added no vendored edit.** The live
 channel feeds the two snapshot fields the fork already declares (`partial`,
 `runningCalls`), so `TrajectoryView` and `layout.ts` consume it unchanged.
+**M4's live half added none either** — the streaming `stop_reason` rides
+`snapshot.requests`, which the fork already declares.
 
 #### M2 deviation edits (2026-08-30)
 
@@ -181,6 +183,40 @@ whole `#/fixture` view so the offline route stays a real acceptance check.
 `src/test-shims.d.ts` declares the one `node:fs` call those tests need
 (`tsconfig.json` keeps `"types": []`).
 
+#### M4 deviation edits (2026-08-30) — request inspector data + SYSTEM row
+
+Everything M4 needs is expressible through the snapshot the fork already
+declares, except four things the vendored types and panels have no slot for.
+Each is one hunk, each carries a `// klaude:` marker.
+
+| File | `// klaude:` change |
+|---|---|
+| `contract/request-inspection.ts` | `ConversationPromptSnapshot.caveat?: string` (a rebuilt system context is today's prompt files, not a recording) and `RequestViewBase.timing?: AssistantTiming` (an LLM call made outside a step has no assistant record to hang its boundaries on). `AssistantTiming` added to the `./records.ts` type import. |
+| `TrajectoryView.tsx` | New `requestMetrics()` helper + `RequestView` / `AssistantMetricDetail` type imports; the `requestNumbers` memo now also carries `metrics` on both the assistant and the compaction push. |
+| `TrajectoryTable.tsx` | `TrajectoryRequestNumberBase.metrics?: AssistantMetricDetail`; `RequestTiming` prefers it over the Started/Duration fallback, so an out-of-step call gets the full TTFT / throughput panel; `selectedRequestResultTemplate` no longer falls back to a `requestOnly` record (a dot-only request has no result to link to, and the link would have selected an invisible zero-height row); the `caveat` paragraph above the SYSTEM panes. |
+| `locale.ts` (klaude's own file, not vendored) | New `KLAUDE_KEYS` dictionary, currently one key: `klaude.systemContext.rebuilt`. |
+
+Not needed, and deliberately so:
+
+- **Request dots for out-of-step calls take no layout change.** A recorded call
+  that owns no ledger row becomes an `AssistantRequestView` with a synthetic
+  `step` (`SIDECAR_STEP_BASE + line_index`), which upstream already renders as
+  a zero-height `requestOnly` record — and two adjacent ones already fan out
+  through `--request-boundary-offset`. See
+  [`src/adapter/README.md`](./src/adapter/README.md#request-dots).
+- **The SYSTEM row takes no layout change either.** `layout.ts` emits it from
+  `request.prompt` + `request.promptChange`; the adapter now fills both from
+  the system-context endpoint.
+- **The live `stop_reason` takes no vendored change.** `app/live/splice.ts`
+  turns it into an in-flight `RequestView` whose status maps exactly the way a
+  landed row's `stop_reason` does.
+
+Tests added: `src/adapter/llm-request.test.ts` (the `request_id` join for every
+entry kind, dot placement and numbering, the old-session fallback) and
+`src/adapter/system-context.test.ts` (SYSTEM row, `callSchemas`, the rebuilt
+caveat, `available: false`), plus stop-reason cases in
+`src/app/live/{reducer,splice}.test.ts`.
+
 #### `TrajectoryView.tsx` in detail
 
 The injected-hook surface (`ConvViewProps & PropsRenderSlots & InjectFace &
@@ -198,9 +234,10 @@ PropsLocale`) is replaced by one explicit `TrajectoryViewProps` interface:
 | `loadOlder` (inject face) | prop `loadOlder` |
 | `viewRequest` / `completeViewRequest` (view owner props) | kept as optional props |
 
-Everything below the destructuring — `requestNumbers`, the layout memos, the
-search index, the timeline wiring, the collapse handlers and the JSX — is
-byte-identical to upstream.
+Everything below the destructuring — the layout memos, the search index, the
+timeline wiring, the collapse handlers and the JSX — is byte-identical to
+upstream. The one exception is the `requestNumbers` memo, which M4 extended
+with `metrics` (see the M4 table above).
 
 ### `src/ui-primitives/`
 
@@ -221,7 +258,7 @@ three deleted files (`invariant.ts`, `ansi.ts`, `TerminalBlock.*`) and that one
 | File | `// klaude:` changes |
 |---|---|
 | `records.ts` | Cross-package imports (`dsh-commands/brand`, `dsh-llm/brand`, `dsh-llm/types`, `dsh-attachment`, `dsh-llm-retry/types`, `dsh-tool-todo/client`) → `./types.ts`. Dropped `ModelRetryNode`, `TurnErrorNode`, `TurnMaxTokensNode`, `CommandNode`, `UnknownSurfaceNode` and the `TodoItem` re-export; `ConversationNode` is now the six arms `layout.ts` handles (user / steering / assistant / context / tool-result / compaction). |
-| `request-inspection.ts` | `dsh-llm/types` → `./types.ts`. Dropped `RequestPromptInspector` and `inspectRequestPrompt` — they read a host `SessionEvent` that klaude never produces. All the types (`ConversationPromptSnapshot`, `RequestPromptChange`, `RequestView`, `RequestInspectionSnapshot`, …) are unchanged. |
+| `request-inspection.ts` | `dsh-llm/types` → `./types.ts`. Dropped `RequestPromptInspector` and `inspectRequestPrompt` — they read a host `SessionEvent` that klaude never produces. Two optional fields added in M4: `ConversationPromptSnapshot.caveat` and `RequestViewBase.timing` (see the M4 table). Everything else (`RequestPromptChange`, `RequestView`, `RequestInspectionSnapshot`, …) is unchanged. |
 | `context-provenance.ts` | **Unmodified.** |
 
 `types.ts` restates, flat and locally: `ImageAttachmentRef`, `ImageMediaType`,
@@ -328,12 +365,31 @@ The tsconfig keeps upstream's `allowImportingTsExtensions`,
   The adapter prefers them and keeps the window-relative count as a fallback for
   an older server; both paths are tested. See
   [`src/adapter/README.md`](./src/adapter/README.md#turn-and-step-numbering).
-- **Compaction requests report a zero-length call.** Until `LLMRequestEntry`
-  lands (M4) the COMPACT row has no recorded end, so the adapter sets
-  `completedAt = startedAt`; a `null` would render the marker as pending, which
-  is worse. Usage and Options stay unknown.
-- `callSchemas` is always empty: klaude does not persist the tool catalog, so the
-  tool inspector's Schema tab is empty until the M4 system-context endpoint.
+- ~~**Compaction requests report a zero-length call.**~~ **Resolved for
+  recorded sessions** (M4): a compaction joined to its `LLMRequestEntry` reports
+  the real `started_at` / `completed_at`, plus usage, options and TTFT. A
+  session written before the entry existed keeps the old stopgap
+  (`completedAt = startedAt`; a `null` would render the marker as pending, which
+  is worse) and shows everything else as unknown, never as `0`.
+- ~~`callSchemas` is always empty.~~ **Resolved** (M4): the tool catalogue comes
+  from `GET /api/web/sessions/{id}/system-context`, fetched once per page load,
+  and is resolved to a per-call schema by tool name. It is still not *recorded*
+  — a session that ran with a since-renamed tool resolves to nothing and its
+  Schema tab stays empty.
+- ~~**There is no SYSTEM row.**~~ **Resolved** (M4): the same endpoint supplies
+  the prompt snapshot the row is built from. Two caveats stay open: a cold
+  session's answer is `rebuilt` (today's prompt files, labelled as such in the
+  inspector), and the **Diff tab is dormant** because there is only one snapshot
+  per session — nothing has a `previous` to diff against.
+- **M4 open items** (`- [M4 前端]` in the repo-root `HEY.md`): the Options tab
+  drops the recorded knobs `AssistantRequestConfig` has no field for
+  (`verbosity`, `cache_retention`, `fast_mode`, `context_limit`,
+  `supports_vision`, `cost`); `LLMRequestEntry.tool_call_count` is decoded but
+  never displayed (the Summary counts tool rows, and a dot-only request has
+  none); and a **pre-existing** turn-0 gap survives M4 — an `AssistantMessage`
+  the ledger puts in turn 0 folds into Turn 1 while its request keeps `turn: 0`,
+  so that one dot does not render. Sidecar requests clamp their turn to `>= 1`
+  and are unaffected.
 - Upstream's `ui-trajectory/tests/` were not carried over; `src/adapter/*.test.ts`
   plus `src/app/session-list-model.test.ts` and `src/app/live/*.test.ts` (vitest,
   `pnpm test`) cover the projection, the list model and the live reducer instead.

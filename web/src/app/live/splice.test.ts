@@ -119,3 +119,37 @@ describe('splice', () => {
     expect(spliced.annotations).toBe(snapshot.annotations)
   })
 })
+
+describe('streaming stop reason', () => {
+  it('adds no request while the response is still open', () => {
+    const snapshot = snapshotOf(TURN_1)
+    const state = live(envelope('assistant.text.delta', { response_id: 'r2', content: 'wo' }))
+    expect(spliceLiveSnapshot(snapshot, state).requests).toEqual(snapshot.requests)
+  })
+
+  it('surfaces an error stop reason as a failed request on the streaming step', () => {
+    const snapshot = snapshotOf(TURN_1)
+    const state = live(
+      envelope('assistant.text.delta', { response_id: 'r2', content: 'wo' }),
+      envelope('assistant.text.end', { response_id: 'r2', stop_reason: 'error' }),
+    )
+    const spliced = spliceLiveSnapshot(snapshot, state)
+    expect(spliced.requests).toHaveLength(snapshot.requests.length + 1)
+    const streaming = spliced.requests[spliced.requests.length - 1]
+    expect(streaming?.purpose).toBe('assistant')
+    expect(streaming?.status).toBe('error')
+    // The step after the newest landed one, i.e. the partial's own step.
+    expect(streaming?.purpose === 'assistant' ? streaming.step : null).toBe(2)
+    // The in-flight request is always the newest, so it sorts past every line.
+    expect(streaming?.startSeq).toBe(Number.MAX_SAFE_INTEGER)
+  })
+
+  it('reports an ordinary stop reason as a completed request', () => {
+    const state = live(
+      envelope('assistant.text.delta', { response_id: 'r2', content: 'wo' }),
+      envelope('assistant.text.end', { response_id: 'r2', stop_reason: 'end_turn' }),
+    )
+    const spliced = spliceLiveSnapshot(snapshotOf(TURN_1), state)
+    expect(spliced.requests[spliced.requests.length - 1]?.status).toBe('complete')
+  })
+})

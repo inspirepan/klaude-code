@@ -14,6 +14,8 @@ pure function of the rows, so rebuilding after a prepend is cheap and stable.
 | `parts.ts` | klaude `parts` → upstream `ContentBlock` / `AssistantBlock`. |
 | `images.ts` | Image parts → `ImageAttachmentRef` carrying a loadable URL. |
 | `usage.ts` | `Usage` → the panel's disjoint token buckets, plus `AssistantTiming`. |
+| `llm-request.ts` | `LLMRequestEntry` → the request dot's provider / options / usage / timing. |
+| `system-context.ts` | `GET .../system-context` → the SYSTEM row's prompt snapshot and tool catalogue. |
 | `classify.ts` | Non-human `UserMessage` detection and the legacy checkpoint reminder. |
 | `snapshot.ts` | The single linear pass that builds nodes, requests and annotations. |
 | `annotate.ts` | Applies annotations to the folded layout (imported by `TrajectoryView`). |
@@ -51,13 +53,14 @@ Consequences:
 | `AssistantMessage` | `AssistantMessageNode` | `message` (+ one `tool` row per `ToolCallPart`) | one `assistant` `RequestView` | `usage` → buckets, `stop_reason == "error"` → `status: 'error'`. |
 | `ToolResultMessage` | `ToolResultNode` | folded into the paired `tool` row | — | Paired by `call_id`; `callTime` is the emitting assistant's `created_at`. `status ∈ {error, aborted}` → `isError`, headline = first output line. |
 | `DeveloperMessage` | `ContextMessageNode` | `context` | — | Hidden when the text carries a legacy `<system-reminder>Checkpoint N</system-reminder>`. |
-| `CompactionEntry` | `CompactionSummaryNode` | `compacted` (built from the request) | one `compaction` `RequestView` | Dot anchors on the COMPACT row; usage/timing stay unknown until M4. |
+| `CompactionEntry` | `CompactionSummaryNode` | `compacted` (built from the request) | one `compaction` `RequestView` | Dot anchors on the COMPACT row; `request_id` joins the primary `LLMRequestEntry` onto it. |
 | `RewindEntry` (legacy) | `ContextMessageNode` | `rewind` | — | Rationale + note as the body. |
-| `SideQuestionEntry` | `ContextMessageNode` | `btw` | — | Question is the row preview, answer follows in Preview/Raw. |
-| `ForkSummaryEntry` | `UserMessageNode` | `user` | — | Renders as a user row but does **not** open a turn — `session/ledger.py` does not count it as one, and neither does the fallback. |
+| `SideQuestionEntry` | `ContextMessageNode` | `btw` | — (its call's dot sits on the line above) | Question is the row preview, answer follows in Preview/Raw. |
+| `ForkSummaryEntry` | `UserMessageNode` | `user` | — (its call's dot sits on the line above) | Renders as a user row but does **not** open a turn — `session/ledger.py` does not count it as one, and neither does the fallback. |
+| `LLMRequestEntry` | — | — (a dot with no row) | one `assistant` `RequestView`, unless a following entry claims it | One LLM call made outside a step. See “Request dots”. |
 | `SpawnSubAgentEntry` | — | — | — | Attaches `{sessionId, type, desc}` to the next unlinked `Agent` tool call (FIFO, so parallel spawns line up with their batch). |
 | `InterruptEntry`, `StreamErrorItem` | — | — | folds into the preceding assistant request (`status: 'error'` + message) | Reset at each user message. |
-| `CacheHitRateEntry` | — | — | folds into the **following** request's usage | klaude writes it when the step's usage arrives, i.e. just before the assistant message it describes. Used only when the provider reported no cached tokens. |
+| `CacheHitRateEntry` | — | — | folds into the **following** assistant request's usage | klaude writes it when the step's usage arrives, i.e. just before the assistant message it describes. Used only when the provider reported no cached tokens, and never for an `LLMRequestEntry` — it belongs to a main step. |
 | `RetractEntry` | — | — | — | The withdrawn row is greyed through its own `status`. |
 | `TaskMetadataItem`, `TaskFileChangeSummaryEntry`, `FallbackModelConfigWarnEntry`, `PromptSuggestionEntry`, `AwaySummaryEntry`, unknown types | — | — | — | No row. |
 
@@ -66,10 +69,92 @@ Row status (`retracted` / `compacted` / `rewound`) becomes
 struck through (UX spec D3). `unknown` rows and rows with `entry: null` render
 nothing.
 
-There is **no SYSTEM row yet**: klaude never persists the system prompt or the
-tool catalog. M4 adds `GET /api/web/sessions/{id}/system-context`; until then
-`requests[].prompt` / `promptChange` stay unset, which `layout.ts` handles by
-emitting no `system` entries at all.
+## Request dots
+
+Every LLM call gets one dot, numbered session-globally in wire order. A main
+step reads its own `AssistantMessage.usage`; the three calls that happen
+*outside* a step — compaction, `/btw`, `/rewind`'s fork summary — used to throw
+their numbers away and now persist an `LLMRequestEntry` instead.
+
+**The join is `request_id`, never position.** The entry is written on the line
+immediately before the entry it describes, and that entry repeats the id — but
+one operation can issue several calls, and a failed one has no paired entry at
+all, so adjacency is not a reliable pairing.
+
+| Entry kind / `label` | Where its dot lands |
+|---|---|
+| `compaction`, the call `CompactionEntry.request_id` names (`fork` > `summary` > `task_prefix`) | merged into the COMPACT row's own request |
+| `compaction`, the other call of a degraded run | its own dot on the line above the COMPACT row, fanned out beside it |
+| `side_question` | its own dot on the line above the BTW row |
+| `fork` (`fork` or `fallback`) | its own dot on the line above the fork-summary USER row, in the **new** session |
+| any `status: error` / `interrupted` | its own dot and no row at all, with error styling |
+
+Every one of them shows the same four tabs: Summary, Options, Usage, Timing.
+
+A dot with no row is an `AssistantRequestView` whose `step` is
+`SIDECAR_STEP_BASE + line_index`. Upstream's request identity is
+`assistant\0turn\0step`, and a synthetic step keeps that identity unique
+without inventing a row: `layout.ts` renders such a request as a zero-height
+`requestOnly` record, which is also what makes two coincident dots fan out
+sideways (`--request-boundary-offset`). The step number never reaches the
+screen. The turn is clamped to `>= 1`, because `layout.ts` folds turn-0 cells
+into Turn 1 and a dot only renders when the request's turn matches its
+record's.
+
+What each tab reads:
+
+- **Summary** — `status` / `error` (`error` and `interrupted` both render as a
+  failure; an interrupt that carried no message of its own is named
+  `Interrupted`), `provider`, `model`.
+- **Options** — `options`, the credential-free dump of the effective call
+  parameters, mapped onto the fields `AssistantRequestConfig` declares
+  (`provider` / `model` / `purpose` / `reasoningEffort` / `temperature` /
+  `maxTokens` / `thinking`). **Absent `options` hides the tab**: an old record
+  must never be shown today's model configuration. `verbosity`,
+  `cache_retention`, `fast_mode`, `context_limit`, `supports_vision` and `cost`
+  have no upstream field and are dropped rather than renamed into one.
+- **Usage** — `usage`, through the same inclusive→disjoint mapping an assistant
+  message gets (below). `CacheHitRateEntry` is **not** folded in:
+  `agent/task.py` writes it for the next *main step*, so charging its cached
+  tokens to a compaction or `/btw` call would misattribute them.
+- **Timing** — `started_at` / `first_token_at` / `completed_at` become the
+  request's `timing`, which `TrajectoryView` turns into the same Started /
+  Total / TTFT / Generation / Throughput panel an assistant row gets.
+  `first_token_at` is absent when the call streamed no delta; TTFT then reads
+  as unavailable rather than 0.
+
+**Old sessions** carry no entry (or no `request_id`): the compaction request
+keeps its pre-M4 shape — `completedAt = startedAt`, so the marker reports a
+zero-length call rather than a pending one — and usage, options, provider and
+timing are simply absent. Nothing is ever rendered as `0`.
+
+## SYSTEM row and tool schemas
+
+klaude persists neither the system prompt nor the tool catalogue, so both come
+from `GET /api/web/sessions/{id}/system-context`, fetched once per page load
+(`app/api.ts` caches the promise, its failure included) and handed to
+`buildTrajectorySnapshot` as `options.systemContext`.
+
+- `available: true` builds a `ConversationPromptSnapshot` and hangs it on the
+  window's first ordinary request as `prompt` + `promptChange` (`kind:
+  'initial'`, `seq: 0`). That is all `layout.ts` needs to emit its `system`
+  record — “Initial System Prompt”, with the System Prompt and Tools tabs.
+  Which request carries it decides only *whether* the row exists: an `initial`
+  change is always placed at the head of the first visible turn. Seq 0 is a
+  constant rather than a window position, so prepending an older page cannot
+  change the record's identity.
+- `source: 'rebuilt'` means the server re-ran today's prompt builders off the
+  session meta, so the snapshot carries a `caveat` (`locale.ts`,
+  `klaude.systemContext.rebuilt`) that the inspector prints above the prompt.
+- `available: false` — and the window before the fetch resolves — produces no
+  SYSTEM row at all, exactly as before M4.
+- `callSchemas` maps **call id → schema**, resolved by tool name against that
+  same catalogue, for every call in the window — including a result whose call
+  head fell outside it. A tool that has since been renamed resolves to nothing
+  and its Schema tab stays empty.
+
+The Diff tab stays dormant: there is one snapshot per session, so no `previous`
+prompt exists to diff against.
 
 ## Turn and step numbering
 
@@ -123,7 +208,9 @@ as zeros.
 Timing is `{stepStartTime: usage.created_at, firstTokenTime: created_at +
 first_token_latency_ms, completedTime: message.created_at}`, which makes the
 inspector's Started / Total / TTFT / Generation / Throughput rows correct for
-persisted history without any live event stream.
+persisted history without any live event stream. An `LLMRequestEntry` records
+the same three boundaries directly (`started_at` / `first_token_at` /
+`completed_at`); they travel on `RequestView.timing`.
 
 ## Annotations
 
@@ -154,6 +241,13 @@ every row that reached `events.jsonl` — with its ledger status, its usage and
 its stable seq — and the socket only contributes the two fields that describe
 work still in flight. A cold session never opens a socket (decision #28) and
 therefore simply has neither, which is deviation D11.
+
+`assistant.text.end` carries a `stop_reason` when — and only when — the final
+`AssistantMessage` closed the block; a block a tool call cut short has no such
+key, and neither does an old tape. The reducer keeps it on the partial and
+`splice.ts` surfaces it as an in-flight `RequestView` whose status is derived
+the way a landed row's `stop_reason` is (`error` → a failed request). Before it
+arrives, nothing extra is added.
 
 The wire carries no absolute turn ordinal for a response that has not landed,
 so `spliceLiveSnapshot` anchors the in-flight rows on the newest landed one:

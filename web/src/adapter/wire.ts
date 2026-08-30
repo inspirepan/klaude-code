@@ -105,3 +105,53 @@ export interface SessionListRow {
   readonly activity?: string | null
   readonly pending?: boolean
 }
+
+/** One tool as `GET /api/web/sessions/{id}/system-context` reports it. */
+export interface SystemContextTool {
+  readonly name: string
+  readonly description: string
+  /** JSON Schema object for the arguments. */
+  readonly parameters: Record<string, unknown>
+}
+
+/**
+ * The allowlisted model knobs the system-context endpoint reports.
+ *
+ * `server/system_context.py` never dumps a config: every field here is named
+ * explicitly there, so no credential can arrive by being added upstream. A
+ * cold (rebuilt) session only knows `model` / `model_config_name` / `effort`;
+ * the rest are `null`.
+ */
+export interface SystemContextModel {
+  readonly provider?: string | null
+  readonly protocol?: string | null
+  readonly model?: string | null
+  readonly model_config_name?: string | null
+  readonly effort?: string | null
+  readonly max_tokens?: number | null
+  readonly context_limit?: number | null
+  readonly temperature?: number | null
+  readonly verbosity?: string | null
+  readonly thinking?: Record<string, unknown> | null
+  readonly fast_mode?: boolean | null
+  readonly cache_retention?: string | null
+  readonly supports_vision?: boolean | null
+}
+
+/**
+ * `GET /api/web/sessions/{id}/system-context` response.
+ *
+ * `source: 'live'` is the loaded agent's own profile — the exact system prompt
+ * and tools its next step would send. `source: 'rebuilt'` re-ran the builders
+ * off the session meta, so it reflects **today's** prompt files and tool set
+ * rather than what the session actually sent; the SYSTEM row says so.
+ * `available: false` carries a `reason` and no payload (HTTP is still 200).
+ */
+export interface SystemContext {
+  readonly available: boolean
+  readonly source?: 'live' | 'rebuilt' | null
+  readonly system_prompt?: string | null
+  readonly tools?: readonly SystemContextTool[] | null
+  readonly model?: SystemContextModel | null
+  readonly reason?: string | null
+}

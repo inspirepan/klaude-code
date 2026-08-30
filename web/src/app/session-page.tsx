@@ -13,12 +13,12 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SessionMeta } from '../adapter/index.ts'
+import type { SessionMeta, SystemContext } from '../adapter/index.ts'
 import { buildTrajectorySnapshot } from '../adapter/index.ts'
 import { TrajectoryView } from '../trajectory/TrajectoryView.tsx'
 import type { TrajectoryOpenState, TrajectorySessionState } from '../trajectory/TrajectoryView.tsx'
 import { t } from '../locale.ts'
-import { fetchHistoryPage, fetchSessionMeta } from './api.ts'
+import { fetchHistoryPage, fetchSessionMeta, fetchSystemContext } from './api.ts'
 import { useActualDuration } from './duration.ts'
 import type { LoadedWindow } from './live/index.ts'
 import { mergeHistoryTail, spliceLiveSnapshot, useLiveSession } from './live/index.ts'
@@ -56,6 +56,10 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
   const [failure, setFailure] = useState<string | null>(null)
   const [loadingOlder, setLoadingOlder] = useState(false)
   const [actualDuration, setActualDuration] = useActualDuration()
+  // The system prompt and tool catalogue are not in `events.jsonl`; they are
+  // fetched once (and cached in `api.ts`) and become the SYSTEM row plus the
+  // tool inspector's Schema tab.
+  const [systemContext, setSystemContext] = useState<SystemContext | undefined>(undefined)
 
   // The window every async job reads: `page` in a ref, so a job that started
   // before a prepend still sees the current rows when it runs.
@@ -108,6 +112,15 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
     })()
     return () => { controller.abort() }
   }, [commit, sessionId])
+
+  useEffect(() => {
+    let live = true
+    setSystemContext(undefined)
+    void fetchSystemContext(sessionId).then((context) => {
+      if (live) setSystemContext(context)
+    })
+    return () => { live = false }
+  }, [sessionId])
 
   const online = isOnline(meta)
   const { state: live, acknowledge } = useLiveSession(sessionId, online)
@@ -198,8 +211,8 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
   }, [live.connectionEpoch, pullTail, sessionId])
 
   const landed = useMemo(
-    () => buildTrajectorySnapshot(page.rows, { sessionId }),
-    [page.rows, sessionId],
+    () => buildTrajectorySnapshot(page.rows, { sessionId, systemContext, translate: t }),
+    [page.rows, sessionId, systemContext],
   )
   const snapshot = useMemo(() => spliceLiveSnapshot(landed, live), [landed, live])
   const session: TrajectorySessionState = {
