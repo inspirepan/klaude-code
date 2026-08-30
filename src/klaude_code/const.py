@@ -60,6 +60,7 @@ THROUGHPUT_MIN_DURATION_SEC = 0.15  # Minimum duration (seconds) for throughput 
 INITIAL_RETRY_DELAY_S = 1.0  # Initial delay before retrying a failed step (seconds)
 MAX_RETRY_DELAY_S = 30.0  # Maximum delay between retries (seconds)
 OFFLINE_RETRY_WINDOW_S = 1800.0  # Awake time to keep retrying an unreachable endpoint before aborting (seconds)
+SUSPEND_DETECTION_THRESHOLD_S = 10.0  # Wall-clock vs monotonic gap during a step that counts as an OS suspend (seconds)
 DEFAULT_MAX_TOKENS = 32000  # Default maximum tokens for LLM responses
 DEFAULT_TEMPERATURE = 1.0  # Default temperature for LLM requests
 DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS = 2048  # Default thinking budget tokens for Anthropic models

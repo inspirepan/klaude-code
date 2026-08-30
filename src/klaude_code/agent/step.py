@@ -5,8 +5,10 @@ from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from klaude_code.agent.connectivity import is_connectivity_error
 from klaude_code.agent.handoff import HandoffManager
 from klaude_code.agent.rewind import RewindManager
+from klaude_code.agent.suspend import SuspendDetector, suspend_notice
 from klaude_code.const import (
     RETRY_PRESERVE_PARTIAL_MESSAGE,
 )
@@ -62,6 +64,21 @@ class StepResult:
     tool_calls: list[ToolCallRequest]
     stream_error: message.StreamErrorItem | None
     continue_agent: bool = field(default=True)
+
+
+def _explain_suspend(
+    stream_error: message.StreamErrorItem, detector: SuspendDetector, *, partial_output: bool
+) -> message.StreamErrorItem:
+    """Name the OS suspend as the cause when a transport failure spans one.
+
+    A connection that dies while the machine sleeps surfaces after wake as a
+    bare httpx/SDK transport error. The raw error stays in the text so the
+    retry policy still classifies it as a connectivity failure.
+    """
+    if not detector.suspended() or not is_connectivity_error(stream_error.error):
+        return stream_error
+    notice = suspend_notice(detector.suspended_seconds(), partial_output=partial_output)
+    return stream_error.model_copy(update={"error": f"{notice} {stream_error.error}"})
 
 
 def _build_continuation_prompt(partial_text: str) -> str:
@@ -223,10 +240,14 @@ class StepExecutor:
             stream_error=None,
         )
 
+        suspend_detector = SuspendDetector()
         async for event in self._consume_llm_stream(self._step_result):
             yield event
 
         if self._step_result.stream_error is not None:
+            self._step_result.stream_error = _explain_suspend(
+                self._step_result.stream_error, suspend_detector, partial_output=self._visible_output_started
+            )
             # Save stream error and partial output for retry continuation.
             session_ctx.append_history([self._step_result.stream_error])
             if RETRY_PRESERVE_PARTIAL_MESSAGE:
