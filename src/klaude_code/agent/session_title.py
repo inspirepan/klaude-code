@@ -14,20 +14,25 @@ _SESSION_TITLE_MAX_ATTEMPTS = 3
 _SESSION_TITLE_MAX_TOKENS = 4096
 
 
+def _render_user_messages(user_messages: list[str]) -> str:
+    # One chronological list; only the last entry is marked so the model
+    # weighs the whole conversation instead of the newest message.
+    rendered = [msg.strip() for msg in user_messages if msg.strip()] or [user_messages[-1].strip()]
+    lines: list[str] = []
+    for idx, msg in enumerate(rendered, start=1):
+        marker = " (latest)" if idx == len(rendered) else ""
+        lines.append(f"[{idx}]{marker} {msg}")
+    return "\n\n".join(lines)
+
+
 def _build_session_title_input(user_messages: list[str], *, previous_title: str | None = None) -> list[message.Message]:
-    current_user_message = user_messages[-1].strip()
-    previous_user_messages = [msg.strip() for msg in user_messages[:-1] if msg.strip()]
-    rendered_previous_messages = "\n\n".join(
-        f"[{idx}] {msg}" for idx, msg in enumerate(previous_user_messages, start=1)
-    )
     rendered_previous_title = previous_title.strip() if previous_title is not None else ""
     previous_title_block = (
         f"<previous_title>\n{rendered_previous_title}\n</previous_title>\n\n" if rendered_previous_title else ""
     )
     body = SESSION_TITLE_USER_PROMPT.format(
         previous_title_block=previous_title_block,
-        previous_user_messages=rendered_previous_messages,
-        current_user_message=current_user_message,
+        user_messages=_render_user_messages(user_messages),
     )
     return [message.UserMessage(parts=[message.TextPart(text=body)])]
 

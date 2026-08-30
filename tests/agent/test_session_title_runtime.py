@@ -14,7 +14,11 @@ from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
 from klaude_code.agent.runtime.config_ops import ModelSwitcher
 from klaude_code.agent.runtime.llm import FallbackLLMClient, LLMClients, build_llm_clients
-from klaude_code.agent.session_title import _normalize_session_title, generate_session_title
+from klaude_code.agent.session_title import (
+    _build_session_title_input,
+    _normalize_session_title,
+    generate_session_title,
+)
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.protocol import llm_param, message
@@ -101,21 +105,40 @@ def test_generate_session_title_uses_only_user_messages() -> None:
     assert title == "Session titles — Refine prompts"
     assert len(client.calls) == 1
     rendered = message.join_text_parts(client.calls[0].input[0].parts)
-    assert "<previous_user_messages>" in rendered
-    assert "<current_user_message>" in rendered
-    assert "first request" in rendered
-    assert "latest request about src/app.py" in rendered
+    assert "<user_messages>" in rendered
+    assert "[1] first request" in rendered
+    assert "[2] (latest) latest request about src/app.py" in rendered
+    assert "main task of the whole conversation" in rendered.lower()
+    assert "never changes an existing one" in rendered.lower()
+    assert "return it unchanged" in rendered.lower()
     assert "be specific" in rendered.lower()
     assert "reflect user intent" in rendered.lower()
     assert "4-10 chinese characters" in rendered.lower()
     assert "never exceed 40 characters" in rendered.lower()
     assert "omit repository names" in rendered.lower()
-    assert "previous title" in rendered.lower()
     assert "<previous_title>" in rendered
     assert "Existing title" in rendered
     assert "assistant" not in rendered.lower()
     assert client.calls[0].system is not None
     assert "same language" in client.calls[0].system.lower()
+    assert "not the latest message" in client.calls[0].system.lower()
+
+
+def test_build_session_title_input_marks_only_latest_message() -> None:
+    rendered = message.join_text_parts(
+        _build_session_title_input(["重构标题生成", "  ", "提交代码"], previous_title="重构标题生成").pop().parts
+    )
+
+    assert "<previous_title>\n重构标题生成\n</previous_title>" in rendered
+    assert "[1] 重构标题生成\n\n[2] (latest) 提交代码" in rendered
+    assert rendered.count("(latest)") == 1
+
+
+def test_build_session_title_input_omits_previous_title_block_when_absent() -> None:
+    rendered = message.join_text_parts(_build_session_title_input(["修复终端标题截断"]).pop().parts)
+
+    assert "<previous_title>" not in rendered
+    assert "[1] (latest) 修复终端标题截断" in rendered
 
 
 def test_generate_session_title_retries_up_to_three_attempts() -> None:
