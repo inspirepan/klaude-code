@@ -8,7 +8,7 @@ pure function of the rows, so rebuilding after a prepend is cheap and stable.
 
 | File | Role |
 |---|---|
-| `wire.ts` | REST shapes (`HistoryRow`, `HistoryPage`, `SessionMeta`, `SessionListRow`). |
+| `wire.ts` | REST shapes (`HistoryRow`, `HistoryPage`, `SessionMeta`, `SessionListRow`, `SessionState`). |
 | `json.ts` | Defensive readers for the opaque `entry.data`; `readTime` for Python's zone-less microsecond stamps. |
 | `seq.ts` | The seq scheme (below). |
 | `parts.ts` | klaude `parts` → upstream `ContentBlock` / `AssistantBlock`. |
@@ -54,7 +54,7 @@ Consequences:
 | `CompactionEntry` | `CompactionSummaryNode` | `compacted` (built from the request) | one `compaction` `RequestView` | Dot anchors on the COMPACT row; usage/timing stay unknown until M4. |
 | `RewindEntry` (legacy) | `ContextMessageNode` | `rewind` | — | Rationale + note as the body. |
 | `SideQuestionEntry` | `ContextMessageNode` | `btw` | — | Question is the row preview, answer follows in Preview/Raw. |
-| `ForkSummaryEntry` | `UserMessageNode` | `user` | — | Opens a turn: it is the forked session's first user message. |
+| `ForkSummaryEntry` | `UserMessageNode` | `user` | — | Renders as a user row but does **not** open a turn — `session/ledger.py` does not count it as one, and neither does the fallback. |
 | `SpawnSubAgentEntry` | — | — | — | Attaches `{sessionId, type, desc}` to the next unlinked `Agent` tool call (FIFO, so parallel spawns line up with their batch). |
 | `InterruptEntry`, `StreamErrorItem` | — | — | folds into the preceding assistant request (`status: 'error'` + message) | Reset at each user message. |
 | `CacheHitRateEntry` | — | — | folds into the **following** request's usage | klaude writes it when the step's usage arrives, i.e. just before the assistant message it describes. Used only when the provider reported no cached tokens. |
@@ -73,17 +73,34 @@ emitting no `system` entries at all.
 
 ## Turn and step numbering
 
-`turn` counts human user messages seen **within the loaded window**; `step`
-counts assistant messages inside the turn (1-based). `eventLocations` publishes
-the same pair, which drives `Turn N · Step M` and the request identity
-`assistant\0turn\0step`.
+Every history row carries the ordinals `session/ledger.py` computes in one pass
+over the **whole file**, so they are absolute and a prepend cannot renumber
+anything:
 
-Because the window can grow at the top, turn ordinals shift when an older page
-is prepended (the third turn on screen becomes the fifth once its predecessors
-load). Row identity deliberately does **not** depend on them: `layout.ts` was
-patched to key an assistant record on `node.seq` instead of `turn/step`, so keys
-survive a prepend. An absolute turn ordinal per row from the server would remove
-the label shift — see the open questions in `web/VENDOR.md`.
+| Field | Meaning |
+|---|---|
+| `turn_index` | 1-based human turn; **0** for lines ahead of the first human user message. |
+| `step_index` | 1-based `AssistantMessage` inside the turn; `null` on every other line. |
+| `auto` | `UserMessage` lines only: true when the runtime wrote the message (bash-mode echo, empty-response retry, stream-error retry, sub-agent fork context). |
+
+`buildTrajectorySnapshot` adopts them wherever they are present, for the node's
+`turn`/`step`, for `eventLocations`, for the request identity
+`assistant\0turn\0step`, and for the `auto` row tag. Turn 0 is kept as 0:
+`layout.ts` already folds turn-0 cells into Turn 1, which is exactly the
+prologue's place.
+
+**The fallback still exists** for a server older than the ledger scan: `turn`
+then counts human user messages seen inside the loaded window (`classify.ts`
+decides which ones are human) and `step` counts assistant messages inside the
+turn. Window-relative ordinals shift when an older page is prepended — the third
+turn on screen becomes the fifth once its predecessors load. Row identity
+deliberately does not depend on them: `layout.ts` was patched to key an
+assistant record on `node.seq` instead of `turn/step`, so keys survive a
+prepend either way. Both paths are covered by `snapshot.test.ts`
+(`describe('turn ordinals')`).
+
+The two paths agree on everything the ledger scan defines, `ForkSummaryEntry`
+included: it renders as a user row but opens no turn.
 
 ## Usage
 
@@ -124,6 +141,30 @@ Fields: `lineIndex`, `discarded`, `auto`, `subAgent`, and `kind` (the `rewind` /
 
 ## Live state
 
-`partial` and `runningCalls` are always empty here. The WS channel is part 2: it
-will feed those two fields (and only those) while REST keeps owning every landed
-row, exactly as the upstream snapshot model expects.
+`partial` and `runningCalls` are always empty **here**. They are spliced in
+afterwards by `src/app/live`, which is the only consumer of the WS channel:
+
+```
+buildTrajectorySnapshot(rows)  ->  spliceLiveSnapshot(snapshot, liveState)  ->  TrajectoryView
+        (REST, landed rows)              (WS, partial + runningCalls)
+```
+
+The split is deliberate and matches the upstream snapshot model: REST owns
+every row that reached `events.jsonl` — with its ledger status, its usage and
+its stable seq — and the socket only contributes the two fields that describe
+work still in flight. A cold session never opens a socket (decision #28) and
+therefore simply has neither, which is deviation D11.
+
+The wire carries no absolute turn ordinal for a response that has not landed,
+so `spliceLiveSnapshot` anchors the in-flight rows on the newest landed one:
+the streaming `partial` is the step *after* it inside the same turn, and a
+running tool call belongs to the streaming step when a response is open, else
+to the landed step. `history.appended` refreshes the tail within a flush of the
+row landing, so that anchor is never more than one row stale.
+
+`app/live/merge.ts` owns the other half of the handshake — pulling the
+`after_line` increment, and re-reading the statuses of the loaded window when a
+marker (`CompactionEntry` / `RetractEntry` / `RewindEntry`) lands, since a
+marker restates the status of lines above it. The refresh replaces `status` and
+`dropped_by` in place: `line_index` and `entry` are never rewritten, so React
+keys and the folded layout survive it.

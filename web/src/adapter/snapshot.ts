@@ -46,12 +46,42 @@ const ERROR_CODE_MAX_LENGTH = 140
 /** The Agent tool is the one that spawns a sub-agent session. */
 const AGENT_TOOL_NAME = 'Agent'
 
+/** Absolute turn/step ordinals a row carries, when the server computed them. */
+interface RowOrdinals {
+  /** Absolute human-turn ordinal (0 ahead of the first human message). */
+  readonly turn?: number
+  /** 1-based assistant step inside the turn. */
+  readonly step?: number
+  /** True when the runtime, not a person, wrote this user message. */
+  readonly auto?: boolean
+}
+
+/**
+ * Read the server-computed ordinals off a row.
+ *
+ * `session/ledger.py` numbers every physical line in one pass over the whole
+ * file, so these are absolute and survive a prepend. They are optional: an
+ * older server omits them and the caller falls back to counting inside the
+ * loaded window.
+ * @param row - One ledger row.
+ * @returns The ordinals the row carries; empty when the server sent none.
+ */
+function rowOrdinals(row: HistoryRow): RowOrdinals {
+  return {
+    ...(typeof row.turn_index === 'number' ? { turn: row.turn_index } : {}),
+    ...(typeof row.step_index === 'number' ? { step: row.step_index } : {}),
+    ...(typeof row.auto === 'boolean' ? { auto: row.auto } : {}),
+  }
+}
+
+
 /**
  * Project a page of ledger rows into the snapshot the trajectory view folds.
  * @param rows - Ledger rows in ascending `line_index` order.
  * @param options - Session context for the projection.
- * @returns A finalized snapshot; `partial` and `runningCalls` stay empty until
- *   the live WS channel lands (part 2).
+ * @returns A finalized snapshot. `partial` and `runningCalls` are always empty
+ *   here — REST owns landed rows; the live WS splice (`app/live`) is what fills
+ *   those two fields for an online session.
  */
 export function buildTrajectorySnapshot(
   rows: readonly HistoryRow[],
@@ -79,12 +109,23 @@ export function buildTrajectorySnapshot(
     const data = entry.data
     const discarded = discardedOf(row)
     const time = readTime(data.created_at) ?? 0
+    const ordinals = rowOrdinals(row)
+    // Server ordinals are absolute; adopting them keeps every later row in the
+    // page numbered the same way even when this row's arm reads none. Turn 0
+    // means "ahead of the first human message" and is kept as such: `layout.ts`
+    // folds turn-0 cells into Turn 1 on its own.
+    const numbered = ordinals.turn !== undefined
+    if (ordinals.turn !== undefined) turn = ordinals.turn
 
     switch (entry.type) {
       case 'UserMessage': {
         const parts = readArray(data.parts)
-        const reason = autoUserReason(readString(data.source), joinTextParts(parts))
-        if (reason === null) {
+        const auto = ordinals.auto
+          ?? (autoUserReason(readString(data.source), joinTextParts(parts)) !== null)
+        if (numbered) {
+          // The scan already opened the turn; only the step counter is ours.
+          if (!auto) step = 0
+        } else if (!auto) {
           turn += 1
           step = 0
         } else if (turn === 0) turn = 1
@@ -99,15 +140,16 @@ export function buildTrajectorySnapshot(
         annotate(bySeq, seq, {
           lineIndex: line,
           ...(discarded === undefined ? {} : { discarded }),
-          ...(reason === null ? {} : { auto: true as const }),
+          ...(auto ? { auto: true as const } : {}),
         })
         lastAssistantRequest = null
         break
       }
 
       case 'AssistantMessage': {
-        if (turn === 0) turn = 1
-        step += 1
+        if (!numbered && turn === 0) turn = 1
+        if (ordinals.step !== undefined) step = ordinals.step
+        else step += 1
         const parts = readArray(data.parts)
         const usage = decodeUsage(data.usage)
         const usageLike = usage === undefined
@@ -212,7 +254,7 @@ export function buildTrajectorySnapshot(
         // Legacy checkpoint reminders are pure bookkeeping; the plan hides them.
         if (isCheckpointReminder(joinTextParts(parts))) break
         nodes.push(contextNode(seq, time, contentBlocks(parts, sessionId), entry, contextLabel(data)))
-        eventLocations.set(seq, { kind: 'turn', turn: { turn: Math.max(1, turn) } })
+        eventLocations.set(seq, { kind: 'turn', turn: { turn } })
         annotate(bySeq, seq, {
           lineIndex: line,
           ...(discarded === undefined ? {} : { discarded }),
@@ -258,7 +300,7 @@ export function buildTrajectorySnapshot(
           ...(rationale === '' || note === '' ? [] : [{ type: 'text' as const, text: note }]),
         ]
         nodes.push(contextNode(seq, time, content, entry, 'rewind'))
-        eventLocations.set(seq, { kind: 'turn', turn: { turn: Math.max(1, turn) } })
+        eventLocations.set(seq, { kind: 'turn', turn: { turn } })
         annotate(bySeq, seq, {
           lineIndex: line,
           kind: 'rewind',
@@ -275,7 +317,7 @@ export function buildTrajectorySnapshot(
           ...(answer === '' ? [] : [{ type: 'text' as const, text: answer }]),
         ]
         nodes.push(contextNode(seq, time, content, entry, 'btw'))
-        eventLocations.set(seq, { kind: 'turn', turn: { turn: Math.max(1, turn) } })
+        eventLocations.set(seq, { kind: 'turn', turn: { turn } })
         annotate(bySeq, seq, {
           lineIndex: line,
           kind: 'btw',
@@ -285,8 +327,10 @@ export function buildTrajectorySnapshot(
       }
 
       case 'ForkSummaryEntry': {
-        turn += 1
-        step = 0
+        // A fork summary renders as a user row but is not one: `session/ledger.py`
+        // does not open a turn for it, and neither does the fallback. It sits
+        // in the turn it was written into (turn 0 at the head of a fork, which
+        // `layout.ts` folds into Turn 1).
         const summary = readString(data.summary) ?? ''
         nodes.push({
           kind: 'user',

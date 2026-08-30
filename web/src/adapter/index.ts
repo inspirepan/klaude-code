@@ -13,4 +13,5 @@ export { decodeUsage, toAssistantTiming, toUsageLike } from './usage.ts'
 export type { KlaudeUsage, UsageLike } from './usage.ts'
 export type {
   HistoryPage, HistoryRow, HistoryRowStatus, RawEntry, SessionListRow, SessionMeta,
+  SessionState,
 } from './wire.ts'

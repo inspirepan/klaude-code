@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { applyTrajectoryAnnotations } from './annotate.ts'
 import { buildTrajectorySnapshot } from './snapshot.ts'
-import { row, stamp, stampMs, usage } from './fixtures.ts'
+import { numbered, row, stamp, stampMs, usage } from './fixtures.ts'
 import { EMPTY_RESPONSE_CONTINUATION_PROMPT } from './classify.ts'
 import type { HistoryRow } from './wire.ts'
+import { nodeSeq } from './seq.ts'
 import { deriveTrajectoryLayout } from '../trajectory/layout.ts'
 import { trajectoryRecordId } from '../trajectory/trajectory-record.ts'
 import type { TrajectoryCellProps } from '../trajectory/trajectory-record.ts'
@@ -519,5 +520,111 @@ describe('older page prepend', () => {
     expect(after.slice(-before.length)).toEqual(before)
     // The prepended page is the only thing that grew.
     expect(after).toHaveLength(before.length + 4)
+  })
+})
+
+describe('turn ordinals', () => {
+  /** `PLAIN_TURN`, numbered by the server as the fifth turn of a long session. */
+  const NUMBERED_TURN: readonly HistoryRow[] = [
+    numbered(PLAIN_TURN[0]!, 5, null, false),
+    numbered(PLAIN_TURN[1]!, 5, 1),
+    numbered(PLAIN_TURN[2]!, 5),
+    numbered(PLAIN_TURN[3]!, 5, 2),
+  ]
+
+  it('prefers the server ordinals over counting inside the window', () => {
+    const snapshot = snapshotOf(NUMBERED_TURN)
+    const assistants = snapshot.eventNodes.flatMap(node =>
+      node.kind === 'assistant' ? [{ turn: node.turn, step: node.step }] : [])
+    expect(assistants).toEqual([{ turn: 5, step: 1 }, { turn: 5, step: 2 }])
+    expect(snapshot.eventLocations.get(1)).toEqual({ kind: 'turn', turn: { turn: 5 } })
+    expect(snapshot.requests.map(request => [request.turn, request.step])).toEqual([[5, 1], [5, 2]])
+    expect(laidRows(snapshot).every(entry => entry.turn === 5)).toBe(true)
+  })
+
+  it('falls back to window-relative numbering when the server sends none', () => {
+    const snapshot = snapshotOf(PLAIN_TURN)
+    const assistants = snapshot.eventNodes.flatMap(node =>
+      node.kind === 'assistant' ? [{ turn: node.turn, step: node.step }] : [])
+    expect(assistants).toEqual([{ turn: 1, step: 1 }, { turn: 1, step: 2 }])
+    expect(laidRows(snapshot).every(entry => entry.turn === 1)).toBe(true)
+  })
+
+  /** A plain assistant answer at a caller-chosen line. */
+  const answer = (lineIndex: number) => row(lineIndex, 'AssistantMessage', {
+    created_at: stamp(3_000),
+    parts: [{ type: 'text', text: 'ok' }],
+    usage: usage({ created_at: stamp(2_500) }),
+    stop_reason: 'stop',
+  })
+
+  it('trusts the server auto flag over the text heuristic', () => {
+    // Text nothing in `classify.ts` recognizes, flagged auto by the server:
+    // the row is tagged and does not open a turn.
+    const rows = laidRows(snapshotOf([
+      numbered(PLAIN_TURN[0]!, 5, null, false),
+      numbered(row(1, 'UserMessage', {
+        created_at: stamp(10),
+        parts: [{ type: 'text', text: 'a future continuation prompt' }],
+      }), 5, null, true),
+      numbered(answer(2), 5, 1),
+    ]))
+    expect(kinds(rows)).toEqual(['user', 'user', 'message'])
+    expect(rows.map(entry => entry.cell.auto)).toEqual([undefined, true, undefined])
+    expect(rows.every(entry => entry.turn === 5)).toBe(true)
+  })
+
+  it('lets the server open a turn on text the heuristic would call synthetic', () => {
+    const snapshot = snapshotOf([
+      numbered(PLAIN_TURN[0]!, 5, null, false),
+      numbered(row(1, 'UserMessage', {
+        created_at: stamp(10),
+        parts: [{ type: 'text', text: EMPTY_RESPONSE_CONTINUATION_PROMPT }],
+      }), 6, null, false),
+      numbered(answer(2), 6, 1),
+    ])
+    const assistant = snapshot.eventNodes.find(node => node.kind === 'assistant')
+    expect(assistant?.kind === 'assistant' && assistant.turn).toBe(6)
+    expect(snapshot.eventLocations.get(nodeSeq(1))).toEqual({ kind: 'turn', turn: { turn: 6 } })
+  })
+
+  it('folds the pre-first-turn prologue (turn 0) into Turn 1', () => {
+    const rows = laidRows(snapshotOf([
+      numbered(row(0, 'DeveloperMessage', {
+        created_at: stamp(0),
+        role: 'developer',
+        parts: [{ type: 'text', text: 'startup context' }],
+      }), 0),
+      numbered(row(1, 'UserMessage', {
+        created_at: stamp(10),
+        parts: [{ type: 'text', text: 'read the readme' }],
+      }), 1, null, false),
+      numbered(answer(2), 1, 1),
+    ]))
+    expect(kinds(rows)).toEqual(['context', 'user', 'message'])
+    expect(rows.every(entry => entry.turn === 1)).toBe(true)
+  })
+
+  it('never opens a turn on a fork summary, with or without ordinals', () => {
+    const fork = (lineIndex: number) => row(lineIndex, 'ForkSummaryEntry', {
+      summary: 'the parent session was doing X',
+      source_session_id: 'parent',
+      created_at: stamp(0),
+    })
+    const withOrdinals = snapshotOf([
+      numbered(fork(0), 0),
+      numbered(row(1, 'UserMessage', {
+        created_at: stamp(10), parts: [{ type: 'text', text: 'carry on' }],
+      }), 1, null, false),
+    ])
+    const withoutOrdinals = snapshotOf([
+      fork(0),
+      row(1, 'UserMessage', { created_at: stamp(10), parts: [{ type: 'text', text: 'carry on' }] }),
+    ])
+    for (const snapshot of [withOrdinals, withoutOrdinals]) {
+      expect(snapshot.eventLocations.get(nodeSeq(1))).toEqual({ kind: 'turn', turn: { turn: 1 } })
+      // The fork summary itself sits in the prologue and folds into Turn 1.
+      expect(laidRows(snapshot).every(entry => entry.turn === 1)).toBe(true)
+    }
   })
 })

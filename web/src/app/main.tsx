@@ -11,7 +11,7 @@ import { TrajectoryView } from '../trajectory/TrajectoryView.tsx'
 import type { TrajectorySessionState } from '../trajectory/TrajectoryView.tsx'
 import { t } from '../locale.ts'
 import { FIXTURE_SNAPSHOT } from './fixture.ts'
-import { HomePage } from './home-page.tsx'
+import { SessionList } from './SessionList.tsx'
 import { SessionPage } from './session-page.tsx'
 import { useActualDuration } from './duration.ts'
 import { renderImages } from './render-images.tsx'
@@ -67,7 +67,7 @@ function App() {
   const route = useRoute()
   if (route.name === 'session') return <SessionPage key={route.sessionId} sessionId={route.sessionId} />
   if (route.name === 'fixture') return <FixturePage />
-  return <HomePage />
+  return <SessionList />
 }
 
 const host = document.getElementById('root')

@@ -1,0 +1,301 @@
+/* Session list page. Density mirrors the ledger: 26px rows, 12px type,
+ * upstream alias tokens only (decision #1 — no new palette). */
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-1);
+  /* The composite --dsw-font-* tokens live in upstream's deepsuite
+   * theme/global.css, which the fork did not copy; the fallback keeps the page
+   * at ledger density either way (see VENDOR.md open items). */
+  font: var(--dsw-font-xxs-12, 400 12px / 18px var(--dsw-font-family));
+}
+
+.header {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.brand {
+  color: var(--dsw-alias-label-secondary);
+  font-family: var(--ds-font-family-code);
+  font-weight: 600;
+}
+
+.headerCount {
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--ds-font-family-code);
+  font-size: 10px;
+}
+
+.stale {
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.filter {
+  flex: 0 1 200px;
+  box-sizing: border-box;
+  min-width: 96px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 4px;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-specific-input-major);
+  font: inherit;
+}
+
+.filter:focus-visible {
+  border-color: var(--dsw-alias-state-business-primary);
+  outline: none;
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 4px 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  box-sizing: border-box;
+  height: 26px;
+  padding-right: 12px;
+}
+
+.row:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.row[data-archived='true'] {
+  opacity: 0.55;
+}
+
+/* running / waiting_input: the two states with something happening behind them. */
+.row[data-live='true'] .title {
+  font-weight: 600;
+}
+
+.toggle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  color: var(--dsw-alias-label-tertiary);
+  background: none;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+.chevron {
+  display: block;
+  font-size: 12px;
+  line-height: 1;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.chevron[data-open='true'] {
+  transform: rotate(90deg);
+}
+
+.toggleSpacer {
+  flex: none;
+  width: 16px;
+}
+
+.link {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+  padding: 0 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.link:focus-visible {
+  border-radius: 4px;
+  outline: 1px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+}
+
+.title {
+  overflow: hidden;
+  flex: 0 1 auto;
+  min-width: 0;
+  color: var(--dsw-alias-label-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row:hover .title {
+  text-decoration: underline;
+}
+
+.dir {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-module-platform);
+  font-family: var(--ds-font-family-code);
+  font-size: 10px;
+}
+
+/* Six states, six roles. running/waiting_input are the two "live" ones and are
+ * the only rows that carry a dot. */
+.state {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--dsw-alias-label-tertiary);
+  background: var(--dsw-alias-bg-module-platform);
+  font-family: var(--ds-font-family-code);
+  font-size: 10px;
+  letter-spacing: 0.03em;
+}
+
+.state[data-state='running'] {
+  color: var(--dsw-alias-state-business-primary);
+  background: var(--dsw-alias-state-business-tertiary);
+}
+
+.state[data-state='waiting_input'] {
+  color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-tertiary);
+}
+
+.state[data-state='queued'] {
+  color: var(--dsw-alias-label-primary-bluish);
+  background: var(--dsw-alias-bg-overlay);
+}
+
+.state[data-state='idle'] {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-tertiary);
+}
+
+.state[data-state='failed'] {
+  color: var(--dsw-alias-state-error-primary);
+  background: var(--dsw-static-red-50);
+}
+
+.dot {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentcolor;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot { animation: none; }
+}
+
+.count {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--dsw-alias-label-tertiary);
+  background: var(--dsw-alias-bg-multi-select);
+  font-family: var(--ds-font-family-code);
+  font-size: 10px;
+}
+
+.orphan {
+  flex: none;
+  color: var(--dsw-alias-label-caption);
+  font-family: var(--ds-font-family-code);
+  font-size: 10px;
+}
+
+.model,
+.time {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--ds-font-family-code);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.time {
+  min-width: 34px;
+  text-align: right;
+}
+
+.parentLink {
+  flex: none;
+  padding: 0 4px;
+  color: var(--dsw-alias-state-business-primary);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.parentLink:hover {
+  text-decoration: underline;
+}
+
+.empty {
+  flex: none;
+  margin: 0;
+  padding: 16px 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.footer {
+  flex: none;
+  padding: 8px 20px 16px;
+}
+
+.footerLink {
+  color: var(--dsw-alias-label-caption);
+  font-size: 10px;
+  text-decoration: none;
+}
+
+.footerLink:hover {
+  text-decoration: underline;
+}

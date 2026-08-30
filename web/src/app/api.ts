@@ -63,18 +63,25 @@ export function fetchHistoryPage(
   )
 }
 
+/** Root sessions requested per list poll; children ride along on top. */
+export const SESSION_LIST_LIMIT = 500
+
 /**
- * Fetch the session list (the list page itself lands in part 2).
- * @param limit - Maximum rows.
+ * Fetch the session list.
+ *
+ * Both flags matter: without `include_archived` most historical sessions are
+ * hidden, and without `include_children` sub-agent sessions are. `limit`
+ * counts root sessions only — their children are added on top.
+ * @param limit - Maximum root sessions.
  * @param signal - Abort signal.
- * @returns The listed sessions, children included.
+ * @returns The listed sessions, archived rows and children included.
  */
 export async function fetchSessions(
-  limit = 50,
+  limit = SESSION_LIST_LIMIT,
   signal?: AbortSignal,
 ): Promise<readonly SessionListRow[]> {
   const page = await getJson<{ sessions?: readonly SessionListRow[] }>(
-    `/api/headless/sessions?include_children=1&limit=${limit}`,
+    `/api/headless/sessions?include_children=1&include_archived=1&limit=${limit}`,
     signal,
   )
   return page.sessions ?? []

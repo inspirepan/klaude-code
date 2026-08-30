@@ -69,15 +69,49 @@
   text-transform: uppercase;
 }
 
-.state[data-state='running'],
-.state[data-state='waiting_input'] {
+.state[data-state='running'] {
   color: var(--dsw-alias-state-business-primary);
   background: var(--dsw-alias-state-business-tertiary);
 }
 
+.state[data-state='waiting_input'] {
+  color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-tertiary);
+}
+
+.state[data-state='idle'] {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-tertiary);
+}
+
 .state[data-state='failed'] {
   color: var(--dsw-alias-state-error-primary);
-  background: var(--dsw-alias-state-error-secondary);
+  background: var(--dsw-static-red-50);
+}
+
+/* Live channel is open. Solid once the attach replay finished; hollow while
+ * the socket is still catching up. */
+.liveDot {
+  flex: none;
+  box-sizing: border-box;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--dsw-alias-state-business-primary);
+  border-radius: 50%;
+}
+
+.liveDot[data-replayed='true'] {
+  background: var(--dsw-alias-state-business-primary);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .liveDot[data-replayed='true'] { animation: none; }
 }
 
 .parent {

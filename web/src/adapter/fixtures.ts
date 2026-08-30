@@ -51,3 +51,23 @@ export function usage(fields: Record<string, unknown> = {}): Record<string, unkn
     ...fields,
   }
 }
+
+/**
+ * Attach the ordinals `session/ledger.py` computes to a row.
+ *
+ * The server sends `step_index` / `auto` as `null` off the lines they apply
+ * to, so the builder defaults to null rather than omitting the keys.
+ * @param base - Row from `row()`.
+ * @param turnIndex - Absolute 1-based human turn; 0 before the first one.
+ * @param stepIndex - 1-based assistant step inside the turn.
+ * @param auto - Whether the runtime wrote this user message.
+ * @returns The row with ordinals attached.
+ */
+export function numbered(
+  base: HistoryRow,
+  turnIndex: number,
+  stepIndex: number | null = null,
+  auto: boolean | null = null,
+): HistoryRow {
+  return { ...base, turn_index: turnIndex, step_index: stepIndex, auto }
+}

@@ -21,9 +21,10 @@ deepseek-harness and is now maintained here. **We do not sync with upstream.**
 | `src/contract/` | `packages/client/ui-conversation/src/client/contract/` (3 files) + 2 local | 5 | 472 |
 | `src/css-modules.d.ts` | `packages/client/ui-trajectory/src/css-modules.d.ts` | 1 | 6 |
 
-Written by klaude, not copied: `src/adapter/`, `src/locale.ts`, `src/app/`,
-`src/contract/types.ts`, `src/contract/index.ts`, `index.html`, `package.json`,
-`tsconfig.json`, `vite.config.ts`.
+Written by klaude, not copied: `src/adapter/`, `src/locale.ts`, `src/app/`
+(including `src/app/live/`, the WebSocket channel), `src/contract/types.ts`,
+`src/contract/index.ts`, `index.html`, `package.json`, `tsconfig.json`,
+`vite.config.ts`.
 
 ## Files dropped from the copy
 
@@ -95,6 +96,10 @@ Every deviation carries a trailing or leading `// klaude:` comment so
 
 `trajectory-search-index.ts`, `trajectory-virtual-rows.ts` and `copy-codes.ts`
 are **byte-identical** to upstream.
+
+**M2 part 2 (session list + live WS state) added no vendored edit.** The live
+channel feeds the two snapshot fields the fork already declares (`partial`,
+`runningCalls`), so `TrajectoryView` and `layout.ts` consume it unchanged.
 
 #### M2 deviation edits (2026-08-30)
 
@@ -257,16 +262,39 @@ The tsconfig keeps upstream's `allowImportingTsExtensions`,
   pipeline, and add a `wheel-exclude` for `web/node_modules/` either way.
 - **Feature deviations from
   [`docs/web-viewer-ux-spec.md`](../docs/web-viewer-ux-spec.md) §12**: D2, D3,
-  D4, D5, D6, D7, D8 and D9 are **done** (M2 part 1). Still open: **D1** timeline
-  scale model (M3), **D10** (nothing to do — klaude never packs chunk rows),
-  **D11** cold-session live state (needs the WS channel, M2 part 2).
+  D4, D5, D6, D7, D8 and D9 are **done** (M2 part 1); **D11** is **done** (M2
+  part 2 — `src/app/live/` opens the WS channel only for a session whose meta
+  reports `loaded`, so a cold session renders landed rows with no `partial` /
+  `runningCalls` and never triggers an `InitAgentOperation`). Still open: **D1**
+  timeline scale model (M3) and **D10** (nothing to do — klaude never packs
+  chunk rows).
 - `src/app/fixture.ts` stays as the `#/fixture` route so the ledger can be
-  eyeballed with no server running.
-- **Turn ordinals are window-relative.** The history endpoint carries no absolute
-  turn number, so `Turn N` is counted from the oldest loaded human user message
-  and shifts when an older page is prepended. Row keys do not shift (see the
-  `layout.ts` identity edit). An absolute `turn_index` per row — or a
-  `turn_offset` on the history response — would remove the label shift.
+  eyeballed with no server running; the session list links to it.
+- **The composite `--dsw-font-*` tokens are undefined.** `base.css` supplies
+  `--dsw-font-family` and the easings, but `--dsw-font-xxs-12` /
+  `--dsw-font-xs-13` (used across `src/trajectory/*.module.css`) live in
+  upstream's deepsuite `theme/global.css`, which was not copied — so every
+  `font: var(--dsw-font-…)` declaration is dropped and the text inherits the
+  body font. `src/app/SessionList.module.css` passes an explicit fallback;
+  fixing it properly means copying the four missing composites into `base.css`.
+- **Live channel, known gaps** (`src/app/live/`):
+  - `tool.output.delta` is dropped: `RunningToolCall` has nowhere to put
+    streaming tool output, so a running tool row stays headline-only until its
+    `tool.result` lands.
+  - `response.complete` only closes the open block; its `content` /
+    `thinking_text` snapshot is not used to repair a partial that lost deltas.
+  - The streaming `partial` is anchored on the newest landed row rather than on
+    a wire ordinal (the socket has none), so a `Turn N · Step M` label can be
+    one step stale for the flush window between a row being written and
+    `history.appended` arriving.
+  - A trajectory page for an offline session re-reads `meta` every 10 s to
+    notice the session waking up; the socket takes over from there.
+- ~~**Turn ordinals are window-relative.**~~ **Resolved** (M2 part 2): the
+  history endpoint now serves `turn_index` / `step_index` / `auto` per row and
+  `turn_count` per page, computed over the whole file by `session/ledger.py`.
+  The adapter prefers them and keeps the window-relative count as a fallback for
+  an older server; both paths are tested. See
+  [`src/adapter/README.md`](./src/adapter/README.md#turn-and-step-numbering).
 - **Compaction requests report a zero-length call.** Until `LLMRequestEntry`
   lands (M4) the COMPACT row has no recorded end, so the adapter sets
   `completedAt = startedAt`; a `null` would render the marker as pending, which
@@ -274,7 +302,11 @@ The tsconfig keeps upstream's `allowImportingTsExtensions`,
 - `callSchemas` is always empty: klaude does not persist the tool catalog, so the
   tool inspector's Schema tab is empty until the M4 system-context endpoint.
 - Upstream's `ui-trajectory/tests/` were not carried over; `src/adapter/*.test.ts`
-  (vitest, `pnpm test`) covers the projection instead.
+  plus `src/app/session-list-model.test.ts` and `src/app/live/*.test.ts` (vitest,
+  `pnpm test`) cover the projection, the list model and the live reducer instead.
+  None of them mount React: every piece with a behaviour worth pinning is a pure
+  function, and the two impure ones (`SessionList`'s poll and
+  `use-live-session.ts`'s socket) are thin shells over them.
 - Two vendored `ui-primitives` files still name upstream packages in JSDoc
   (`useAnchoredPosition.ts:10`, `relative-time.ts:6` `@module @deepseek-ai/…`),
   and several carry the phrase "cordis-free" in prose plus one
