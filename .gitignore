@@ -25,3 +25,8 @@ package-lock.json
 .pnpm-store/
 web/.vite
 .claude/settings.local.json
+
+# klaude web viewer (fork of deepseek-harness ui-trajectory)
+web/node_modules/
+web/.vite/
+src/klaude_code/server/web/
