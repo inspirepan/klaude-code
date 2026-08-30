@@ -25,7 +25,7 @@ from klaude_code.protocol.models import (
 from klaude_code.session.history import (
     extract_xml_tag,
     last_request_usage,
-    rebuild_loaded_history,
+    scan_history,
     update_last_request_usage,
 )
 from klaude_code.session.meta import parse_session_meta, read_json_dict
@@ -90,11 +90,35 @@ class Session(BaseModel):
     _user_messages_cache: list[str] | None = PrivateAttr(default=None)
     _last_request_usage: Usage | None = PrivateAttr(default=None)
     _store: JsonlSessionStore = PrivateAttr(default=None)  # ty: ignore[invalid-assignment]  # set in model_post_init
+    # Zero-based events.jsonl line of every item in ``conversation_history``,
+    # kept parallel to it. ``_line_count`` is the number of physical lines
+    # written so far (undecodable ones included), i.e. the line the next
+    # appended item gets.
+    _history_lines: list[int] = PrivateAttr(default_factory=list)
+    _line_count: int = PrivateAttr(default=0)
+    # Replay-only cut: items before this index were compacted away before the
+    # session was loaded from disk (see ``get_history_item``). Live appends
+    # never move it.
+    _replay_cut_index: int = PrivateAttr(default=0)
 
     def model_post_init(self, __context: Any) -> None:
         self._store = get_store_for_path(self.work_dir)
         if self.prompt_cache_key is None:
             self.prompt_cache_key = self.id
+        # A session constructed with history in hand (fork previews, tests)
+        # has no file behind it yet: line indices mirror the list.
+        self._history_lines = list(range(len(self.conversation_history)))
+        self._line_count = len(self.conversation_history)
+
+    def line_index_of(self, active_index: int) -> int:
+        """Events.jsonl line of ``conversation_history[active_index]``.
+
+        An index at (or past) the end resolves to the line the next appended
+        item will occupy, so ``first_kept_line`` can express "keep nothing".
+        """
+        if active_index >= len(self._history_lines):
+            return self._line_count
+        return self._history_lines[max(active_index, 0)]
 
     @property
     def messages_count(self) -> int:
@@ -202,9 +226,15 @@ class Session(BaseModel):
     @classmethod
     def load(cls, id: str, work_dir: Path) -> Session:
         session = cls.load_meta(id, work_dir)
-        raw_history = session._store.load_history(id)
-        session._last_request_usage = last_request_usage(raw_history)
-        session.conversation_history = rebuild_loaded_history(raw_history)
+        rows = session._store.load_history_lines(id)
+        session._last_request_usage = last_request_usage(item for _, item in rows if item is not None)
+        scan = scan_history(rows)
+        session.conversation_history = scan.active
+        session._history_lines = scan.active_lines
+        session._line_count = len(rows)
+        # The compacted prefix stays in the list (live sessions keep it too);
+        # only replay hides it, exactly where the loader used to cut.
+        session._replay_cut_index = scan.first_kept_active_index or 0
         return session
 
     @classmethod
@@ -249,6 +279,9 @@ class Session(BaseModel):
             return
 
         self.conversation_history.extend(items)
+        # Every appended item becomes exactly one jsonl line, in order.
+        self._history_lines.extend(range(self._line_count, self._line_count + len(items)))
+        self._line_count += len(items)
         self._last_request_usage = update_last_request_usage(self._last_request_usage, items)
         self._invalidate_messages_count_cache()
 
@@ -366,14 +399,22 @@ class Session(BaseModel):
                 continue
             if message.join_text_parts(item.parts) != text:
                 return False
+            # The line mapping is only absent for a history assembled outside
+            # append_history/load (test fixtures); the entry then falls back to
+            # its text anchor.
+            retracted_line = self._history_lines[idx] if idx < len(self._history_lines) else None
             del self.conversation_history[idx]
+            if idx < len(self._history_lines):
+                del self._history_lines[idx]
             self._invalidate_messages_count_cache()
             self._user_messages_cache = None
+            if idx < self._replay_cut_index:
+                self._replay_cut_index -= 1
             # append_history rebuilds the meta snapshot (user_messages, counts)
             # from the already-trimmed history and resets _last_request_usage —
             # the retraction changes the prompt prefix, so the next request is
             # an expected cache miss, not a cache-break to warn about.
-            self.append_history([message.RetractEntry(retracted_text=text)])
+            self.append_history([message.RetractEntry(retracted_text=text, retracted_line=retracted_line)])
             return True
         return False
 
@@ -573,7 +614,13 @@ class Session(BaseModel):
         # synthesized history with the server-side event tape without overlap.
         history = self.conversation_history if limit is None else self.conversation_history[:limit]
         history_len = len(history)
-        if history_len == 0:
+        # Display-only cut: a session loaded from disk replays from the last
+        # persisted compaction's kept start, so reopening a long compacted
+        # session does not replay the summarized-away prefix. ``limit`` still
+        # indexes conversation_history (the tape splice depends on that) —
+        # items are skipped, never re-indexed.
+        replay_start = min(max(self._replay_cut_index, 0), history_len)
+        if history_len - replay_start <= 0:
             # Nothing happened yet: an empty replay must not synthesize a
             # dangling TaskStartEvent — the display machine would keep the
             # spinner (and its "Loading…" status) alive forever.
@@ -602,7 +649,8 @@ class Session(BaseModel):
             last_assistant_content = ""
             task_finish_pending = False
 
-        for idx, it in enumerate(history):
+        for idx in range(replay_start, history_len):
+            it = history[idx]
             # Track the original message creation time
             if hasattr(it, "created_at"):
                 msg_ts = it.created_at.timestamp()

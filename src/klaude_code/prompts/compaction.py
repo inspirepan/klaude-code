@@ -229,7 +229,6 @@ def build_user_pivot_quote(text: str) -> str:
     return f"<pivot-user-message>\n{text}\n</pivot-user-message>"
 
 
-
 def build_fork_summary_prompt(*, pivot_quote: str, inline_conversation: bool = False) -> str:
     """Build the /rewind summary instruction.
 

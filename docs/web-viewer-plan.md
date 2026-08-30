@@ -182,8 +182,10 @@ dropped_by: line_index | null      # 导致该行失效的标记行
 2. 维护 `active: list[(line_index, item)]`。
 3. 遇 `RetractEntry`：优先用 `retracted_line`（B，新写入才有）；否则回退为从尾部找最近
    UserMessage 且 `join_text_parts == retracted_text`。命中则标 `retracted(by=r)` 并从 active 移除。
-4. 遇 `CompactionEntry`：优先用 `first_kept_line`（B）；否则 `active[:first_kept_index]`。
-   前缀中尚未失效的行标 `compacted(by=c)`；`active` 变为 `[compaction, *kept]`。
+4. 遇 `CompactionEntry`：优先用 `first_kept_line`（B）；否则 `active_lines[:first_kept_index]`。
+   前缀中尚未失效的行标 `compacted(by=c)`。**compaction 只是状态标记，不从 `active` 删除任何
+   项**——M0 之后 loader 不再切列表，`active` 始终等于"原始行 − retract/legacy rewind"，
+   `first_kept_index` 就是相对这份未切列表的坐标（与 live 会话一致）。
 5. 遇旧会话 `RewindEntry`：在**当前 active** 中找 `Checkpoint {id}` 的 DeveloperMessage
    （逐步重放即可消歧复用的 ID），其后的行标 `rewound(by=w)`。
 6. 非 Message 的 sidecar entry 标 `sidecar`（不占账本行，但供检查器/圆点消费）。

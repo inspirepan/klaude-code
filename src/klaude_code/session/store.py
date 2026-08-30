@@ -185,7 +185,9 @@ class JsonlSessionWriter:
 class _HistoryCacheEntry:
     mtime_ns: int
     size: int
-    items: list[message.HistoryEvent]
+    # One row per physical jsonl line, in file order: (line_index, item).
+    # ``None`` marks a line that failed to decode or carries an unknown type.
+    rows: list[tuple[int, message.HistoryEvent | None]]
 
 
 class JsonlSessionStore:
@@ -273,12 +275,32 @@ class JsonlSessionStore:
     def load_history(self, session_id: str) -> list[message.HistoryEvent]:
         """Return the decoded history, using an mtime/size-keyed cache.
 
-        The cache stores the decoded items for an unchanged events file so
+        The cache stores the decoded lines for an unchanged events file so
         repeated loads avoid re-reading and re-deserializing the jsonl. Items
         are deep-copied on the way out so callers may mutate their own copies
         without affecting the cache or other callers (matching the previous
         per-call decode semantics).
         """
+        return [item.model_copy(deep=True) for _, item in self._cached_rows(session_id) if item is not None]
+
+    def load_history_lines(self, session_id: str) -> list[tuple[int, message.HistoryEvent | None]]:
+        """Return every physical jsonl line with its zero-based line index.
+
+        Undecodable lines (bad JSON, unknown ``type``) yield ``None`` but keep
+        their index, so line coordinates stay stable — the ledger and
+        ``Session._history_lines`` both count file lines, not decoded items.
+        Shares the decode cache with ``load_history``.
+        """
+        return [
+            (line_index, item.model_copy(deep=True) if item is not None else None)
+            for line_index, item in self._cached_rows(session_id)
+        ]
+
+    def history_line_count(self, session_id: str) -> int:
+        """Number of physical lines in the session's events file."""
+        return len(self._cached_rows(session_id))
+
+    def _cached_rows(self, session_id: str) -> list[tuple[int, message.HistoryEvent | None]]:
         events_path = self._paths.events_file(session_id)
         try:
             stat = events_path.stat()
@@ -290,27 +312,26 @@ class JsonlSessionStore:
         with self._history_cache_lock:
             entry = self._history_cache.get(session_id)
             if entry is not None and entry.mtime_ns == mtime_ns and entry.size == size:
-                return [item.model_copy(deep=True) for item in entry.items]
+                return entry.rows
 
-        items = list(self._decode_history(events_path))
+        rows = list(self._decode_history_lines(events_path))
         with self._history_cache_lock:
-            self._history_cache[session_id] = _HistoryCacheEntry(mtime_ns=mtime_ns, size=size, items=items)
-        return [item.model_copy(deep=True) for item in items]
+            self._history_cache[session_id] = _HistoryCacheEntry(mtime_ns=mtime_ns, size=size, rows=rows)
+        return rows
 
     def iter_history(self, session_id: str) -> Iterable[message.HistoryEvent]:
         events_path = self._paths.events_file(session_id)
         if not events_path.exists():
             return
-        yield from self._decode_history(events_path)
+        for _, item in self._decode_history_lines(events_path):
+            if item is not None:
+                yield item
 
-    def _decode_history(self, events_path: Path) -> Iterable[message.HistoryEvent]:
+    def _decode_history_lines(self, events_path: Path) -> Iterable[tuple[int, message.HistoryEvent | None]]:
         try:
             with events_path.open("r", encoding="utf-8") as f:
-                for line in f:
-                    item = decode_jsonl_line(line)
-                    if item is None:
-                        continue
-                    yield item
+                for line_index, line in enumerate(f):
+                    yield line_index, decode_jsonl_line(line)
         except OSError:
             return
 

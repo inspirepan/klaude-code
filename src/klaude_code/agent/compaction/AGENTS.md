@@ -55,10 +55,19 @@ There are three entry paths:
 
 ## Persisted and LLM-Facing History
 
-`run_compaction()` returns a `CompactionResult`; callers append `result.to_entry()` to session
-history. Loading a session rebuilds active history around rewinds and the latest compaction. The
-LLM-facing view contains the summary as a user message followed by the valid kept suffix, with
-dangling tool calls removed as needed.
+`run_compaction()` returns a `CompactionResult`; callers append
+`result.to_entry(first_kept_line=session.line_index_of(result.first_kept_index))` to session
+history — both coordinates are persisted: `first_kept_index` indexes the active list,
+`first_kept_line` is the events.jsonl line of the same item.
+
+Loading a session applies retracts (and legacy rewinds) only: the compacted prefix **stays** in
+`conversation_history`, exactly as it does in a live session. Compaction is a boundary marker, not
+a truncation — cutting at load time made the next compaction record an index against a shorter
+list, which resurrected compacted messages on the following load. The LLM-facing view
+(`Session.get_llm_history`) applies the last compaction's `first_kept_index` at request time: the
+summary as a user message followed by the valid kept suffix, with dangling tool calls removed as
+needed. TUI replay (`Session.get_history_item`) hides the same prefix for sessions loaded from
+disk.
 
 When changing cut logic, test repeated compaction, rewind interaction, split tool steps, and old
 persisted sessions. Run `tests/agent/test_compaction*.py` and the session-history tests before

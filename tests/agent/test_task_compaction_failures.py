@@ -198,6 +198,55 @@ def test_threshold_compaction_recollects_attachments_before_step(
     arun(_test())
 
 
+def test_threshold_compaction_persists_the_kept_line(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The persisted entry carries the file coordinate of the first kept item."""
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("older"))])
+
+        monkeypatch.setattr(task_module, "should_compact_threshold", _always_compact)
+
+        async def _successful_run_compaction(**_: Any) -> CompactionResult:
+            return CompactionResult(
+                summary="compact summary",
+                # Keep the turn's own user message (appended at line 1).
+                first_kept_index=1,
+                tokens_before=100,
+                details=None,
+                kept_items_brief=[],
+            )
+
+        monkeypatch.setattr(task_module, "run_compaction", _successful_run_compaction)
+
+        class StubStepExecutor:
+            def __init__(self, _: Any) -> None:
+                self.task_finished = True
+                self.continue_agent = False
+                self.task_result = "done"
+
+            async def run(self) -> AsyncGenerator[events.Event]:
+                if False:
+                    yield cast(events.Event, None)
+
+        monkeypatch.setattr(task_module, "StepExecutor", StubStepExecutor)
+
+        executor = _build_executor(session)
+        [event async for event in executor.run(message.UserInputPayload(text="hello"))]
+
+        entries = [item for item in session.conversation_history if isinstance(item, message.CompactionEntry)]
+        assert len(entries) == 1
+        assert entries[0].first_kept_index == 1
+        assert entries[0].first_kept_line == 1
+        assert session.line_index_of(1) == 1
+        await close_default_store()
+
+    arun(_test())
+
+
 def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

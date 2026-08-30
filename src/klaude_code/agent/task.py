@@ -481,9 +481,12 @@ class TaskExecutor:
                     llm_config=compact_client.get_llm_config(),
                     main_profile=profile,
                 )
-                log_debug(f"[Compact:{reason.value}] result", str(compaction.to_entry()), debug_type=DebugType.RESPONSE)
+                entry = compaction.to_entry(
+                    first_kept_line=ctx.session.line_index_of(compaction.first_kept_index),
+                )
+                log_debug(f"[Compact:{reason.value}] result", str(entry), debug_type=DebugType.RESPONSE)
                 _reset_attachment_loaded_flags(ctx.session.file_tracker)
-                session_ctx.append_history([compaction.to_entry()])
+                session_ctx.append_history([entry])
                 metadata_accumulator.cache.notify_compaction()
                 yield events.CompactionEndEvent(
                     session_id=session_ctx.session_id,
@@ -559,9 +562,10 @@ class TaskExecutor:
                 llm_config=compact_client.get_llm_config(),
                 main_profile=profile,
             )
-            log_debug("[Handoff] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+            entry = result.to_entry(first_kept_line=ctx.session.line_index_of(result.first_kept_index))
+            log_debug("[Handoff] result", str(entry), debug_type=DebugType.RESPONSE)
             _reset_attachment_loaded_flags(ctx.session.file_tracker)
-            session_ctx.append_history([result.to_entry()])
+            session_ctx.append_history([entry])
             metadata_accumulator.cache.notify_compaction()
             yield events.CompactionEndEvent(
                 session_id=session_ctx.session_id,

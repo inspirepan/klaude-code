@@ -5,7 +5,7 @@ from collections.abc import Coroutine
 from pathlib import Path
 from typing import Any
 
-from klaude_code.protocol import message
+from klaude_code.protocol import events, message
 from klaude_code.protocol.models import Usage
 from klaude_code.session.session import Session
 
@@ -18,6 +18,11 @@ def _text(item: message.HistoryEvent) -> str | None:
     if isinstance(item, message.UserMessage | message.AssistantMessage | message.DeveloperMessage):
         return message.join_text_parts(item.parts)
     return None
+
+
+def _replayed_user_messages(session: Session) -> list[str]:
+    """User messages a TUI attach/replay would show for this session."""
+    return [item.content for item in session.get_history_item() if isinstance(item, events.UserMessageEvent)]
 
 
 def _checkpoint_marker(checkpoint_id: int) -> message.DeveloperMessage:
@@ -82,7 +87,13 @@ def test_load_applies_legacy_rewind_semantics(isolated_home: Path, tmp_path: Pat
     arun(_test())
 
 
-def test_load_keeps_only_latest_compaction_prefix(isolated_home: Path, tmp_path: Path) -> None:
+def test_load_keeps_the_compacted_prefix_in_the_active_list(isolated_home: Path, tmp_path: Path) -> None:
+    """The loader no longer cuts at the compaction boundary.
+
+    The in-memory list is "raw lines minus retracted items", exactly like a
+    live session's — the boundary is applied when a request is built, so a
+    compaction recorded after a reload keeps pointing at the right item.
+    """
     del isolated_home
     project_dir = tmp_path / "project"
     project_dir.mkdir()
@@ -104,21 +115,26 @@ def test_load_keeps_only_latest_compaction_prefix(isolated_home: Path, tmp_path:
         loaded = Session.load(session.id, work_dir=project_dir)
 
         assert [type(item).__name__ for item in loaded.conversation_history] == [
-            "CompactionEntry",
             "UserMessage",
             "AssistantMessage",
             "UserMessage",
+            "AssistantMessage",
+            "CompactionEntry",
+            "UserMessage",
         ]
-        first_item = loaded.conversation_history[0]
-        assert isinstance(first_item, message.CompactionEntry)
-        assert first_item.summary == "summary"
-        assert first_item.first_kept_index == 1
-        assert [_text(item) for item in loaded.conversation_history[1:]] == [
+        assert [_text(item) for item in loaded.conversation_history] == [
+            "old user",
+            "old assistant",
             "kept user",
             "kept assistant",
+            None,
             "after compact",
         ]
+        compaction = loaded.conversation_history[4]
+        assert isinstance(compaction, message.CompactionEntry)
+        assert compaction.first_kept_index == 2
 
+        # The LLM view is unchanged: summary + kept suffix.
         llm_history = loaded.get_llm_history()
         assert [_text(item) for item in llm_history] == [
             "summary",
@@ -126,6 +142,149 @@ def test_load_keeps_only_latest_compaction_prefix(isolated_home: Path, tmp_path:
             "kept assistant",
             "after compact",
         ]
+        # Replay still hides the summarized-away prefix.
+        assert _replayed_user_messages(loaded) == ["kept user", "after compact"]
+
+    arun(_test())
+
+
+def test_reload_compact_reload_does_not_resurrect_compacted_messages(isolated_home: Path, tmp_path: Path) -> None:
+    """Regression: reload -> compaction -> reload used to shift the boundary.
+
+    The loader cut the list at the first compaction, so the second compaction
+    recorded an index relative to that cut list; applying it to the un-cut list
+    on the next load pulled already-summarized messages back into the request.
+    """
+    del isolated_home
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history(
+            [
+                message.UserMessage(parts=message.text_parts_from_str("old user")),
+                message.AssistantMessage(parts=message.text_parts_from_str("old assistant")),
+                message.UserMessage(parts=message.text_parts_from_str("kept user")),
+                message.AssistantMessage(parts=message.text_parts_from_str("kept assistant")),
+            ]
+        )
+        session.append_history([message.CompactionEntry(summary="summary1", first_kept_index=2)])
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("after compact"))])
+        await session.wait_for_flush()
+
+        reloaded = Session.load(session.id, work_dir=project_dir)
+        # Second compaction on the reloaded session, cut resolved the way
+        # run_compaction does: against the live conversation list.
+        cut_index = next(
+            idx for idx, item in enumerate(reloaded.conversation_history) if _text(item) == "after compact"
+        )
+        reloaded.append_history(
+            [
+                message.CompactionEntry(
+                    summary="summary2",
+                    first_kept_index=cut_index,
+                    first_kept_line=reloaded.line_index_of(cut_index),
+                )
+            ]
+        )
+        reloaded.append_history([message.UserMessage(parts=message.text_parts_from_str("new turn"))])
+        live_view = [_text(item) for item in reloaded.get_llm_history()]
+        assert live_view == ["summary2", "after compact", "new turn"]
+        await reloaded.wait_for_flush()
+
+        loaded_again = Session.load(session.id, work_dir=project_dir)
+        assert [_text(item) for item in loaded_again.get_llm_history()] == live_view
+
+    arun(_test())
+
+
+def test_history_lines_stay_aligned_across_append_retract_reload_and_fork(isolated_home: Path, tmp_path: Path) -> None:
+    """``_history_lines`` is the file coordinate of every active item."""
+    del isolated_home
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history(
+            [
+                message.UserMessage(parts=message.text_parts_from_str("first")),
+                message.AssistantMessage(parts=message.text_parts_from_str("reply")),
+            ]
+        )
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("retract me"))])
+        assert [session.line_index_of(i) for i in range(len(session.conversation_history))] == [0, 1, 2]
+
+        assert session.retract_last_user_message("retract me") is True
+        # The withdrawn line is gone; the RetractEntry took the next line.
+        assert [session.line_index_of(i) for i in range(len(session.conversation_history))] == [0, 1, 3]
+        retract_entry = session.conversation_history[-1]
+        assert isinstance(retract_entry, message.RetractEntry)
+        assert retract_entry.retracted_line == 2
+
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("second"))])
+        await session.wait_for_flush()
+
+        loaded = Session.load(session.id, work_dir=project_dir)
+        assert [type(item).__name__ for item in loaded.conversation_history] == [
+            "UserMessage",
+            "AssistantMessage",
+            "RetractEntry",
+            "UserMessage",
+        ]
+        assert [loaded.line_index_of(i) for i in range(len(loaded.conversation_history))] == [0, 1, 3, 4]
+        # One past the end resolves to the line the next append will occupy.
+        assert loaded.line_index_of(len(loaded.conversation_history)) == 5
+
+        forked = loaded.fork(until_index=2)
+        await forked.wait_for_flush()
+        # A fork writes a fresh file, so the copied prefix restarts at line 0.
+        assert [forked.line_index_of(i) for i in range(len(forked.conversation_history))] == [0, 1]
+        reloaded_fork = Session.load(forked.id, work_dir=project_dir)
+        assert [reloaded_fork.line_index_of(i) for i in range(len(reloaded_fork.conversation_history))] == [0, 1]
+
+    arun(_test())
+
+
+def test_old_history_without_line_coordinates_loads_identically(isolated_home: Path, tmp_path: Path) -> None:
+    """Entries written before ``first_kept_line``/``retracted_line`` existed."""
+    del isolated_home
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history(
+            [
+                message.UserMessage(parts=message.text_parts_from_str("old user")),
+                message.AssistantMessage(parts=message.text_parts_from_str("old assistant")),
+                message.UserMessage(parts=message.text_parts_from_str("kept user")),
+                message.UserMessage(parts=message.text_parts_from_str("retracted user")),
+                message.RetractEntry(retracted_text="retracted user"),
+                message.CompactionEntry(summary="summary", first_kept_index=2),
+            ]
+        )
+        await session.wait_for_flush()
+
+        events_path = Session.paths(project_dir).events_file(session.id)
+        raw = events_path.read_text(encoding="utf-8")
+        assert "first_kept_line" not in raw
+        assert "retracted_line" not in raw
+
+        loaded = Session.load(session.id, work_dir=project_dir)
+        assert [_text(item) for item in loaded.conversation_history] == [
+            "old user",
+            "old assistant",
+            "kept user",
+            None,  # RetractEntry
+            None,  # CompactionEntry
+        ]
+        assert [loaded.line_index_of(i) for i in range(len(loaded.conversation_history))] == [0, 1, 2, 4, 5]
+        # The RetractEntry rides along in the LLM view (the agent layer filters
+        # non-Message entries); only the compacted prefix is gone.
+        assert [_text(item) for item in loaded.get_llm_history()] == ["summary", "kept user", None]
+        assert _replayed_user_messages(loaded) == ["kept user"]
 
     arun(_test())
 
@@ -279,9 +438,7 @@ def test_load_ignores_a_retract_entry_whose_anchor_drifted(isolated_home: Path, 
     arun(_test())
 
 
-def test_load_replays_legacy_rewind_before_dropping_compacted_prefix(
-    isolated_home: Path, tmp_path: Path
-) -> None:
+def test_load_replays_legacy_rewind_before_dropping_compacted_prefix(isolated_home: Path, tmp_path: Path) -> None:
     del isolated_home
     project_dir = tmp_path / "project"
     project_dir.mkdir()

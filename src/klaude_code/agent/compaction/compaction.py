@@ -78,11 +78,17 @@ class CompactionResult:
     fork_event: events.ForkCacheHitRateEvent | None = None
     """Emitted by caller when present; reports cache reuse vs fallback for this compaction."""
 
-    def to_entry(self) -> message.CompactionEntry:
-        """Convert to a CompactionEntry for persisting in session history."""
+    def to_entry(self, *, first_kept_line: int | None = None) -> message.CompactionEntry:
+        """Convert to a CompactionEntry for persisting in session history.
+
+        ``first_kept_line`` is the events.jsonl line of the first kept item
+        (``session.line_index_of(first_kept_index)``): a coordinate that stays
+        valid however the active list is later re-derived.
+        """
         return message.CompactionEntry(
             summary=self.summary,
             first_kept_index=self.first_kept_index,
+            first_kept_line=first_kept_line,
             tokens_before=self.tokens_before,
             details=self.details,
             kept_items_brief=self.kept_items_brief,

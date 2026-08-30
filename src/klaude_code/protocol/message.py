@@ -78,7 +78,13 @@ class KeptItemBrief(BaseModel):
 
 class CompactionEntry(BaseModel):
     summary: str
+    # Index of the first kept item in the session's active history list.
     first_kept_index: int
+    # Zero-based events.jsonl line of that same first kept item. Optional:
+    # entries written before this field exist only carry ``first_kept_index``.
+    # Unlike the list index, the line survives any later re-derivation of the
+    # active list, so ledger scans prefer it.
+    first_kept_line: int | None = None
     tokens_before: int | None = None
     details: CompactionDetails | None = None
     kept_items_brief: list[KeptItemBrief] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
@@ -107,6 +113,9 @@ class RetractEntry(BaseModel):
     """
 
     retracted_text: str
+    # Zero-based events.jsonl line of the withdrawn UserMessage. Optional:
+    # older entries only carry ``retracted_text`` and are resolved by text.
+    retracted_line: int | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 

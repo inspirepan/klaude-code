@@ -1504,9 +1504,12 @@ class AgentOperationHandler:
                             self._model_profile_provider.build_profile(compact_client, work_dir=agent.session.work_dir)
                         )
                     await self._emit_event(fallback_event)
-            log_debug(f"[Compact:{reason}] result", str(result.to_entry()), debug_type=DebugType.RESPONSE)
+            compaction_entry = result.to_entry(
+                first_kept_line=agent.session.line_index_of(result.first_kept_index),
+            )
+            log_debug(f"[Compact:{reason}] result", str(compaction_entry), debug_type=DebugType.RESPONSE)
             reset_attachment_loaded_flags(agent.session.file_tracker)
-            agent.session.append_history([result.to_entry()])
+            agent.session.append_history([compaction_entry])
             await self._emit_event(
                 events.CompactionEndEvent(
                     session_id=session_id,

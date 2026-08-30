@@ -43,8 +43,9 @@ tool calls. Nothing writes them any more; the read path is kept so those files
 still load and replay:
 
 - `protocol/message.py` — `RewindEntry` model (decode only)
-- `session/history.py` — `find_checkpoint_index_in_history` and
-  `_apply_rewind_entry_to_history`, applied by `rebuild_loaded_history`
+- `session/history.py` — `find_checkpoint_index_in_history`, applied by
+  `scan_history` (the shared scan behind `rebuild_loaded_history`), which
+  drops the rewound tail and marks those lines `rewound`
 - `session/session.py` — `get_llm_history` materializes `RewindEntry` as a
   `DeveloperMessage(REWIND_REMINDER_TEMPLATE)`; `get_history_item` replays it
   as `RewindEvent`
