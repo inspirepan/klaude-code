@@ -312,3 +312,5 @@ The tsconfig keeps upstream's `allowImportingTsExtensions`,
   and several carry the phrase "cordis-free" in prose plus one
   `IconCordisPluginOutline14` icon export. They are comments and an identifier,
   never imports; they are left alone so the vendored diff stays clean.
+
+- 2026-08-30: copied `ui-theme/src/styles/gradient-shadow-text.css` (light block only) — it defines the `--dsw-font-*` composite font tokens the trajectory CSS consumes; without it every `font: var(--dsw-font-…)` declaration was dropped.
