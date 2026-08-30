@@ -352,7 +352,6 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 - `/login` - Login to provider or configure API key.
 - `/logout` - Logout from provider.
 - `/continue` - Continue current session without a new user message.
-- `/debug [filters]` - Toggle debug mode and configure debug filters.
 
 
 ### Input Shortcuts

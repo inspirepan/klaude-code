@@ -16,10 +16,11 @@ from klaude_code.control.event_bus import EventBus
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol.env_sync import ENV_SYNC_HEADER_ASGI, decode_env_header
 from klaude_code.server.headless import HeadlessRuntime
+from klaude_code.server.host_guard import HostHeaderGuardMiddleware
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.prevent_sleep import run_prevent_sleep_monitor
-from klaude_code.server.routes import headless_router, server_router, sessions_router, ws_router
+from klaude_code.server.routes import headless_router, server_router, sessions_router, web_router, ws_router
 from klaude_code.server.session_live import SessionLiveState
 from klaude_code.server.session_tape import SessionEventTapes
 from klaude_code.server.state import ServerAppState, get_server_state_from_app
@@ -65,6 +66,7 @@ def create_app(
     lifecycle: ServerLifecycle | None = None,
     state_initializer: Callable[[], Awaitable[ServerAppState]] | None = None,
     state_shutdown: Callable[[ServerAppState], Awaitable[None]] | None = None,
+    web_port: int | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -74,6 +76,9 @@ def create_app(
         state = get_server_state_from_app(app)
         if not state.code_fingerprint:
             state = replace(state, code_fingerprint=get_code_fingerprint())
+            app.state.server_state = state
+        if web_port is not None and state.web_port is None:
+            state = replace(state, web_port=web_port)
             app.state.server_state = state
         if state.session_live is None:
             state = replace(state, session_live=SessionLiveState(home_dir=state.home_dir))
@@ -147,13 +152,18 @@ def create_app(
             session_live=SessionLiveState(home_dir=resolved_home_dir),
             lifecycle=lifecycle,
             code_fingerprint=get_code_fingerprint(),
+            web_port=web_port,
         )
 
     app.include_router(server_router)
     app.include_router(sessions_router)
     app.include_router(headless_router)
     app.include_router(ws_router)
+    # Last on purpose: `/api/...` routes are matched first, then the static
+    # bundle's `/` and `/assets/*`.
+    app.include_router(web_router)
     app.add_middleware(_EnvSyncMiddleware)
+    app.add_middleware(HostHeaderGuardMiddleware, web_port=web_port)
 
     return app
 

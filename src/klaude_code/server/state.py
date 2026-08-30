@@ -26,6 +26,8 @@ class ServerAppState:
     tapes: SessionEventTapes | None = None
     # Frozen at startup; clients compare it against their own fingerprint.
     code_fingerprint: str = ""
+    # Loopback TCP port serving the web viewer; None when no port was free.
+    web_port: int | None = None
 
     def subscribe_events(self, session_id: str | None) -> EventSubscription:
         return self.event_bus.subscribe(session_id)

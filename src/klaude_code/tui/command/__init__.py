@@ -37,7 +37,6 @@ def ensure_commands_loaded() -> None:
     from .context_cmd import ContextCommand
     from .continue_cmd import ContinueCommand
     from .copy_cmd import CopyCommand
-    from .debug_cmd import DebugCommand
     from .fork_session_cmd import ForkSessionCommand
     from .grill_me_cmd import GrillMeCommand
     from .login_cmd import LoginCommand
@@ -71,7 +70,6 @@ def ensure_commands_loaded() -> None:
     register(RecapCommand())
     register(GrillMeCommand())
     register(BtwCommand())
-    register(DebugCommand())
 
 
 # Lazy accessors for command classes
@@ -82,7 +80,6 @@ def __getattr__(name: str) -> object:
         "CompactCommand": "compact_cmd",
         "ContinueCommand": "continue_cmd",
         "CopyCommand": "copy_cmd",
-        "DebugCommand": "debug_cmd",
         "ForkSessionCommand": "fork_session_cmd",
         "GrillMeCommand": "grill_me_cmd",
         "LoginCommand": "login_cmd",

@@ -18,6 +18,7 @@ from klaude_code.app.runtime import AppInitConfig, cleanup_app_components, initi
 from klaude_code.const import LOG_BACKUP_COUNT, LOG_MAX_BYTES
 from klaude_code.log import DebugType, log_debug, set_debug_logging
 from klaude_code.server.app import create_app
+from klaude_code.server.binding import bind_uds_socket, bind_web_socket, socket_port, web_url
 from klaude_code.server.display import ServerDisplay
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
@@ -110,7 +111,7 @@ class _QuietServer(uvicorn.Server):
 
 
 async def start_server(*, debug: bool = False) -> bool:
-    """Run the server on the Unix domain socket until stopped.
+    """Run the server until stopped, on the Unix socket and the web TCP port.
 
     Returns True when the shutdown was caused by a reload request; the caller
     is expected to re-exec the process with the original arguments.
@@ -132,56 +133,83 @@ async def start_server(*, debug: bool = False) -> bool:
     lock.acquire()
     try:
         socket_path = server_socket_path(home_dir)
-        # The flock guarantees no live owner; drop any stale socket file.
-        socket_path.unlink(missing_ok=True)
-
-        interaction_handler = ServerInteractionHandler()
-        components = await initialize_app_components(
-            init_config=AppInitConfig(model=None, debug=debug, vanilla=False),
-            display=ServerDisplay(),
-            interaction_handler=None,
-        )
-        lifecycle = ServerLifecycle(socket_path=socket_path)
-        app = create_app(
-            runtime=components.runtime,
-            event_bus=components.event_bus,
-            interaction_handler=interaction_handler,
-            home_dir=home_dir,
-            lifecycle=lifecycle,
-        )
-
-        config = uvicorn.Config(
-            app,
-            uds=str(socket_path),
-            log_level="debug" if debug else "info",
-            ws_ping_interval=None,
-            ws_ping_timeout=None,
-        )
-        # uvicorn.Config.__init__ runs dictConfig and resets the uvicorn logger
-        # handlers, so the log file handler must attach after it.
-        log_path = _attach_server_file_logging(debug=debug)
-        # Debug file logging is always on in the server process (agent/LLM work
-        # lives here): the web log viewer and `/debug` read this file. The
-        # /api/server/debug endpoint remains as the off switch.
-        set_debug_logging(True, write_to_file=True)
-        log_debug(f"[server] log file: {log_path}", debug_type=DebugType.EXECUTION)
-        server = _QuietServer(config)
-
-        def _trigger_exit() -> None:
-            server.should_exit = True
-
-        lifecycle.bind_exit_trigger(_trigger_exit)
+        # Both listeners are bound up front and handed to one uvicorn server
+        # so the ASGI lifespan (and the whole runtime) starts exactly once.
+        # The flock guarantees no live owner, so a stale socket file is
+        # dropped inside bind_uds_socket.
+        uds_socket = bind_uds_socket(socket_path)
+        web_socket = bind_web_socket()
+        web_port = socket_port(web_socket) if web_socket is not None else None
 
         try:
-            log_debug(f"[server] starting uvicorn uds={socket_path}", debug_type=DebugType.EXECUTION)
-            await server.serve()
-            log_debug("[server] uvicorn server.serve() returned", debug_type=DebugType.EXECUTION)
+            interaction_handler = ServerInteractionHandler()
+            components = await initialize_app_components(
+                init_config=AppInitConfig(model=None, debug=debug, vanilla=False),
+                display=ServerDisplay(),
+                interaction_handler=None,
+            )
+            lifecycle = ServerLifecycle(socket_path=socket_path)
+            app = create_app(
+                runtime=components.runtime,
+                event_bus=components.event_bus,
+                interaction_handler=interaction_handler,
+                home_dir=home_dir,
+                lifecycle=lifecycle,
+                web_port=web_port,
+            )
+
+            # No uds=/host= here: passing pre-bound sockets to serve() makes
+            # uvicorn skip those branches entirely (uvicorn 0.41 Server.startup).
+            config = uvicorn.Config(
+                app,
+                log_level="debug" if debug else "info",
+                ws_ping_interval=None,
+                ws_ping_timeout=None,
+            )
+            # uvicorn.Config.__init__ runs dictConfig and resets the uvicorn logger
+            # handlers, so the log file handler must attach after it.
+            log_path = _attach_server_file_logging(debug=debug)
+            # Debug file logging is always on in the server process (agent/LLM work
+            # lives here); `klaude server logs` and the log files are the only
+            # readers. The /api/server/debug endpoint remains as the off switch.
+            set_debug_logging(True, write_to_file=True)
+            log_debug(f"[server] log file: {log_path}", debug_type=DebugType.EXECUTION)
+            server = _QuietServer(config)
+
+            def _trigger_exit() -> None:
+                server.should_exit = True
+
+            lifecycle.bind_exit_trigger(_trigger_exit)
+
+            listen_logger = logging.getLogger("uvicorn.error")
+            listen_logger.info("klaude server listening on unix socket %s", socket_path)
+            if web_port is not None:
+                listen_logger.info("klaude web viewer on %s", web_url(web_port))
+            else:
+                # Not fatal: the CLI/TUI only need the Unix socket. `klaude web`
+                # reports the missing port instead.
+                listen_logger.warning("no free loopback port for the web viewer; running without it")
+
+            sockets = [uds_socket] if web_socket is None else [uds_socket, web_socket]
+            try:
+                log_debug(
+                    f"[server] starting uvicorn uds={socket_path} web_port={web_port}", debug_type=DebugType.EXECUTION
+                )
+                # uvicorn's shutdown closes every socket it was given.
+                await server.serve(sockets=sockets)
+                log_debug("[server] uvicorn server.serve() returned", debug_type=DebugType.EXECUTION)
+            finally:
+                # Interrupts running agents and waits for session flush to disk.
+                log_debug("[server] cleanup start: app components", debug_type=DebugType.EXECUTION)
+                await cleanup_app_components(components)
+                log_debug("[server] cleanup done: app components", debug_type=DebugType.EXECUTION)
+            return lifecycle.reload_requested
         finally:
-            # Interrupts running agents and waits for session flush to disk.
-            log_debug("[server] cleanup start: app components", debug_type=DebugType.EXECUTION)
-            await cleanup_app_components(components)
-            log_debug("[server] cleanup done: app components", debug_type=DebugType.EXECUTION)
+            # uvicorn closes the sockets it served; closing again is a no-op
+            # and covers the paths where serve() never started.
+            uds_socket.close()
+            if web_socket is not None:
+                web_socket.close()
             socket_path.unlink(missing_ok=True)
-        return lifecycle.reload_requested
     finally:
         lock.release()

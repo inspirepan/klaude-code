@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from klaude_code.protocol.version import PROTOCOL_VERSION
+from klaude_code.server.binding import web_url
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.session_state import derive_session_state_from_snapshot
 from klaude_code.server.state import ServerAppState, get_server_state
@@ -59,6 +60,9 @@ async def server_status(state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, 
         "protocol_version": PROTOCOL_VERSION,
         "code_fingerprint": state.code_fingerprint,
         "socket_path": str(lifecycle.socket_path),
+        # None when no loopback port could be bound; `klaude web` reports that.
+        "web_port": state.web_port,
+        "web_url": web_url(state.web_port) if state.web_port is not None else None,
         "uptime_seconds": lifecycle.uptime_seconds,
         "sessions": {
             "loaded": len(state.runtime.session_registry.list_session_actors()),
@@ -98,8 +102,9 @@ async def server_reload(request: ReloadRequest, state: ServerAppState = _SERVER_
 async def server_debug(request: DebugRequest) -> dict[str, Any]:
     """Enable or disable debug file logging in the server process.
 
-    Agent/LLM work lives here, so client-side ``--debug`` / ``/debug`` must
-    flip this switch rather than creating an empty local log file.
+    Debug logging is on by default in the server process; this endpoint is
+    the off switch. Client-side ``--debug`` flips it here rather than
+    creating an empty local log file, since agent/LLM work lives here.
     """
     from klaude_code.log import get_current_log_file, is_debug_enabled, set_debug_logging
 

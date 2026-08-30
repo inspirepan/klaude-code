@@ -45,11 +45,7 @@ def run_attach_tui(session_id: str, *, peek: bool = False, debug: bool = False) 
         raise typer.Exit(1) from None
     del debug_enabled
     if log_path:
-        from klaude_code.app.log_viewer import start_log_viewer
-
         log(f"Debug log: {log_path}")
-        viewer_url = start_log_viewer(log_path)
-        log(f"Log viewer: {viewer_url}")
     asyncio.run(run_attach(session_id, peek=peek))
 
 

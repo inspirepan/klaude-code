@@ -87,7 +87,7 @@ def run_command(
 
 @server_app.command("status")
 def status_command() -> None:
-    """Show pid, socket path, uptime, version, and session counts."""
+    """Show pid, socket path, web URL, uptime, version, and session counts."""
 
     from klaude_code.server.paths import server_socket_path
 
@@ -104,6 +104,7 @@ def status_command() -> None:
     log("klaude server is running")
     log(f"  pid:      {body.get('pid')}")
     log(f"  socket:   {server_socket_path()}")
+    log(f"  web:      {body.get('web_url') or 'unavailable (no free loopback port)'}")
     log(f"  uptime:   {_format_uptime(float(body.get('uptime_seconds', 0)))}")
     log(f"  version:  {body.get('version')}")
     log(f"  protocol: {body.get('protocol_version') or 'unknown'}")
