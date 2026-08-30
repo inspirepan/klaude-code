@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.cache_safe import CacheSafeParams, build_cache_safe_messages, is_cache_sharable
 from klaude_code.agent.compaction.compaction import serialize_conversation
+from klaude_code.agent.llm_request import LLMRequestLog
 from klaude_code.llm import LLMClientABC
 from klaude_code.prompts.compaction import (
     FORK_SUMMARY_USER_PREFIX,
@@ -44,6 +45,10 @@ class RewindSummaryResult:
     tokens_before: int | None
     cache_hit_rate: float | None
     fallback_used: bool
+    usage: Usage | None = None
+    """Usage of the summary call. The fallback path reports it too."""
+    request_id: str | None = None
+    """Id of the LLMRequestEntry recorded for that call, for the entry to link."""
 
 
 def count_summarized_messages(history: list[message.HistoryEvent], pivot_index: int) -> int:
@@ -112,21 +117,28 @@ def _cache_hit_rate(usage: Usage | None) -> float | None:
 
 
 async def _collect_text(
-    llm_client: LLMClientABC, call_param: llm_param.LLMCallParameter
+    llm_client: LLMClientABC,
+    call_param: llm_param.LLMCallParameter,
+    *,
+    request_log: LLMRequestLog,
+    label: str,
 ) -> tuple[str, message.AssistantMessage | None]:
-    stream = await llm_client.call(call_param)
     accumulated: list[str] = []
     final_message: message.AssistantMessage | None = None
-    async for item in stream:
-        if isinstance(item, message.AssistantTextDelta):
-            accumulated.append(item.content)
-        elif isinstance(item, message.StreamErrorItem):
-            raise RuntimeError(item.error)
-        elif isinstance(item, message.AssistantMessage):
-            final_message = item
-    text = message.join_text_parts(final_message.parts) if final_message else "".join(accumulated)
-    if not text.strip():
-        raise ValueError("Rewind summarizer returned empty output")
+    with request_log.record(kind="fork", label=label, client=llm_client) as record:
+        record.start(call_param)
+        stream = await llm_client.call(call_param)
+        async for item in stream:
+            record.observe(item)
+            if isinstance(item, message.AssistantTextDelta):
+                accumulated.append(item.content)
+            elif isinstance(item, message.StreamErrorItem):
+                raise RuntimeError(item.error)
+            elif isinstance(item, message.AssistantMessage):
+                final_message = item
+        text = message.join_text_parts(final_message.parts) if final_message else "".join(accumulated)
+        if not text.strip():
+            raise ValueError("Rewind summarizer returned empty output")
     return text.strip(), final_message
 
 
@@ -139,6 +151,7 @@ async def run_rewind_summary(
     main_profile: AgentProfile,
     tokens_before: int | None,
     cancel: asyncio.Event | None = None,
+    request_log: LLMRequestLog | None = None,
 ) -> RewindSummaryResult:
     """Generate the rewind summary for ``[pivot..end]`` of the active view.
 
@@ -154,6 +167,8 @@ async def run_rewind_summary(
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
 
+    # Caller-owned so a failed summary still leaves its request record behind.
+    log = request_log if request_log is not None else LLMRequestLog()
     history = active_view
     message_count = count_summarized_messages(history, pivot_index)
     if message_count == 0:
@@ -175,13 +190,16 @@ async def run_rewind_summary(
         )
         call_param.tools = main_profile.tools  # Must match parent; tools=[] would break cache.
         call_param.max_tokens = REWIND_SUMMARY_MAX_TOKENS
-        text, final_message = await _collect_text(llm_client, call_param)
+        text, final_message = await _collect_text(llm_client, call_param, request_log=log, label="fork")
+        usage = final_message.usage if final_message else None
         return RewindSummaryResult(
             text=text,
             message_count=message_count,
             tokens_before=tokens_before,
-            cache_hit_rate=_cache_hit_rate(final_message.usage if final_message else None),
+            cache_hit_rate=_cache_hit_rate(usage),
             fallback_used=False,
+            usage=usage,
+            request_id=log.primary_request_id,
         )
 
     # Fallback: serialized standalone request on the summarizer client. No
@@ -202,11 +220,13 @@ async def run_rewind_summary(
         session_id=session.id,
     )
     call_param.max_tokens = REWIND_SUMMARY_MAX_TOKENS
-    text, _ = await _collect_text(llm_client, call_param)
+    text, fallback_message = await _collect_text(llm_client, call_param, request_log=log, label="fallback")
     return RewindSummaryResult(
         text=text,
         message_count=message_count,
         tokens_before=tokens_before,
         cache_hit_rate=None,
         fallback_used=True,
+        usage=fallback_message.usage if fallback_message else None,
+        request_id=log.primary_request_id,
     )

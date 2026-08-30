@@ -19,6 +19,7 @@ from klaude_code.agent.compaction import (
 )
 from klaude_code.agent.connectivity import is_connectivity_error
 from klaude_code.agent.handoff import HandoffManager, run_handoff
+from klaude_code.agent.llm_request import LLMRequestLog, append_request_records
 from klaude_code.agent.model_fallback import (
     build_fallback_model_config_warn,
     fallback_llm_client,
@@ -469,6 +470,9 @@ class TaskExecutor:
         ctx = self._context
         session_ctx = ctx.session_ctx
         result.profile = profile
+        # One log across the fallback retries; owned here so the records of a
+        # failed attempt still reach history.
+        request_log = LLMRequestLog()
         while True:
             try:
                 log_debug(f"[Compact:{reason.value}] start", debug_type=DebugType.RESPONSE)
@@ -480,13 +484,14 @@ class TaskExecutor:
                     llm_client=compact_client,
                     llm_config=compact_client.get_llm_config(),
                     main_profile=profile,
+                    request_log=request_log,
                 )
                 entry = compaction.to_entry(
                     first_kept_line=ctx.session.line_index_of(compaction.first_kept_index),
                 )
                 log_debug(f"[Compact:{reason.value}] result", str(entry), debug_type=DebugType.RESPONSE)
                 _reset_attachment_loaded_flags(ctx.session.file_tracker)
-                session_ctx.append_history([entry])
+                session_ctx.append_history([*request_log.ordered_entries, entry])
                 metadata_accumulator.cache.notify_compaction()
                 yield events.CompactionEndEvent(
                     session_id=session_ctx.session_id,
@@ -503,6 +508,7 @@ class TaskExecutor:
                 result.succeeded = True
                 return
             except asyncio.CancelledError:
+                append_request_records(ctx.session, request_log)
                 yield events.CompactionEndEvent(
                     session_id=session_ctx.session_id,
                     reason=reason.value,
@@ -521,6 +527,7 @@ class TaskExecutor:
 
                 result.error = e
                 result.nothing_to_compact = isinstance(e, ValueError) and str(e).startswith("Nothing to compact")
+                append_request_records(ctx.session, request_log)
                 log_debug(
                     f"[Compact:{reason.value}] error",
                     str(e.__class__.__name__),

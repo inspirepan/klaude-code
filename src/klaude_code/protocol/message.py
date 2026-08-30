@@ -7,7 +7,7 @@ Streaming-only items are emitted at runtime but never persisted.
 import time
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Annotated, Literal, cast
+from typing import Annotated, Any, Literal, cast
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -88,6 +88,9 @@ class CompactionEntry(BaseModel):
     tokens_before: int | None = None
     details: CompactionDetails | None = None
     kept_items_brief: list[KeptItemBrief] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    # Links to the LLMRequestEntry written immediately before this one. None on
+    # entries written before request records existed.
+    request_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -175,6 +178,8 @@ class SideQuestionEntry(BaseModel):
     answer: str
     # Share of the forked request's prompt served from the parent's cache.
     cache_hit_rate: float | None = None
+    # Links to the LLMRequestEntry written immediately before this one.
+    request_id: str | None = None
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -201,6 +206,51 @@ class ForkSummaryEntry(BaseModel):
     # cache; persisted so replay renders the same panel (SideQuestionEntry
     # convention).
     cache_hit_rate: float | None = None
+    # Links to the LLMRequestEntry written immediately before this one, in the
+    # SAME (forked) session.
+    request_id: str | None = None
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+LLMRequestKind = Literal["compaction", "side_question", "fork"]
+LLMRequestStatus = Literal["completed", "error", "interrupted"]
+
+
+class LLMRequestEntry(BaseModel):
+    """One out-of-band LLM call, recorded for the web viewer's request dot.
+
+    Sidecar: never enters model input (it is not a ``Message``, so the
+    ``isinstance(..., Message)`` filters every LLM-input path applies drop it)
+    and it is not listed in ``agent/step.py``'s ``message_types``.
+
+    Main-agent steps need no entry — ``AssistantMessage.usage`` already carries
+    their timing and tokens. Only the three calls that discard their usage are
+    recorded: compaction, ``/btw`` and ``/rewind``'s fork summary. The entry is
+    appended immediately BEFORE the entry it describes (``CompactionEntry`` /
+    ``SideQuestionEntry`` / ``ForkSummaryEntry``), which carries the matching
+    ``request_id``, so a reader joins them by id rather than by position.
+
+    ``options`` is a safe dump of the effective call parameters (model knobs
+    only). Credentials must never reach it — see
+    ``agent/llm_request.py:safe_call_options``.
+    """
+
+    request_id: str = Field(default_factory=lambda: uuid4().hex)
+    kind: LLMRequestKind
+    # Which sub-call this was, when one logical operation issues several
+    # ("fork" / "summary" / "task_prefix" for compaction, "fork" / "fallback"
+    # for the rewind summary). Free-form; readers may show it verbatim.
+    label: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    options: dict[str, Any] | None = None
+    status: LLMRequestStatus = "completed"
+    error: str | None = None
+    usage: Usage | None = None
+    started_at: datetime = Field(default_factory=datetime.now)
+    first_token_at: datetime | None = None
+    completed_at: datetime | None = None
+    tool_call_count: int = 0
     created_at: datetime = Field(default_factory=datetime.now)
 
 
@@ -387,6 +437,7 @@ HistoryEvent = (
     | PromptSuggestionEntry
     | SideQuestionEntry
     | ForkSummaryEntry
+    | LLMRequestEntry
 )
 
 StreamItem = AssistantTextDelta | ThinkingTextDelta | ToolCallStartDelta

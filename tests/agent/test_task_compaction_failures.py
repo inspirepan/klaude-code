@@ -247,6 +247,105 @@ def test_threshold_compaction_persists_the_kept_line(tmp_path: Path, monkeypatch
     arun(_test())
 
 
+def test_threshold_compaction_writes_the_request_record_before_the_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Auto compaction persists its LLM call record, joined by request_id."""
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("older"))])
+
+        monkeypatch.setattr(task_module, "should_compact_threshold", _always_compact)
+        recorded = message.LLMRequestEntry(kind="compaction", label="fork", provider="p", model="m")
+
+        async def _successful_run_compaction(*, request_log: Any, **_: Any) -> CompactionResult:
+            request_log.entries.append(recorded)
+            return CompactionResult(
+                summary="compact summary",
+                first_kept_index=1,
+                tokens_before=100,
+                details=None,
+                kept_items_brief=[],
+                request_id=recorded.request_id,
+            )
+
+        monkeypatch.setattr(task_module, "run_compaction", _successful_run_compaction)
+
+        class StubStepExecutor:
+            def __init__(self, _: Any) -> None:
+                self.task_finished = True
+                self.continue_agent = False
+                self.task_result = "done"
+
+            async def run(self) -> AsyncGenerator[events.Event]:
+                if False:
+                    yield cast(events.Event, None)
+
+        monkeypatch.setattr(task_module, "StepExecutor", StubStepExecutor)
+
+        executor = _build_executor(session)
+        [event async for event in executor.run(message.UserInputPayload(text="hello"))]
+
+        entries = [item for item in session.conversation_history if isinstance(item, message.CompactionEntry)]
+        assert len(entries) == 1
+        entry_index = session.conversation_history.index(entries[0])
+        record = session.conversation_history[entry_index - 1]
+        assert isinstance(record, message.LLMRequestEntry)
+        assert record.request_id == entries[0].request_id == recorded.request_id
+        await close_default_store()
+
+    arun(_test())
+
+
+def test_threshold_compaction_failure_still_records_the_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A compaction that never produces an entry still leaves its record."""
+    project_dir = tmp_path / "test_project"
+    project_dir.mkdir()
+    monkeypatch.chdir(project_dir)
+
+    async def _test() -> None:
+        session = Session.create(work_dir=project_dir)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("older"))])
+
+        monkeypatch.setattr(task_module, "should_compact_threshold", _always_compact)
+
+        async def _failing_run_compaction(*, request_log: Any, **_: Any) -> CompactionResult:
+            request_log.entries.append(
+                message.LLMRequestEntry(kind="compaction", label="fork", status="error", error="boom")
+            )
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(task_module, "run_compaction", _failing_run_compaction)
+
+        class StubStepExecutor:
+            def __init__(self, _: Any) -> None:
+                self.task_finished = True
+                self.continue_agent = False
+                self.task_result = "done"
+
+            async def run(self) -> AsyncGenerator[events.Event]:
+                if False:
+                    yield cast(events.Event, None)
+
+        monkeypatch.setattr(task_module, "StepExecutor", StubStepExecutor)
+
+        executor = _build_executor(session)
+        [event async for event in executor.run(message.UserInputPayload(text="hello"))]
+
+        records = [item for item in session.conversation_history if isinstance(item, message.LLMRequestEntry)]
+        assert [record.status for record in records] == ["error"]
+        assert not [item for item in session.conversation_history if isinstance(item, message.CompactionEntry)]
+        await close_default_store()
+
+    arun(_test())
+
+
 def test_threshold_nothing_to_compact_keeps_future_threshold_checks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -92,6 +92,10 @@ class _FakeLLMClient:
         self.calls: list[Any] = []
         self._cfg = type("Cfg", (), {"model_id": "m", "provider_name": "p", "thinking": None})()
 
+    @property
+    def model_name(self) -> str:
+        return "m"
+
     async def call(self, call_param: Any):
         self.calls.append(call_param)
 
@@ -259,13 +263,17 @@ def test_rewind_op_forks_appends_entry_and_emits_ready(
         def _fake_clients(_session_id: str) -> Any:
             return type("FakeClients", (), {"get_compact_client": staticmethod(lambda: object())})()
 
-        async def _fake_summary(**_kwargs: Any) -> RewindSummaryResult:
+        recorded = message.LLMRequestEntry(kind="fork", label="fork", provider="p", model="m")
+
+        async def _fake_summary(*, request_log: Any, **_kwargs: Any) -> RewindSummaryResult:
+            request_log.entries.append(recorded)
             return RewindSummaryResult(
                 text="SUMMARY BODY",
                 message_count=2,
                 tokens_before=123,
                 cache_hit_rate=0.5,
                 fallback_used=False,
+                request_id=recorded.request_id,
             )
 
         async def _fake_suggestion(**_kwargs: Any) -> Any:
@@ -290,6 +298,12 @@ def test_rewind_op_forks_appends_entry_and_emits_ready(
         assert len(entries) == 1
         assert entries[0].summary == "SUMMARY BODY"
         assert entries[0].source_pivot_index == 2
+        # The request record rides into the NEW session, immediately before the
+        # entry it describes, joined by request_id.
+        fork_index = loaded.conversation_history.index(entries[0])
+        record = loaded.conversation_history[fork_index - 1]
+        assert isinstance(record, message.LLMRequestEntry)
+        assert record.request_id == entries[0].request_id == recorded.request_id
         # LLM view: kept prefix + summary as UserMessage. Sidecar entries
         # (PromptSuggestionEntry) may appear in get_llm_history output —
         # wire-building call sites filter to Messages — but must never leak

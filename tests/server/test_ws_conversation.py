@@ -39,6 +39,28 @@ def test_send_message_and_receive_events(app_env: AppEnv) -> None:
     assert "assistant.text.end" in event_types
     assert "operation.finished" in event_types
     assert extract_text(events) == "Hello world!"
+    # The end event carries the step's final stop_reason (viewer request dot).
+    text_end = next(event for event in events if event["event_type"] == "assistant.text.end")
+    assert text_end["event"]["stop_reason"] == "stop"
+
+
+def test_assistant_text_end_has_no_stop_reason_when_a_tool_call_cuts_the_block(app_env: AppEnv) -> None:
+    """The block closed early, before the final message: nothing to report yet."""
+    app_env.fake_llm.enqueue(
+        message.AssistantTextDelta(content="let me look"),
+        message.ToolCallStartDelta(call_id="c1", name="Bash"),
+        message.AssistantMessage(parts=[message.TextPart(text="let me look")], stop_reason="stop"),
+    )
+
+    session_id = app_env.create_session()
+    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
+        consume_ws_handshake(websocket)
+        send_user_message(websocket, session_id, "hi")
+        events = collect_events_until(websocket, "operation.finished")
+
+    # Envelopes drop None fields, so the key is simply absent.
+    text_end = next(event for event in events if event["event_type"] == "assistant.text.end")
+    assert text_end["event"].get("stop_reason") is None
 
 
 def test_usage_snapshot_on_reconnect(app_env: AppEnv) -> None:

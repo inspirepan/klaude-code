@@ -41,6 +41,19 @@ class StepError(Exception):
     pass
 
 
+# The only history types that go on the wire. Everything else in the active
+# list is a sidecar (LLMRequestEntry, InterruptEntry, CacheHitRateEntry, ...)
+# and must never reach the model. Named so tests can assert against the real
+# filter rather than a copy of it.
+LLM_INPUT_MESSAGE_TYPES: tuple[type[message.Message], ...] = (
+    message.SystemMessage,
+    message.DeveloperMessage,
+    message.UserMessage,
+    message.AssistantMessage,
+    message.ToolResultMessage,
+)
+
+
 @dataclass
 class StepExecutionContext:
     """Execution context required to run a single step."""
@@ -282,14 +295,9 @@ class StepExecutor:
                     part.duration_s = thinking_duration_s
                     return
 
-        message_types = (
-            message.SystemMessage,
-            message.DeveloperMessage,
-            message.UserMessage,
-            message.AssistantMessage,
-            message.ToolResultMessage,
-        )
-        messages = [item for item in session_ctx.get_conversation_history() if isinstance(item, message_types)]
+        messages = [
+            item for item in session_ctx.get_conversation_history() if isinstance(item, LLM_INPUT_MESSAGE_TYPES)
+        ]
         call_param = llm_param.LLMCallParameter(
             input=messages,
             system=ctx.system_prompt,
@@ -367,6 +375,7 @@ class StepExecutor:
                             yield events.AssistantTextEndEvent(
                                 response_id=msg.response_id,
                                 session_id=session_ctx.session_id,
+                                stop_reason=msg.stop_reason,
                             )
                         _persist_thinking_duration(msg)
                         step_result.assistant_message = msg

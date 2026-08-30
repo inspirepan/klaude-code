@@ -500,6 +500,126 @@ def test_file_of_an_unknown_session_is_404(app_env: AppEnv) -> None:
     assert response.status_code == 404
 
 
+def test_history_serves_the_llm_request_entry_as_a_sidecar_row(app_env: AppEnv) -> None:
+    """The viewer's request dot rides the ledger like any other row."""
+    session_id = "req00001"
+    request = message.LLMRequestEntry(
+        kind="compaction",
+        label="fork",
+        provider="anthropic",
+        model="claude",
+        options={"max_tokens": 8192},
+        tool_call_count=0,
+    )
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [
+            _user("hi"),
+            request,
+            message.CompactionEntry(summary="s", first_kept_index=0, request_id=request.request_id),
+        ],
+    )
+
+    rows = _history(app_env, session_id)["rows"]
+
+    assert [row["status"] for row in rows] == ["active", "sidecar", "active"]
+    assert rows[1]["entry"]["type"] == "LLMRequestEntry"
+    assert rows[1]["entry"]["data"]["request_id"] == request.request_id
+    assert rows[1]["entry"]["data"]["options"] == {"max_tokens": 8192}
+    # The link the viewer joins on, with no positional guessing.
+    assert rows[2]["entry"]["data"]["request_id"] == request.request_id
+    # A sidecar never opens a turn or takes a step number.
+    assert (rows[1]["turn_index"], rows[1]["step_index"], rows[1]["auto"]) == (1, None, None)
+
+
+# -- system context --
+
+
+def _system_context(app_env: AppEnv, session_id: str) -> dict[str, Any]:
+    response = app_env.client.get(f"/api/web/sessions/{session_id}/system-context")
+    assert response.status_code == 200, response.text
+    return dict(response.json())
+
+
+def test_system_context_rebuilds_for_a_cold_session(app_env: AppEnv) -> None:
+    session_id = "sysctx01"
+    _write_session(app_env.work_dir, session_id, [_user("hi")], meta_extra={"model_config_name": "sonnet"})
+
+    payload = _system_context(app_env, session_id)
+
+    assert payload["available"] is True
+    assert payload["source"] == "rebuilt"
+    assert isinstance(payload["system_prompt"], str) and payload["system_prompt"]
+    assert payload["tools"], "the rebuilt profile must list the main agent tool set"
+    assert {"name", "description", "parameters"} <= set(payload["tools"][0])
+    assert "Bash" in {tool["name"] for tool in payload["tools"]}
+    assert payload["model"]["model"] == "fake-model"
+    assert payload["model"]["model_config_name"] == "sonnet"
+    assert payload["reason"] is None
+    # Reading a cold session must not spin up an agent for it.
+    assert not app_env.runtime.session_registry.has_session_actor(session_id)
+
+
+def test_system_context_reports_a_vanilla_session_without_the_main_prompt(app_env: AppEnv) -> None:
+    session_id = "sysctx02"
+    _write_session(app_env.work_dir, session_id, [], meta_extra={"vanilla": True})
+
+    payload = _system_context(app_env, session_id)
+
+    assert payload["source"] == "rebuilt"
+    assert payload["system_prompt"] == "You're an agent running in user's terminal"
+    assert {tool["name"] for tool in payload["tools"]} == {"Bash", "Edit", "Write", "Read"}
+
+
+def test_system_context_serves_the_live_profile_for_a_loaded_session(app_env: AppEnv) -> None:
+    session_id = app_env.create_session()
+    actor = app_env.runtime.session_registry.get_session_actor(session_id)
+    assert actor is not None
+    agent = actor.get_agent()
+    assert agent is not None
+
+    payload = _system_context(app_env, session_id)
+
+    assert payload["available"] is True
+    assert payload["source"] == "live"
+    # Exactly what the next step would put on the wire.
+    assert payload["system_prompt"] == agent.profile.system_prompt
+    assert [tool["name"] for tool in payload["tools"]] == [tool.name for tool in agent.profile.tools]
+    assert payload["model"]["provider"] == "test"
+    assert payload["model"]["model"] == "fake-model"
+
+
+def test_system_context_never_leaks_a_credential(app_env: AppEnv) -> None:
+    session_id = app_env.create_session()
+    # The live path reads the client's config; plant a key in it.
+    app_env.fake_llm.get_llm_config().api_key = "sk-LEAKED-SECRET"
+    app_env.fake_llm.get_llm_config().aws_secret_key = "aws-LEAKED-SECRET"
+
+    raw = app_env.client.get(f"/api/web/sessions/{session_id}/system-context").text
+
+    assert "LEAKED" not in raw
+    for banned in ("api_key", "aws_secret_key", "aws_access_key", "aws_session_token"):
+        assert banned not in raw
+
+
+def test_system_context_is_cached_per_session(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
+    session_id = "sysctx03"
+    _write_session(app_env.work_dir, session_id, [])
+    first = _system_context(app_env, session_id)
+
+    def _boom(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise AssertionError("a cache hit must not rebuild")
+
+    monkeypatch.setattr(web_api.system_context, "rebuilt_payload", _boom)
+
+    assert _system_context(app_env, session_id) == first
+
+
+def test_system_context_of_an_unknown_session_is_404(app_env: AppEnv) -> None:
+    assert app_env.client.get("/api/web/sessions/nope/system-context").status_code == 404
+
+
 # -- live session growth --
 
 

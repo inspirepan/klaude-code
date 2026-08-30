@@ -26,6 +26,7 @@ _SIDECAR_ENTRY_TYPES = (
     message.PromptSuggestionEntry,
     message.TaskFileChangeSummaryEntry,
     message.FallbackModelConfigWarnEntry,
+    message.LLMRequestEntry,
 )
 
 LineStatusName = Literal["active", "retracted", "compacted", "rewound", "unknown", "sidecar"]

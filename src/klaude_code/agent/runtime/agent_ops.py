@@ -17,6 +17,7 @@ from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, get_last_context_tokens, run_compaction
+from klaude_code.agent.llm_request import LLMRequestLog, append_request_records
 from klaude_code.agent.model_fallback import build_fallback_model_config_warn, fallback_llm_client
 from klaude_code.agent.prompt_suggestion import run_prompt_suggestion, should_suggest
 from klaude_code.agent.rewind.summary import run_rewind_summary
@@ -977,14 +978,20 @@ class AgentOperationHandler:
 
     async def _run_side_question(self, agent: Agent, *, question: str, request_id: str) -> None:
         session = agent.session
+        # Owned here so the request record survives a failed call: the viewer
+        # still gets a dot showing what went wrong.
+        request_log = LLMRequestLog()
         try:
-            result = await run_side_question(session=session, main_profile=agent.profile, question=question)
+            result = await run_side_question(
+                session=session, main_profile=agent.profile, question=question, request_log=request_log
+            )
         except asyncio.CancelledError:
             # The session was cleared or the runtime is shutting down; whatever
             # owns the pending indicator is going away with it.
             raise
         except Exception as exc:
             log_debug(f"[SideQuestion] failed session={session.id}: {exc}", debug_type=DebugType.EXECUTION)
+            append_request_records(session, request_log)
             await self._emit_event(
                 events.SideQuestionFailedEvent(
                     session_id=session.id,
@@ -997,11 +1004,13 @@ class AgentOperationHandler:
 
         session.append_history(
             [
+                *request_log.ordered_entries,
                 message.SideQuestionEntry(
                     question=question,
                     answer=result.answer,
                     cache_hit_rate=result.cache_hit_rate,
-                )
+                    request_id=result.request_id,
+                ),
             ]
         )
         await self._emit_event(
@@ -1209,6 +1218,7 @@ class AgentOperationHandler:
             return
 
         tokens_before = get_last_context_tokens(session)
+        request_log = LLMRequestLog()
         try:
             session_clients = self.get_session_llm_clients(session_id)
             result = await run_rewind_summary(
@@ -1218,11 +1228,15 @@ class AgentOperationHandler:
                 llm_client=session_clients.get_compact_client(),
                 main_profile=agent.profile,
                 tokens_before=tokens_before,
+                request_log=request_log,
             )
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             log_debug(f"[Rewind] summary failed session={session_id}: {exc}", debug_type=DebugType.EXECUTION)
+            # No forked session was created, so the record lands in the source
+            # session: a failed request still deserves a dot.
+            append_request_records(session, request_log)
             await self._emit_event(
                 events.NoticeEvent(
                     session_id=session_id,
@@ -1240,6 +1254,9 @@ class AgentOperationHandler:
         new_session.append_history(
             [
                 *kept,
+                # The request landed in the NEW session, right before the entry
+                # it describes: that is where the viewer draws the dot.
+                *request_log.ordered_entries,
                 message.ForkSummaryEntry(
                     summary=result.text,
                     source_session_id=session.id,
@@ -1247,6 +1264,7 @@ class AgentOperationHandler:
                     source_message_count=result.message_count,
                     tokens_before=result.tokens_before,
                     cache_hit_rate=result.cache_hit_rate,
+                    request_id=result.request_id,
                 ),
             ]
         )
@@ -1470,6 +1488,9 @@ class AgentOperationHandler:
     ) -> None:
         cancel_event = asyncio.Event()
         reason = operation.reason
+        # One log across the fallback retries: every attempt gets a record, and
+        # the records outlive a failure so the viewer can still show the dot.
+        request_log = LLMRequestLog()
         try:
             await self._emit_event(events.CompactionStartEvent(session_id=session_id, reason=reason))
             log_debug(f"[Compact:{reason}] start", debug_type=DebugType.RESPONSE)
@@ -1485,6 +1506,7 @@ class AgentOperationHandler:
                         llm_config=compact_client.get_llm_config(),
                         cancel=cancel_event,
                         main_profile=agent.profile,
+                        request_log=request_log,
                     )
                     break
                 except asyncio.CancelledError:
@@ -1509,7 +1531,7 @@ class AgentOperationHandler:
             )
             log_debug(f"[Compact:{reason}] result", str(compaction_entry), debug_type=DebugType.RESPONSE)
             reset_attachment_loaded_flags(agent.session.file_tracker)
-            agent.session.append_history([compaction_entry])
+            agent.session.append_history([*request_log.ordered_entries, compaction_entry])
             await self._emit_event(
                 events.CompactionEndEvent(
                     session_id=session_id,
@@ -1526,6 +1548,7 @@ class AgentOperationHandler:
                 await self._emit_event(result.fork_event)
         except asyncio.CancelledError:
             cancel_event.set()
+            append_request_records(agent.session, request_log)
             await self._emit_event(
                 events.CompactionEndEvent(
                     session_id=session_id,
@@ -1543,6 +1566,7 @@ class AgentOperationHandler:
                 traceback.format_exc(),
                 debug_type=DebugType.RESPONSE,
             )
+            append_request_records(agent.session, request_log)
             await self._emit_event(
                 events.CompactionEndEvent(
                     session_id=session_id,

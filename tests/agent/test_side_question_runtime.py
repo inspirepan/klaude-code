@@ -78,6 +78,74 @@ def test_side_question_answer_is_persisted_but_kept_out_of_llm_history(
     asyncio.run(_test())
 
 
+def test_side_question_writes_the_request_record_before_the_answer(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The record lands immediately before the entry, joined by request_id."""
+    del isolated_home
+
+    async def _test() -> None:
+        async def _emit(_event: Any) -> None:
+            return None
+
+        handler = _handler(_emit)
+        session = Session(work_dir=tmp_path)
+        session.append_history([message.UserMessage(parts=message.text_parts_from_str("implement it"))])
+
+        async def _ensure_agent(_session_id: str) -> Any:
+            return _fake_agent(session)
+
+        async def _fake_run(*, request_log: Any, **_kwargs: Any) -> SideQuestionResult:
+            entry = message.LLMRequestEntry(kind="side_question", label="fork", provider="p", model="m")
+            request_log.entries.append(entry)
+            return SideQuestionResult(answer="answer", usage=None, cache_hit_rate=None, request_id=entry.request_id)
+
+        monkeypatch.setattr(handler, "ensure_agent", _ensure_agent)
+        monkeypatch.setattr("klaude_code.agent.runtime.agent_ops.run_side_question", _fake_run)
+
+        await handler.ask_side_question(op.AskSideQuestionOperation(session_id=session.id, question="why?"))
+        await _drain(handler)
+
+        tail = session.conversation_history[-2:]
+        assert isinstance(tail[0], message.LLMRequestEntry)
+        assert isinstance(tail[1], message.SideQuestionEntry)
+        assert tail[1].request_id == tail[0].request_id
+
+    asyncio.run(_test())
+
+
+def test_failed_side_question_still_records_the_request(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del isolated_home
+
+    async def _test() -> None:
+        async def _emit(_event: Any) -> None:
+            return None
+
+        handler = _handler(_emit)
+        session = Session(work_dir=tmp_path)
+
+        async def _ensure_agent(_session_id: str) -> Any:
+            return _fake_agent(session)
+
+        async def _fake_run(*, request_log: Any, **_kwargs: Any) -> SideQuestionResult:
+            request_log.entries.append(message.LLMRequestEntry(kind="side_question", status="error", error="boom"))
+            raise SideQuestionError("boom")
+
+        monkeypatch.setattr(handler, "ensure_agent", _ensure_agent)
+        monkeypatch.setattr("klaude_code.agent.runtime.agent_ops.run_side_question", _fake_run)
+
+        await handler.ask_side_question(op.AskSideQuestionOperation(session_id=session.id, question="why?"))
+        await _drain(handler)
+
+        records = [item for item in session.conversation_history if isinstance(item, message.LLMRequestEntry)]
+        assert [record.status for record in records] == ["error"]
+        assert not [item for item in session.conversation_history if isinstance(item, message.SideQuestionEntry)]
+
+    asyncio.run(_test())
+
+
 def test_empty_side_question_is_rejected_without_an_llm_call(
     tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

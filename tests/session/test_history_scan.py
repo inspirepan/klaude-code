@@ -58,6 +58,7 @@ def test_scan_tags_sidecar_entries_but_keeps_them_in_the_active_list() -> None:
         message.PromptSuggestionEntry(text="next"),
         message.TaskFileChangeSummaryEntry(),
         message.FallbackModelConfigWarnEntry(from_model="a", to_model="b", reason="r"),
+        message.LLMRequestEntry(kind="compaction"),
     ]
     scan = scan_history(_rows(*sidecars))
 

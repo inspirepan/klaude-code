@@ -458,7 +458,14 @@ class AssistantTextDeltaEvent(ResponseEvent):
 
 
 class AssistantTextEndEvent(ResponseEvent):
-    pass
+    """End of a streamed assistant text block.
+
+    ``stop_reason`` is set only when the block was closed by the final
+    ``AssistantMessage``; a block cut short by a tool call leaves it None, and
+    so do tapes recorded before the field existed.
+    """
+
+    stop_reason: str | None = None
 
 
 class ToolCallStartEvent(ResponseEvent):

@@ -23,6 +23,7 @@ from dataclasses import dataclass
 
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.cache_safe import CacheSafeParams, build_cache_safe_messages
+from klaude_code.agent.llm_request import LLMRequestLog
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.side_question import SIDE_QUESTION_PROMPT
 from klaude_code.protocol import llm_param, message
@@ -40,6 +41,8 @@ class SideQuestionResult:
     usage: Usage | None
     cache_hit_rate: float | None = None
     """Share of this request's prompt that was read from the parent's cache."""
+    request_id: str | None = None
+    """Id of the LLMRequestEntry recorded for this call, for the entry to link."""
 
 
 async def run_side_question(
@@ -47,12 +50,17 @@ async def run_side_question(
     session: Session,
     main_profile: AgentProfile,
     question: str,
+    request_log: LLMRequestLog | None = None,
 ) -> SideQuestionResult:
     """Ask the main model a side question in one turn.
 
     Raises :class:`SideQuestionError` when the stream fails or returns no text
     (for example when the model answered with a tool call instead).
+
+    ``request_log`` is owned by the caller: the record lands in it whether the
+    call succeeds or fails, so a failed `/btw` still gets a request dot.
     """
+    log = request_log if request_log is not None else LLMRequestLog()
     prefix = session.get_llm_history()
     extra: list[message.HistoryEvent] = [
         message.UserMessage(parts=[message.TextPart(text=SIDE_QUESTION_PROMPT.format(question=question))])
@@ -74,41 +82,47 @@ async def run_side_question(
     # the cache key (see agent/cache_safe.py).
     call_param.tools = main_profile.tools
 
-    try:
-        stream = await main_profile.llm_client.call(call_param)
-    except Exception as exc:
-        raise SideQuestionError(str(exc)) from exc
-
     accumulated: list[str] = []
     final_message: message.AssistantMessage | None = None
-    try:
-        async for item in stream:
-            if isinstance(item, message.AssistantTextDelta):
-                accumulated.append(item.content)
-            elif isinstance(item, message.StreamErrorItem):
-                raise SideQuestionError(item.error)
-            elif isinstance(item, message.AssistantMessage):
-                final_message = item
-    except asyncio.CancelledError:
-        raise
-    except SideQuestionError:
-        raise
-    except Exception as exc:
-        raise SideQuestionError(str(exc)) from exc
+    with log.record(kind="side_question", label="fork", client=main_profile.llm_client) as record:
+        record.start(call_param)
+        try:
+            stream = await main_profile.llm_client.call(call_param)
+        except Exception as exc:
+            raise SideQuestionError(str(exc)) from exc
 
-    answer = (message.join_text_parts(final_message.parts) if final_message else "".join(accumulated)).strip()
-    usage = final_message.usage if final_message else None
-    hit_rate: float | None = None
-    if usage is not None:
-        # Providers disagree on whether input_tokens includes cached/write tokens;
-        # normalize to the true prompt total the same way fork cache stats do.
-        total = max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
-        hit_rate = (usage.cached_tokens / total) if total > 0 else 0.0
-        log_debug(
-            f"[SideQuestion] usage cache_hit={hit_rate:.2%} read={usage.cached_tokens} "
-            f"write={usage.cache_write_tokens} input={usage.input_tokens} output={usage.output_tokens}",
-            debug_type=DebugType.RESPONSE,
-        )
-    if not answer:
-        raise SideQuestionError("the model returned no answer text")
-    return SideQuestionResult(answer=answer, usage=usage, cache_hit_rate=hit_rate)
+        try:
+            async for item in stream:
+                record.observe(item)
+                if isinstance(item, message.AssistantTextDelta):
+                    accumulated.append(item.content)
+                elif isinstance(item, message.StreamErrorItem):
+                    raise SideQuestionError(item.error)
+                elif isinstance(item, message.AssistantMessage):
+                    final_message = item
+        except asyncio.CancelledError:
+            raise
+        except SideQuestionError:
+            raise
+        except Exception as exc:
+            raise SideQuestionError(str(exc)) from exc
+
+        answer = (message.join_text_parts(final_message.parts) if final_message else "".join(accumulated)).strip()
+        usage = final_message.usage if final_message else None
+        hit_rate: float | None = None
+        if usage is not None:
+            # Providers disagree on whether input_tokens includes cached/write tokens;
+            # normalize to the true prompt total the same way fork cache stats do.
+            total = max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
+            hit_rate = (usage.cached_tokens / total) if total > 0 else 0.0
+            log_debug(
+                f"[SideQuestion] usage cache_hit={hit_rate:.2%} read={usage.cached_tokens} "
+                f"write={usage.cache_write_tokens} input={usage.input_tokens} output={usage.output_tokens}",
+                debug_type=DebugType.RESPONSE,
+            )
+        # Inside the record block on purpose: an answerless response is a failed
+        # request, and the dot should say so.
+        if not answer:
+            raise SideQuestionError("the model returned no answer text")
+
+    return SideQuestionResult(answer=answer, usage=usage, cache_hit_rate=hit_rate, request_id=log.primary_request_id)

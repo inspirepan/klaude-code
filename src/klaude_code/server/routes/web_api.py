@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 
 from klaude_code.const import get_system_temp
+from klaude_code.server import system_context
 from klaude_code.server.routes.headless import session_state_for
 from klaude_code.server.session_index import resolve_session_work_dir_fast
 from klaude_code.server.state import ServerAppState, get_server_state
@@ -176,6 +177,31 @@ def _read_history_page(
         "has_more": has_more,
         "next_before_line": next_before_line,
     }
+
+
+@router.get("/sessions/{session_id}/system-context")
+async def get_session_system_context(session_id: str, state: ServerAppState = _STATE_DEP) -> dict[str, Any]:
+    """The system prompt, tool catalogue and model knobs behind the SYSTEM row.
+
+    A loaded session answers from its live profile. A cold one is rebuilt from
+    meta with the same builders the agent uses -- read-only, and labelled
+    ``rebuilt`` because it reflects today's prompt files rather than what was
+    sent back then. Answers are cached per session for 30s.
+    """
+    ref = _resolve_session(state, session_id)
+    hit = system_context.cached(session_id)
+    if hit is not None:
+        return hit
+
+    actor = state.runtime.session_registry.get_session_actor(session_id)
+    agent = actor.get_agent() if actor is not None else None
+    if agent is not None:
+        payload = system_context.live_payload(agent.profile, model_config_name=agent.session.model_config_name)
+    else:
+        # Prompt assembly reads prompt files and stats the work_dir; keep it off
+        # the event loop.
+        payload = await asyncio.to_thread(system_context.rebuilt_payload, ref.meta, ref.work_dir)
+    return system_context.store(session_id, payload)
 
 
 def _allowed_file_roots(ref: _SessionRef) -> tuple[Path, ...]:

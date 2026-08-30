@@ -22,6 +22,7 @@ from klaude_code.server.app import create_app
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.state import ServerAppState
+from klaude_code.server.system_context import clear_cache as clear_system_context_cache
 from klaude_code.session.store_registry import close_default_store
 
 T = TypeVar("T")
@@ -121,6 +122,8 @@ def app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     home_dir = tmp_path / "home"
     home_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("HOME", str(home_dir))
+    # Module-global 30s cache; session ids repeat across tests in a module.
+    clear_system_context_cache()
 
     def _patched_home(cls: type[Path]) -> Path:
         del cls

@@ -179,11 +179,12 @@ def test_web_api_routes_are_reachable_over_tcp(live_server: LiveServer) -> None:
     # 404 (not 421/405) proves the request reached the ledger route itself.
     assert live_server.tcp_get("/api/web/sessions/nosuch/meta").status_code == 404
     assert live_server.tcp_get("/api/web/sessions/nosuch/history").status_code == 404
+    assert live_server.tcp_get("/api/web/sessions/nosuch/system-context").status_code == 404
 
 
 def test_web_api_routes_honour_the_host_guard(live_server: LiveServer) -> None:
-    response = live_server.tcp_get("/api/web/sessions/nosuch/meta", host="evil.com")
-    assert response.status_code == 421
+    for path in ("/api/web/sessions/nosuch/meta", "/api/web/sessions/nosuch/system-context"):
+        assert live_server.tcp_get(path, host="evil.com").status_code == 421
 
 
 @pytest.mark.parametrize("host", ["evil.com", "127.0.0.1.nip.io", "attacker.example:1234"])

@@ -15,6 +15,7 @@ from klaude_code.agent.cache_safe import (
     build_fork_cache_event,
     is_cache_sharable,
 )
+from klaude_code.agent.llm_request import LLMRequestLog
 from klaude_code.const import (
     DEFAULT_MAX_TOKENS,
 )
@@ -77,6 +78,10 @@ class CompactionResult:
     kept_items_brief: list[message.KeptItemBrief]
     fork_event: events.ForkCacheHitRateEvent | None = None
     """Emitted by caller when present; reports cache reuse vs fallback for this compaction."""
+    usage: Usage | None = None
+    """Usage of the summarizing call (the fork call, or the history summary)."""
+    request_id: str | None = None
+    """Id of the LLMRequestEntry for that same call; goes onto the entry."""
 
     def to_entry(self, *, first_kept_line: int | None = None) -> message.CompactionEntry:
         """Convert to a CompactionEntry for persisting in session history.
@@ -92,6 +97,7 @@ class CompactionResult:
             tokens_before=self.tokens_before,
             details=self.details,
             kept_items_brief=self.kept_items_brief,
+            request_id=self.request_id,
         )
 
 
@@ -237,9 +243,17 @@ async def run_compaction(
     llm_config: llm_param.LLMConfigParameter,
     cancel: asyncio.Event | None = None,
     main_profile: AgentProfile | None = None,
+    request_log: LLMRequestLog | None = None,
 ) -> CompactionResult:
+    """Summarize the head of the session into a CompactionEntry.
+
+    ``request_log`` is owned by the caller so the records of the LLM calls made
+    here survive a failure (and a model-fallback retry, which calls this again
+    with the same log).
+    """
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
+    log = request_log if request_log is not None else LLMRequestLog()
 
     compaction_config = _resolve_compaction_config(llm_config, reason=reason)
     history = session.conversation_history
@@ -276,6 +290,7 @@ async def run_compaction(
             has_previous_summary=previous_summary is not None,
             max_summary_tokens=compaction_config.max_summary_tokens,
             cancel=cancel,
+            request_log=log,
         )
         # Fork path doesn't split tasks: the LLM sees the real messages up to
         # cut_index, and ``messages_to_summarize`` is still needed by
@@ -308,6 +323,7 @@ async def run_compaction(
             config=compaction_config,
             cancel=cancel,
             session_id=session.id,
+            request_log=log,
         )
         fork_usage = None
 
@@ -331,6 +347,9 @@ async def run_compaction(
         fallback_used=not use_fork,
     )
 
+    # The fork path makes one call; the fallback path may make two (history
+    # summary plus task prefix). The entry links to the primary one.
+    primary = log.find("fork") or log.find("summary") or log.find("task_prefix")
     return CompactionResult(
         summary=summary,
         first_kept_index=cut_index,
@@ -338,6 +357,8 @@ async def run_compaction(
         details=file_ops,
         kept_items_brief=kept_items_brief,
         fork_event=fork_event,
+        usage=fork_usage if fork_usage is not None else (primary.usage if primary is not None else None),
+        request_id=primary.request_id if primary is not None else None,
     )
 
 
@@ -351,6 +372,7 @@ async def _build_summary_fork(
     has_previous_summary: bool,
     max_summary_tokens: int,
     cancel: asyncio.Event | None,
+    request_log: LLMRequestLog | None = None,
 ) -> tuple[str, Usage | None]:
     """Build a summary by asking the main LLM to stop and summarize in-line.
 
@@ -387,23 +409,27 @@ async def _build_summary_fork(
     call_param.tools = main_profile.tools  # Must match parent; tools=[] would break cache.
     call_param.max_tokens = max_summary_tokens
 
-    stream = await llm_client.call(call_param)
+    log = request_log if request_log is not None else LLMRequestLog()
     accumulated: list[str] = []
     final_message: message.AssistantMessage | None = None
-    async for item in stream:
-        if isinstance(item, message.AssistantTextDelta):
-            accumulated.append(item.content)
-        elif isinstance(item, message.StreamErrorItem):
-            raise RuntimeError(item.error)
-        elif isinstance(item, message.AssistantMessage):
-            final_message = item
+    with log.record(kind="compaction", label="fork", client=llm_client) as record:
+        record.start(call_param)
+        stream = await llm_client.call(call_param)
+        async for item in stream:
+            record.observe(item)
+            if isinstance(item, message.AssistantTextDelta):
+                accumulated.append(item.content)
+            elif isinstance(item, message.StreamErrorItem):
+                raise RuntimeError(item.error)
+            elif isinstance(item, message.AssistantMessage):
+                final_message = item
 
-    if cancel is not None and cancel.is_set():
-        raise asyncio.CancelledError
+        if cancel is not None and cancel.is_set():
+            raise asyncio.CancelledError
 
-    text = message.join_text_parts(final_message.parts) if final_message else "".join(accumulated)
-    if not text.strip():
-        raise ValueError("Summarizer returned empty output")
+        text = message.join_text_parts(final_message.parts) if final_message else "".join(accumulated)
+        if not text.strip():
+            raise ValueError("Summarizer returned empty output")
     usage = final_message.usage if final_message else None
     return text.strip(), usage
 
@@ -759,6 +785,7 @@ async def _build_summary(
     config: CompactionConfig,
     cancel: asyncio.Event | None,
     session_id: str,
+    request_log: LLMRequestLog | None = None,
 ) -> str:
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
@@ -773,11 +800,14 @@ async def _build_summary(
                 previous_summary,
                 cancel,
                 session_id,
+                request_log,
             )
             if messages_to_summarize
             else asyncio.sleep(0, result=previous_summary or "")
         )
-        prefix_task = _generate_task_prefix_summary(task_prefix_messages, llm_client, config, cancel, session_id)
+        prefix_task = _generate_task_prefix_summary(
+            task_prefix_messages, llm_client, config, cancel, session_id, request_log
+        )
         history_summary, task_prefix_summary = await asyncio.gather(history_task, prefix_task)
         return f"{COMPACTION_SUMMARY_PREFIX}\n\n<summary>{history_summary}\n\n---\n\n**Task Context (current task):**\n\n{task_prefix_summary}\n\n</summary>"
 
@@ -789,6 +819,7 @@ async def _build_summary(
         previous_summary,
         cancel,
         session_id,
+        request_log,
     )
 
 
@@ -800,6 +831,7 @@ async def _generate_summary(
     previous_summary: str | None,
     cancel: asyncio.Event | None,
     session_id: str,
+    request_log: LLMRequestLog | None = None,
 ) -> str:
     serialized = serialize_conversation(messages_to_summarize)
     parts: list[message.Part] = [
@@ -825,6 +857,8 @@ async def _generate_summary(
         max_tokens=config.max_summary_tokens,
         cancel=cancel,
         session_id=session_id,
+        request_log=request_log,
+        label="summary",
     )
 
 
@@ -834,6 +868,7 @@ async def _generate_task_prefix_summary(
     config: CompactionConfig,
     cancel: asyncio.Event | None,
     session_id: str,
+    request_log: LLMRequestLog | None = None,
 ) -> str:
     serialized = serialize_conversation(messages)
     return await _call_summarizer(
@@ -849,6 +884,8 @@ async def _generate_task_prefix_summary(
         max_tokens=config.max_summary_tokens,
         cancel=cancel,
         session_id=session_id,
+        request_log=request_log,
+        label="task_prefix",
     )
 
 
@@ -859,6 +896,8 @@ async def _call_summarizer(
     max_tokens: int,
     cancel: asyncio.Event | None,
     session_id: str,
+    request_log: LLMRequestLog | None = None,
+    label: str | None = None,
 ) -> str:
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
@@ -868,6 +907,8 @@ async def _call_summarizer(
         max_tokens=max_tokens,
         cancel=cancel,
         session_id=session_id,
+        request_log=request_log,
+        label=label,
     )
 
 
@@ -878,6 +919,8 @@ async def _call_summarizer_once(
     max_tokens: int,
     cancel: asyncio.Event | None,
     session_id: str,
+    request_log: LLMRequestLog | None = None,
+    label: str | None = None,
 ) -> str:
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError
@@ -890,23 +933,27 @@ async def _call_summarizer_once(
     call_param.max_tokens = max_tokens
     call_param.tools = None
 
-    stream = await llm_client.call(call_param)
+    log = request_log if request_log is not None else LLMRequestLog()
     accumulated: list[str] = []
     final_text: str | None = None
-    async for item in stream:
-        if isinstance(item, message.AssistantTextDelta):
-            accumulated.append(item.content)
-        elif isinstance(item, message.StreamErrorItem):
-            raise RuntimeError(item.error)
-        elif isinstance(item, message.AssistantMessage):
-            final_text = message.join_text_parts(item.parts)
+    with log.record(kind="compaction", label=label, client=llm_client) as record:
+        record.start(call_param)
+        stream = await llm_client.call(call_param)
+        async for item in stream:
+            record.observe(item)
+            if isinstance(item, message.AssistantTextDelta):
+                accumulated.append(item.content)
+            elif isinstance(item, message.StreamErrorItem):
+                raise RuntimeError(item.error)
+            elif isinstance(item, message.AssistantMessage):
+                final_text = message.join_text_parts(item.parts)
 
-    if cancel is not None and cancel.is_set():
-        raise asyncio.CancelledError
+        if cancel is not None and cancel.is_set():
+            raise asyncio.CancelledError
 
-    text = final_text if final_text is not None else "".join(accumulated)
-    if not text.strip():
-        raise ValueError("Summarizer returned empty output")
+        text = final_text if final_text is not None else "".join(accumulated)
+        if not text.strip():
+            raise ValueError("Summarizer returned empty output")
     return text.strip()
 
 

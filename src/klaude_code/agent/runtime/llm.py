@@ -27,7 +27,7 @@ def _default_sub_clients() -> dict[SubAgentType, LLMClientABC]:
 
 # Credential fields excluded when dumping LLM configs into the debug log; the
 # server writes that log unconditionally, so plaintext keys must never land in it.
-_LLM_CONFIG_SECRET_FIELDS = {"api_key", "aws_access_key", "aws_secret_key", "aws_session_token"}
+_LLM_CONFIG_SECRET_FIELDS = llm_param.LLM_CONFIG_SECRET_FIELDS
 
 
 class ModelResolutionError(ValueError):

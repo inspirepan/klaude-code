@@ -188,6 +188,17 @@ class LLMConfigProviderParameter(BaseModel):
     google_cloud_location: str | None = None
 
 
+# Credential fields that must never leave the process in a dump: the debug log
+# writes LLM configs unconditionally and the viewer persists call options, so
+# both exclude this set (see agent/runtime/llm.py, agent/llm_request.py).
+LLM_CONFIG_SECRET_FIELDS: set[str] = {
+    "api_key",
+    "aws_access_key",
+    "aws_secret_key",
+    "aws_session_token",
+}
+
+
 class LLMConfigModelParameter(BaseModel):
     model_id: str | None = None
     disabled: bool = False
