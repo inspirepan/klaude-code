@@ -20,6 +20,7 @@ from klaude_code.protocol.models import (
 )
 from klaude_code.session.codec import decode_jsonl_line, encode_conversation_item, encode_jsonl_line
 from klaude_code.session.history import ScanResult, scan_history
+from klaude_code.session.ledger import TurnOrdinals, scan_turn_ordinals
 
 # Meta keys owned by direct update_meta writes: a queued history batch carries
 # an older snapshot, so the on-disk value wins when the batch lands.
@@ -275,6 +276,9 @@ class JsonlSessionStore:
         # Ledger scan results (per-line statuses) under the same stat stamp, so
         # paging the ledger does not re-scan the whole file per request.
         self._scan_cache: dict[str, tuple[tuple[int, int] | None, ScanResult]] = {}
+        # Turn/step ordinals under that same stamp: they are absolute (counted
+        # from line 0), so a paging reader pays the file-wide pass once.
+        self._ordinals_cache: dict[str, tuple[tuple[int, int] | None, TurnOrdinals]] = {}
         self._history_cache_lock = threading.Lock()
 
     @property
@@ -402,6 +406,24 @@ class JsonlSessionStore:
             self._scan_cache[session_id] = (key, result)
         return result
 
+    def scan_turn_ordinals(self, session_id: str) -> TurnOrdinals:
+        """Per-line turn/step ordinals for the whole events file, cached.
+
+        Ordinals count human turns from the start of the file, so a page can
+        only be numbered against the whole file. Cached under the same
+        ``(mtime_ns, size)`` stamp as ``scan_history_lines``, which keeps
+        paging O(page) between appends.
+        """
+        key = self._events_stat_key(session_id)
+        with self._history_cache_lock:
+            cached = self._ordinals_cache.get(session_id)
+            if cached is not None and cached[0] == key:
+                return cached[1]
+        result = scan_turn_ordinals(self._cached_rows(session_id))
+        with self._history_cache_lock:
+            self._ordinals_cache[session_id] = (key, result)
+        return result
+
     def _events_stat_key(self, session_id: str) -> tuple[int, int] | None:
         try:
             stat = self._paths.events_file(session_id).stat()
@@ -448,6 +470,7 @@ class JsonlSessionStore:
         with self._history_cache_lock:
             self._history_cache.pop(session_id, None)
             self._scan_cache.pop(session_id, None)
+            self._ordinals_cache.pop(session_id, None)
 
     def append_and_flush(self, *, session_id: str, items: Sequence[message.HistoryEvent], meta: dict[str, Any]) -> None:
         if not items:

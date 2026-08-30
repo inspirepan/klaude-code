@@ -11,6 +11,7 @@ from klaude_code.agent.suspend import SuspendDetector, suspend_notice
 from klaude_code.const import (
     RETRY_PRESERVE_PARTIAL_MESSAGE,
 )
+from klaude_code.prompts.messages import build_stream_error_continuation_prompt
 from klaude_code.protocol.models import SubAgentState
 from klaude_code.tool import ToolABC
 from klaude_code.tool.core.context import ToolContext
@@ -77,19 +78,6 @@ def _explain_suspend(
         return stream_error
     notice = suspend_notice(detector.suspended_seconds(), partial_output=partial_output)
     return stream_error.model_copy(update={"error": f"{notice} {stream_error.error}"})
-
-
-def _build_continuation_prompt(partial_text: str) -> str:
-    return (
-        "<assistant>\n"
-        f"{partial_text}\n"
-        "</assistant>\n\n"
-        "<system-reminder>"
-        "Your previous response was interrupted due to a transient error "
-        "(often network-related). "
-        "Please continue from where it left off without repeating content you've already provided."
-        "</system-reminder>"
-    )
 
 
 def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEvent) -> list[events.Event]:
@@ -251,7 +239,7 @@ class StepExecutor:
             if RETRY_PRESERVE_PARTIAL_MESSAGE:
                 partial_text = "".join(self._accumulated_assistant_text).strip()
                 if partial_text:
-                    continuation_prompt = _build_continuation_prompt(partial_text)
+                    continuation_prompt = build_stream_error_continuation_prompt(partial_text)
                     session_ctx.append_history(
                         [message.UserMessage(parts=[message.TextPart(text=continuation_prompt)])]
                     )

@@ -38,3 +38,20 @@ EMPTY_RESPONSE_CONTINUATION_PROMPT = (
     "Continue the task from the current conversation state. Do not treat this reminder as a reason to stop; "
     "only provide a final response if the task is genuinely complete."
 )
+
+# Stream error partial output recovery
+# Injected as a user message when a step dies mid-stream after visible output:
+# the partial text is echoed back so the model can resume it instead of
+# repeating it. Gated by `RETRY_PRESERVE_PARTIAL_MESSAGE` in `agent/step.py`.
+STREAM_ERROR_CONTINUATION_REMINDER = (
+    "<system-reminder>"
+    "Your previous response was interrupted due to a transient error "
+    "(often network-related). "
+    "Please continue from where it left off without repeating content you've already provided."
+    "</system-reminder>"
+)
+
+
+def build_stream_error_continuation_prompt(partial_text: str) -> str:
+    """Echo the partial assistant output back, then ask for a continuation."""
+    return f"<assistant>\n{partial_text}\n</assistant>\n\n{STREAM_ERROR_CONTINUATION_REMINDER}"

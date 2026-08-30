@@ -4,7 +4,8 @@ Everything here reads from disk: a cold session is served straight out of its
 ``events.jsonl`` without initializing an agent (plan decision #28). The ledger
 is the raw jsonl — one row per physical line, keyed by a zero-based
 ``line_index`` — plus the per-line status the shared scan derives
-(``session/history.py``), so the client never replays rebuild logic.
+(``session/history.py``) and the turn/step ordinals the ledger scan derives
+(``session/ledger.py``), so the client never replays rebuild logic.
 
 Registered before the static routes so ``/api/web/...`` wins over the bundle.
 """
@@ -145,23 +146,32 @@ def _read_history_page(
         has_more = start > 0
         next_before_line = start if end > start else None
 
-    # Statuses depend on marker lines further down the file, so the scan always
-    # covers the whole file (cached per stat stamp) and the page slices it.
+    # Statuses depend on marker lines further down the file, and turn/step
+    # ordinals count from line 0, so both scans always cover the whole file
+    # (cached per stat stamp) and the page slices them. The client must never
+    # renumber from the window it holds — prepending an older page would shift
+    # every ordinal it already showed.
     statuses = store.scan_history_lines(session_id).statuses
+    ordinals = store.scan_turn_ordinals(session_id)
     rows: list[dict[str, Any]] = []
     for line_index, entry in store.encode_history_lines(session_id, start, end):
         status = statuses[line_index] if 0 <= line_index < len(statuses) else None
+        ordinal = ordinals.for_line(line_index)
         rows.append(
             {
                 "line_index": line_index,
                 "status": status.status if status is not None else "unknown",
                 "dropped_by": status.dropped_by if status is not None else None,
+                "turn_index": ordinal.turn_index,
+                "step_index": ordinal.step_index,
+                "auto": ordinal.auto,
                 "entry": entry,
             }
         )
     return {
         "session_id": session_id,
         "line_count": line_count,
+        "turn_count": ordinals.turn_count,
         "rows": rows,
         "has_more": has_more,
         "next_before_line": next_before_line,

@@ -16,6 +16,11 @@ from typing import Any
 import pytest
 
 from klaude_code.const import ProjectPaths, project_key_from_path
+from klaude_code.prompts.messages import (
+    EMPTY_RESPONSE_CONTINUATION_PROMPT,
+    build_stream_error_continuation_prompt,
+)
+from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT, FORK_CONTEXT_WITH_ROLE_PROMPT
 from klaude_code.protocol import message
 from klaude_code.protocol.models import TaskMetadataItem
 from klaude_code.server.routes import web_api
@@ -32,6 +37,18 @@ def _user(text: str) -> message.UserMessage:
 
 def _assistant(text: str) -> message.AssistantMessage:
     return message.AssistantMessage(parts=message.text_parts_from_str(text))
+
+
+def _bash(command: str) -> message.UserMessage:
+    """A bash-mode echo, as `agent/bash_mode.py` writes it."""
+    return message.UserMessage(
+        parts=message.text_parts_from_str(f"<bash-input>{command}</bash-input>"),
+        source="bash_mode",
+    )
+
+
+def _ordinals(payload: dict[str, Any]) -> list[tuple[int, int, int | None, bool | None]]:
+    return [(row["line_index"], row["turn_index"], row["step_index"], row["auto"]) for row in payload["rows"]]
 
 
 def _write_session(
@@ -257,6 +274,127 @@ def test_history_entry_matches_the_on_disk_line(app_env: AppEnv) -> None:
     row = _history(app_env, session_id)["rows"][0]
 
     assert row["entry"] == json.loads(encode_jsonl_line(entry))
+
+
+# -- turn / step ordinals --
+
+
+def test_history_numbers_turns_and_steps_across_the_file(app_env: AppEnv) -> None:
+    session_id = "turn0001"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [
+            # A preamble line ahead of the first human message: turn 0.
+            _assistant("preamble"),
+            _user("q1"),
+            _assistant("a1"),
+            _assistant("a2"),
+            _user("q2"),
+            _assistant("a3"),
+        ],
+    )
+
+    payload = _history(app_env, session_id)
+
+    assert _ordinals(payload) == [
+        (0, 0, 1, None),
+        (1, 1, None, False),
+        (2, 1, 1, None),
+        (3, 1, 2, None),
+        (4, 2, None, False),
+        (5, 2, 1, None),
+    ]
+    assert payload["turn_count"] == 2
+
+
+def test_history_turn_count_is_zero_without_a_human_message(app_env: AppEnv) -> None:
+    session_id = "turn0002"
+    _write_session(app_env.work_dir, session_id, [_assistant("only me"), _bash("ls")])
+
+    payload = _history(app_env, session_id)
+
+    assert payload["turn_count"] == 0
+    assert _ordinals(payload) == [(0, 0, 1, None), (1, 0, None, True)]
+
+
+def test_history_flags_every_kind_of_runtime_injected_user_message(app_env: AppEnv) -> None:
+    session_id = "turn0003"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [
+            _user("typed by a person"),
+            _bash("git status"),
+            _user(EMPTY_RESPONSE_CONTINUATION_PROMPT),
+            _user(build_stream_error_continuation_prompt("half an answer")),
+            _user(f"<system-reminder>{FORK_CONTEXT_GENERAL_PROMPT}</system-reminder>"),
+            _user(f"<system-reminder>{FORK_CONTEXT_WITH_ROLE_PROMPT}You review code.</system-reminder>"),
+        ],
+    )
+
+    payload = _history(app_env, session_id)
+
+    assert [row["auto"] for row in payload["rows"]] == [False, True, True, True, True, True]
+    # None of the injected messages opens a turn of its own.
+    assert [row["turn_index"] for row in payload["rows"]] == [1] * 6
+    assert payload["turn_count"] == 1
+
+
+def test_history_keeps_stepping_across_a_bash_mode_message(app_env: AppEnv) -> None:
+    session_id = "turn0004"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [_user("q1"), _assistant("a1"), _bash("ls"), _assistant("a2"), _user("q2"), _assistant("a3")],
+    )
+
+    assert _ordinals(_history(app_env, session_id)) == [
+        (0, 1, None, False),
+        (1, 1, 1, None),
+        (2, 1, None, True),
+        # The bash echo does not reset the step counter, only a human turn does.
+        (3, 1, 2, None),
+        (4, 2, None, False),
+        (5, 2, 1, None),
+    ]
+
+
+def test_history_places_undecodable_lines_in_the_surrounding_turn(app_env: AppEnv) -> None:
+    session_id = "turn0005"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [_user("q1"), "{not json at all\n", _assistant("a1"), _user("q2"), '{"type": "NoSuchEntry", "data": {}}\n'],
+    )
+
+    assert _ordinals(_history(app_env, session_id)) == [
+        (0, 1, None, False),
+        (1, 1, None, None),
+        (2, 1, 1, None),
+        (3, 2, None, False),
+        (4, 2, None, None),
+    ]
+
+
+def test_history_ordinals_are_absolute_across_pages(app_env: AppEnv) -> None:
+    session_id = "turn0006"
+    lines: list[Line] = []
+    for turn in range(4):
+        lines.extend([_user(f"q{turn}"), _assistant(f"a{turn}"), _assistant(f"a{turn}-more")])
+    _write_session(app_env.work_dir, session_id, lines)
+
+    whole = _history(app_env, session_id)
+    tail = _history(app_env, session_id, limit=4)
+    older = _history(app_env, session_id, before_line=tail["next_before_line"], limit=4)
+
+    by_line = {row["line_index"]: (row["turn_index"], row["step_index"]) for row in whole["rows"]}
+    assert by_line[9] == (4, None)
+    assert by_line[11] == (4, 2)
+    for page in (tail, older):
+        assert page["turn_count"] == 4
+        for row in page["rows"]:
+            assert (row["turn_index"], row["step_index"]) == by_line[row["line_index"]], row["line_index"]
 
 
 # -- local files --
