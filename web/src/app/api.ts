@@ -1,7 +1,8 @@
 /** Same-origin REST client for the klaude web endpoints. */
 
 import type {
-  HistoryPage, SessionListRow, SessionMeta, SessionSearchResult, SystemContext,
+  HistoryPage, SessionChildren, SessionListRow, SessionMeta, SessionSearchResult,
+  SpawnedChild, SystemContext,
 } from '../adapter/index.ts'
 
 /** Rows requested per history page (the server's own default). */
@@ -118,6 +119,27 @@ export async function fetchSessions(
     signal,
   )
   return page.sessions ?? []
+}
+
+/**
+ * Fetch the sub-agents a session spawned, as its own ledger recorded them.
+ *
+ * The list endpoint already nests children under their parent; this adds the
+ * one fact the child's meta never keeps — the description the parent wrote
+ * when it delegated the work.
+ * @param sessionId - The PARENT session's id.
+ * @param signal - Abort signal.
+ * @returns The spawn rows, in ledger order.
+ */
+export async function fetchSessionChildren(
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<readonly SpawnedChild[]> {
+  const payload = await getJson<SessionChildren>(
+    `/api/web/sessions/${encodeURIComponent(sessionId)}/children`,
+    signal,
+  )
+  return payload.children ?? []
 }
 
 /**

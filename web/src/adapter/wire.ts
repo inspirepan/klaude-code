@@ -101,9 +101,38 @@ export interface SessionListRow {
   readonly created_at?: number | null
   readonly updated_at?: number | null
   readonly archived?: boolean
+  /**
+   * User + assistant + tool-result messages, straight off `meta.json`. `-1`
+   * marks a meta written before the field existed, so it reads as unknown.
+   */
+  readonly messages_count?: number | null
   /** Free-text activity line the headless API renders in `ps`. */
   readonly activity?: string | null
   readonly pending?: boolean
+}
+
+/**
+ * One sub-agent spawn, as `GET /api/web/sessions/{id}/children` reports it.
+ *
+ * The row comes from the PARENT's ledger: a child session's own meta has its
+ * `agent_type` but never the description the parent wrote when delegating.
+ */
+export interface SpawnedChild {
+  /** The child session's id — it joins to `SessionListRow.id`. */
+  readonly session_id: string
+  readonly sub_agent_type: string
+  readonly sub_agent_desc: string
+  readonly model: string | null
+  /** ISO 8601, as the ledger encodes datetimes. */
+  readonly created_at: string
+  /** Line of the spawn row in the parent's ledger. */
+  readonly line_index: number
+}
+
+/** The `children` endpoint's payload. */
+export interface SessionChildren {
+  readonly session_id: string
+  readonly children: readonly SpawnedChild[]
 }
 
 /** One tool as `GET /api/web/sessions/{id}/system-context` reports it. */

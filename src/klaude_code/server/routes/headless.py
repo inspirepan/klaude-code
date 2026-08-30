@@ -203,6 +203,9 @@ def _serialize_row(
         "model": summary.model_config_name or summary.model_name,
         "work_dir": summary.work_dir,
         "title": summary.title,
+        # User + assistant + tool-result messages, as meta.json counts them.
+        # -1 means the meta predates the field; clients treat it as unknown.
+        "messages_count": summary.messages_count,
         "created_at": summary.created_at,
         "updated_at": summary.updated_at,
         "archived": summary.archived,

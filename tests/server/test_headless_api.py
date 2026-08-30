@@ -109,6 +109,8 @@ def test_run_creates_headless_session_and_finishes(app_env: AppEnv) -> None:
     assert row["group"] == "team"
     assert row["agent_type"] == "main"
     assert row["spawn_kind"] == "headless"
+    # One prompt plus one reply; the web session list shows this per row.
+    assert row["messages_count"] == 2
 
     # Meta persisted on disk carries the headless fields.
     meta_paths = list((app_env.home_dir / ".klaude" / "projects").glob(f"*/sessions/{session_id}/meta.json"))

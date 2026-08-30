@@ -390,6 +390,20 @@ class JsonlSessionStore:
         rows = self._cached_rows(session_id)[start:end]
         return [(line_index, encode_conversation_item(item) if item is not None else None) for line_index, item in rows]
 
+    def scan_spawned_sub_agents(self, session_id: str) -> list[tuple[int, message.SpawnSubAgentEntry]]:
+        """The sub-agent spawn rows in this session's ledger, ascending by line.
+
+        A child session's meta records its type but never the description the
+        parent gave it, so the parent's spawn rows are the only place the two
+        meet. Reads the decode cache and copies only the handful of rows it
+        keeps, unlike ``load_history_lines``, which deep-copies the whole file.
+        """
+        return [
+            (line_index, item.model_copy(deep=True))
+            for line_index, item in self._cached_rows(session_id)
+            if isinstance(item, message.SpawnSubAgentEntry)
+        ]
+
     def scan_history_lines(self, session_id: str) -> ScanResult:
         """Per-line ledger statuses for the whole events file, cached.
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { SessionListRow } from '../adapter/index.ts'
+import type { SessionListRow, SpawnedChild } from '../adapter/index.ts'
 import {
-  buildSessionTree, filterSessionRows, flattenSessionTree, isLiveState, relativeUpdated,
-  rowState, rowTitle, workDirName,
+  buildSessionTree, filterSessionRows, flattenSessionTree, isLiveState, messagesCount,
+  relativeUpdated, rowLabel, rowState, rowTitle, workDirName,
 } from './session-list-model.ts'
 
 /** `updated_at` is epoch **seconds** on this endpoint. */
@@ -10,6 +10,18 @@ const T0 = 1_800_000_000
 
 function listRow(id: string, fields: Partial<SessionListRow> = {}): SessionListRow {
   return { id, updated_at: T0, ...fields }
+}
+
+function spawn(childId: string, fields: Partial<SpawnedChild> = {}): SpawnedChild {
+  return {
+    session_id: childId,
+    sub_agent_type: 'code-reviewer',
+    sub_agent_desc: 'review the loader change',
+    model: null,
+    created_at: '2026-08-30T10:00:00',
+    line_index: 3,
+    ...fields,
+  }
 }
 
 describe('row fields', () => {
@@ -46,6 +58,49 @@ describe('row fields', () => {
     expect(relativeUpdated(T0 - 3 * 3600, now)).toBe('3h')
     expect(relativeUpdated(T0 - 2 * 86400, now)).toBe('2d')
     expect(relativeUpdated(null, now)).toBe('')
+  })
+})
+
+describe('message count', () => {
+  it('reports the count and treats the pre-field sentinel as unknown', () => {
+    expect(messagesCount(listRow('a', { messages_count: 198 }))).toBe(198)
+    expect(messagesCount(listRow('a', { messages_count: 0 }))).toBe(0)
+    // `session_index.py` reports -1 for a meta written before the field.
+    expect(messagesCount(listRow('a', { messages_count: -1 }))).toBeNull()
+    expect(messagesCount(listRow('a'))).toBeNull()
+    expect(messagesCount(listRow('a', { messages_count: null }))).toBeNull()
+  })
+})
+
+describe('sub-agent label', () => {
+  const child = listRow('cccc1111ffff', { parent_session_id: 'root-a', agent_type: 'code-reviewer' })
+
+  it('takes the type and the description from the parent spawn row', () => {
+    expect(rowLabel(child, spawn('cccc1111ffff'))).toEqual({
+      badge: 'code-reviewer',
+      title: 'review the loader change',
+    })
+  })
+
+  it('falls back to the short id and the child meta type without a spawn row', () => {
+    expect(rowLabel(child)).toEqual({ badge: 'code-reviewer', title: 'cccc1111' })
+    expect(rowLabel(child, null)).toEqual({ badge: 'code-reviewer', title: 'cccc1111' })
+    // An empty description is no description.
+    expect(rowLabel(child, spawn('cccc1111ffff', { sub_agent_desc: '  ' })).title).toBe('cccc1111')
+  })
+
+  it('prefers the spawn row type over the one on the child meta', () => {
+    expect(rowLabel(listRow('c1', { parent_session_id: 'p', agent_type: 'general-purpose' }),
+      spawn('c1', { sub_agent_type: 'finder' })).badge).toBe('finder')
+  })
+
+  it('badges no root row, whose type is always `main`', () => {
+    expect(rowLabel(listRow('root-a', { title: 'fix the loader', agent_type: 'main' })))
+      .toEqual({ badge: null, title: 'fix the loader' })
+    // A child that somehow reports `main` gets no badge either.
+    expect(rowLabel(listRow('c2', { parent_session_id: 'p', agent_type: 'main' })).badge).toBeNull()
+    // ... and one with no type at all keeps the badge column empty.
+    expect(rowLabel(listRow('c3', { parent_session_id: 'p' })).badge).toBeNull()
   })
 })
 

@@ -533,6 +533,81 @@ def test_history_serves_the_llm_request_entry_as_a_sidecar_row(app_env: AppEnv) 
     assert (rows[1]["turn_index"], rows[1]["step_index"], rows[1]["auto"]) == (1, None, None)
 
 
+# -- sub-agent children --
+
+
+def _spawn(child_id: str, sub_agent_type: str, desc: str, **extra: Any) -> message.SpawnSubAgentEntry:
+    return message.SpawnSubAgentEntry(
+        session_id=child_id,
+        sub_agent_type=sub_agent_type,
+        sub_agent_desc=desc,
+        **extra,
+    )
+
+
+def _children(app_env: AppEnv, session_id: str) -> dict[str, Any]:
+    response = app_env.client.get(f"/api/web/sessions/{session_id}/children")
+    assert response.status_code == 200, response.text
+    return dict(response.json())
+
+
+def test_children_report_the_type_and_description_the_parent_recorded(app_env: AppEnv) -> None:
+    session_id = "kid00001"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [
+            _user("review it"),
+            _spawn("child001", "code-reviewer", "review the loader change", model="sonnet"),
+            _assistant("done"),
+        ],
+    )
+
+    payload = _children(app_env, session_id)
+
+    assert payload["session_id"] == session_id
+    assert len(payload["children"]) == 1
+    child = payload["children"][0]
+    assert child["session_id"] == "child001"
+    assert child["sub_agent_type"] == "code-reviewer"
+    assert child["sub_agent_desc"] == "review the loader change"
+    assert child["model"] == "sonnet"
+    assert child["line_index"] == 1
+    # ISO 8601, the same shape the history endpoint encodes datetimes in.
+    assert isinstance(child["created_at"], str) and "T" in child["created_at"]
+
+
+def test_children_keep_file_order_and_dedupe_a_repeated_child_id(app_env: AppEnv) -> None:
+    session_id = "kid00002"
+    _write_session(
+        app_env.work_dir,
+        session_id,
+        [
+            _spawn("child_b", "finder", "find the caller"),
+            _spawn("child_a", "code-reviewer", "review it"),
+            # A second row for a child already recorded: the first one wins.
+            _spawn("child_b", "finder", "a later, weaker description"),
+        ],
+    )
+
+    children = _children(app_env, session_id)["children"]
+
+    assert [child["session_id"] for child in children] == ["child_b", "child_a"]
+    assert children[0]["sub_agent_desc"] == "find the caller"
+    assert [child["line_index"] for child in children] == [0, 1]
+
+
+def test_children_of_a_session_that_spawned_none_is_empty(app_env: AppEnv) -> None:
+    session_id = "kid00003"
+    _write_session(app_env.work_dir, session_id, [_user("hi"), _assistant("hello")])
+
+    assert _children(app_env, session_id) == {"session_id": session_id, "children": []}
+
+
+def test_children_of_an_unknown_session_is_404(app_env: AppEnv) -> None:
+    assert app_env.client.get("/api/web/sessions/nope/children").status_code == 404
+
+
 # -- search --
 
 

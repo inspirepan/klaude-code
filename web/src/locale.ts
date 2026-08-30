@@ -67,6 +67,9 @@ const KLAUDE_KEYS: Readonly<Record<string, string>> = {
   'klaude.search.pages': '约 {pages} 页',
   'klaude.search.capped': '一次最多加载 {pages} 页，还没到最早匹配',
   'klaude.search.more': '继续加载',
+  // The session list at `#/`.
+  'klaude.sessionList.messages': '{count} 条',
+  'klaude.sessionList.messagesTitle': '本会话记录了 {count} 条消息',
 }
 
 /** Namespace lookup order: trajectory, then common; overrides win. */

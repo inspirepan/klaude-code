@@ -252,13 +252,32 @@
   font-size: 10px;
 }
 
+/* Sub-agent type, from the child's meta or the parent's spawn row. Only child
+ * rows carry one, so it reads as the prefix of the description beside it. */
+.agent {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--dsw-alias-label-primary-bluish);
+  background: var(--dsw-alias-bg-overlay);
+  font-family: var(--ds-font-family-code);
+  font-size: 10px;
+}
+
 .model,
+.messages,
 .time {
   flex: none;
   color: var(--dsw-alias-label-tertiary);
   font-family: var(--ds-font-family-code);
   font-size: 10px;
   font-variant-numeric: tabular-nums;
+}
+
+/* Right-aligned with a floor width, so the counts line up down the column. */
+.messages {
+  min-width: 42px;
+  text-align: right;
 }
 
 .time {

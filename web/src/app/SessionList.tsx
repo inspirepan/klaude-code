@@ -5,23 +5,29 @@
  * while the tab is hidden so a backgrounded viewer costs nothing. Rows are
  * grouped by `parent_session_id`: sub-agent sessions are real sessions with
  * their own ledger (decision #10), so they nest under their parent rather than
- * being folded into its trajectory.
+ * being folded into its trajectory. A child names itself only by id, so an
+ * opened parent is asked once for `GET /api/web/sessions/{id}/children` — its
+ * ledger holds the sub-agent's type and the description the parent delegated.
  *
  * Everything below the fetch is pure and lives in `session-list-model.ts`.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { SessionListRow } from '../adapter/index.ts'
-import { SESSION_LIST_LIMIT, fetchSessions } from './api.ts'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { SessionListRow, SpawnedChild } from '../adapter/index.ts'
+import { t } from '../locale.ts'
+import { SESSION_LIST_LIMIT, fetchSessionChildren, fetchSessions } from './api.ts'
 import type { SessionTreeNode } from './session-list-model.ts'
 import {
-  buildSessionTree, filterSessionRows, flattenSessionTree, isLiveState, relativeUpdated,
-  rowState, rowTitle, workDirName,
+  buildSessionTree, filterSessionRows, flattenSessionTree, isLiveState, messagesCount,
+  relativeUpdated, rowLabel, rowState, workDirName,
 } from './session-list-model.ts'
 import css from './SessionList.module.css'
 
 /** Poll period (decision #24). */
 const POLL_MS = 5000
+
+/** Spawn rows by parent id, then by child id. */
+type SpawnIndex = ReadonlyMap<string, ReadonlyMap<string, SpawnedChild>>
 
 function collectParentIds(nodes: readonly SessionTreeNode[], into: Set<string>): Set<string> {
   for (const node of nodes) {
@@ -32,11 +38,19 @@ function collectParentIds(nodes: readonly SessionTreeNode[], into: Set<string>):
   return into
 }
 
+/** The spawn row a child's parent recorded for it, when it has been fetched. */
+function spawnFor(index: SpawnIndex, row: SessionListRow): SpawnedChild | null {
+  const parent = row.parent_session_id
+  if (parent === null || parent === undefined || parent === '') return null
+  return index.get(parent)?.get(row.id) ?? null
+}
+
 /** One list row: a disclosure toggle plus the link that opens the trajectory. */
 function SessionRow({
-  node, expanded, onToggle, now,
+  node, spawn, expanded, onToggle, now,
 }: {
   readonly node: SessionTreeNode
+  readonly spawn: SpawnedChild | null
   readonly expanded: boolean
   readonly onToggle: (id: string) => void
   readonly now: number
@@ -45,6 +59,8 @@ function SessionRow({
   const state = rowState(row)
   const directory = workDirName(row.work_dir)
   const hasChildren = node.children.length > 0
+  const label = rowLabel(row, spawn)
+  const messages = messagesCount(row)
   return (
     <li
       className={css.row}
@@ -66,7 +82,8 @@ function SessionRow({
         )
         : <span className={css.toggleSpacer} />}
       <a className={css.link} href={`#/s/${row.id}`}>
-        <span className={css.title}>{rowTitle(row)}</span>
+        {label.badge !== null && <span className={css.agent}>{label.badge}</span>}
+        <span className={css.title}>{label.title}</span>
         {directory !== null && <span className={css.dir}>{directory}</span>}
         <span className={css.state} data-state={state}>
           {isLiveState(state) && <span className={css.dot} />}
@@ -79,6 +96,11 @@ function SessionRow({
           <span className={css.orphan}>child of {node.orphanParent.slice(0, 8)}</span>
         )}
         <span className={css.spacer} />
+        {messages !== null && (
+          <span className={css.messages} title={t('klaude.sessionList.messagesTitle', { count: messages })}>
+            {t('klaude.sessionList.messages', { count: messages })}
+          </span>
+        )}
         {row.model != null && row.model !== '' && <span className={css.model}>{row.model}</span>}
         <span className={css.time}>{relativeUpdated(row.updated_at, now)}</span>
       </a>
@@ -98,6 +120,11 @@ export function SessionList() {
   const [query, setQuery] = useState('')
   // Parents the reader opened. Default is collapsed, so this starts empty.
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
+  // Spawn rows for the parents whose children are on screen.
+  const [spawns, setSpawns] = useState<SpawnIndex>(() => new Map())
+  // Parents already asked for, so the 5 s poll never re-asks.
+  const askedRef = useRef<Set<string>>(new Set())
+  const childAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -159,6 +186,36 @@ export function SessionList() {
   )
   const visible = useMemo(() => flattenSessionTree(tree, expanded), [tree, expanded])
 
+  // A child row is only worth its short id until the parent's ledger says what
+  // it is and what it was asked to do, so every parent whose children are on
+  // screen gets one `/children` request. Spawn rows never change once written,
+  // so one answer lasts the page's lifetime — which matters, because `expanded`
+  // is a fresh set on every 5 s poll and this effect reruns each time.
+  useEffect(() => {
+    for (const parentId of expanded) {
+      if (askedRef.current.has(parentId)) continue
+      askedRef.current.add(parentId)
+      void (async () => {
+        try {
+          childAbortRef.current ??= new AbortController()
+          const children = await fetchSessionChildren(parentId, childAbortRef.current.signal)
+          setSpawns((current) => {
+            const next = new Map(current)
+            next.set(parentId, new Map(children.map(child => [child.session_id, child])))
+            return next
+          })
+        } catch {
+          // The short-id label still reads; let a later expand try again.
+          askedRef.current.delete(parentId)
+        }
+      })()
+    }
+  }, [expanded])
+
+  // Only unmount cancels a children request: aborting on every `expanded`
+  // change would kill the in-flight fetch the poll just re-triggered.
+  useEffect(() => () => { childAbortRef.current?.abort() }, [])
+
   const onToggle = useCallback((id: string) => {
     setOpened((current) => {
       const next = new Set(current)
@@ -194,6 +251,7 @@ export function SessionList() {
           <SessionRow
             key={node.row.id}
             node={node}
+            spawn={spawnFor(spawns, node.row)}
             expanded={expanded.has(node.row.id)}
             onToggle={onToggle}
             now={now}

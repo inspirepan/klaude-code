@@ -186,6 +186,46 @@ def _read_history_page(
     }
 
 
+@router.get("/sessions/{session_id}/children")
+async def get_session_children(session_id: str, state: ServerAppState = _STATE_DEP) -> dict[str, Any]:
+    """The sub-agents this session spawned, as its own ledger recorded them.
+
+    The session list nests children under their parent, but a child's meta only
+    carries its ``agent_type`` — the description the parent wrote when
+    delegating lives in the parent's ``SpawnSubAgentEntry`` rows and nowhere
+    else. A parent with no sub-agents answers with an empty list.
+    """
+    ref = _resolve_session(state, session_id)
+    children = await asyncio.to_thread(_spawned_children, ref.store, session_id)
+    return {"session_id": session_id, "children": children}
+
+
+def _spawned_children(store: JsonlSessionStore, session_id: str) -> list[dict[str, Any]]:
+    """Spawn rows in file order, first row winning for a repeated child id.
+
+    A child id can be recorded twice (a replayed spawn, a hand-edited ledger);
+    the first row is the one that describes the delegation that created it.
+    """
+    seen: set[str] = set()
+    children: list[dict[str, Any]] = []
+    for line_index, entry in store.scan_spawned_sub_agents(session_id):
+        if entry.session_id in seen:
+            continue
+        seen.add(entry.session_id)
+        children.append(
+            {
+                "session_id": entry.session_id,
+                "sub_agent_type": entry.sub_agent_type,
+                "sub_agent_desc": entry.sub_agent_desc,
+                "model": entry.model,
+                # ISO 8601, matching how the history endpoint encodes datetimes.
+                "created_at": entry.created_at.isoformat(),
+                "line_index": line_index,
+            }
+        )
+    return children
+
+
 @router.get("/sessions/{session_id}/search")
 async def search_session_history(
     session_id: str,

@@ -47,7 +47,9 @@ def test_trace_opens_the_browser_at_the_reported_url(monkeypatch: pytest.MonkeyP
     assert "http://127.0.0.1:8766" in result.output
 
 
-def test_trace_falls_back_to_the_port_when_url_is_absent(monkeypatch: pytest.MonkeyPatch, opened_urls: list[str]) -> None:
+def test_trace_falls_back_to_the_port_when_url_is_absent(
+    monkeypatch: pytest.MonkeyPatch, opened_urls: list[str]
+) -> None:
     _stub_status(monkeypatch, {"web_port": 8765})
 
     result = CliRunner().invoke(app, ["trace"])

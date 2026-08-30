@@ -21,7 +21,7 @@ export {
   REBUILT_CAVEAT_KEY, promptConfig, promptSnapshot, promptTools, toolSchemasByName,
 } from './system-context.ts'
 export type {
-  HistoryPage, HistoryRow, HistoryRowStatus, RawEntry, SessionListRow, SessionMeta,
-  SessionSearchMatch, SessionSearchResult, SessionState, SystemContext,
-  SystemContextModel, SystemContextTool,
+  HistoryPage, HistoryRow, HistoryRowStatus, RawEntry, SessionChildren, SessionListRow,
+  SessionMeta, SessionSearchMatch, SessionSearchResult, SessionState, SpawnedChild,
+  SystemContext, SystemContextModel, SystemContextTool,
 } from './wire.ts'
