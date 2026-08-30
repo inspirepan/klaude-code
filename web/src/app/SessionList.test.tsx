@@ -7,7 +7,7 @@
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react-dom/test-utils'
-import { SessionList } from './SessionList.tsx'
+import { SessionList, resetSessionListCache } from './SessionList.tsx'
 
 const PARENT = 'parent01abcdef'
 const CHILD = 'child001abcdef'
@@ -61,6 +61,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  resetSessionListCache()
   vi.useFakeTimers()
   childrenAnswer = () => Promise.resolve(answer({ session_id: PARENT, children: CHILDREN }))
   fetchMock = vi.fn((input: unknown) => {

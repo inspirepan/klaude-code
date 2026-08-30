@@ -257,7 +257,7 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
   return (
     <div className={css.page}>
       <header className={css.header}>
-        <a className={css.home} href="#/" title="Sessions">klaude</a>
+        <a className={css.back} href="#/" title={t('klaude.sessionPage.back')} aria-label={t('klaude.sessionPage.back')}>‹ {t('klaude.sessionPage.backShort')}</a>
         <h1 className={css.title}>{meta?.title ?? sessionId}</h1>
         {directory !== null && <span className={css.badge}>{directory}</span>}
         {meta?.model != null && meta.model !== '' && (

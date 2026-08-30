@@ -56,6 +56,8 @@ const KIND_OVERRIDES: Readonly<Record<string, string>> = {
  * demand and sometimes has to rebuild it (`server/system_context.py`).
  */
 const KLAUDE_KEYS: Readonly<Record<string, string>> = {
+  'klaude.sessionPage.back': '返回会话列表',
+  'klaude.sessionPage.backShort': '会话列表',
   'klaude.systemContext.rebuilt':
     '按今天的提示词文件与工具集重建，不是本会话当时发送的内容——会话运行时的提示词可能不同。',
   // M5: the server search bar over the lines the viewer has not loaded.

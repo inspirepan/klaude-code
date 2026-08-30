@@ -112,19 +112,71 @@ function SessionRow({
   )
 }
 
+
+/**
+ * klaude: the list survives hash navigation. Leaving for a trajectory page and
+ * coming back renders the last rows immediately and refreshes in the background
+ * instead of flashing an empty list. Rows also go to sessionStorage so a hard
+ * reload of the tab starts warm; opened parents and their spawn info stay in
+ * memory for the page's lifetime.
+ */
+const LIST_STORAGE_KEY = 'klaude.sessionList.rows'
+interface ListCache {
+  rows: readonly SessionListRow[] | null
+  opened: ReadonlySet<string>
+  spawns: SpawnIndex
+  asked: Set<string>
+}
+const listCache: ListCache = { rows: null, opened: new Set(), spawns: new Map(), asked: new Set() }
+
+function readStoredRows(): readonly SessionListRow[] | null {
+  try {
+    const raw = window.sessionStorage.getItem(LIST_STORAGE_KEY)
+    if (raw === null) return null
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as SessionListRow[]) : null
+  } catch {
+    return null
+  }
+}
+
+function storeRows(rows: readonly SessionListRow[]): void {
+  try {
+    window.sessionStorage.setItem(LIST_STORAGE_KEY, JSON.stringify(rows))
+  } catch {
+    // Storage may be unavailable; the in-memory cache still works.
+  }
+}
+
+/** Test hook: forget everything the list remembered. */
+export function resetSessionListCache(): void {
+  listCache.rows = null
+  listCache.opened = new Set()
+  listCache.spawns = new Map()
+  listCache.asked = new Set()
+  try {
+    window.sessionStorage.removeItem(LIST_STORAGE_KEY)
+  } catch {
+    // ignore
+  }
+}
+
 /** The `#/` landing page. */
 export function SessionList() {
-  const [rows, setRows] = useState<readonly SessionListRow[]>([])
-  const [loaded, setLoaded] = useState(false)
+  const initialRows = listCache.rows ?? readStoredRows()
+  const [rows, setRows] = useState<readonly SessionListRow[]>(initialRows ?? [])
+  const [loaded, setLoaded] = useState(initialRows !== null)
   const [stale, setStale] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const [query, setQuery] = useState('')
-  // Parents the reader opened. Default is collapsed, so this starts empty.
-  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set())
+  // Parents the reader opened. Default is collapsed; remembered across navigation.
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => listCache.opened)
   // Spawn rows for the parents whose children are on screen.
-  const [spawns, setSpawns] = useState<SpawnIndex>(() => new Map())
+  const [spawns, setSpawns] = useState<SpawnIndex>(() => listCache.spawns)
   // Parents already asked for, so the 5 s poll never re-asks.
-  const askedRef = useRef<Set<string>>(new Set())
+  const askedRef = useRef<Set<string>>(listCache.asked)
+  useEffect(() => { listCache.opened = opened }, [opened])
+  useEffect(() => { listCache.spawns = spawns }, [spawns])
   const childAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
@@ -141,6 +193,8 @@ export function SessionList() {
         try {
           const list = await fetchSessions(SESSION_LIST_LIMIT, current.signal)
           if (disposed || current.signal.aborted) return
+          listCache.rows = list
+          storeRows(list)
           setRows(list)
           setStale(false)
           setLoaded(true)

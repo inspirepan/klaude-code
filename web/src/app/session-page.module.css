@@ -20,15 +20,23 @@
   font: var(--dsw-font-xxs-12);
 }
 
-.home {
+.back {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 4px;
   color: var(--dsw-alias-label-secondary);
-  font-family: var(--ds-font-family-code);
+  font: var(--dsw-font-xxs-12);
   text-decoration: none;
+  white-space: nowrap;
 }
 
-.home:hover {
+.back:hover {
   color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
 .title {
