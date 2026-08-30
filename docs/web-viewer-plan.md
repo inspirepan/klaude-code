@@ -5,8 +5,8 @@
 > M2-B 磁盘历史分页 API + `HistoryAppendedEvent`（`7e93dc34`）、M2-F1 适配器 + 轨迹页（`17bbc715`）、
 > M2-B2 行上 turn/step/auto（`d57073b4`）、M2-F2 列表页 + WS 在线状态（`e9b89759`）、
 > M3 泳道 D1（`e0714f61`）、M4-B `LLMRequestEntry`/`stop_reason`/system-context（`c4d670b7`）、
-> M4-F 请求检查器 + SYSTEM 行 + Schema（`880677c6`）、M5-B 服务端搜索（`e896609b`）；
-> 进行中：M5-F 客户端搜索跳转到未加载历史。本文是完整设计方案，决策已与作者逐项确认。
+> M4-F 请求检查器 + SYSTEM 行 + Schema（`880677c6`）、M5-B 服务端搜索（`e896609b`）、
+> M5-F 客户端搜索跳转到未加载历史（`37f7b38a`）。**M0–M5 全部落地**；遗留项见 `web/VENDOR.md` 的 open items。本文是完整设计方案，决策已与作者逐项确认。
 > 交互细节见配套文档 [web-viewer-ux-spec.md](web-viewer-ux-spec.md)。
 >
 > **2026-08-29 修订**：① 前端改为复用 deepseek-harness `ui-trajectory` 源码；② 不做鉴权；
