@@ -104,4 +104,4 @@ def test_trace_is_listed_in_the_top_level_help() -> None:
     result = CliRunner().invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "trace " in result.output
-    assert "browser viewer" in result.output
+    assert "trajectory viewer" in result.output
