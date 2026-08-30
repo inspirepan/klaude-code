@@ -1,7 +1,9 @@
 # klaude Web 会话查看器方案
 
-> 状态：实施中（M1 前置清理已完成：export 已删除、debug 日志已常驻并轮转、
-> payload 图片占位已落地）。本文是完整设计方案，决策已与作者逐项确认。
+> 状态：实施中。已落地：M0-1 删 checkpoint（`7c3723f6`）、M0-2 坐标统一 + 行号 + `scan_history`
+> （`e2350d67`）、M1 双 socket / Host guard / 静态伺服 / `klaude web` / 删 log viewer（`f2950f92`）、
+> M2-B 磁盘历史分页 API + `HistoryAppendedEvent`（`7e93dc34`）、M2-F1 适配器 + 轨迹页（`17bbc715`）；
+> 进行中：M2-B2 行上 turn/step/auto 序号、M2-F2 列表页 + WS 在线状态。本文是完整设计方案，决策已与作者逐项确认。
 > 交互细节见配套文档 [web-viewer-ux-spec.md](web-viewer-ux-spec.md)。
 >
 > **2026-08-29 修订**：① 前端改为复用 deepseek-harness `ui-trajectory` 源码；② 不做鉴权；
@@ -79,7 +81,7 @@ list**（SYSTEM/CONTEXT/USER/ASSISTANT/TOOL 行），左槽圆点是每次 LLM �
 | 6 | 密度 | 随上游：账本行 12px/18px 字号、30px 行高、折叠摘要行 20px；检查器 13px/20px |
 | 7 | UI 规范 | fork 源码，不套 better-*/interface-review；验收 = 与上游渲染一致 + 偏离清单 |
 | 8 | 操作面 | 永久只读（peek=1） |
-| 9 | 会话列表 | **修订**：复用 `GET /api/headless/sessions`（`routes/headless.py:376`，`_serialize_row` 已含 title/work_dir/model/updated_at/state/activity/pending/parent_session_id）；状态词表 `running \| waiting_input \| queued \| idle`；平铺按最近活跃倒序 |
+| 9 | 会话列表 | **修订**：复用 `GET /api/headless/sessions?include_children=1&include_archived=1&limit=500`（`routes/headless.py:376`，`_serialize_row` 已含 title/work_dir/model/updated_at/state/activity/pending/parent_session_id/archived；不带两个 flag 时子会话与已归档会话被隐藏，`limit` 只计根会话）；状态词表六值 `queued \| running \| waiting_input \| idle \| completed \| failed`（冷会话是 `completed`，`idle` 指有 TUI 挂着且在等输入）；平铺按最近活跃倒序，子会话折叠在父行下 |
 | 10 | sub-agent | **修订**：不做嵌套、删除 `subtool` kind。子会话作为独立会话行出现在列表（带 parent badge，可按父折叠）；父轨迹中 Agent 工具的 TOOL 行，其检查器提供"打开子会话轨迹"链接 |
 | 11 | thinking | 不独立成行，并入 ASSISTANT 详情检查器 |
 | 12 | 图片 | 上游已删除内联 `<img>`，图片走 `renderImages` 渲染槽（未注册则不显示）；我们实现该槽：URL 图直连，本地图经 `/api/web/file`（三个根，见安全） |
@@ -104,8 +106,9 @@ list**（SYSTEM/CONTEXT/USER/ASSISTANT/TOOL 行），左槽圆点是每次 LLM �
 
 ### 会话列表页 `/`
 
-- 数据源 `GET /api/headless/sessions`。每行：会话标题、目录名 badge、状态徽章
-  （running/waiting_input/queued/idle）、更新时间、模型。
+- 数据源 `GET /api/headless/sessions?include_children=1&include_archived=1&limit=500`。每行：
+  会话标题、目录名 badge、状态徽章（六值，见决策 #9；running/waiting_input 视觉上标为在线）、
+  更新时间、模型；已归档行压暗。客户端按标题/目录/模型过滤。
 - 子会话（`parent_session_id` 非空）显示 parent badge，默认折叠在父行下。
 - 5s 轮询。点击行进轨迹页。
 
@@ -291,10 +294,21 @@ tab 集见决策 #14。ASSISTANT 行附 Thinking 区块与 Request Timing。
    `uvicorn.Server.serve(sockets=[...])`（uvicorn 0.41 下 lifespan 只跑一次）。注意传 `sockets=`
    时 uvicorn 跳过整个 uds 分支，socket 权限与 unlink 顺序（`server.py:136,184`）由我们负责。
    `/api/server/status`（`routes/server.py:51-69`）新增 `web_port` 字段。
-2. **历史分页（磁盘）** `GET /api/web/sessions/{id}/history?before_line=N&limit=M`：
-   直接读 `events.jsonl`，不初始化 agent。`before_line` 为 exclusive 零基行号，省略返回尾页。
-   每项 `{line_index, entry, status, dropped_by}`，另返回 `next_before_line`、`has_more`、
-   `line_count`。`after_line=N` 变体用于拉尾部增量。
+2. **会话 meta** `GET /api/web/sessions/{id}/meta` →
+   `{session_id, title, work_dir, model, parent_session_id, created_at, updated_at, state, loaded, line_count}`；
+   `loaded` = `session_registry.has_session_actor`，前端据此决定是否开 WS。
+   **历史分页（磁盘）** `GET /api/web/sessions/{id}/history?before_line=N&limit=M`
+   或 `?after_line=N&limit=M`（互斥；都省略返回尾页；`limit` 默认 500、静默夹到 1–2000）：
+   直接读 `events.jsonl`，不初始化 agent；`ScanResult` 按 `(mtime_ns, size)` 缓存，冷读首页
+   约 300ms（6k 行），热页个位数 ms。每项
+   `{line_index, status, dropped_by, entry, turn_index, step_index, auto}`——`entry` 与磁盘行
+   逐字节一致（`{"type","data"}`，解不出的行为 `null` + `status: "unknown"`）；`turn_index` 是
+   **人类回合**的 1 基绝对序号（首个人类 user 之前为 0）、`step_index` 是 AssistantMessage 在回合
+   内的 1 基序号、`auto` 只在 UserMessage 行上，标记 bash_mode / 空响应续跑 / 流错误续跑 /
+   sub-agent fork-context 四类非人类输入（判定常量在 Python 侧，前端不重复实现）。顶层另返回
+   `line_count`、`turn_count`、`has_more`（`before_line` 模式指 `rows[0]` 之前还有行；
+   `after_line` 模式指 `rows[-1]` 之后还有行）、`next_before_line`（= `rows[0].line_index`，
+   `after_line` 模式为 null）。翻页以 `has_more` 为准。
 3. **在线会话 WS** `/api/sessions/{id}/ws?replay=1&peek=1`：仅当 `session_registry.has_session_actor`
    为真才连接。viewer 忽略 `replay_history` 帧里已落盘的内容（以 REST 为准），只消费
    live 事件构造 `partial`/`runningCalls`。落盘完成由新增 `HistoryAppendedEvent`
@@ -304,11 +318,13 @@ tab 集见决策 #14。ASSISTANT 行附 Thinking 区块与 Request Timing。
    `replay_complete` / `follow_ups_dequeued` / `error`；`event_seq` 在 server 重启后从 1 重计，
    attach 合成 envelope 的 `event_seq=0`；`connection_info.code_fingerprint` 浏览器算不出，
    忽略即可（否则永久假阳性）。
-4. **会话清单**：复用 `GET /api/headless/sessions`，必要时加 `include_sub_agents=1`。
+4. **会话清单**：复用 `GET /api/headless/sessions?include_children=1&include_archived=1&limit=500`
+   （两个 flag 已存在；见决策 #9）。
 5. **搜索** `GET /api/web/sessions/{id}/search?q=...`：服务端搜索 `events.jsonl`，
    返回匹配 entry 的 `line_index` 列表，前端跳转定位并按需加载所在页。
-6. **本地文件** `GET /api/web/file?path=...`：本地图片渲染，`resolve()` 后做路径包含检查
-   （根见"安全"）。
+6. **本地文件** `GET /api/web/file?session_id=...&path=...`：本地图片渲染，`resolve()` 后做
+   路径包含检查（根见"安全"）；只放行位图（png/jpg/gif/webp），SVG 可执行脚本 → 415；越界 403、
+   超 25MB 413、不存在 404；响应带 `X-Content-Type-Options: nosniff`。
 7. **系统上下文** `GET /api/web/sessions/{id}/system-context`：按需返回该 session 当前恢复出的
    完整 system prompt、工具目录与 schema；仅供 SYSTEM 检查器使用。
 8. **历史与事件 schema 补充**：
