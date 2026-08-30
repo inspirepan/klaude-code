@@ -1,8 +1,8 @@
 /** Chrome-Network-style overview timeline for focusing the trajectory ledger. */
 
 import {
-  memo, useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent,
-  type PointerEvent,
+  memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState,
+  type CSSProperties, type KeyboardEvent, type PointerEvent,
 } from 'react'
 // klaude: upstream cross-package import -> the vendored primitives tree
 import { Tooltip } from '../ui-primitives/index.ts'
@@ -12,17 +12,31 @@ import type { AssistantMetricDetail, TrajectoryCellKind, TrajectoryCellProps } f
 import {
   deriveTrajectoryTimeline,
   formatTimelineOffset,
+  // klaude: UX spec D1 — the scroller's scale model lives in timeline.ts
+  timelineEarlierScrollLeft,
+  timelineFollowsTail,
+  timelineRevealScrollLeft,
+  timelineScale,
+  timelineZoomPxPerUnit,
+  timelineZoomScrollLeft,
+  TIMELINE_REVEAL_MS,
   type TrajectoryTimelineMode,
   type TrajectoryTimeRange,
 } from './timeline.ts'
 import css from './TrajectoryTimeline.module.css'
 
 const MINIMUM_DRAG_PX = 3
-const MINIMUM_ZOOM_OPERATIONS = 4
+// klaude: D1 — upstream's MINIMUM_ZOOM_OPERATIONS is now the px-per-unit ceiling
+// TIMELINE_MINIMUM_ZOOM_RECORDS / _MS in timeline.ts.
 const EDGE_PAN_ZONE_FRACTION = 0.08
 const EDGE_PAN_STEP_FRACTION = 0.025
 const MAXIMUM_EDGE_PAN_PX = 32
 const TIMELINE_TOOLTIP_DELAY_MS = 500
+// klaude: D1 — upstream culled spans to the domain window; the scroller culls to
+// the visible px window plus this margin, so a scroll inside the margin needs no
+// re-render. The window only commits once the offset moved a whole step.
+const SPAN_WINDOW_MARGIN_PX = 480
+const SPAN_WINDOW_STEP_PX = 160
 
 interface TimelineRecordDetail {
   decodingMs?: number
@@ -37,16 +51,24 @@ interface FractionRange {
 }
 
 interface HoverPoint {
-  fraction: number
+  /** klaude: D1 — content px, was a viewport fraction. */
+  contentX: number
   recordIndex: number | null
 }
 
 interface PanGesture {
   anchorClientX: number
-  anchorStart: number
+  /** klaude: D1 — a right-drag pans `scrollLeft`, not the domain start. */
+  anchorScrollLeft: number
   moved: boolean
   pannable: boolean
   pointerId: number
+}
+
+/** klaude: D1 — committed scroll offset the span cull window is built from. */
+interface ScrollWindow {
+  left: number
+  atStart: boolean
 }
 
 function assistantTimingDetail(
@@ -175,21 +197,16 @@ function centeredRange(
   return { start, end: start + clampedWidth }
 }
 
-function rangeFraction(
-  range: TrajectoryTimeRange,
-  start: number,
-  duration: number,
-  minimum: number,
-  maximum: number,
-): FractionRange {
-  const bounded = orderedRange(
-    Math.min(maximum, Math.max(minimum, range.start)),
-    Math.min(maximum, Math.max(minimum, range.end)),
-  )
-  return {
-    start: (bounded.start - start) / duration,
-    end: (bounded.end - start) / duration,
-  }
+// klaude: D1 — upstream's `rangeFraction` projected a range onto the viewport;
+// the scroller places overlays in content px instead (see `contentPx`).
+function maxScrollLeftOf(track: HTMLDivElement): number {
+  return Math.max(0, track.scrollWidth - track.clientWidth)
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 function LaneLabels({ t }: { t: TrajectoryTranslate }) {
@@ -276,8 +293,86 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
   const [hover, setHover] = useState<HoverPoint | null>(null)
   const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [panning, setPanning] = useState(false)
-  const [viewport, setViewport] = useState<TrajectoryTimeRange | null>(null)
-  const [animateViewport, setAnimateViewport] = useState(false)
+  // klaude: D1 — the upstream `viewport` / `animateViewport` domain-window state is
+  // replaced by a zoom (px per domain unit) plus the track's own `scrollLeft`.
+  const [containerWidth, setContainerWidth] = useState(0)
+  // The zoom carries its mode: px per record and px per millisecond are not the
+  // same unit, so a mode switch falls back to that mode's default scale.
+  const [zoom, setZoom] = useState<{ mode: TrajectoryTimelineMode; pxPerUnit: number } | null>(null)
+  const [scrollWindow, setScrollWindow] = useState<ScrollWindow>({ atStart: true, left: 0 })
+  const revealFrameRef = useRef<number | null>(null)
+  const revealedIndexRef = useRef<number | null>(null)
+  const pendingScrollRef = useRef<number | null>(null)
+  const earlierAnchorRef = useRef<{ contentWidth: number; scrollLeft: number } | null>(null)
+  const followsTailRef = useRef(true)
+
+  const fullDuration = Math.max(1, (model?.end ?? 0) - (model?.start ?? 0))
+  const domainStart = model?.start ?? 0
+  const pxPerUnit = zoom !== null && zoom.mode === mode ? zoom.pxPerUnit : null
+  const scale = useMemo(
+    () => timelineScale({ containerWidth, fullDuration, mode, pxPerUnit }),
+    [containerWidth, fullDuration, mode, pxPerUnit],
+  )
+  // Read by the reveal effect, which must not re-run (and re-scroll) on a zoom.
+  const projectionRef = useRef({ domainStart, pxPerUnit: scale.pxPerUnit })
+  useLayoutEffect(() => {
+    projectionRef.current = { domainStart, pxPerUnit: scale.pxPerUnit }
+  })
+  const contentPx = useCallback(
+    (unit: number): number => (unit - domainStart) * scale.pxPerUnit,
+    [domainStart, scale.pxPerUnit],
+  )
+  const syncScrollWindow = useCallback((track: HTMLDivElement) => {
+    const left = track.scrollLeft
+    const atStart = left <= 0.5
+    setScrollWindow(current =>
+      current.atStart === atStart && Math.abs(current.left - left) < SPAN_WINDOW_STEP_PX
+        ? current
+        : { atStart, left })
+  }, [])
+  const scrollTrackTo = useCallback((track: HTMLDivElement, left: number) => {
+    const maxScrollLeft = maxScrollLeftOf(track)
+    track.scrollLeft = Math.min(Math.max(left, 0), maxScrollLeft)
+    followsTailRef.current = timelineFollowsTail(track.scrollLeft, maxScrollLeft)
+    syncScrollWindow(track)
+  }, [syncScrollWindow])
+  const cancelReveal = useCallback(() => {
+    if (revealFrameRef.current !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(revealFrameRef.current)
+    }
+    revealFrameRef.current = null
+  }, [])
+  const revealScroll = useCallback((track: HTMLDivElement, target: number) => {
+    cancelReveal()
+    if (
+      prefersReducedMotion()
+      || typeof requestAnimationFrame !== 'function'
+      || typeof performance === 'undefined'
+    ) {
+      scrollTrackTo(track, target)
+      return
+    }
+    const from = track.scrollLeft
+    const startedAt = performance.now()
+    const step = (now: number): void => {
+      const progress = Math.min(1, (now - startedAt) / TIMELINE_REVEAL_MS)
+      // ease-out, matching upstream's 180ms `left` transition.
+      scrollTrackTo(track, from + (target - from) * (1 - (1 - progress) ** 3))
+      revealFrameRef.current = progress < 1 ? requestAnimationFrame(step) : null
+    }
+    revealFrameRef.current = requestAnimationFrame(step)
+  }, [cancelReveal, scrollTrackTo])
+  useEffect(() => cancelReveal, [cancelReveal])
+  // klaude: D1 — the content width is measured, not derived from a domain fraction.
+  useLayoutEffect(() => {
+    const track = trackRef.current
+    if (track === null) return
+    setContainerWidth(track.clientWidth)
+    if (typeof ResizeObserver !== 'function') return
+    const observer = new ResizeObserver(() => { setContainerWidth(track.clientWidth) })
+    observer.observe(track)
+    return () => { observer.disconnect() }
+  }, [model === null])
   useEffect(() => {
     if (
       model !== null
@@ -287,74 +382,94 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
       onRangeChange(null)
     }
   }, [model, onRangeChange, range])
+  // klaude: D1 — growth, zoom and earlier-history all land on `scrollLeft`:
+  // a pending zoom anchor wins, then an earlier-history anchor, then tail follow.
+  useLayoutEffect(() => {
+    const track = trackRef.current
+    if (track === null) return
+    const pending = pendingScrollRef.current
+    if (pending !== null) {
+      pendingScrollRef.current = null
+      scrollTrackTo(track, pending)
+      return
+    }
+    const anchor = earlierAnchorRef.current
+    if (anchor !== null) {
+      earlierAnchorRef.current = null
+      if (anchor.contentWidth !== scale.contentWidth) {
+        scrollTrackTo(track, timelineEarlierScrollLeft({
+          maxScrollLeft: maxScrollLeftOf(track),
+          nextContentWidth: scale.contentWidth,
+          previousContentWidth: anchor.contentWidth,
+          scrollLeft: anchor.scrollLeft,
+        }))
+        return
+      }
+    }
+    if (followsTailRef.current) scrollTrackTo(track, maxScrollLeftOf(track))
+  }, [model, scale.contentWidth, scale.pxPerUnit, scrollTrackTo])
+  // klaude: D1 — upstream panned the domain window to reveal the selected span;
+  // the scroller travels the same minimum distance with `scrollLeft`. Only a new
+  // selection reveals: re-running on every model growth would fight tail follow.
   useEffect(() => {
-    if (model === null) return
-    setAnimateViewport(false)
-    setViewport(current =>
-      current !== null && (current.end < model.start || current.start > model.end)
-        ? null
-        : current)
-  }, [model])
-  useEffect(() => {
-    if (model === null || selectedIndex === null) return
-    const selectedSpan = model.spans.find(span => span.index === selectedIndex)
-    if (selectedSpan === undefined) return
-    setAnimateViewport(true)
-    setViewport((current) => {
-      if (current === null) return current
-      if (
-        selectedSpan.end > current.start
-        && selectedSpan.start < current.end
-      ) return current
-      const duration = Math.max(1, current.end - current.start)
-      const desiredStart = selectedSpan.end <= current.start
-        ? selectedSpan.start
-        : selectedSpan.end - duration
-      const nextStart = Math.min(
-        Math.max(desiredStart, model.start),
-        Math.max(model.start, model.end - duration),
-      )
-      if (nextStart === current.start) return current
-      return { start: nextStart, end: nextStart + duration }
+    const track = trackRef.current
+    if (track === null || model === null || selectedIndex === null) {
+      revealedIndexRef.current = selectedIndex
+      return
+    }
+    if (selectedIndex === revealedIndexRef.current) return
+    const span = model.spans.find(candidate => candidate.index === selectedIndex)
+    if (span === undefined) return
+    revealedIndexRef.current = selectedIndex
+    const projection = projectionRef.current
+    const target = timelineRevealScrollLeft({
+      containerWidth: track.clientWidth,
+      maxScrollLeft: maxScrollLeftOf(track),
+      scrollLeft: track.scrollLeft,
+      spanLeft: (span.start - projection.domainStart) * projection.pxPerUnit,
+      spanRight: (span.end - projection.domainStart) * projection.pxPerUnit,
     })
-  }, [model, selectedIndex])
-  const fullDuration = Math.max(1, (model?.end ?? 0) - (model?.start ?? 0))
-  const viewportDuration = Math.min(
-    fullDuration,
-    Math.max(1, (viewport?.end ?? 0) - (viewport?.start ?? 0)),
-  )
-  const viewportStart = model === null || viewport === null
-    ? model?.start ?? 0
-    : Math.min(
-      Math.max(viewport.start, model.start),
-      model.end - viewportDuration,
-    )
-  const domainDuration = viewport === null ? fullDuration : viewportDuration
-  const domainStart = viewport === null ? model?.start ?? 0 : viewportStart
+    if (Math.abs(target - track.scrollLeft) < 1) return
+    revealScroll(track, target)
+  }, [model, revealScroll, selectedIndex])
   const showsEarlierBoundary = hasEarlierRecords
     && model !== null
-    && domainStart === model.start
+    && scrollWindow.atStart // klaude: D1 — was `domainStart === model.start`
   const loadEarlier = onLoadEarlier === undefined || loadingEarlier
     ? undefined
     : () => {
+      // klaude: D1 — hold the viewport on the records already on screen; the
+      // prepended page shifts them right by exactly the added content width.
+      const track = trackRef.current
+      earlierAnchorRef.current = {
+        contentWidth: scale.contentWidth,
+        scrollLeft: track === null ? 0 : track.scrollLeft,
+      }
+      followsTailRef.current = false
       setLoadingEarlier(true)
       void onLoadEarlier().finally(() => { setLoadingEarlier(false) })
     }
-  const projectedDomainStyle = model === null
-    ? undefined
-    : {
-      '--trajectory-domain-left':
-        `${-(domainStart - model.start) / domainDuration * 100}%`,
-      '--trajectory-domain-width': `${fullDuration / domainDuration * 100}%`,
-    } as CSSProperties
+  // klaude: D1 — one content layer, laid out in px of the full content width;
+  // spans stay percentages of it, so only the layer's own width moved.
+  const contentStyle = {
+    '--trajectory-content-width': `${scale.contentWidth}px`,
+  } as CSSProperties
   const committed = model === null || range === null
     ? null
-    : rangeFraction(range, domainStart, domainDuration, model.start, model.end)
-  const draftFraction = model === null || draft === null
+    : orderedRange(
+      contentPx(Math.min(model.end, Math.max(model.start, range.start))),
+      contentPx(Math.min(model.end, Math.max(model.start, range.end))),
+    )
+  const draftPixels = model === null || draft === null
     ? null
-    : rangeFraction(draft, domainStart, domainDuration, model.start, model.end)
-  const visibleRange = draftFraction ?? committed
+    : orderedRange(
+      contentPx(Math.min(model.end, Math.max(model.start, draft.start))),
+      contentPx(Math.min(model.end, Math.max(model.start, draft.end))),
+    )
+  const visibleRange = draftPixels ?? committed
   const activeRange = draft ?? range
+  // klaude: D1 — wheel zooms px-per-unit around the cursor; a horizontal delta
+  // (trackpad) scrolls instead. `preventDefault` keeps the page still either way.
   useEffect(() => {
     const root = rootRef.current
     if (root === null) return
@@ -362,31 +477,32 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
       event.preventDefault()
       const track = trackRef.current
       if (track === null || model === null) return
-      setAnimateViewport(false)
-      const rect = track.getBoundingClientRect()
-      const anchorFraction =
-        clampFraction((event.clientX - rect.left) / Math.max(1, rect.width))
-      const nextDuration = Math.min(
-        fullDuration,
-        Math.max(
-          Math.min(mode === 'sequence' ? MINIMUM_ZOOM_OPERATIONS : 20, fullDuration),
-          domainDuration * Math.exp(event.deltaY * 0.0015),
-        ),
-      )
-      if (nextDuration >= fullDuration * 0.999) {
-        setViewport(null)
+      cancelReveal()
+      if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+        scrollTrackTo(track, track.scrollLeft + event.deltaX)
         return
       }
-      const anchorTime = domainStart + anchorFraction * domainDuration
-      const nextStart = Math.min(
-        Math.max(anchorTime - anchorFraction * nextDuration, model.start),
-        model.end - nextDuration,
-      )
-      setViewport({ start: nextStart, end: nextStart + nextDuration })
+      const nextPxPerUnit = timelineZoomPxPerUnit(scale, event.deltaY)
+      if (nextPxPerUnit === scale.pxPerUnit) return
+      const next = timelineScale({
+        containerWidth,
+        fullDuration,
+        mode,
+        pxPerUnit: nextPxPerUnit,
+      })
+      const rect = track.getBoundingClientRect()
+      pendingScrollRef.current = timelineZoomScrollLeft({
+        cursorOffset: Math.min(Math.max(event.clientX - rect.left, 0), rect.width),
+        maxScrollLeft: next.maxScrollLeft,
+        nextPxPerUnit: next.pxPerUnit,
+        pxPerUnit: scale.pxPerUnit,
+        scrollLeft: track.scrollLeft,
+      })
+      setZoom({ mode, pxPerUnit: nextPxPerUnit })
     }
     root.addEventListener('wheel', onWheel, { passive: false })
     return () => { root.removeEventListener('wheel', onWheel) }
-  }, [domainDuration, domainStart, fullDuration, mode, model])
+  }, [cancelReveal, containerWidth, fullDuration, mode, model, scale, scrollTrackTo])
 
   if (model === null) {
     return (
@@ -410,14 +526,24 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
   }
 
   const minimumSelectionDuration = Math.min(
-    domainDuration,
+    scale.visibleDuration, // klaude: D1 — was the domain window's duration
     fullDuration / model.spans.length,
   )
+  // klaude: D1 — cull to the scrolled window instead of the domain window.
+  const windowLeft = scrollWindow.left - SPAN_WINDOW_MARGIN_PX
+  const windowRight = scrollWindow.left + containerWidth + SPAN_WINDOW_MARGIN_PX
 
-  const fractionAt = (event: PointerEvent<HTMLDivElement>): number => {
-    const rect = event.currentTarget.getBoundingClientRect()
-    return clampFraction((event.clientX - rect.left) / Math.max(1, rect.width))
+  const contentXAt = (event: PointerEvent<HTMLDivElement>): number => {
+    const track = event.currentTarget
+    const rect = track.getBoundingClientRect()
+    return Math.min(
+      Math.max(event.clientX - rect.left + track.scrollLeft, 0),
+      scale.contentWidth,
+    )
   }
+
+  const unitAt = (contentX: number): number =>
+    domainStart + contentX / Math.max(scale.pxPerUnit, Number.EPSILON)
 
   const recordIndexAt = (event: PointerEvent<HTMLDivElement>): number | null => {
     const target = event.target instanceof HTMLElement ? event.target : null
@@ -433,15 +559,16 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
   }
 
   const onPointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    cancelReveal()
     if (event.button === 2) {
       panRef.current = {
         anchorClientX: event.clientX,
-        anchorStart: domainStart,
+        // klaude: D1 — pan anchors on the scroll offset, not on the domain start
+        anchorScrollLeft: event.currentTarget.scrollLeft,
         moved: false,
-        pannable: viewport !== null,
+        pannable: maxScrollLeftOf(event.currentTarget) > 0,
         pointerId: event.pointerId,
       }
-      if (viewport !== null) setAnimateViewport(false)
       setPanning(true)
       if (typeof event.currentTarget.setPointerCapture === 'function') {
         event.currentTarget.setPointerCapture(event.pointerId)
@@ -449,10 +576,10 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
       return
     }
     if (event.button !== 0) return
-    const anchor = fractionAt(event)
-    const anchorTime = domainStart + anchor * domainDuration
+    const contentX = contentXAt(event)
+    const anchorTime = unitAt(contentX)
     const recordIndex = recordIndexAt(event)
-    setHover({ fraction: anchor, recordIndex })
+    setHover({ contentX, recordIndex })
     dragRef.current = {
       pointerId: event.pointerId,
       anchorTime,
@@ -466,27 +593,24 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
   }
 
   const onPointerMove = (event: PointerEvent<HTMLDivElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect()
-    const fraction = fractionAt(event)
-    setHover({ fraction, recordIndex: recordIndexAt(event) })
+    const track = event.currentTarget
+    const rect = track.getBoundingClientRect()
+    setHover({ contentX: contentXAt(event), recordIndex: recordIndexAt(event) })
     const pan = panRef.current
     if (pan !== null && pan.pointerId === event.pointerId) {
       if (Math.abs(event.clientX - pan.anchorClientX) >= MINIMUM_DRAG_PX) {
         pan.moved = true
       }
       if (!pan.pannable) return
-      const delta = (event.clientX - pan.anchorClientX) / Math.max(1, rect.width)
-      const nextStart = Math.min(
-        Math.max(pan.anchorStart - delta * domainDuration, model.start),
-        model.end - domainDuration,
-      )
-      setViewport({ start: nextStart, end: nextStart + domainDuration })
+      // klaude: D1 — 1:1 with the pointer, since the content is laid out in px.
+      scrollTrackTo(track, pan.anchorScrollLeft - (event.clientX - pan.anchorClientX))
       return
     }
     const drag = dragRef.current
     if (drag === null || drag.pointerId !== event.pointerId) return
-    let nextDomainStart = domainStart
-    if (viewport !== null) {
+    // klaude: D1 — edge auto-pan steps `scrollLeft` by the same 2.5% of the
+    // viewport upstream stepped the domain window by.
+    if (maxScrollLeftOf(track) > 0) {
       const localX = event.clientX - rect.left
       const edgeWidth = Math.min(
         MAXIMUM_EDGE_PAN_PX,
@@ -500,24 +624,14 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
           ? edgeWidth - localX
           : localX - (rect.width - edgeWidth)
         const strength = clampFraction(edgeDistance / edgeWidth)
-        const desiredStart = domainStart
-          + direction * domainDuration * EDGE_PAN_STEP_FRACTION
-          * Math.max(0.2, strength)
-        nextDomainStart = Math.min(
-          Math.max(desiredStart, model.start),
-          model.end - domainDuration,
+        scrollTrackTo(
+          track,
+          track.scrollLeft
+          + direction * rect.width * EDGE_PAN_STEP_FRACTION * Math.max(0.2, strength),
         )
-        if (nextDomainStart !== domainStart) {
-          setAnimateViewport(false)
-          setViewport({
-            start: nextDomainStart,
-            end: nextDomainStart + domainDuration,
-          })
-        }
       }
     }
-    const pointTime = nextDomainStart + fraction * domainDuration
-    setDraft(orderedRange(drag.anchorTime, pointTime))
+    setDraft(orderedRange(drag.anchorTime, unitAt(contentXAt(event))))
   }
 
   const onPointerEnd = (event: PointerEvent<HTMLDivElement>) => {
@@ -532,10 +646,9 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
     }
     const drag = dragRef.current
     if (drag === null || drag.pointerId !== event.pointerId) return
-    const pointFraction = fractionAt(event)
-    const pointTime = domainStart + pointFraction * domainDuration
-    const selected = orderedRange(drag.anchorTime, pointTime)
-    setHover({ fraction: pointFraction, recordIndex: recordIndexAt(event) })
+    const contentX = contentXAt(event)
+    const selected = orderedRange(drag.anchorTime, unitAt(contentX))
+    setHover({ contentX, recordIndex: recordIndexAt(event) })
     dragRef.current = null
     setDraft(null)
     const click = Math.abs(event.clientX - drag.anchorClientX) < MINIMUM_DRAG_PX
@@ -593,13 +706,24 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
           ref={trackRef}
           className={css.track}
           data-panning={panning || undefined}
+          data-timeline-scroller // klaude: D1 — the track is the scroll container
           aria-label={t('timeline.overviewAria')}
           tabIndex={0}
+          style={contentStyle}
           onKeyDown={onKeyDown}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerEnd}
           onPointerCancel={onPointerCancel}
+          onScroll={(event) => {
+            // klaude: D1 — native scrollbar drags and momentum land here too.
+            const track = event.currentTarget
+            followsTailRef.current = timelineFollowsTail(
+              track.scrollLeft,
+              maxScrollLeftOf(track),
+            )
+            syncScrollWindow(track)
+          }}
           onPointerLeave={() => {
             if (dragRef.current === null && panRef.current === null) setHover(null)
           }}
@@ -625,7 +749,8 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
               data-timeline-hover-line
               aria-hidden="true"
               style={{
-                '--trajectory-hover-left': `${hover.fraction * 100}%`,
+                // klaude: D1 — content px, was a viewport percentage
+                '--trajectory-hover-left': `${hover.contentX}px`,
               } as CSSProperties}
             />
           )}
@@ -636,8 +761,9 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
                 data-dragging={draft === null ? undefined : 'true'}
                 aria-hidden="true"
                 style={{
-                  '--trajectory-selection-left': `${visibleRange.start * 100}%`,
-                  '--trajectory-selection-width': `${(visibleRange.end - visibleRange.start) * 100}%`,
+                  // klaude: D1 — content px, was a viewport percentage
+                  '--trajectory-selection-left': `${visibleRange.start}px`,
+                  '--trajectory-selection-width': `${visibleRange.end - visibleRange.start}px`,
                 } as CSSProperties}
               />
               <div
@@ -645,23 +771,22 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
                 data-dragging={draft === null ? undefined : 'true'}
                 aria-hidden="true"
                 style={{
-                  '--trajectory-selection-left': `${visibleRange.start * 100}%`,
-                  '--trajectory-selection-width': `${(visibleRange.end - visibleRange.start) * 100}%`,
+                  '--trajectory-selection-left': `${visibleRange.start}px`,
+                  '--trajectory-selection-width': `${visibleRange.end - visibleRange.start}px`,
                 } as CSSProperties}
               />
             </>
           )}
           <div
             className={css.turnBoundaries}
-            data-animate-viewport={animateViewport || undefined}
+            data-timeline-content // klaude: D1 — sized by --trajectory-content-width
             aria-hidden="true"
-            style={projectedDomainStyle}
           >
             {model.turnBoundaries
               .filter(boundary =>
                 boundary.time > model.start
-                && boundary.time >= domainStart
-                && boundary.time <= domainStart + domainDuration)
+                && contentPx(boundary.time) >= windowLeft
+                && contentPx(boundary.time) <= windowRight)
               .map(boundary => (
                 <span
                   className={css.turnBoundary}
@@ -676,14 +801,14 @@ export const TrajectoryTimeline = memo(function TrajectoryTimeline({
           </div>
           <div
             className={css.lanes}
-            data-animate-viewport={animateViewport || undefined}
+            data-timeline-content // klaude: D1 — sized by --trajectory-content-width
             data-timeline-domain
-            style={projectedDomainStyle}
           >
             {model.spans
               .filter(span =>
                 span.index === selectedIndex
-                || (span.end >= domainStart && span.start <= domainStart + domainDuration))
+                || (contentPx(span.end) >= windowLeft
+                  && contentPx(span.start) <= windowRight))
               .map((span) => {
                 const left = (span.start - model.start) / fullDuration
                 const width = (span.end - span.start) / fullDuration

@@ -52,9 +52,27 @@
 
 .track {
   position: relative;
-  overflow: hidden;
+  /* klaude: UX spec D1 — the track scrolls its content instead of fitting the
+     whole domain into the container. The bar rides in the 7px gutter below the
+     Tools lane; the thumb rebinds the shared scrollbar tokens to the elevated
+     (l2) pair, exactly as theme/scrollbar.css documents. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   cursor: crosshair;
   touch-action: none;
+}
+
+/* klaude: UX spec D1 */
+.track::-webkit-scrollbar {
+  height: 6px;
+}
+
+/* klaude: UX spec D1 */
+.track::-webkit-scrollbar-thumb {
+  border-radius: 3px;
 }
 
 .track[data-panning='true'] {
@@ -115,13 +133,18 @@
   outline-offset: -1px;
 }
 
+/* klaude: UX spec D1 — the two projection layers are now the scroller's content:
+   pinned at left 0 and as wide as the content, instead of being shifted with a
+   negative `left` computed from the domain window. `min-width: 100%` keeps them
+   covering the track before the first width measurement. */
 .lanes {
   position: absolute;
   z-index: 2;
   top: 7px;
   bottom: 7px;
-  left: var(--trajectory-domain-left);
-  width: var(--trajectory-domain-width);
+  left: 0;
+  width: var(--trajectory-content-width);
+  min-width: 100%;
 }
 
 .turnBoundaries {
@@ -129,17 +152,15 @@
   z-index: 3;
   top: 0;
   bottom: 0;
-  left: var(--trajectory-domain-left);
-  width: var(--trajectory-domain-width);
+  left: 0;
+  width: var(--trajectory-content-width);
+  min-width: 100%;
   pointer-events: none;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .lanes[data-animate-viewport='true'],
-  .turnBoundaries[data-animate-viewport='true'] {
-    transition: left 180ms ease-out;
-  }
-}
+/* klaude: UX spec D1 — the 180ms viewport `left` transition is gone with the
+   domain window; revealing a selected span animates `scrollLeft` in
+   TrajectoryTimeline.tsx instead (same duration, same reduced-motion guard). */
 
 .turnBoundary {
   position: absolute;
@@ -265,6 +286,9 @@
   opacity: 0.14;
 }
 
+/* klaude: UX spec D1 — --trajectory-selection-* and --trajectory-hover-left now
+   carry content pixels (they were viewport percentages); the declarations below
+   are unchanged because both layers scroll with the content. */
 .selection {
   position: absolute;
   z-index: 1;
@@ -303,7 +327,8 @@
   left: clamp(
     0px,
     calc(var(--trajectory-hover-left) - 1px),
-    calc(100% - 2px)
+    /* klaude: UX spec D1 — clamp against the content, not the container */
+    calc(var(--trajectory-content-width) - 2px)
   );
   width: 2px;
   background: var(--dsw-alias-state-business-primary);

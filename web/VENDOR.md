@@ -90,12 +90,17 @@ Every deviation carries a trailing or leading `// klaude:` comment so
 | `trajectory-preview.ts` | `@deepseek-ai/dsh-client-ui-primitives` → `../ui-primitives/index.ts`. |
 | `locales.ts` | Dropped the `declare module '@deepseek-ai/dsh-client-ui-slots'` `LocaleNamespaceMap` augmentation; `TrajectoryTranslate` is now re-exported from `../locale.ts` instead of aliasing `TranslateNS<'trajectory'>`. Both dictionaries carry 175 keys each (M2 swapped two row-kind keys for three; see below). |
 | `TrajectoryTable.tsx` | Import block: primitives → `../ui-primitives/index.ts`; conversation + attachment types → `../contract/index.ts`. Plus the M2 deviations, below. |
-| `TrajectoryTimeline.tsx` | `Tooltip` import → `../ui-primitives/index.ts`; `timelineKindLabel` row kinds; `data-discarded` on the span. |
+| `TrajectoryTimeline.tsx` | `Tooltip` import → `../ui-primitives/index.ts`; `timelineKindLabel` row kinds; `data-discarded` on the span. Plus the M3 scroller (D1), below. |
 | `TrajectoryToolbar.tsx` | `IconSearchOutline16` import → `../ui-primitives/index.ts`; prop `t: TranslateNS<typeof NS>` → `t: TrajectoryTranslate`. |
 | `TrajectoryView.tsx` | See below. |
 
 `trajectory-search-index.ts`, `trajectory-virtual-rows.ts` and `copy-codes.ts`
 are **byte-identical** to upstream.
+
+Three files in `src/trajectory/` are klaude's, not upstream's, and a `diff -r`
+will report them as added: `README-timeline.md`, `timeline-scale.test.ts` and
+`timeline-scroller.test.tsx` (all M3/D1). So is `src/test-shims.d.ts` at the
+source root.
 
 **M2 part 2 (session list + live WS state) added no vendored edit.** The live
 channel feeds the two snapshot fields the fork already declares (`partial`,
@@ -151,6 +156,30 @@ cannot change a row's React key.
 request numbering already falls out of `TrajectoryView`'s upstream
 `requestNumbers` memo once the adapter emits a `RequestView` per assistant
 message and per compaction.
+
+#### M3 deviation edit (2026-08-30) — D1 timeline scale model
+
+Upstream fits the whole domain into the container and zooms/pans a domain window;
+the fork scrolls a content layer that is `max(containerWidth, fullDuration ×
+pxPerUnit)` wide. Constants, formulas and the CSS contract:
+[`src/trajectory/README-timeline.md`](./src/trajectory/README-timeline.md).
+
+| File | `// klaude:` changes |
+|---|---|
+| `timeline.ts` | Appended the scale model, all new exports, none of the upstream projection touched: `TIMELINE_PX_PER_RECORD` / `_PX_PER_MS` / `_MINIMUM_ZOOM_RECORDS` / `_MINIMUM_ZOOM_MS` / `_ZOOM_EXPONENT` / `_TAIL_FOLLOW_PX` / `_REVEAL_MS`, `TrajectoryTimelineScale`, `timelineZoomFloorUnits`, `timelineDefaultPxPerUnit`, `timelineScale`, `timelineZoomPxPerUnit`, `timelineZoomScrollLeft`, `timelineFollowsTail`, `timelineRevealScrollLeft`, `timelineEarlierScrollLeft`. |
+| `TrajectoryTimeline.tsx` | `viewport` / `animateViewport` state and `MINIMUM_ZOOM_OPERATIONS` dropped; new `containerWidth` (ResizeObserver) + `zoom` (mode-tagged px per unit) + `scrollWindow` state and the `revealFrame` / `revealedIndex` / `pendingScroll` / `earlierAnchor` / `followsTail` refs. Wheel handler zooms `pxPerUnit` around the cursor (and scrolls on a horizontal delta); right-drag pans `scrollLeft`; drag-select edge auto-pan steps `scrollLeft`; hover and selection carry content px; `showsEarlierBoundary` reads `scrollLeft === 0`; the layout effect resolves zoom anchor → earlier-history anchor → tail follow; a changed `selectedIndex` reveals with a 180 ms rAF ease-out; spans and turn boundaries are culled to the scrolled window; `projectedDomainStyle` → `--trajectory-content-width` on the track, which also gains `data-timeline-scroller` and `onScroll`. `rangeFraction` removed, `orderedRange` / `clampFraction` / `centeredRange` kept. |
+| `TrajectoryTimeline.module.css` | `.track`: `overflow: hidden` → `overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain`, plus the l2 scrollbar-thumb rebind and a 6px `::-webkit-scrollbar` that rides the gutter under the Tools lane. `.lanes` / `.turnBoundaries`: `left: var(--trajectory-domain-left); width: var(--trajectory-domain-width)` → `left: 0; width: var(--trajectory-content-width); min-width: 100%`. The `data-animate-viewport` `left` transition is gone (the reveal animates `scrollLeft` in TS). `.hoverLine` clamps against `--trajectory-content-width` instead of `100%`. `.selection` / `.selectionEdges` declarations are unchanged; their custom properties now carry content px. |
+
+Not touched by D1: lanes and lane labels, span colours and geometry, idle
+compression, the `sequence` ⇄ `duration` toggle, drag-select, tooltips,
+click-to-select, dblclick / Escape, and the earlier-history button itself.
+
+Tests added: `src/trajectory/timeline-scale.test.ts` (the pure math) and
+`src/trajectory/timeline-scroller.test.tsx` (jsdom: the track scrolls and the
+content layer outgrows the container). `src/app/fixture-view.test.tsx` mounts the
+whole `#/fixture` view so the offline route stays a real acceptance check.
+`src/test-shims.d.ts` declares the one `node:fs` call those tests need
+(`tsconfig.json` keeps `"types": []`).
 
 #### `TrajectoryView.tsx` in detail
 
@@ -235,7 +264,9 @@ Runtime, versions taken from the upstream manifests at the fork commit:
 `micromark-{core-commonmark,extension-gfm,extension-math,factory-space,util-character,util-classify-character,util-sanitize-uri,util-symbol,util-types}`.
 
 Build: `vite ^6`, `@vitejs/plugin-react ^4`, `typescript ^6.0.3`,
-`@types/react ~18.3.1`, `@types/react-dom ~18.3.0`.
+`@types/react ~18.3.1`, `@types/react-dom ~18.3.0`. Test: `vitest ^4.1.11` and
+`jsdom ^30` (added for the M3 render tests; the `@vitest-environment jsdom`
+docblock opts the two React-mounting suites in, everything else stays on node).
 
 Deliberately **not** taken: `zustand`, `immer`, `use-sync-external-store` (went
 with `duration-store.ts`), `anser` (went with `ansi.ts` / `TerminalBlock`),
@@ -265,9 +296,11 @@ The tsconfig keeps upstream's `allowImportingTsExtensions`,
   D4, D5, D6, D7, D8 and D9 are **done** (M2 part 1); **D11** is **done** (M2
   part 2 — `src/app/live/` opens the WS channel only for a session whose meta
   reports `loaded`, so a cold session renders landed rows with no `partial` /
-  `runningCalls` and never triggers an `InitAgentOperation`). Still open: **D1**
-  timeline scale model (M3) and **D10** (nothing to do — klaude never packs
-  chunk rows).
+  `runningCalls` and never triggers an `InitAgentOperation`); **D1** is **done**
+  (M3 — the timeline track is a horizontal scroller, see
+  [`src/trajectory/README-timeline.md`](./src/trajectory/README-timeline.md)).
+  Nothing is open: **D10** never had anything to do — klaude does not pack chunk
+  rows.
 - `src/app/fixture.ts` stays as the `#/fixture` route so the ledger can be
   eyeballed with no server running; the session list links to it.
 - **The composite `--dsw-font-*` tokens are undefined.** `base.css` supplies
@@ -304,9 +337,12 @@ The tsconfig keeps upstream's `allowImportingTsExtensions`,
 - Upstream's `ui-trajectory/tests/` were not carried over; `src/adapter/*.test.ts`
   plus `src/app/session-list-model.test.ts` and `src/app/live/*.test.ts` (vitest,
   `pnpm test`) cover the projection, the list model and the live reducer instead.
-  None of them mount React: every piece with a behaviour worth pinning is a pure
-  function, and the two impure ones (`SessionList`'s poll and
-  `use-live-session.ts`'s socket) are thin shells over them.
+  Almost none of them mount React: every piece with a behaviour worth pinning is
+  a pure function, and the two impure ones (`SessionList`'s poll and
+  `use-live-session.ts`'s socket) are thin shells over them. The exceptions are
+  M3's `src/trajectory/timeline-scroller.test.tsx` and
+  `src/app/fixture-view.test.tsx`, which mount under jsdom because the scroller's
+  geometry only exists in the DOM.
 - Two vendored `ui-primitives` files still name upstream packages in JSDoc
   (`useAnchoredPosition.ts:10`, `relative-time.ts:6` `@module @deepseek-ai/…`),
   and several carry the phrase "cordis-free" in prose plus one
