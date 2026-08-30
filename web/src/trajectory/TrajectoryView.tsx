@@ -29,6 +29,8 @@ import type { AssistantMetricDetail } from './trajectory-record.ts' // klaude: r
 // klaude: the REST adapter's per-record ledger facts are applied to the folded
 // layout here, once, so table / timeline / search all see the same cells
 import { applyTrajectoryAnnotations } from '../adapter/annotate.ts'
+// klaude: M5 server search — ledger line -> record index, resolved in adapter code
+import { trajectoryRecordFocus, type TrajectoryLineFocus } from '../adapter/record-focus.ts'
 import { TrajectorySearchIndex } from './trajectory-search-index.ts'
 import type { TrajectorySnapshot } from './trajectory-contract.ts'
 import css from './views.module.css'
@@ -109,6 +111,10 @@ export interface TrajectoryViewProps {
   viewRequest?: TrajectoryViewRequest | null | undefined
   /** Acknowledge the current one-shot focus request. */
   completeViewRequest?: (() => void) | undefined
+  /** klaude: M5 — mirror the toolbar's live-filter query to the host. */
+  onSearchQueryChange?: ((query: string) => void) | undefined
+  /** klaude: M5 — one-shot "scroll to this ledger line" command from the host. */
+  focusRecordLine?: TrajectoryLineFocus | null | undefined
 }
 
 interface UsageLike {
@@ -183,6 +189,7 @@ function addUsage(
 export function TrajectoryView({
   snapshot, session, actualDuration, setActualDuration, loadOlder, renderImages, t,
   viewRequest, completeViewRequest,
+  onSearchQueryChange, focusRecordLine, // klaude: M5 server search bar
 }: TrajectoryViewProps) {
   const [collapsedTurns, setCollapsedTurns] = useState<ReadonlySet<number>>(EMPTY_TURN_IDS)
   const [collapsedAssistants, setCollapsedAssistants] =
@@ -529,7 +536,7 @@ export function TrajectoryView({
         allAssistantsCollapsed={allAssistantsCollapsed}
         onToggleAllAssistants={toggleAllAssistants}
         searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
+        onSearchQueryChange={(next) => { setSearchQuery(next); onSearchQueryChange?.(next) }} // klaude: M5
         t={t}
       />
       <TrajectoryTimeline
@@ -557,7 +564,7 @@ export function TrajectoryView({
           onSelectedIndexChange={setSelectedTimelineIndex}
           onRecordSelect={handleRecordSelect}
           recordSelection={timelineRecordSelection}
-          recordFocus={timelineRecordFocus}
+          recordFocus={trajectoryRecordFocus(timelineTurns, focusRecordLine) ?? timelineRecordFocus} // klaude: M5
           historyLoading={historyLoading}
           olderHistoryLoading={olderHistoryLoading}
           historyStartSeq={historyBaseSeq}

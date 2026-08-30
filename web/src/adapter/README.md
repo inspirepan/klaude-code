@@ -19,6 +19,7 @@ pure function of the rows, so rebuilding after a prepend is cheap and stable.
 | `classify.ts` | Non-human `UserMessage` detection and the legacy checkpoint reminder. |
 | `snapshot.ts` | The single linear pass that builds nodes, requests and annotations. |
 | `annotate.ts` | Applies annotations to the folded layout (imported by `TrajectoryView`). |
+| `record-focus.ts` | Ledger line → folded record index, for the search jump (imported by `TrajectoryView`). |
 | `fixtures.ts` | Row builders used by the tests. |
 
 ## Seq scheme
@@ -262,3 +263,53 @@ marker (`CompactionEntry` / `RetractEntry` / `RewindEntry`) lands, since a
 marker restates the status of lines above it. The refresh replaces `status` and
 `dropped_by` in place: `line_index` and `entry` are never rewritten, so React
 keys and the folded layout survive it.
+
+## Search jump
+
+The toolbar's search box is upstream's **live filter over loaded rows** and
+stays exactly that (plan decision #22, UX spec §6): whitespace-split AND terms,
+a 3000 ms index rebuild throttle, no counter, no next/prev. M5 adds one thing
+beside it — an answer for the rows that are *not* loaded — and never changes
+the filter itself.
+
+```
+TrajectoryView ── onSearchQueryChange ──► session-page.searchQuery
+                                              │
+                                              ▼
+                        SearchBar ── searchSession() ──► /api/web/.../search
+                             │  (300 ms debounce, aborts, drops stale answers)
+                             │
+                             ├─ partitionSearchMatches(matches, firstLoadedLine)
+                             │       unloaded / loaded / earliestUnloadedLine
+                             │
+                             └─ onLoadUntilLine(earliest) ──► session-page
+                                       │
+                                       ├─ setFocusLine({line})   (before the walk)
+                                       └─ walkToLine() ──► loadOlder() × N pages
+                                                                │
+TrajectoryView ◄── focusRecordLine ─────────────────────────────┘
+```
+
+States: **idle** (no query, or nothing older on disk — no request is made) →
+**waiting** (debounce running, or the answer in flight; the bar stays hidden) →
+**reporting** (`unloaded.length > 0`; the bar names the count and offers the
+jump) → **walking** (`loadOlder` pages, progress reads the window's oldest
+line) → back to **idle** once the window covers every hit, or **capped**
+(`MAX_JUMP_PAGES` pages walked without reaching it; the button becomes
+"继续加载"). Any failure — 422 on an empty query, an offline server, an abort —
+resolves to "no server information", which renders as no bar at all.
+
+Three things this leans on:
+
+- **The server text is a subset of the client index** (`session/search.py`), so
+  a line the server matched is guaranteed to survive the live filter once its
+  page is loaded. The bar therefore never has to re-check its own hits.
+- **`matches` holds the first `limit` hits ascending**, so `matches[0]` is the
+  oldest match even when `truncated` — truncation drops the newest hits, which
+  are the ones the loaded window already shows.
+- **The jump command is issued before the pages are fetched.** `TrajectoryTable`
+  re-runs its scroll effect only when its rows change, so a focus set *after*
+  the last page landed would arrive one commit too late and never scroll.
+  `record-focus.ts` therefore answers `null` for a line no loaded row reaches,
+  and starts answering in the very commit the page lands. It keeps one focus
+  object per record so the ledger scrolls once, not once per fold.

@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { SessionMeta, SystemContext } from '../adapter/index.ts'
+import type { SessionMeta, SystemContext, TrajectoryLineFocus } from '../adapter/index.ts'
 import { buildTrajectorySnapshot } from '../adapter/index.ts'
 import { TrajectoryView } from '../trajectory/TrajectoryView.tsx'
 import type { TrajectoryOpenState, TrajectorySessionState } from '../trajectory/TrajectoryView.tsx'
@@ -23,6 +23,8 @@ import { useActualDuration } from './duration.ts'
 import type { LoadedWindow } from './live/index.ts'
 import { mergeHistoryTail, spliceLiveSnapshot, useLiveSession } from './live/index.ts'
 import { renderImages } from './render-images.tsx'
+import { SearchBar } from './SearchBar.tsx'
+import { walkToLine, type SearchJumpOutcome } from './search.ts'
 import css from './session-page.module.css'
 
 const EMPTY_PAGE: LoadedWindow = { rows: [], hasMore: false, nextBeforeLine: null }
@@ -60,6 +62,11 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
   // fetched once (and cached in `api.ts`) and become the SYSTEM row plus the
   // tool inspector's Schema tab.
   const [systemContext, setSystemContext] = useState<SystemContext | undefined>(undefined)
+  // The live filter's query, mirrored out of the vendored toolbar: the server
+  // search bar needs it, and nothing else in the page does.
+  const [searchQuery, setSearchQuery] = useState('')
+  // One-shot "scroll to this line" command handed to the view after a jump.
+  const [focusLine, setFocusLine] = useState<TrajectoryLineFocus | null>(null)
 
   // The window every async job reads: `page` in a ref, so a job that started
   // before a prepend still sees the current rows when it runs.
@@ -88,6 +95,8 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
     commit(EMPTY_PAGE)
     setFailure(null)
     setOpenState('loading')
+    // A jump belongs to the session it was issued in.
+    setFocusLine(null)
     readyRef.current = false
     void (async () => {
       try {
@@ -164,6 +173,27 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
       setLoadingOlder(false)
     }
   }), [commit, enqueue, sessionId])
+
+  /**
+   * Walk older pages until `line` is inside the window, then focus its row.
+   *
+   * Every page goes through `loadOlder` — same request, same promise queue,
+   * same prepend — so row identity and `line_index` keys are untouched and a
+   * concurrent tail merge cannot interleave. The walk is capped: a match
+   * thousands of pages back becomes a "continue" button rather than a loop
+   * that holds the page hostage.
+   * @param line - The ledger line to bring into the window.
+   * @returns Whether the line landed, and how many pages it took.
+   */
+  const loadUntilLine = useCallback((line: number): Promise<SearchJumpOutcome> => {
+    // The command is issued *before* the walk on purpose. It resolves to
+    // nothing until the target's page lands, and then resolves inside the same
+    // commit that rebuilt the table's rows — the only commit the vendored
+    // scroll effect re-runs on. Setting it afterwards would arrive one commit
+    // too late and never scroll.
+    setFocusLine({ line })
+    return walkToLine({ targetLine: line, window: () => pageRef.current, loadOlder })
+  }, [loadOlder])
 
   /**
    * Fold the tail increment a `history.appended` announced, then retire the
@@ -252,6 +282,14 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
         <span className={css.meta}>{page.rows.length} / {meta?.line_count ?? '?'} lines</span>
       </header>
       {failure !== null && <p className={css.failure}>{failure}</p>}
+      <SearchBar
+        sessionId={sessionId}
+        query={searchQuery}
+        firstLoadedLine={page.rows[0]?.line_index ?? null}
+        hasMore={page.hasMore}
+        onLoadUntilLine={loadUntilLine}
+        t={t}
+      />
       <div className={css.body}>
         <TrajectoryView
           snapshot={snapshot}
@@ -261,6 +299,8 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
           loadOlder={loadOlder}
           renderImages={renderImages}
           t={t}
+          onSearchQueryChange={setSearchQuery}
+          focusRecordLine={focusLine}
         />
       </div>
     </div>

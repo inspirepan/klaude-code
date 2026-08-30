@@ -3,6 +3,10 @@
 export { buildTrajectorySnapshot } from './snapshot.ts'
 export type { BuildSnapshotOptions } from './snapshot.ts'
 export { applyTrajectoryAnnotations } from './annotate.ts'
+export {
+  FOCUS_NEAR_LINES, trajectoryRecordFocus, trajectoryRecordIndexForLine,
+} from './record-focus.ts'
+export type { TrajectoryLineFocus, TrajectoryRecordFocus } from './record-focus.ts'
 export { localImageUrl } from './images.ts'
 export {
   SEQ_SLOTS_PER_LINE, lineIndexOfSeq, nodeSeq, requestSeq, seqBase,
@@ -18,5 +22,6 @@ export {
 } from './system-context.ts'
 export type {
   HistoryPage, HistoryRow, HistoryRowStatus, RawEntry, SessionListRow, SessionMeta,
-  SessionState, SystemContext, SystemContextModel, SystemContextTool,
+  SessionSearchMatch, SessionSearchResult, SessionState, SystemContext,
+  SystemContextModel, SystemContextTool,
 } from './wire.ts'

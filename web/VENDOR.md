@@ -217,6 +217,43 @@ entry kind, dot placement and numbering, the old-session fallback) and
 caveat, `available: false`), plus stop-reason cases in
 `src/app/live/{reducer,splice}.test.ts`.
 
+#### M5 deviation edits (2026-08-30) — server search for unloaded history
+
+The toolbar's search box keeps upstream's behaviour exactly (live filter over
+loaded rows, 3000 ms index throttle, no counter, no next/prev). What klaude
+adds sits *outside* the view — a one-line bar rendered by `app/session-page.tsx`
+between the page header and the toolbar — and needs two facts to cross the
+vendored boundary. Both are optional props; omitting them leaves the view
+behaving exactly as before.
+
+| File | `// klaude:` change |
+|---|---|
+| `TrajectoryView.tsx` | Two optional props: `onSearchQueryChange` (the toolbar's query, mirrored to the host — the bar has to search for what the user typed) and `focusRecordLine` (a one-shot "scroll to this ledger line" command — the host knows the line, only the view knows the fold). Three one-line hunks wire them: the destructure, the toolbar's `onSearchQueryChange` (now `setSearchQuery` **and** the host), and `recordFocus` (the host's command wins over the timeline's own hover focus). Plus one import. |
+
+Nine added lines, two changed, no new behaviour when the props are absent. The
+resolution itself — ledger line → record index, and the object identity the
+table de-duplicates on — lives in klaude's own
+[`src/adapter/record-focus.ts`](./src/adapter/record-focus.ts), not here.
+
+Not needed, and deliberately so:
+
+- **The bar takes no layout change.** It is a sibling of `TrajectoryView` in
+  `session-page.tsx`, above the toolbar rather than below it — the placement
+  the plan sketched costs a vendored hunk and buys nothing.
+- **Loading down to a match reuses the load-older path.** Every page goes
+  through the same `loadOlder` prop, the same promise queue and the same
+  prepend, so row identity, `line_index` keys and the scroll anchoring are
+  untouched; `app/search.ts: walkToLine` only decides when to stop.
+- **Showing the loaded matches takes no change either.** Once the rows are in,
+  upstream's live filter finds them on its own (the server's searchable text is
+  a subset of the client index).
+
+Tests added: `src/app/search.test.ts` (debounce / abort / stale answers, the
+partition, the page count, the walk), `src/adapter/record-focus.test.ts` (line →
+record, and the focus identity rules), `src/app/SearchBar.test.tsx` (visibility
+rules and the jump, with `fetch` mocked) and `src/app/search-jump.test.tsx`
+(both vendored props end to end, including the scroll).
+
 #### `TrajectoryView.tsx` in detail
 
 The injected-hook surface (`ConvViewProps & PropsRenderSlots & InjectFace &
@@ -236,8 +273,9 @@ PropsLocale`) is replaced by one explicit `TrajectoryViewProps` interface:
 
 Everything below the destructuring — the layout memos, the search index, the
 timeline wiring, the collapse handlers and the JSX — is byte-identical to
-upstream. The one exception is the `requestNumbers` memo, which M4 extended
-with `metrics` (see the M4 table above).
+upstream but for two hunks: the `requestNumbers` memo, which M4 extended with
+`metrics`, and the two one-line prop hand-offs M5 added to the toolbar and the
+table (see the M4 and M5 tables above).
 
 ### `src/ui-primitives/`
 

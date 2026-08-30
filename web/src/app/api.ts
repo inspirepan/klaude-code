@@ -1,7 +1,7 @@
 /** Same-origin REST client for the klaude web endpoints. */
 
 import type {
-  HistoryPage, SessionListRow, SessionMeta, SystemContext,
+  HistoryPage, SessionListRow, SessionMeta, SessionSearchResult, SystemContext,
 } from '../adapter/index.ts'
 
 /** Rows requested per history page (the server's own default). */
@@ -62,6 +62,37 @@ export function fetchHistoryPage(
   return getJson<HistoryPage>(
     `/api/web/sessions/${encodeURIComponent(sessionId)}/history?${params.toString()}`,
     signal,
+  )
+}
+
+/** Hits requested per server search; the server clamps to 1..2000. */
+export const SEARCH_LIMIT = 500
+
+/**
+ * Search the whole ledger on the server, including the lines nobody loaded.
+ *
+ * The trajectory view live-filters the rows it holds; this answers for the
+ * rest (plan decision #22). Callers get a rejection for an empty or
+ * over-long `q` (the endpoint answers 422) exactly as for any other failure —
+ * a search the server cannot do is "no extra information", never a reason to
+ * disturb the local filter.
+ * @param sessionId - Session id.
+ * @param query - Raw query text; the server splits and lowercases it.
+ * @param options - Hit cap and abort signal.
+ * @returns The hits, ascending by `line_index`.
+ */
+export function searchSession(
+  sessionId: string,
+  query: string,
+  options: { readonly limit?: number, readonly signal?: AbortSignal } = {},
+): Promise<SessionSearchResult> {
+  const params = new URLSearchParams({
+    q: query,
+    limit: String(options.limit ?? SEARCH_LIMIT),
+  })
+  return getJson<SessionSearchResult>(
+    `/api/web/sessions/${encodeURIComponent(sessionId)}/search?${params.toString()}`,
+    options.signal,
   )
 }
 

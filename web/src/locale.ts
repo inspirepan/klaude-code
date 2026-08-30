@@ -58,6 +58,15 @@ const KIND_OVERRIDES: Readonly<Record<string, string>> = {
 const KLAUDE_KEYS: Readonly<Record<string, string>> = {
   'klaude.systemContext.rebuilt':
     '按今天的提示词文件与工具集重建，不是本会话当时发送的内容——会话运行时的提示词可能不同。',
+  // M5: the server search bar over the lines the viewer has not loaded.
+  'klaude.search.aria': '服务端搜索',
+  'klaude.search.unloaded': '更早历史中还有 {count} 条匹配（共 {total} 条）',
+  'klaude.search.jump': '加载到最早匹配',
+  'klaude.search.loading': '已加载到第 {line} 行…',
+  'klaude.search.truncated': '服务端最多返回 {limit} 条，可能还有更多',
+  'klaude.search.pages': '约 {pages} 页',
+  'klaude.search.capped': '一次最多加载 {pages} 页，还没到最早匹配',
+  'klaude.search.more': '继续加载',
 }
 
 /** Namespace lookup order: trajectory, then common; overrides win. */

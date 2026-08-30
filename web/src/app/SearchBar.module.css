@@ -1,0 +1,61 @@
+/* One 26px line between the page header and the vendored toolbar. It exists
+ * only while the server knows of matches the loaded window cannot show. */
+.bar {
+  display: flex;
+  flex: none;
+  gap: 8px;
+  align-items: center;
+  box-sizing: border-box;
+  height: 26px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-state-business-tertiary);
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xxs-12);
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.note {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 10px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 18px;
+  padding: 0 8px;
+  border: 1px solid var(--dsw-alias-state-business-primary);
+  border-radius: 3px;
+  color: var(--dsw-alias-state-business-primary);
+  background: transparent;
+  cursor: pointer;
+  font: var(--dsw-font-xxs-12);
+}
+
+.action:hover:not(:disabled) {
+  color: var(--dsw-alias-bg-layer-1);
+  background: var(--dsw-alias-state-business-primary);
+}
+
+.action:disabled {
+  border-color: var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  cursor: default;
+}
+
+.action:focus-visible {
+  outline: 1px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+}

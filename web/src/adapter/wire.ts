@@ -155,3 +155,39 @@ export interface SystemContext {
   readonly model?: SystemContextModel | null
   readonly reason?: string | null
 }
+
+/**
+ * One hit from `GET /api/web/sessions/{id}/search`.
+ *
+ * `kind` is the **disk entity class name** (`UserMessage`, `ToolResultMessage`,
+ * `LLMRequestEntry`, …), not the trajectory row kind; `status` is the same
+ * ledger status a history row carries, so a discarded line still matches and
+ * can be shown greyed out. `snippet` is a preview only (≤160 chars, ellipses
+ * included) — the row itself renders from the `entry` the history page brings.
+ */
+export interface SessionSearchMatch {
+  /** Zero-based `events.jsonl` line; the jump coordinate. */
+  readonly line_index: number
+  readonly turn_index: number
+  readonly kind: string
+  readonly status: HistoryRowStatus
+  readonly snippet: string
+}
+
+/**
+ * `GET /api/web/sessions/{id}/search?q=&limit=` response.
+ *
+ * `matches` are ascending by `line_index` and hold the **first** `limit` hits,
+ * so the earliest match is always `matches[0]` even when `truncated`; `total`
+ * counts them all. The server's searchable text is a subset of the client
+ * index, so every hit here also matches the live filter once its row is loaded.
+ */
+export interface SessionSearchResult {
+  readonly session_id: string
+  readonly query: string
+  /** The terms the server actually split `q` into (lowercased). */
+  readonly terms: readonly string[]
+  readonly matches: readonly SessionSearchMatch[]
+  readonly total: number
+  readonly truncated: boolean
+}
