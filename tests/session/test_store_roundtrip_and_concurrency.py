@@ -28,7 +28,12 @@ from klaude_code.protocol.models import (
     TodoItem,
 )
 from klaude_code.session.session import Session
-from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
+from klaude_code.session.store import (
+    JsonlSessionStore,
+    build_meta_snapshot,
+    count_file_lines,
+    register_session_history_observer,
+)
 from klaude_code.session.store_registry import close_default_store, get_store_for_path
 
 
@@ -454,3 +459,78 @@ class TestSubAgentMetaRoundTrip:
         assert loaded.sub_agent_state is not None
         assert loaded.sub_agent_state.sub_agent_type == "Finder"
         assert loaded.sub_agent_state.sub_agent_prompt == "prompt text"
+
+
+# =====================================================================
+# History append notifications: the ledger's "disk grew" signal.
+# =====================================================================
+
+
+class TestHistoryAppendNotifications:
+    def test_observer_reports_the_running_line_count(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+        seen: list[tuple[str, int]] = []
+        unregister = register_session_history_observer(lambda sid, count: seen.append((sid, count)))
+        holder: dict[str, str] = {}
+
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            holder["id"] = session.id
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("one"))])
+            await session.wait_for_flush()
+            session.append_history(
+                [
+                    message.UserMessage(parts=message.text_parts_from_str("two")),
+                    message.AssistantMessage(parts=message.text_parts_from_str("three")),
+                ]
+            )
+            await session.wait_for_flush()
+
+        try:
+            arun(_test())
+        finally:
+            unregister()
+
+        session_id = holder["id"]
+        assert [entry for entry in seen if entry[0] == session_id] == [(session_id, 1), (session_id, 3)]
+        store = get_store_for_path(project_dir)
+        assert store.history_line_count(session_id) == 3
+        assert count_file_lines(store.paths.events_file(session_id)) == 3
+        arun(close_default_store())
+
+    def test_scan_and_slice_follow_the_file(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The cached scan is re-taken after an append, and slices re-encode."""
+        project_dir = tmp_path / "proj"
+        project_dir.mkdir()
+        monkeypatch.chdir(project_dir)
+        holder: dict[str, str] = {}
+
+        async def _test() -> None:
+            session = Session(work_dir=project_dir)
+            holder["id"] = session.id
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("first"))])
+            await session.wait_for_flush()
+            store = get_store_for_path(project_dir)
+            assert len(store.scan_history_lines(session.id).statuses) == 1
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("second"))])
+            await session.wait_for_flush()
+            scan = store.scan_history_lines(session.id)
+            assert [status.status for status in scan.statuses] == ["active", "active"]
+            encoded = store.encode_history_lines(session.id, 1, 2)
+            assert len(encoded) == 1
+            line_index, payload = encoded[0]
+            assert line_index == 1
+            assert payload is not None
+            assert payload["type"] == "UserMessage"
+            assert payload["data"]["parts"][0]["text"] == "second"
+
+        arun(_test())
+        arun(close_default_store())
+
+    def test_count_file_lines_handles_a_missing_trailing_newline(self, tmp_path: Path) -> None:
+        path = tmp_path / "events.jsonl"
+        path.write_text("a\nb\nc", encoding="utf-8")
+        assert count_file_lines(path) == 3
+        assert count_file_lines(tmp_path / "absent.jsonl") == 0

@@ -43,6 +43,7 @@ __all__ = [
     "FallbackModelConfigWarnEvent",
     "FollowUpQueueUpdatedEvent",
     "ForkCacheHitRateEvent",
+    "HistoryAppendedEvent",
     "InterruptEvent",
     "ModelChangedEvent",
     "NoticeEvent",
@@ -309,6 +310,18 @@ class ContextUsageEvent(Event):
 
 class SessionTitleChangedEvent(Event):
     title: str
+
+
+class HistoryAppendedEvent(Event):
+    """A batch of history items reached ``events.jsonl``.
+
+    Published from the store's write hook (see ``server/history_bridge.py``),
+    so a viewer reading the ledger over REST knows when to pull the tail
+    increment. ``line_count`` is the session's physical jsonl line count after
+    the flush, i.e. the exclusive upper bound of ``line_index``.
+    """
+
+    line_count: int
 
 
 class OperationAcceptedEvent(Event):

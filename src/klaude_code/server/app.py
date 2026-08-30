@@ -16,15 +16,23 @@ from klaude_code.control.event_bus import EventBus
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol.env_sync import ENV_SYNC_HEADER_ASGI, decode_env_header
 from klaude_code.server.headless import HeadlessRuntime
+from klaude_code.server.history_bridge import HistoryAppendBridge
 from klaude_code.server.host_guard import HostHeaderGuardMiddleware
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.prevent_sleep import run_prevent_sleep_monitor
-from klaude_code.server.routes import headless_router, server_router, sessions_router, web_router, ws_router
+from klaude_code.server.routes import (
+    headless_router,
+    server_router,
+    sessions_router,
+    web_api_router,
+    web_router,
+    ws_router,
+)
 from klaude_code.server.session_live import SessionLiveState
 from klaude_code.server.session_tape import SessionEventTapes
 from klaude_code.server.state import ServerAppState, get_server_state_from_app
-from klaude_code.session.store import register_session_meta_observer
+from klaude_code.session.store import register_session_history_observer, register_session_meta_observer
 from klaude_code.update import get_code_fingerprint
 
 
@@ -71,6 +79,7 @@ def create_app(
     @asynccontextmanager
     async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
         unregister_meta_observer: Callable[[], None] | None = None
+        unregister_history_observer: Callable[[], None] | None = None
         if state_initializer is not None:
             app.state.server_state = await state_initializer()
         state = get_server_state_from_app(app)
@@ -106,6 +115,11 @@ def create_app(
         headless.restore(session_live.index.list_all())
         session_live.attach_loop(asyncio.get_running_loop())
         unregister_meta_observer = register_session_meta_observer(session_live.apply_meta_update)
+        # Store flushes happen in the writer thread; the bridge republishes them
+        # on this loop so REST-reading clients learn the ledger grew.
+        history_bridge = HistoryAppendBridge(state.event_bus)
+        history_bridge.attach_loop(asyncio.get_running_loop())
+        unregister_history_observer = register_session_history_observer(history_bridge.on_history_written)
         # An attached-but-quiet TUI is still in use: keep its agent out of
         # the idle reaper so typing hours later hits a live actor.
         from klaude_code.server.routes.ws import attached_session_ids
@@ -125,6 +139,8 @@ def create_app(
                 await prevent_sleep_task
             log_debug("[server] lifespan shutdown: closing headless runtime", debug_type=DebugType.EXECUTION)
             await headless.aclose()
+            if unregister_history_observer is not None:
+                unregister_history_observer()
             if unregister_meta_observer is not None:
                 log_debug("[server] lifespan shutdown: unregister meta observer", debug_type=DebugType.EXECUTION)
                 unregister_meta_observer()
@@ -158,6 +174,7 @@ def create_app(
     app.include_router(server_router)
     app.include_router(sessions_router)
     app.include_router(headless_router)
+    app.include_router(web_api_router)
     app.include_router(ws_router)
     # Last on purpose: `/api/...` routes are matched first, then the static
     # bundle's `/` and `/assets/*`.

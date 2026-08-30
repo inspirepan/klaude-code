@@ -167,6 +167,25 @@ def test_session_list_is_reachable_over_tcp(live_server: LiveServer) -> None:
     assert response.json()["sessions"] == []
 
 
+def test_session_list_accepts_the_viewer_query_over_tcp(live_server: LiveServer) -> None:
+    """The viewer's list page passes include_children + an explicit limit."""
+
+    response = live_server.tcp_get("/api/headless/sessions?include_children=1&limit=100")
+    assert response.status_code == 200
+    assert response.json()["sessions"] == []
+
+
+def test_web_api_routes_are_reachable_over_tcp(live_server: LiveServer) -> None:
+    # 404 (not 421/405) proves the request reached the ledger route itself.
+    assert live_server.tcp_get("/api/web/sessions/nosuch/meta").status_code == 404
+    assert live_server.tcp_get("/api/web/sessions/nosuch/history").status_code == 404
+
+
+def test_web_api_routes_honour_the_host_guard(live_server: LiveServer) -> None:
+    response = live_server.tcp_get("/api/web/sessions/nosuch/meta", host="evil.com")
+    assert response.status_code == 421
+
+
 @pytest.mark.parametrize("host", ["evil.com", "127.0.0.1.nip.io", "attacker.example:1234"])
 def test_tcp_rejects_foreign_host_headers(live_server: LiveServer, host: str) -> None:
     response = live_server.tcp_get("/api/server/status", host=host)

@@ -40,6 +40,9 @@ _SKIPPED_EVENT_TYPES = (
     # Ephemeral runner-level control events; replaying them to a later attach
     # would hijack the client back to the forked session.
     events.ForkSummaryReadyEvent,
+    # A "disk grew" ping for REST readers: it carries no history, and a stale
+    # line count replayed on attach would only cause a redundant fetch.
+    events.HistoryAppendedEvent,
 )
 
 

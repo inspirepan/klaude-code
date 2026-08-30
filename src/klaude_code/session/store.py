@@ -18,7 +18,8 @@ from klaude_code.protocol.models import (
     FileStatus,
     TodoItem,
 )
-from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
+from klaude_code.session.codec import decode_jsonl_line, encode_conversation_item, encode_jsonl_line
+from klaude_code.session.history import ScanResult, scan_history
 
 # Meta keys owned by direct update_meta writes: a queued history batch carries
 # an older snapshot, so the on-disk value wins when the batch lands.
@@ -66,6 +67,52 @@ def _notify_session_meta_observers(session_id: str, meta: dict[str, Any]) -> Non
         observer(session_id, dict(meta))
 
 
+# Called from the writer thread once a batch reached disk, with the session's
+# physical jsonl line count after the flush. The server bridges it onto the
+# event loop as a HistoryAppendedEvent (see server/history_bridge.py).
+type SessionHistoryObserver = Callable[[str, int], None]
+
+_SESSION_HISTORY_OBSERVERS: list[SessionHistoryObserver] = []
+_SESSION_HISTORY_OBSERVERS_LOCK = threading.Lock()
+
+
+def register_session_history_observer(observer: SessionHistoryObserver) -> Callable[[], None]:
+    with _SESSION_HISTORY_OBSERVERS_LOCK:
+        _SESSION_HISTORY_OBSERVERS.append(observer)
+
+    def _unregister() -> None:
+        with _SESSION_HISTORY_OBSERVERS_LOCK, suppress(ValueError):
+            _SESSION_HISTORY_OBSERVERS.remove(observer)
+
+    return _unregister
+
+
+def _notify_session_history_observers(session_id: str, line_count: int) -> None:
+    with _SESSION_HISTORY_OBSERVERS_LOCK:
+        observers = list(_SESSION_HISTORY_OBSERVERS)
+    for observer in observers:
+        observer(session_id, line_count)
+
+
+def count_file_lines(path: Path) -> int:
+    """Count physical lines without decoding them.
+
+    Matches ``enumerate(f)`` over the same file: every written line ends in
+    ``\n`` (``encode_jsonl_line``) and json escapes bare CR, so counting
+    newline bytes is exact. A truncated tail without a newline still counts.
+    """
+    total = 0
+    last = b"\n"
+    try:
+        with path.open("rb") as f:
+            while chunk := f.read(1 << 20):
+                total += chunk.count(b"\n")
+                last = chunk[-1:]
+    except OSError:
+        return 0
+    return total if last == b"\n" else total + 1
+
+
 def _read_json_dict(path: Path) -> dict[str, Any] | None:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -107,6 +154,9 @@ class JsonlSessionWriter:
         self._queue: asyncio.Queue[_WriteBatch | None] = asyncio.Queue()
         self._task: asyncio.Task[None] | None = None
         self._closed = False
+        # session_id -> (events file size, line count) after the last batch, so
+        # the per-append count costs one stat instead of a full re-scan.
+        self._line_counts: dict[str, tuple[int, int]] = {}
 
     def ensure_started(self) -> None:
         if self._closed:
@@ -153,12 +203,16 @@ class JsonlSessionWriter:
         session_dir.mkdir(parents=True, exist_ok=True)
 
         events_path = self._paths.events_file(batch.session_id)
+        line_count = self._line_count_before_append(batch.session_id, events_path)
         with events_path.open("a", encoding="utf-8") as f:
             for item in batch.items:
                 f.write(encode_jsonl_line(item))
             f.flush()
+        line_count += len(batch.items)
+        self._remember_line_count(batch.session_id, events_path, line_count)
         if self._on_history_written is not None:
             self._on_history_written(batch.session_id)
+        _notify_session_history_observers(batch.session_id, line_count)
 
         meta_path = self._paths.meta_file(batch.session_id)
         with self._meta_lock:
@@ -179,6 +233,22 @@ class JsonlSessionWriter:
 
         if not batch.done.done():
             batch.done.set_result(None)
+
+    def _line_count_before_append(self, session_id: str, events_path: Path) -> int:
+        try:
+            size = events_path.stat().st_size
+        except OSError:
+            return 0
+        cached = self._line_counts.get(session_id)
+        if cached is not None and cached[0] == size:
+            return cached[1]
+        return count_file_lines(events_path)
+
+    def _remember_line_count(self, session_id: str, events_path: Path, line_count: int) -> None:
+        try:
+            self._line_counts[session_id] = (events_path.stat().st_size, line_count)
+        except OSError:
+            self._line_counts.pop(session_id, None)
 
 
 @dataclass
@@ -202,6 +272,9 @@ class JsonlSessionStore:
         # when the events file's (mtime_ns, size) changes, so repeated loads of
         # an unchanged session avoid re-deserializing the whole jsonl.
         self._history_cache: dict[str, _HistoryCacheEntry] = {}
+        # Ledger scan results (per-line statuses) under the same stat stamp, so
+        # paging the ledger does not re-scan the whole file per request.
+        self._scan_cache: dict[str, tuple[tuple[int, int] | None, ScanResult]] = {}
         self._history_cache_lock = threading.Lock()
 
     @property
@@ -300,6 +373,42 @@ class JsonlSessionStore:
         """Number of physical lines in the session's events file."""
         return len(self._cached_rows(session_id))
 
+    def encode_history_lines(self, session_id: str, start: int, end: int) -> list[tuple[int, dict[str, Any] | None]]:
+        """Re-encode a slice of physical lines to their on-disk JSON shape.
+
+        Round-tripping through the codec (rather than copying the decoded
+        models out) keeps datetimes and optional fields byte-identical to what
+        ``encode_jsonl_line`` wrote, and skips the deep copy
+        ``load_history_lines`` pays for callers that only serialize.
+        ``None`` marks a line that failed to decode.
+        """
+        rows = self._cached_rows(session_id)[start:end]
+        return [(line_index, encode_conversation_item(item) if item is not None else None) for line_index, item in rows]
+
+    def scan_history_lines(self, session_id: str) -> ScanResult:
+        """Per-line ledger statuses for the whole events file, cached.
+
+        A line's status depends on marker lines that come after it, so the scan
+        always covers the whole file and callers slice the result. Cached under
+        the same ``(mtime_ns, size)`` stamp as the decoded rows.
+        """
+        key = self._events_stat_key(session_id)
+        with self._history_cache_lock:
+            cached = self._scan_cache.get(session_id)
+            if cached is not None and cached[0] == key:
+                return cached[1]
+        result = scan_history(self._cached_rows(session_id))
+        with self._history_cache_lock:
+            self._scan_cache[session_id] = (key, result)
+        return result
+
+    def _events_stat_key(self, session_id: str) -> tuple[int, int] | None:
+        try:
+            stat = self._paths.events_file(session_id).stat()
+        except OSError:
+            return None
+        return stat.st_mtime_ns, stat.st_size
+
     def _cached_rows(self, session_id: str) -> list[tuple[int, message.HistoryEvent | None]]:
         events_path = self._paths.events_file(session_id)
         try:
@@ -338,6 +447,7 @@ class JsonlSessionStore:
     def _invalidate_history_cache(self, session_id: str) -> None:
         with self._history_cache_lock:
             self._history_cache.pop(session_id, None)
+            self._scan_cache.pop(session_id, None)
 
     def append_and_flush(self, *, session_id: str, items: Sequence[message.HistoryEvent], meta: dict[str, Any]) -> None:
         if not items:

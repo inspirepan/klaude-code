@@ -116,6 +116,11 @@ def _headless_state(state: ServerAppState, headless: HeadlessRuntime, session_id
     return "completed"
 
 
+def session_state_for(state: ServerAppState, session_id: str) -> HeadlessState:
+    """The state ``klaude ps`` reports, for routers outside this module."""
+    return _headless_state(state, _require_headless(state), session_id)
+
+
 def _pending_requests(state: ServerAppState, session_id: str) -> list[PendingUserInteractionRequest]:
     """Pending requests of the session and its live sub-agent descendants."""
     registry = state.runtime.session_registry
