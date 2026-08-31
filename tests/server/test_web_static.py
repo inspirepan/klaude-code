@@ -19,6 +19,7 @@ def bundle_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (dist / "assets").mkdir(parents=True)
     (dist / "index.html").write_text("<!doctype html><title>klaude</title><div id=root></div>", encoding="utf-8")
     (dist / "assets" / "index-abc123.js").write_text("export const ok = 1;\n", encoding="utf-8")
+    (dist / "favicon.svg").write_text("<svg xmlns='http://www.w3.org/2000/svg'/>", encoding="utf-8")
     monkeypatch.setattr(web_routes, "_PACKAGE_WEB_DIR", dist)
     return dist
 
@@ -38,6 +39,14 @@ def test_asset_is_served_with_immutable_cache(app_env: AppEnv, bundle_dir: Path)
     assert response.status_code == 200
     assert "export const ok" in response.text
     assert "immutable" in response.headers["cache-control"]
+
+
+def test_favicon_is_served_at_site_root(app_env: AppEnv, bundle_dir: Path) -> None:
+    del bundle_dir
+    response = app_env.client.get("/favicon.svg")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert "immutable" not in response.headers["cache-control"]
 
 
 def test_unknown_asset_is_404(app_env: AppEnv, bundle_dir: Path) -> None:

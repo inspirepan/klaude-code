@@ -61,6 +61,18 @@ async def get_web_index() -> Response:
     return FileResponse(index, media_type="text/html", headers={"Cache-Control": "no-store"})
 
 
+@router.get("/favicon.svg", include_in_schema=False)
+async def get_web_favicon() -> Response:
+    # Browsers request the icon at the site root and cache it very
+    # aggressively, which is why a swapped-in icon stays invisible for a long
+    # time on a live tab. It is not content-hashed, so revalidate every load
+    # instead of caching it.
+    target = web_dist_dir() / "favicon.svg"
+    if not target.is_file():
+        raise HTTPException(status_code=404, detail="favicon not found")
+    return FileResponse(target, headers={"Cache-Control": "no-cache"})
+
+
 @router.get("/assets/{asset_path:path}", include_in_schema=False)
 async def get_web_asset(asset_path: str) -> Response:
     assets_dir = (web_dist_dir() / "assets").resolve()
