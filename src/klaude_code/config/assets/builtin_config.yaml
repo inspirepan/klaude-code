@@ -11,24 +11,24 @@ provider_list:
   model_list:
 
   - model_name: fable
-    model_alias: [ claude-fable-5 ]
-    model_id: claude-fable-5
+    model_alias: [ claude-fable-5-1, claude-fable-5 ]
+    model_id: claude-fable-5-1
     max_tokens: 128000
     context_limit: 1000000
     effort: high
     thinking:
       type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+    cost: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 }
 
   - model_name: fable:xhigh
-    model_alias: [ claude-fable-5:xhigh ]
-    model_id: claude-fable-5
+    model_alias: [ claude-fable-5-1:xhigh, claude-fable-5:xhigh ]
+    model_id: claude-fable-5-1
     max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
     thinking:
       type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+    cost: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 }
 
   - model_name: sonnet
     model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
@@ -291,23 +291,23 @@ provider_list:
 
   - &fable
     model_name: fable
-    model_id: claude-fable-5
+    model_id: claude-fable-5-1
     max_tokens: 128000
     context_limit: 1000000
     effort: high
     thinking:
       type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+    cost: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 }
 
   - &fable_xhigh
     model_name: fable:xhigh
-    model_id: claude-fable-5
+    model_id: claude-fable-5-1
     max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
     thinking:
       type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+    cost: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 }
 
   - &sonnet
     model_name: sonnet
@@ -376,22 +376,22 @@ provider_list:
   model_list:
 
   - model_name: fable
-    model_id: global.anthropic.claude-fable-5
+    model_id: global.anthropic.claude-fable-5-1
     max_tokens: 128000
     context_limit: 1000000
     effort: high
     thinking:
       type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+    cost: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 }
 
   - model_name: fable:xhigh
-    model_id: global.anthropic.claude-fable-5
+    model_id: global.anthropic.claude-fable-5-1
     max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
     thinking:
       type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+    cost: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 }
 
   - model_name: sonnet
     model_alias: [ sonnet-5, sonnet5, claude-sonnet-5 ]
@@ -1086,22 +1086,22 @@ provider_list:
     cost: { input: 0.2, output: 1.2, cache_read: 0.02, cache_write: 0.25 }
 
   - model_name: fable
-    model_id: anthropic/claude-fable-5
+    model_id: anthropic/claude-fable-5.1
     max_tokens: 128000
     context_limit: 1000000
     effort: high
     thinking:
       type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+    cost: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 }
 
   - model_name: fable:xhigh
-    model_id: anthropic/claude-fable-5
+    model_id: anthropic/claude-fable-5.1
     max_tokens: 128000
     context_limit: 1000000
     effort: xhigh
     thinking:
       type: adaptive
-    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+    cost: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 }
 
   - model_name: haiku
     model_id: anthropic/claude-haiku-4.5
