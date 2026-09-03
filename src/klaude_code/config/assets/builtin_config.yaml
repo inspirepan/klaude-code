@@ -252,24 +252,24 @@ provider_list:
     cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
-    model_alias: [ gemini-3.7-flash, gemini-3.6-flash, gemini-3.5-flash, gemini-flash-latest ]
-    model_id: gemini-3.7-flash
+    model_alias: [ gemini-3.8-flash, gemini-3.7-flash, gemini-3.6-flash, gemini-3.5-flash, gemini-flash-latest ]
+    model_id: gemini-3.8-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
     cost: { input: 0.75, output: 3.75, cache_read: 0.075 }
 
   - model_name: gemini-flash:low
-    model_alias: [ gemini-3.7-flash:low, gemini-3.6-flash:low, gemini-3.5-flash:low, gemini-flash:minimal, gemini-3.7-flash:minimal, gemini-3.6-flash:minimal, gemini-3.5-flash:minimal ]
-    model_id: gemini-3.7-flash
+    model_alias: [ gemini-3.8-flash:low, gemini-3.7-flash:low, gemini-3.6-flash:low, gemini-3.5-flash:low, gemini-flash:minimal, gemini-3.8-flash:minimal, gemini-3.7-flash:minimal, gemini-3.6-flash:minimal, gemini-3.5-flash:minimal ]
+    model_id: gemini-3.8-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: low
     cost: { input: 0.75, output: 3.75, cache_read: 0.075 }
 
   - model_name: gemini-flash:high
-    model_alias: [ gemini-3.7-flash:high, gemini-3.6-flash:high, gemini-3.5-flash:high ]
-    model_id: gemini-3.7-flash
+    model_alias: [ gemini-3.8-flash:high, gemini-3.7-flash:high, gemini-3.6-flash:high, gemini-3.5-flash:high ]
+    model_id: gemini-3.8-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: high
@@ -577,7 +577,7 @@ provider_list:
     cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
-    model_id: gemini-3.7-flash
+    model_id: gemini-3.8-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
@@ -586,7 +586,7 @@ provider_list:
   - &gemini_flash_low
     model_name: gemini-flash:low
     model_alias: [ gemini-flash:minimal ]
-    model_id: gemini-3.7-flash
+    model_id: gemini-3.8-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: low
@@ -616,7 +616,7 @@ provider_list:
     cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
-    model_id: gemini-3.7-flash
+    model_id: gemini-3.8-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
@@ -1158,7 +1158,7 @@ provider_list:
     cost: { input: 2, output: 12, cache_read: 0.2 }
 
   - model_name: gemini-flash
-    model_id: google/gemini-3.7-flash
+    model_id: google/gemini-3.8-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: medium
@@ -1166,7 +1166,7 @@ provider_list:
 
   - model_name: gemini-flash:low
     model_alias: [ gemini-flash:minimal ]
-    model_id: google/gemini-3.7-flash
+    model_id: google/gemini-3.8-flash
     context_limit: 1048576
     thinking:
       reasoning_effort: low
