@@ -132,6 +132,40 @@ provider_list:
   base_url: https://api.youtu.uk/v1
   model_list:
 
+  - model_name: gpt-6-astra
+    model_alias: [ gpt-6, astra ]
+    model_id: gpt-6-astra
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: concise
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
+  - model_name: gpt-6-astra:fast
+    model_alias: [ gpt-6:fast, astra:fast ]
+    model_id: gpt-6-astra
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: concise
+    cost: { input: 20, output: 100, cache_read: 2, cache_write: 25 }
+
+  - model_name: gpt-6-astra:max
+    model_alias: [ gpt-6:max, astra:max ]
+    model_id: gpt-6-astra
+    max_tokens: 128000
+    context_limit: 1050000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_summary: concise
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
   - model_name: gpt-5.5
     model_id: gpt-5.5
     max_tokens: 128000
@@ -441,6 +475,43 @@ provider_list:
   protocol: responses
   api_key: ${OPENAI_API_KEY}
   model_list:
+
+  - &gpt6astra
+    model_name: gpt-6-astra
+    model_alias: [ gpt-6, astra ]
+    model_id: gpt-6-astra
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: concise
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
+
+  - &gpt6astra_fast
+    model_name: gpt-6-astra:fast
+    model_alias: [ gpt-6:fast, astra:fast ]
+    model_id: gpt-6-astra
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    fast_mode: true
+    thinking:
+      reasoning_effort: medium
+      reasoning_summary: concise
+    cost: { input: 20, output: 100, cache_read: 2, cache_write: 25 }
+
+  - &gpt6astra_max
+    model_name: gpt-6-astra:max
+    model_alias: [ gpt-6:max, astra:max ]
+    model_id: gpt-6-astra
+    max_tokens: 128000
+    context_limit: 400000
+    verbosity: low
+    thinking:
+      reasoning_effort: max
+      reasoning_summary: concise
+    cost: { input: 10, output: 50, cache_read: 1, cache_write: 12.5 }
 
   - &gpt55
     model_name: gpt-5.5
