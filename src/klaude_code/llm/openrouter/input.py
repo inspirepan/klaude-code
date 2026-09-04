@@ -23,7 +23,7 @@ from klaude_code.llm.input_common import (
 from klaude_code.protocol import message
 from klaude_code.protocol.model_id import is_claude_model as is_claude_model
 from klaude_code.protocol.model_id import is_glm_model as is_glm_model
-from klaude_code.protocol.model_id import is_gpt5_model as is_gpt5_model
+from klaude_code.protocol.model_id import is_gpt5_plus_model as is_gpt5_plus_model
 from klaude_code.protocol.model_id import is_xai_model as is_xai_model
 from klaude_code.protocol.system_prompt import (
     SYSTEM_PROMPT_DYNAMIC_BOUNDARY,
@@ -41,7 +41,7 @@ def _assistant_message_to_openrouter(
     native_thinking_parts, degraded_thinking_texts = split_thinking_parts(msg, model_name)
     for part in native_thinking_parts:
         if isinstance(part, message.ThinkingTextPart):
-            if is_gpt5_model(model_name):
+            if is_gpt5_plus_model(model_name):
                 detail: dict[str, object] = {
                     "id": part.id,
                     "type": "reasoning.summary",

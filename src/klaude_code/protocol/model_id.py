@@ -130,6 +130,24 @@ def is_gpt5_model(model_name: str | None) -> bool:
     return "gpt-5" in model_name.lower()
 
 
+def is_gpt6_model(model_name: str | None) -> bool:
+    """Check if the model is any GPT-6 variant."""
+    if not model_name:
+        return False
+    return "gpt-6" in model_name.lower()
+
+
+def is_gpt5_plus_model(model_name: str | None) -> bool:
+    """Check if the model is GPT-5 or a newer GPT generation.
+
+    Call sites care about the conventions these generations share -- the
+    apply_patch diff tool set, the GPT system prompt, and Responses-style
+    reasoning summaries -- not the literal version, so gpt-4.1 stays out.
+    Every new GPT generation must be added here.
+    """
+    return is_gpt5_model(model_name) or is_gpt6_model(model_name)
+
+
 def supports_extended_prompt_cache(model_name: str | None) -> bool:
     """Check if the OpenAI model supports prompt_cache_retention="24h".
 
@@ -172,7 +190,9 @@ def supports_prompt_cache_options_ttl(model_name: str | None) -> bool:
         model_lower = model_lower.rsplit("/", 1)[-1]
     if ":" in model_lower:
         model_lower = model_lower.split(":", 1)[0]
-    return model_lower in {"gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
+    # Official rule: GPT-5.6 and later take prompt_cache_options.ttl; older
+    # generations take the legacy prompt_cache_retention instead.
+    return model_lower in {"gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra"}
 
 
 # -- Google --------------------------------------------------------------------

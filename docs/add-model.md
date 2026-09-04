@@ -12,6 +12,7 @@
 | 情况                      | 要改什么                                                  |
 | ------------------------- | --------------------------------------------------------- |
 | 已有 provider 加 / 换模型 | 只改 `builtin_config.yaml` 的 `model_list`                |
+| 新的模型**代际**          | 上一行 + `protocol/model_id.py` 的家族判定，见第 1 步末尾 |
 | 新 provider，协议已支持   | 加 `provider_list` 条目 + `SUPPORTED_API_KEYS` + 排好优先级 |
 | 新协议（上游 wire 不同）  | 要写 `src/klaude_code/llm/<protocol>/client.py`，超出本文  |
 
@@ -32,6 +33,19 @@
 `model_name` 出现在用户的 `main_model` / `fast_model` / `compact_model` / `sub_agent_models` 里，也出现在 README 的示例里。改掉它等于让所有既有配置失效；而把旧的具体版本号留在 `model_alias` 里，旧配置和肌肉记忆都会解析到新版本。Gemini Flash 的 3.6 → 3.7 → 3.8 都是这么做的。
 
 真正需要**新增条目**的只有两种：模型定位不同（如 flash 与 flash-lite），或需要与旧版本长期并存对比。并存意味着两条目、两份价格、两处后续维护，默认不要选它。
+
+### 新**代际**不是纯配置：先改 `protocol/model_id.py`
+
+同代新版本（3.7 → 3.8 Flash）只改 YAML；跨代际（`gpt-5.x` → `gpt-6-astra`）必须先看 `src/klaude_code/protocol/model_id.py` 的家族判定函数，它们按名字里的版本号做子串匹配，新代际**一个都不会命中**：
+
+| 函数                                | 漏了的后果                                                       |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| `is_gpt5_plus_model`                | 拿不到 apply_patch 工具集、走错 system prompt、OpenRouter reasoning detail 形状错 |
+| `supports_prompt_cache_options_ttl` | 不发 `prompt_cache_options.ttl`，缓存命中率下降（不报错，只是变贵） |
+| `supports_extended_prompt_cache`    | 同上，老代际走的是 `prompt_cache_retention` 分支                  |
+| `supports_adaptive_thinking` 等     | Claude / Gemini 侧的同类聚合函数，新代际同样要加                  |
+
+这类漏配**没有任何报错**：判定返回 `False`，模型照常能跑，只是行为退化成默认分支。`is_gpt5_plus_model` 这种「某代及更新」的聚合函数是唯一该被调用方引用的入口，`is_gpt5_model` / `is_gpt6_model` 只做单代际判定；新增代际就加一个单代际函数并挂进聚合函数，不要在调用方写第二个 `or`。
 
 ---
 

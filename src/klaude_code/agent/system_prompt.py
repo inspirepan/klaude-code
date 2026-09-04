@@ -95,7 +95,7 @@ def load_main_base_prompt(model_name: str) -> str:
     Routes to model-family-specific prompts when available.
     """
 
-    if model_id.is_gpt5_model(model_name):
+    if model_id.is_gpt5_plus_model(model_name):
         return load_prompt_by_path("prompts/system/base-system-prompt-gpt.md")
     return load_prompt_by_path("prompts/system/base-system-prompt.md")
 

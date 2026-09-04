@@ -23,7 +23,7 @@ from klaude_code.agent.attachments.skills import (
 from klaude_code.agent.system_prompt import load_system_prompt
 from klaude_code.llm import LLMClientABC
 from klaude_code.protocol import llm_param, tools
-from klaude_code.protocol.model_id import is_gpt5_model, is_gpt_model_any
+from klaude_code.protocol.model_id import is_gpt5_plus_model, is_gpt_model_any
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.tool.core.registry import get_tool_schemas
 
@@ -39,8 +39,8 @@ class AgentProfile:
 
 
 MAIN_AGENT_COMMON_BASE_TOOLS: list[str] = [tools.BASH, tools.READ]
-MAIN_AGENT_GPT5_DIFF_TOOLS: list[str] = [tools.APPLY_PATCH, tools.TODO_WRITE]
-MAIN_AGENT_NON_GPT5_DIFF_TOOLS: list[str] = [tools.EDIT, tools.WRITE, tools.TODO_WRITE]
+MAIN_AGENT_APPLY_PATCH_DIFF_TOOLS: list[str] = [tools.APPLY_PATCH, tools.TODO_WRITE]
+MAIN_AGENT_EDIT_WRITE_DIFF_TOOLS: list[str] = [tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 MAIN_AGENT_COMMON_TOOLS: list[str] = [
     # tools.HANDOFF,
     tools.AGENT,
@@ -109,7 +109,9 @@ def load_agent_tools(
         # Empty tool_set means inherit main agent tools; fall through below
 
     # Main agent tools = common + model-specific diff + common
-    model_diff_tools = MAIN_AGENT_GPT5_DIFF_TOOLS if is_gpt5_model(model_name) else MAIN_AGENT_NON_GPT5_DIFF_TOOLS
+    model_diff_tools = (
+        MAIN_AGENT_APPLY_PATCH_DIFF_TOOLS if is_gpt5_plus_model(model_name) else MAIN_AGENT_EDIT_WRITE_DIFF_TOOLS
+    )
     tool_names: list[str] = [
         *MAIN_AGENT_COMMON_BASE_TOOLS,
         *model_diff_tools,

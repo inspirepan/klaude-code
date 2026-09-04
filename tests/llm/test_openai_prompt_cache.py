@@ -8,6 +8,11 @@ def test_prompt_cache_payload_uses_ttl_for_gpt56() -> None:
     assert build_prompt_cache_payload("gpt-5.6-sol", None) == {"prompt_cache_options": {"ttl": "30m"}}
 
 
+def test_prompt_cache_payload_uses_ttl_for_gpt6() -> None:
+    assert build_prompt_cache_payload("gpt-6-astra", None) == {"prompt_cache_options": {"ttl": "30m"}}
+    assert build_prompt_cache_payload("gpt-6-astra:max", None) == {"prompt_cache_options": {"ttl": "30m"}}
+
+
 def test_prompt_cache_payload_uses_retention_for_older_gpt() -> None:
     assert build_prompt_cache_payload("gpt-5.5", None) == {"prompt_cache_retention": "24h"}
 
