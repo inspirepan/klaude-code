@@ -78,6 +78,9 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
             effort = "high"
         if model_id == "gpt-5.1-codex-mini" and effort in {"none", "minimal", "low"}:
             effort = "medium"
+        # GPT-6 dropped the two lowest tiers that GPT-5.6 still accepted.
+        if model_id.startswith("gpt-6") and effort in {"none", "minimal"}:
+            effort = "low"
         reasoning: dict[str, Any] = {"summary": param.thinking.reasoning_summary or "auto"}
         if effort:
             reasoning["effort"] = effort

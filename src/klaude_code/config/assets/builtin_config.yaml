@@ -1057,6 +1057,9 @@ provider_list:
   protocol: codex_oauth
   model_list:
 
+  - *gpt6astra
+  - *gpt6astra_fast
+  - *gpt6astra_max
   - *gpt56sol
   - *gpt56sol_fast
   - *gpt56sol_max
