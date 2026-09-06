@@ -68,8 +68,9 @@ def test_execute_codex_login_lists_existing_accounts_before_new_login(monkeypatc
     monkeypatch.setattr(auth_flow.typer, "confirm", lambda _prompt: False)
     monkeypatch.setattr(auth_flow, "log", lambda message: logs.append(message))
 
-    auth_flow.execute_login("codex")
+    completed = auth_flow.execute_login("codex")
 
+    assert completed is False
     assert _FakeCodexTokenManager.created_names == [None]
     assert "You already have Codex accounts:" in logs
     assert "  work  acct-wor… active" in logs
@@ -99,10 +100,30 @@ def test_execute_codex_login_prompts_for_new_account_name(monkeypatch: pytest.Mo
     monkeypatch.setattr(auth_flow.typer, "prompt", lambda _prompt: "new")
     monkeypatch.setattr(auth_flow, "log", lambda _message: None)
 
-    auth_flow.execute_login("codex")
+    completed = auth_flow.execute_login("codex")
 
+    assert completed is True
     assert _FakeCodexTokenManager.created_names == [None, "new"]
     assert login_calls == ["new"]
+
+
+def test_execute_codex_login_decline_relogin_returns_false(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _FakeCodexOAuth:
+        def __init__(self, token_manager: _FakeCodexTokenManager):
+            del token_manager
+
+        def login(self, account_name: str | None = None) -> CodexAuthState:
+            raise AssertionError(f"OAuth should not start for account {account_name}")
+
+    _FakeCodexTokenManager.created_names = []
+    monkeypatch.setattr("klaude_code.auth.codex.token_manager.CodexTokenManager", _FakeCodexTokenManager)
+    monkeypatch.setattr("klaude_code.auth.codex.oauth.CodexOAuth", _FakeCodexOAuth)
+    monkeypatch.setattr(auth_flow.typer, "confirm", lambda _prompt: False)
+    monkeypatch.setattr(auth_flow, "log", lambda _message: None)
+
+    completed = auth_flow.execute_login("codex", account_name="work")
+
+    assert completed is False
 
 
 def test_execute_xai_login_displays_device_code(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -133,11 +154,39 @@ def test_execute_xai_login_displays_device_code(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr("klaude_code.auth.xai.oauth.XaiOAuth", _OAuth)
     monkeypatch.setattr(auth_flow, "log", lambda message: logs.append(message))
 
-    auth_flow.execute_login("grok-build")
+    completed = auth_flow.execute_login("grok-build")
 
+    assert completed is True
     assert "  Verification URL: https://auth.x.ai/verify" in logs
     assert "  User code: USER-CODE" in logs
     assert ("xAI Grok OAuth login successful!", "green") in logs
+
+
+def test_execute_bedrock_login_decline_all_updates_returns_false(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("klaude_code.auth.env.KLAUDE_AUTH_FILE", tmp_path / "klaude-auth.json")
+    monkeypatch.setenv("AWS_BEDROCK_ACCESS_KEY_ID", "AKIA-EXISTING")
+    monkeypatch.setenv("AWS_BEDROCK_SECRET_ACCESS_KEY", "secret-existing")
+    monkeypatch.setenv("AWS_BEDROCK_REGION", "us-east-1")
+    monkeypatch.setattr(auth_flow.typer, "confirm", lambda _prompt: False)
+    monkeypatch.setattr(auth_flow, "log", lambda _message: None)
+
+    assert auth_flow.execute_login("bedrock") is False
+
+
+def test_execute_bedrock_login_saves_new_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    auth_file = tmp_path / "klaude-auth.json"
+    monkeypatch.setattr("klaude_code.auth.env.KLAUDE_AUTH_FILE", auth_file)
+    for var in ("AWS_BEDROCK_ACCESS_KEY_ID", "AWS_BEDROCK_SECRET_ACCESS_KEY", "AWS_BEDROCK_REGION"):
+        monkeypatch.delenv(var, raising=False)
+    prompts = iter(["AKIA-NEW", "secret-new", "us-west-2"])
+    monkeypatch.setattr(auth_flow.typer, "prompt", lambda _prompt, hide_input=False: next(prompts))
+    monkeypatch.setattr(auth_flow, "log", lambda _message: None)
+
+    assert auth_flow.execute_login("bedrock") is True
+    saved = json.loads(auth_file.read_text())
+    assert saved["env"]["AWS_BEDROCK_REGION"] == "us-west-2"
 
 
 def test_execute_xai_logout_deletes_credentials(monkeypatch: pytest.MonkeyPatch) -> None:

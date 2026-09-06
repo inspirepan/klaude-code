@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import secrets
+import shlex
 import time
 import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -196,7 +197,15 @@ class CodexOAuth:
             if response.status_code != 200:
                 from klaude_code.auth.codex.exceptions import CodexTokenExpiredError
 
-                raise CodexTokenExpiredError(f"Token refresh failed: {response.text}")
+                error_message = f"Token refresh failed: {response.text}"
+                if response.status_code in (400, 401):
+                    quoted_name = shlex.quote(current_state.name)
+                    error_message += (
+                        f"\nCodex session for account '{current_state.name}' is no longer valid."
+                        f" Log in again with '/login codex {quoted_name}'"
+                        f" or 'klaude auth login codex --name {quoted_name}'."
+                    )
+                raise CodexTokenExpiredError(error_message)
 
             tokens = response.json()
             access_token = tokens["access_token"]

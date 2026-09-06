@@ -113,3 +113,36 @@ def test_codex_oauth_refresh_preserves_active_account_slot(tmp_path: Path, monke
     work_state = CodexTokenManager(auth_file=auth_file, account_name="work").get_state()
     assert work_state is not None
     assert work_state.access_token == "new-access"
+
+
+def test_codex_oauth_refresh_failure_suggests_relogin(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.auth.codex.exceptions import CodexTokenExpiredError
+
+    auth_file = tmp_path / "klaude-auth.json"
+    manager = CodexTokenManager(auth_file=auth_file)
+    manager.save(_state("my work", "acct-work").model_copy(update={"expires_at": 1}), account_name="my work")
+
+    class _Response:
+        status_code = 400
+        text = '{"error": {"code": "refresh_token_invalidated"}}'
+
+    class _Client:
+        def __enter__(self) -> _Client:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            pass
+
+        def post(self, *_args: object, **_kwargs: object) -> _Response:
+            return _Response()
+
+    monkeypatch.setattr("klaude_code.auth.codex.oauth.httpx.Client", _Client)
+
+    with pytest.raises(CodexTokenExpiredError) as exc_info:
+        CodexOAuth(manager).refresh()
+
+    message = str(exc_info.value)
+    assert "refresh_token_invalidated" in message
+    # Account names may contain spaces; the suggested commands must stay parseable.
+    assert "/login codex 'my work'" in message
+    assert "klaude auth login codex --name 'my work'" in message

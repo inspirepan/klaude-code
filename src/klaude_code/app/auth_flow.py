@@ -9,8 +9,8 @@ import typer
 from klaude_code.log import log
 
 
-def _configure_api_key(env_var: str) -> None:
-    """Configure a specific API key."""
+def _configure_api_key(env_var: str) -> bool:
+    """Configure a specific API key. Returns False when the user declines the update."""
     import os
 
     from klaude_code.auth.env import get_auth_env, set_auth_env
@@ -30,7 +30,7 @@ def _configure_api_key(env_var: str) -> None:
         masked = _mask_secret(current_value)
         log(f"Current {env_var}: {masked}")
         if not typer.confirm("Do you want to update it?"):
-            return
+            return False
 
     api_key = typer.prompt(f"Enter {env_var}", hide_input=True)
     if not api_key.strip():
@@ -39,9 +39,11 @@ def _configure_api_key(env_var: str) -> None:
 
     set_auth_env(env_var, api_key.strip())
     log((f"{env_var} saved successfully!", "green"))
+    return True
 
 
-def _configure_aws_bedrock() -> None:
+def _configure_aws_bedrock() -> bool:
+    """Configure AWS Bedrock credentials. Returns False when no field was written."""
     import os
 
     from klaude_code.auth.env import get_auth_env, set_auth_env
@@ -62,6 +64,7 @@ def _configure_aws_bedrock() -> None:
         ("AWS_BEDROCK_REGION", "Enter AWS_BEDROCK_REGION (e.g. us-east-1)", False),
     ]
 
+    changed = False
     for env_var, prompt, is_secret in fields:
         current_value = os.environ.get(env_var) or get_auth_env(env_var)
         if current_value:
@@ -76,11 +79,15 @@ def _configure_aws_bedrock() -> None:
             raise typer.Exit(1)
 
         set_auth_env(env_var, value.strip())
+        changed = True
 
-    log(("AWS Bedrock credentials saved successfully!", "green"))
+    if changed:
+        log(("AWS Bedrock credentials saved successfully!", "green"))
+    return changed
 
 
-def _configure_google_vertex() -> None:
+def _configure_google_vertex() -> bool:
+    """Configure Google Vertex credentials. Returns False when no field was written."""
     import os
 
     from klaude_code.auth.env import get_auth_env, set_auth_env
@@ -91,6 +98,7 @@ def _configure_google_vertex() -> None:
         ("GOOGLE_CLOUD_LOCATION", "Enter GOOGLE_CLOUD_LOCATION"),
     ]
 
+    changed = False
     for env_var, prompt in fields:
         current_value = os.environ.get(env_var) or get_auth_env(env_var)
         if current_value:
@@ -104,8 +112,11 @@ def _configure_google_vertex() -> None:
             raise typer.Exit(1)
 
         set_auth_env(env_var, value.strip())
+        changed = True
 
-    log(("Google Vertex credentials saved successfully!", "green"))
+    if changed:
+        log(("Google Vertex credentials saved successfully!", "green"))
+    return changed
 
 
 def _format_utc_timestamp(timestamp: int) -> str:
@@ -128,8 +139,12 @@ def _log_codex_accounts(token_manager: object) -> None:
         log(f"  {state.name}  {state.account_id[:8]}…{active_label}{expired_label}")
 
 
-def execute_login(provider: str, account_name: str | None = None) -> None:
-    """Login to an OAuth provider or configure an API key provider."""
+def execute_login(provider: str, account_name: str | None = None) -> bool:
+    """Login to an OAuth provider or configure an API key provider.
+
+    Returns True when credentials were written, False when the user declined
+    at a confirmation prompt and nothing changed.
+    """
     match provider.lower():
         case "codex":
             from klaude_code.auth.codex.oauth import CodexOAuth
@@ -142,7 +157,7 @@ def execute_login(provider: str, account_name: str | None = None) -> None:
                 if accounts:
                     _log_codex_accounts(token_manager)
                     if not typer.confirm("Login as a new account?"):
-                        return
+                        return False
                     account_name = typer.prompt("Account name").strip()
                     if not account_name:
                         log(("Error: Codex account name cannot be empty", "red"))
@@ -156,7 +171,7 @@ def execute_login(provider: str, account_name: str | None = None) -> None:
                     log(f"  Account ID: {state.account_id[:8]}…")
                     log(f"  Expires: {_format_utc_timestamp(state.expires_at)}")
                     if not typer.confirm("Do you want to re-login?"):
-                        return
+                        return False
 
             log("Starting Codex OAuth login flow…")
             log("A browser window will open for authentication.")
@@ -172,6 +187,7 @@ def execute_login(provider: str, account_name: str | None = None) -> None:
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
+            return True
         case "xai" | "grok" | "grok-build" | "grok_build":
             from klaude_code.auth.xai.oauth import XaiDeviceCode, XaiOAuth
             from klaude_code.auth.xai.token_manager import XaiTokenManager
@@ -182,7 +198,7 @@ def execute_login(provider: str, account_name: str | None = None) -> None:
                 log(("You are already logged in to xAI Grok OAuth.", "green"))
                 log(f"  Expires: {_format_utc_timestamp(state.expires_at)}")
                 if not typer.confirm("Do you want to re-login?"):
-                    return
+                    return False
 
             def notify(device: XaiDeviceCode) -> None:
                 log("Starting xAI Grok OAuth login flow...")
@@ -196,10 +212,11 @@ def execute_login(provider: str, account_name: str | None = None) -> None:
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
                 raise typer.Exit(1) from None
+            return True
         case "aws-bedrock" | "aws_bedrock" | "bedrock":
-            _configure_aws_bedrock()
+            return _configure_aws_bedrock()
         case "google-vertex" | "google_vertex" | "vertex":
-            _configure_google_vertex()
+            return _configure_google_vertex()
         case _:
             from klaude_code.config.builtin_config import SUPPORTED_API_KEYS
 
@@ -216,7 +233,7 @@ def execute_login(provider: str, account_name: str | None = None) -> None:
                     break
 
             if env_var:
-                _configure_api_key(env_var)
+                return _configure_api_key(env_var)
             else:
                 log((f"Error: Unknown provider '{provider}'", "red"))
                 raise typer.Exit(1)

@@ -94,9 +94,9 @@ class LoginCommand(CommandABC):
 
         try:
             if account_name is not None:
-                execute_login(provider, account_name=account_name)
+                completed = execute_login(provider, account_name=account_name)
             else:
-                execute_login(provider)
+                completed = execute_login(provider)
         except (KeyboardInterrupt, typer.Abort):
             return CommandResult(
                 events=[
@@ -117,6 +117,16 @@ class LoginCommand(CommandABC):
                         )
                     ]
                 )
+            return CommandResult(
+                events=[
+                    events.NoticeEvent(
+                        session_id=agent.session.id,
+                        content="(cancelled)",
+                    )
+                ]
+            )
+
+        if not completed:
             return CommandResult(
                 events=[
                     events.NoticeEvent(
