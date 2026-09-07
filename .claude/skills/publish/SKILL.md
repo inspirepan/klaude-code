@@ -110,7 +110,7 @@ with ZipFile(wheel) as archive:
     names = set(archive.namelist())
 
 required = {
-    "klaude_code/skill/assets/web-search/SKILL.md",
+    "klaude_code/skill/assets/klaude-config/SKILL.md",
 }
 missing = sorted(required - names)
 if missing:
