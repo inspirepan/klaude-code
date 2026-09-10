@@ -710,7 +710,6 @@ provider_list:
     model_alias: [ dsf, v4-flash, v4-flash:no-thinking, deepseek-flash:no-thinking ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
-    supports_vision: false
     thinking:
       type: disabled
     cost: &deepseek_flash_cost
@@ -730,7 +729,6 @@ provider_list:
     model_id: deepseek-v4-flash
     context_limit: 1000000
     effort: high
-    supports_vision: false
     thinking:
       type: enabled
     cost: *deepseek_flash_cost
@@ -740,7 +738,6 @@ provider_list:
     model_id: deepseek-v4-flash
     context_limit: 1000000
     effort: max
-    supports_vision: false
     thinking:
       type: enabled
     cost: *deepseek_flash_cost
@@ -959,7 +956,6 @@ provider_list:
     model_alias: [ dsf, v4-flash, deepseek-v4-flash ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
-    supports_vision: false
     thinking:
       reasoning_effort: low
     cost: &opencode_go_flash_cost { input: 0.14, output: 0.28, cache_read: 0.0028 }
@@ -968,7 +964,6 @@ provider_list:
     model_alias: [ dsfh, v4-flash:high ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
-    supports_vision: false
     thinking:
       reasoning_effort: high
     cost: *opencode_go_flash_cost
@@ -977,7 +972,6 @@ provider_list:
     model_alias: [ dsfmax, v4-flash:max ]
     model_id: deepseek-v4-flash
     context_limit: 1000000
-    supports_vision: false
     thinking:
       reasoning_effort: max
     cost: *opencode_go_flash_cost
