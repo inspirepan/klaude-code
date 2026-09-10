@@ -19,15 +19,18 @@ def test_supports_vision_defaults_to_true() -> None:
     assert model.supports_vision is True
 
 
-def test_builtin_marks_glm_and_deepseek_pro_as_non_vision() -> None:
-    assert _find_model("deepseek", "deepseek:max").supports_vision is False
+def test_builtin_marks_glm_as_non_vision() -> None:
     assert _find_model("opencode-go", "glm-5.3").supports_vision is False
     assert _find_model("openrouter", "glm").supports_vision is False
 
 
 def test_builtin_deepseek_vision_model_accepts_images() -> None:
+    assert _find_model("deepseek", "deepseek-flash").supports_vision is True
     assert _find_model("deepseek", "deepseek-flash-vision").supports_vision is True
     assert _find_model("deepseek", "deepseek-flash-vision:high").supports_vision is True
+    assert _find_model("deepseek", "deepseek").supports_vision is True
+    assert _find_model("deepseek", "deepseek:max").supports_vision is True
+    assert _find_model("opencode-go", "deepseek-flash").supports_vision is True
 
 
 def test_builtin_keeps_other_models_vision_capable() -> None:

@@ -350,7 +350,7 @@ def default_web_search_config() -> WebSearchConfig:
                 provider="deepseek",
                 api_key="${DEEPSEEK_API_KEY}",
                 base_url="https://api.deepseek.com/anthropic",
-                model="deepseek-v4-flash",
+                model="deepseek-flash",
             ),
             WebSearchProviderConfig(
                 provider="openai",

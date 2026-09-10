@@ -10,8 +10,7 @@ BEIJING = ZoneInfo("Asia/Shanghai")
 
 # DeepSeek V4.1 Flash off-peak prices, CNY per million tokens (effective 2026-09-10).
 _EXPECTED_OFF_PEAK = {
-    "deepseek-v4-flash": (1, 4, 0.02),
-    "deepseek-v4-flash-vision-exp": (1, 4, 0.02),
+    "deepseek-flash": (1, 4, 0.02),
 }
 
 
