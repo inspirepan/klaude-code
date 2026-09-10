@@ -8,11 +8,10 @@ from klaude_code.config.config import ModelConfig
 
 BEIJING = ZoneInfo("Asia/Shanghai")
 
-# DeepSeek V4 off-peak prices, CNY per million tokens (effective 2026-08-17).
+# DeepSeek V4.1 Flash off-peak prices, CNY per million tokens (effective 2026-09-10).
 _EXPECTED_OFF_PEAK = {
-    "deepseek-v4-flash": (1.5, 4.5, 0.05),
-    "deepseek-v4-flash-vision-exp": (1.5, 4.5, 0.05),
-    "deepseek-v4-pro": (4.5, 13.5, 0.15),
+    "deepseek-v4-flash": (1, 4, 0.02),
+    "deepseek-v4-flash-vision-exp": (1, 4, 0.02),
 }
 
 
