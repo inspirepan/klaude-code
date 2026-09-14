@@ -20,20 +20,33 @@ from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_responses.client import ResponsesLLMStream
 from klaude_code.llm.openai_responses.input import convert_history_to_input, convert_tool_schema
-from klaude_code.llm.openai_responses.prompt_cache import build_prompt_cache_payload
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
+# OpenAI rejects prompt_cache_key values longer than 64 characters.
+PROMPT_CACHE_KEY_MAX_LENGTH = 64
+
+
+def cache_affinity_id(param: llm_param.LLMCallParameter) -> str | None:
+    """Single cache-affinity identity for the payload key and session headers.
+
+    Forked/cache-safe call paths inherit the parent's ``prompt_cache_key``
+    while getting a fresh session id; pi ties ``prompt_cache_key`` and the
+    session-affinity headers to one value, so do the same here.
+    """
+    key = param.prompt_cache_key or param.session_id
+    if not key:
+        return None
+    return key[:PROMPT_CACHE_KEY_MAX_LENGTH]
+
 
 def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase:
     """Build Codex API request parameters."""
     inputs = convert_history_to_input(param.input, param.model_id)
     tools = convert_tool_schema(param.tools)
-
-    prompt_cache_key = param.prompt_cache_key or param.session_id
 
     payload: ResponseCreateParamsBase = {
         "model": str(param.model_id),
@@ -51,12 +64,11 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
     if instructions:
         payload["instructions"] = instructions
 
-    if prompt_cache_key:
-        payload["prompt_cache_key"] = prompt_cache_key
+    affinity_id = cache_affinity_id(param)
+    if affinity_id:
+        payload["prompt_cache_key"] = affinity_id
 
-    payload.update(build_prompt_cache_payload(param.model_id, param.cache_retention, allow_ttl_options=False))
-
-    verbosity = "high" if param.verbosity == "max" else (param.verbosity or "medium")
+    verbosity = "high" if param.verbosity == "max" else (param.verbosity or "low")
     payload["text"] = {"verbosity": verbosity}  # type: ignore[typeddict-item]
 
     if param.fast_mode:
@@ -97,7 +109,19 @@ CODEX_HEADERS = {
     "originator": "pi",
     "User-Agent": CODEX_USER_AGENT,
     "OpenAI-Beta": "responses=experimental",
+    "Accept": "text/event-stream",
 }
+
+
+async def strip_stainless_headers(request: httpx.Request) -> None:
+    """Drop the openai SDK's X-Stainless-* telemetry headers.
+
+    The reference Codex OAuth clients (pi, codex CLI) use raw HTTP against the
+    ChatGPT backend and do not send SDK telemetry headers.
+    """
+    for key in list(request.headers.keys()):
+        if key.lower().startswith("x-stainless-"):
+            del request.headers[key]
 
 
 @register(llm_param.LLMClientProtocol.CODEX_OAUTH)
@@ -120,11 +144,13 @@ class CodexClient(LLMClientABC):
         if state is None:
             raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude auth login codex' first.")
 
+        http_client = create_async_http_client()
+        http_client.event_hooks["request"].append(strip_stainless_headers)
         return AsyncOpenAI(
             api_key=state.access_token,
             base_url=CODEX_BASE_URL,
             timeout=create_http_timeout(),
-            http_client=create_async_http_client(),
+            http_client=http_client,
             default_headers={
                 **CODEX_HEADERS,
                 "chatgpt-account-id": state.account_id,
@@ -158,13 +184,13 @@ class CodexClient(LLMClientABC):
 
         # Payload building re-encodes history images; keep it off the event loop.
         payload = await asyncio.to_thread(build_payload, param)
-        session_id = param.session_id or ""
         extra_headers: dict[str, str] = {}
-        if session_id:
-            # Must send conversation_id/session_id headers to improve ChatGPT backend prompt cache hit rate.
-            extra_headers["conversation_id"] = session_id
-            extra_headers["session_id"] = session_id
-            extra_headers["x-session-id"] = session_id
+        affinity_id = cache_affinity_id(param)
+        if affinity_id:
+            # Session-affinity headers matching the pi Codex client to improve
+            # ChatGPT backend prompt cache hit rate.
+            extra_headers["session-id"] = affinity_id
+            extra_headers["x-client-request-id"] = affinity_id
 
         log_debug(
             lambda: debug_json(payload),

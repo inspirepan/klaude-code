@@ -7,6 +7,7 @@ that were previously scattered across the codebase.
 from __future__ import annotations
 
 import os
+import platform
 import sys
 import tempfile
 from dataclasses import dataclass
@@ -53,7 +54,19 @@ BEDROCK_USE_CONVERSE_STREAM = False
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"  # OpenRouter API base URL
 
 CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"  # Codex API base URL
-CODEX_USER_AGENT = "pi"  # Codex user agent string
+
+# Node os.arch() spellings, to match pi's User-Agent arch token.
+_CODEX_ARCH_ALIASES = {"x86_64": "x64", "amd64": "x64", "aarch64": "arm64"}
+
+
+def _build_codex_user_agent() -> str:
+    """Mirror pi's getPiUserAgent(): `pi (<platform> <release>; <arch>)`."""
+    machine = platform.machine().lower()
+    arch = _CODEX_ARCH_ALIASES.get(machine, machine or "unknown")
+    return f"pi ({sys.platform} {platform.release()}; {arch})"
+
+
+CODEX_USER_AGENT = _build_codex_user_agent()  # Codex user agent string
 
 LOW_CACHE_HIT_RATE_THRESHOLD = 0.9  # Cache hit rate below this triggers a warning
 THROUGHPUT_MIN_DURATION_SEC = 0.15  # Minimum duration (seconds) for throughput calculation
