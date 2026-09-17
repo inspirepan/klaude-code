@@ -24,13 +24,10 @@ def test_builtin_marks_glm_as_non_vision() -> None:
     assert _find_model("openrouter", "glm").supports_vision is False
 
 
-def test_builtin_deepseek_vision_model_accepts_images() -> None:
-    assert _find_model("deepseek", "deepseek-flash").supports_vision is True
-    assert _find_model("deepseek", "deepseek-flash-vision").supports_vision is True
-    assert _find_model("deepseek", "deepseek-flash-vision:high").supports_vision is True
-    assert _find_model("deepseek", "deepseek").supports_vision is True
-    assert _find_model("deepseek", "deepseek:max").supports_vision is True
-    assert _find_model("opencode-go", "deepseek-flash").supports_vision is True
+def test_builtin_deepseek_variants_accept_images() -> None:
+    for provider in ("deepseek", "opencode-go"):
+        for model_name in ("deepseek-flash", "deepseek-flash:high", "deepseek-flash:max"):
+            assert _find_model(provider, model_name).supports_vision is True
 
 
 def test_builtin_keeps_other_models_vision_capable() -> None:
