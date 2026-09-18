@@ -12,6 +12,7 @@ class Palette:
     green: str
     cyan: str
     blue: str
+    bright_blue: str
     deep_blue: str
     orange: str
     magenta: str
@@ -55,6 +56,7 @@ LIGHT_PALETTE = Palette(
     green="#00875f",
     cyan="#2a9090",
     blue="#2d6ba8",
+    bright_blue="#0070f5",
     deep_blue="#244f7a",
     orange="#c96542",
     magenta="#9a508a",
@@ -96,6 +98,8 @@ DARK_PALETTE = Palette(
     green="#4fb06c",
     cyan="#4db8b8",
     blue="#5b9fd4",
+    # Lifted off #0070f5 so it keeps its contrast on a dark background.
+    bright_blue="#4d94ff",
     deep_blue="#7c9bd1",
     orange="#e69a4a",
     magenta="#b87ab0",
@@ -472,11 +476,11 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.code.fence.title": palette.dim_grey1,
                 # Used by ThinkingMarkdown when rendering `<thinking>` blocks.
                 "markdown.code.block": palette.grey1,
+                # Bullet SectionIndentMarkdown hangs off every heading.
+                "markdown.heading.mark": palette.grey2,
                 "markdown.h1": "bold reverse " + palette.black,
                 "markdown.h1.border": palette.grey3,
-                "markdown.h2": "bold " + palette.blue,
-                # LeftHeading draws this rule under h2 instead of underlining the text.
-                "markdown.h2.border": palette.grey3,
+                "markdown.h2": "bold " + palette.bright_blue,
                 "markdown.h3": "bold " + palette.grey1,
                 "markdown.h4": "bold " + palette.grey2,
                 "markdown.hr": palette.grey3,
@@ -501,12 +505,11 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.code.fence.title": palette.dim_grey1,
                 "markdown.code.border": palette.grey3,
                 "markdown.thinking.tag": palette.dim_grey2,
+                "markdown.heading.mark": palette.grey2,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
-                # Without these, h2 falls back to Rich's underlined default and
-                # doubles up with the rule LeftHeading draws under it.
+                # Without this, h2 falls back to Rich's underlined default.
                 "markdown.h2": "bold",
-                "markdown.h2.border": palette.grey3,
                 "markdown.h3": "bold " + palette.grey1,
                 "markdown.h4": "bold " + palette.grey2,
                 "markdown.hr": palette.grey3,

@@ -4,7 +4,7 @@ import contextlib
 import io
 import re
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -43,6 +43,14 @@ _CHECKBOX_CHECKED_RE = re.compile(r"^\[x\]\s*", re.IGNORECASE)
 _ORDERED_LIST_LINE_RE = re.compile(r"^\s{0,3}\d+[.)]\s+.+")
 _ORDERED_LIST_MARKER_PREFIX_RE = re.compile(r"^\s{0,3}\d{1,9}\s*$")
 _LOCAL_IMAGE_MARKDOWN_LINE_RE = re.compile(r"^\s*!\[[^\]]*\]\((?P<path>/[^)]+)\)\s*$")
+
+# Zero-width stamp LeftHeading puts at the start of every heading so
+# SectionIndentMarkdown can tell heading lines from body lines once the document
+# has been rendered to segments. It is stripped before anything is yielded.
+_HEADING_STAMP = "​"
+# Bullet hung off each heading, mirroring the mark on the message as a whole.
+HEADING_MARK = "●"
+SECTION_INDENT = 2
 
 
 class ThinkingHTMLBlock(MarkdownElement):
@@ -175,6 +183,14 @@ class MarkdownTable(TableElement):
         yield table
 
 
+def _stamp_heading(text: Text) -> Text:
+    """Prefix a heading with the zero-width stamp SectionIndentMarkdown looks for."""
+
+    stamped = Text(_HEADING_STAMP, justify="left")
+    stamped.append_text(text)
+    return stamped
+
+
 class LeftHeading(Heading):
     """A heading class that renders left-justified."""
 
@@ -182,18 +198,12 @@ class LeftHeading(Heading):
         text = self.text
         text.justify = "left"  # Override justification
         if self.tag == "h1":
-            h1_text = text.assemble((" ", "markdown.h1"), text, (" ", "markdown.h1"))
-            yield h1_text
+            text = text.assemble((" ", "markdown.h1"), text, (" ", "markdown.h1"))
         elif self.tag == "h2":
             text.stylize(console.get_style("markdown.h2", default="bold"))
-            yield text
-            # Bold alone reads the same as h3, so underline it with a rule as
-            # wide as the heading itself.
-            rule_width = min(text.cell_len, options.max_width)
-            if rule_width > 0:
-                yield Text("─" * rule_width, style=console.get_style("markdown.h2.border", default="none"))
-        else:
-            yield text
+            # Extra breathing room above each section.
+            yield Text("")
+        yield _stamp_heading(text)
 
 
 class CheckboxListItem(ListItem):
@@ -270,7 +280,55 @@ class LocalImageItem(ImageItem):
         yield from super().__rich_console__(console, options)
 
 
-class NoInsetMarkdown(Markdown):
+class SectionIndentMarkdown(Markdown):
+    """Markdown that hangs a bullet off every heading and indents its section.
+
+    Content before the first heading keeps the caller's own indentation, so a
+    reply that opens with a paragraph still sits tight against the message mark.
+    Documents without a heading render exactly as Rich would.
+
+    `inside_section` tells a partial render (the live tail of a stream) that a
+    heading already appeared in the part rendered before it.
+    """
+
+    def __init__(self, *args: Any, inside_section: bool = False, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.collected_images: list[tuple[str, str]] = []
+        self._inside_section = inside_section
+
+    def _render_segments(self, console: Console, options: ConsoleOptions) -> Iterator[Segment]:
+        for item in super().__rich_console__(console, options):
+            if isinstance(item, Segment):
+                yield item
+            else:
+                yield from console.render(item, options)
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        in_section = self._inside_section
+        if not in_section and not any(token.type == "heading_open" for token in self.parsed):
+            yield from super().__rich_console__(console, options)
+            return
+
+        # Reserve the indent up front so every line wraps at the same column,
+        # whether or not it ends up inside a section.
+        inner = options.update_width(max(options.max_width - SECTION_INDENT, 1))
+        heading_mark = Segment(f"{HEADING_MARK} ", console.get_style("markdown.heading.mark", default="none"))
+        indent = Segment(" " * SECTION_INDENT)
+
+        for line in Segment.split_lines(self._render_segments(console, inner)):
+            if any(_HEADING_STAMP in segment.text for segment in line):
+                in_section = True
+                yield heading_mark
+                for segment in line:
+                    yield Segment(segment.text.replace(_HEADING_STAMP, ""), segment.style, segment.control)
+            else:
+                if in_section and any(segment.text.strip() for segment in line):
+                    yield indent
+                yield from line
+            yield Segment.line()
+
+
+class NoInsetMarkdown(SectionIndentMarkdown):
     """Markdown with code blocks that have no padding and left-justified headings."""
 
     elements: ClassVar[dict[str, type[Any]]] = {
@@ -285,12 +343,8 @@ class NoInsetMarkdown(Markdown):
         "image": LocalImageItem,
     }
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self.collected_images: list[tuple[str, str]] = []
 
-
-class ThinkingMarkdown(Markdown):
+class ThinkingMarkdown(SectionIndentMarkdown):
     """Markdown for thinking content with grey-styled code blocks and left-justified headings."""
 
     elements: ClassVar[dict[str, type[Any]]] = {
@@ -304,10 +358,6 @@ class ThinkingMarkdown(Markdown):
         "list_item_open": CheckboxListItem,
         "image": LocalImageItem,
     }
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
-        self.collected_images: list[tuple[str, str]] = []
 
 
 class MarkdownStream:
@@ -352,6 +402,9 @@ class MarkdownStream:
         """
         self._stable_rendered_lines: list[str] = []
         self._stable_source_line_count: int = 0
+        # Once the stable prefix holds a heading, the live tail is inside that
+        # heading's section and must be indented to match.
+        self._stable_has_heading: bool = False
 
         if mdargs:
             self.mdargs: dict[str, Any] = mdargs
@@ -593,6 +646,13 @@ class MarkdownStream:
         assert last_list.map is not None
         return last_list.map[1] == stable_line
 
+    def _source_has_heading(self, source: str) -> bool:
+        try:
+            tokens = self._parser.parse(source)
+        except Exception:  # markdown-it-py may raise various internal errors during parsing
+            return False
+        return any(token.type == "heading_open" for token in tokens)
+
     def _append_nonfinal_sentinel(self, stable_source: str) -> str:
         """Make Rich render stable content as if it isn't the last block.
 
@@ -613,11 +673,14 @@ class MarkdownStream:
             return stable_source + "\n<!-- -->"
         return stable_source + "\n\n<!-- -->"
 
-    def _render_markdown_to_lines(self, text: str, *, apply_mark: bool) -> tuple[list[str], list[tuple[str, str]]]:
+    def _render_markdown_to_lines(
+        self, text: str, *, apply_mark: bool, inside_section: bool = False
+    ) -> tuple[list[str], list[tuple[str, str]]]:
         """Render markdown text to a list of lines.
 
         Args:
             text (str): Markdown text to render
+            inside_section (bool): True when a heading appeared before this chunk
 
         Returns:
             tuple: (lines with line endings preserved, collected local image paths)
@@ -638,7 +701,11 @@ class MarkdownStream:
             width=effective_width,
         )
 
-        markdown = self.markdown_class(self._normalize_ordered_list_local_image_spacing(text), **self.mdargs)
+        markdown = self.markdown_class(
+            self._normalize_ordered_list_local_image_spacing(text),
+            inside_section=inside_section,
+            **self.mdargs,
+        )
         temp_console.print(markdown)
         output = string_io.getvalue()
 
@@ -768,6 +835,7 @@ class MarkdownStream:
                 stable_chunk_to_print = "".join(new_lines)
             self._stable_rendered_lines = stable_lines
             self._stable_source_line_count = stable_line
+            self._stable_has_heading = self._stable_has_heading or self._source_has_heading(stable_source)
             for img_path, img_alt in collected_images:
                 if img_path not in self._displayed_images:
                     new_images.append((img_path, img_alt))
@@ -789,7 +857,11 @@ class MarkdownStream:
             # Apply the mark only for the first (all-live) frame so it stays anchored
             # to the first visible line of the full message.
             apply_mark_to_live = stable_line == 0
-            live_lines, _ = self._render_markdown_to_lines(live_source, apply_mark=apply_mark_to_live)
+            live_lines, _ = self._render_markdown_to_lines(
+                live_source,
+                apply_mark=apply_mark_to_live,
+                inside_section=self._stable_has_heading,
+            )
 
             if self._stable_rendered_lines:
                 if stable_source.endswith("\n\n"):
