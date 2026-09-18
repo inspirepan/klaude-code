@@ -271,7 +271,6 @@ class PromptToolkitInput(InputProviderABC):
         self._bottom_bar = PromptBottomBar(
             invalidate=self._invalidate_app,
             refresh_status=refresh_status,
-            is_agent_running=self._is_agent_running,
         )
 
         # Teach the vt100 parser kitty CSI-u key encodings before any input is
@@ -387,7 +386,7 @@ class PromptToolkitInput(InputProviderABC):
         if self._agent_running == running:
             return
         self._agent_running = running
-        self._invalidate_app()
+        self._bottom_bar.set_agent_running(running)
 
     def set_startup_loading(self, loading: bool) -> None:
         self._bottom_bar.set_startup_loading(loading)

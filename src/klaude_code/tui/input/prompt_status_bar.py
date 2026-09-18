@@ -56,11 +56,9 @@ class PromptBottomBar:
         *,
         invalidate: Callable[[], None],
         refresh_status: Callable[[], None] | None = None,
-        is_agent_running: Callable[[], bool] | None = None,
     ) -> None:
         self._invalidate = invalidate
         self._refresh_status = refresh_status
-        self._is_agent_running = is_agent_running
 
         self._stream_lines: tuple[str, ...] = ()
         self._stream_style_class: str = CLASS_TOOL_RESULT
@@ -72,6 +70,7 @@ class PromptBottomBar:
         self._running_separator_label: str | None = None
         self._startup_loading = False
         self._startup_loading_title: str | None = None
+        self._agent_running = False
         self._pending_messages: tuple[str, ...] = ()
 
         self._status_spinner_task: asyncio.Task[None] | None = None
@@ -134,7 +133,7 @@ class PromptBottomBar:
         if status_lines == self._status_lines and separator_text == self._running_separator_label:
             if metadata_footer_lines:
                 self._metadata_footer_lines = metadata_footer_lines
-            if visible_status_lines or self._startup_loading:
+            if visible_status_lines or self._startup_loading or self._agent_running:
                 self._ensure_status_spinner()
             else:
                 self._cancel_status_spinner()
@@ -147,8 +146,11 @@ class PromptBottomBar:
         if metadata_footer_lines:
             self._metadata_footer_lines = metadata_footer_lines
         self._running_separator_label = separator_text
-        if visible_status_lines or self._startup_loading:
+        if visible_status_lines:
             self._status_reserved_line_count = max(1, len(visible_status_lines))
+            self._ensure_status_spinner()
+        elif self._startup_loading or self._agent_running:
+            self._status_reserved_line_count = max(self._status_reserved_line_count, 1)
             self._ensure_status_spinner()
         else:
             self._cancel_status_spinner()
@@ -165,7 +167,24 @@ class PromptBottomBar:
         if loading:
             self._status_reserved_line_count = max(self._status_reserved_line_count, 1)
             self._ensure_status_spinner()
-        elif self._visible_status_lines():
+        elif self._visible_status_lines() or self._agent_running:
+            self._ensure_status_spinner()
+        else:
+            self._cancel_status_spinner()
+            if self._status_reserved_line_count > 0:
+                self._schedule_status_collapse()
+        self._invalidate()
+
+    def set_agent_running(self, running: bool) -> None:
+        if self._agent_running == running:
+            return
+
+        self._cancel_pending_status_collapse()
+        self._agent_running = running
+        if running:
+            self._status_reserved_line_count = max(self._status_reserved_line_count, 1)
+            self._ensure_status_spinner()
+        elif self._visible_status_lines() or self._startup_loading:
             self._ensure_status_spinner()
         else:
             self._cancel_status_spinner()
@@ -301,12 +320,7 @@ class PromptBottomBar:
         fragments: StyleAndTextTuples = []
         spinner = _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
         visible_lines = self._visible_status_lines()
-        show_waiting = bool(
-            not visible_lines
-            and not self._startup_loading
-            and self._is_agent_running is not None
-            and self._is_agent_running()
-        )
+        show_waiting = bool(not visible_lines and not self._startup_loading and self._agent_running)
         content_line_count = len(visible_lines) or int(self._startup_loading or show_waiting)
         top_padding = self._status_window_height() - content_line_count
         if content_line_count and top_padding > 0:
@@ -361,7 +375,7 @@ class PromptBottomBar:
         tick = 0
         while True:
             await asyncio.sleep(_STATUS_SPINNER_INTERVAL_SECONDS)
-            if not self._visible_status_lines() and not self._startup_loading:
+            if not self._visible_status_lines() and not self._startup_loading and not self._agent_running:
                 return
             # Skip animation frames while the tty is not draining: the redraw
             # this invalidate triggers would block the event loop on a full

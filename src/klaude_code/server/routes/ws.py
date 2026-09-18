@@ -702,7 +702,8 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             await websocket.close(code=4004)
             return
 
-        if not state.runtime.session_registry.has_session_actor(session_id):
+        actor = state.runtime.session_registry.get_session_actor(session_id)
+        if actor is None or actor.get_agent() is None:
             try:
                 await state.runtime.submit_and_wait(
                     op.InitAgentOperation(
@@ -712,6 +713,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                         # rehydration replay to every other client on the bus.
                         defer_welcome_context=attach_mode,
                         defer_replay=attach_mode,
+                        suppress_welcome=attach_mode,
                     )
                 )
             except Exception as exc:

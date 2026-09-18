@@ -251,6 +251,37 @@ def test_startup_loading_survives_agent_status_clear_without_marking_agent_runni
     asyncio.run(_scenario())
 
 
+def test_agent_running_animates_waiting_without_status_lines() -> None:
+    async def _scenario() -> None:
+        invalidations = SimpleNamespace(count=0)
+        prompt_input = _build_input("", invalidations=invalidations)
+        bar = prompt_input._bottom_bar
+
+        with (
+            patch("klaude_code.tui.input.prompt_status_bar._STATUS_SPINNER_INTERVAL_SECONDS", 0.01),
+            patch("klaude_code.tui.input.prompt_status_bar.stdout_writable", return_value=True),
+        ):
+            prompt_input.set_agent_running(True)
+            spinner_task = bar._status_spinner_task
+            initial_frame = bar._status_spinner_frame
+
+            assert spinner_task is not None
+            assert "Loading…" in "".join(text for _, text in bar._get_status_fragments())
+
+            await asyncio.sleep(0.03)
+
+            assert bar._status_spinner_frame != initial_frame
+            assert invalidations.count > 1
+
+            prompt_input.set_agent_running(False)
+            assert bar._status_spinner_task is None
+            assert spinner_task.cancelled() or spinner_task.cancelling()
+
+        bar.stop()
+
+    asyncio.run(_scenario())
+
+
 def test_status_window_height_stays_stable_until_status_clears() -> None:
     prompt_input = _build_input("")
 
@@ -306,6 +337,31 @@ def test_status_reserved_height_shrinks_with_remaining_status_rows() -> None:
         ("class:meta", "·   "),
         ("class:meta", "Loading…"),
     ]
+
+
+def test_running_fallback_preserves_status_height_until_idle() -> None:
+    async def _scenario() -> None:
+        prompt_input = _build_input("")
+        bar = prompt_input._bottom_bar
+
+        prompt_input.set_status_lines(
+            (
+                _status("Loading…"),
+                _status("Finder: searching"),
+                _status("Reviewer: checking"),
+            )
+        )
+        prompt_input.set_agent_running(True)
+        prompt_input.set_status_lines((_metadata("in 1k"),))
+
+        assert bar._status_reserved_line_count == 3
+        assert bar._status_window_height() == 3
+
+        prompt_input.set_agent_running(False)
+        assert bar._status_collapse_handle is not None
+        bar.stop()
+
+    asyncio.run(_scenario())
 
 
 def test_status_top_spacer_is_always_reserved() -> None:

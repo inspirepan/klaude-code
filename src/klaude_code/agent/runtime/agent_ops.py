@@ -381,6 +381,12 @@ class AgentOperationHandler:
             model_profile_provider=profile_provider,
         )
 
+        # Another initializer may have completed while this one built the
+        # profile in a worker thread. Reuse it before emitting setup events.
+        existing = runtime.get_agent()
+        if existing is not None:
+            return existing
+
         if not suppress_welcome:
             startup_update = get_startup_update_summary()
 
@@ -413,12 +419,18 @@ class AgentOperationHandler:
             )
 
         if defer_replay:
+            existing = runtime.get_agent()
+            if existing is not None:
+                return existing
             runtime.set_agent(agent)
             if self._primary_session_id is None:
                 self._primary_session_id = session.id
         else:
             async for evt in agent.replay_history():
                 await self._emit_event(evt)
+            existing = runtime.get_agent()
+            if existing is not None:
+                return existing
             runtime.set_agent(agent)
             if self._primary_session_id is None:
                 self._primary_session_id = session.id

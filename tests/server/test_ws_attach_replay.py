@@ -409,6 +409,24 @@ def test_attach_rehydrates_reclaimed_actor(app_env: AppEnv) -> None:
     assert "still here" in texts
 
 
+def test_attach_rehydrates_actor_without_agent(app_env: AppEnv) -> None:
+    session_id = app_env.create_session()
+    _run_one_turn(app_env, session_id, "before partial init", "still replayed")
+
+    actor = app_env.runtime.session_registry.get_session_actor(session_id)
+    assert actor is not None
+    actor.clear_execution_state()
+    assert app_env.runtime.session_registry.has_session_actor(session_id)
+    assert actor.get_agent() is None
+
+    with _attach(app_env, session_id) as websocket:
+        handshake = _consume_attach_handshake(websocket)
+
+    replay_events = _replay_history_events(handshake) + handshake["replay"]
+    contents = [event["event"].get("content") for event in replay_events if event.get("event_type") == "user.message"]
+    assert contents == ["before partial init"]
+
+
 def test_attach_drains_queue_persisted_across_restart(app_env: AppEnv) -> None:
     """A follow-up queued before a restart/reclaim has no live drain trigger
     (restore only covers headless sessions); attaching must resume it."""
