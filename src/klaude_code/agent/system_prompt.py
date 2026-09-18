@@ -242,9 +242,15 @@ def load_system_prompt(
     base_prompt = build_main_system_prompt(model_name, available_tools or [])
     git_hygiene_prompt = "\n\n" + load_prompt_by_path("prompts/system/git-workspace-hygiene-prompt.md")
     conventions_prompt = "\n\n" + load_prompt_by_path("prompts/system/following-conventions-prompt.md")
+    visual_prompt = "\n\n" + load_prompt_by_path("prompts/system/visual-explanation-prompt.md")
     # auto_memory_prompt = _build_auto_memory_prompt(work_dir)
     dynamic_prompt = _build_env_info(model_name, work_dir)
 
     return (
-        base_prompt + git_hygiene_prompt + conventions_prompt + f"\n\n{SYSTEM_PROMPT_DYNAMIC_BOUNDARY}" + dynamic_prompt
+        base_prompt
+        + git_hygiene_prompt
+        + conventions_prompt
+        + visual_prompt
+        + f"\n\n{SYSTEM_PROMPT_DYNAMIC_BOUNDARY}"
+        + dynamic_prompt
     )
