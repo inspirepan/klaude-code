@@ -474,7 +474,9 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.code.block": palette.grey1,
                 "markdown.h1": "bold reverse " + palette.black,
                 "markdown.h1.border": palette.grey3,
-                "markdown.h2": "bold underline " + palette.black,
+                "markdown.h2": "bold " + palette.blue,
+                # LeftHeading draws this rule under h2 instead of underlining the text.
+                "markdown.h2.border": palette.grey3,
                 "markdown.h3": "bold " + palette.grey1,
                 "markdown.h4": "bold " + palette.grey2,
                 "markdown.hr": palette.grey3,
@@ -501,6 +503,10 @@ def get_theme(theme: str | None = None) -> Themes:
                 "markdown.thinking.tag": palette.dim_grey2,
                 "markdown.h1": "bold reverse",
                 "markdown.h1.border": palette.grey3,
+                # Without these, h2 falls back to Rich's underlined default and
+                # doubles up with the rule LeftHeading draws under it.
+                "markdown.h2": "bold",
+                "markdown.h2.border": palette.grey3,
                 "markdown.h3": "bold " + palette.grey1,
                 "markdown.h4": "bold " + palette.grey2,
                 "markdown.hr": palette.grey3,

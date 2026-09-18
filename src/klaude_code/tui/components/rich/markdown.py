@@ -17,7 +17,7 @@ from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.markdown import CodeBlock, Heading, ImageItem, ListItem, Markdown, MarkdownElement, TableElement
 from rich.panel import Panel
 from rich.segment import Segment
-from rich.style import Style, StyleType
+from rich.style import StyleType
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
@@ -185,9 +185,13 @@ class LeftHeading(Heading):
             h1_text = text.assemble((" ", "markdown.h1"), text, (" ", "markdown.h1"))
             yield h1_text
         elif self.tag == "h2":
-            h2_style = console.get_style("markdown.h2", default="bold")
-            text.stylize(h2_style + Style(underline=False))
+            text.stylize(console.get_style("markdown.h2", default="bold"))
             yield text
+            # Bold alone reads the same as h3, so underline it with a rule as
+            # wide as the heading itself.
+            rule_width = min(text.cell_len, options.max_width)
+            if rule_width > 0:
+                yield Text("─" * rule_width, style=console.get_style("markdown.h2.border", default="none"))
         else:
             yield text
 
