@@ -15,6 +15,7 @@ from rich import box
 from rich._loop import loop_first
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.markdown import CodeBlock, Heading, ImageItem, ListItem, Markdown, MarkdownElement, TableElement
+from rich.panel import Panel
 from rich.segment import Segment
 from rich.style import Style, StyleType
 from rich.syntax import Syntax
@@ -94,48 +95,55 @@ class ThinkingHTMLBlock(MarkdownElement):
         yield text
 
 
+def _code_block_panel(console: Console, body: RenderableType, lang: str) -> Panel:
+    """Frame a code block in a panel, with the language as its left-aligned title.
+
+    expand=False keeps the panel as narrow as the longest line.
+    """
+
+    title = Text(lang, style=console.get_style("markdown.code.fence.title", default="none")) if lang else None
+    return Panel(
+        body,
+        title=title,
+        title_align="left",
+        box=box.ROUNDED,
+        border_style=console.get_style("markdown.code.border", default="none"),
+        expand=False,
+    )
+
+
 class NoInsetCodeBlock(CodeBlock):
-    """A code block with syntax highlighting using markdown fence style."""
+    """A code block with syntax highlighting, framed in a panel instead of ``` markers."""
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
         # Skip empty code blocks — these appear in the live streaming area when only
-        # the opening fence has arrived yet, producing a spurious ``` ``` artifact.
+        # the opening fence has arrived yet, producing a spurious empty block.
         if not code:
             return
-        lang = self.lexer_name if self.lexer_name != "text" else ""
-        fence_style = console.get_style("markdown.code.fence", default="none")
-        fence_title_style = console.get_style("markdown.code.fence.title", default="none")
-
-        yield Text.assemble(("```", fence_style), (lang, fence_title_style))
         try:
-            syntax = Syntax(
+            body: RenderableType = Syntax(
                 code,
                 self.lexer_name,
                 theme=self.theme,
                 word_wrap=True,
                 padding=(0, 0),
             )
-            yield syntax
         except Exception:
             # Fallback to plain text if the pygments lexer is unavailable.
-            yield Text(code)
-        yield Text("```", style=fence_style)
+            body = Text(code)
+        yield _code_block_panel(console, body, self.lexer_name if self.lexer_name != "text" else "")
 
 
 class ThinkingCodeBlock(CodeBlock):
-    """A code block for thinking content that uses simple ``` delimiters."""
+    """A code block for thinking content, framed in a panel with no syntax highlighting."""
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
         if not code:
             return
-        fence_style = "markdown.code.fence"
-        code_style = "markdown.code.block"
-        lang = self.lexer_name if self.lexer_name != "text" else ""
-        yield Text(f"```{lang}", style=fence_style)
-        yield Text(code, style=code_style)
-        yield Text("```", style=fence_style)
+        body = Text(code, style="markdown.code.block")
+        yield _code_block_panel(console, body, self.lexer_name if self.lexer_name != "text" else "")
 
 
 class Divider(MarkdownElement):
