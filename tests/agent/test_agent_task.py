@@ -17,6 +17,7 @@ from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
 from klaude_code.config.config import Config, ModelConfigCandidate
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.openai_compatible.client import build_payload
 from klaude_code.llm.usage import MetadataTracker, error_stream_items
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import TaskMetadataItem, Usage
@@ -382,6 +383,31 @@ def test_stream_error_triggers_retry(tmp_path: Path, monkeypatch: pytest.MonkeyP
 
         # Final assistant text
         assert "recovered" in harness.get_assistant_texts()
+
+    arun(_test())
+
+
+def test_invalid_assistant_message_error_does_not_retry(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    project_dir = tmp_path / "project"
+    project_dir.mkdir()
+    error = (
+        "BadRequestError Error code: 400 - {'error': {'type': 'invalid_request_error', "
+        "'message': 'Error from provider (Console Go): Upstream request failed: [invalid_request_error] "
+        "Invalid assistant message: content or tool_calls must be set'}}"
+    )
+
+    async def _test() -> None:
+        harness = await create_harness(work_dir=project_dir, monkeypatch=monkeypatch)
+        harness.fake_llm.enqueue(message.StreamErrorItem(error=error))
+        harness.fake_llm.enqueue(_text_assistant_message("should not retry"))
+
+        collected = await harness.run_task("continue")
+
+        error_events = [event for event in collected if isinstance(event, events.ErrorEvent)]
+        assert len(error_events) == 1
+        assert error_events[0].can_retry is False
+        assert error_events[0].error_message == error
+        assert harness.fake_llm.pending_count == 1
 
     arun(_test())
 
@@ -1006,7 +1032,14 @@ def test_stream_error_does_not_trigger_cache_break(tmp_path: Path, monkeypatch: 
     arun(_test())
 
 
-def test_empty_response_triggers_retry_error_event(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize(
+    "parts",
+    [[], [message.ThinkingTextPart(text="unfinished", reasoning_field="reasoning_content")]],
+    ids=["empty", "reasoning-only"],
+)
+def test_empty_response_triggers_retry_error_event(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, parts: list[message.Part]
+) -> None:
     """Empty model responses emit a retryable ErrorEvent before retrying."""
     monkeypatch.setattr(task_module, "EMPTY_RESPONSE_CONTINUATION_PROMPT", "RETRY_SENTINEL")
     project_dir = tmp_path / "project"
@@ -1015,13 +1048,15 @@ def test_empty_response_triggers_retry_error_event(tmp_path: Path, monkeypatch: 
     async def _test() -> None:
         harness = await create_harness(work_dir=project_dir, monkeypatch=monkeypatch)
 
-        harness.fake_llm.enqueue(
-            message.AssistantMessage(parts=[], stop_reason="stop", usage=_make_usage()),
-        )
-        harness.fake_llm.enqueue(
-            message.AssistantTextDelta(content="recovered"),
-            _text_assistant_message("recovered"),
-        )
+        incomplete = message.AssistantMessage(parts=parts, usage=_make_usage())
+        harness.fake_llm.enqueue(incomplete)
+
+        def recover(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            payload, _ = build_payload(param)
+            assert all(item["role"] != "assistant" for item in payload["messages"])
+            return [message.AssistantTextDelta(content="recovered"), _text_assistant_message("recovered")]
+
+        harness.fake_llm.enqueue_factory(recover)
 
         collected = await harness.run_task("try again")
 
@@ -1035,6 +1070,7 @@ def test_empty_response_triggers_retry_error_event(tmp_path: Path, monkeypatch: 
         assert user_texts[0] == "try again"
         assert user_texts[1] == "RETRY_SENTINEL"
         assert "recovered" in harness.get_assistant_texts()
+        assert incomplete in harness.get_history_messages()
 
     arun(_test())
 

@@ -826,6 +826,15 @@ class TaskExecutor:
                     if is_fallbackable_llm_error(last_error_message):
                         break
 
+                    if "invalid assistant message: content or tool_calls must be set" in last_error_message.lower():
+                        # Replaying the same invalid history cannot recover this request.
+                        yield events.ErrorEvent(
+                            error_message=last_error_message,
+                            can_retry=False,
+                            session_id=session_ctx.session_id,
+                        )
+                        return
+
                     if endpoint_unreachable:
                         # The endpoint was never reached, so this failure says
                         # nothing about the request. Spending the step budget on

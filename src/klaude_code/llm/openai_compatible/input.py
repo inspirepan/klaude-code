@@ -72,7 +72,10 @@ def convert_history_to_input(
                 if user_msg is not None:
                     pending_image_messages.append(cast(chat.ChatCompletionMessageParam, user_msg))
             case message.AssistantMessage():
-                messages.append(_assistant_message_to_openai(msg))
+                assistant_message = _assistant_message_to_openai(msg)
+                # Strict providers reject empty or reasoning-only assistant turns.
+                if assistant_message.get("content") or assistant_message.get("tool_calls"):
+                    messages.append(assistant_message)
             case _:
                 continue
     flush_pending_image_messages()
