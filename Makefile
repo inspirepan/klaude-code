@@ -1,19 +1,23 @@
 .DEFAULT_GOAL := help
 
 UV ?= uv
+PNPM ?= pnpm
+
+WEB_DIR := web
 
 RUFF := $(UV) run ruff
 TY := $(UV) run ty
 IMPORT_LINT := $(UV) run lint-imports
 PYTEST := $(UV) run pytest
 
-.PHONY: help pre-push install build lint ruff-check format format-check typecheck imports test test-network
+.PHONY: help pre-push install web build lint ruff-check format format-check typecheck imports test test-network
 
 help:
 	@printf "%s\n" \
 		"Targets:" \
 		"  make pre-push     Run all formatting, linting, tests, and builds" \
-		"  make install      Install Python package (editable, via uv tool)" \
+		"  make install      Install Python package (editable, via uv tool) + web viewer" \
+		"  make web          Install web viewer deps and build the static bundle" \
 		"  make build        Build Python package" \
 		"  make lint         Run ruff + ty + import-linter" \
 		"  make format       Auto-fix with ruff" \
@@ -26,11 +30,16 @@ pre-push:
 	$(MAKE) test
 	$(MAKE) build
 
-install:
+install: web
 	@echo "==> Syncing git submodules..."
 	git submodule update --init --recursive
 	@echo "==> Installing Python package (editable, via uv tool)..."
 	$(UV) tool install -e .
+
+web:
+	@echo "==> Building web viewer bundle..."
+	$(PNPM) --dir $(WEB_DIR) install
+	$(PNPM) --dir $(WEB_DIR) build
 
 build:
 	$(UV) build
