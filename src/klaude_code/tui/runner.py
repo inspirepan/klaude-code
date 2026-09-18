@@ -29,7 +29,7 @@ from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
 from klaude_code.agent.welcome_context import build_welcome_context_event
 from klaude_code.app.herdr import HerdrReporter
 from klaude_code.config import load_config
-from klaude_code.log import DebugType, log, log_debug
+from klaude_code.log import DebugType, log, log_console, log_debug
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.models import SessionRuntimeState
@@ -46,6 +46,7 @@ from klaude_code.tui.command import (
 )
 from klaude_code.tui.command.command_abc import CommandResult
 from klaude_code.tui.commands import PromptStatusLine
+from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.flicker_safe_stdout import settle_flicker_safe_stdout
 from klaude_code.tui.input.key_bindings import has_explicit_queued_message_separator, split_queued_message_edit_text
@@ -1034,15 +1035,20 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         # Detach semantics: the server keeps the session (and any running
         # task) alive; only this client goes away.
         work_dir = _session_work_dir()
+        # log_console has no theme of its own, so lend it the palette the
+        # session was drawn with before printing the farewell in grey.
+        with contextlib.suppress(Exception):
+            log_console.push_theme(get_theme(current_theme).app_theme)
+        info = ThemeKey.METADATA.value
         if exited_via_ctrl_c:
-            log("Bye!")
+            log(("Bye!", info))
         if Session.exists(client.session_id, work_dir=work_dir):
             short_id = Session.shortest_unique_prefix(client.session_id, work_dir=work_dir)
             if was_running:
                 log(
-                    ("detached, agent keeps running — reattach with:", "dim"),
+                    ("detached, agent keeps running — reattach with:", info),
                     (f"klaude attach {short_id}", "green"),
                 )
             elif Session.has_user_messages(client.session_id, work_dir=work_dir):
-                log(f"Session ID: {client.session_id}")
-                log(f"Resume with: klaude -r {short_id}")
+                log((f"Session ID: {client.session_id}", info))
+                log((f"Resume with: klaude -r {short_id}", info))
