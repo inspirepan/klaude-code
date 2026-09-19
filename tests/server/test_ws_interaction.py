@@ -180,7 +180,17 @@ def test_session_websocket_replays_pending_snapshots_before_forwarding_events(mo
     def _has_session_actor(_session_id: str) -> bool:
         return True
 
-    runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
+    def _get_session_actor(_session_id: str) -> Any:
+        # A live actor keeps the handler out of the session-init path.
+        return SimpleNamespace(get_agent=lambda: SimpleNamespace())
+
+    runtime = SimpleNamespace(
+        session_registry=SimpleNamespace(
+            has_session_actor=_has_session_actor,
+            get_session_actor=_get_session_actor,
+            list_session_actors=lambda: [],
+        )
+    )
     state = SimpleNamespace(
         runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
     )
@@ -232,7 +242,17 @@ def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyP
     def _has_session_actor(_session_id: str) -> bool:
         return True
 
-    runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
+    def _get_session_actor(_session_id: str) -> Any:
+        # A live actor keeps the handler out of the session-init path.
+        return SimpleNamespace(get_agent=lambda: SimpleNamespace())
+
+    runtime = SimpleNamespace(
+        session_registry=SimpleNamespace(
+            has_session_actor=_has_session_actor,
+            get_session_actor=_get_session_actor,
+            list_session_actors=lambda: [],
+        )
+    )
     state = SimpleNamespace(
         runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
     )
@@ -289,7 +309,17 @@ def test_websocket_handler_does_not_hang_on_stubborn_peer_task(monkeypatch: pyte
     def _has_session_actor(_session_id: str) -> bool:
         return True
 
-    runtime = SimpleNamespace(session_registry=SimpleNamespace(has_session_actor=_has_session_actor))
+    def _get_session_actor(_session_id: str) -> Any:
+        # A live actor keeps the handler out of the session-init path.
+        return SimpleNamespace(get_agent=lambda: SimpleNamespace())
+
+    runtime = SimpleNamespace(
+        session_registry=SimpleNamespace(
+            has_session_actor=_has_session_actor,
+            get_session_actor=_get_session_actor,
+            list_session_actors=lambda: [],
+        )
+    )
     state = SimpleNamespace(
         runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
     )

@@ -266,7 +266,9 @@ def test_agent_running_animates_waiting_without_status_lines() -> None:
             initial_frame = bar._status_spinner_frame
 
             assert spinner_task is not None
-            assert "Loading…" in "".join(text for _, text in bar._get_status_fragments())
+            # StyleAndTextTuples fragments are (style, text[, handler]); index
+            # instead of unpacking so the optional handler stays allowed.
+            assert "Loading…" in "".join(fragment[1] for fragment in bar._get_status_fragments())
 
             await asyncio.sleep(0.03)
 
