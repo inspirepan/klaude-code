@@ -156,14 +156,12 @@ def execute_login(provider: str, account_name: str | None = None) -> bool:
                 accounts = token_manager.list_accounts()
                 if accounts:
                     _log_codex_accounts(token_manager)
-                    if not typer.confirm("Login as a new account?"):
-                        return False
-                    account_name = typer.prompt("Account name").strip()
-                    if not account_name:
-                        log(("Error: Codex account name cannot be empty", "red"))
-                        raise typer.Exit(1)
+                    # Re-login the active account instead of forcing a new one:
+                    # an invalid session is the usual reason to run login again.
+                    account_name = token_manager.get_active_account_name() or accounts[0].name
+                    log(f"Re-login to Codex account '{account_name}'.")
                     token_manager = CodexTokenManager(account_name=account_name)
-            elif token_manager.is_logged_in():
+            if token_manager.is_logged_in():
                 state = token_manager.get_state()
                 if state and not state.is_expired():
                     log(("You are already logged in to Codex.", "green"))

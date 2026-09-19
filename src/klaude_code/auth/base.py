@@ -11,7 +11,11 @@ from filelock import FileLock, Timeout
 from pydantic import BaseModel
 
 KLAUDE_AUTH_FILE = Path.home() / ".klaude" / "klaude-auth.json"
-LOCK_TIMEOUT_SECONDS = 30  # Maximum time to wait for lock acquisition
+# Maximum time to wait for lock acquisition. A holder can legitimately spend a
+# slow token request inside the lock (Codex allows 40s of connect wait plus a 30s
+# read), so a waiter must outlast that instead of failing while another process is
+# still refreshing.
+LOCK_TIMEOUT_SECONDS = 120
 
 
 class BaseAuthState(BaseModel):

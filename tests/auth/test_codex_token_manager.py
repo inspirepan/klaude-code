@@ -92,6 +92,9 @@ def test_codex_oauth_refresh_preserves_active_account_slot(tmp_path: Path, monke
             return {"access_token": "new-access", "refresh_token": "new-refresh", "expires_in": 3600}
 
     class _Client:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
         def __enter__(self) -> _Client:
             return self
 
@@ -127,6 +130,9 @@ def test_codex_oauth_refresh_failure_suggests_relogin(tmp_path: Path, monkeypatc
         text = '{"error": {"code": "refresh_token_invalidated"}}'
 
     class _Client:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
         def __enter__(self) -> _Client:
             return self
 
