@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import contextlib
 import re
+import shlex
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
@@ -131,16 +132,103 @@ def _replace_file_uris(
     return out, changed
 
 
+def _expand_path(token: str) -> Path | None:
+    """Expand a shell token into a path, or None when it cannot be resolved.
+
+    `Path.expanduser()` raises RuntimeError, not OSError, for a `~` prefix it
+    cannot resolve (e.g. `~nosuchuser`); a paste must never break the prompt.
+    """
+
+    try:
+        return Path(token).expanduser()
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def _existing_paths(text: str) -> list[Path] | None:
+    """Return the pasted tokens as paths, or None when text is not a path list."""
+
+    stripped = text.strip()
+    if not stripped:
+        return None
+
+    # Avoid converting when the paste already contains our input syntax.
+    if "@" in stripped or "[image " in stripped:
+        return None
+
+    try:
+        tokens = shlex.split(stripped, posix=True)
+    except ValueError:
+        return None
+
+    if not tokens:
+        return None
+
+    # Heuristic: every token must exist on disk.
+    paths: list[Path] = []
+    for tok in tokens:
+        path = _expand_path(tok)
+        if path is None:
+            return None
+        try:
+            if not path.exists():
+                return None
+        except OSError:
+            return None
+        paths.append(path)
+
+    return paths
+
+
+def _convert_path_list(text: str, *, cwd: Path) -> str | None:
+    """Convert a plain list of existing paths into @ tokens, or None."""
+
+    paths = _existing_paths(text)
+    if paths is None:
+        return None
+
+    converted: list[str] = []
+    for path in paths:
+        try:
+            is_image = path.is_file() and is_image_file(path)
+        except OSError:
+            is_image = False
+
+        normalized = _normalize_path_for_at(path, cwd=cwd)
+        if is_image:
+            converted.append(format_image_marker(normalized))
+        else:
+            converted.append(_format_at_token(normalized))
+
+    return " ".join(converted)
+
+
 def convert_dropped_text(
     text: str,
     *,
     cwd: Path,
+    allow_path_lists: bool = False,
 ) -> str:
-    """Convert drag-and-drop file:// URIs into @ tokens and/or image markers.
+    """Convert drag-and-drop text into @ tokens and/or image markers.
 
-    Only file:// URIs are converted. Plain paths are not auto-converted to avoid
-    unintended transformations when users paste regular path strings.
+    `file://` URIs are always converted. Terminals that drop a file as an
+    escaped plain path instead are handled by `allow_path_lists`, which the
+    bracketed-paste handler sets: that is the moment a drag-and-drop lands, so
+    rewriting the buffer is intended. Submit-time fallbacks keep it off, so
+    they never rewrite what the user typed or pasted by hand.
+
+    A converted payload loses its trailing newline: the caller appends the
+    single separating space, which the newline would otherwise suppress.
     """
 
-    out, _ = _replace_file_uris(text, cwd=cwd)
-    return out
+    out, changed = _replace_file_uris(text, cwd=cwd)
+
+    if not changed and allow_path_lists:
+        path_list = _convert_path_list(text, cwd=cwd)
+        if path_list is not None:
+            out, changed = path_list, True
+
+    if not changed:
+        return out
+
+    return out.removesuffix("\n")

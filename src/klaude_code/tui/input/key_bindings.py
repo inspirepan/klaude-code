@@ -492,7 +492,17 @@ def create_key_bindings(
         if marker is not None:
             data = marker + " "
         else:
-            converted = convert_dropped_text(data, cwd=active_work_dir())
+            # Bash mode sends the line to a shell verbatim, so a pasted path
+            # must stay a path there instead of becoming an @ token.
+            existing_text = ""
+            with contextlib.suppress(Exception):
+                existing_text = event.current_buffer.text  # type: ignore[reportUnknownMemberType]
+
+            converted = convert_dropped_text(
+                data,
+                cwd=active_work_dir(),
+                allow_path_lists=not _is_bash_mode_text(existing_text),
+            )
             if converted != data and converted and not converted.endswith((" ", "\t", "\n")):
                 converted += " "
             data = converted

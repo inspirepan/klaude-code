@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 
+import pytest
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 from prompt_toolkit.key_binding.key_processor import KeyPressEvent
@@ -79,6 +80,50 @@ def test_small_bracketed_paste_stays_inline(tmp_path: Path) -> None:
 
     assert buffer.text == "alpha\nbeta"
     assert list(tmp_path.iterdir()) == []
+
+
+def test_bracketed_paste_of_dropped_path_inserts_at_token(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Terminals that drop an escaped plain path (no file:// URI) still get an @ token."""
+
+    dropped = tmp_path / "a.txt"
+    dropped.write_text("hi", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    bindings = create_key_bindings(
+        capture_clipboard_tag=lambda: None,
+        at_token_pattern=re.compile(r"$^"),
+        skill_token_pattern=re.compile(r"$^"),
+        paste_dir=tmp_path,
+    )
+    buffer = Buffer()
+
+    binding = bindings.get_bindings_for_keys((Keys.BracketedPaste,))[-1]
+    event = cast(KeyPressEvent, SimpleNamespace(current_buffer=buffer, data=str(dropped)))
+    binding.handler(event)
+
+    assert buffer.text == "@a.txt "
+
+
+def test_bracketed_paste_in_bash_mode_keeps_plain_path(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A path pasted into bash mode goes to the shell verbatim, not as an @ token."""
+
+    dropped = tmp_path / "a.txt"
+    dropped.write_text("hi", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    bindings = create_key_bindings(
+        capture_clipboard_tag=lambda: None,
+        at_token_pattern=re.compile(r"$^"),
+        skill_token_pattern=re.compile(r"$^"),
+        paste_dir=tmp_path,
+    )
+    buffer = Buffer(document=Document("!wc -l ", cursor_position=7))
+
+    binding = bindings.get_bindings_for_keys((Keys.BracketedPaste,))[-1]
+    event = cast(KeyPressEvent, SimpleNamespace(current_buffer=buffer, data=str(dropped)))
+    binding.handler(event)
+
+    assert buffer.text == f"!wc -l {dropped}"
 
 
 def test_tab_toggles_btw_prefix_while_agent_runs() -> None:
