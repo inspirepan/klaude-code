@@ -522,6 +522,82 @@ def test_operation_finish_rearms_stalled_follow_up_drain(app_env: AppEnv) -> Non
         raise AssertionError("queued follow-up never ran after the background op finished")
 
 
+def test_resume_reattaches_without_replaying_history(app_env: AppEnv) -> None:
+    """`resume=1` is a client reattaching after the server restarted on new
+    code. It already rendered the transcript, so the handshake must carry the
+    state snapshot and no second copy of the history."""
+    session_id = app_env.create_session()
+    _run_one_turn(app_env, session_id, "before restart", "still here")
+
+    # A restart loses the in-memory actor; the session is served from disk.
+    assert app_env.client.portal is not None
+    assert app_env.client.portal.call(app_env.runtime.close_session, session_id)
+
+    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws?resume=1") as websocket:
+        connection_info = websocket.receive_json()
+        assert connection_info["type"] == "connection_info"
+        session_info = websocket.receive_json()
+        assert session_info["type"] == "session_info"
+        assert session_info["state"] == "idle"
+        usage_snapshot = websocket.receive_json()
+        assert usage_snapshot["event_type"] == "usage.snapshot"
+
+        handshake_tail: list[dict[str, Any]] = []
+        for _ in range(50):
+            items = receive_events(websocket)
+            handshake_tail.extend(items)
+            if any(item.get("type") == "replay_complete" for item in items):
+                break
+        else:
+            raise AssertionError("resume handshake never completed")
+
+        assert not [item for item in handshake_tail if item.get("event_type")]
+
+        # The live stream still carries the next turn.
+        app_env.fake_llm.enqueue(
+            message.AssistantTextDelta(content="after restart"),
+            message.AssistantMessage(parts=[message.TextPart(text="after restart")], stop_reason="stop", usage=usage()),
+        )
+        response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "next turn"})
+        assert response.status_code == 200
+
+        live: list[dict[str, Any]] = []
+        for _ in range(300):
+            live.extend(receive_events(websocket))
+            if any(item.get("event_type") == "task.finish" for item in live):
+                break
+        else:
+            raise AssertionError("live stream did not deliver the turn after resume")
+
+    texts = "".join(
+        str(item["event"].get("content", "")) for item in live if item.get("event_type") == "assistant.text.delta"
+    )
+    assert "after restart" in texts
+
+
+def test_resume_without_prior_transcript_replays_nothing_still_streams(app_env: AppEnv) -> None:
+    """A resume handshake never replays, even for a client that has not
+    rendered this session yet: the choice of handshake is the client's."""
+    session_id = app_env.create_session()
+    _run_one_turn(app_env, session_id, "already on disk", "old reply")
+
+    with _attach(app_env, session_id) as websocket:
+        handshake = _consume_attach_handshake(websocket)
+    assert _replay_history_events(handshake), "replay=1 must replay history"
+
+    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws?resume=1") as websocket:
+        assert websocket.receive_json()["type"] == "connection_info"
+        assert websocket.receive_json()["type"] == "session_info"
+        assert websocket.receive_json()["event_type"] == "usage.snapshot"
+        tail: list[dict[str, Any]] = []
+        for _ in range(50):
+            items = receive_events(websocket)
+            tail.extend(items)
+            if any(item.get("type") == "replay_complete" for item in items):
+                break
+        assert not [item for item in tail if item.get("event_type")]
+
+
 def test_event_consumer_survives_poisoned_event(app_env: AppEnv, monkeypatch: Any) -> None:
     """The headless event consumer holds every drain trigger on the server;
     one event whose handling raises must not silently kill queue draining

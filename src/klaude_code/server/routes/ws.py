@@ -692,7 +692,12 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
     try:
         await websocket.accept()
         state = get_server_state_from_ws(websocket)
-        attach_mode = websocket.query_params.get("replay") == "1"
+        replay_mode = websocket.query_params.get("replay") == "1"
+        # A client that kept its transcript across a server restart reattaches
+        # with resume=1: it needs the per-connection state snapshot, not a
+        # second copy of the history it already rendered.
+        resume_mode = websocket.query_params.get("resume") == "1"
+        attach_mode = replay_mode or resume_mode
         peek_mode = websocket.query_params.get("peek") == "1"
         work_dir = resolve_session_work_dir_fast(
             state.session_live.index if state.session_live is not None else None, state.home_dir, session_id
@@ -749,7 +754,13 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             # (no await between): everything after the cut reaches the
             # subscription, everything before it is on the tape.
             subscription = state.subscribe_events(None)
-            max_seq = await _send_attach_replay(session_id, websocket, state=state)
+            if resume_mode:
+                # Skip the tape cut: the client already holds the transcript, so
+                # every event is new to it and the handshake ends immediately.
+                max_seq = 0
+                await websocket.send_json({"type": "replay_complete", "session_id": session_id})
+            else:
+                max_seq = await _send_attach_replay(session_id, websocket, state=state)
             await _send_pending_interaction_snapshots(session_id, websocket)
             if can_input and state.headless is not None:
                 # A queue persisted before a restart/reclaim has no live

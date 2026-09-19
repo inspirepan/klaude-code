@@ -30,6 +30,26 @@ _DisplayItem = EventEnvelope
 # cannot eat a later user message that happens to repeat the same text.
 _ECHO_SWALLOW_TTL_SECONDS = 60.0
 
+# A dropped socket usually means the server replaced itself with new code: a
+# reload re-execs the process in place (same pid), which cuts off every client.
+# The session itself is durable on disk, so reattach quietly for this long
+# before treating the connection as lost.
+_RECONNECT_GRACE_SECONDS = 20.0
+_RECONNECT_INTERVAL_SECONDS = 0.3
+# A reattach faster than this is not worth a scrollback line.
+_RECONNECT_NOTICE_DELAY_SECONDS = 1.5
+# A reattach only counts as recovered once the attach handshake completes: a
+# socket that accepts and then drops immediately must not reset the grace window.
+_RECONNECT_HANDSHAKE_TIMEOUT_SECONDS = 10.0
+# A reattached connection must last this long before it counts as a recovery
+# rather than a flap; otherwise a server that serves the handshake and drops
+# would restart the window on every iteration.
+_RECONNECT_STABLE_SECONDS = 5.0
+
+# Server refusals that mean this session cannot be served at all. Retrying the
+# attach cannot succeed, so give up instead of burning the grace window.
+_FATAL_ATTACH_ERROR_CODES = frozenset({"session_not_found", "session_init_failed"})
+
 
 def _local_envelope(event: events.Event) -> EventEnvelope:
     """Wrap a client-local event (toggle, refresh, welcome context) for display."""
@@ -88,6 +108,30 @@ class SocketRuntimeClient:
         # interaction requests surface through this client too.
         self._child_session_ids: set[str] = set()
         self._closed = False
+        self._reconnecting = False
+        self._reconnect_task: asyncio.Task[None] | None = None
+        self._reconnect_done = asyncio.Event()
+        self._reconnect_done.set()
+        # Frozen at the first failed attach so a server that keeps accepting and
+        # dropping connections cannot extend the grace window indefinitely.
+        self._reconnect_deadline: float | None = None
+        # When the last reattach completed; the window only resets once that
+        # connection has stayed up long enough to count as a real recovery.
+        self._reconnected_at: float | None = None
+        self._reconnect_pending = False
+        # A turn was streaming when the socket died: the reattach must settle the
+        # display itself, because that turn's TaskFinish will never arrive.
+        self._dropped_mid_turn = False
+        # Outcome of the attach handshake on the current socket.
+        self._handshake_settled = asyncio.Event()
+        self._handshake_ok = False
+        # Set when the server refuses this session outright (or runs code this
+        # client cannot talk to): reattaching would only repeat the failure.
+        self._attach_fatal = False
+        # Whether this client already holds the session transcript (a completed
+        # attach handshake). A reattach after a server restart can then skip the
+        # history replay instead of rendering the transcript a second time.
+        self._transcript_loaded = False
         # (content, monotonic timestamp) of locally echoed user messages whose
         # canonical server echo must be dropped instead of rendered twice.
         self._pending_echo_swallows: deque[tuple[str, float]] = deque()
@@ -102,15 +146,34 @@ class SocketRuntimeClient:
         return not self._peek
 
     async def start(self) -> None:
+        self._closed = False
         await self._connect()
 
-    async def _connect(self) -> None:
+    async def _connect(self, *, resume: bool = False) -> None:
         from websockets.asyncio.client import unix_connect
 
         socket_path = server_socket_path()
-        uri = f"ws://klaude/api/sessions/{self._session_id}/ws?replay=1"
+        # `resume=1` reattaches a client that already rendered this session: the
+        # server sends the state snapshot without replaying history. `replay=1`
+        # is the initial attach handshake, which does replay it.
+        handshake = "resume=1" if resume else "replay=1"
+        uri = f"ws://klaude/api/sessions/{self._session_id}/ws?{handshake}"
         if self._peek:
             uri += "&peek=1"
+        # Retire the previous socket and its recv loop first, detaching both from
+        # `self` so the loop cannot settle the handshake of the socket we are
+        # about to open (see the identity check in `_recv_loop`).
+        stale_ws = self._ws
+        stale_recv = self._recv_task
+        self._ws = None
+        self._recv_task = None
+        if stale_recv is not None and not stale_recv.done():
+            stale_recv.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await stale_recv
+        if stale_ws is not None:
+            with contextlib.suppress(Exception):
+                await stale_ws.close()
         self._ws = await unix_connect(
             path=str(socket_path),
             uri=uri,
@@ -118,13 +181,15 @@ class SocketRuntimeClient:
             ping_interval=None,
         )
         self._replay_complete = asyncio.Event()
-        self._welcome_context_pending = self._welcome_context_provider is not None
-        self._closed = False
+        self._handshake_settled = asyncio.Event()
+        self._handshake_ok = False
+        self._welcome_context_pending = self._welcome_context_provider is not None and not resume
         self._connection_lost.clear()
         self._recv_task = asyncio.create_task(self._recv_loop())
 
     async def close(self) -> None:
         self._closed = True
+        await self._cancel_reconnect()
         if self._recv_task is not None and not self._recv_task.done():
             self._recv_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -148,6 +213,7 @@ class SocketRuntimeClient:
         # A deliberate reconnect: keep the recv loop's cancellation from
         # taking the connection-lost path (spurious error + auto-detach).
         self._closed = True
+        await self._cancel_reconnect()
         if self._recv_task is not None and not self._recv_task.done():
             self._recv_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
@@ -160,9 +226,18 @@ class SocketRuntimeClient:
         self._running = False
         self._active_operation_id = None
         self._interrupt_prefill = None
+        # A different session needs its own transcript, and gets a fresh chance
+        # at a reattach window.
+        self._transcript_loaded = False
+        self._attach_fatal = False
+        self._reconnect_deadline = None
+        self._reconnected_at = None
+        self._reconnect_pending = False
+        self._dropped_mid_turn = False
         # Stale swallows must not eat user messages replayed by the new attach.
         self._pending_echo_swallows.clear()
         self._notify_state_changed()
+        self._closed = False
         await self._connect()
 
     # -- display feed --
@@ -194,6 +269,10 @@ class SocketRuntimeClient:
     # -- send helpers --
 
     async def _send(self, frame: dict[str, Any]) -> None:
+        if self._reconnecting:
+            # The socket is being reattached: wait it out rather than failing a
+            # submit that would otherwise detach the whole TUI.
+            await self._wait_for_reconnect()
         if self._ws is None:
             raise ClientConnectionError("client is not connected")
         try:
@@ -325,9 +404,11 @@ class SocketRuntimeClient:
     # -- receive path --
 
     async def _recv_loop(self) -> None:
-        assert self._ws is not None
+        websocket = self._ws
+        if websocket is None:
+            return
         try:
-            async for raw in self._ws:
+            async for raw in websocket:
                 try:
                     data = json.loads(raw)
                 except (TypeError, json.JSONDecodeError):
@@ -342,26 +423,189 @@ class SocketRuntimeClient:
         except Exception as exc:
             log_debug(f"[client] recv loop ended: {exc}", debug_type=DebugType.EXECUTION)
         finally:
-            if not self._closed:
-                # Server went away: surface it and unblock waiters.
-                self._running = False
-                self._replay_complete.set()
-                self._connection_lost.set()
-                self._notify_state_changed()
-                for future in self._op_futures.values():
-                    if not future.done():
-                        future.set_result(None)
-                with contextlib.suppress(Exception):
-                    await self._display_queue.put(
-                        _local_envelope(
-                            events.ErrorEvent(
+            # Only the loop that still owns the current socket may report a drop:
+            # a retired loop must not settle the handshake of its successor.
+            if not self._closed and self._recv_task is asyncio.current_task():
+                # The reconnect loop waits on the handshake, so it must see the
+                # outcome of the socket that just ended.
+                self._settle_handshake(ok=False)
+                self._schedule_reconnect()
+
+    # -- reconnection --
+
+    async def _cancel_reconnect(self) -> None:
+        task = self._reconnect_task
+        if task is not None and not task.done():
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    def _settle_handshake(self, *, ok: bool) -> None:
+        """Record the attach handshake outcome for the current socket."""
+        if self._handshake_settled.is_set():
+            return
+        self._handshake_ok = ok
+        self._handshake_settled.set()
+
+    def _release_op_futures(self) -> None:
+        """Complete every in-flight operation: their responses died with the socket.
+
+        Without this a turn submitted just before the drop never gets its
+        OperationFinished, and the prompt stays busy forever.
+        """
+        for future in self._op_futures.values():
+            if not future.done():
+                future.set_result(None)
+
+    def _refresh_reconnect_window(self) -> None:
+        """Open a fresh grace window for an outage that follows a healthy connection.
+
+        A reattach that is still within `_RECONNECT_STABLE_SECONDS` of the last
+        recovery keeps spending the same budget, so a server that completes the
+        handshake and then drops cannot extend it forever.
+        """
+        if self._reconnected_at is not None and time.monotonic() - self._reconnected_at >= _RECONNECT_STABLE_SECONDS:
+            self._reconnected_at = None
+            self._reconnect_deadline = None
+        if self._reconnect_deadline is None:
+            self._reconnect_deadline = time.monotonic() + _RECONNECT_GRACE_SECONDS
+
+    def _schedule_reconnect(self) -> None:
+        """React to a dropped socket by reattaching instead of detaching.
+
+        The usual cause is the server replacing itself with new code: a reload
+        re-execs the process in place, cutting off every client. The session is
+        durable on disk, so the restarted server serves the same session again —
+        only the socket is gone. Retrying inside a bounded window makes that
+        invisible; when the window runs out we fall back to the connection-lost
+        path, which the runner turns into a detach.
+        """
+        self._refresh_reconnect_window()
+        if self._running:
+            # A turn was streaming when the socket died. Its TaskFinish is gone
+            # for good, so the reattach has to settle the display itself.
+            self._dropped_mid_turn = True
+        self._running = False
+        if self._reconnect_task is not None and not self._reconnect_task.done():
+            # A reattach is already in flight. Remember the drop: it is likely
+            # the socket that reattach just opened, and the loop must not exit
+            # treating it as a recovery.
+            self._reconnect_pending = True
+            return
+        self._reconnect_pending = False
+        # No replay can arrive on the dead socket; release startup waits.
+        self._replay_complete.set()
+        self._notify_state_changed()
+        self._release_op_futures()
+        self._reconnecting = True
+        self._reconnect_done.clear()
+        self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+
+    async def _reconnect_loop(self) -> None:
+        started = time.monotonic()
+        notified = False
+        try:
+            while not self._closed and not self._attach_fatal:
+                deadline = self._reconnect_deadline
+                if deadline is None or time.monotonic() >= deadline:
+                    break
+                await asyncio.sleep(_RECONNECT_INTERVAL_SECONDS)
+                if self._closed:
+                    return
+                if not notified and time.monotonic() - started >= _RECONNECT_NOTICE_DELAY_SECONDS:
+                    notified = True
+                    await self._notify_reconnecting()
+                try:
+                    # Without a transcript there is nothing to skip, so an
+                    # interrupted initial attach re-runs the full handshake.
+                    # That can re-render the tail of a partial replay; the
+                    # alternative (a blank transcript) is worse.
+                    await self._connect(resume=self._transcript_loaded)
+                except Exception as exc:
+                    log_debug(f"[client] reattach attempt failed: {exc}", debug_type=DebugType.EXECUTION)
+                    continue
+                try:
+                    await asyncio.wait_for(self._handshake_settled.wait(), timeout=_RECONNECT_HANDSHAKE_TIMEOUT_SECONDS)
+                except TimeoutError:
+                    log_debug("[client] reattach handshake timed out", debug_type=DebugType.EXECUTION)
+                    continue
+                if self._handshake_ok:
+                    # Do not clear the window here: a socket that dies right
+                    # after the handshake would otherwise buy a new one.
+                    self._reconnected_at = time.monotonic()
+                    if self._dropped_mid_turn and not self._running:
+                        # The server's state snapshot says the turn is over, so
+                        # its TaskFinish will never arrive: settle the display or
+                        # the status line spins forever. `show_notice=False`
+                        # because "Interrupted by user" would be a lie here.
+                        self._dropped_mid_turn = False
+                        await self._handle_envelope(
+                            _local_envelope(events.InterruptEvent(session_id=self._session_id, show_notice=False))
+                        )
+                        await self._put_local_event(
+                            events.NoticeEvent(
                                 session_id=self._session_id,
-                                error_message="Connection to klaude server lost. Reattach with: klaude attach "
-                                + self._session_id[:8],
-                                can_retry=False,
+                                content="Connection to the klaude server was lost; the running turn did not finish.",
+                                is_error=True,
                             )
                         )
-                    )
+                    log_debug("[client] reattached after server restart", debug_type=DebugType.EXECUTION)
+                    return
+                if self._attach_fatal:
+                    break
+            if not self._closed:
+                await self._on_connection_lost()
+        finally:
+            self._reconnect_task = None
+            if self._reconnect_pending and not self._closed and not self._attach_fatal:
+                # The drop that ended the socket this loop just opened is
+                # already waiting; keep the reattach going on the same budget.
+                self._reconnect_pending = False
+                self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+            else:
+                self._reconnecting = False
+                self._reconnect_done.set()
+
+    async def _wait_for_reconnect(self) -> None:
+        """Hold a send until an in-flight reattach resolves.
+
+        Bounded so a stuck reconnect cannot wedge the input loop; on give-up the
+        caller hits the dead socket and reports the failure as usual.
+        """
+        deadline = time.monotonic() + _RECONNECT_GRACE_SECONDS + _RECONNECT_HANDSHAKE_TIMEOUT_SECONDS + 1.0
+        while self._reconnecting and time.monotonic() < deadline:
+            with contextlib.suppress(TimeoutError):
+                await asyncio.wait_for(self._reconnect_done.wait(), timeout=0.5)
+
+    async def _on_connection_lost(self) -> None:
+        """Give up on the server: surface it and unblock waiters."""
+        # Any drop recorded while this loop was running is moot now.
+        self._reconnect_pending = False
+        self._running = False
+        self._replay_complete.set()
+        self._connection_lost.set()
+        self._notify_state_changed()
+        self._release_op_futures()
+        await self._put_local_event(
+            events.ErrorEvent(
+                session_id=self._session_id,
+                error_message="Connection to klaude server lost. Reattach with: klaude attach " + self._session_id[:8],
+                can_retry=False,
+            )
+        )
+
+    async def _notify_reconnecting(self) -> None:
+        await self._put_local_event(
+            events.NoticeEvent(
+                session_id=self._session_id,
+                content="Connection to klaude server dropped; reattaching…",
+                is_error=False,
+            )
+        )
+
+    async def _put_local_event(self, event: events.Event) -> None:
+        with contextlib.suppress(Exception):
+            await self._display_queue.put(_local_envelope(event))
 
     async def _handle_frame(self, item: dict[str, Any]) -> None:
         if "event_type" in item:
@@ -399,7 +643,9 @@ class SocketRuntimeClient:
             await self._display_queue.put(_local_envelope(replay_event))
             return
         if frame_type == "replay_complete":
+            self._transcript_loaded = True
             self._replay_complete.set()
+            self._settle_handshake(ok=True)
             return
         if frame_type == "follow_ups_dequeued":
             texts = tuple(str(t) for t in item.get("texts", []))
@@ -410,6 +656,9 @@ class SocketRuntimeClient:
             message = str(item.get("message", "server error"))
             code = str(item.get("code", ""))
             log_debug(f"[client] server error frame code={code}: {message}", debug_type=DebugType.EXECUTION)
+            if code in _FATAL_ATTACH_ERROR_CODES:
+                self._attach_fatal = True
+                self._settle_handshake(ok=False)
             await self._display_queue.put(
                 _local_envelope(events.ErrorEvent(session_id=self._session_id, error_message=message, can_retry=False))
             )
@@ -432,6 +681,14 @@ class SocketRuntimeClient:
         fingerprint_matches = server_fingerprint == local_fingerprint
         if protocol_matches and fingerprint_matches:
             return
+        # A mismatch means this server runs code the client cannot talk to (the
+        # local fingerprint is cached per process). Only a reattach gives up:
+        # an initial attach often lands on a server still awaiting its reload
+        # (an auto-reload is refused while a session is busy), and that server
+        # will restart onto matching code later.
+        self._settle_handshake(ok=False)
+        if self._reconnecting:
+            self._attach_fatal = True
         if not protocol_matches:
             detail = f"protocol server={server_protocol!r}, client={PROTOCOL_VERSION}"
         else:
