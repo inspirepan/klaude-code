@@ -17,7 +17,7 @@ from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.markdown import CodeBlock, Heading, ImageItem, ListItem, Markdown, MarkdownElement, TableElement
 from rich.panel import Panel
 from rich.segment import Segment
-from rich.style import StyleType
+from rich.style import Style, StyleType
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
@@ -30,6 +30,8 @@ from klaude_code.const import (
     MARKDOWN_STREAM_SYNCHRONIZED_OUTPUT_ENABLED,
     UI_REFRESH_RATE_FPS,
 )
+from klaude_code.tui.components.rich.mermaid import MermaidStyles
+from klaude_code.tui.components.rich.mermaid import render as render_mermaid
 
 _THINKING_HTML_BLOCK_RE = re.compile(
     r"\A\s*<thinking>\s*\n?(?P<body>.*?)(?:\n\s*)?</thinking>\s*\Z",
@@ -121,7 +123,64 @@ def _code_block_panel(console: Console, body: RenderableType, lang: str) -> Pane
     )
 
 
-class NoInsetCodeBlock(CodeBlock):
+def _mermaid_styles(console: Console) -> MermaidStyles:
+    def style(name: str) -> Style:
+        return console.get_style(name, default="none")
+
+    return MermaidStyles(
+        border=style("markdown.mermaid.border"),
+        node_text=style("markdown.mermaid.node"),
+        edge=style("markdown.mermaid.edge"),
+        edge_label=style("markdown.mermaid.edge.label"),
+        title=style("markdown.mermaid.title"),
+    )
+
+
+def _render_mermaid_block(console: Console, options: ConsoleOptions, code: str) -> Text | None:
+    """Draw a ```mermaid fence as box art; None when the block is blank or the renderer fails."""
+
+    try:
+        art = render_mermaid(code, _mermaid_styles(console), options.max_width)
+    except Exception:
+        return None
+    if art is None:
+        return None
+    lines = art.styled_lines
+    # Layout rounding can leave an empty first or last row; drop it.
+    while lines and not lines[0].plain.strip():
+        lines = lines[1:]
+    while lines and not lines[-1].plain.strip():
+        lines = lines[:-1]
+    if not lines:
+        return None
+    return Text("\n", no_wrap=True).join(lines)
+
+
+class MermaidAwareCodeBlock(CodeBlock):
+    """A code block that draws ```mermaid fences as box art once they are stable.
+
+    While the fence is still streaming (`live_tail`) it stays a plain code block,
+    so the diagram is laid out once when the block lands in scrollback instead of
+    on every live-area repaint.
+    """
+
+    live_tail: bool = False
+
+    @classmethod
+    def create(cls, markdown: Markdown, token: Token) -> MermaidAwareCodeBlock:
+        node_info = token.info or ""
+        lexer_name = node_info.partition(" ")[0]
+        block = cls(lexer_name or "text", markdown.code_theme)
+        block.live_tail = bool(getattr(markdown, "live_tail", False))
+        return block
+
+    def _mermaid_art(self, console: Console, options: ConsoleOptions, code: str) -> Text | None:
+        if self.lexer_name.lower() != "mermaid" or self.live_tail:
+            return None
+        return _render_mermaid_block(console, options, code)
+
+
+class NoInsetCodeBlock(MermaidAwareCodeBlock):
     """A code block with syntax highlighting, framed in a panel instead of ``` markers."""
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
@@ -129,6 +188,10 @@ class NoInsetCodeBlock(CodeBlock):
         # Skip empty code blocks — these appear in the live streaming area when only
         # the opening fence has arrived yet, producing a spurious empty block.
         if not code:
+            return
+        art = self._mermaid_art(console, options, code)
+        if art is not None:
+            yield art
             return
         try:
             body: RenderableType = Syntax(
@@ -144,12 +207,16 @@ class NoInsetCodeBlock(CodeBlock):
         yield _code_block_panel(console, body, self.lexer_name if self.lexer_name != "text" else "")
 
 
-class ThinkingCodeBlock(CodeBlock):
+class ThinkingCodeBlock(MermaidAwareCodeBlock):
     """A code block for thinking content, framed in a panel with no syntax highlighting."""
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         code = str(self.text).rstrip()
         if not code:
+            return
+        art = self._mermaid_art(console, options, code)
+        if art is not None:
+            yield art
             return
         body = Text(code, style="markdown.code.block")
         yield _code_block_panel(console, body, self.lexer_name if self.lexer_name != "text" else "")
@@ -289,13 +356,16 @@ class SectionIndentMarkdown(Markdown):
     Documents without a heading render exactly as Rich would.
 
     `inside_section` tells a partial render (the live tail of a stream) that a
-    heading already appeared in the part rendered before it.
+    heading already appeared in the part rendered before it. `live_tail` marks
+    that partial render itself; elements such as mermaid fences use it to skip
+    work that only pays off once the block is stable.
     """
 
-    def __init__(self, *args: Any, inside_section: bool = False, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, inside_section: bool = False, live_tail: bool = False, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         self.collected_images: list[tuple[str, str]] = []
         self._inside_section = inside_section
+        self.live_tail = live_tail
 
     def _render_segments(self, console: Console, options: ConsoleOptions) -> Iterator[Segment]:
         for item in super().__rich_console__(console, options):
@@ -675,13 +745,14 @@ class MarkdownStream:
         return stable_source + "\n\n<!-- -->"
 
     def _render_markdown_to_lines(
-        self, text: str, *, apply_mark: bool, inside_section: bool = False
+        self, text: str, *, apply_mark: bool, inside_section: bool = False, live_tail: bool = False
     ) -> tuple[list[str], list[tuple[str, str]]]:
         """Render markdown text to a list of lines.
 
         Args:
             text (str): Markdown text to render
             inside_section (bool): True when a heading appeared before this chunk
+            live_tail (bool): True when rendering the still-streaming last block
 
         Returns:
             tuple: (lines with line endings preserved, collected local image paths)
@@ -705,6 +776,7 @@ class MarkdownStream:
         markdown = self.markdown_class(
             self._normalize_ordered_list_local_image_spacing(text),
             inside_section=inside_section,
+            live_tail=live_tail,
             **self.mdargs,
         )
         temp_console.print(markdown)
@@ -862,6 +934,7 @@ class MarkdownStream:
                 live_source,
                 apply_mark=apply_mark_to_live,
                 inside_section=self._stable_has_heading,
+                live_tail=True,
             )
 
             if self._stable_rendered_lines:
