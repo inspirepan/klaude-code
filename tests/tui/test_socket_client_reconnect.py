@@ -259,16 +259,41 @@ def test_handshake_then_drop_still_runs_out_of_grace(monkeypatch: pytest.MonkeyP
     assert client._connection_lost.is_set()
 
 
-def test_code_mismatch_during_reattach_refuses_to_retry(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A server that restarted on code this client cannot talk to must not be
-    followed silently."""
+def test_code_mismatch_during_reattach_allows_same_protocol(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An old TUI can resume after a source update restarts the server."""
+    monkeypatch.setattr(update, "get_code_fingerprint", lambda: "git:mine")
+    _fast_retry(monkeypatch, grace=30.0)
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+    attempts = 0
+
+    async def fake_connect(*, resume: bool = False) -> None:
+        nonlocal attempts
+        attempts += 1
+        await client._check_server_code({"protocol_version": PROTOCOL_VERSION, "code_fingerprint": "git:other"})
+        assert not client._handshake_settled.is_set()
+        await client._handle_frame({"type": "replay_complete", "session_id": "session-id"})
+
+    monkeypatch.setattr(client, "_connect", fake_connect)
+
+    async def scenario() -> None:
+        client._schedule_reconnect()
+        assert client._reconnect_task is not None
+        await client._reconnect_task
+
+    asyncio.run(scenario())
+    assert attempts == 1
+    assert not client._attach_fatal
+    assert not client._connection_lost.is_set()
+    assert client._display_queue.empty()
+
+
+def test_protocol_mismatch_during_reattach_refuses_to_retry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(update, "get_code_fingerprint", lambda: "git:mine")
     _fast_retry(monkeypatch, grace=30.0)
     client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
 
     async def fake_connect(*, resume: bool = False) -> None:
-        # Stands in for a socket that connects and then reports incompatible code.
-        await client._check_server_code({"protocol_version": PROTOCOL_VERSION, "code_fingerprint": "git:other"})
+        await client._check_server_code({"protocol_version": PROTOCOL_VERSION + 1, "code_fingerprint": "git:other"})
 
     monkeypatch.setattr(client, "_connect", fake_connect)
 

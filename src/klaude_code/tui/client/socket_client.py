@@ -669,7 +669,7 @@ class SocketRuntimeClient:
         # Other frames need no client action.
 
     async def _check_server_code(self, item: dict[str, Any]) -> None:
-        """Compatibility handshake: show an error notice for any mismatch."""
+        """Reject incompatible protocols and report stale server code."""
         from klaude_code.update import get_code_fingerprint
 
         server_protocol = item.get("protocol_version")
@@ -679,15 +679,17 @@ class SocketRuntimeClient:
         local_fingerprint = get_code_fingerprint()
         protocol_matches = is_protocol_compatible(server_protocol)
         fingerprint_matches = server_fingerprint == local_fingerprint
-        if protocol_matches and fingerprint_matches:
+        if protocol_matches and (fingerprint_matches or self._reconnecting):
+            # A fingerprint change is expected when an old TUI reconnects after
+            # a source update restarted the server. The protocol version owns
+            # wire compatibility, so let the resume handshake finish.
             return
-        # A mismatch means this server runs code the client cannot talk to (the
-        # local fingerprint is cached per process). Only a reattach gives up:
-        # an initial attach often lands on a server still awaiting its reload
-        # (an auto-reload is refused while a session is busy), and that server
-        # will restart onto matching code later.
-        self._settle_handshake(ok=False)
-        if self._reconnecting:
+        # A protocol mismatch means this client cannot safely consume frames
+        # from the restarted server. A fingerprint mismatch on initial attach
+        # only warns: the stale server may reload once its busy sessions finish.
+        if not protocol_matches:
+            self._settle_handshake(ok=False)
+        if self._reconnecting and not protocol_matches:
             self._attach_fatal = True
         if not protocol_matches:
             detail = f"protocol server={server_protocol!r}, client={PROTOCOL_VERSION}"
