@@ -48,8 +48,9 @@ _LOCAL_IMAGE_MARKDOWN_LINE_RE = re.compile(r"^\s*!\[[^\]]*\]\((?P<path>/[^)]+)\)
 # SectionIndentMarkdown can tell heading lines from body lines once the document
 # has been rendered to segments. It is stripped before anything is yielded.
 _HEADING_STAMP = "​"
-# Bullet hung off each heading, mirroring the mark on the message as a whole.
-HEADING_MARK = "●"
+# Marker hung off each heading. The right-pointing triangle separates a section
+# mark from the round mark on the message as a whole.
+HEADING_MARK = "▶"
 SECTION_INDENT = 2
 
 
