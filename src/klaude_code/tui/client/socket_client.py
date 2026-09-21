@@ -119,6 +119,9 @@ class SocketRuntimeClient:
         # connection has stayed up long enough to count as a real recovery.
         self._reconnected_at: float | None = None
         self._reconnect_pending = False
+        # A "dropped; reattaching…" notice is on screen without its resolution
+        # yet. The loop can be restarted by a flap, so this cannot be a local.
+        self._reconnect_notice_shown = False
         # A turn was streaming when the socket died: the reattach must settle the
         # display itself, because that turn's TaskFinish will never arrive.
         self._dropped_mid_turn = False
@@ -233,6 +236,7 @@ class SocketRuntimeClient:
         self._reconnect_deadline = None
         self._reconnected_at = None
         self._reconnect_pending = False
+        self._reconnect_notice_shown = False
         self._dropped_mid_turn = False
         # Stale swallows must not eat user messages replayed by the new attach.
         self._pending_echo_swallows.clear()
@@ -503,7 +507,6 @@ class SocketRuntimeClient:
 
     async def _reconnect_loop(self) -> None:
         started = time.monotonic()
-        notified = False
         try:
             while not self._closed and not self._attach_fatal:
                 deadline = self._reconnect_deadline
@@ -512,8 +515,7 @@ class SocketRuntimeClient:
                 await asyncio.sleep(_RECONNECT_INTERVAL_SECONDS)
                 if self._closed:
                     return
-                if not notified and time.monotonic() - started >= _RECONNECT_NOTICE_DELAY_SECONDS:
-                    notified = True
+                if not self._reconnect_notice_shown and time.monotonic() - started >= _RECONNECT_NOTICE_DELAY_SECONDS:
                     await self._notify_reconnecting()
                 try:
                     # Without a transcript there is nothing to skip, so an
@@ -533,6 +535,7 @@ class SocketRuntimeClient:
                     # Do not clear the window here: a socket that dies right
                     # after the handshake would otherwise buy a new one.
                     self._reconnected_at = time.monotonic()
+                    await self._notify_reconnected()
                     if self._dropped_mid_turn and not self._running:
                         # The server's state snapshot says the turn is over, so
                         # its TaskFinish will never arrive: settle the display or
@@ -579,8 +582,10 @@ class SocketRuntimeClient:
 
     async def _on_connection_lost(self) -> None:
         """Give up on the server: surface it and unblock waiters."""
-        # Any drop recorded while this loop was running is moot now.
+        # Any drop recorded while this loop was running is moot now, and the
+        # error below replaces the reattach notice it was waiting to resolve.
         self._reconnect_pending = False
+        self._reconnect_notice_shown = False
         self._running = False
         self._replay_complete.set()
         self._connection_lost.set()
@@ -595,10 +600,28 @@ class SocketRuntimeClient:
         )
 
     async def _notify_reconnecting(self) -> None:
+        self._reconnect_notice_shown = True
         await self._put_local_event(
             events.NoticeEvent(
                 session_id=self._session_id,
                 content="Connection to klaude server dropped; reattaching…",
+                is_error=False,
+            )
+        )
+
+    async def _notify_reconnected(self) -> None:
+        """Resolve the reattach notice once the attach handshake completes.
+
+        A recovery that was never announced stays quiet: a brief outage is not
+        worth a scrollback line either.
+        """
+        if not self._reconnect_notice_shown:
+            return
+        self._reconnect_notice_shown = False
+        await self._put_local_event(
+            events.NoticeEvent(
+                session_id=self._session_id,
+                content="Connection to klaude server restored.",
                 is_error=False,
             )
         )

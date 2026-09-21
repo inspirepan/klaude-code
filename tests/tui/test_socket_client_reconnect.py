@@ -155,6 +155,105 @@ def test_reattach_gives_up_after_grace_and_reports_connection_lost(monkeypatch: 
     assert "Connection to klaude server lost" in error.error_message
 
 
+def test_announced_outage_reports_its_recovery(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An outage long enough to be announced must also report that it ended:
+    otherwise the transcript is left on a "reattaching…" line forever."""
+    _fast_retry(monkeypatch, grace=5.0, notice_delay=0.05)
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+    attempts = 0
+
+    async def fake_connect(*, resume: bool = False) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            # Slow enough that the outage outlives the notice delay.
+            await asyncio.sleep(0.05)
+            raise OSError("server socket is gone")
+        client._handshake_ok = True
+        client._handshake_settled.set()
+
+    monkeypatch.setattr(client, "_connect", fake_connect)
+
+    async def scenario() -> list[events.Event]:
+        client._schedule_reconnect()
+        assert client._reconnect_task is not None
+        await client._reconnect_task
+        return _surfaced_events(client)
+
+    surfaced = asyncio.run(scenario())
+
+    notices = [event.content for event in surfaced if isinstance(event, events.NoticeEvent)]
+    assert notices == [
+        "Connection to klaude server dropped; reattaching…",
+        "Connection to klaude server restored.",
+    ]
+    assert client._reconnect_notice_shown is False
+
+
+def test_quiet_reattach_leaves_the_transcript_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A reattach inside the notice delay stays invisible: no drop line, and so
+    no recovery line either."""
+    _fast_retry(monkeypatch, grace=5.0, notice_delay=60.0)
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+
+    async def fake_connect(*, resume: bool = False) -> None:
+        client._handshake_ok = True
+        client._handshake_settled.set()
+
+    monkeypatch.setattr(client, "_connect", fake_connect)
+
+    async def scenario() -> None:
+        client._schedule_reconnect()
+        assert client._reconnect_task is not None
+        await client._reconnect_task
+
+    asyncio.run(scenario())
+    assert _surfaced_events(client) == []
+
+
+def test_a_flap_after_a_recovery_announces_a_new_outage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The loop hands over to a fresh one when the socket it just recovered on
+    dies immediately. The recovery line already closed the previous notice, so
+    the new outage announces itself instead of leaving the transcript on an
+    unresolved "reattaching…" line."""
+    _fast_retry(monkeypatch, grace=5.0, notice_delay=0.0)
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+    attempts = 0
+
+    async def fake_connect(*, resume: bool = False) -> None:
+        nonlocal attempts
+        attempts += 1
+        client._handshake_ok = True
+        client._handshake_settled.set()
+        if attempts == 1:
+            # The socket this loop just recovered on dies before it can return,
+            # which is what makes the loop restore the reattach.
+            client._reconnect_pending = True
+
+    monkeypatch.setattr(client, "_connect", fake_connect)
+
+    async def scenario() -> list[events.Event]:
+        client._schedule_reconnect()
+        for _ in range(5):
+            task = client._reconnect_task
+            if task is None:
+                break
+            await task
+        return _surfaced_events(client)
+
+    surfaced = asyncio.run(scenario())
+
+    notices = [event.content for event in surfaced if isinstance(event, events.NoticeEvent)]
+    assert notices == [
+        "Connection to klaude server dropped; reattaching…",
+        "Connection to klaude server restored.",
+        "Connection to klaude server dropped; reattaching…",
+        "Connection to klaude server restored.",
+    ]
+    assert attempts == 2
+    assert not client._connection_lost.is_set()
+
+
 def test_send_waits_out_an_inflight_reattach() -> None:
     """A submit that lands during the restart window waits for the reattach
     instead of failing on the dead socket and detaching the TUI."""
