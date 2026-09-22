@@ -9,8 +9,8 @@ def test_prompt_cache_payload_uses_ttl_for_gpt56() -> None:
 
 
 def test_prompt_cache_payload_uses_ttl_for_gpt6() -> None:
-    assert build_prompt_cache_payload("gpt-6-astra", None) == {"prompt_cache_options": {"ttl": "30m"}}
-    assert build_prompt_cache_payload("gpt-6-astra:max", None) == {"prompt_cache_options": {"ttl": "30m"}}
+    for model_id in ("gpt-6-astra", "gpt-6-astra:max", "gpt-6-sol", "gpt-6-luna:max"):
+        assert build_prompt_cache_payload(model_id, None) == {"prompt_cache_options": {"ttl": "30m"}}
 
 
 def test_prompt_cache_payload_uses_retention_for_older_gpt() -> None:

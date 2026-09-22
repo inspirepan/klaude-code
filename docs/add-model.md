@@ -20,17 +20,25 @@
 
 ---
 
-## 1. 版本升级：bump `model_id`，不要改 `model_name`
+## 1. 升级：`model_name` 跟上游走，不留旧名别名
 
-**`model_name` 是对外稳定名，`model_id` 是发给上游的真实 ID。** 两者的分工决定了升级的做法：
+`model_id` 是发给上游的真实 ID，`model_name` 是选择器。上游换名（新代际把版本号写进名字就是换名）就**连 `model_name` 一起换**，`model_id` 与之一致：
 
 ```yaml
-- model_name: gemini-flash # 稳定名，不动
-  model_alias: [gemini-3.8-flash, gemini-3.7-flash, gemini-3.6-flash, gemini-flash-latest]
-  model_id: gemini-3.8-flash # 升级只动这里
+- model_name: gpt-6-sol # 上一次叫 gpt-5.6-sol
+  model_id: gpt-6-sol
 ```
 
-`model_name` 出现在用户的 `main_model` / `fast_model` / `compact_model` / `sub_agent_models` 里，也出现在 README 的示例里。改掉它等于让所有既有配置失效；而把旧的具体版本号留在 `model_alias` 里，旧配置和肌肉记忆都会解析到新版本。Gemini Flash 的 3.6 → 3.7 → 3.8 都是这么做的。
+**旧名字不写进 `model_alias`。** 这里没有兼容层：留着旧名只会让选择器里同时出现新旧两个名字，而真正写旧名的配置该由用户自己改。`model_alias` 只放**当前这个模型**的等价写法：
+
+| 可以放                                 | 不要放                                            |
+| -------------------------------------- | ------------------------------------------------- |
+| 上游全称（`claude-sonnet-5`）          | 上一个模型名（`gpt-5.6-sol`）                     |
+| 习惯简写（`sonnet5`、`dsf`、`astra`）  | 上一版上游名（`claude-fable-5`、`gemini-3.7-flash`） |
+| 官方 `-latest`（`gemini-flash-latest`） | 同一条目的历史档位变体（`gemini-3.7-flash:low`）  |
+| 同义档位名（`gemini-flash:minimal` → `:low`） |                                            |
+
+名字里不含版本的角色名（`opus` / `sonnet` / `haiku` / `gemini-flash` / `kimi`）不换名，升级只动 `model_id`；但别名表要一起收干净，换版本时删掉上一版的写法。
 
 真正需要**新增条目**的只有两种：模型定位不同（如 flash 与 flash-lite），或需要与旧版本长期并存对比。并存意味着两条目、两份价格、两处后续维护，默认不要选它。
 
@@ -54,7 +62,7 @@
 | 字段              | 说明                                                                       |
 | ----------------- | -------------------------------------------------------------------------- |
 | `model_name`      | 稳定选择名。同名可在多个 provider 下重复，解析规则见第 4 步                |
-| `model_alias`     | 别名列表，含旧版本号、上游全称、习惯简写                                   |
+| `model_alias`     | 别名列表：上游全称、习惯简写、官方 `-latest`；不写旧版本名（见第 1 步）    |
 | `model_id`        | 发给上游的真实 ID（OpenRouter 要带 `google/` 这类前缀）                    |
 | `context_limit`   | 上下文窗口，驱动 compact 时机                                              |
 | `max_tokens`      | 单次最大输出                                                               |
@@ -91,7 +99,7 @@
 
 两个坑：
 
-- **上游停止支持某个档位时，用别名兜住旧名字**，不要直接删条目——用户配置里写着 `gemini-flash:minimal` 的会变成"未知模型"。Gemini 3.7 / 3.8 Flash 拒绝 `minimal`，所以 `:minimal` 是 `:low` 的别名。
+- **上游停用某个档位名时，把它挂成同档位条目的别名**（Gemini 3.7 / 3.8 Flash 拒绝 `minimal`，所以 `:minimal` 是 `:low` 的别名）：同一个模型、同一个档位的另一种写法，属于第 1 步允许的别名。换代换的是模型名，那时不回头补旧名。
 - 锚点（`&name` / `*name`）只在同一个 YAML 文档内有效，且**复制的是整条包括 `model_id`**。跨 provider 复用时确认这几个 provider 用的是同一个上游 ID（OpenRouter 的带前缀 ID 就不能复用）。
 
 ---
@@ -151,4 +159,4 @@ make pre-push   # format + lint + test + build，AGENTS.md 要求推送前必须
 
 ## 附：Gemini 3.8 Flash 的实际改动（2026-09-03，可作模板）
 
-只改了 `builtin_config.yaml`：`youtu-gemini` / `google` / `google-vertex` / `openrouter`（`google/` 前缀）四个 provider 下的 `gemini-flash` 及其档位条目，`model_id` 全部指向 `gemini-3.8-flash`（`youtu-gemini` 有 `:low` / `:high` 两档，其余 provider 只有 `:low`，`google-vertex` 经锚点复用 `google` 的定义）。别名表补 `gemini-3.8-flash` 及各档位变体，旧版本号继续作为别名解析到新模型。价格与 3.7 Flash 同为 Google 推广价，2027-01-01 起恢复 $1.50 / $7.50 / $0.15。
+只改了 `builtin_config.yaml`：`youtu-gemini` / `google` / `google-vertex` / `openrouter`（`google/` 前缀）四个 provider 下的 `gemini-flash` 及其档位条目，`model_id` 全部指向 `gemini-3.8-flash`（`youtu-gemini` 有 `:low` / `:high` 两档，其余 provider 只有 `:low`，`google-vertex` 经锚点复用 `google` 的定义）。别名表只放 `gemini-3.8-flash` 及各档位变体，3.6 / 3.7 的旧名不保留。价格与 3.7 Flash 同为 Google 推广价，2027-01-01 起恢复 $1.50 / $7.50 / $0.15。

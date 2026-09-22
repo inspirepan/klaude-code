@@ -160,7 +160,11 @@ def test_bedrock_request_keeps_non_opus47_temperature_and_interleaved_beta() -> 
 
 @pytest.mark.parametrize(
     "model_id",
-    ["global.anthropic.claude-opus-4-8", "global.anthropic.claude-opus-5"],
+    [
+        "global.anthropic.claude-opus-4-8",
+        "global.anthropic.claude-opus-5",
+        "global.anthropic.claude-opus-5-5",
+    ],
 )
 def test_bedrock_request_omits_temperature_for_new_opus_models(model_id: str) -> None:
     param = llm_param.LLMCallParameter(

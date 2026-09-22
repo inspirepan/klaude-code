@@ -15,13 +15,15 @@ def _reasoning(model_id: str, effort: str) -> dict[str, Any]:
 
 def test_gpt6_lifts_efforts_it_no_longer_accepts() -> None:
     # GPT-6 dropped none/minimal; sending either returns a 400 upstream.
-    assert _reasoning("gpt-6-astra", "minimal")["effort"] == "low"
-    assert _reasoning("gpt-6-astra", "none")["effort"] == "low"
+    for model_id in ("gpt-6-astra", "gpt-6-sol", "gpt-6-luna"):
+        assert _reasoning(model_id, "minimal")["effort"] == "low"
+        assert _reasoning(model_id, "none")["effort"] == "low"
 
 
 def test_gpt6_passes_supported_efforts_through() -> None:
-    for effort in ("low", "medium", "high", "xhigh", "max"):
-        assert _reasoning("gpt-6-astra", effort)["effort"] == effort
+    for model_id in ("gpt-6-astra", "gpt-6-sol", "gpt-6-luna"):
+        for effort in ("low", "medium", "high", "xhigh", "max"):
+            assert _reasoning(model_id, effort)["effort"] == effort
 
 
 def test_gpt56_keeps_its_own_effort_range() -> None:

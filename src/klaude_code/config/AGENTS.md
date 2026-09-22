@@ -5,10 +5,11 @@
 Follow the checklist in [`docs/add-model.md`](../../../docs/add-model.md). It covers the field
 reference, thinking-tier naming, provider resolution order, pricing, and verification.
 
-The rule that governs most edits: `model_name` is the stable public selector (it appears in user
-configs, `sub_agent_models`, and README examples), while `model_id` is the real upstream id. Upgrade
-a model line by bumping `model_id` and moving the old version number into `model_alias` — never by
-renaming `model_name`.
+The rule that governs most edits: `model_id` is the real upstream id, `model_name` is the selector.
+Follow the upstream name — when a new version changes it (a generation that writes its version into
+the name, e.g. `gpt-5.6-sol` → `gpt-6-sol`), rename `model_name` to match. `model_alias` lists only
+equivalent spellings of the *current* model (upstream full name, habitual shorthand, `-latest`);
+previous names and previous ids are not kept as aliases, so old selectors stop resolving.
 
 ## Builtin Config Is Asset-Loaded
 

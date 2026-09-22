@@ -34,7 +34,7 @@ def test_builtin_keeps_other_models_vision_capable() -> None:
     assert _find_model("deepseek", "deepseek-flash").supports_vision is True
     assert _find_model("opencode-go", "deepseek-flash").supports_vision is True
     assert _find_model("anthropic", "sonnet").supports_vision is True
-    assert _find_model("openai", "gpt-5.6-luna").supports_vision is True
+    assert _find_model("openai", "gpt-6-luna").supports_vision is True
 
 
 def test_user_config_can_override_supports_vision_both_ways() -> None:

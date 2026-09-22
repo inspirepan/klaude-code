@@ -192,7 +192,15 @@ def supports_prompt_cache_options_ttl(model_name: str | None) -> bool:
         model_lower = model_lower.split(":", 1)[0]
     # Official rule: GPT-5.6 and later take prompt_cache_options.ttl; older
     # generations take the legacy prompt_cache_retention instead.
-    return model_lower in {"gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-6-astra"}
+    return model_lower in {
+        "gpt-5.6",
+        "gpt-5.6-sol",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna",
+        "gpt-6-astra",
+        "gpt-6-sol",
+        "gpt-6-luna",
+    }
 
 
 # -- Google --------------------------------------------------------------------

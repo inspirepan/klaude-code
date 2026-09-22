@@ -28,7 +28,12 @@ def test_openrouter_client_sets_user_agent(monkeypatch: pytest.MonkeyPatch) -> N
 
 @pytest.mark.parametrize(
     "model_id",
-    ["anthropic/claude-opus-4.7", "anthropic/claude-opus-4.8", "anthropic/claude-opus-5"],
+    [
+        "anthropic/claude-opus-4.7",
+        "anthropic/claude-opus-4.8",
+        "anthropic/claude-opus-5",
+        "anthropic/claude-opus-5.5",
+    ],
 )
 def test_build_payload_omits_temperature_for_new_opus_models(model_id: str) -> None:
     param = llm_param.LLMCallParameter(

@@ -199,7 +199,7 @@ Options:
 `--agent` 的实现注意点（对照现有 sub-agent 机制）：
 
 1. **不要标记 `sub_agent_state`**。sub-agent 会话的 meta 带 `sub_agent_state`，且被会话索引过滤（`server/session_index.py`）。`run --agent` 创建的是**顶层会话**，使用 `agent_type` 供 `ps` 展示，而不是复用 `sub_agent_state`。
-2. **模型绑定**。默认模型取 profile 的绑定（`config/sub_agent_model.py` 的 `SubAgentModelResolver`，即 `klaude agents` 中 `gpt-5.6-luna (finder)` 这类标注），`-m` 可覆盖。
+2. **模型绑定**。默认模型取 profile 的绑定（`config/sub_agent_model.py` 的 `SubAgentModelResolver`，即 `klaude agents` 中 `gpt-6-luna (finder)` 这类标注），`-m` 可覆盖。
 3. **`fork_context` 型 profile**（继承父会话上下文的类型）standalone 运行时没有父会话可 fork，按空上下文启动；stdin 管道（如 `git diff |`）是它们获得输入材料的方式。
 
 ### 4.2 `klaude ps`
@@ -468,7 +468,7 @@ Commands:
 理由：
 
 1. `--help` 是形状（shape）的规格：参数、语义、退出码，应当稳定、可离线、瞬时返回。配置清单会随环境漂移，放进 help 会让「help 即产品文档」失去确定性。动态组装的诉求由 `--prime` 承接——它就是给 Agent 看的、每次现场生成的产品文档，相当于把 Claude Code 系统提示里 Task 工具那段说明变成 klaude 自己能打印的东西。
-2. 一个发现命令比三个（list / agents / prime）发现成本低：Agent 只需要记住「不知道什么就 `klaude agents`」。models 和 agent types 本来就交织在一起（模型别名上标着 agent 绑定，如 `gpt-5.6-luna (finder)`），拆成两个命令反而要交叉引用。
+2. 一个发现命令比三个（list / agents / prime）发现成本低：Agent 只需要记住「不知道什么就 `klaude agents`」。models 和 agent types 本来就交织在一起（模型别名上标着 agent 绑定，如 `gpt-6-luna (finder)`），拆成两个命令反而要交叉引用。
 3. 折中保留：`run --help` 的 epilog 可以追加一行 `Currently configured: 23 model aliases, 5 agent types — see 'klaude agents'`（读本地配置，便宜且不破坏稳定性）。
 
 ---

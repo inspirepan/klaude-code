@@ -726,7 +726,9 @@ class TestConfig:
         model = next(model for model in provider.model_list if model.model_name == "opus:max")
 
         assert model.effort == "max"
-        assert {"opus-5:max", "opus:xhigh", "opus-5:xhigh"}.issubset(model.model_alias)
+        assert {"opus-5-5:max", "opus:xhigh"}.issubset(model.model_alias)
+        # Aliases name the current model only; the previous version is not kept.
+        assert not {"opus-5:max", "opus-5:xhigh", "claude-opus-5:max"}.intersection(model.model_alias)
 
 
 class TestDiagnoseModel:
