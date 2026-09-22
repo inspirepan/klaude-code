@@ -319,7 +319,7 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
         return self.get_resolved_api_key() is None
 
 
-WebSearchProviderName = Literal["exa", "brave", "deepseek", "openai"]
+WebSearchProviderName = Literal["parallel", "exa", "brave", "deepseek", "openai"]
 
 
 class WebSearchProviderConfig(BaseModel):
@@ -344,6 +344,7 @@ def default_web_search_config() -> WebSearchConfig:
     """Builtin web search defaults. Mirrors the ``web_search`` section of builtin_config.yaml."""
     return WebSearchConfig(
         providers=[
+            WebSearchProviderConfig(provider="parallel", api_key="${PARALLEL_API_KEY}"),
             WebSearchProviderConfig(provider="exa", api_key="${EXA_API_KEY}"),
             WebSearchProviderConfig(provider="brave", api_key="${BRAVE_API_KEY}"),
             WebSearchProviderConfig(

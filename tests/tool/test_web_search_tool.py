@@ -43,7 +43,13 @@ def _clean_search_env(isolated_home: Path) -> Iterator[None]:  # pyright: ignore
     with (
         patch.dict(
             os.environ,
-            {"EXA_API_KEY": "", "BRAVE_API_KEY": "", "DEEPSEEK_API_KEY": "", "OPENAI_API_KEY": ""},
+            {
+                "PARALLEL_API_KEY": "",
+                "EXA_API_KEY": "",
+                "BRAVE_API_KEY": "",
+                "DEEPSEEK_API_KEY": "",
+                "OPENAI_API_KEY": "",
+            },
         ),
         patch("klaude_code.config.config.get_auth_env", return_value=None),
     ):
@@ -141,6 +147,7 @@ class TestProviderChainResolution:
         result = _run(_exa_brave_config(), "missing key")
         assert result.status == "error"
         assert result.output_text is not None
+        assert "PARALLEL_API_KEY" in result.output_text
         assert "EXA_API_KEY" in result.output_text
         assert "BRAVE_API_KEY" in result.output_text
         assert "DEEPSEEK_API_KEY" in result.output_text
@@ -171,6 +178,23 @@ class TestProviderChainResolution:
         assert result.status == "success"
         mock_search_exa.assert_called_once()
         assert mock_search_exa.call_args.args[2] == "exa-env-key"
+
+    def test_parallel_precedes_exa_by_config_order(self) -> None:
+        config = _config_with(
+            WebSearchProviderConfig(provider="parallel", api_key="${PARALLEL_API_KEY}"),
+            WebSearchProviderConfig(provider="exa", api_key="${EXA_API_KEY}"),
+        )
+        with (
+            patch.dict(os.environ, {"PARALLEL_API_KEY": "parallel-key", "EXA_API_KEY": "exa-key"}),
+            patch("klaude_code.tool.web.web_search_tool._search_parallel", side_effect=_fake_search) as mock_parallel,
+            patch("klaude_code.tool.web.web_search_tool._search_exa", side_effect=_fake_search) as mock_exa,
+        ):
+            result = _run(config, "parallel first by config order")
+
+        assert result.status == "success"
+        mock_parallel.assert_called_once()
+        assert mock_parallel.call_args.args[2] == "parallel-key"
+        mock_exa.assert_not_called()
 
     def test_config_order_defines_priority(self) -> None:
         config = _config_with(

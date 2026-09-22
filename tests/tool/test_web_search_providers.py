@@ -20,6 +20,8 @@ from klaude_code.tool.web.web_search_tool import (
     _format_results,  # pyright: ignore[reportPrivateUsage]
     _parse_deepseek_response,  # pyright: ignore[reportPrivateUsage]
     _parse_openai_response,  # pyright: ignore[reportPrivateUsage]
+    _parse_parallel_response,  # pyright: ignore[reportPrivateUsage]
+    _search_parallel,  # pyright: ignore[reportPrivateUsage]
 )
 
 
@@ -164,6 +166,81 @@ class TestOpenAIParsing:
         }
         with pytest.raises(SearchProviderError):
             _parse_openai_response(payload, 10)
+
+
+def _parallel_payload() -> dict[str, Any]:
+    return {
+        "search_id": "search_1",
+        "results": [
+            {
+                "url": "https://a.com/1",
+                "title": "A",
+                "publish_date": "2026-08-01",
+                "excerpts": ["first excerpt", "second excerpt"],
+            },
+            {"url": "https://b.com/2", "title": None, "publish_date": None, "excerpts": []},
+            {"url": "", "title": "no url, skipped", "excerpts": ["x"]},
+        ],
+    }
+
+
+class TestParallelParsing:
+    def test_joins_excerpts_and_reads_publish_date(self) -> None:
+        outcome = _parse_parallel_response(_parallel_payload(), 10)
+
+        # Parallel returns excerpts only, never a generated answer.
+        assert outcome.answer is None
+        assert len(outcome.results) == 2
+
+        first, second = outcome.results
+        assert first.url == "https://a.com/1"
+        assert first.title == "A"
+        assert first.snippet == "first excerpt\nsecond excerpt"
+        assert first.published == "2026-08-01"
+        assert first.position == 1
+
+        assert second.url == "https://b.com/2"
+        assert second.title == ""
+        assert second.snippet == ""
+        assert second.published is None
+        assert second.position == 2
+
+    def test_truncates_and_repositions(self) -> None:
+        outcome = _parse_parallel_response(_parallel_payload(), 1)
+        assert len(outcome.results) == 1
+        assert outcome.results[0].position == 1
+
+    def test_no_results_is_an_error(self) -> None:
+        with pytest.raises(SearchProviderError):
+            _parse_parallel_response({"results": []}, 10)
+
+    def test_snippet_length_capped(self) -> None:
+        payload = {"results": [{"url": "https://a.com", "excerpts": ["x" * (WEB_SEARCH_SNIPPET_MAX_CHARS + 100)]}]}
+        outcome = _parse_parallel_response(payload, 10)
+        assert len(outcome.results[0].snippet) == WEB_SEARCH_SNIPPET_MAX_CHARS
+
+
+class TestParallelRequest:
+    def test_uses_fast_mode_and_x_api_key_header(self) -> None:
+        captured: dict[str, Any] = {}
+
+        def _capture(req: Any, _timeout: int) -> dict[str, Any]:
+            captured["url"] = req.full_url
+            captured["headers"] = req.headers
+            captured["body"] = json.loads(req.data)
+            return _parallel_payload()
+
+        with patch.object(web_search_tool, "_fetch_json", side_effect=_capture):
+            _search_parallel("rust async runtimes", 5, "parallel-key")
+
+        assert captured["url"] == "https://api.parallel.ai/v1/search"
+        assert captured["headers"]["X-api-key"] == "parallel-key"
+        assert captured["body"] == {
+            "mode": "fast",
+            "objective": "rust async runtimes",
+            "search_queries": ["rust async runtimes"],
+            "advanced_settings": {"max_results": 5},
+        }
 
 
 class TestFormatResults:

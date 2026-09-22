@@ -129,7 +129,8 @@ export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models
 export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
 export MINIMAX_API_KEY=xxx               # MiniMax models
 export GOOGLE_API_KEY=xxx                # Google Gemini models (or GEMINI_API_KEY)
-export EXA_API_KEY=exa-xxx               # Exa Search (optional, WebSearch provider, preferred)
+export PARALLEL_API_KEY=xxx              # Parallel Search (optional, WebSearch provider, preferred)
+export EXA_API_KEY=exa-xxx               # Exa Search (optional, WebSearch provider, fallback)
 export BRAVE_API_KEY=BSA-xxx             # Brave Search (optional, WebSearch provider, fallback)
 
 # Then just run:

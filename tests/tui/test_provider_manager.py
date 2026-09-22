@@ -57,6 +57,7 @@ class TestBuildSearchProviderStates:
         assert [(s.name, s.enabled) for s in states] == [
             ("openai", True),
             ("brave", True),
+            ("parallel", False),
             ("exa", False),
             ("deepseek", False),
         ]
@@ -68,11 +69,12 @@ class TestBuildSearchProviderStates:
             "klaude_code.tui.command.provider_manager.resolve_api_key",
             lambda value: "key" if value == "${BRAVE_API_KEY}" else None,
         )
-        config = Config()  # default chain: exa > brave > deepseek > openai
+        config = Config()  # default chain: parallel > exa > brave > deepseek > openai
 
         states = provider_manager.build_search_provider_states(config)
 
         assert [(s.name, s.has_api_key) for s in states] == [
+            ("parallel", False),
             ("exa", False),
             ("brave", True),
             ("deepseek", False),
@@ -107,7 +109,7 @@ class TestBuildWebSearchConfig:
 
         result = provider_manager.build_web_search_config(config, ["exa", "brave"])
 
-        builtin_exa = default_web_search_config().providers[0]
+        builtin_exa = next(p for p in default_web_search_config().providers if p.provider == "exa")
         assert result.providers[0].provider == "exa"
         assert result.providers[0].api_key == builtin_exa.api_key
 

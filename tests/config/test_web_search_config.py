@@ -26,7 +26,7 @@ class TestBuiltinDefaults:
 
     def test_default_chain_order(self) -> None:
         providers = [p.provider for p in default_web_search_config().providers]
-        assert providers == ["exa", "brave", "deepseek", "openai"]
+        assert providers == ["parallel", "exa", "brave", "deepseek", "openai"]
 
 
 class TestWebSearchMerge:

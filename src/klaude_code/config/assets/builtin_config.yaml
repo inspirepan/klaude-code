@@ -1216,6 +1216,10 @@ provider_list:
 # of an entry inherit from the builtin entry of the same provider.
 web_search:
   providers:
+  # Dedicated search API (POST https://api.parallel.ai/v1/search) run in `fast`
+  # mode; excerpts come back ranked and pre-sized for the model.
+  - provider: parallel
+    api_key: ${PARALLEL_API_KEY}
   - provider: exa
     api_key: ${EXA_API_KEY}
   - provider: brave

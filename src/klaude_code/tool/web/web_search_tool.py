@@ -31,6 +31,9 @@ from klaude_code.tool.web.web_cache import get_cached, make_cache_key, set_cache
 
 _BRAVE_LLM_CONTEXT_URL = "https://api.search.brave.com/res/v1/llm/context"
 _EXA_SEARCH_URL = "https://api.exa.ai/search"
+_PARALLEL_SEARCH_URL = "https://api.parallel.ai/v1/search"
+# Fast mode: high-quality results in about 700ms, the recommended default for agents.
+_PARALLEL_SEARCH_MODE = "fast"
 _SEARCH_API_TIMEOUT_SEC = 30
 
 
@@ -111,8 +114,14 @@ def _fetch_json(req: urllib.request.Request, timeout: int) -> dict[str, Any]:
     return data
 
 
+def _cap_snippet(text: str) -> str:
+    if len(text) <= WEB_SEARCH_SNIPPET_MAX_CHARS:
+        return text
+    return text[: WEB_SEARCH_SNIPPET_MAX_CHARS - 1] + "…"
+
+
 # ---------------------------------------------------------------------------
-# Brave / Exa: dedicated search APIs
+# Brave / Exa / Parallel: dedicated search APIs
 # ---------------------------------------------------------------------------
 
 
@@ -190,15 +199,63 @@ def _search_exa(query: str, max_results: int, api_key: str) -> SearchOutcome:
     return SearchOutcome(results=_parse_exa_response(data))
 
 
+def _parse_parallel_response(data: dict[str, Any], max_results: int) -> SearchOutcome:
+    """Parse a Parallel Search response into a SearchOutcome.
+
+    Each result carries ranked, model-sized excerpts and no generated answer.
+    Absence of results is an error, never a prose-scraping fallback.
+    """
+    items: list[dict[str, Any]] = data.get("results") or []
+
+    results: list[SearchResult] = []
+    for item in items:
+        item_url: str = item.get("url", "")
+        if not item_url:
+            continue
+        excerpts = [e for e in item.get("excerpts") or [] if isinstance(e, str)]
+        results.append(
+            SearchResult(
+                title=item.get("title") or "",
+                url=item_url,
+                snippet=_cap_snippet("\n".join(excerpts)),
+                published=item.get("publish_date") or None,
+                position=len(results) + 1,
+            )
+        )
+
+    results = results[:max_results]
+    for i, result in enumerate(results):
+        result.position = i + 1
+    if not results:
+        raise SearchProviderError("search returned no results")
+    return SearchOutcome(results=results)
+
+
+def _search_parallel(query: str, max_results: int, api_key: str) -> SearchOutcome:
+    """Perform a web search using the Parallel Search API in fast mode."""
+    payload = {
+        "mode": _PARALLEL_SEARCH_MODE,
+        "objective": query,
+        "search_queries": [query],
+        "advanced_settings": {"max_results": max_results},
+    }
+    req = urllib.request.Request(
+        _PARALLEL_SEARCH_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "User-Agent": "klaude-code/2",
+        },
+    )
+    data = _fetch_json(req, _SEARCH_API_TIMEOUT_SEC)
+    return _parse_parallel_response(data, max_results)
+
+
 # ---------------------------------------------------------------------------
 # DeepSeek / OpenAI: LLM-backed search (one search = one model turn)
 # ---------------------------------------------------------------------------
-
-
-def _cap_snippet(text: str) -> str:
-    if len(text) <= WEB_SEARCH_SNIPPET_MAX_CHARS:
-        return text
-    return text[: WEB_SEARCH_SNIPPET_MAX_CHARS - 1] + "…"
 
 
 def _parse_deepseek_response(data: dict[str, Any], max_results: int) -> SearchOutcome:
@@ -376,6 +433,8 @@ def _run_provider(provider: _ResolvedProvider, query: str, max_results: int) -> 
         return _search_exa(query, max_results, provider.api_key)
     if provider.name == "brave":
         return _search_brave(query, max_results, provider.api_key)
+    if provider.name == "parallel":
+        return _search_parallel(query, max_results, provider.api_key)
     if provider.base_url is None or provider.model is None:
         raise SearchProviderError(f"{provider.name} provider requires base_url and model in web_search config")
     if provider.name == "deepseek":
@@ -476,8 +535,8 @@ class WebSearchTool(ToolABC):
             return message.ToolResultMessage(
                 status="error",
                 output_text=(
-                    "Search failed: no web search provider has an API key. Set EXA_API_KEY, BRAVE_API_KEY, "
-                    "DEEPSEEK_API_KEY, or OPENAI_API_KEY (or configure `web_search` in klaude-config.yaml)."
+                    "Search failed: no web search provider has an API key. Set PARALLEL_API_KEY, EXA_API_KEY, "
+                    "BRAVE_API_KEY, DEEPSEEK_API_KEY, or OPENAI_API_KEY (or configure `web_search` in klaude-config.yaml)."
                 ),
             )
 
