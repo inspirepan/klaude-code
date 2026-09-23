@@ -31,6 +31,7 @@ from klaude_code.llm.anthropic.client import (
     AnthropicStreamStateManager,
     parse_anthropic_stream,
 )
+from klaude_code.llm.anthropic.input import convert_history_to_input
 from klaude_code.llm.bedrock_anthropic.client import parse_bedrock_stream
 from klaude_code.llm.google.client import GoogleStreamStateManager, parse_google_stream
 from klaude_code.llm.openai_compatible.stream import (
@@ -245,6 +246,98 @@ def test_anthropic_stream_state_manager_full_sequence() -> None:
         message.AssistantTextDelta,
         message.AssistantTextDelta,
         message.ToolCallStartDelta,
+    ]
+
+
+def test_anthropic_progress_update_preserves_separate_thinking_blocks() -> None:
+    events: list[object] = [_anthropic_events()[0]]
+    for index, text, signature in [(0, "", "reasoning-sig"), (1, "Checking the file.", "update-sig")]:
+        events.extend(
+            [
+                BetaRawContentBlockStartEvent.model_validate(
+                    {
+                        "type": "content_block_start",
+                        "index": index,
+                        "content_block": {"type": "thinking", "thinking": "", "signature": ""},
+                    }
+                ),
+                BetaRawContentBlockDeltaEvent.model_validate(
+                    {
+                        "type": "content_block_delta",
+                        "index": index,
+                        "delta": {"type": "thinking_delta", "thinking": text},
+                    }
+                ),
+                BetaRawContentBlockDeltaEvent.model_validate(
+                    {
+                        "type": "content_block_delta",
+                        "index": index,
+                        "delta": {"type": "signature_delta", "signature": signature},
+                    }
+                ),
+                BetaRawContentBlockStopEvent.model_validate({"type": "content_block_stop", "index": index}),
+            ]
+        )
+    events.extend(
+        [
+            BetaRawContentBlockStartEvent.model_validate(
+                {
+                    "type": "content_block_start",
+                    "index": 2,
+                    "content_block": {"type": "tool_use", "id": "toolu_1", "name": "Bash", "input": {}},
+                }
+            ),
+            BetaRawContentBlockDeltaEvent.model_validate(
+                {"type": "content_block_delta", "index": 2, "delta": {"type": "input_json_delta", "partial_json": "{}"}}
+            ),
+            BetaRawContentBlockStopEvent.model_validate({"type": "content_block_stop", "index": 2}),
+        ]
+    )
+
+    param = _param(model_id="claude-opus-5-5")
+    items = _collect(
+        cast(
+            AsyncIterator[message.LLMStreamItem],
+            parse_anthropic_stream(
+                _FakeAnthropicStream(events), param, MetadataTracker(), AnthropicStreamStateManager("claude-opus-5-5")
+            ),
+        )
+    )
+    final = _final(items)
+    assert [type(part) for part in final.parts] == [
+        message.ThinkingTextPart,
+        message.ThinkingSignaturePart,
+        message.ThinkingTextPart,
+        message.ThinkingSignaturePart,
+        message.ToolCallPart,
+    ]
+    assert [
+        (
+            part.text
+            if isinstance(part, message.ThinkingTextPart)
+            else cast(message.ThinkingSignaturePart, part).signature
+        )
+        for part in final.parts[:4]
+    ] == [
+        "",
+        "reasoning-sig",
+        "Checking the file.",
+        "update-sig",
+    ]
+    assert [item.content for item in items if isinstance(item, message.ThinkingTextDelta)] == ["Checking the file."]
+
+    history = [
+        *param.input,
+        final,
+        message.ToolResultMessage(call_id="toolu_1", tool_name="Bash", status="success", output_text="ok"),
+    ]
+    content = convert_history_to_input(history, "claude-opus-5-5")[1]["content"]
+    assert not isinstance(content, str)
+    blocks = [cast(dict[str, Any], block) for block in content]
+    assert [(block["type"], block.get("thinking"), block.get("signature")) for block in blocks] == [
+        ("thinking", "", "reasoning-sig"),
+        ("thinking", "Checking the file.", "update-sig"),
+        ("tool_use", None, None),
     ]
 
 

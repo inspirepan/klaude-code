@@ -148,7 +148,6 @@ def test_build_payload_includes_temperature_for_opus_46() -> None:
         "claude-opus-4-7",
         "claude-opus-4-8",
         "claude-opus-5",
-        "claude-opus-5-5",
         "claude-sonnet-4-6",
         "claude-sonnet-5",
         "claude-fable-5",
@@ -167,6 +166,19 @@ def test_build_payload_sets_thinking_display_summarized_for_adaptive_models(mode
     assert thinking is not None
     assert thinking["type"] == "adaptive"  # type: ignore[index]
     assert thinking["display"] == "summarized"  # type: ignore[index]
+
+
+def test_build_payload_requests_progress_updates_for_opus_55() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-opus-5-5",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    payload = build_payload(param)
+
+    assert payload["thinking"] == {"type": "adaptive", "display": "updates"}
+    assert "thinking-display-updates-2026-08-18" in payload["betas"]
 
 
 def test_build_payload_omits_thinking_display_for_unknown_adaptive_model() -> None:

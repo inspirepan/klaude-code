@@ -20,6 +20,7 @@ from anthropic.types.beta.beta_raw_message_delta_event import BetaRawMessageDelt
 from anthropic.types.beta.beta_raw_message_start_event import BetaRawMessageStartEvent
 from anthropic.types.beta.beta_signature_delta import BetaSignatureDelta
 from anthropic.types.beta.beta_text_delta import BetaTextDelta
+from anthropic.types.beta.beta_thinking_block import BetaThinkingBlock
 from anthropic.types.beta.beta_thinking_delta import BetaThinkingDelta
 from anthropic.types.beta.beta_tool_choice_auto_param import BetaToolChoiceAutoParam
 from anthropic.types.beta.beta_tool_use_block import BetaToolUseBlock
@@ -65,6 +66,7 @@ _ANTHROPIC_STOP_REASON_OVERRIDES: dict[str, StopReason] = {
 }
 
 _ANTHROPIC_USER_AGENT = "klaude-code/2"
+_THINKING_DISPLAY_UPDATES_BETA = "thinking-display-updates-2026-08-18"
 
 
 def _map_anthropic_stop_reason(reason: str) -> StopReason | None:
@@ -101,6 +103,10 @@ class AnthropicStreamStateManager:
         index = append_thinking_text_part(self.assistant_parts, text, model_id=self.model_id)
         if index is not None:
             self._pending_signature_thinking_index = index
+
+    def start_thinking_block(self) -> None:
+        self.assistant_parts.append(message.ThinkingTextPart(text="", model_id=self.model_id))
+        self._pending_signature_thinking_index = len(self.assistant_parts) - 1
 
     def append_text(self, text: str) -> None:
         """Append assistant text, merging with the previous TextPart when possible."""
@@ -234,7 +240,11 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
         thinking_config: BetaThinkingConfigAdaptiveParam = {"type": "adaptive"}
         # Request displayable thinking summaries from models that support adaptive thinking.
         if is_adaptive_builtin:
-            thinking_config["display"] = "summarized"
+            if "opus-5-5" in model_id.lower():
+                thinking_config["display"] = "updates"
+                betas.append(_THINKING_DISPLAY_UPDATES_BETA)
+            else:
+                thinking_config["display"] = "summarized"
         payload["thinking"] = thinking_config
     elif param.thinking and param.thinking.type == "enabled":
         payload["thinking"] = BetaThinkingConfigEnabledParam(
@@ -317,6 +327,8 @@ async def parse_anthropic_stream(
                         pass
             case BetaRawContentBlockStartEvent() as event:
                 match event.content_block:
+                    case BetaThinkingBlock():
+                        state.start_thinking_block()
                     case BetaToolUseBlock() as block:
                         metadata_tracker.record_token()
                         state.flush_pending_signature()
