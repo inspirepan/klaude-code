@@ -71,6 +71,11 @@ def run_command(
 ) -> None:
     """Run the server in the foreground (debugging)."""
 
+    from klaude_code.server.startup_log import redirect_output_to_startup_log
+
+    # First, so a failing import below is captured for a detached spawn too.
+    redirect_output_to_startup_log()
+
     from klaude_code.server.server import ServerAlreadyRunningError, start_server
 
     try:
@@ -165,7 +170,30 @@ def reload_command(
     if status_code != 200:
         log((f"Unexpected server response ({status_code}): {body}", "red"))
         raise typer.Exit(1)
-    log((f"klaude server is reloading (pid {body.get('pid')})", "green"))
+    pid = body.get("pid")
+    log((f"klaude server is reloading (pid {pid})", "green"))
+
+    from klaude_code.cli.uds_client import ensure_server_running, wait_for_reloaded_server
+    from klaude_code.update import get_code_fingerprint
+
+    outcome = wait_for_reloaded_server(
+        local_fingerprint=get_code_fingerprint(), pid=pid if isinstance(pid, int) else None
+    )
+    if outcome == "ok":
+        log(("klaude server is back on the current code", "green"))
+        return
+    if outcome == "timeout":
+        log(("klaude server did not come back on the current code; check `klaude server status`", "yellow"))
+        raise typer.Exit(1)
+    # The re-exec'd process died while booting. A fresh spawn reproduces the
+    # failure with its output captured, so the real cause reaches this terminal.
+    log(("klaude server exited while reloading; starting it again to see why", "yellow"))
+    try:
+        ensure_server_running()
+    except ServerNotRunningError as exc:
+        log((f"Error: {exc}", "red"))
+        raise typer.Exit(1) from None
+    log(("klaude server is running", "green"))
 
 
 @server_app.command("logs")

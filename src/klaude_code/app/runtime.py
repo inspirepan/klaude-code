@@ -193,6 +193,9 @@ async def initialize_app_components(
             log(("Hint: run `klaude conf` to edit the config file", "yellow"))
         raise typer.Exit(2) from None
 
+    for warning in llm_clients.warnings:
+        log((f"Warning: {warning}", "yellow"))
+
     if init_config.vanilla:
         model_profile_provider = VanillaModelProfileProvider()
     else:

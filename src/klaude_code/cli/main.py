@@ -467,7 +467,7 @@ def main_callback(
             ensure_server_running()
         except ServerNotRunningError as exc:
             log((f"Error: could not start the klaude server: {exc}", "red"))
-            log(("Hint: run `klaude server run` in another terminal to see why", "yellow"))
+            log(("Hint: run `klaude server run` in the foreground to debug it", "yellow"))
             raise typer.Exit(1) from None
 
         # Debug logging must be enabled on the server (where agent/LLM work

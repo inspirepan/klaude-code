@@ -84,7 +84,9 @@ def request(
     return response.status_code, response.json()
 
 
-def _spawn_server_detached() -> None:
+def _spawn_server_detached() -> subprocess.Popen[bytes]:
+    from klaude_code.server.startup_log import STARTUP_LOG_ENV, server_startup_log_path
+
     argv0 = Path(sys.argv[0])
     if argv0.exists() and os.access(argv0, os.X_OK):
         command = [str(argv0.resolve()), "server", "run"]
@@ -94,14 +96,40 @@ def _spawn_server_detached() -> None:
     # The daemon must not inherit this client's CWD: it outlives the client,
     # serves sessions from many directories, and would otherwise pin whatever
     # directory the first `klaude` invocation happened to run in.
-    subprocess.Popen(
-        command,
-        cwd=str(Path.home()),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+    # Startup output lands in a log so a boot failure can be reported instead
+    # of timing out; the server itself redirects to it again on every boot.
+    log_path = server_startup_log_path()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("wb") as log_file:
+        return subprocess.Popen(
+            command,
+            cwd=str(Path.home()),
+            env={**os.environ, STARTUP_LOG_ENV: str(log_path)},
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+
+
+def _startup_failure(reason: str) -> ServerNotRunningError:
+    from klaude_code.server.startup_log import read_startup_log_tail, server_startup_log_path
+
+    tail = read_startup_log_tail()
+    if not tail:
+        return ServerNotRunningError(f"{reason} (no output in {server_startup_log_path()})")
+    indented = "\n".join(f"  {line}" for line in tail.splitlines())
+    return ServerNotRunningError(f"{reason}; server output:\n{indented}")
+
+
+def _process_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _warn(message: str) -> None:
@@ -155,17 +183,21 @@ def verify_server_code(status_body: dict[str, Any]) -> None:
     if status != 200:
         _warn(f"klaude server auto-reload failed (HTTP {status}); it may be running stale code")
         return
-    _wait_for_reloaded_server(local_fingerprint=local_fingerprint)
+    pid = _body.get("pid") if isinstance(_body, dict) else None
+    outcome = wait_for_reloaded_server(local_fingerprint=local_fingerprint, pid=pid if isinstance(pid, int) else None)
+    if outcome == "timeout":
+        _warn("klaude server did not come back on current code after reload; check `klaude server status`")
+    # "exited": the follow-up request hits the autostart path, which reports why.
 
 
-def _wait_for_reloaded_server(*, local_fingerprint: str) -> None:
+def wait_for_reloaded_server(*, local_fingerprint: str, pid: int | None = None) -> str:
     """Block until the reloaded server answers with matching code.
 
     Reload re-execs the server process in place (same pid), so the only
     reliable restart signal is the fingerprint itself. Old-process answers
-    during the drain simply do not match and keep the loop polling. On
-    timeout, warn and continue: the follow-up request either works or hits
-    the autostart path.
+    during the drain simply do not match and keep the loop polling. Returns
+    "ok", "exited" (the re-exec'd process died, e.g. on a config error) or
+    "timeout".
     """
 
     deadline = time.monotonic() + _RELOAD_WAIT_TIMEOUT
@@ -174,10 +206,14 @@ def _wait_for_reloaded_server(*, local_fingerprint: str) -> None:
         try:
             status, body = request("GET", "/api/server/status", timeout=3.0)
         except ServerNotRunningError:
-            continue  # Socket is down while the server re-execs.
+            # Socket is down while the server re-execs; a gone pid means the
+            # new code failed to boot, so waiting longer cannot help.
+            if pid is not None and not _process_alive(pid):
+                return "exited"
+            continue
         if status == 200 and isinstance(body, dict) and _server_matches(body, local_fingerprint=local_fingerprint):
-            return
-    _warn("klaude server did not come back on current code after reload; check `klaude server status`")
+            return "ok"
+    return "timeout"
 
 
 def ensure_server_running(*, startup_timeout: float = 20.0) -> None:
@@ -198,18 +234,30 @@ def ensure_server_running(*, startup_timeout: float = 20.0) -> None:
     except ServerNotRunningError:
         pass
 
-    _spawn_server_detached()
+    process = _spawn_server_detached()
     deadline = time.monotonic() + startup_timeout
     while time.monotonic() < deadline:
         time.sleep(0.25)
         try:
             status, _ = request("GET", "/api/server/status", timeout=3.0)
         except ServerNotRunningError:
-            continue
+            returncode = process.poll()
+            if returncode is None:
+                continue
+            if _lost_singleton_race():
+                # Another client's spawn won the lock; wait for that server.
+                continue
+            raise _startup_failure(f"klaude server exited during startup (code {returncode})") from None
         if status == 200:
             _handshake_done = True
             return
-    raise ServerNotRunningError("klaude server did not start in time")
+    raise _startup_failure("klaude server did not start in time")
+
+
+def _lost_singleton_race() -> bool:
+    from klaude_code.server.startup_log import read_startup_log_tail
+
+    return "already running" in read_startup_log_tail()
 
 
 def request_with_autostart(

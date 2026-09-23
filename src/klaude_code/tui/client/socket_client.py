@@ -108,6 +108,11 @@ class SocketRuntimeClient:
         # interaction requests surface through this client too.
         self._child_session_ids: set[str] = set()
         self._closed = False
+        # Set from connection_info: the server runs different code than this
+        # client, so config it rejects (e.g. a newly added model) may simply be
+        # unknown to the old code.
+        self._server_code_stale = False
+        self._config_warnings_shown = False
         self._reconnecting = False
         self._reconnect_task: asyncio.Task[None] | None = None
         self._reconnect_done = asyncio.Event()
@@ -688,6 +693,7 @@ class SocketRuntimeClient:
             return
         if frame_type == "connection_info":
             await self._check_server_code(item)
+            await self._show_config_warnings(item)
             return
         # Other frames need no client action.
 
@@ -702,6 +708,7 @@ class SocketRuntimeClient:
         local_fingerprint = get_code_fingerprint()
         protocol_matches = is_protocol_compatible(server_protocol)
         fingerprint_matches = server_fingerprint == local_fingerprint
+        self._server_code_stale = not (protocol_matches and fingerprint_matches)
         if protocol_matches and (fingerprint_matches or self._reconnecting):
             # A fingerprint change is expected when an old TUI reconnects after
             # a source update restarted the server. The protocol version owns
@@ -729,6 +736,35 @@ class SocketRuntimeClient:
                     is_error=True,
                 )
             )
+        )
+
+    async def _show_config_warnings(self, item: dict[str, Any]) -> None:
+        """Show once per client which configured models the server replaced."""
+        warnings = item.get("config_warnings")
+        if self._config_warnings_shown or not isinstance(warnings, list) or not warnings:
+            return
+        self._config_warnings_shown = True
+        lines = [f"- {warning}" for warning in warnings if isinstance(warning, str)]
+        await self._display_queue.put(
+            _local_envelope(
+                events.NoticeEvent(
+                    session_id=self._session_id,
+                    content="Some configured models are unavailable:\n" + "\n".join(lines),
+                    style="warn",
+                )
+            )
+        )
+
+    def _with_stale_server_hint(self, envelope: EventEnvelope) -> EventEnvelope:
+        event = envelope.event
+        if not self._server_code_stale or not isinstance(event, events.ErrorEvent):
+            return envelope
+        hint = (
+            "The klaude server runs older code than this client, which may cause this error. "
+            "Restart it with: klaude server reload --force"
+        )
+        return envelope.model_copy(
+            update={"event": event.model_copy(update={"error_message": f"{event.error_message}\n{hint}"})}
         )
 
     def _apply_session_info(self, item: dict[str, Any]) -> None:
@@ -762,6 +798,8 @@ class SocketRuntimeClient:
             # client is not showing.
             event = event.model_copy(update={"sub_agent_state": None, "parent_session_id": None})
             envelope = envelope.model_copy(update={"event": event})
+        envelope = self._with_stale_server_hint(envelope)
+        event = envelope.event
         if isinstance(event, events.OperationFinishedEvent | events.OperationRejectedEvent):
             operation_id = event.operation_id
             future = self._op_futures.pop(operation_id, None)

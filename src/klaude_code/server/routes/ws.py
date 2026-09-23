@@ -682,6 +682,18 @@ async def _receive_commands(
         await _handle_incoming_frame(session_id, frame, websocket, can_input=can_input)
 
 
+def _model_config_warnings() -> list[str]:
+    """Configured models this server cannot resolve (e.g. removed by an upgrade)."""
+    from klaude_code.agent.runtime.llm import collect_model_config_warnings
+    from klaude_code.config import load_config
+
+    try:
+        return collect_model_config_warnings(load_config())
+    except Exception as exc:
+        log_debug(f"[ws] model config warnings failed: {exc}", debug_type=DebugType.EXECUTION)
+        return []
+
+
 @router.websocket("/api/sessions/{session_id}/ws")
 async def session_websocket(websocket: WebSocket, session_id: str) -> None:
     send_task: asyncio.Task[None] | None = None
@@ -745,6 +757,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 "session_id": session_id,
                 "protocol_version": PROTOCOL_VERSION,
                 "code_fingerprint": state.code_fingerprint,
+                "config_warnings": await asyncio.to_thread(_model_config_warnings),
             }
         )
         if attach_mode:

@@ -23,6 +23,7 @@ from klaude_code.server.display import ServerDisplay
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.paths import server_lock_path, server_log_file_path, server_run_dir, server_socket_path
+from klaude_code.server.startup_log import detach_output_from_startup_log
 
 
 class ServerAlreadyRunningError(RuntimeError):
@@ -191,6 +192,8 @@ async def start_server(*, debug: bool = False) -> bool:
                 listen_logger.warning("no free loopback port for the web viewer; running without it")
 
             sockets = [uds_socket] if web_socket is None else [uds_socket, web_socket]
+            # Boot succeeded; from here on the rotated server.log is the record.
+            detach_output_from_startup_log()
             try:
                 log_debug(
                     f"[server] starting uvicorn uds={socket_path} web_port={web_port}", debug_type=DebugType.EXECUTION

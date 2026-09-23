@@ -10,14 +10,14 @@ from dataclasses import field as dataclass_field
 from typing import override
 
 from klaude_code.config import Config, load_config
+from klaude_code.config.builtin_config import get_builtin_config
 from klaude_code.config.config import ModelConfigCandidate, ModelPreference, format_model_preference
-from klaude_code.config.sub_agent_model import SubAgentModelResolver
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param
-from klaude_code.protocol.sub_agent import get_sub_agent_profile
+from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 from klaude_code.protocol.tools import SubAgentType
 
 
@@ -178,6 +178,9 @@ class LLMClients:
     sub_clients: dict[SubAgentType, LLMClientABC] = dataclass_field(default_factory=_default_sub_clients)
     fast: LLMClientABC | None = None
     compact: LLMClientABC | None = None
+    # Configured models that did not resolve and were replaced by a fallback,
+    # e.g. a model an upgrade removed from the builtin list.
+    warnings: list[str] = dataclass_field(default_factory=list[str])
 
     def get_compact_client(self) -> LLMClientABC:
         return self.compact or self.main
@@ -191,12 +194,59 @@ class LLMClients:
             await self.main.warmup()
 
 
-def build_llm_clients(
+def _resolution_error_detail(config: Config, model_pref: ModelPreference) -> str:
+    try:
+        _ = config.get_first_available_model(model_pref)
+    except ValueError as exc:
+        return str(exc)
+    return "no available candidates"
+
+
+def _unresolved_warning(role: str, model_pref: ModelPreference, detail: str, fallback: str) -> str:
+    pref_text = format_model_preference(model_pref) or "<unset>"
+    return f"{role} '{pref_text}' is unavailable ({detail}); {fallback}. Run `klaude conf` to update it."
+
+
+def _resolve_optional_role(
     config: Config,
+    role: str,
+    model_pref: ModelPreference | None,
+    builtin_pref: ModelPreference | None,
     *,
-    model_override: str | None = None,
-    skip_sub_agents: bool = False,
-) -> LLMClients:
+    inherit_label: str,
+    warnings: list[str],
+) -> list[ModelConfigCandidate]:
+    """Resolve a non-main model role, degrading to the builtin default or inheritance.
+
+    A config that names a model this build no longer ships must not take the
+    whole runtime down: the role falls back and the caller surfaces a warning.
+    """
+    if model_pref is None:
+        return []
+    candidates = config.iter_model_config_candidates(model_pref)
+    if candidates:
+        return candidates
+    if model_pref == builtin_pref:
+        # Builtin defaults often name providers the user never set up; inheriting
+        # quietly is the intended behavior there, not a config problem.
+        log_debug(f"{role} builtin default unavailable; {inherit_label} is used", debug_type=DebugType.LLM_CONFIG)
+        return []
+    detail = _resolution_error_detail(config, model_pref)
+    if builtin_pref is not None:
+        builtin_candidates = config.iter_model_config_candidates(builtin_pref)
+        if builtin_candidates:
+            fallback = f"using builtin default '{builtin_candidates[0].selector}'"
+            warnings.append(_unresolved_warning(role, model_pref, detail, fallback))
+            return builtin_candidates
+    warnings.append(_unresolved_warning(role, model_pref, detail, f"falling back to {inherit_label}"))
+    return []
+
+
+def _resolve_main_candidates(
+    config: Config,
+    model_override: str | None,
+    warnings: list[str],
+) -> tuple[list[ModelConfigCandidate], str]:
     model_pref: ModelPreference = model_override or config.main_model
     if model_pref is None:
         raise ValueError("No model specified. Set main_model in the config or pass --model.")
@@ -205,18 +255,43 @@ def build_llm_clients(
         if model_override is not None
         else config.iter_model_config_candidates(model_pref)
     )
-    if not main_candidates:
-        try:
-            _ = config.get_first_available_model(model_pref)
-        except ValueError as exc:
-            raise ModelResolutionError("main_model", model_pref, exc) from exc
-        raise ModelResolutionError("main_model", model_pref, ValueError("No available main_model candidates"))
+    if main_candidates:
+        model_name = (
+            format_model_preference([candidate.selector for candidate in main_candidates])
+            if model_override is not None and len(main_candidates) > 1
+            else format_model_preference(model_pref)
+        ) or main_candidates[0].selector
+        return main_candidates, model_name
+
+    detail = _resolution_error_detail(config, model_pref)
+    if model_override is not None:
+        # An explicit --model is a direct request; substituting another model
+        # would silently ignore it.
+        raise ModelResolutionError("main_model", model_pref, ValueError(detail))
+
+    builtin_pref = get_builtin_config().main_model
+    fallback_candidates = config.iter_model_config_candidates(builtin_pref) if builtin_pref is not None else []
+    if not fallback_candidates:
+        available = config.iter_model_entries(only_available=True, include_disabled=False)
+        if available:
+            fallback_candidates = config.iter_model_config_candidates(available[0].selector)
+    if not fallback_candidates:
+        raise ModelResolutionError("main_model", model_pref, ValueError(detail))
+    selector = fallback_candidates[0].selector
+    warnings.append(_unresolved_warning("main_model", model_pref, detail, f"using '{selector}'"))
+    return fallback_candidates, selector
+
+
+def build_llm_clients(
+    config: Config,
+    *,
+    model_override: str | None = None,
+    skip_sub_agents: bool = False,
+) -> LLMClients:
+    warnings: list[str] = []
+    builtin = get_builtin_config()
+    main_candidates, model_name = _resolve_main_candidates(config, model_override, warnings)
     llm_config = main_candidates[0].llm_config
-    model_name = (
-        format_model_preference([candidate.selector for candidate in main_candidates])
-        if model_override is not None and len(main_candidates) > 1
-        else format_model_preference(model_pref)
-    ) or main_candidates[0].selector
 
     log_debug(
         "Main LLM config",
@@ -227,64 +302,63 @@ def build_llm_clients(
     main_client = create_llm_client_for_candidates(main_candidates)
 
     fast_client: LLMClientABC | None = None
-    try:
-        selected_fast_model = config.get_first_available_model(config.fast_model)
-    except ValueError as exc:
-        raise ModelResolutionError("fast_model", config.fast_model, exc) from exc
-    if selected_fast_model is not None:
-        fast_candidate = config.iter_model_config_candidates(selected_fast_model)[0]
-        fast_llm_config = fast_candidate.llm_config
+    fast_candidates = _resolve_optional_role(
+        config,
+        "fast_model",
+        config.fast_model,
+        builtin.fast_model,
+        inherit_label="the main model",
+        warnings=warnings,
+    )
+    if fast_candidates:
+        # The fast role uses a single concrete model, no fallback chain.
+        fast_candidate = fast_candidates[0]
         log_debug(
             "Fast LLM config",
-            fast_llm_config.model_dump_json(exclude_none=True, exclude=_LLM_CONFIG_SECRET_FIELDS),
+            fast_candidate.llm_config.model_dump_json(exclude_none=True, exclude=_LLM_CONFIG_SECRET_FIELDS),
             debug_type=DebugType.LLM_CONFIG,
         )
         fast_client = create_llm_client_for_candidates([fast_candidate])
 
     compact_client: LLMClientABC | None = None
-    compact_candidates = config.iter_model_config_candidates(config.compact_model)
+    compact_candidates = _resolve_optional_role(
+        config,
+        "compact_model",
+        config.compact_model,
+        builtin.compact_model,
+        inherit_label="the main model",
+        warnings=warnings,
+    )
     if compact_candidates:
-        compact_llm_config = compact_candidates[0].llm_config
         log_debug(
             "Compact LLM config",
-            compact_llm_config.model_dump_json(exclude_none=True, exclude=_LLM_CONFIG_SECRET_FIELDS),
+            compact_candidates[0].llm_config.model_dump_json(exclude_none=True, exclude=_LLM_CONFIG_SECRET_FIELDS),
             debug_type=DebugType.LLM_CONFIG,
         )
         compact_client = create_llm_client_for_candidates(compact_candidates)
-    elif config.compact_model is not None:
-        try:
-            _ = config.get_first_available_model(config.compact_model)
-        except ValueError as exc:
-            raise ModelResolutionError("compact_model", config.compact_model, exc) from exc
 
     if skip_sub_agents:
-        return LLMClients(main=main_client, main_model_alias=model_name, fast=fast_client, compact=compact_client)
-
-    helper = SubAgentModelResolver(config)
-    sub_agent_candidates = helper.build_sub_agent_client_candidates()
-    user_sub_agent_models = config.get_user_sub_agent_models()
-    for role_key, sub_pref in user_sub_agent_models.items():
-        if not config.iter_model_config_candidates(sub_pref):
-            try:
-                _ = config.get_first_available_model(sub_pref)
-            except ValueError as exc:
-                raise ModelResolutionError(f"sub_agent_models.{role_key}", sub_pref, exc) from exc
+        return LLMClients(
+            main=main_client,
+            main_model_alias=model_name,
+            fast=fast_client,
+            compact=compact_client,
+            warnings=warnings,
+        )
 
     sub_clients: dict[SubAgentType, LLMClientABC] = {}
-    for sub_agent_type, candidates in sub_agent_candidates.items():
-        try:
-            sub_clients[sub_agent_type] = FallbackLLMClient(candidates)
-        except ValueError as exc:
-            profile = get_sub_agent_profile(sub_agent_type)
-            role_key = profile.name
-            if role_key in user_sub_agent_models:
-                raise ModelResolutionError(
-                    f"sub_agent_models.{role_key}", user_sub_agent_models[role_key], exc
-                ) from exc
-            log_debug(
-                f"Sub-agent '{sub_agent_type}' builtin models not available, falling back to main model",
-                debug_type=DebugType.LLM_CONFIG,
-            )
+    for profile in iter_sub_agent_profiles():
+        role_key = profile.name
+        candidates = _resolve_optional_role(
+            config,
+            f"sub_agent_models.{role_key}",
+            config.sub_agent_models.get(role_key),
+            builtin.sub_agent_models.get(role_key),
+            inherit_label="the main model",
+            warnings=warnings,
+        )
+        if candidates:
+            sub_clients[profile.name] = FallbackLLMClient(candidates)
 
     return LLMClients(
         main=main_client,
@@ -292,7 +366,20 @@ def build_llm_clients(
         sub_clients=sub_clients,
         fast=fast_client,
         compact=compact_client,
+        warnings=warnings,
     )
+
+
+def collect_model_config_warnings(config: Config) -> list[str]:
+    """Report configured models that do not resolve, without failing.
+
+    Clients are created lazily, so building them only to read the warnings
+    makes no network calls.
+    """
+    try:
+        return build_llm_clients(config).warnings
+    except ValueError as exc:
+        return [str(exc)]
 
 
 def clone_llm_client(client: LLMClientABC) -> LLMClientABC:
