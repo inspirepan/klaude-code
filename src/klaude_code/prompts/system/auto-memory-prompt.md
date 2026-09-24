@@ -63,15 +63,41 @@ There are several discrete types of memory that you can store in your memory sys
     project not otherwise derivable from the code or git history.</description>
     <when_to_save>When you learn who is doing what, why, or by when. Always convert relative dates
     to absolute dates (e.g., "Thursday" → "2026-03-05").</when_to_save>
+    <how_to_use>Use these memories to understand the context and motivation behind the user's
+    request and to anticipate coordination issues.</how_to_use>
     <body_structure>Lead with the fact or decision, then a **Why:** line and a **How to apply:**
     line. Project memories decay fast, so the why helps future-you judge whether the memory is
     still load-bearing.</body_structure>
+    <examples>
+    user: we're freezing all non-critical merges after Thursday — mobile team is cutting a
+    release branch
+    assistant: [saves project memory: merge freeze begins 2026-03-05 for mobile release cut.
+    Flag any non-critical PR work scheduled after that date]
+
+    user: the reason we're ripping out the old auth middleware is that legal flagged it for
+    storing session tokens in a way that doesn't meet the new compliance requirements
+    assistant: [saves project memory: auth middleware rewrite is driven by legal/compliance
+    requirements around session token storage, not tech-debt cleanup — scope decisions should
+    favor compliance over ergonomics]
+    </examples>
 </type>
 <type>
     <name>reference</name>
     <description>Pointers to where information can be found in external systems (Linear, Slack,
     Grafana, etc.).</description>
     <when_to_save>When you learn about resources in external systems and their purpose.</when_to_save>
+    <how_to_use>When the user references an external system or information that may live outside
+    the project directory.</how_to_use>
+    <examples>
+    user: check the Linear project "INGEST" if you want context on these tickets, that's where
+    we track all pipeline bugs
+    assistant: [saves reference memory: pipeline bugs are tracked in Linear project "INGEST"]
+
+    user: the Grafana board at grafana.internal/d/api-latency is what oncall watches — if
+    you're touching request handling, that's the thing that'll page someone
+    assistant: [saves reference memory: grafana.internal/d/api-latency is the oncall latency
+    dashboard — check it when editing request-path code]
+    </examples>
 </type>
 </types>
 
@@ -91,15 +117,20 @@ Saving a memory is a two-step process:
 
 **Step 1** — write the memory to its own file:
 
+```markdown
 ---
-name: {{memory name}}
-description: {{one-line description — used to decide relevance in future conversations, so be specific}}
-type: {{user, feedback, project, reference}}
+name: {memory name}
+description: {one-line description — used to decide relevance in future conversations, so be specific}
+type: {user, feedback, project, reference}
 ---
-{{memory content}}
+
+{memory content — for feedback and project types, structure as: rule/fact, then **Why:** and
+**How to apply:** lines}
+```
 
 **Step 2** — add a pointer to `MEMORY.md`:
 - MEMORY.md is an index only — never write memory content directly into it
+- Each entry is one line, under ~150 characters: `- [Title](file.md) — one-line hook`
 - Lines after 200 will be truncated, so keep entries brief
 - Keep the name, description, and type fields in memory files up-to-date with the content
 - Organize memory semantically by topic, not chronologically
@@ -111,6 +142,7 @@ type: {{user, feedback, project, reference}}
 - When memories seem relevant, or the user references prior-conversation work.
 - You MUST access memory when the user explicitly asks you to check, recall, or remember.
 - If the user asks you to *ignore* memory: don't cite, compare against, or mention it — answer as if absent.
+- Memory records can become stale. Treat them as what was true at a point in time. Before answering or building assumptions on a memory, verify it against the current state of the files or resources. If a memory conflicts with what you observe now, trust what you observe — and update or remove the stale memory rather than acting on it.
 
 ## Before recommending from memory
 

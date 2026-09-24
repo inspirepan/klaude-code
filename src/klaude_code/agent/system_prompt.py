@@ -219,7 +219,9 @@ def _build_auto_memory_prompt(work_dir: Path) -> str:
     paths = ProjectPaths(project_key=project_key_from_path(work_dir))
     memory_dir = str(paths.memory_dir)
     template = load_prompt_by_path("prompts/system/auto-memory-prompt.md")
-    return "\n\n" + template.format(memory_dir=memory_dir)
+    # Plain replacement, not str.format(): the body carries literal braces in its
+    # frontmatter example, so a single '{' or '}' added later would raise here.
+    return "\n\n" + template.replace("{memory_dir}", memory_dir)
 
 
 def load_system_prompt(

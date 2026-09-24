@@ -12,6 +12,7 @@ from klaude_code.agent.system_prompt import (
     split_system_prompt_for_cache,
     strip_system_prompt_boundary,
 )
+from klaude_code.const import ProjectPaths, project_key_from_path
 from klaude_code.protocol import llm_param, tools
 
 
@@ -58,6 +59,14 @@ def test_build_env_info_falls_back_to_git_repo(tmp_path: Path) -> None:
     env_info = _build_env_info("gpt-5.3-codex", work_dir)
 
     assert f"Current directory is a git repo (root: {tmp_path})" in env_info
+
+
+def test_build_auto_memory_prompt_substitutes_memory_dir(tmp_path: Path) -> None:
+    prompt = system_prompt_module._build_auto_memory_prompt(tmp_path)
+
+    memory_dir = ProjectPaths(project_key=project_key_from_path(tmp_path)).memory_dir
+    assert str(memory_dir) in prompt
+    assert "{memory_dir}" not in prompt
 
 
 def test_load_system_prompt_inserts_dynamic_boundary_before_env_info(
