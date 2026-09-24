@@ -56,7 +56,8 @@ class TestCliOptionalValues:
             captured["initial_search_text"] = initial_search_text
             return ModelSelectResult(status=ModelSelectStatus.SELECTED, model="picked-model")
 
-        async def _run_attach(session_id: str, *, peek: bool = False) -> None:
+        async def _run_attach(session_id: str, *, peek: bool = False, upgrade_notice: object = None) -> None:
+            del upgrade_notice
             captured["attached_session_id"] = session_id
             captured["peek"] = peek
 
@@ -121,7 +122,8 @@ class TestCliOptionalValues:
                 assert model_name == "gpt@openai"
                 return SimpleNamespace(availability=ModelAvailability.AVAILABLE, detail="", suggestions=[])
 
-        async def _run_attach(session_id: str, *, peek: bool = False) -> None:
+        async def _run_attach(session_id: str, *, peek: bool = False, upgrade_notice: object = None) -> None:
+            del upgrade_notice
             captured["attached_session_id"] = session_id
             captured["peek"] = peek
 
@@ -216,7 +218,8 @@ class TestCliOptionalValues:
                 assert include_disabled is False
                 return [SimpleNamespace(selector="sonnet@openrouter", model_id="claude-sonnet-4")]
 
-        async def _run_attach(session_id: str, *, peek: bool = False) -> None:
+        async def _run_attach(session_id: str, *, peek: bool = False, upgrade_notice: object = None) -> None:
+            del upgrade_notice
             captured["attached_session_id"] = session_id
             captured["peek"] = peek
 

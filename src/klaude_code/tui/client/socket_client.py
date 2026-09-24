@@ -713,6 +713,18 @@ class SocketRuntimeClient:
             # A fingerprint change is expected when an old TUI reconnects after
             # a source update restarted the server. The protocol version owns
             # wire compatibility, so let the resume handshake finish.
+            if not fingerprint_matches:
+                await self._display_queue.put(
+                    _local_envelope(
+                        events.NoticeEvent(
+                            session_id=self._session_id,
+                            content=(
+                                f"Server restarted on updated code ({server_fingerprint or 'unknown'}); "
+                                "this CLI still runs the old code. Restart klaude to update it too."
+                            ),
+                        )
+                    )
+                )
             return
         # A protocol mismatch means this client cannot safely consume frames
         # from the restarted server. A fingerprint mismatch on initial attach

@@ -1,6 +1,8 @@
 import asyncio
 import sys
+import threading
 from collections.abc import Sequence
+from concurrent.futures import Future
 from pathlib import Path
 from typing import Any
 
@@ -167,29 +169,54 @@ def prepare_debug_logging(debug: bool) -> tuple[bool, Path | None]:
     return _prepare_debug_logging(debug)
 
 
-def _maybe_start_auto_upgrade() -> None:
-    """Start auto-upgrade in the background for interactive startup.
+def _maybe_start_auto_upgrade() -> Future[str] | None:
+    """Ask the server to install a pending update, from a background thread.
 
-    Controlled by ``Config.auto_upgrade`` (default True). Only attempts an
-    upgrade when the persisted update state indicates a newer release is
-    available. Any successful upgrade applies on the next process start.
+    Controlled by ``Config.auto_upgrade`` (default True). Only fires when the
+    persisted update state says newer code exists. The server installs and
+    re-execs at its next idle boundary; this process keeps running the code it
+    started with. The future resolves to a notice for the TUI, or never when
+    there is nothing to say.
     """
 
     try:
         from klaude_code.config import load_config
     except Exception:
-        return
+        return None
 
     try:
         cfg = load_config()
         if not cfg.auto_upgrade:
-            return
+            return None
     except Exception:
-        return
+        return None
 
-    from klaude_code.update import start_background_auto_upgrade_if_needed
+    from klaude_code.update import has_pending_update
 
-    start_background_auto_upgrade_if_needed()
+    try:
+        if not has_pending_update():
+            return None
+    except Exception:
+        return None
+
+    notice: Future[str] = Future()
+
+    def _worker() -> None:
+        from klaude_code.cli.uds_client import describe_upgrade_status, request_server_upgrade
+
+        try:
+            status = request_server_upgrade()
+            message = describe_upgrade_status(status) if status is not None else None
+        except Exception as exc:
+            from klaude_code.log import log_debug
+
+            log_debug(f"auto-upgrade request failed: {exc}")
+            return
+        if message is not None:
+            notice.set_result(message)
+
+    threading.Thread(target=_worker, name="auto-upgrade", daemon=True).start()
+    return notice
 
 
 app = typer.Typer(
@@ -320,7 +347,7 @@ def main_callback(
             log(("Hint: run klaude from an interactive terminal", "yellow"))
             raise typer.Exit(2)
 
-        _maybe_start_auto_upgrade()
+        upgrade_notice = _maybe_start_auto_upgrade()
 
         from klaude_code.tui.command.model_picker import ModelSelectStatus, select_model_interactive
 
@@ -510,4 +537,4 @@ def main_callback(
                 log((f"Error: failed to configure session model: {detail}", "red"))
                 raise typer.Exit(1)
 
-        asyncio.run(run_attach(session_id))
+        asyncio.run(run_attach(session_id, upgrade_notice=upgrade_notice))

@@ -21,6 +21,7 @@ import contextlib
 import shutil
 import sys
 from collections.abc import AsyncGenerator, Callable, Coroutine
+from concurrent.futures import Future
 from pathlib import Path
 from typing import Any, cast
 from uuid import uuid4
@@ -97,7 +98,7 @@ def _requires_client_dispatch(text: str) -> bool:
     return is_registered_command(stripped)
 
 
-async def run_attach(session_id: str, *, peek: bool = False) -> None:
+async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Future[str] | None = None) -> None:
     """Attach the interactive TUI to a server-side session."""
 
     update_terminal_title()
@@ -460,6 +461,7 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
     away_summary_coordinator = AwaySummaryCoordinator(runtime=_AwayRuntimeAdapter())
     loop = asyncio.get_running_loop()
     prompt_started = asyncio.Event()
+    startup_replay_finished = asyncio.Event()
     background_tasks: set[asyncio.Task[None]] = set()
 
     def _spawn(coro: Coroutine[Any, Any, None]) -> None:
@@ -726,11 +728,18 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
             await _display_idle_bounded()
         finally:
             input_provider.set_startup_loading(False)
+            startup_replay_finished.set()
 
     # -- submission helpers --
 
     async def _emit_local_notice(text: str) -> None:
         await client.emit_local_event(events.NoticeEvent(session_id=client.session_id, content=text))
+
+    async def _show_upgrade_notice() -> None:
+        await startup_replay_finished.wait()
+        assert upgrade_notice is not None
+        message = await asyncio.shield(asyncio.wrap_future(upgrade_notice))
+        await _emit_local_notice(message)
 
     def _track_foreground_op(operation_id: str) -> None:
         local_turn_ops.add(operation_id)
@@ -947,6 +956,8 @@ async def run_attach(session_id: str, *, peek: bool = False) -> None:
         interaction_task = asyncio.create_task(_consume_interactions())
         startup_task = asyncio.create_task(_startup_replay())
         connection_task = asyncio.create_task(_watch_connection())
+        if upgrade_notice is not None:
+            _spawn(_show_upgrade_notice())
 
         # Seed prompt state for mid-turn attaches.
         client.state_changed_event().set()

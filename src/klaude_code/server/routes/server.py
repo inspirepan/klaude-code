@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Final
+from typing import Any, Final, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from klaude_code.server.binding import web_url
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.session_state import derive_session_state_from_snapshot
 from klaude_code.server.state import ServerAppState, get_server_state
+from klaude_code.server.upgrade import UpgradeCoordinator
 from klaude_code.update import get_display_version
 
 router = APIRouter(prefix="/api/server", tags=["server"])
@@ -19,6 +20,15 @@ _SERVER_STATE_DEP: Final = Depends(get_server_state)
 
 class ReloadRequest(BaseModel):
     force: bool = False
+    # "idle": register with the upgrade coordinator and restart at the next
+    # idle boundary instead of refusing a busy server.
+    when: Literal["now", "idle"] = "now"
+
+
+class UpgradeRequest(BaseModel):
+    # Re-check upstream before installing (manual `klaude upgrade`); otherwise
+    # the persisted result of the last background check decides.
+    check: bool = False
 
 
 class DebugRequest(BaseModel):
@@ -31,6 +41,12 @@ def _require_lifecycle(state: ServerAppState) -> ServerLifecycle:
     return state.lifecycle
 
 
+def _require_upgrade(state: ServerAppState) -> UpgradeCoordinator:
+    if state.upgrade is None:
+        raise HTTPException(status_code=503, detail="Server upgrade coordinator is not available")
+    return state.upgrade
+
+
 def list_active_sessions(state: ServerAppState) -> list[dict[str, str]]:
     """Sessions with live work: running tasks, pending interactions, or queued runs."""
 
@@ -41,6 +57,10 @@ def list_active_sessions(state: ServerAppState) -> list[dict[str, str]]:
             active.append({"session_id": actor.session_id, "state": "waiting_input"})
         elif actor_state == "running":
             active.append({"session_id": actor.session_id, "state": "running"})
+        elif state.headless is not None and state.headless.has_live_follow_ups(actor.session_id):
+            # The drain starts the next turn as soon as this one ends; a reload
+            # in between would strand the queue until the client reattaches.
+            active.append({"session_id": actor.session_id, "state": "queued"})
     if state.headless is not None:
         seen = {item["session_id"] for item in active}
         for session_id in state.headless.queued_session_ids():
@@ -70,6 +90,7 @@ async def server_status(state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, 
             "waiting_input": sum(1 for item in active_sessions if item["state"] == "waiting_input"),
             "queued": sum(1 for item in active_sessions if item["state"] == "queued"),
         },
+        "upgrade": state.upgrade.status() if state.upgrade is not None else None,
     }
 
 
@@ -86,16 +107,46 @@ async def server_stop(state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, An
 async def server_reload(request: ReloadRequest, state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, Any]:
     lifecycle = _require_lifecycle(state)
     active_sessions = list_active_sessions(state)
-    if active_sessions and not request.force:
+    if request.force:
+        lifecycle.request_reload()
+        return {"ok": True, "pid": os.getpid(), "state": "reloading", "interrupted": active_sessions}
+    if request.when == "idle":
+        status = _require_upgrade(state).request("reload")
+        return {
+            "ok": True,
+            "pid": os.getpid(),
+            "state": status["phase"],
+            "sessions": active_sessions,
+            "upgrade": status,
+            "interrupted": [],
+        }
+    if active_sessions:
         raise HTTPException(
             status_code=409,
             detail={
-                "message": "Sessions are still active; pass --force to interrupt them",
+                "message": "Sessions are still active; pass --force to interrupt them or --when-idle to wait",
                 "sessions": active_sessions,
             },
         )
     lifecycle.request_reload()
-    return {"ok": True, "pid": os.getpid(), "interrupted": active_sessions}
+    return {"ok": True, "pid": os.getpid(), "state": "reloading", "interrupted": []}
+
+
+@router.get("/upgrade")
+async def server_upgrade_status(state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, Any]:
+    return {"ok": True, "pid": os.getpid(), **_require_upgrade(state).status()}
+
+
+@router.post("/upgrade")
+async def server_upgrade(request: UpgradeRequest, state: ServerAppState = _SERVER_STATE_DEP) -> dict[str, Any]:
+    """Install the latest code and restart, once no session has live work.
+
+    The server owns the install so no running turn ever executes on a
+    half-replaced venv; a busy server keeps the request pending.
+    """
+
+    status = _require_upgrade(state).request("upgrade", check=request.check)
+    return {"ok": True, "pid": os.getpid(), **status}
 
 
 @router.post("/debug")

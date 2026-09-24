@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
+from concurrent.futures import Future
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -289,6 +290,7 @@ def run_scenario(
     *,
     client: FakeRuntimeClient | None = None,
     setup: Callable[[FakeRuntimeClient], Awaitable[None]] | None = None,
+    upgrade_notice: Future[str] | None = None,
 ) -> FakeRuntimeClient:
     fake_client = client or FakeRuntimeClient()
 
@@ -311,7 +313,7 @@ def run_scenario(
 
     async def _main() -> None:
         # Instantiate the script lazily so it can capture the fake input.
-        run_task = asyncio.create_task(runner_module.run_attach(fake_client.session_id))
+        run_task = asyncio.create_task(runner_module.run_attach(fake_client.session_id, upgrade_notice=upgrade_notice))
         # Wait for the input provider to exist, then bind the script.
         for _ in range(200):
             if FakeInputProvider.instance is not None:
@@ -363,6 +365,68 @@ async def _settle() -> None:
 
 
 # -- tests ------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("before_attach", [True, False])
+def test_auto_upgrade_notice_only_in_current_tui(monkeypatch: pytest.MonkeyPatch, before_attach: bool) -> None:
+    message = "Klaude updated to main @ 30fcf958. Restart klaude to use the new code."
+    notice: Future[str] = Future()
+    if before_attach:
+        notice.set_result(message)
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        if not before_attach:
+            notice.set_result(message)
+        for _ in range(100):
+            if any(isinstance(event, events.NoticeEvent) for event in client.local_events):
+                break
+            await asyncio.sleep(0.01)
+        yield UserInputPayload(text="exit")
+
+    client = run_scenario(monkeypatch, script, upgrade_notice=notice)
+    assert [event.content for event in client.local_events if isinstance(event, events.NoticeEvent)] == [message]
+
+
+def test_auto_upgrade_notice_survives_replay_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    notice: Future[str] = Future()
+    notice.set_result("Klaude updated. Restart klaude to use the new version.")
+    client = FakeRuntimeClient()
+
+    async def replay_timeout() -> None:
+        raise TimeoutError
+
+    monkeypatch.setattr(client, "wait_for_replay_complete", replay_timeout)
+
+    async def script(current: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        for _ in range(100):
+            if any(
+                isinstance(event, events.NoticeEvent) and event.content.startswith("Klaude updated")
+                for event in current.local_events
+            ):
+                break
+            await asyncio.sleep(0.01)
+        yield UserInputPayload(text="exit")
+
+    run_scenario(monkeypatch, script, client=client, upgrade_notice=notice)
+    assert (
+        sum(
+            isinstance(event, events.NoticeEvent) and event.content.startswith("Klaude updated")
+            for event in client.local_events
+        )
+        == 1
+    )
+
+
+def test_pending_auto_upgrade_notice_does_not_outlive_tui(monkeypatch: pytest.MonkeyPatch) -> None:
+    notice: Future[str] = Future()
+
+    async def script(_client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        yield UserInputPayload(text="exit")
+
+    client = run_scenario(monkeypatch, script, upgrade_notice=notice)
+    assert not notice.cancelled()
+    notice.set_result("Klaude updated. Restart klaude to use the new version.")
+    assert client.local_events == []
 
 
 def test_plain_message_echoes_and_starts_turn(monkeypatch: pytest.MonkeyPatch) -> None:

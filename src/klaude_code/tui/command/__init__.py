@@ -46,6 +46,7 @@ def ensure_commands_loaded() -> None:
     from .new_cmd import NewCommand
     from .recap_cmd import RecapCommand
     from .refresh_cmd import RefreshTerminalCommand
+    from .reload_cmd import ReloadCommand
     from .rewind_cmd import RewindCommand
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
@@ -57,6 +58,7 @@ def ensure_commands_loaded() -> None:
     register(ForkSessionCommand())
     register(RewindCommand())
     register(RefreshTerminalCommand())
+    register(ReloadCommand())
     register(NewCommand())
     register(ModelCommand())
     register(ManageProvidersCommand())
@@ -88,6 +90,7 @@ def __getattr__(name: str) -> object:
         "ModelCommand": "model_cmd",
         "RecapCommand": "recap_cmd",
         "RefreshTerminalCommand": "refresh_cmd",
+        "ReloadCommand": "reload_cmd",
         "RewindCommand": "rewind_cmd",
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",

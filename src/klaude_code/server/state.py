@@ -12,6 +12,7 @@ from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.session_live import SessionLiveState
 from klaude_code.server.session_tape import SessionEventTapes
+from klaude_code.server.upgrade import UpgradeCoordinator
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,8 @@ class ServerAppState:
     lifecycle: ServerLifecycle | None = None
     headless: HeadlessRuntime | None = None
     tapes: SessionEventTapes | None = None
+    # Server-owned pending upgrade/reload; None only before lifespan startup.
+    upgrade: UpgradeCoordinator | None = None
     # Frozen at startup; clients compare it against their own fingerprint.
     code_fingerprint: str = ""
     # Loopback TCP port serving the web viewer; None when no port was free.

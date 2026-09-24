@@ -77,6 +77,27 @@ def reload_server_config() -> str | None:
     return None
 
 
+def request_server_reload() -> dict[str, Any]:
+    """Ask the server to restart at its next idle boundary; returns the response body.
+
+    A pending upgrade is kept: the server then installs it before restarting.
+    This client's own session is idle while a command runs, so an otherwise
+    idle server restarts right away and the socket client reconnects.
+    """
+    body: Any = _request("POST", "/api/server/reload", json_body={"force": False, "when": "idle"}, timeout=10.0)
+    return body if isinstance(body, dict) else {}
+
+
+def describe_reload_response(body: dict[str, Any]) -> str:
+    upgrade: Any = body.get("upgrade") or {}
+    action = "install the pending update and restart" if upgrade.get("action") == "upgrade" else "restart"
+    sessions: Any = body.get("sessions") or []
+    if sessions:
+        noun = "session" if len(sessions) == 1 else "sessions"
+        return f"Server will {action} once {len(sessions)} other active {noun} finish."
+    return f"Server is about to {action}; this TUI reconnects automatically."
+
+
 def server_code_is_stale() -> bool:
     """True when the running server executes different code than this client.
 

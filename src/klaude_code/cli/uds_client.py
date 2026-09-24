@@ -26,7 +26,14 @@ STALE_SERVER_HINT = (
     "klaude server is running stale code or an incompatible protocol; "
     "finish or kill running sessions, then: klaude server reload --force"
 )
+STALE_SERVER_PENDING_HINT = (
+    "klaude server is running older code; it restarts once its active sessions finish "
+    "(interrupt them with: klaude server reload --force)"
+)
 _RELOAD_WAIT_TIMEOUT = 30.0
+# The TUI attach path spawns the server concurrently; the upgrade request
+# waits this long for it to answer before giving up silently.
+_UPGRADE_REQUEST_TIMEOUT = 30.0
 
 # The handshake runs once per process; thin-client commands issue several
 # requests and the check is only meaningful on the first contact.
@@ -149,12 +156,14 @@ def _server_matches(status_body: dict[str, Any], *, local_fingerprint: str) -> b
 
 
 def verify_server_code(status_body: dict[str, Any]) -> None:
-    """Compatibility handshake: reload an idle stale server, warn on a busy one.
+    """Compatibility handshake: ask a stale server to reload at its next idle boundary.
 
     A server started from older code produces confusing artifacts (stuck
     loading, ghost sessions), so every CLI entry compares the protocol and
-    code fingerprint on first contact. Runs once per process; never raises on
-    mismatch.
+    code fingerprint on first contact. The server owns the timing: an idle
+    one re-execs right away and this call waits for it; a busy one keeps the
+    reload pending and fires it when its sessions finish. Runs once per
+    process; never raises on mismatch.
     """
 
     global _handshake_done
@@ -166,41 +175,42 @@ def verify_server_code(status_body: dict[str, Any]) -> None:
     if _server_matches(status_body, local_fingerprint=local_fingerprint):
         return
 
-    sessions = status_body.get("sessions") or {}
-    busy = any(int(sessions.get(key) or 0) > 0 for key in ("running", "waiting_input", "queued"))
-    if busy:
-        _warn(STALE_SERVER_HINT)
-        return
-
     try:
-        status, _body = request("POST", "/api/server/reload", json_body={"force": False}, timeout=10.0)
+        status, body = request("POST", "/api/server/reload", json_body={"force": False, "when": "idle"}, timeout=10.0)
     except ServerNotRunningError:
         return  # Server went away; the autostart path brings up current code.
     if status == 409:
-        # A session slipped in between the status check and the reload.
+        # Older server without idle scheduling: it only knows now-or-refuse.
         _warn(STALE_SERVER_HINT)
         return
-    if status != 200:
+    if status != 200 or not isinstance(body, dict):
         _warn(f"klaude server auto-reload failed (HTTP {status}); it may be running stale code")
         return
-    pid = _body.get("pid") if isinstance(_body, dict) else None
+    if body.get("sessions"):
+        _warn(STALE_SERVER_PENDING_HINT)
+        return
+    pid = body.get("pid")
     outcome = wait_for_reloaded_server(local_fingerprint=local_fingerprint, pid=pid if isinstance(pid, int) else None)
     if outcome == "timeout":
         _warn("klaude server did not come back on current code after reload; check `klaude server status`")
     # "exited": the follow-up request hits the autostart path, which reports why.
 
 
-def wait_for_reloaded_server(*, local_fingerprint: str, pid: int | None = None) -> str:
+def wait_for_reloaded_server(
+    *, local_fingerprint: str | None, pid: int | None = None, timeout: float | None = None
+) -> str:
     """Block until the reloaded server answers with matching code.
 
     Reload re-execs the server process in place (same pid), so the only
     reliable restart signal is the fingerprint itself. Old-process answers
-    during the drain simply do not match and keep the loop polling. Returns
-    "ok", "exited" (the re-exec'd process died, e.g. on a config error) or
-    "timeout".
+    during the drain simply do not match and keep the loop polling. With
+    ``local_fingerprint`` None any compatible server that answers after the
+    socket went down counts. Returns "ok", "exited" (the re-exec'd process
+    died, e.g. on a config error) or "timeout".
     """
 
-    deadline = time.monotonic() + _RELOAD_WAIT_TIMEOUT
+    deadline = time.monotonic() + (_RELOAD_WAIT_TIMEOUT if timeout is None else timeout)
+    saw_down = False
     while time.monotonic() < deadline:
         time.sleep(0.25)
         try:
@@ -208,12 +218,61 @@ def wait_for_reloaded_server(*, local_fingerprint: str, pid: int | None = None) 
         except ServerNotRunningError:
             # Socket is down while the server re-execs; a gone pid means the
             # new code failed to boot, so waiting longer cannot help.
+            saw_down = True
             if pid is not None and not _process_alive(pid):
                 return "exited"
             continue
-        if status == 200 and isinstance(body, dict) and _server_matches(body, local_fingerprint=local_fingerprint):
+        if status != 200 or not isinstance(body, dict):
+            continue
+        if local_fingerprint is not None:
+            if _server_matches(body, local_fingerprint=local_fingerprint):
+                return "ok"
+        elif saw_down and is_protocol_compatible(body.get("protocol_version")):
             return "ok"
     return "timeout"
+
+
+def request_server_upgrade(*, check: bool = False, timeout: float = _UPGRADE_REQUEST_TIMEOUT) -> dict[str, Any] | None:
+    """Ask the server to install the latest code at its next idle boundary.
+
+    Retries while the server is still booting. Returns the server's upgrade
+    status, or None when no server answered in time or it predates the
+    endpoint.
+    """
+
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            status, body = request("POST", "/api/server/upgrade", json_body={"check": check}, timeout=10.0)
+            break
+        except ServerNotRunningError:
+            if time.monotonic() >= deadline:
+                return None
+            time.sleep(0.5)
+    if status != 200 or not isinstance(body, dict):
+        return None
+    return body
+
+
+def describe_upgrade_status(status: dict[str, Any]) -> str | None:
+    """One user-facing line for a server upgrade status, or None when idle."""
+
+    phase = status.get("phase")
+    action = "install the update and restart" if status.get("action") == "upgrade" else "restart"
+    if phase == "pending":
+        active = status.get("active_sessions") or []
+        if active:
+            noun = "session" if len(active) == 1 else "sessions"
+            return f"klaude server will {action} once {len(active)} active {noun} finish (/reload to check)."
+        return f"klaude server is about to {action}; this client reconnects automatically."
+    if phase == "installing":
+        return "klaude server is installing the update and restarts when done."
+    if phase == "reloading":
+        return "klaude server is restarting on the updated code."
+    if phase == "failed":
+        message = status.get("message") or "unknown error"
+        return f"klaude upgrade failed: {message}"
+    return None
 
 
 def ensure_server_running(*, startup_timeout: float = 20.0) -> None:

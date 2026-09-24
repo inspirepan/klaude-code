@@ -43,6 +43,14 @@ def _require_headless(state: ServerAppState) -> HeadlessRuntime:
     return state.headless
 
 
+def _require_admission(state: ServerAppState) -> None:
+    """Refuse new turns while the server installs an update or re-execs."""
+
+    paused = state.upgrade.admission_error() if state.upgrade is not None else None
+    if paused is not None:
+        raise HTTPException(status_code=503, detail=paused)
+
+
 def _load_summaries(state: ServerAppState) -> list[SessionSummary]:
     if state.session_live is None:
         raise HTTPException(status_code=503, detail="session index is not available")
@@ -356,6 +364,7 @@ async def run_headless(payload: HeadlessRunRequest, state: ServerAppState = STAT
             raise HTTPException(status_code=409, detail=f"name '{name}' is already used by an active session")
 
     resolved_model = _resolve_run_model(payload.model, agent)
+    _require_admission(state)
 
     session = Session.create(id=uuid4().hex, work_dir=work_dir)
     session.name = name
@@ -592,6 +601,7 @@ async def send_headless_message(
     if headless.is_queued(summary.id) and (not payload.steer or not headless.can_replace_queued_for_steer(summary.id)):
         raise HTTPException(status_code=409, detail="session is queued and has not started yet; wait for it first")
 
+    _require_admission(state)
     user_input = UserInputPayload(text=text)
     try:
         if payload.steer:

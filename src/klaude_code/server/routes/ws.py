@@ -236,6 +236,25 @@ async def _handle_operation_frame(
             message="Operation must target the attached session or a live sub-agent under it",
         )
         return
+    if isinstance(operation, op.RunAgentOperation | op.FollowUpAgentOperation):
+        paused = state.upgrade.admission_error() if state.upgrade is not None else None
+        if paused is not None:
+            # The server is about to re-exec on new code; a turn accepted now
+            # would run on a half-replaced venv. Reject with a terminal
+            # lifecycle event so the client's busy mirror does not stick.
+            await _send_error_frame(websocket, code="server_upgrading", message=paused)
+            await runtime.emit_event(
+                events.OperationFinishedEvent(
+                    session_id=session_id,
+                    operation_id=operation.id,
+                    operation_type=operation.type.value,
+                    status="rejected",
+                    error_message=paused,
+                )
+            )
+            if isinstance(operation, op.FollowUpAgentOperation):
+                await _emit_follow_up_queue_event(state, session_id)
+            return
     try:
         if isinstance(operation, op.RunAgentOperation):
             # May wait on a threshold compaction; must not block the receive

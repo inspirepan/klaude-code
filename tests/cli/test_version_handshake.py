@@ -177,16 +177,25 @@ class _FakeServer:
 
     def __init__(self, *, reload_status: int = 200, new_fingerprint: str = "git:local") -> None:
         self.requests: list[tuple[str, str]] = []
+        self.reload_bodies: list[dict[str, Any]] = []
         self.reload_status = reload_status
         self.new_fingerprint = new_fingerprint
         self.reloaded = False
+        # Sessions the server reports as active: a when=idle reload stays
+        # pending instead of restarting.
+        self.active: list[dict[str, str]] = []
 
-    def request(self, method: str, path: str, **_kwargs: Any) -> tuple[int, Any]:
+    def request(self, method: str, path: str, **kwargs: Any) -> tuple[int, Any]:
         self.requests.append((method, path))
         if method == "POST" and path == "/api/server/reload":
-            if self.reload_status == 200:
-                self.reloaded = True
-            return self.reload_status, {"detail": "busy"} if self.reload_status == 409 else {"ok": True, "pid": 100}
+            body = kwargs.get("json_body") or {}
+            self.reload_bodies.append(body)
+            if self.reload_status != 200:
+                return self.reload_status, {"detail": "busy"}
+            if body.get("when") == "idle" and self.active:
+                return 200, {"ok": True, "pid": 100, "state": "pending", "sessions": self.active}
+            self.reloaded = True
+            return 200, {"ok": True, "pid": 100, "state": "pending", "sessions": []}
         if method == "GET" and path == "/api/server/status":
             if self.reloaded:
                 return 200, _status_body(fingerprint=self.new_fingerprint, pid=100)
@@ -227,24 +236,16 @@ class TestVersionHandshake:
         assert ("GET", "/api/server/status") in handshake_env.requests
         assert capsys.readouterr().err == ""
 
-    def test_mismatch_running_warns_without_reload(
+    def test_mismatch_busy_registers_idle_reload_and_warns(
         self, handshake_env: _FakeServer, capsys: pytest.CaptureFixture[str]
     ):
+        handshake_env.active = [{"session_id": "abc", "state": "running"}]
         uds_client.verify_server_code(_status_body(fingerprint="git:stale", running=1))
-        assert handshake_env.reload_count == 0
-        assert "stale code" in capsys.readouterr().err
-
-    def test_mismatch_waiting_input_warns_without_reload(
-        self, handshake_env: _FakeServer, capsys: pytest.CaptureFixture[str]
-    ):
-        uds_client.verify_server_code(_status_body(fingerprint="git:stale", waiting_input=1))
-        assert handshake_env.reload_count == 0
-        assert "stale code" in capsys.readouterr().err
-
-    def test_mismatch_queued_warns_without_reload(self, handshake_env: _FakeServer, capsys: pytest.CaptureFixture[str]):
-        uds_client.verify_server_code(_status_body(fingerprint="git:stale", queued=3))
-        assert handshake_env.reload_count == 0
-        assert "stale code" in capsys.readouterr().err
+        # The server owns the timing: the request is registered, not retried here.
+        assert handshake_env.reload_bodies == [{"force": False, "when": "idle"}]
+        assert handshake_env.reloaded is False
+        assert ("GET", "/api/server/status") not in handshake_env.requests
+        assert "restarts once its active sessions finish" in capsys.readouterr().err
 
     def test_missing_fingerprint_counts_as_mismatch(self, handshake_env: _FakeServer):
         # A pre-handshake server does not report a fingerprint at all.
@@ -256,13 +257,15 @@ class TestVersionHandshake:
         assert handshake_env.reload_count == 1
 
     def test_missing_protocol_busy_warns(self, handshake_env: _FakeServer, capsys: pytest.CaptureFixture[str]):
+        handshake_env.active = [{"session_id": "abc", "state": "running"}]
         uds_client.verify_server_code(_status_body(fingerprint="git:local", protocol_version=None, running=1))
-        assert handshake_env.reload_count == 0
-        assert "stale code" in capsys.readouterr().err
+        assert handshake_env.reloaded is False
+        assert "older code" in capsys.readouterr().err
 
     def test_reload_conflict_falls_back_to_warning(
         self, handshake_env: _FakeServer, capsys: pytest.CaptureFixture[str]
     ):
+        # A pre-idle-scheduling server refuses a busy reload with 409.
         handshake_env.reload_status = 409
         uds_client.verify_server_code(_status_body(fingerprint="git:stale"))
         assert "stale code" in capsys.readouterr().err

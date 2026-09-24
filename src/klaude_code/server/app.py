@@ -32,8 +32,9 @@ from klaude_code.server.routes import (
 from klaude_code.server.session_live import SessionLiveState
 from klaude_code.server.session_tape import SessionEventTapes
 from klaude_code.server.state import ServerAppState, get_server_state_from_app
+from klaude_code.server.upgrade import UpgradeCoordinator
 from klaude_code.session.store import register_session_history_observer, register_session_meta_observer
-from klaude_code.update import get_code_fingerprint
+from klaude_code.update import AutoUpgradeResult, get_code_fingerprint, perform_upgrade, upgraded_code_fingerprint
 
 
 class _EnvSyncMiddleware:
@@ -105,6 +106,9 @@ def create_app(
                 headless=HeadlessRuntime(state.runtime, max_running=_headless_max_running(), tapes=state.tapes),
             )
             app.state.server_state = state
+        if state.upgrade is None and state.lifecycle is not None:
+            state = replace(state, upgrade=_build_upgrade_coordinator(app, state.lifecycle))
+            app.state.server_state = state
         session_live = state.session_live
         if session_live is None:
             raise RuntimeError("session live state is not initialized")
@@ -112,6 +116,8 @@ def create_app(
         if headless is None:
             raise RuntimeError("headless runtime is not initialized")
         headless.start(state.event_bus)
+        if state.upgrade is not None:
+            state.upgrade.start(state.event_bus)
         headless.restore(session_live.index.list_all())
         session_live.attach_loop(asyncio.get_running_loop())
         unregister_meta_observer = register_session_meta_observer(session_live.apply_meta_update)
@@ -137,6 +143,8 @@ def create_app(
             prevent_sleep_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await prevent_sleep_task
+            if state.upgrade is not None:
+                await state.upgrade.aclose()
             log_debug("[server] lifespan shutdown: closing headless runtime", debug_type=DebugType.EXECUTION)
             await headless.aclose()
             if unregister_history_observer is not None:
@@ -183,6 +191,33 @@ def create_app(
     app.add_middleware(HostHeaderGuardMiddleware, web_port=web_port)
 
     return app
+
+
+def _build_upgrade_coordinator(app: FastAPI, lifecycle: ServerLifecycle) -> UpgradeCoordinator:
+    # Read the state through the app on every call: the frozen dataclass is
+    # replaced several times during startup.
+    from klaude_code.protocol import events
+    from klaude_code.server.routes.server import list_active_sessions
+    from klaude_code.server.routes.ws import attached_session_ids
+
+    def _active_sessions() -> list[dict[str, str]]:
+        return list_active_sessions(get_server_state_from_app(app))
+
+    async def _notify(text: str, is_error: bool) -> None:
+        runtime = get_server_state_from_app(app).runtime
+        for session_id in attached_session_ids():
+            await runtime.emit_event(events.NoticeEvent(session_id=session_id, content=text, is_error=is_error))
+
+    def _target_fingerprint(result: AutoUpgradeResult) -> str | None:
+        return upgraded_code_fingerprint(result)
+
+    return UpgradeCoordinator(
+        lifecycle=lifecycle,
+        active_sessions=_active_sessions,
+        installer=perform_upgrade,
+        target_fingerprint=_target_fingerprint,
+        notify=_notify,
+    )
 
 
 def _history_len_getter(runtime: RuntimeFacade):

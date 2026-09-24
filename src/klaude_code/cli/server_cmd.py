@@ -120,6 +120,14 @@ def status_command() -> None:
         f"{sessions.get('waiting_input', 0)} waiting for input, "
         f"{sessions.get('queued', 0)} queued"
     )
+    upgrade = body.get("upgrade")
+    if isinstance(upgrade, dict) and upgrade.get("phase") not in (None, "idle"):
+        detail = f"{upgrade.get('phase')} ({upgrade.get('action')})"
+        if upgrade.get("active_sessions"):
+            detail += f", waiting for {len(upgrade['active_sessions'])} active session(s)"
+        if upgrade.get("message"):
+            detail += f": {upgrade['message']}"
+        log((f"  upgrade:  {detail}", "yellow"))
 
     from klaude_code.protocol.version import is_protocol_compatible
     from klaude_code.update import get_code_fingerprint
@@ -147,15 +155,21 @@ def stop_command() -> None:
 @server_app.command("reload")
 def reload_command(
     force: bool = typer.Option(False, "--force", help="Interrupt running sessions before reloading"),
+    when_idle: bool = typer.Option(
+        False, "--when-idle", help="Let the server restart itself once its active sessions finish"
+    ),
 ) -> None:
     """Gracefully restart the server on the current code.
 
-    Refuses when sessions are running unless --force is given. Idle sessions
-    are unaffected: they live on disk and rehydrate on demand.
+    Refuses when sessions are running unless --force (interrupt them) or
+    --when-idle (server restarts at its next idle boundary) is given. Idle
+    sessions are unaffected: they live on disk and rehydrate on demand.
     """
 
     try:
-        status_code, body = _request("POST", "/api/server/reload", json_body={"force": force})
+        status_code, body = _request(
+            "POST", "/api/server/reload", json_body={"force": force, "when": "idle" if when_idle else "now"}
+        )
     except ServerNotRunningError as exc:
         _print_not_running(str(exc))
         raise typer.Exit(1) from None
@@ -165,12 +179,17 @@ def reload_command(
         log(("Refusing to reload: sessions are still active", "yellow"))
         for item in sessions:
             log((f"  {item.get('session_id')}  {item.get('state')}", "dim"))
-        log(("Use --force to interrupt them (sessions stay resumable)", "dim"))
+        log(("Use --force to interrupt them (sessions stay resumable) or --when-idle to wait", "dim"))
         raise typer.Exit(1)
     if status_code != 200:
         log((f"Unexpected server response ({status_code}): {body}", "red"))
         raise typer.Exit(1)
     pid = body.get("pid")
+    if when_idle and body.get("sessions"):
+        log(("klaude server restarts once these sessions finish:", "yellow"))
+        for item in body.get("sessions", []):
+            log((f"  {item.get('session_id')}  {item.get('state')}", "dim"))
+        return
     log((f"klaude server is reloading (pid {pid})", "green"))
 
     from klaude_code.cli.uds_client import ensure_server_running, wait_for_reloaded_server

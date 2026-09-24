@@ -383,6 +383,11 @@ def test_code_mismatch_during_reattach_allows_same_protocol(monkeypatch: pytest.
     assert attempts == 1
     assert not client._attach_fatal
     assert not client._connection_lost.is_set()
+    # The resume goes through, and the user learns the server moved on.
+    notice = client._display_queue.get_nowait().event
+    assert isinstance(notice, events.NoticeEvent)
+    assert "Server restarted on updated code (git:other)" in notice.content
+    assert not notice.is_error
     assert client._display_queue.empty()
 
 

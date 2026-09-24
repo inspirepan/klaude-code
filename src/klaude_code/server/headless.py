@@ -591,6 +591,19 @@ class HeadlessRuntime:
     def queued_session_ids(self) -> list[str]:
         return [entry.session_id for entry in self._queue]
 
+    def has_live_follow_ups(self, session_id: str) -> bool:
+        """True when queued follow-ups will start a turn on their own.
+
+        A latched queue (stopped session, failed turn) waits for the user, so
+        it does not make the session busy.
+        """
+
+        if session_id in self._stopped_sessions or self.tracker.is_failed(session_id):
+            return False
+        actor = self._runtime.session_registry.get_session_actor(session_id)
+        agent = actor.get_agent() if actor is not None else None
+        return agent is not None and agent.peek_next_follow_up() is not None
+
     async def spawn(self, *, session_id: str, prompt: UserInputPayload, work_dir: Path) -> str:
         """Start a headless run or queue it. Returns "running" or "queued"."""
         entry = QueuedRun(session_id=session_id, queued=QueuedUserInput(input=prompt), work_dir=work_dir)

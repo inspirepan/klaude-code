@@ -2,7 +2,7 @@
 
 import shutil
 import subprocess
-from pathlib import Path
+import time
 
 import typer
 
@@ -28,76 +28,100 @@ def version_command() -> None:
 
 def _upgrade_local_git_install(install_kind: str, source_path: str) -> None:
     from klaude_code.log import log
-    from klaude_code.update import INSTALL_KIND_EDITABLE
+    from klaude_code.update import _upgrade_git_install
 
-    repo_path = Path(source_path).expanduser()
-    source_display = str(repo_path)
-
-    if not repo_path.exists() or not repo_path.is_dir():
-        log((f"Error: local source path is unavailable: {source_display}", "red"))
+    result = _upgrade_git_install(install_kind, source_path)
+    if not result.performed:
+        log((result.message or "Git upgrade failed", "red"))
         raise typer.Exit(1)
+    log(result.message or "Update complete")
 
-    if shutil.which("uv") is None:
-        log(("Error: `uv` not found in PATH.", "red"))
-        log(f"To update, install uv and run `uv tool install {source_display}`.")
-        raise typer.Exit(1)
+
+_SERVER_UPGRADE_POLL_SECONDS = 0.5
+# Git fetch + submodules + uv install can take several minutes on a cold cache.
+_SERVER_UPGRADE_WAIT_SECONDS = 600.0
+# A pending request on an idle server fires within the coordinator's settle
+# window; wait this long before treating "pending" as "busy".
+_SERVER_UPGRADE_PENDING_GRACE_SECONDS = 3.0
+
+
+def _upgrade_via_server() -> bool:
+    """Let the running server install and re-exec itself; False when no server took the job.
+
+    The server is the long-lived process, so it must not be left on a
+    half-replaced venv: it installs only once its sessions are idle, then
+    restarts. This follows its status and reports the outcome.
+    """
+
+    from klaude_code.cli.uds_client import (
+        ServerNotRunningError,
+        describe_upgrade_status,
+        request,
+        request_server_upgrade,
+        wait_for_reloaded_server,
+    )
+    from klaude_code.log import log
 
     try:
-        # Ignore submodules entirely: a moved pointer is not a user edit.
-        status_result = subprocess.run(
-            ["git", "-C", source_display, "status", "--porcelain", "--ignore-submodules=all"],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError as err:
-        log(("Error: `git` not found in PATH.", "red"))
-        raise typer.Exit(1) from err
+        request("GET", "/api/server/status", timeout=3.0)
+    except ServerNotRunningError:
+        return False
+    status = request_server_upgrade(check=True, timeout=5.0)
+    if status is None:
+        return False
 
-    if status_result.returncode != 0:
-        log((f"Error: local source is not a git repository: {source_display}", "red"))
-        log("Please update the source manually and reinstall if needed.")
+    pid = status.get("pid")
+    deadline = time.monotonic() + _SERVER_UPGRADE_WAIT_SECONDS
+    pending_since = time.monotonic()
+    announced: set[str] = set()
+    target: str | None = None
+    while time.monotonic() < deadline:
+        phase = status.get("phase")
+        if phase == "pending":
+            active = status.get("active_sessions") or []
+            if active and time.monotonic() - pending_since > _SERVER_UPGRADE_PENDING_GRACE_SECONDS:
+                log((describe_upgrade_status(status) or "klaude server is busy; upgrade pending", "yellow"))
+                for item in active:
+                    log((f"  {item.get('session_id')}  {item.get('state')}", "dim"))
+                log(("It installs when they finish; interrupt with: klaude server reload --force", "dim"))
+                return True
+        elif phase == "installing":
+            if "installing" not in announced:
+                announced.add("installing")
+                log("Server is installing the update (checking upstream first)…")
+        elif phase == "reloading":
+            target = status.get("target_fingerprint") if isinstance(status.get("target_fingerprint"), str) else None
+            break
+        elif phase == "failed":
+            log((f"Error: {status.get('message') or 'upgrade failed'}", "red"))
+            raise typer.Exit(1)
+        else:
+            log(status.get("message") or "Already up to date.")
+            return True
+        time.sleep(_SERVER_UPGRADE_POLL_SECONDS)
+        try:
+            code, body = request("GET", "/api/server/upgrade", timeout=5.0)
+        except ServerNotRunningError:
+            # Socket gone mid-install can only mean the server is re-execing.
+            break
+        if code != 200 or not isinstance(body, dict):
+            log((f"Error: unexpected server response ({code})", "red"))
+            raise typer.Exit(1)
+        status = body
+    else:
+        log(("Error: server upgrade did not finish in time; check `klaude server status`", "red"))
         raise typer.Exit(1)
 
-    if status_result.stdout.strip():
-        log(("Error: local git checkout has uncommitted changes.", "red"))
-        log(f"Source path: {source_display}")
-        log("Commit or stash your changes, then run `klaude upgrade` again.")
-        raise typer.Exit(1)
-
-    log(f"Updating local source at {source_display}…")
-    log("Switching local checkout to `main`…")
-    checkout_result = subprocess.run(["git", "-C", source_display, "checkout", "main"], check=False)
-    if checkout_result.returncode != 0:
-        log(("Error: failed to switch local checkout to `main`.", "red"))
-        raise typer.Exit(checkout_result.returncode or 1)
-
-    log("Pulling latest changes from the tracked remote…")
-    pull_result = subprocess.run(["git", "-C", source_display, "pull", "--ff-only"], check=False)
-    if pull_result.returncode != 0:
-        log(("Error: `git pull --ff-only` failed.", "red"))
-        raise typer.Exit(pull_result.returncode or 1)
-
-    log("Syncing git submodules…")
-    submodule_result = subprocess.run(
-        ["git", "-C", source_display, "submodule", "update", "--init", "--recursive"], check=False
-    )
-    if submodule_result.returncode != 0:
-        log(("Error: `git submodule update` failed; upgrade stopped before reinstall.", "red"))
-        raise typer.Exit(submodule_result.returncode or 1)
-
-    install_args = ["uv", "tool", "install", "--force"]
-    if install_kind == INSTALL_KIND_EDITABLE:
-        install_args.append("--editable")
-    install_args.append(source_display)
-
-    log("Reinstalling klaude from the updated local source…")
-    install_result = subprocess.run(install_args, check=False)
-    if install_result.returncode != 0:
-        log((f"Error: reinstall failed (exit code {install_result.returncode}).", "red"))
-        raise typer.Exit(install_result.returncode or 1)
-
-    log("Update complete. Please re-run `klaude` to use the new version.")
+    log("Update installed; waiting for the server to restart…")
+    outcome = wait_for_reloaded_server(local_fingerprint=target, pid=pid if isinstance(pid, int) else None)
+    if outcome == "ok":
+        log(("Server restarted on the updated code. Re-run `klaude` to update this CLI too.", "green"))
+        return True
+    if outcome == "exited":
+        log(("Error: server exited while restarting; run `klaude server run` to see why", "red"))
+    else:
+        log(("Error: server did not come back on the updated code; check `klaude server status`", "red"))
+    raise typer.Exit(1)
 
 
 def upgrade_command(
@@ -118,9 +142,28 @@ def upgrade_command(
         UPGRADE_BRANCH,
         check_for_updates_blocking,
         get_install_source_path,
+        get_installation_info,
     )
 
-    info = check_for_updates_blocking()
+    if not check:
+        if _upgrade_via_server():
+            return
+        # No server running (or one that predates server-owned upgrades):
+        # install here; the next `klaude` starts a server on the new code.
+        install = get_installation_info()
+        if install.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
+            source = get_install_source_path()
+            if source is None:
+                log(("Error: local install source path is unavailable.", "red"))
+                raise typer.Exit(1)
+            _upgrade_local_git_install(install.install_kind, source)
+            return
+
+    try:
+        info = check_for_updates_blocking()
+    except RuntimeError as exc:
+        log((f"Error: {exc}", "red"))
+        raise typer.Exit(1) from None
 
     if check:
         if info is None:
@@ -147,7 +190,7 @@ def upgrade_command(
 
         if info.update_available:
             if tracks_git:
-                log(f"origin/{UPGRADE_BRANCH} has newer commits. Run `klaude upgrade` from a clean local checkout.")
+                log(f"origin/{UPGRADE_BRANCH} has newer commits. Run `klaude upgrade` to update.")
             elif info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
                 log("PyPI has a newer release. Run `klaude upgrade` from a clean local checkout to update.")
             elif info.install_kind == INSTALL_KIND_DIRECT_URL:
@@ -155,18 +198,6 @@ def upgrade_command(
             else:
                 log("Run `klaude upgrade` to upgrade.")
 
-        return
-
-    if info is not None and info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
-        source_path = get_install_source_path()
-        if source_path is None:
-            if info.install_kind == INSTALL_KIND_EDITABLE:
-                log(("Error: editable install source path is unavailable.", "red"))
-            else:
-                log(("Error: local path install source path is unavailable.", "red"))
-            raise typer.Exit(1)
-
-        _upgrade_local_git_install(info.install_kind, source_path)
         return
 
     if info is not None and info.install_kind == INSTALL_KIND_DIRECT_URL:
