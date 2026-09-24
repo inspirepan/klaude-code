@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any, cast
 
 import httpx
+import httpx2
 import pytest
 from openai._models import construct_type_unchecked
 from openai.types import responses
@@ -29,24 +30,36 @@ class _AwaitableOf:
         return _coro().__await__()
 
 
+def _httpx_remote_protocol_error() -> httpx.RemoteProtocolError:
+    return httpx.RemoteProtocolError(
+        "peer closed connection without sending complete message body (incomplete chunked read)",
+        request=None,
+    )
+
+
+def _httpx2_remote_protocol_error() -> httpx2.RemoteProtocolError:
+    """Transport errors on the anthropic path are httpx2's, not httpx's."""
+    return httpx2.RemoteProtocolError(
+        "peer closed connection without sending complete message body (incomplete chunked read)",
+        request=None,
+    )
+
+
 class _RemoteProtocolErrorAsyncIterator:
+    def __init__(self, make_error: Callable[[], Exception] = _httpx_remote_protocol_error) -> None:
+        self._make_error = make_error
+
     def __aiter__(self) -> _RemoteProtocolErrorAsyncIterator:
         return self
 
     async def __anext__(self) -> object:
-        raise httpx.RemoteProtocolError(
-            "peer closed connection without sending complete message body (incomplete chunked read)",
-            request=None,
-        )
+        raise self._make_error()
 
 
 class _AwaitRaisesRemoteProtocolError:
     def __await__(self):
         async def _coro() -> AsyncIterator[object]:
-            raise httpx.RemoteProtocolError(
-                "peer closed connection without sending complete message body (incomplete chunked read)",
-                request=None,
-            )
+            raise _httpx2_remote_protocol_error()
 
         return _coro().__await__()
 
@@ -117,7 +130,7 @@ def _collect_stream(stream: object) -> list[message.LLMStreamItem]:
 def test_anthropic_stream_remote_protocol_error_becomes_stream_error_item() -> None:
     param = _basic_call_param(model_id="claude-3-5-sonnet")
     stream = AnthropicLLMStream(
-        _AwaitableOf(_RemoteProtocolErrorAsyncIterator()),
+        _AwaitableOf(_RemoteProtocolErrorAsyncIterator(_httpx2_remote_protocol_error)),
         param=param,
         metadata_tracker=MetadataTracker(),
     )

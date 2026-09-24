@@ -7,7 +7,11 @@ from anthropic.types.beta.beta_raw_content_block_stop_event import BetaRawConten
 from anthropic.types.beta.beta_raw_message_delta_event import BetaRawMessageDeltaEvent
 from anthropic.types.beta.beta_raw_message_start_event import BetaRawMessageStartEvent
 
-from klaude_code.const import ANTHROPIC_BETA_CONTEXT_MANAGEMENT, ANTHROPIC_BETA_INTERLEAVED_THINKING
+from klaude_code.const import (
+    ANTHROPIC_BETA_CONTEXT_MANAGEMENT,
+    ANTHROPIC_BETA_INTERLEAVED_THINKING,
+    DEFAULT_TEMPERATURE,
+)
 from klaude_code.llm.anthropic.client import (
     AnthropicStreamStateManager,
     build_payload,
@@ -120,7 +124,7 @@ def test_build_payload_omits_temperature_for_unsupported_opus_models(model_id: s
 
     payload = build_payload(param)
 
-    assert "temperature" not in payload
+    assert "temperature" not in payload.get("extra_body", {})
 
 
 def test_build_payload_includes_temperature_for_opus_46() -> None:
@@ -132,7 +136,9 @@ def test_build_payload_includes_temperature_for_opus_46() -> None:
 
     payload = build_payload(param)
 
-    assert "temperature" in payload
+    # The SDK typings no longer carry temperature, so it travels as an extra
+    # body key that `create()` merges into the request body.
+    assert cast(dict[str, Any], payload)["extra_body"] == {"temperature": DEFAULT_TEMPERATURE}
 
 
 @pytest.mark.parametrize(

@@ -4,9 +4,14 @@ from collections.abc import AsyncGenerator
 from typing import Any, Literal, cast, override
 
 import anthropic
-import httpx
+import httpx2
 from anthropic import APIError
-from anthropic.types.beta import BetaCacheControlEphemeralParam, BetaTextBlockParam
+from anthropic.types.beta import (
+    BetaCacheControlEphemeralParam,
+    BetaTextBlockParam,
+    BetaThinkingConfigAdaptiveParam,
+    BetaThinkingConfigEnabledParam,
+)
 from anthropic.types.beta.beta_input_json_delta import BetaInputJSONDelta
 from anthropic.types.beta.beta_raw_content_block_delta_event import BetaRawContentBlockDeltaEvent
 from anthropic.types.beta.beta_raw_content_block_start_event import BetaRawContentBlockStartEvent
@@ -29,7 +34,7 @@ from klaude_code.const import (
 )
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input, convert_tool_schema
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.llm.http import create_async_http_client, create_http_timeout
+from klaude_code.llm.http import create_httpx2_async_http_client, create_httpx2_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.model_workarounds import (
     insert_empty_thinking_before_first_tool_call,
@@ -211,9 +216,11 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
         "tools": tools,
     }
 
-    # Newer Opus models reject non-default sampling parameters with 400.
+    # Newer Opus models reject non-default sampling parameters with 400, and the
+    # SDK dropped sampling temperature from its generated types altogether, so
+    # it travels as an extra body key that `create()` merges into the request.
     if model_supports_temperature(model_id):
-        payload["temperature"] = param.temperature or DEFAULT_TEMPERATURE
+        cast(dict[str, Any], payload)["extra_body"] = {"temperature": param.temperature or DEFAULT_TEMPERATURE}
 
     # Collect beta flags in one place; assigned to payload at the end.
     # Models with adaptive thinking have interleaved thinking built in.
@@ -223,14 +230,14 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
     # context_management so the prompt cache prefix stays stable across turns;
     # default API behavior clears them beyond the last assistant turn.
     if is_adaptive:
-        thinking_config: dict[str, str] = {"type": "adaptive"}
+        # Adaptive thinking is only modeled on the beta TypedDict.
+        thinking_config: BetaThinkingConfigAdaptiveParam = {"type": "adaptive"}
         # Request displayable thinking summaries from models that support adaptive thinking.
         if is_adaptive_builtin:
             thinking_config["display"] = "summarized"
-        # "adaptive" thinking and "display" are beta features not yet in the SDK TypedDict.
-        payload["thinking"] = cast(anthropic.types.ThinkingConfigEnabledParam, thinking_config)
+        payload["thinking"] = thinking_config
     elif param.thinking and param.thinking.type == "enabled":
-        payload["thinking"] = anthropic.types.ThinkingConfigEnabledParam(
+        payload["thinking"] = BetaThinkingConfigEnabledParam(
             type="enabled",
             budget_tokens=param.thinking.budget_tokens or DEFAULT_ANTHROPIC_THINKING_BUDGET_TOKENS,
         )
@@ -238,7 +245,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
         cast(dict[str, Any], payload)["thinking"] = {"type": "disabled"}
 
     if "thinking" in payload and param.thinking and param.thinking.type != "disabled":
-        payload["context_management"] = {  # type: ignore[typeddict-item]
+        payload["context_management"] = {
             "edits": [{"type": "clear_thinking_20251015", "keep": "all"}],
         }
         betas.append(ANTHROPIC_BETA_CONTEXT_MANAGEMENT)
@@ -405,7 +412,7 @@ class AnthropicLLMStream(LLMStreamABC):
                 if isinstance(item, message.AssistantMessage):
                     self._completed = True
                 yield item
-        except (anthropic.AnthropicError, httpx.HTTPError) as e:
+        except (anthropic.AnthropicError, httpx2.HTTPError) as e:
             yield message.StreamErrorItem(error=f"{e.__class__.__name__} {e!s}")
             self._metadata_tracker.set_model_name(str(self._param.model_id))
             self._metadata_tracker.set_response_id(self._state.response_id)
@@ -439,8 +446,8 @@ class AnthropicClient(LLMClientABC):
                 api_key=config.api_key,
                 base_url=config.base_url,
                 default_headers={"User-Agent": _ANTHROPIC_USER_AGENT},
-                timeout=create_http_timeout(),
-                http_client=create_async_http_client(),
+                timeout=create_httpx2_http_timeout(),
+                http_client=create_httpx2_async_http_client(),
             )
         finally:
             if saved_auth_token is not None:
@@ -477,6 +484,6 @@ class AnthropicClient(LLMClientABC):
                 extra_headers=extra_headers,
             )
             return AnthropicLLMStream(stream, param=param, metadata_tracker=metadata_tracker)
-        except (APIError, httpx.HTTPError) as e:
+        except (APIError, httpx2.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"
             return error_llm_stream(metadata_tracker, error=error_message)

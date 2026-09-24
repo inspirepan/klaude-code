@@ -9,10 +9,10 @@ failures are kept out of the bounded step-retry budget, unlike API-level errors
 # Provider adapters build stream errors as f"{exception_class_name} {exception}"
 # (see llm/*/client.py), so class names are matched alongside message text.
 _CONNECTIVITY_MARKERS = (
-    # openai / anthropic SDK wrappers around any httpx transport failure
+    # openai / anthropic SDK wrappers around any httpx / httpx2 transport failure
     "apiconnectionerror",
     "apitimeouterror",
-    # httpx
+    # httpx / httpx2 (both packages use these class names)
     "connecterror",
     "connecttimeout",
     "readtimeout",

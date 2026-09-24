@@ -3,13 +3,18 @@
 These lock in the resolved total / connect / read timeout values currently
 constructed per provider so a future create_http_timeout factory can be proven
 behavior-preserving. They assert what IS, not what SHOULD be.
+
+The anthropic SDK (>= 1.8) rejects `httpx` objects and requires `httpx2` ones,
+so the anthropic providers are locked to the httpx2 shapes.
 """
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import httpx
+import httpx2
 import pytest
 
 from klaude_code.const import (
@@ -42,12 +47,33 @@ def test_anthropic_client_timeout_shape(monkeypatch: pytest.MonkeyPatch) -> None
     anthropic_client_module.AnthropicClient(config)
 
     timeout = captured["kwargs"]["timeout"]
-    assert isinstance(timeout, httpx.Timeout)
+    assert isinstance(timeout, httpx2.Timeout)
+    assert isinstance(captured["kwargs"]["http_client"], httpx2.AsyncClient)
     # total -> connect/read overridden; write/pool default to the total value.
     assert timeout.connect == 15.0
     assert timeout.read == 285.0
     assert timeout.write == 300.0
     assert timeout.pool == 300.0
+
+
+def test_anthropic_client_http_objects_are_accepted_by_the_sdk() -> None:
+    """The real SDK validates http_client/timeout types at construction.
+
+    Passing httpx objects raises TypeError here, which the runtime reports as
+    model_not_available and silently falls back to another model, so guard the
+    wiring against the SDK itself.
+    """
+    import klaude_code.llm.anthropic.client as anthropic_client_module
+
+    config = llm_param.LLMConfigParameter(
+        protocol=llm_param.LLMClientProtocol.ANTHROPIC,
+        api_key="k",
+        base_url="https://example.invalid",
+    )
+    client = anthropic_client_module.AnthropicClient(config)
+
+    assert isinstance(client.client, anthropic_client_module.anthropic.AsyncAnthropic)
+    asyncio.run(client.client.close())
 
 
 def test_responses_openai_client_timeout_shape(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -158,9 +184,9 @@ def test_bedrock_converse_client_uses_botocore_config_timeouts(monkeypatch: pyte
     assert "timeout" not in config_kwargs
 
 
-def test_bedrock_messages_client_uses_httpx_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_bedrock_messages_client_uses_httpx2_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
     """When NOT using ConverseStream, Bedrock routes through AsyncAnthropicBedrock
-    with the standard httpx.Timeout shape (total/connect/read)."""
+    with the standard httpx2.Timeout shape (total/connect/read)."""
     import klaude_code.llm.bedrock_anthropic.client as bedrock_client_module
 
     captured: dict[str, Any] = {}
@@ -184,7 +210,8 @@ def test_bedrock_messages_client_uses_httpx_timeout(monkeypatch: pytest.MonkeyPa
     bedrock_client_module.BedrockClient(config)
 
     timeout = captured["kwargs"]["timeout"]
-    assert isinstance(timeout, httpx.Timeout)
+    assert isinstance(timeout, httpx2.Timeout)
+    assert isinstance(captured["kwargs"]["http_client"], httpx2.AsyncClient)
     assert timeout.connect == 15.0
     assert timeout.read == 285.0
     assert timeout.write == 300.0

@@ -6,6 +6,7 @@ import ssl
 
 import certifi
 import httpx
+import httpx2
 
 from klaude_code.const import LLM_HTTP_TIMEOUT_CONNECT, LLM_HTTP_TIMEOUT_READ, LLM_HTTP_TIMEOUT_TOTAL
 from klaude_code.log import log_debug
@@ -16,6 +17,11 @@ except ImportError:
     # Installed (non-lockfile) environments may resolve a newer httpx whose
     # internals moved; degrade to no keepalive rather than fail at import.
     get_environment_proxies = None  # ty: ignore[invalid-assignment]
+
+try:
+    from httpx2._utils import get_environment_proxies as get_httpx2_environment_proxies
+except ImportError:
+    get_httpx2_environment_proxies = None  # ty: ignore[invalid-assignment]
 
 # TCP keepalive cadence: start probing after 60s idle, then every 10s, giving
 # up after 3 unanswered probes (~90s total). A connection idle through an OS
@@ -74,6 +80,40 @@ def create_async_http_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(
         timeout=create_http_timeout(),
         transport=create_http_transport(),
+        mounts=mounts,
+        follow_redirects=True,
+    )
+
+
+# The anthropic SDK (>= 1.8) rejects `httpx` objects and requires `httpx2`
+# ones, so its clients build their transport from the twins below instead of
+# the `httpx` helpers above. Keep the two families in sync.
+def create_httpx2_http_timeout() -> httpx2.Timeout:
+    """httpx2 twin of create_http_timeout."""
+    return httpx2.Timeout(LLM_HTTP_TIMEOUT_TOTAL, connect=LLM_HTTP_TIMEOUT_CONNECT, read=LLM_HTTP_TIMEOUT_READ)
+
+
+def create_httpx2_http_transport(*, proxy: str | None = None) -> httpx2.AsyncHTTPTransport:
+    """httpx2 twin of create_http_transport."""
+    return httpx2.AsyncHTTPTransport(
+        proxy=proxy,
+        socket_options=_tcp_keepalive_socket_options(),
+        verify=_create_ssl_context(),
+    )
+
+
+def create_httpx2_async_http_client() -> httpx2.AsyncClient:
+    """httpx2 twin of create_async_http_client, for SDKs that require httpx2."""
+    if get_httpx2_environment_proxies is None:
+        log_debug("httpx2._utils.get_environment_proxies unavailable; TCP keepalive disabled")
+        return httpx2.AsyncClient(timeout=create_httpx2_http_timeout(), follow_redirects=True)
+    mounts: dict[str, httpx2.AsyncHTTPTransport | None] = {
+        pattern: None if proxy_url is None else create_httpx2_http_transport(proxy=proxy_url)
+        for pattern, proxy_url in get_httpx2_environment_proxies().items()
+    }
+    return httpx2.AsyncClient(
+        timeout=create_httpx2_http_timeout(),
+        transport=create_httpx2_http_transport(),
         mounts=mounts,
         follow_redirects=True,
     )

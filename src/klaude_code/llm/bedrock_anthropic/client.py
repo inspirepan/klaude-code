@@ -26,6 +26,7 @@ except ModuleNotFoundError:
     _urllib3_exceptions = None
 
 import httpx
+import httpx2
 
 from klaude_code.const import (
     ANTHROPIC_BETA_CONTEXT_MANAGEMENT,
@@ -40,7 +41,11 @@ from klaude_code.const import (
 from klaude_code.llm.anthropic.client import AnthropicLLMStream, AnthropicStreamStateManager, build_payload
 from klaude_code.llm.anthropic.input import convert_history_to_input, convert_system_to_input
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
-from klaude_code.llm.http import create_async_http_client, create_http_timeout, create_image_fetch_timeout
+from klaude_code.llm.http import (
+    create_httpx2_async_http_client,
+    create_httpx2_http_timeout,
+    create_image_fetch_timeout,
+)
 from klaude_code.llm.image import detect_mime_type_from_bytes, parse_data_url
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.registry import register
@@ -650,8 +655,8 @@ class BedrockClient(LLMClientABC):
             aws_region=config.aws_region,
             aws_profile=config.aws_profile,
             default_headers={"User-Agent": _BEDROCK_USER_AGENT_EXTRA},
-            timeout=create_http_timeout(),
-            http_client=create_async_http_client(),
+            timeout=create_httpx2_http_timeout(),
+            http_client=create_httpx2_async_http_client(),
         )
 
     @classmethod
@@ -712,6 +717,6 @@ class BedrockClient(LLMClientABC):
                 extra_headers=extra_headers,
             )
             return AnthropicLLMStream(stream, param=param, metadata_tracker=metadata_tracker)
-        except (anthropic.APIError, httpx.HTTPError) as e:
+        except (anthropic.APIError, httpx2.HTTPError) as e:
             error_message = f"{e.__class__.__name__} {e!s}"
             return error_llm_stream(metadata_tracker, error=error_message)
