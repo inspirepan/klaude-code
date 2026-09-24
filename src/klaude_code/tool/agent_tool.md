@@ -2,7 +2,7 @@ Launch a new agent to handle complex, multi-step tasks autonomously.
 
 The Agent tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.
 
-When using the Agent tool, you must specify a `type` parameter to select which agent type to use.
+Select the agent with the `type` parameter; it defaults to `general-purpose` when omitted.
 
 Available agent types and the tools they have access to:
 

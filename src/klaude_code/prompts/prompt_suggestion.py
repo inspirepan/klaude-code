@@ -3,7 +3,7 @@ PROMPT_SUGGESTION_PROMPT = """[SUGGESTION MODE: Predict what the user will natur
 Read the recent messages and predict what the user would type — not what you think they should do.
 Format: 2-12 words, one short sentence, no formatting.
 
-LANGUAGE RULE (mandatory): The suggestion MUST be written in the same language the user has been using in their own messages. If the user wrote in Chinese, the suggestion MUST be in Chinese. If the user wrote in English, it MUST be in English. Apply this to every other language the user may have used. Do not mix languages, and do not translate the user's wording into another language.
+Language: write the suggestion in the language of the user's own messages (Chinese if they wrote Chinese), because it is inserted as their next message. Do not mix languages or translate their wording.
 
 Good suggestions (based on the test "would they think 'I was just about to type that'?"):
 - After tests pass → "commit this" or "run the full suite" (EN) / "提交一个 commit" 或 "跑一下完整的测试套件" (ZH)

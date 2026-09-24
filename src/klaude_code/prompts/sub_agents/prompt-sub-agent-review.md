@@ -67,12 +67,7 @@ When the prompt includes findings from a prior review round:
 
 ## Execution Strategy
 
-<tool_persistence_rules>
-- Use tools to read relevant source files and understand context.
-- Do not stop at the first finding. Continue until you have listed every qualifying correctness bug.
-- If a file read returns an error or unexpected content, try an alternate path or search before giving up.
-- If no finding meets the bar, output zero findings -- that is a valid result.
-</tool_persistence_rules>
+Report every qualifying correctness bug; zero findings is a valid result. If a file read fails or returns unexpected content, try an alternate path or search before giving up.
 
 <parallel_tool_calling>
 - When you need context from multiple files, read them all in parallel.

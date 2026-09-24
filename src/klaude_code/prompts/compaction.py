@@ -36,7 +36,7 @@ Use this EXACT format:
 - [Any data, examples, or references needed to continue]
 - [Or "(none)" if not applicable]
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
+Leave out content from <system-reminder> tags: it holds system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically.
 
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 
@@ -77,7 +77,7 @@ Use this EXACT format:
 ## Critical Context
 - [Preserve important context, add new if needed]
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
+Leave out content from <system-reminder> tags: it holds system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically.
 
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 
@@ -136,7 +136,7 @@ Do NOT include this meta-instruction, these tool/continuation/output-format rule
 - [Any data, examples, or references needed to continue]
 - [Or "(none)" if not applicable]
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
+Leave out content from <system-reminder> tags: it holds system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically.
 
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 
@@ -180,7 +180,7 @@ Use this EXACT format:
 ## Critical Context
 - [Preserve important context, add new if needed]
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. Keep each section concise. Preserve exact file paths, function names, and error messages."""
+Leave out content from <system-reminder> tags. Keep each section concise. Preserve exact file paths, function names, and error messages."""
 
 # ---------------------------------------------------------------------------
 # /rewind (fork-with-summary)
@@ -219,7 +219,7 @@ Your summary should include the following sections:
 8. Current Work: Describe precisely what was being worked on immediately before the rewind.
 9. Optional Next Step: List the next step directly in line with the most recent work. Include verbatim quotes showing where the work left off. If the last task was concluded, say so instead of inventing next steps.
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags in your summary. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
+Leave out content from <system-reminder> tags: it holds system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically.
 
 Keep each section concise. Preserve exact file paths, function names, and error messages."""
 

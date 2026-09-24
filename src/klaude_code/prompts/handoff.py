@@ -19,7 +19,7 @@ Write a context summary in FIRST PERSON (as if the user is speaking to a new ass
 3. **Technical context** - specific file paths, function names, error messages, data structures
 4. **What I need you to do next** - restate the goal with any necessary context
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
+Leave out content from <system-reminder> tags: it holds system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically.
 
 Do not drop or weaken details from the goal. Preserve concrete requirements, constraints, acceptance criteria, and requested scope from the goal as faithfully as possible.
 
@@ -45,7 +45,7 @@ Write the summary in FIRST PERSON (as if the user is speaking to a new assistant
 3. **Technical context** - specific file paths, function names, error messages, data structures
 4. **What I need you to do next** - restate the goal with any necessary context
 
-IMPORTANT: Do NOT include any content from <system-reminder> tags. These contain system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically and must not be summarized.
+Leave out content from <system-reminder> tags: it holds system-injected instructions (memory files, skill listings, project guidelines) that are re-injected automatically.
 
 Do not drop or weaken details from the goal. Preserve concrete requirements, constraints, acceptance criteria, and requested scope from the goal as faithfully as possible.
 
