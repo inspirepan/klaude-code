@@ -42,9 +42,15 @@ def _recent_recap_messages(session: Session, limit: int) -> list[message.Message
     return messages
 
 
+# Label the model may prepend despite instructions; the TUI already shows one.
+_LEADING_LABEL_RE = re.compile(r"^(?:recap|summary|回顾|总结|摘要)\s*[:：]\s*", re.IGNORECASE)
+
+
 def _normalize_recap(raw: str) -> str | None:
-    text = raw.strip().strip("\"'`“”‘’")
-    text = re.sub(r"\s+\n", "\n", text)
+    # Drop stray markdown emphasis/code markers before matching the label.
+    text = re.sub(r"\*\*|__|`", "", raw).strip().strip("\"'“”‘’")
+    text = _LEADING_LABEL_RE.sub("", text)
+    text = re.sub(r"[ \t]*\n\s*", "\n", text).strip()
     if not text:
         return None
     return text
