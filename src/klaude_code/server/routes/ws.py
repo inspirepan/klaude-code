@@ -381,15 +381,17 @@ def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]
     into child sessions.  This is needed when there is no in-memory session
     snapshot (e.g. reattaching after a server restart) so that sub-agent
     events can be forwarded via session-id matching.
+
+    Each child is read from its own work_dir: a child spawned with a work_dir
+    override lives under another project key than its parent.
     """
     result: set[str] = set()
-    queue = [session_id]
+    queue: list[tuple[str, Path]] = [(session_id, work_dir)]
     visited: set[str] = {session_id}
-    store = get_store_for_path(work_dir)
     while queue:
-        current_id = queue.pop(0)
+        current_id, current_work_dir = queue.pop(0)
         try:
-            history = store.load_history(current_id)
+            history = get_store_for_path(current_work_dir).load_history(current_id)
         except Exception:
             continue
         for item in history:
@@ -398,7 +400,10 @@ def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]
                 if child_id not in visited:
                     visited.add(child_id)
                     result.add(child_id)
-                    queue.append(child_id)
+                    # A legacy entry carries no work_dir: the child then sits in its
+                    # parent's directory.
+                    child_work_dir = Path(item.work_dir) if item.work_dir else current_work_dir
+                    queue.append((child_id, child_work_dir))
     return result
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from pathlib import Path
 from typing import Any
 
@@ -19,11 +20,36 @@ def arun(coro: Any) -> Any:
     return asyncio.run(coro)
 
 
-def _tool_context(*, run_subtask: RunSubtask | None = None) -> ToolContext:
+def _tool_context(*, run_subtask: RunSubtask | None = None, work_dir: Path | None = None) -> ToolContext:
     todo_context = TodoContext(get_todos=lambda: [], set_todos=lambda todos: None)
     return ToolContext(
-        file_tracker={}, todo_context=todo_context, session_id="test", work_dir=Path("/tmp"), run_subtask=run_subtask
+        file_tracker={},
+        todo_context=todo_context,
+        session_id="test",
+        work_dir=work_dir or Path("/tmp"),
+        run_subtask=run_subtask,
     )
+
+
+def _record_runner(captured: dict[str, Any], *, fail_if_called: bool = False) -> RunSubtask:
+    """Runner that records the SubAgentState it receives."""
+
+    async def _runner(
+        state: Any, _record_session_id: Any, _register_metadata_getter: Any, _register_progress_getter: Any
+    ) -> Any:
+        captured["state"] = state
+        if fail_if_called:
+            raise AssertionError("runner must not be called")
+
+        class _Result:
+            task_result = "done"
+            session_id = "child-session"
+            error = False
+            task_metadata = None
+
+        return _Result()
+
+    return _runner
 
 
 def test_agent_tool_schema(isolated_home: Path) -> None:
@@ -37,6 +63,7 @@ def test_agent_tool_schema(isolated_home: Path) -> None:
     assert "prompt" in schema.parameters["required"]
     assert "type" in schema.parameters["properties"]
     assert "model" in schema.parameters["properties"]
+    assert "workdir" in schema.parameters["properties"]
     assert "general-purpose" in schema.parameters["properties"]["type"]["enum"]
     assert "resume" not in schema.parameters["properties"]
 
@@ -83,6 +110,66 @@ def test_agent_tool_call_includes_session_id() -> None:
     assert result.output_text == "hello"
     assert result.ui_extra is not None
     assert result.ui_extra.session_id == "abc123def456"
+
+
+def test_agent_tool_workdir_defaults_to_none(tmp_path: Path) -> None:
+    """No workdir means the launcher inherits the parent session's working directory."""
+    captured: dict[str, Any] = {}
+    args = json.dumps({"type": "finder", "description": "d", "prompt": "p"})
+
+    result = arun(AgentTool.call(args, _tool_context(run_subtask=_record_runner(captured), work_dir=tmp_path)))
+
+    assert result.status == "success"
+    assert captured["state"].work_dir is None
+
+
+def test_agent_tool_workdir_resolves_relative_to_caller(tmp_path: Path) -> None:
+    target = tmp_path / "other-repo"
+    target.mkdir()
+    captured: dict[str, Any] = {}
+    args = json.dumps({"type": "finder", "description": "d", "prompt": "p", "workdir": "other-repo"})
+
+    result = arun(AgentTool.call(args, _tool_context(run_subtask=_record_runner(captured), work_dir=tmp_path)))
+
+    assert result.status == "success"
+    assert captured["state"].work_dir == str(target.resolve())
+
+
+def test_agent_tool_workdir_missing_dir_errors(tmp_path: Path) -> None:
+    captured: dict[str, Any] = {}
+    args = json.dumps({"type": "finder", "description": "d", "prompt": "p", "workdir": str(tmp_path / "missing-repo")})
+
+    result = arun(AgentTool.call(args, _tool_context(run_subtask=_record_runner(captured, fail_if_called=True))))
+
+    assert result.status == "error"
+    assert result.output_text is not None and "workdir does not exist" in result.output_text
+    assert captured == {}
+
+
+def test_agent_tool_workdir_file_errors(tmp_path: Path) -> None:
+    file_path = tmp_path / "not-a-dir.txt"
+    file_path.write_text("x", encoding="utf-8")
+    captured: dict[str, Any] = {}
+    args = json.dumps({"type": "finder", "description": "d", "prompt": "p", "workdir": str(file_path)})
+
+    result = arun(AgentTool.call(args, _tool_context(run_subtask=_record_runner(captured, fail_if_called=True))))
+
+    assert result.status == "error"
+    assert result.output_text is not None and "workdir is not a directory" in result.output_text
+    assert captured == {}
+
+
+def test_agent_tool_workdir_rejected_for_fork_context(tmp_path: Path) -> None:
+    captured: dict[str, Any] = {}
+    args = json.dumps(
+        {"type": "general-purpose-fork-context", "description": "d", "prompt": "p", "workdir": str(tmp_path)}
+    )
+
+    result = arun(AgentTool.call(args, _tool_context(run_subtask=_record_runner(captured, fail_if_called=True))))
+
+    assert result.status == "error"
+    assert result.output_text is not None and "fork-context" in result.output_text
+    assert captured == {}
 
 
 class TestSubAgentProfile:

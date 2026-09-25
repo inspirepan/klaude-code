@@ -955,8 +955,11 @@ class Session(BaseModel):
         if session_id in seen_sub_agent_sessions:
             return
         seen_sub_agent_sessions.add(session_id)
+        # A child spawned with a work_dir override is stored under that directory's
+        # project key, so replay has to load it from there.
+        sub_work_dir = Path(entry.work_dir) if entry is not None and entry.work_dir else self.work_dir
         try:
-            sub_session = Session.load(session_id, work_dir=self.work_dir)
+            sub_session = Session.load(session_id, work_dir=sub_work_dir)
         except (OSError, json.JSONDecodeError, ValueError):
             return
         if sub_session.sub_agent_state is None and entry is not None:
@@ -967,6 +970,7 @@ class Session(BaseModel):
                 sub_agent_desc=entry.sub_agent_desc,
                 sub_agent_prompt=_first_prompt_text(sub_session.conversation_history),
                 model=entry.model,
+                work_dir=entry.work_dir,
                 fork_context=entry.fork_context,
                 parent_tool_batch_id=entry.parent_tool_batch_id,
                 parent_tool_batch_index=entry.parent_tool_batch_index,

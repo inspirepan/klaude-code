@@ -8,6 +8,8 @@ class SubAgentState(BaseModel):
     sub_agent_desc: str
     sub_agent_prompt: str
     model: str | None = None
+    # Resolved absolute path the child runs in; None means the parent's work_dir.
+    work_dir: str | None = None
     fork_context: bool = False
     parent_tool_batch_id: str | None = None
     parent_tool_batch_index: int | None = None

@@ -168,6 +168,49 @@ def test_collect_descendant_session_ids_nested(tmp_path: Path, isolated_home: Pa
     assert result == {child_id, grandchild_id}
 
 
+def test_collect_descendant_session_ids_nested_across_work_dirs(tmp_path: Path, isolated_home: Path) -> None:
+    """A child with its own work_dir is stored under another project; its children must still be found."""
+    work_dir = tmp_path / "work"
+    work_dir.mkdir()
+    other_dir = tmp_path / "other-repo"
+    other_dir.mkdir()
+
+    parent_id = "a" * 32
+    child_id = "b" * 32
+    grandchild_id = "c" * 32
+
+    _write_session_meta(work_dir=work_dir, session_id=parent_id)
+    _write_history_events(
+        work_dir,
+        parent_id,
+        [
+            message.SpawnSubAgentEntry(
+                session_id=child_id,
+                sub_agent_type="general-purpose",
+                sub_agent_desc="child in another repo",
+                work_dir=str(other_dir),
+            )
+        ],
+    )
+    # The child runs in another directory and spawns a grandchild there.
+    _write_session_meta(work_dir=other_dir, session_id=child_id)
+    _write_history_events(
+        other_dir,
+        child_id,
+        [
+            message.SpawnSubAgentEntry(
+                session_id=grandchild_id,
+                sub_agent_type="finder",
+                sub_agent_desc="grandchild",
+                work_dir=str(other_dir),
+            )
+        ],
+    )
+
+    result = _collect_descendant_session_ids(parent_id, work_dir)
+    assert result == {child_id, grandchild_id}
+
+
 def test_collect_descendant_session_ids_missing_child_history(tmp_path: Path, isolated_home: Path) -> None:
     """If a child session's history file doesn't exist, it should be in the result but not cause errors."""
     work_dir = tmp_path / "work"

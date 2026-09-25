@@ -277,6 +277,9 @@ class SpawnSubAgentEntry(BaseModel):
     sub_agent_type: str
     sub_agent_desc: str
     model: str | None = None
+    # Work directory the child session runs in. Replay must load the child from
+    # here: a child with an overridden work_dir lives under another project key.
+    work_dir: str | None = None
     fork_context: bool = False
     # Parallel-spawn grouping, mirrored from SubAgentState so replay can
     # reconstruct the child's display state without reading its meta.

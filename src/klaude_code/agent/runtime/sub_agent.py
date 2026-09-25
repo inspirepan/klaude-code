@@ -13,6 +13,7 @@ other session.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from klaude_code.agent.agent import Agent
@@ -71,6 +72,7 @@ class SubAgentLauncher:
                     sub_agent_type=state.sub_agent_type,
                     sub_agent_desc=state.sub_agent_desc,
                     model=(state.model or "").strip() or None,
+                    work_dir=str(child_session.work_dir),
                     fork_context=state.fork_context,
                     parent_tool_batch_id=state.parent_tool_batch_id,
                     parent_tool_batch_index=state.parent_tool_batch_index,
@@ -203,9 +205,14 @@ class SubAgentLauncher:
                 if isinstance(history[i], message.AssistantMessage):
                     fork_index = i
                     break
+            # A fork always keeps the parent's work_dir: sharing the prompt prefix is the
+            # point of the mode, and the Agent tool rejects a work_dir override for it.
             child_session = parent_session.fork(until_index=fork_index)
         else:
-            child_session = Session(work_dir=parent_session.work_dir)
+            # ``state.work_dir`` is already resolved and validated by the Agent tool.
+            child_session = Session(
+                work_dir=Path(state.work_dir) if state.work_dir is not None else parent_session.work_dir
+            )
         child_session.sub_agent_state = state
         child_session.parent_session_id = parent_session.id
         child_session.agent_type = state.sub_agent_type

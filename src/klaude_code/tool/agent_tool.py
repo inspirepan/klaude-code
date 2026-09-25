@@ -143,6 +143,14 @@ def _agent_schema() -> llm_param.ToolSchema:
                     "type": "string",
                     "description": "Optional model selector for this sub-agent invocation, e.g. `gpt-5.4-mini` or `sonnet@openrouter`.",
                 },
+                "workdir": {
+                    "type": "string",
+                    "description": (
+                        "Optional working directory for the sub-agent, e.g. another repository. Defaults to your own "
+                        "working directory. A relative path resolves against your working directory. The directory "
+                        "must exist. Not supported for fork-context agent types."
+                    ),
+                },
             },
             "required": ["description", "prompt"],
             "additionalProperties": False,
@@ -199,6 +207,29 @@ class AgentTool(ToolABC):
         model_raw = typed_args.get("model")
         model = model_raw.strip() if isinstance(model_raw, str) else None
 
+        workdir_raw = typed_args.get("workdir")
+        work_dir: str | None = None
+        if isinstance(workdir_raw, str) and workdir_raw.strip():
+            # Fork-context children inherit the parent's prompt prefix for cache reuse;
+            # another working directory rewrites the env block and breaks that prefix.
+            if profile.fork_context:
+                return message.ToolResultMessage(
+                    status="error",
+                    output_text=f"workdir is not supported for fork-context agent type '{profile.name}'.",
+                )
+            candidate = Path(workdir_raw.strip()).expanduser()
+            if not candidate.is_absolute():
+                candidate = context.work_dir / candidate
+            try:
+                resolved_workdir = candidate.resolve(strict=True)
+            except OSError:
+                return message.ToolResultMessage(status="error", output_text=f"workdir does not exist: {candidate}")
+            if not resolved_workdir.is_dir():
+                return message.ToolResultMessage(
+                    status="error", output_text=f"workdir is not a directory: {resolved_workdir}"
+                )
+            work_dir = str(resolved_workdir)
+
         try:
             result = await runner(
                 SubAgentState(
@@ -206,6 +237,7 @@ class AgentTool(ToolABC):
                     sub_agent_desc=description,
                     sub_agent_prompt=sub_agent_prompt,
                     model=model or None,
+                    work_dir=work_dir,
                     fork_context=profile.fork_context,
                     parent_tool_batch_id=context.tool_batch_id,
                     parent_tool_batch_index=context.tool_batch_index,
