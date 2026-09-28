@@ -92,6 +92,15 @@ def test_is_visible_matches_the_table(event: events.Event, expected_hidden: set[
             assert is_visible(event, detail=detail, is_sub_agent=is_sub_agent) is (quadrant not in expected_hidden)
 
 
+@pytest.mark.parametrize("can_retry", [False, True])
+def test_compact_sub_agent_shows_only_retry_errors(can_retry: bool) -> None:
+    event = events.ErrorEvent(session_id="s", error_message="boom", can_retry=can_retry)
+    assert is_visible(event, detail=Detail.COMPACT, is_sub_agent=True) is can_retry
+    assert is_visible(event, detail=Detail.COMPACT, is_sub_agent=False)
+    assert is_visible(event, detail=Detail.FULL, is_sub_agent=True)
+    assert is_visible(event, detail=Detail.FULL, is_sub_agent=False)
+
+
 def test_table_entries_are_neither_empty_nor_total() -> None:
     """An empty set means the entry never fires; a full set means stop emitting it."""
     assert listed_event_types()
@@ -120,6 +129,20 @@ def test_renderer_asks_the_table_for_sub_agent_notices(detail: Detail) -> None:
         is_sub_agent=True,
     )
     assert ("sub-agent note" in captured.getvalue()) is expected
+
+
+@pytest.mark.parametrize("can_retry", [False, True])
+def test_renderer_prints_compact_sub_agent_errors_only_when_retrying(can_retry: bool) -> None:
+    """A terminal error reaches the batch summary; a retry notice has no other surface."""
+    renderer = TUICommandRenderer()
+    _register_sub_agent(renderer, "child")
+
+    with renderer.bulk_render_capture() as captured:
+        renderer.display_error(
+            events.ErrorEvent(session_id="child", error_message="503 Service Unavailable", can_retry=can_retry)
+        )
+
+    assert ("503 Service Unavailable" in captured.getvalue()) is can_retry
 
 
 def test_machine_asks_the_table_for_sub_agent_compaction_summaries() -> None:

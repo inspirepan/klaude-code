@@ -71,7 +71,6 @@ _HIDDEN_IN: Mapping[type[events.Event], frozenset[Quadrant]] = {
     events.AwaySummaryEvent: COMPACT_SUB_AGENT,
     events.SessionStatsEvent: COMPACT_SUB_AGENT,
     events.ContextUsageEvent: COMPACT_SUB_AGENT,
-    events.ErrorEvent: COMPACT_SUB_AGENT,
     # Task boundaries are only ever drawn for a sub-agent, and only expanded: the
     # main agent's own start/finish is implied by the surrounding prompt.
     events.TaskStartEvent: ONLY_FULL_SUB_AGENT,
@@ -105,6 +104,10 @@ def is_visible(event: events.Event, *, detail: Detail, is_sub_agent: bool) -> bo
     """Whether `event` reaches the transcript at this detail level."""
     if isinstance(event, events.ToolResultEvent) and detail.is_compact and is_sub_agent:
         return event.tool_name in _COMPACT_SUB_AGENT_TOOL_RESULTS
+    if isinstance(event, events.ErrorEvent) and detail.is_compact and is_sub_agent:
+        # A terminal error already lands in the batch summary; a retry notice has
+        # no other surface, and hiding it makes a retry loop look like a hang.
+        return event.can_retry
     return Quadrant.of(detail, is_sub_agent=is_sub_agent) not in hidden_in(type(event))
 
 
