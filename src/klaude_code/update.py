@@ -376,6 +376,16 @@ def _git_bytes(repo: str, args: list[str], timeout: int = GIT_QUERY_TIMEOUT) -> 
     return result.stdout
 
 
+def _git_checkout_on_upgrade_branch(source_path: str) -> bool:
+    """True when the checkout sits on the branch auto-upgrade fast-forwards.
+
+    Detached HEAD (e.g. a jj colocated repo) or any other branch makes the Git
+    upgrade refuse, so arming it there only repeats a failure on every launch.
+    """
+
+    return _git_output(str(Path(source_path).expanduser()), ["rev-parse", "--abbrev-ref", "HEAD"]) == UPGRADE_BRANCH
+
+
 def _fetch_git_version_info(install_info: InstallationInfo, source_path: str) -> VersionInfo | None:
     """Compare the local checkout against ``origin/main``.
 
@@ -568,7 +578,12 @@ def has_pending_update() -> bool:
         if source_path is not None and _git_upgrade_marker(source_path).exists():
             return True
     persisted = _load_persisted_update_info()
-    return persisted is not None and persisted.update_available and bool(persisted.latest)
+    if persisted is None or not persisted.update_available or not persisted.latest:
+        return False
+    if persisted.update_source == UPDATE_SOURCE_GIT:
+        source_path = get_install_source_path()
+        return source_path is not None and _git_checkout_on_upgrade_branch(source_path)
+    return True
 
 
 def perform_upgrade(check: bool = False) -> AutoUpgradeResult:
@@ -677,6 +692,18 @@ def get_startup_update_summary() -> StartupUpdateSummary | None:
         return None
     if persisted.update_source == UPDATE_SOURCE_GIT and not _is_persisted_update_info_fresh(persisted):
         return StartupUpdateSummary("Git update status is stale; checking origin/main again", level="warn")
+    if (
+        persisted.update_source == UPDATE_SOURCE_GIT
+        and persisted.update_available
+        and persisted.latest
+        and (source_path := get_install_source_path()) is not None
+        and not _git_checkout_on_upgrade_branch(source_path)
+    ):
+        return StartupUpdateSummary(
+            f"origin/{UPGRADE_BRANCH} {persisted.latest} available. Current {persisted.installed or 'unknown'} "
+            f"is not on {UPGRADE_BRANCH}, so auto-upgrade is off; update the checkout manually.",
+            level="warn",
+        )
 
     message = _build_update_message(
         persisted.installed,
@@ -1017,4 +1044,8 @@ def perform_auto_upgrade_if_needed() -> AutoUpgradeResult:
             "info",
             result.revision,
         )
+    if result.message is not None and not recovering and persisted is not None:
+        # Without this every launch re-requests the same failing install; the
+        # next scheduled check re-arms it.
+        write_persisted_update_info(persisted._replace(checked_at=time.time(), update_available=False))
     return result

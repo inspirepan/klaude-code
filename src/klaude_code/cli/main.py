@@ -202,11 +202,11 @@ def _maybe_start_auto_upgrade() -> Future[str] | None:
     notice: Future[str] = Future()
 
     def _worker() -> None:
-        from klaude_code.cli.uds_client import describe_upgrade_status, request_server_upgrade
+        from klaude_code.cli.uds_client import describe_upgrade_status, request_server_upgrade, settle_upgrade_status
 
         try:
             status = request_server_upgrade()
-            message = describe_upgrade_status(status) if status is not None else None
+            message = describe_upgrade_status(settle_upgrade_status(status)) if status is not None else None
         except Exception as exc:
             from klaude_code.log import log_debug
 

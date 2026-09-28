@@ -34,6 +34,8 @@ _RELOAD_WAIT_TIMEOUT = 30.0
 # The TUI attach path spawns the server concurrently; the upgrade request
 # waits this long for it to answer before giving up silently.
 _UPGRADE_REQUEST_TIMEOUT = 30.0
+# Long enough for an idle server to start installing and for a doomed install to fail.
+_UPGRADE_SETTLE_TIMEOUT = 5.0
 
 # The handshake runs once per process; thin-client commands issue several
 # requests and the check is only meaningful on the first contact.
@@ -252,6 +254,30 @@ def request_server_upgrade(*, check: bool = False, timeout: float = _UPGRADE_REQ
     if status != 200 or not isinstance(body, dict):
         return None
     return body
+
+
+def settle_upgrade_status(status: dict[str, Any], *, timeout: float = _UPGRADE_SETTLE_TIMEOUT) -> dict[str, Any]:
+    """Follow a fresh upgrade request until its outcome is known or ``timeout`` passes.
+
+    An idle server fires right away and a doomed install (dirty or detached
+    checkout, missing uv) fails within a second, so reporting the first
+    "pending" answer would promise a restart that never comes.
+    """
+
+    deadline = time.monotonic() + timeout
+    while status.get("phase") in ("pending", "installing") and time.monotonic() < deadline:
+        if status.get("phase") == "pending" and status.get("active_sessions"):
+            break
+        time.sleep(0.25)
+        try:
+            code, body = request("GET", "/api/server/upgrade", timeout=3.0)
+        except ServerNotRunningError:
+            # Socket gone right after a request can only mean the re-exec.
+            return {**status, "phase": "reloading"}
+        if code != 200 or not isinstance(body, dict):
+            break
+        status = body
+    return status
 
 
 def describe_upgrade_status(status: dict[str, Any]) -> str | None:

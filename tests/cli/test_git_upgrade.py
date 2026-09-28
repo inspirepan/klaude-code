@@ -3,6 +3,7 @@ from __future__ import annotations
 import fcntl
 import json
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -151,6 +152,54 @@ def test_cli_recovers_after_fetch_check_fails(
     monkeypatch.setattr(self_update, "_upgrade_via_server", lambda: False)
     self_update.upgrade_command(check=False)
     assert not update._git_upgrade_marker(str(checkout)).exists()
+
+
+def _persist_git_update(latest: str = "abc1234") -> None:
+    update.write_persisted_update_info(
+        update.PersistedUpdateInfo(
+            time.time(), "1.2.3 (old)", latest, True, update.INSTALL_KIND_LOCAL, update.UPDATE_SOURCE_GIT
+        )
+    )
+
+
+def test_detached_checkout_does_not_arm_auto_upgrade(
+    checkout: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del isolated_home
+    monkeypatch.setattr(
+        update,
+        "get_installation_info",
+        lambda: update.InstallationInfo("1.2.3", update.INSTALL_KIND_LOCAL, checkout.as_uri()),
+    )
+    _persist_git_update()
+    _git(checkout, "checkout", "-q", "--detach")
+    assert update.has_pending_update() is False
+    summary = update.get_startup_update_summary()
+    assert summary is not None and "not on main" in summary.message
+
+    _git(checkout, "checkout", "-q", "main")
+    assert update.has_pending_update() is True
+
+
+def test_failed_auto_upgrade_waits_for_next_check(
+    checkout: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    del isolated_home
+    monkeypatch.delenv(update.AUTO_UPGRADE_DONE_ENV, raising=False)
+    monkeypatch.setattr(
+        update,
+        "get_installation_info",
+        lambda: update.InstallationInfo("1.2.3", update.INSTALL_KIND_LOCAL, checkout.as_uri()),
+    )
+    _persist_git_update()
+    _git(checkout, "checkout", "-q", "-b", "feature")
+
+    result = update.perform_auto_upgrade_if_needed()
+    assert not result.performed and result.message
+
+    persisted = update._load_persisted_update_info()
+    assert persisted is not None and persisted.update_available is False
+    assert update.has_pending_update() is False
 
 
 def test_git_upgrade_refuses_concurrent_lock(

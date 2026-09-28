@@ -172,10 +172,42 @@ def test_auto_upgrade_notice_describes_server_status(
         return status
 
     monkeypatch.setattr(uds_client, "request_server_upgrade", fake_request)
+    monkeypatch.setattr(uds_client, "settle_upgrade_status", lambda status: status)
     notice = cli_main._maybe_start_auto_upgrade()
     assert notice is not None
     assert notice.result(timeout=5) == expected
     assert requested == [{"check": False}]
+
+
+def test_settle_upgrade_status_reports_fast_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.cli import uds_client
+
+    replies = iter(
+        [
+            {"phase": "installing", "action": "upgrade"},
+            {"phase": "failed", "action": None, "message": "detached HEAD"},
+        ]
+    )
+    monkeypatch.setattr(uds_client.time, "sleep", lambda _: None)
+    monkeypatch.setattr(uds_client, "request", lambda *_, **__: (200, next(replies)))
+    settled = uds_client.settle_upgrade_status({"phase": "pending", "action": "upgrade", "active_sessions": []})
+    assert uds_client.describe_upgrade_status(settled) == "klaude upgrade failed: detached HEAD"
+
+
+def test_settle_upgrade_status_stops_on_busy_or_reexec(monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.cli import uds_client
+
+    busy = {"phase": "pending", "action": "upgrade", "active_sessions": [{"session_id": "a", "state": "running"}]}
+    monkeypatch.setattr(uds_client, "request", lambda *_, **__: pytest.fail("busy status must not poll"))
+    assert uds_client.settle_upgrade_status(busy) == busy
+
+    def gone(*_: object, **__: object) -> None:
+        raise uds_client.ServerNotRunningError("down")
+
+    monkeypatch.setattr(uds_client.time, "sleep", lambda _: None)
+    monkeypatch.setattr(uds_client, "request", gone)
+    settled = uds_client.settle_upgrade_status({"phase": "installing", "action": "upgrade"})
+    assert settled["phase"] == "reloading"
 
 
 def test_auto_upgrade_skips_when_nothing_pending(monkeypatch: pytest.MonkeyPatch) -> None:
