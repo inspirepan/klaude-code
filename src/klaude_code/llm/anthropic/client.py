@@ -2,6 +2,7 @@ import asyncio
 import os
 from collections.abc import AsyncGenerator
 from typing import Any, Literal, cast, override
+from urllib.parse import urlparse
 
 import anthropic
 import httpx2
@@ -184,7 +185,18 @@ class AnthropicStreamStateManager:
         return build_partial_message(self.assistant_parts, response_id=self.response_id)
 
 
-def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStreaming:
+def supports_thinking_display_updates(base_url: str | None) -> bool:
+    """Only the first-party API accepts ``display: "updates"``; Bedrock-backed proxies reject it."""
+    if not base_url:
+        return True
+    return urlparse(base_url).hostname == "api.anthropic.com"
+
+
+def build_payload(
+    param: llm_param.LLMCallParameter,
+    *,
+    allow_thinking_display_updates: bool = False,
+) -> MessageCreateParamsStreaming:
     """Build Anthropic API request parameters."""
     cache_ttl: Literal["5m", "1h"] = "1h" if param.cache_retention == "long" else "5m"
     messages = convert_history_to_input(param.input, param.model_id, cache_ttl=cache_ttl)
@@ -240,7 +252,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> MessageCreateParamsStrea
         thinking_config: BetaThinkingConfigAdaptiveParam = {"type": "adaptive"}
         # Request displayable thinking summaries from models that support adaptive thinking.
         if is_adaptive_builtin:
-            if "opus-5-5" in model_id.lower():
+            if allow_thinking_display_updates and "opus-5-5" in model_id.lower():
                 thinking_config["display"] = "updates"
                 betas.append(_THINKING_DISPLAY_UPDATES_BETA)
             else:
@@ -479,7 +491,11 @@ class AnthropicClient(LLMClientABC):
 
         # Payload building re-reads and base64-encodes every history image;
         # keep that CPU/disk work off the event loop.
-        payload = await asyncio.to_thread(build_payload, param)
+        payload = await asyncio.to_thread(
+            build_payload,
+            param,
+            allow_thinking_display_updates=supports_thinking_display_updates(self.get_llm_config().base_url),
+        )
 
         log_debug(
             lambda: debug_json(payload),

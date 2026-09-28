@@ -16,6 +16,7 @@ from klaude_code.llm.anthropic.client import (
     AnthropicStreamStateManager,
     build_payload,
     parse_anthropic_stream,
+    supports_thinking_display_updates,
 )
 from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, message
@@ -175,10 +176,35 @@ def test_build_payload_requests_progress_updates_for_opus_55() -> None:
         thinking=llm_param.Thinking(type="adaptive"),
     )
 
-    payload = build_payload(param)
+    payload = build_payload(param, allow_thinking_display_updates=True)
 
     assert payload["thinking"] == {"type": "adaptive", "display": "updates"}
     assert "thinking-display-updates-2026-08-18" in payload["betas"]
+
+
+def test_build_payload_falls_back_to_summarized_for_opus_55_behind_proxy() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-opus-5-5",
+        thinking=llm_param.Thinking(type="adaptive"),
+    )
+
+    payload = build_payload(param)
+
+    assert payload["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert "thinking-display-updates-2026-08-18" not in payload.get("betas", [])
+
+
+@pytest.mark.parametrize(
+    ("base_url", "expected"),
+    [
+        (None, True),
+        ("https://api.anthropic.com", True),
+        ("https://api.youtu.uk/anthropic", False),
+    ],
+)
+def test_supports_thinking_display_updates(base_url: str | None, expected: bool) -> None:
+    assert supports_thinking_display_updates(base_url) is expected
 
 
 def test_build_payload_omits_thinking_display_for_unknown_adaptive_model() -> None:
