@@ -1,0 +1,4 @@
+# Approved dependency build scripts. Without this entry pnpm 11+ fails the
+# install with ERR_PNPM_IGNORED_BUILDS (pnpm 10 only warns).
+allowBuilds:
+  esbuild: true

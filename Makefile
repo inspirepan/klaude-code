@@ -2,6 +2,7 @@
 
 UV ?= uv
 PNPM ?= pnpm
+NPM ?= npm
 KLAUDE ?= klaude
 
 WEB_DIR := web
@@ -18,7 +19,7 @@ help:
 		"Targets:" \
 		"  make pre-push     Run all formatting, linting, tests, and builds" \
 		"  make install      Install package (editable) + web viewer, then reload the running server" \
-		"  make web          Install web viewer deps and build the static bundle" \
+		"  make web          Install web viewer deps and build the static bundle (pnpm preferred, npm fallback)" \
 		"  make build        Build Python package" \
 		"  make lint         Run ruff + ty + import-linter" \
 		"  make format       Auto-fix with ruff" \
@@ -47,9 +48,16 @@ install: web
 	fi
 
 web:
-	@echo "==> Building web viewer bundle..."
-	$(PNPM) --dir $(WEB_DIR) install
-	$(PNPM) --dir $(WEB_DIR) build
+	@if command -v $(PNPM) >/dev/null 2>&1; then \
+		pkg=$(PNPM); \
+	elif command -v $(NPM) >/dev/null 2>&1; then \
+		pkg=$(NPM); \
+	else \
+		echo "error: neither '$(PNPM)' nor '$(NPM)' found in PATH; cannot build the web viewer" >&2; \
+		exit 1; \
+	fi; \
+	echo "==> Building web viewer bundle with $$pkg..."; \
+	cd $(WEB_DIR) && $$pkg install && $$pkg run build
 
 build:
 	$(UV) build

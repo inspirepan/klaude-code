@@ -1,8 +1,9 @@
 """Static serving for the built web viewer bundle.
 
-The bundle is a Vite build (`cd web && pnpm build`) that lands inside the
-package at ``klaude_code/server/web/``: ``index.html`` plus content-hashed
-files under ``assets/``. Routing is client-side, so only ``/`` needs the HTML.
+The bundle is a Vite build (`make web`, which prefers pnpm and falls back to
+npm) that lands inside the package at ``klaude_code/server/web/``:
+``index.html`` plus content-hashed files under ``assets/``. Routing is
+client-side, so only ``/`` needs the HTML.
 
 Paths are resolved from this module's location, never from the process CWD
 (the server chdir's to $HOME at startup and TID251 bans CWD APIs here).
@@ -20,7 +21,7 @@ router = APIRouter(tags=["web"])
 # Module-level so tests can point it at a fixture directory.
 _PACKAGE_WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
-BUILD_HINT = "cd web && pnpm install && pnpm build"
+BUILD_HINT = "make web"
 
 
 def web_dist_dir() -> Path:
