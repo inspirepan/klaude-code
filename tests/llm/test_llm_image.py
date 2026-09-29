@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from base64 import b64decode, b64encode
+from collections import deque
+from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
+from PIL import Image
 
 from klaude_code.llm import image as image_module
 from klaude_code.protocol import message
@@ -11,6 +15,61 @@ from klaude_code.protocol import message
 
 def _payload_from_data_url(data_url: str) -> bytes:
     return b64decode(data_url.split(",", 1)[1])
+
+
+@pytest.mark.parametrize("image_format", ["JPEG", "PNG", "GIF", "WEBP"])
+def test_validate_image_bytes_decodes_supported_formats(image_format: str) -> None:
+    buffer = BytesIO()
+    with Image.new("RGB", (8, 8), color="red") as image:
+        image.save(buffer, format=image_format)
+    image_bytes = buffer.getvalue()
+
+    image_module.validate_image_bytes(image_bytes)
+    with pytest.raises(ValueError, match="Invalid image data"):
+        image_module.validate_image_bytes(image_bytes[: len(image_bytes) // 2])
+
+
+def test_validate_image_bytes_rejects_unsupported_format() -> None:
+    buffer = BytesIO()
+    with Image.new("RGB", (8, 8)) as image:
+        image.save(buffer, format="BMP")
+
+    with pytest.raises(ValueError, match="Invalid image data"):
+        image_module.validate_image_bytes(buffer.getvalue())
+
+
+def test_validate_image_bytes_caches_by_content(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(image_module, "_validated_image_digests", deque(maxlen=128))
+    buffer = BytesIO()
+    with Image.new("RGB", (8, 8)) as image:
+        image.save(buffer, format="PNG")
+    image_bytes = buffer.getvalue()
+
+    with patch.object(Image, "open", wraps=Image.open) as opened:
+        image_module.validate_image_bytes(image_bytes)
+        image_module.validate_image_bytes(image_bytes)
+        assert opened.call_count == 2
+        with pytest.raises(ValueError, match="Invalid image data"):
+            image_module.validate_image_bytes(image_bytes[:45])
+        assert opened.call_count > 2
+
+
+def test_validate_image_bytes_cache_evicts_one_entry(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(image_module, "_validated_image_digests", deque(maxlen=2))
+    images: list[bytes] = []
+    for color in ("red", "green", "blue"):
+        buffer = BytesIO()
+        with Image.new("RGB", (8, 8), color=color) as image:
+            image.save(buffer, format="PNG")
+        images.append(buffer.getvalue())
+        image_module.validate_image_bytes(images[-1])
+
+    with patch.object(Image, "open", wraps=Image.open) as opened:
+        image_module.validate_image_bytes(images[1])
+        image_module.validate_image_bytes(images[2])
+        assert opened.call_count == 0
+        image_module.validate_image_bytes(images[0])
+        assert opened.call_count == 2
 
 
 def test_image_file_to_data_url_resizes_when_size_exceeds_limit(

@@ -37,7 +37,7 @@ from klaude_code.tool import (  # noqa: E402
 )
 from klaude_code.tool.core.context import ToolContext  # noqa: E402
 
-_TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
+_TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAbitOmMAAAAASUVORK5CYII="
 
 
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:

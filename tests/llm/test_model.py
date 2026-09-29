@@ -1,13 +1,15 @@
 import tempfile
-from base64 import b64decode
+from base64 import b64decode, b64encode
+from io import BytesIO
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from openai._models import construct_type_unchecked
 from openai.types.completion_usage import CompletionUsage
+from PIL import Image
 
 from klaude_code.llm import image as image_module
 from klaude_code.llm import input_common as input_common_module
@@ -24,7 +26,7 @@ from klaude_code.llm.openai_responses.input import convert_history_to_input as r
 from klaude_code.llm.openrouter.input import convert_history_to_input as openrouter_history
 from klaude_code.protocol import message
 
-SAMPLE_IMAGE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
+SAMPLE_IMAGE_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAbitOmMAAAAASUVORK5CYII="
 SAMPLE_DATA_URL = f"data:image/png;base64,{SAMPLE_IMAGE_BASE64}"
 
 
@@ -181,10 +183,11 @@ def test_anthropic_history_omits_single_image_that_exceeds_inline_limit(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", 100)
-    monkeypatch.setattr(image_module, "_MAX_BASE64_IMAGE_SIZE_BYTES", 8)
+    image_bytes = b64decode(SAMPLE_IMAGE_BASE64)
+    monkeypatch.setattr(image_module, "_MAX_IMAGE_SIZE_BYTES", len(image_bytes))
+    monkeypatch.setattr(image_module, "_MAX_BASE64_IMAGE_SIZE_BYTES", len(SAMPLE_IMAGE_BASE64) - 1)
     path = tmp_path / "too-large.png"
-    path.write_bytes(b"not-really-a-png-but-large")
+    path.write_bytes(image_bytes)
     history: list[message.Message] = [
         message.UserMessage(
             parts=_parts(message.ImageFilePart(file_path=str(path), mime_type="image/png", frozen=True))
@@ -202,11 +205,10 @@ def test_anthropic_history_omits_single_image_that_exceeds_inline_limit(
 
 
 def test_inline_image_budget_applies_across_provider_inputs(monkeypatch: pytest.MonkeyPatch) -> None:
-    oversized_url = f"data:image/png;base64,{'A' * 1024}"
     history: list[message.Message] = [
-        message.UserMessage(parts=[message.ImageURLPart(url=oversized_url, id=None)]),
+        message.UserMessage(parts=[message.ImageURLPart(url=SAMPLE_DATA_URL, id=None, frozen=True)]),
     ]
-    monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", 10)
+    monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", len(SAMPLE_DATA_URL) - 1)
 
     openai_messages = openai_history(history, system=None, model_name=None)
     openai_content = _ensure_list(_ensure_dict(openai_messages[0])["content"])
@@ -234,19 +236,17 @@ def test_inline_image_budget_applies_across_provider_inputs(monkeypatch: pytest.
 def test_anthropic_history_omits_old_tool_images_when_inline_payload_exceeds_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    image_data = "A" * 1024
-    image_url = f"data:image/png;base64,{image_data}"
     history: list[message.Message] = [
         message.ToolResultMessage(
             call_id=f"tool-{idx}",
             tool_name="Read",
             status="success",
             output_text=f"[image] img-{idx}.png",
-            parts=[message.ImageURLPart(url=image_url, id=None)],
+            parts=[message.ImageURLPart(url=SAMPLE_DATA_URL, id=None, frozen=True)],
         )
         for idx in range(3)
     ]
-    monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", 2500)
+    monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", 2 * len(SAMPLE_DATA_URL))
 
     messages = anthropic_history(history, model_name=None)
 
@@ -265,22 +265,26 @@ def test_anthropic_history_omits_old_tool_images_when_inline_payload_exceeds_bud
 def test_anthropic_history_keeps_contiguous_recent_tool_images_when_trimming(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    urls = [
-        f"data:image/png;base64,{'A' * 100}",
-        f"data:image/png;base64,{'A' * 2000}",
-        f"data:image/png;base64,{'A' * 1800}",
-    ]
+    urls: list[str] = []
+    for size in (1, 32, 24):
+        buffer = BytesIO()
+        with Image.new("RGB", (size, size)) as image:
+            image.save(buffer, format="PNG", compress_level=0)
+        urls.append(f"data:image/png;base64,{b64encode(buffer.getvalue()).decode('ascii')}")
+    budget = len(urls[0]) + len(urls[2])
+    # The oldest image would fit, but the oversized middle image must stop backfilling.
+    assert len(urls[2]) < budget < len(urls[1])
     history: list[message.Message] = [
         message.ToolResultMessage(
             call_id=f"tool-{idx}",
             tool_name="Read",
             status="success",
             output_text=f"[image] img-{idx}.png",
-            parts=[message.ImageURLPart(url=url, id=None)],
+            parts=[message.ImageURLPart(url=url, id=None, frozen=True)],
         )
         for idx, url in enumerate(urls)
     ]
-    monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", 1900)
+    monkeypatch.setattr(input_common_module, "INLINE_IMAGE_PAYLOAD_BUDGET_BYTES", budget)
     hydrated_urls: list[str] = []
     original_image_part_to_request_url = input_common_module.image_part_to_request_url
 
@@ -435,6 +439,118 @@ def test_responses_history_includes_image_inputs():
     assert first_tool_part["type"] == "input_text"
     second_tool_part = _ensure_dict(tool_parts[1])
     assert second_tool_part["type"] == "input_image"
+
+
+@pytest.mark.parametrize("source", ["user", "tool", "developer-user", "developer-tool"])
+@pytest.mark.parametrize("storage", ["file", "inline"])
+@pytest.mark.parametrize("frozen", [False, True], ids=["nonfrozen", "frozen"])
+@pytest.mark.parametrize(
+    "bad_bytes",
+    [
+        pytest.param(b64decode(SAMPLE_IMAGE_BASE64)[:40], id="truncated-png"),
+        pytest.param(b"<html><body>Not an image</body></html>", id="html"),
+    ],
+)
+def test_responses_history_replaces_invalid_images_without_mutating_history(
+    tmp_path: Path,
+    source: Literal["user", "tool", "developer-user", "developer-tool"],
+    storage: Literal["file", "inline"],
+    frozen: bool,
+    bad_bytes: bytes,
+) -> None:
+    parts: list[message.Part] = []
+    for name, payload in (
+        ("valid-before", b64decode(SAMPLE_IMAGE_BASE64)),
+        ("invalid", bad_bytes),
+        ("valid-after", b64decode(SAMPLE_IMAGE_BASE64)),
+    ):
+        path = tmp_path / f"{name}.png"
+        if storage == "file":
+            path.write_bytes(payload)
+            parts.append(message.ImageFilePart(file_path=str(path), mime_type="image/png", frozen=frozen))
+        else:
+            parts.append(
+                message.ImageURLPart(
+                    url=f"data:image/png;base64,{b64encode(payload).decode('ascii')}",
+                    id=None,
+                    source_file_path=str(path),
+                    frozen=frozen,
+                )
+            )
+
+    history: list[message.Message] = []
+    if source in {"tool", "developer-tool"}:
+        history.append(
+            message.ToolResultMessage(
+                call_id="tool-1",
+                tool_name="Read",
+                status="success",
+                output_text="Original tool output",
+                parts=parts if source == "tool" else [],
+            )
+        )
+    else:
+        history.append(
+            message.UserMessage(
+                parts=[message.TextPart(text="Original user text"), *(parts if source == "user" else [])]
+            )
+        )
+    if source.startswith("developer-"):
+        history.append(message.DeveloperMessage(parts=[message.TextPart(text="Original developer text"), *parts]))
+    original_history = [msg.model_copy(deep=True) for msg in history]
+
+    items = responses_history(history, model_name=None)
+
+    assert history == original_history
+    assert len(items) == 1
+    item = _ensure_dict(items[0])
+    if source in {"tool", "developer-tool"}:
+        assert item["type"] == "function_call_output"
+        assert item["call_id"] == "tool-1"
+        content = _ensure_list(item["output"])
+    else:
+        assert item["type"] == "message"
+        assert item["role"] == "user"
+        content = _ensure_list(item["content"])
+    blocks = [_ensure_dict(block) for block in content]
+    assert [block["image_url"] for block in blocks if block["type"] == "input_image"] == [
+        SAMPLE_DATA_URL,
+        SAMPLE_DATA_URL,
+    ]
+    text = "\n".join(block["text"] for block in blocks if block["type"] == "input_text")
+    assert text.count("[image unavailable:") == 1
+    assert str(tmp_path / "invalid.png") in text
+    assert "image omitted from request" not in text
+    assert ("Original tool output" if source.endswith("tool") else "Original user text") in text
+    if source.startswith("developer-"):
+        assert "Original developer text" in text
+
+
+@pytest.mark.parametrize("storage", ["file", "inline"])
+def test_responses_history_rejects_corrupt_animation_before_compression(tmp_path: Path, storage: str) -> None:
+    buffer = BytesIO()
+    with Image.new("RGB", (8, 8), "red") as first, Image.new("RGB", (8, 8), "blue") as second:
+        first.save(buffer, format="PNG", save_all=True, append_images=[second])
+    payload = buffer.getvalue()[:-30]
+    # The first frame still decodes, but a later frame is truncated.
+    with Image.open(BytesIO(payload)) as image:
+        image.load()
+    with pytest.raises(ValueError, match="Invalid image data"):
+        image_module.validate_image_bytes(payload)
+
+    part: message.ImageFilePart | message.ImageURLPart
+    if storage == "file":
+        path = tmp_path / "animation.png"
+        path.write_bytes(payload)
+        part = message.ImageFilePart(file_path=str(path), mime_type="image/png")
+    else:
+        part = message.ImageURLPart(url=f"data:image/png;base64,{b64encode(payload).decode('ascii')}")
+    items = responses_history([message.UserMessage(parts=[part])], model_name=None)
+
+    content = _ensure_list(_ensure_dict(items[0])["content"])
+    assert len(content) == 1
+    assert _ensure_dict(content[0])["type"] == "input_text"
+    assert "image unavailable" in _ensure_dict(content[0])["text"]
 
 
 def test_responses_history_function_call_output_can_be_string():

@@ -2,7 +2,10 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Literal
+
+from PIL.Image import DecompressionBombError
 
 if TYPE_CHECKING:
     from klaude_code.protocol.llm_param import LLMCallParameter, LLMConfigParameter
@@ -12,6 +15,8 @@ from klaude_code.llm.image import (
     image_data_url_within_single_image_limits,
     image_file_to_data_url,
     image_url_to_request_url,
+    parse_data_url,
+    validate_image_bytes,
 )
 from klaude_code.prompts.messages import EMPTY_TOOL_OUTPUT_MESSAGE
 from klaude_code.protocol import message
@@ -51,9 +56,21 @@ def count_images(messages: list[tuple[message.Message, DeveloperAttachment]]) ->
 
 
 def image_part_to_request_url(image: ImagePart, *, max_dimension: int) -> str | None:
-    if isinstance(image, message.ImageFilePart):
-        return image_file_to_data_url(image, max_dimension=max_dimension)
-    return image_url_to_request_url(image, max_dimension=max_dimension)
+    try:
+        if isinstance(image, message.ImageFilePart):
+            validate_image_bytes(Path(image.file_path).read_bytes())
+            url = image_file_to_data_url(image, max_dimension=max_dimension)
+        else:
+            if image.url.startswith("data:"):
+                _, _, image_bytes = parse_data_url(image.url)
+                validate_image_bytes(image_bytes)
+            url = image_url_to_request_url(image, max_dimension=max_dimension)
+        if url is not None and url.startswith("data:"):
+            _, _, image_bytes = parse_data_url(url)
+            validate_image_bytes(image_bytes)
+        return url
+    except (OSError, ValueError, SyntaxError, EOFError, DecompressionBombError):
+        return None
 
 
 def image_placeholder(image: ImagePart, request_url: str | None) -> str:
@@ -82,7 +99,7 @@ def image_placeholder(image: ImagePart, request_url: str | None) -> str:
 def missing_image_placeholder(image: ImagePart) -> str:
     source = image.source_file_path if isinstance(image, message.ImageURLPart) else image.file_path
     source_text = f" source={source}" if source else ""
-    return f"[image unavailable: referenced image file could not be read;{source_text}]"
+    return f"[image unavailable: image data could not be read or decoded;{source_text}]"
 
 
 def vision_unsupported_placeholder(image: ImagePart) -> str:

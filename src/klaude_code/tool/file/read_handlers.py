@@ -18,7 +18,7 @@ from klaude_code.const import (
     READ_MAX_IMAGE_BYTES,
     READ_PARTIAL_PREVIEW_MAX_LINES,
 )
-from klaude_code.llm.image import detect_mime_type_from_bytes, freeze_image_to_file_for_history
+from klaude_code.llm.image import detect_mime_type_from_bytes, freeze_image_to_file_for_history, validate_image_bytes
 from klaude_code.protocol import message
 from klaude_code.protocol.models import ImageUIExtra, ReadPreviewLine, ReadPreviewUIExtra
 from klaude_code.tool.core.context import ToolContext
@@ -53,6 +53,7 @@ async def read_image(
         mime_type = _image_mime_type(file_path)
         with open(file_path, "rb") as image_file:
             image_bytes = image_file.read()
+        await asyncio.to_thread(validate_image_bytes, image_bytes)
         # Correct MIME type if magic bytes disagree with extension
         detected = detect_mime_type_from_bytes(image_bytes)
         if detected:

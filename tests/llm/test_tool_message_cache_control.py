@@ -19,6 +19,10 @@ from klaude_code.llm.openrouter.input import (
 )
 from klaude_code.protocol import message
 
+_IMAGE_URL = (
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAbitOmMAAAAASUVORK5CYII="
+)
+
 
 def _make_tool_result(
     output: str = "ok", call_id: str = "call_1", parts: list[message.Part] | None = None
@@ -173,7 +177,7 @@ def test_openrouter_claude_with_tool_images_keeps_tool_list_and_user_image_messa
     history: list[message.Message] = [
         _make_tool_result(
             "rendered",
-            parts=[message.ImageURLPart(url="data:image/png;base64,AA==", id=None)],
+            parts=[message.ImageURLPart(url=_IMAGE_URL, id=None)],
         )
     ]
 
@@ -184,7 +188,7 @@ def test_openrouter_claude_with_tool_images_keeps_tool_list_and_user_image_messa
     assert messages[1]["role"] == "user"
     assert messages[1]["content"] == [
         {"type": "text", "text": "Attached image(s) from tool result:"},
-        {"type": "image_url", "image_url": {"url": "data:image/png;base64,AA=="}},
+        {"type": "image_url", "image_url": {"url": _IMAGE_URL}},
     ]
 
 
@@ -200,12 +204,12 @@ def _parallel_tool_call_history_with_images() -> list[message.Message]:
         _make_tool_result(
             "[image] a.png",
             call_id="call_1",
-            parts=[message.ImageURLPart(url="data:image/png;base64,AA==", id=None)],
+            parts=[message.ImageURLPart(url=_IMAGE_URL, id=None)],
         ),
         _make_tool_result(
             "[image] b.png",
             call_id="call_2",
-            parts=[message.ImageURLPart(url="data:image/png;base64,BB==", id=None)],
+            parts=[message.ImageURLPart(url=_IMAGE_URL, id=None)],
         ),
     ]
 

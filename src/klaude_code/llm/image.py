@@ -14,6 +14,7 @@ import sys
 import tempfile
 from base64 import b64decode, b64encode
 from binascii import Error as BinasciiError
+from collections import deque
 from io import BytesIO
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -27,6 +28,7 @@ _MAX_IMAGE_SIZE_BYTES = 4_500_000
 _MAX_BASE64_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 _IMAGE_TARGET_RAW_SIZE_BYTES = (_MAX_BASE64_IMAGE_SIZE_BYTES // 4) * 3
 MAX_IMAGE_DIMENSION = 8000
+_validated_image_digests: deque[str] = deque(maxlen=128)
 _JPEG_FALLBACK_QUALITIES = (85, 70, 55, 40, 25)
 _REQUEST_VARIANT_CACHE_DIR = ".request-cache"
 _REQUEST_VARIANT_CACHE_VERSION = 1
@@ -45,6 +47,26 @@ _JPEG_SOF_MARKERS = {
     0xCE,
     0xCF,
 }
+
+
+def validate_image_bytes(image_bytes: bytes) -> None:
+    """Reject unsupported or corrupt images without retaining their payloads."""
+    from PIL import Image, ImageSequence
+
+    digest = hashlib.sha256(image_bytes).hexdigest()
+    if digest in _validated_image_digests:
+        return
+    try:
+        with Image.open(BytesIO(image_bytes), formats=("JPEG", "PNG", "GIF", "WEBP")) as image:
+            image.verify()
+        # verify() checks structure; load() also checks compressed pixel data.
+        with Image.open(BytesIO(image_bytes), formats=("JPEG", "PNG", "GIF", "WEBP")) as image:
+            for frame in ImageSequence.Iterator(image):
+                frame.load()
+    except (OSError, ValueError, SyntaxError, EOFError, Image.DecompressionBombError) as exc:
+        raise ValueError("Invalid image data: expected a decodable JPEG, PNG, GIF, or WebP image") from exc
+
+    _validated_image_digests.append(digest)
 
 
 def _suffix_for_mime_type(mime_type: str) -> str | None:

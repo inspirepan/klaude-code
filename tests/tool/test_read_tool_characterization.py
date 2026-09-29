@@ -35,7 +35,7 @@ from klaude_code.tool import ReadTool, build_todo_context
 from klaude_code.tool.core.context import ToolContext
 
 # 1x1 transparent PNG (same fixture used by tests/agent/test_read_edit.py).
-_TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
+_TINY_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAAbitOmMAAAAASUVORK5CYII="
 
 
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
@@ -254,6 +254,37 @@ def test_read_image_inline_success(tmp_path: Path, isolated_home: Path) -> None:
     status = session.file_tracker.get(file_path)
     assert status is not None
     assert status.content_sha256 == hashlib.sha256(image_bytes).hexdigest()
+
+
+@pytest.mark.parametrize(
+    "image_bytes",
+    [
+        b"<html>Access denied</html>",
+        base64.b64decode(_TINY_PNG_BASE64)[:45],
+        base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
+        ),
+    ],
+    ids=["html", "truncated", "bad-checksum"],
+)
+def test_read_invalid_image_returns_error(tmp_path: Path, isolated_home: Path, image_bytes: bytes) -> None:
+    del isolated_home
+    session, context = _make_context(tmp_path)
+    path = tmp_path / "broken.png"
+    path.write_bytes(image_bytes)
+
+    result = arun(ReadTool.call(json.dumps({"file_path": str(path)}), context))
+
+    assert result.status == "error"
+    assert "Invalid image data" in (result.output_text or "")
+    assert not result.parts
+    assert result.ui_extra is None
+    assert session.file_tracker.get(str(path)) is None
+
+    path.write_bytes(base64.b64decode(_TINY_PNG_BASE64))
+    repaired = arun(ReadTool.call(json.dumps({"file_path": str(path)}), context))
+    assert repaired.status == "success"
+    assert repaired.parts
 
 
 def test_read_image_too_large_error(tmp_path: Path, isolated_home: Path) -> None:
