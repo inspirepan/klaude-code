@@ -2,6 +2,7 @@
 
 UV ?= uv
 PNPM ?= pnpm
+KLAUDE ?= klaude
 
 WEB_DIR := web
 
@@ -16,7 +17,7 @@ help:
 	@printf "%s\n" \
 		"Targets:" \
 		"  make pre-push     Run all formatting, linting, tests, and builds" \
-		"  make install      Install Python package (editable, via uv tool) + web viewer" \
+		"  make install      Install package (editable) + web viewer, then reload the running server" \
 		"  make web          Install web viewer deps and build the static bundle" \
 		"  make build        Build Python package" \
 		"  make lint         Run ruff + ty + import-linter" \
@@ -35,6 +36,15 @@ install: web
 	git submodule update --init --recursive
 	@echo "==> Installing Python package (editable, via uv tool)..."
 	$(UV) tool install -e .
+	@echo "==> Restarting the running klaude server on the new code (if any)..."
+	@if ! command -v $(KLAUDE) >/dev/null 2>&1; then \
+		echo "error: '$(KLAUDE)' not found in PATH; cannot reload the server after install" >&2; \
+		exit 1; \
+	elif $(KLAUDE) server status >/dev/null 2>&1; then \
+		$(KLAUDE) server reload --when-idle; \
+	else \
+		echo "klaude server is not running; it will start on the next klaude command"; \
+	fi
 
 web:
 	@echo "==> Building web viewer bundle..."
