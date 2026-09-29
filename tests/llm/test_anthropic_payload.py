@@ -76,10 +76,10 @@ def test_build_payload_omits_interleaved_beta_for_adaptive_sonnet_46() -> None:
     assert ANTHROPIC_BETA_INTERLEAVED_THINKING not in payload.get("betas", [])
 
 
-def test_build_payload_omits_interleaved_beta_for_adaptive_sonnet_5() -> None:
+def test_build_payload_omits_interleaved_beta_for_adaptive_sonnet_5_5() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
-        model_id="claude-sonnet-5",
+        model_id="claude-sonnet-5-5",
         thinking=llm_param.Thinking(type="adaptive"),
     )
 
@@ -115,8 +115,11 @@ def test_build_payload_skips_context_management_without_thinking() -> None:
     assert ANTHROPIC_BETA_CONTEXT_MANAGEMENT not in payload.get("betas", [])
 
 
-@pytest.mark.parametrize("model_id", ["claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-opus-5-5"])
-def test_build_payload_omits_temperature_for_unsupported_opus_models(model_id: str) -> None:
+@pytest.mark.parametrize(
+    "model_id",
+    ["claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-opus-5-5", "claude-sonnet-5-5"],
+)
+def test_build_payload_omits_temperature_for_models_that_reject_sampling(model_id: str) -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
         model_id=model_id,
@@ -150,7 +153,7 @@ def test_build_payload_includes_temperature_for_opus_46() -> None:
         "claude-opus-4-8",
         "claude-opus-5",
         "claude-sonnet-4-6",
-        "claude-sonnet-5",
+        "claude-sonnet-5-5",
         "claude-fable-5",
     ],
 )
@@ -274,10 +277,10 @@ def test_build_payload_enables_eager_input_streaming_for_new_opus_models(model_i
     assert tools[0]["eager_input_streaming"] is True  # type: ignore[typeddict-item]
 
 
-def test_build_payload_enables_eager_input_streaming_for_sonnet_5() -> None:
+def test_build_payload_enables_eager_input_streaming_for_sonnet_5_5() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),
-        model_id="claude-sonnet-5",
+        model_id="claude-sonnet-5-5",
         tools=_dummy_tools(),
     )
 

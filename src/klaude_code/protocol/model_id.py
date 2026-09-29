@@ -48,7 +48,11 @@ def is_sonnet_46_model(model_name: str | None) -> bool:
 
 
 def is_sonnet_5_model(model_name: str | None) -> bool:
-    """Check if the model is Claude Sonnet 5."""
+    """Check if the model is Claude Sonnet 5 or a later 5.x release.
+
+    Substring match on "sonnet-5", so it also covers Claude Sonnet 5.5
+    (`claude-sonnet-5-5`); same-generation bumps only touch the YAML.
+    """
     if not model_name:
         return False
     model_lower = model_name.lower()
@@ -76,8 +80,17 @@ def supports_adaptive_thinking(model_name: str | None) -> bool:
 
 
 def model_supports_temperature(model_name: str | None) -> bool:
-    """Check if the Anthropic model accepts sampling temperature."""
-    return not (is_opus_47_model(model_name) or is_opus_48_model(model_name) or is_opus_5_model(model_name))
+    """Check if the Anthropic model accepts sampling temperature.
+
+    Sonnet 5.x and Opus 4.7+ reject non-default temperature / top_p / top_k, so
+    the caller must omit the parameter instead of sending a value.
+    """
+    return not (
+        is_opus_47_model(model_name)
+        or is_opus_48_model(model_name)
+        or is_opus_5_model(model_name)
+        or is_sonnet_5_model(model_name)
+    )
 
 
 def is_claude_model(model_name: str | None) -> bool:
