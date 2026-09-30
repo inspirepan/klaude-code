@@ -90,6 +90,10 @@ class TestCommandSafety(unittest.TestCase):
         if self.symlink_created:
             self.assert_unsafe("rm -rf linkdir", "symlink")
 
+    def test_rm_no_operands_is_safe(self):
+        # No operands: allowed (will fail harmlessly at runtime).
+        self.assert_safe("rm")
+
     # trash policy
     def test_trash_safe_relative(self):
         self.assert_safe("trash file.txt")

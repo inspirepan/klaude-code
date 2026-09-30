@@ -4,13 +4,16 @@ Locks in the CURRENT verdicts of
 ``klaude_code.tool.shell.command_safety.is_safe_command`` so a later refactor
 stays behavior-preserving. Asserts what the code currently DOES.
 
-The existing ``tests/tool/test_command_safety.py`` already covers the core
-rm/trash allow/deny matrix; these tests focus on the boundary behaviors that
-are easy to break in a refactor:
+``tests/tool/test_command_safety.py`` owns the rm/trash allow/deny matrix;
+these tests add only the boundary behaviors that are easy to break in a
+refactor:
 - unparseable commands (unbalanced quotes) treated as SAFE (@164)
 - shell operators are NOT split, so only argv[0] decides the verdict
 - empty / whitespace-only commands are UNSAFE ("Empty command")
 - only the bare ``rm`` / ``trash`` tokens are matched (case-sensitive, no path)
+
+Representative rm/trash verdicts for the unrestricted-command default live in
+that owner file, not here.
 """
 
 from __future__ import annotations
@@ -27,7 +30,6 @@ from klaude_code.tool import is_safe_command
 @pytest.fixture
 def work_dir() -> Iterator[str]:
     with tempfile.TemporaryDirectory() as d:
-        os.makedirs(os.path.join(d, "dir1"), exist_ok=True)
         with open(os.path.join(d, "file.txt"), "w", encoding="utf-8") as f:
             f.write("hello\n")
         yield d
@@ -105,72 +107,3 @@ def test_rm_with_path_prefix_not_matched(work_dir: str) -> None:
     # '/bin/rm' != 'rm', so it falls through to the default-allow branch.
     result = is_safe_command("/bin/rm /etc/passwd", work_dir=work_dir)
     assert result.is_safe is True
-
-
-# --------------------------------------------------------------------------
-# Representative safe / unsafe rm + trash verdicts
-# --------------------------------------------------------------------------
-
-
-def test_safe_rm_relative_file(work_dir: str) -> None:
-    result = is_safe_command("rm file.txt", work_dir=work_dir)
-    assert result.is_safe is True
-
-
-def test_unsafe_rm_recursive_missing_target(work_dir: str) -> None:
-    result = is_safe_command("rm -rf does-not-exist", work_dir=work_dir)
-    assert result.is_safe is False
-    assert "does not exist" in result.error_msg.lower()
-
-
-def test_safe_rm_recursive_existing_dir(work_dir: str) -> None:
-    result = is_safe_command("rm -rf dir1", work_dir=work_dir)
-    assert result.is_safe is True
-
-
-def test_rm_no_operands_is_safe(work_dir: str) -> None:
-    # No operands: allowed (will fail harmlessly at runtime).
-    result = is_safe_command("rm", work_dir=work_dir)
-    assert result.is_safe is True
-
-
-@pytest.mark.parametrize(
-    ("command", "expected_fragment"),
-    [
-        ("rm /etc/passwd", "absolute path"),
-        ("rm ~/file.txt", "tilde"),
-        ("rm a*", "wildcards"),
-        ("rm dir1/", "trailing slash"),
-    ],
-)
-def test_unsafe_rm_patterns(command: str, expected_fragment: str, work_dir: str) -> None:
-    result = is_safe_command(command, work_dir=work_dir)
-    assert result.is_safe is False
-    assert expected_fragment in result.error_msg.lower()
-
-
-@pytest.mark.parametrize(
-    ("command", "expected_fragment"),
-    [
-        ("trash /etc/passwd", "absolute path"),
-        ("trash ~/file.txt", "tilde"),
-        ("trash a*", "wildcards"),
-        ("trash dir1/", "trailing slash"),
-    ],
-)
-def test_unsafe_trash_patterns(command: str, expected_fragment: str, work_dir: str) -> None:
-    result = is_safe_command(command, work_dir=work_dir)
-    assert result.is_safe is False
-    assert expected_fragment in result.error_msg.lower()
-
-
-def test_trash_allows_relative_dir_unlike_rm(work_dir: str) -> None:
-    # trash does not require existence and allows symlinks; a relative dir is fine.
-    result = is_safe_command("trash dir1", work_dir=work_dir)
-    assert result.is_safe is True
-
-
-def test_default_allow_for_unrestricted_commands(work_dir: str) -> None:
-    for cmd in ("ls", "git status", "python --version", "mkdir newdir"):
-        result = is_safe_command(cmd, work_dir=work_dir)
-        assert result.is_safe is True, cmd

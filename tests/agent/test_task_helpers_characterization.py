@@ -292,7 +292,7 @@ def test_fallback_compact_model_falls_back_to_main_client_and_rebuilds_profile(
 
 def test_fallback_compact_model_returns_none_for_non_fallback_client(isolated_home: Path, tmp_path: Path) -> None:
     del isolated_home
-    executor, ctx, session = _build_executor(
+    executor, _ctx, session = _build_executor(
         tmp_path=tmp_path,
         llm_client=_StubClient(_config("openai", "main")),
         compact_llm_client=_StubClient(_config("openai", "compact")),
@@ -300,7 +300,6 @@ def test_fallback_compact_model_returns_none_for_non_fallback_client(isolated_ho
     before = len(session.conversation_history)
     result = executor._fallback_compact_model("rate limit reached")  # pyright: ignore[reportPrivateUsage]
     assert result is None
-    assert ctx.profile is ctx.profile
     assert len(session.conversation_history) == before
 
 
