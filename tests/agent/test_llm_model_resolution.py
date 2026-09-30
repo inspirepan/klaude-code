@@ -19,7 +19,7 @@ def _provider() -> ProviderConfig:
         protocol=llm_param.LLMClientProtocol.OPENAI,
         api_key="test-key",
         model_list=[
-            ModelConfig(model_name="gpt-6-sol", model_id="gpt-6-sol"),
+            ModelConfig(model_name="gpt-6.1-sol", model_id="gpt-6.1-sol"),
             ModelConfig(model_name="gpt-6-luna", model_id="gpt-6-luna"),
         ],
     )
@@ -28,7 +28,7 @@ def _provider() -> ProviderConfig:
 @pytest.fixture
 def builtin(monkeypatch: pytest.MonkeyPatch) -> Config:
     defaults = Config(
-        main_model="gpt-6-sol@codex",
+        main_model="gpt-6.1-sol@codex",
         fast_model="gpt-6-luna@codex",
         sub_agent_models={"finder": "gpt-6-luna@codex"},
     )
@@ -40,7 +40,7 @@ def builtin(monkeypatch: pytest.MonkeyPatch) -> Config:
 def test_removed_sub_agent_model_falls_back_to_builtin_with_warning() -> None:
     config = Config(
         provider_list=[_provider()],
-        main_model="gpt-6-sol@codex",
+        main_model="gpt-6.1-sol@codex",
         sub_agent_models={"finder": "gpt-5.6-luna@codex"},
     )
 
@@ -58,7 +58,7 @@ def test_removed_sub_agent_model_falls_back_to_builtin_with_warning() -> None:
 def test_removed_fast_and_compact_models_do_not_fail() -> None:
     config = Config(
         provider_list=[_provider()],
-        main_model="gpt-6-sol@codex",
+        main_model="gpt-6.1-sol@codex",
         fast_model="gpt-5.6-luna@codex",
         compact_model="gpt-5.6-luna@codex",
     )
@@ -77,7 +77,7 @@ def test_removed_main_model_falls_back_but_explicit_override_fails() -> None:
     config = Config(provider_list=[_provider()], main_model="gpt-5.6-luna@codex")
 
     clients = build_llm_clients(config, skip_sub_agents=True)
-    assert clients.main_model_alias == "gpt-6-sol@codex"
+    assert clients.main_model_alias == "gpt-6.1-sol@codex"
     assert clients.warnings and clients.warnings[0].startswith("main_model 'gpt-5.6-luna@codex'")
 
     with pytest.raises(ModelResolutionError):
@@ -88,7 +88,7 @@ def test_unavailable_builtin_default_stays_silent(builtin: Config) -> None:
     builtin.sub_agent_models = {"finder": "missing@nowhere"}
     config = Config(
         provider_list=[_provider()],
-        main_model="gpt-6-sol@codex",
+        main_model="gpt-6.1-sol@codex",
         sub_agent_models={"finder": "missing@nowhere"},
     )
 

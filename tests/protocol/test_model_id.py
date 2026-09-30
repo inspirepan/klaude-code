@@ -14,7 +14,7 @@ def test_gpt5_plus_covers_every_gpt_reasoning_generation() -> None:
     assert is_gpt5_plus_model("gpt-6-astra")
     assert is_gpt5_plus_model("gpt-6-astra:max")
     assert is_gpt5_plus_model("openai/gpt-6-astra")
-    assert is_gpt5_plus_model("gpt-6-sol")
+    assert is_gpt5_plus_model("gpt-6.1-sol")
     assert is_gpt5_plus_model("gpt-6-luna")
 
 
@@ -33,7 +33,7 @@ def test_generation_helpers_stay_specific() -> None:
 
 def test_prompt_cache_ttl_covers_gpt56_and_newer() -> None:
     assert supports_prompt_cache_options_ttl("gpt-6-astra")
-    assert supports_prompt_cache_options_ttl("gpt-6-sol")
+    assert supports_prompt_cache_options_ttl("gpt-6.1-sol")
     assert supports_prompt_cache_options_ttl("gpt-6-luna")
     assert supports_prompt_cache_options_ttl("gpt-5.6-sol")
     assert not supports_prompt_cache_options_ttl("gpt-5.5")
