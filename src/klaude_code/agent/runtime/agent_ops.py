@@ -35,6 +35,7 @@ from klaude_code.agent.skill_inventory import (
     get_skill_warnings_by_location,
 )
 from klaude_code.config import format_model_preference, load_config
+from klaude_code.config.config import ModelConfigCandidate
 from klaude_code.control.event_bus import event_publish_context
 from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
@@ -215,6 +216,7 @@ class AgentOperationHandler:
                     model_config_name,
                     config.main_model,
                 )
+                candidates = self._prefer_parent_provider(session, model_config_name, candidates)
                 if candidates:
                     clients.main = create_llm_client_for_candidates(candidates)
                     clients.main_model_alias = (
@@ -226,6 +228,26 @@ class AgentOperationHandler:
 
         runtime.set_llm_clients(clients)
         return clients
+
+    def _prefer_parent_provider(
+        self,
+        session: Session,
+        model_config_name: str,
+        candidates: list[ModelConfigCandidate],
+    ) -> list[ModelConfigCandidate]:
+        """Try the parent's provider first for an unqualified sub-agent model.
+
+        The parent's provider is known to work right now, while provider_list
+        order may put an exhausted one first. Other candidates stay as fallbacks.
+        """
+        if session.parent_session_id is None or "@" in model_config_name:
+            return candidates
+        parent = self._get_session_actor(session.parent_session_id)
+        parent_clients = parent.get_llm_clients() if parent is not None else None
+        if parent_clients is None:
+            return candidates
+        parent_provider = parent_clients.main.get_llm_config().provider_name
+        return sorted(candidates, key=lambda candidate: candidate.provider != parent_provider)
 
     def get_session_llm_clients(self, session_id: str) -> LLMClients:
         runtime = self._get_session_actor(session_id)

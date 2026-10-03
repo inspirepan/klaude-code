@@ -33,6 +33,7 @@ def is_fallbackable_llm_error(error_message: str) -> bool:
         "permission_denied",
         "permission denied",
         "usage_limit_reached",
+        "usage limit exceeded",
     )
     return any(marker in text for marker in fallbackable_markers)
 

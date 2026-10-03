@@ -318,6 +318,7 @@ def test_fallback_compact_model_returns_none_for_non_fallback_client(isolated_ho
         ("model_not_found", True),
         ("permission_denied", True),
         ("usage_limit_reached", True),
+        ("RateLimitError Error code: 429 - {'type': 'GoUsageLimitError', 'message': 'Go usage limit exceeded'}", True),
         ("Does not have access to model gpt-x", True),
         # Overflow is explicitly excluded even though phrasing is error-like.
         ("prompt is too long", False),
