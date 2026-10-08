@@ -14,14 +14,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
-from klaude_code.protocol import message, op, user_interaction
+from klaude_code.protocol import events, message, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.sub_agent import get_all_names
 from klaude_code.server.headless import HeadlessRuntime, format_tool_call_activity
 from klaude_code.server.routes.ws import input_attached_session_ids
 from klaude_code.server.session_index import SessionSummary
 from klaude_code.server.session_state import derive_session_state_from_snapshot, live_descendant_session_ids
+from klaude_code.server.session_tape import TapeCut
 from klaude_code.server.state import ServerAppState, get_server_state
+from klaude_code.session.ledger import is_auto_user_message
 from klaude_code.session.session import Session
 
 router = APIRouter(prefix="/api/headless", tags=["headless"])
@@ -251,6 +253,82 @@ def _last_assistant_text(history: list[message.HistoryEvent]) -> str:
     return ""
 
 
+class BriefToolCall(BaseModel):
+    call_id: str
+    activity: str
+    status: Literal["pending", "success", "error", "aborted"]
+
+
+class BriefTurnActivity(BaseModel):
+    last_user_message: str = ""
+    recent_tool_calls: list[BriefToolCall] = []
+    recent_assistant_messages: list[str] = []
+    assistant_streaming: bool = False
+
+
+def _streaming_assistant_text(cut: TapeCut | None) -> str:
+    """Read the open text block only; closed blocks are already covered by history."""
+    if cut is None:
+        return ""
+    parts: list[str] = []
+    for envelope in reversed(cut.envelopes):
+        event = envelope.event
+        if isinstance(event, events.AssistantTextDeltaEvent):
+            parts.append(event.content)
+        elif isinstance(event, events.AssistantTextStartEvent):
+            return "".join(reversed(parts))
+        elif isinstance(
+            event,
+            events.AssistantTextEndEvent
+            | events.UserMessageEvent
+            | events.TaskStartEvent
+            | events.TaskFinishEvent
+            | events.InterruptEvent
+            | events.ErrorEvent,
+        ):
+            break
+    return ""
+
+
+def _brief_turn_activity(history: list[message.HistoryEvent], *, streaming_text: str = "") -> BriefTurnActivity:
+    """Summarize the latest user turn without including tool output or reasoning."""
+    activity = BriefTurnActivity()
+    results: dict[str, message.ToolResultMessage] = {}
+    for item in reversed(history):
+        if isinstance(item, message.UserMessage) and not is_auto_user_message(item):
+            text = message.join_text_parts(item.parts)
+            text = " ".join(text.split())
+            activity.last_user_message = text[:299] + "…" if len(text) > 300 else text
+            break
+        if isinstance(item, message.ToolResultMessage):
+            results[item.call_id] = item
+        elif isinstance(item, message.AssistantMessage):
+            text = message.join_text_parts(item.parts)
+            if text.strip() and len(activity.recent_assistant_messages) < 5:
+                activity.recent_assistant_messages.append(text)
+            for part in reversed(item.parts):
+                if isinstance(part, message.ToolCallPart) and len(activity.recent_tool_calls) < 5:
+                    result = results.get(part.call_id)
+                    activity.recent_tool_calls.append(
+                        BriefToolCall(
+                            call_id=part.call_id,
+                            activity=format_tool_call_activity(part.tool_name, part.arguments_json, max_len=120),
+                            status=result.status if result is not None else "pending",
+                        )
+                    )
+    activity.recent_tool_calls.reverse()
+    activity.recent_assistant_messages.reverse()
+    if streaming_text.strip():
+        activity.recent_assistant_messages = [*activity.recent_assistant_messages, streaming_text][-5:]
+        activity.assistant_streaming = True
+    for index, text in enumerate(activity.recent_assistant_messages[:-1]):
+        if len(text) > 300:
+            marker = "\n… [middle truncated] …\n"
+            keep = (300 - len(marker)) // 2
+            activity.recent_assistant_messages[index] = text[:keep] + marker + text[-keep:]
+    return activity
+
+
 def _render_transcript_items(history: list[message.HistoryEvent]) -> list[str]:
     blocks: list[str] = []
     for item in history:
@@ -475,13 +553,18 @@ async def get_headless_brief(target: str, state: ServerAppState = STATE_DEP) -> 
     session = _load_session_for_read(state, summary.id, Path(summary.work_dir))
     usage = session.last_request_usage
     current_tool = headless.tracker.current_tool_call(summary.id)
+    cut = state.tapes.cut(summary.id) if state.tapes is not None else None
+    activity = _brief_turn_activity(session.conversation_history, streaming_text=_streaming_assistant_text(cut))
 
     row.update(
         {
             "todos": summary.todos,
             "file_change_summary": summary.file_change_summary,
             "approval_policy": summary.approval_policy,
-            "last_assistant_message": _last_assistant_text(session.conversation_history),
+            **activity.model_dump(),
+            "last_assistant_message": (
+                activity.recent_assistant_messages[-1] if activity.recent_assistant_messages else ""
+            ),
             "current_tool_call": (
                 format_tool_call_activity(current_tool[0], current_tool[1], max_len=200)
                 if current_tool is not None

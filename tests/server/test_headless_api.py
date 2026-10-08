@@ -6,7 +6,10 @@ from typing import Any, cast
 
 import pytest
 
+from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT, build_stream_error_continuation_prompt
+from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT
 from klaude_code.protocol import message
+from klaude_code.protocol.models import ToolStatus
 from klaude_code.server.headless import HeadlessRuntime
 from klaude_code.session.session import Session
 
@@ -379,6 +382,121 @@ def test_send_while_running_queues_follow_up(app_env: AppEnv) -> None:
     assert output["output"] == "follow-up reply"
 
 
+def test_brief_shows_bounded_latest_turn_activity(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
+    _enqueue_text_reply(app_env, "done")
+    session_id = _run(app_env)["session_id"]
+    _wait_for_state(app_env, session_id, "completed")
+    session = Session.load(session_id, work_dir=app_env.work_dir)
+    session.conversation_history = [
+        message.UserMessage(parts=[message.TextPart(text="old task")]),
+        message.AssistantMessage(
+            parts=[message.ToolCallPart(call_id="old", tool_name="Bash", arguments_json='{"command":"old"}')]
+        ),
+        message.UserMessage(parts=[message.TextPart(text="latest request " * 40)]),
+        message.UserMessage(source="bash_mode", parts=[message.TextPart(text="manual command")]),
+    ]
+    statuses = ["success", "success", "error", "aborted", "success", "success", "pending"]
+    for index, status in enumerate(statuses):
+        if index == 6:
+            session.conversation_history.extend(
+                [
+                    message.UserMessage(parts=[message.TextPart(text=EMPTY_RESPONSE_CONTINUATION_PROMPT)]),
+                    message.UserMessage(
+                        parts=[message.TextPart(text=build_stream_error_continuation_prompt("partial output"))]
+                    ),
+                    message.UserMessage(
+                        parts=[
+                            message.TextPart(text=f"<system-reminder>{FORK_CONTEXT_GENERAL_PROMPT}</system-reminder>")
+                        ]
+                    ),
+                ]
+            )
+        session.conversation_history.append(
+            message.AssistantMessage(
+                parts=[
+                    message.TextPart(text=f"progress-{index}: " + "x" * 1000 + f" tail-{index}"),
+                    message.ThinkingTextPart(text="internal reasoning should not appear"),
+                    message.ToolCallPart(
+                        call_id=f"call-{index}",
+                        tool_name="Bash",
+                        arguments_json=json.dumps({"command": f"step-{index} " + "x" * 200}),
+                    ),
+                ]
+            )
+        )
+        if status != "pending":
+            session.conversation_history.append(
+                message.ToolResultMessage(
+                    call_id=f"call-{index}", status=cast(ToolStatus, status), output_text="must not appear in brief"
+                )
+            )
+    monkeypatch.setattr("klaude_code.server.routes.headless._load_session_for_read", lambda *_args: session)
+
+    response = app_env.client.get(f"/api/headless/sessions/{session_id}/brief")
+
+    assert response.status_code == 200
+    brief = response.json()
+    assert brief["last_user_message"].startswith("latest request")
+    assert len(brief["last_user_message"]) == 300
+    tools = brief["recent_tool_calls"]
+    assert [tool["call_id"] for tool in tools] == [f"call-{index}" for index in range(2, 7)]
+    assert [tool["status"] for tool in tools] == statuses[2:]
+    assert all(len(tool["activity"]) <= 120 for tool in tools)
+    assert "must not appear" not in response.text
+    assert "internal reasoning" not in response.text
+    texts = brief["recent_assistant_messages"]
+    assert len(texts) == 5
+    assert all(len(text) <= 300 for text in texts[:-1])
+    assert texts[0].startswith("progress-2:") and texts[0].endswith("tail-2")
+    assert "middle truncated" in texts[0]
+    assert texts[-1] == "progress-6: " + "x" * 1000 + " tail-6"
+    assert brief["last_assistant_message"] == texts[-1]
+    assert brief["assistant_streaming"] is False
+
+    session.conversation_history.append(message.UserMessage(parts=[message.TextPart(text="new task")]))
+    brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
+    assert brief["last_user_message"] == "new task"
+    assert brief["recent_tool_calls"] == []
+    assert brief["recent_assistant_messages"] == []
+    assert brief["last_assistant_message"] == ""
+
+
+def test_brief_includes_streaming_text_without_repeating_finished_message(app_env: AppEnv) -> None:
+    _enqueue_text_reply(app_env, "previous turn")
+    session_id = _run(app_env)["session_id"]
+    _wait_for_state(app_env, session_id, "completed")
+    app_env.fake_llm.enqueue(
+        message.AssistantTextDelta(content="checking ", response_id="brief-stream"),
+        message.ThinkingTextDelta(content="private reasoning", response_id="brief-stream"),
+        message.AssistantTextDelta(content="the tests", response_id="brief-stream"),
+        message.AssistantMessage(
+            parts=[message.TextPart(text="checking the tests")],
+            response_id="brief-stream",
+            stop_reason="stop",
+        ),
+        delay_s=0.3,
+    )
+    response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "new task"})
+    assert response.status_code == 200
+
+    deadline = time.time() + 8.0
+    brief: dict[str, Any] = {}
+    while time.time() < deadline:
+        brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
+        if brief["assistant_streaming"] and brief["last_assistant_message"] == "checking the tests":
+            break
+        time.sleep(0.02)
+    assert brief["assistant_streaming"] is True
+    assert brief["last_assistant_message"] == "checking the tests"
+    assert brief["recent_assistant_messages"] == ["checking the tests"]
+
+    _wait_for_state(app_env, session_id, "completed")
+    brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
+    assert brief["assistant_streaming"] is False
+    assert brief["last_assistant_message"] == "checking the tests"
+    assert brief["recent_assistant_messages"] == ["checking the tests"]
+
+
 def test_waiting_input_brief_and_respond(app_env: AppEnv) -> None:
     _enqueue_ask_question(app_env)
     body = _run(app_env, "ask me")
@@ -388,6 +506,9 @@ def test_waiting_input_brief_and_respond(app_env: AppEnv) -> None:
 
     brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
     assert brief["state"] == "waiting_input"
+    assert brief["last_user_message"] == "ask me"
+    assert brief["recent_tool_calls"][0]["call_id"] == "call-1"
+    assert brief["recent_tool_calls"][0]["status"] == "pending"
     pending = brief["pending_request"]
     assert pending["type"] == "question"
     assert pending["prompt"] == "Which option?"
@@ -406,6 +527,9 @@ def test_waiting_input_brief_and_respond(app_env: AppEnv) -> None:
     assert response.json()["status"] == "submitted"
 
     _wait_for_state(app_env, session_id, "completed")
+    brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
+    assert brief["current_tool_call"] is None
+    assert brief["recent_tool_calls"][0]["status"] == "success"
     output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
     assert output["output"] == "You chose A"
 

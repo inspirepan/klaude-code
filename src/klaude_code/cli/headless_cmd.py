@@ -692,9 +692,23 @@ def ps_command(
 # -- brief --
 
 
+def _truncate_middle(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    marker = "\n… [middle truncated] …\n"
+    if limit <= len(marker):
+        return text[: max(0, limit - 1)] + "…" if limit > 0 else ""
+    remaining = limit - len(marker)
+    head = (remaining + 1) // 2
+    tail = remaining // 2
+    return text[:head] + marker + (text[-tail:] if tail else "")
+
+
 def brief_command(
     target: str = typer.Argument(..., metavar="TARGET"),
-    max_chars: int = typer.Option(2000, "--max-chars", show_default=False, help="Output budget (default 2000)"),
+    max_chars: int = typer.Option(
+        4000, "--max-chars", min=1, show_default=False, help="Target output size (default 4000)"
+    ),
     full_last: bool = typer.Option(False, "--full-last", help="Do not truncate the last assistant message"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
@@ -703,9 +717,13 @@ def brief_command(
     Never dumps the full transcript.
 
     \b
-    Sections: state, title, model, dir, todos, current/last tool call,
-    pending request (when waiting_input), last assistant message
-    (truncated), token usage, changed-files summary.
+    Sections: state, title, model, dir, latest user request, todos, current tool call,
+    recent tool calls from the latest user turn (up to 5, with result status),
+    pending request (when waiting_input), recent assistant messages (up to 5,
+    older messages middle-truncated), token usage, changed-files summary.
+    The latest message gets the text budget first; --full-last keeps it whole.
+    In-progress assistant text is included and marked as streaming.
+    Metadata and pending requests are never cut to meet the budget.
     """
     body = _api("GET", f"/api/headless/sessions/{target}/brief")
     if json_:
@@ -727,6 +745,8 @@ def brief_command(
         lines.append(f"agent: {body.get('agent_type')}")
     if body.get("approval_policy"):
         lines.append(f"approval: {body.get('approval_policy')}")
+    if body.get("last_user_message"):
+        lines.append(f"request: {body.get('last_user_message')}")
 
     todos = body.get("todos") or []
     if todos:
@@ -737,6 +757,12 @@ def brief_command(
 
     if body.get("current_tool_call"):
         lines.append(f"current tool: {body.get('current_tool_call')}")
+
+    recent_tools = body.get("recent_tool_calls") or []
+    if recent_tools:
+        lines.append("recent tools:")
+        for tool in recent_tools:
+            lines.append(f"  [{tool.get('status')}] {tool.get('activity')}")
 
     pending = body.get("pending_request")
     if isinstance(pending, dict):
@@ -753,20 +779,36 @@ def brief_command(
         )
 
     changes = body.get("file_change_summary") or {}
-    edited = list(changes.get("edited_files") or []) + list(changes.get("created_files") or [])
+    edited = list(dict.fromkeys([*(changes.get("edited_files") or []), *(changes.get("created_files") or [])]))
     if edited or changes.get("diff_lines_added") or changes.get("diff_lines_removed"):
+        work_dir = str(body.get("work_dir") or "").rstrip("/")
+        paths = [_abbrev_home(str(path).removeprefix(f"{work_dir}/")) for path in edited[:8]]
+        more = f", … {len(edited) - 8} more" if len(edited) > 8 else ""
         lines.append(
             f"files: +{changes.get('diff_lines_added', 0)}/-{changes.get('diff_lines_removed', 0)} "
-            f"({', '.join(edited[:8])})"
+            f"({', '.join(paths)}{more})"
         )
 
     last_message = str(body.get("last_assistant_message") or "")
     if last_message:
-        used = sum(len(line) + 1 for line in lines) + len("last message:\n")
+        last_label = "last message (streaming):" if body.get("assistant_streaming") else "last message:"
+        used = sum(len(line) + 1 for line in lines) + len(last_label) + 2
         budget = max(200, max_chars - used)
-        if not full_last and len(last_message) > budget:
-            last_message = last_message[:budget] + "… [truncated, use `klaude output` for full text]"
-        lines.append("last message:")
+        if not full_last:
+            last_message = _truncate_middle(last_message, budget)
+        earlier = list(body.get("recent_assistant_messages") or [])[:-1]
+        remaining = max_chars - used - len(last_message) - len("earlier messages:\n")
+        previews: list[str] = []
+        for text in reversed(earlier):
+            if remaining < 80:
+                break
+            preview = _truncate_middle(str(text), min(300, remaining - 5))
+            previews.append(f"  > {preview}")
+            remaining -= len(previews[-1]) + 1
+        if previews:
+            lines.append("earlier messages:")
+            lines.extend(reversed(previews))
+        lines.append(last_label)
         lines.append(last_message)
 
     typer.echo("\n".join(lines))

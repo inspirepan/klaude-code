@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -85,6 +86,104 @@ def test_pending_request_lines_with_options() -> None:
 def test_pending_request_lines_free_text() -> None:
     lines = _pending_request_lines({"type": "question", "prompt": "Say what?", "options": []}, target="a3f2c1")
     assert lines[-1] == "answer with: klaude respond a3f2c1 --text '...'"
+
+
+@pytest.mark.parametrize("json_mode", [False, True])
+def test_brief_shows_request_and_recent_tools(
+    monkeypatch: pytest.MonkeyPatch, isolated_home: Path, json_mode: bool
+) -> None:
+    from klaude_code.cli.main import app
+
+    body = {
+        "id": "session-id",
+        "state": "completed",
+        "work_dir": str(isolated_home),
+        "last_user_message": "fix the tests",
+        "current_tool_call": None,
+        "recent_tool_calls": [
+            {"call_id": "one", "activity": "Read: tests/example.py", "status": "success"},
+            {"call_id": "two", "activity": "Bash: uv run pytest", "status": "error"},
+        ],
+        "last_assistant_message": "Found a failing test.",
+        "file_change_summary": {
+            "edited_files": [str(isolated_home / "src/example.py"), str(isolated_home / "src/example.py")],
+            "created_files": [str(isolated_home / "tests/example.py")],
+            "diff_lines_added": 5,
+            "diff_lines_removed": 2,
+        },
+    }
+    monkeypatch.setattr(headless_cmd, "_api", lambda *_args: body)
+
+    result = CliRunner().invoke(app, ["brief", "session-id", *(["--json"] if json_mode else [])])
+
+    assert result.exit_code == 0
+    if json_mode:
+        assert json.loads(result.output) == body
+    else:
+        assert "request: fix the tests" in result.output
+        assert "recent tools:\n  [success] Read: tests/example.py\n  [error] Bash: uv run pytest" in result.output
+        assert "current tool:" not in result.output
+        assert "last message:\nFound a failing test." in result.output
+        assert "files: +5/-2 (src/example.py, tests/example.py)" in result.output
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_brief_preserves_latest_text_and_both_ends_of_earlier_text(
+    monkeypatch: pytest.MonkeyPatch, isolated_home: Path, streaming: bool
+) -> None:
+    from klaude_code.cli.main import app
+
+    latest = "latest start " + "y" * 800 + " latest end"
+    earlier = "earlier start " + "x" * 1000 + " earlier end"
+    body = {
+        "id": "session-id",
+        "state": "running" if streaming else "completed",
+        "work_dir": str(isolated_home),
+        "recent_assistant_messages": [earlier, latest],
+        "last_assistant_message": latest,
+        "assistant_streaming": streaming,
+    }
+    monkeypatch.setattr(headless_cmd, "_api", lambda *_args: body)
+
+    result = CliRunner().invoke(app, ["brief", "session-id", "--max-chars", "1400"])
+
+    assert result.exit_code == 0
+    assert len(result.output) <= 1400
+    assert "earlier start" in result.output and "earlier end" in result.output
+    assert "middle truncated" in result.output
+    assert latest in result.output
+    assert result.output.count(latest) == 1
+    label = "last message (streaming):" if streaming else "last message:"
+    assert label in result.output
+
+
+@pytest.mark.parametrize("full_last", [False, True])
+def test_brief_long_latest_text_preserves_tail_or_full_text(
+    monkeypatch: pytest.MonkeyPatch, isolated_home: Path, full_last: bool
+) -> None:
+    from klaude_code.cli.main import app
+
+    latest = "latest start " + "x" * 5000 + " latest end"
+    body = {
+        "id": "session-id",
+        "state": "completed",
+        "work_dir": str(isolated_home),
+        "recent_assistant_messages": ["earlier", latest],
+        "last_assistant_message": latest,
+    }
+    monkeypatch.setattr(headless_cmd, "_api", lambda *_args: body)
+
+    args = ["brief", "session-id", "--max-chars", "500", *(["--full-last"] if full_last else [])]
+    result = CliRunner().invoke(app, args)
+
+    assert result.exit_code == 0
+    assert "latest start" in result.output and "latest end" in result.output
+    assert "earlier messages:" not in result.output
+    if full_last:
+        assert latest in result.output
+    else:
+        assert len(result.output) <= 500
+        assert "middle truncated" in result.output
 
 
 def test_watch_loop_supports_finite_refreshes() -> None:
