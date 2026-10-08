@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from klaude_code.protocol.models.task_metadata import TaskMetadata
 from klaude_code.protocol.models.todo import TodoItem
 from klaude_code.protocol.models.usage import Usage
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 
 
 class TodoUIExtra(BaseModel):
@@ -65,6 +66,15 @@ class BashUIExtra(BaseModel):
     exit_code: int
 
 
+class ShellTaskUIExtra(BaseModel):
+    type: Literal["shell_task"] = "shell_task"
+    action: Literal["list", "output", "wait", "stop"]
+    tasks: list[ShellTaskSnapshot]
+    output: str | None = None
+    next_offset: int | None = None
+    truncated: bool = False
+
+
 class MarkdownDocUIExtra(BaseModel):
     type: Literal["markdown_doc"] = "markdown_doc"
     file_path: str
@@ -113,6 +123,7 @@ class SessionStatsUIExtra(BaseModel):
 
 MultiUIExtraItem = (
     BashUIExtra
+    | ShellTaskUIExtra
     | DiffUIExtra
     | TodoListUIExtra
     | SessionIdUIExtra
@@ -133,6 +144,7 @@ class MultiUIExtra(BaseModel):
 
 ToolResultUIExtra = Annotated[
     BashUIExtra
+    | ShellTaskUIExtra
     | DiffUIExtra
     | TodoListUIExtra
     | SessionIdUIExtra
@@ -161,6 +173,7 @@ __all__ = [
     "ReadPreviewUIExtra",
     "SessionIdUIExtra",
     "SessionStatsUIExtra",
+    "ShellTaskUIExtra",
     "TodoListUIExtra",
     "TodoUIExtra",
     "ToolResultUIExtra",

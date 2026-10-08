@@ -37,6 +37,7 @@ from klaude_code.protocol.models import (
     SubAgentState,
     UserImagesUIItem,
 )
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
@@ -715,10 +716,14 @@ class TUICommandRenderer:
         # Prompt-toolkit owns status in both running and idle states.
         if self._progress_ui_suspended and self._background_shell_count:
             text = Text(
-                f"Background commands {self._background_shell_count} · /tasks to view",
-                style=ThemeKey.STATUS_TEXT,
+                "  $ ",
+                style=ThemeKey.STATUS_HINT,
                 no_wrap=True,
                 overflow="ellipsis",
+            )
+            text.append(
+                f"Background commands {self._background_shell_count} · /tasks to view",
+                style=ThemeKey.STATUS_TEXT,
             )
             rendered = self.console.render_lines(text, self.console.options, pad=False)
             lines = (
@@ -1033,12 +1038,16 @@ class TUICommandRenderer:
     # Event-specific rendering helpers
     # ---------------------------------------------------------------------
 
-    def display_tool_call(self, e: events.ToolCallEvent) -> bool:
+    def display_tool_call(self, e: events.ToolCallEvent, *, shell_task: ShellTaskSnapshot | None = None) -> bool:
         if not self._visible(e):
             return False
         if c_tools.is_sub_agent_tool(e.tool_name):
             return False
-        renderable = c_tools.render_tool_call(e)
+        renderable = (
+            c_tools.render_tool_call(e, shell_task=shell_task)
+            if shell_task is not None
+            else c_tools.render_tool_call(e)
+        )
         if renderable is not None:
             self.print(renderable)
             return True
@@ -1833,9 +1842,13 @@ class TUICommandRenderer:
                     finalized = self._assistant_stream.finalize()
                     if finalized and had_content:
                         self.print()
-                case RenderToolCall(event=event):
+                case RenderToolCall(event=event, shell_task=shell_task):
                     with self.session_print_context(event.session_id):
-                        rendered = self.display_tool_call(event)
+                        rendered = (
+                            self.display_tool_call(event, shell_task=shell_task)
+                            if shell_task is not None
+                            else self.display_tool_call(event)
+                        )
                     if rendered:
                         self._open_continuous_block(event.session_id)
                 case RenderToolResult(event=event, is_sub_agent_session=is_sub_agent_session):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import shutil
 import time
 from concurrent.futures import CancelledError as FutureCancelledError
@@ -17,8 +18,9 @@ from klaude_code.agent.compaction import should_compact_threshold
 from klaude_code.control.event_bus import EventSubscription
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import events, message, op
+from klaude_code.protocol import events, message, op, tools
 from klaude_code.protocol.models import TaskMetadataItem, Usage
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.protocol.version import PROTOCOL_VERSION
 from klaude_code.server.session_index import resolve_session_work_dir_fast
 from klaude_code.server.session_state import derive_session_state_from_snapshot, live_descendant_session_ids
@@ -475,6 +477,41 @@ async def _send_attach_replay(session_id: str, websocket: WebSocket, *, state: S
     cut = state.tapes.cut(session_id) if state.tapes is not None else None
     base_len = cut.base_history_len if cut is not None else None
 
+    manager = getattr(state.runtime, "shell_task_manager", None)
+    shell_tasks: dict[str, dict[str, ShellTaskSnapshot]] = {}
+
+    async def _with_shell_task_hint(event: events.Event) -> events.Event:
+        if manager is None or not isinstance(event, events.ToolCallEvent) or event.tool_name != tools.MANAGE_SHELL:
+            return event
+        try:
+            arguments = json.loads(event.arguments)
+        except ValueError:
+            return event
+        if not isinstance(arguments, dict):
+            return event
+        task_id = arguments.get("task_id")
+        if not isinstance(task_id, str):
+            return event
+        if event.session_id not in shell_tasks:
+            task_actor = state.runtime.session_registry.get_session_actor(event.session_id)
+            task_agent = task_actor.get_agent() if task_actor is not None else None
+            task_work_dir = (
+                task_agent.session.work_dir
+                if task_agent is not None
+                else resolve_session_work_dir_fast(
+                    state.session_live.index if state.session_live is not None else None,
+                    state.home_dir,
+                    event.session_id,
+                )
+            )
+            shell_tasks[event.session_id] = {
+                task.task_id: task
+                for task in await manager.list_tasks(event.session_id, work_dir=task_work_dir)
+                if task.session_id == event.session_id
+            }
+        task = shell_tasks[event.session_id].get(task_id)
+        return event.model_copy(update={"shell_task": task}) if task is not None else event
+
     actor = state.runtime.session_registry.get_session_actor(session_id)
     agent = actor.get_agent() if actor is not None else None
     if agent is not None:
@@ -500,7 +537,9 @@ async def _send_attach_replay(session_id: str, websocket: WebSocket, *, state: S
                     "events": [
                         {
                             "event_type": events.event_type_name(item),
-                            "event": item.model_dump(mode="json", exclude_none=True, serialize_as_any=True),
+                            "event": (await _with_shell_task_hint(item)).model_dump(
+                                mode="json", exclude_none=True, serialize_as_any=True
+                            ),
                         }
                         for item in chunk
                     ],
@@ -511,7 +550,8 @@ async def _send_attach_replay(session_id: str, websocket: WebSocket, *, state: S
         for envelope in cut.envelopes:
             if isinstance(envelope.event, events.ShellTasksUpdatedEvent):
                 continue
-            batch.append(envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
+            replay_envelope = envelope.model_copy(update={"event": await _with_shell_task_hint(envelope.event)})
+            batch.append(replay_envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
             if len(batch) >= 200:
                 await websocket.send_json(batch)
                 batch = []

@@ -4,6 +4,8 @@ from rich.table import Table
 from rich.text import Text
 
 from klaude_code.protocol import tools
+from klaude_code.protocol.models import ToolResultUIExtra
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.components.bash_syntax import summarize_bash_command
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import (
@@ -19,6 +21,12 @@ from klaude_code.tui.components.tools._common import (
     MARK_WRITE,
     TOOL_SUBJECT_INDENT,
     render_tool_call_tree,
+)
+from klaude_code.tui.components.tools._manage_shell import (
+    ManageShellRow,
+    extract_shell_task_ui_extra,
+    render_manage_shell_result,
+    render_manage_shell_subject,
 )
 from klaude_code.tui.components.tools._presentation import (
     get_tool_call_presentation,
@@ -36,6 +44,7 @@ BASH_DESCRIPTION_MIN_TERMINAL_WIDTH = TOOL_SUBJECT_INDENT + BASH_DESCRIPTION_COL
 # block reads as one vocabulary.
 _COMPACT_MARKS: dict[str, str] = {
     tools.BASH: MARK_BASH,
+    tools.MANAGE_SHELL: MARK_BASH,
     tools.READ: MARK_READ,
     tools.LOOK_AT: MARK_LOOK_AT,
     tools.EDIT: MARK_EDIT,
@@ -67,12 +76,26 @@ def render_compact_tool_activity(
     max_target_chars: int | None = 40,
     include_truncation_mark: bool = True,
     summarize_bash: bool = True,
+    shell_task: ShellTaskSnapshot | None = None,
 ) -> Text:
     """Render one compact tool activity line."""
 
     presentation = get_tool_call_presentation(tool_name, arguments)
     line = Text(no_wrap=True, overflow="ellipsis")
     line.append(display_name or presentation.name, style=ThemeKey.TOOL_NAME)
+    if tool_name == tools.MANAGE_SHELL:
+        subject = render_manage_shell_subject(arguments, shell_task=shell_task)
+        target = _clamp_subject(subject.plain, max_target_chars, include_mark=include_truncation_mark)
+        if target:
+            line.append(" ")
+            if target.endswith("\u2026") and target != subject.plain:
+                line.append_text(subject[: len(target) - 1])
+                line.append("\u2026", style=ThemeKey.METADATA_DIM)
+            else:
+                line.append_text(subject[: len(target)])
+        if status != "success":
+            _append_status(line, status)
+        return line
     if tool_name == tools.BASH:
         args = parse_tool_arguments(arguments)
         description = one_line(args.get("description", ""))
@@ -108,12 +131,17 @@ def render_compact_tool_result(
     *,
     status: str,
     exit_code: int | None = None,
+    ui_extra: ToolResultUIExtra | None = None,
 ) -> RenderableType:
     """Render one stable compact tool result line."""
 
     details = Text(no_wrap=True, overflow="ellipsis")
     description = ""
     presentation = get_tool_call_presentation(tool_name, arguments)
+    if tool_name == tools.MANAGE_SHELL and status == "success":
+        shell_ui = extract_shell_task_ui_extra(ui_extra, result)
+        if shell_ui is not None:
+            return ManageShellRow(render_manage_shell_result(shell_ui))
     if tool_name == tools.BASH:
         description, command_summary = _bash_parts(parse_tool_arguments(arguments))
         if command_summary:

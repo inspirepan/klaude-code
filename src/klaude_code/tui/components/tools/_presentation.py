@@ -27,6 +27,7 @@ class ToolDefinition:
 
 _TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     tools.BASH: ToolDefinition("Bash", "Bashing"),
+    tools.MANAGE_SHELL: ToolDefinition("Shell", "Managing Shell"),
     tools.APPLY_PATCH: ToolDefinition("Patch", "Patching"),
     tools.EDIT: ToolDefinition("Edit", "Editing"),
     tools.READ: ToolDefinition("Read", "Reading"),
@@ -105,6 +106,14 @@ def get_tool_call_presentation(tool_name: str, arguments: str) -> ToolCallPresen
     """Return shared tool identity and compact subject semantics."""
     args = parse_tool_arguments(arguments)
     name = _tool_display_name(tool_name, args)
+
+    if tool_name == tools.MANAGE_SHELL:
+        action = one_line(args.get("action", "")).title()
+        task_id = args.get("task_id")
+        subject = action
+        if action != "List" and isinstance(task_id, str) and task_id:
+            subject = f"{action} {task_id[:8]}".strip()
+        return ToolCallPresentation(name, subject)
 
     if tool_name == tools.READ:
         subject = display_path(args.get("file_path", ""))

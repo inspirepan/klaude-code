@@ -28,7 +28,8 @@ from klaude_code.const import (
 )
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.model_id import is_gemini_model_any, is_grok_model
-from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, TaskMetadata, Usage
+from klaude_code.protocol.models import SessionIdUIExtra, ShellTaskUIExtra, SubAgentState, TaskMetadata, Usage
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
@@ -95,6 +96,7 @@ from klaude_code.tui.components.common import (
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
+from klaude_code.tui.components.tools._presentation import parse_tool_arguments
 from klaude_code.tui.status_runtime import current_elapsed_text
 from klaude_code.tui.transcript_detail import Detail, TranscriptDetail, is_visible
 
@@ -705,6 +707,7 @@ class _SessionState:
     status_tool_calls_by_id: dict[str, str] = field(default_factory=_empty_status_tool_ids)
     tool_activities: dict[str, _SubAgentToolActivity] = field(default_factory=dict)
     tool_call_ids: set[str] = field(default_factory=set)
+    shell_tasks: dict[str, ShellTaskSnapshot] = field(default_factory=dict)
     task_metadata: TaskMetadata | None = None
     task_result: str = ""
     result_summary: str = ""
@@ -1448,6 +1451,7 @@ class DisplayStateMachine:
     def _handle_ShellTasksUpdatedEvent(
         self, e: events.ShellTasksUpdatedEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
+        s.shell_tasks = {task.task_id: task for task in e.tasks if task.session_id == e.session_id}
         if s.is_sub_agent:
             return []
         if self._primary_session_id is None:
@@ -2008,7 +2012,17 @@ class DisplayStateMachine:
             )
 
         if not (self._compact and not s.is_sub_agent and e.tool_name == tools.BASH):
-            cmds.append(RenderToolCall(e))
+            shell_task = None
+            if e.tool_name == tools.MANAGE_SHELL:
+                task_id = parse_tool_arguments(e.arguments).get("task_id")
+                if isinstance(task_id, str):
+                    hint = e.shell_task
+                    shell_task = (
+                        hint
+                        if hint is not None and hint.session_id == e.session_id and hint.task_id == task_id
+                        else s.shell_tasks.get(task_id)
+                    )
+            cmds.append(RenderToolCall(e, shell_task=shell_task))
         return cmds
 
     def _handle_ToolLongRunningEvent(self, e: events.ToolLongRunningEvent, *, s: _SessionState) -> list[RenderCommand]:
@@ -2054,6 +2068,8 @@ class DisplayStateMachine:
 
     def _handle_ToolResultEvent(self, e: events.ToolResultEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        if isinstance(e.ui_extra, ShellTaskUIExtra):
+            s.shell_tasks.update((task.task_id, task) for task in e.ui_extra.tasks if task.session_id == e.session_id)
         linked_sub_agent: _SessionState | None = None
         if isinstance(e.ui_extra, SessionIdUIExtra):
             linked_sub_agent = self._session(e.ui_extra.session_id)

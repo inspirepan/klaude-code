@@ -7,6 +7,7 @@ from typing import Literal
 from rich.console import RenderableType
 
 from klaude_code.protocol import events
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +122,7 @@ class RenderBashCommandEnd(RenderCommand):
 @dataclass(frozen=True, slots=True)
 class RenderToolCall(RenderCommand):
     event: events.ToolCallEvent
+    shell_task: ShellTaskSnapshot | None = None
 
 
 @dataclass(frozen=True, slots=True)

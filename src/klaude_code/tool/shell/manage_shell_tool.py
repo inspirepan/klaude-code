@@ -4,9 +4,26 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import ShellTaskUIExtra
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tool.core.abc import ToolABC, load_desc
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
+
+
+def _format_task(task: ShellTaskSnapshot) -> str:
+    status = task.status
+    if task.exit_code is not None:
+        status += f", exit {task.exit_code}"
+    description = " ".join(task.description.split()) or " ".join(task.command.split())
+    text = f"Task {task.task_id} [{status}]: {description}"
+    if task.reason:
+        text += f"; {' '.join(task.reason.split())}"
+    if task.status == "lost":
+        text += "; process state unknown, not a successful completion"
+    if task.output_expired:
+        text += "; output expired"
+    return text
 
 
 @register(tools.MANAGE_SHELL)
@@ -56,22 +73,35 @@ class ManageShellTool(ToolABC):
             args = cls.Arguments.model_validate_json(arguments)
             tasks = await manager.list_tasks(context.session_id, work_dir=context.work_dir)
             if args.action == "list":
-                output = "[" + ",".join(task.model_dump_json() for task in tasks) + "]"
+                output = "\n".join(_format_task(task) for task in tasks) or "No background shell tasks."
+                ui_extra = ShellTaskUIExtra(action=args.action, tasks=tasks)
             else:
                 if not args.task_id:
                     raise ValueError("task_id is required for output, wait, and stop")
                 if args.action == "output":
+                    page = await manager.read_output(
+                        context.session_id, args.task_id, offset=args.offset, limit=args.limit
+                    )
                     output = (
-                        await manager.read_output(
-                            context.session_id, args.task_id, offset=args.offset, limit=args.limit
-                        )
-                    ).model_dump_json()
+                        f"{_format_task(page.task)}\n"
+                        f"next_offset={page.next_offset}; truncated={str(page.truncated).lower()}\n"
+                        + (f"Output:\n{page.output}" if page.output else "No output available.")
+                    )
+                    ui_extra = ShellTaskUIExtra(
+                        action=args.action,
+                        tasks=[page.task],
+                        output=page.output,
+                        next_offset=page.next_offset,
+                        truncated=page.truncated,
+                    )
                 elif args.action == "wait":
-                    output = (
-                        await manager.wait_task(context.session_id, args.task_id, wait_ms=args.wait_ms)
-                    ).model_dump_json()
+                    task = await manager.wait_task(context.session_id, args.task_id, wait_ms=args.wait_ms)
+                    output = _format_task(task)
+                    ui_extra = ShellTaskUIExtra(action=args.action, tasks=[task])
                 else:
-                    output = (await manager.stop_task(context.session_id, args.task_id)).model_dump_json()
-            return message.ToolResultMessage(status="success", output_text=output)
+                    task = await manager.stop_task(context.session_id, args.task_id)
+                    output = _format_task(task)
+                    ui_extra = ShellTaskUIExtra(action=args.action, tasks=[task])
+            return message.ToolResultMessage(status="success", output_text=output, ui_extra=ui_extra)
         except (ValueError, OSError) as error:
             return message.ToolResultMessage(status="error", output_text=f"ManageShell error: {error}")

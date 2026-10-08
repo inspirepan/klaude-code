@@ -16,6 +16,7 @@ from klaude_code.protocol.models import (
     TodoListUIExtra,
     ToolResultUIExtra,
 )
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.components import diffs as r_diffs
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.theme import ThemeKey
@@ -36,6 +37,11 @@ from klaude_code.tui.components.tools._file import (
     render_write_tool_call,
 )
 from klaude_code.tui.components.tools._look_at import render_look_at_tool_call
+from klaude_code.tui.components.tools._manage_shell import (
+    extract_shell_task_ui_extra,
+    render_manage_shell_result,
+    render_manage_shell_tool_call,
+)
 from klaude_code.tui.components.tools._question import (
     render_ask_user_question_summary,
     render_ask_user_question_tool_call,
@@ -59,7 +65,7 @@ _COMPACT_MARKDOWN_PREVIEW_LINES = 5
 RESULT_PANEL_MAX_WIDTH = DIFF_MAX_RENDER_WIDTH + 4
 
 
-def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
+def render_tool_call(e: events.ToolCallEvent, *, shell_task: ShellTaskSnapshot | None = None) -> RenderableType | None:
     """Unified entry point for rendering tool calls.
 
     Returns a Rich Renderable or None if the tool call should not be rendered.
@@ -79,6 +85,8 @@ def render_tool_call(e: events.ToolCallEvent) -> RenderableType | None:
             return render_write_tool_call(e.arguments)
         case tools.BASH:
             return render_bash_tool_call(e.arguments)
+        case tools.MANAGE_SHELL:
+            return render_manage_shell_tool_call(e.arguments, shell_task=shell_task)
         case tools.APPLY_PATCH:
             return render_apply_patch_tool_call(e.arguments)
         case tools.TODO_WRITE:
@@ -319,6 +327,11 @@ def render_tool_result(
             result = e.result if len(e.result.strip()) > 0 else "(no content)"
             return pad_result(render_todo_message(result, status=e.status))
         case tools.BASH:
+            return _render_fallback()
+        case tools.MANAGE_SHELL:
+            shell_ui = extract_shell_task_ui_extra(e.ui_extra, e.result)
+            if shell_ui is not None:
+                return pad_result(render_manage_shell_result(shell_ui, detail=detail, max_lines=max_lines))
             return _render_fallback()
         case tools.WEB_SEARCH:
             search_results = parse_web_search_results(e.result)

@@ -614,6 +614,7 @@ class ToolCallEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
     arguments: str
+    shell_task: ShellTaskSnapshot | None = None
 
 
 class ToolOutputDeltaEvent(ResponseEvent):

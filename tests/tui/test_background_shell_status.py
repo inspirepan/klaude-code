@@ -68,6 +68,7 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
         await emit(full_state)
         line = background_line()
         assert line is not None and "Background commands 2" in line.text
+        assert line.text.startswith("  $ ")
         assert "/tasks" in line.text and not line.show_spinner
         assert "Background commands 2" in "".join(fragment[1] for fragment in bar._get_status_fragments())
 
@@ -81,6 +82,13 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
         assert sum("Background commands 2" in line.text for line in running_lines) == 1
         assert any(line.show_spinner for line in running_lines)
         assert "Background commands 2" in "".join(fragment[1] for fragment in bar._get_status_fragments())
+        spinner_line = next(line for line in running_lines if line.show_spinner)
+        for frame in range(6):
+            bar._status_spinner_frame = frame
+            visible = "".join(fragment[1] for fragment in bar._get_status_fragments()).splitlines()
+            main_line = next(text for text in visible if spinner_line.text in text)
+            background = next(text for text in visible if "Background commands 2" in text)
+            assert main_line.index(spinner_line.text) == background.index("Background commands 2") == 4
 
         await emit(control(session_id="main"))
         display.refresh_prompt_status()
