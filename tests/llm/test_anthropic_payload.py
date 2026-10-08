@@ -88,6 +88,33 @@ def test_build_payload_omits_interleaved_beta_for_adaptive_sonnet_5_5() -> None:
     assert ANTHROPIC_BETA_INTERLEAVED_THINKING not in payload.get("betas", [])
 
 
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_build_payload_uses_adaptive_thinking_without_sampling_for_haiku_55(effort: str) -> None:
+    param = llm_param.LLMCallParameter.model_validate(
+        {
+            "input": _dummy_history(),
+            "model_id": "claude-haiku-5-5",
+            "thinking": {"type": "adaptive"},
+            "effort": effort,
+            "temperature": 0.2,
+            "max_tokens": 128000,
+            "tools": _dummy_tools(),
+        }
+    )
+
+    payload = build_payload(param)
+
+    assert payload["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert payload["output_config"] == {"effort": effort}
+    assert payload["max_tokens"] == 128000
+    assert ANTHROPIC_BETA_INTERLEAVED_THINKING not in payload.get("betas", [])
+    assert payload.get("context_management") == {"edits": [{"type": "clear_thinking_20251015", "keep": "all"}]}
+    assert not {"temperature", "top_p", "top_k"}.intersection(payload)
+    assert not {"temperature", "top_p", "top_k"}.intersection(payload.get("extra_body", {}))
+    tools = list(payload["tools"])
+    assert cast(dict[str, Any], tools[0])["eager_input_streaming"] is True
+
+
 def test_build_payload_adds_context_management_beta_when_thinking_enabled() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),

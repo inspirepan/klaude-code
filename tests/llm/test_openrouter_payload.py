@@ -45,3 +45,24 @@ def test_build_payload_omits_temperature_for_new_opus_models(model_id: str) -> N
     payload, _, _ = build_payload(param)
 
     assert "temperature" not in payload
+
+
+def test_build_payload_uses_adaptive_thinking_without_sampling_for_haiku_55() -> None:
+    param = llm_param.LLMCallParameter(
+        input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
+        model_id="anthropic/claude-haiku-5.5",
+        thinking=llm_param.Thinking(type="adaptive"),
+        effort="low",
+        temperature=0.2,
+        max_tokens=128000,
+    )
+
+    payload, extra_body, extra_headers = build_payload(param)
+
+    assert payload["model"] == param.model_id
+    assert payload["max_tokens"] == 128000
+    assert payload["verbosity"] == "low"
+    assert extra_body["reasoning"] == {"enabled": True}
+    assert "x-anthropic-beta" not in extra_headers
+    assert not {"temperature", "top_p", "top_k"}.intersection(payload)
+    assert not {"temperature", "top_p", "top_k"}.intersection(extra_body)

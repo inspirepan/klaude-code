@@ -78,10 +78,16 @@ provider_list:
     cost: { input: 5, output: 25, cache_read: 0.5, cache_write: 6.25 }
 
   - model_name: haiku
-    model_alias: [ claude-haiku-4-5, claude-haiku-4-5-20251001 ]
-    model_id: claude-haiku-4-5
-    context_limit: 200000
-    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
+    model_alias: [ claude-haiku-5-5 ]
+    model_id: claude-haiku-5-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: low
+    thinking:
+      type: adaptive
+    # All Haiku prices use <=100k prompts and 5m writes; flat estimates omit tiers/1h writes.
+    # >100k: $0.50/$2.50/$0.05/$0.625; 1h writes: $0.20 (<=100k), $1 (>100k), per MTok.
+    cost: { input: 0.1, output: 0.5, cache_read: 0.01, cache_write: 0.125 }
 
   - model_name: kimi
     model_alias: [ k3, kimi-k3 ]
@@ -394,9 +400,14 @@ provider_list:
 
   - &haiku
     model_name: haiku
-    model_id: claude-haiku-4-5
-    context_limit: 200000
-    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
+    model_alias: [ claude-haiku-5-5 ]
+    model_id: claude-haiku-5-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: low
+    thinking:
+      type: adaptive
+    cost: { input: 0.1, output: 0.5, cache_read: 0.01, cache_write: 0.125 }
 # ######################################## aws-bedrock ########################################
 - provider_name: aws-bedrock
   protocol: bedrock
@@ -462,9 +473,14 @@ provider_list:
     cost: { input: 4, output: 20, cache_read: 0.2, cache_write: 5 }
 
   - model_name: haiku
-    model_id: global.anthropic.claude-haiku-4-5-20251001-v1:0
-    context_limit: 200000
-    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
+    model_alias: [ claude-haiku-5-5 ]
+    model_id: global.anthropic.claude-haiku-5-5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: low
+    thinking:
+      type: adaptive
+    cost: { input: 0.1, output: 0.5, cache_read: 0.01, cache_write: 0.125 }
 
 # ######################################## openai ########################################
 - provider_name: openai
@@ -1070,9 +1086,14 @@ provider_list:
     cost: { input: 10, output: 50, cache_read: 0.25, cache_write: 12.5 }
 
   - model_name: haiku
-    model_id: anthropic/claude-haiku-4.5
-    context_limit: 200000
-    cost: { input: 1, output: 5, cache_read: 0.1, cache_write: 1.25 }
+    model_alias: [ claude-haiku-5-5 ]
+    model_id: anthropic/claude-haiku-5.5
+    max_tokens: 128000
+    context_limit: 1000000
+    effort: low
+    thinking:
+      type: adaptive
+    cost: { input: 0.1, output: 0.5, cache_read: 0.01, cache_write: 0.125 }
 
   - model_name: sonnet
     model_alias: [ sonnet-5-5, sonnet55, claude-sonnet-5-5 ]

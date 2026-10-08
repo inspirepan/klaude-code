@@ -59,6 +59,13 @@ def is_sonnet_5_model(model_name: str | None) -> bool:
     return "sonnet-5" in model_lower
 
 
+def is_haiku_5_model(model_name: str | None) -> bool:
+    """Check if the model is Claude Haiku 5.x, including provider-prefixed IDs."""
+    if not model_name:
+        return False
+    return "haiku-5" in model_name.lower()
+
+
 def is_fable_5_model(model_name: str | None) -> bool:
     """Check if the model is Claude Fable 5."""
     if not model_name:
@@ -75,6 +82,7 @@ def supports_adaptive_thinking(model_name: str | None) -> bool:
         or is_opus_5_model(model_name)
         or is_sonnet_46_model(model_name)
         or is_sonnet_5_model(model_name)
+        or is_haiku_5_model(model_name)
         or is_fable_5_model(model_name)
     )
 
@@ -82,7 +90,7 @@ def supports_adaptive_thinking(model_name: str | None) -> bool:
 def model_supports_temperature(model_name: str | None) -> bool:
     """Check if the Anthropic model accepts sampling temperature.
 
-    Sonnet 5.x and Opus 4.7+ reject non-default temperature / top_p / top_k, so
+    Haiku 5.x, Sonnet 5.x and Opus 4.7+ reject non-default temperature / top_p / top_k, so
     the caller must omit the parameter instead of sending a value.
     """
     return not (
@@ -90,6 +98,7 @@ def model_supports_temperature(model_name: str | None) -> bool:
         or is_opus_48_model(model_name)
         or is_opus_5_model(model_name)
         or is_sonnet_5_model(model_name)
+        or is_haiku_5_model(model_name)
     )
 
 
@@ -101,7 +110,7 @@ def is_claude_model(model_name: str | None) -> bool:
 def model_supports_eager_input_streaming(model_name: str | None) -> bool:
     """Check if the model supports the eager_input_streaming tool parameter.
 
-    Opus 4.6+ and Sonnet 4.6+ accept this field.
+    Opus 4.6+, Sonnet 4.6+ and Haiku 5.x accept this field.
     """
     return (
         is_opus_46_model(model_name)
@@ -109,6 +118,7 @@ def model_supports_eager_input_streaming(model_name: str | None) -> bool:
         or is_opus_5_model(model_name)
         or is_sonnet_46_model(model_name)
         or is_sonnet_5_model(model_name)
+        or is_haiku_5_model(model_name)
         or is_opus_47_model(model_name)
     )
 

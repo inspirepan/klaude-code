@@ -158,6 +158,29 @@ def test_bedrock_request_keeps_non_opus47_temperature_and_interleaved_beta() -> 
     }
 
 
+@pytest.mark.parametrize("prefix", ["us", "global"])
+def test_bedrock_request_uses_adaptive_thinking_without_sampling_for_haiku_55(prefix: str) -> None:
+    param = llm_param.LLMCallParameter(
+        input=[message.UserMessage(parts=[message.TextPart(text="hi")])],
+        model_id=f"{prefix}.anthropic.claude-haiku-5-5",
+        thinking=llm_param.Thinking(type="adaptive"),
+        effort="low",
+        temperature=0.2,
+        max_tokens=128000,
+    )
+
+    request = build_bedrock_request(param, region="us-east-1")
+
+    assert request["modelId"] == param.model_id
+    assert request["inferenceConfig"] == {"maxTokens": 128000}
+    assert request["additionalModelRequestFields"] == {
+        "thinking": {"type": "adaptive", "display": "summarized"},
+        "context_management": {"edits": [{"type": "clear_thinking_20251015", "keep": "all"}]},
+        "anthropic_beta": [ANTHROPIC_BETA_CONTEXT_MANAGEMENT],
+        "output_config": {"effort": "low"},
+    }
+
+
 @pytest.mark.parametrize(
     "model_id",
     [
