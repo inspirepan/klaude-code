@@ -46,6 +46,7 @@ from klaude_code.protocol import events, message, op, user_interaction
 from klaude_code.protocol.models import SubAgentState, TaskMetadata
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
+from klaude_code.tool.shell.task_manager import ShellTaskManager
 from klaude_code.update import get_startup_update_summary
 
 
@@ -100,8 +101,12 @@ class AgentOperationHandler:
             [PendingUserInteractionRequest],
             Awaitable[user_interaction.UserInteractionResponse],
         ],
+        shell_task_manager: ShellTaskManager | None = None,
+        has_pending_shell_notifications: Callable[[str], bool] | None = None,
     ) -> None:
         self._emit_event = emit_event
+        self._shell_task_manager = shell_task_manager
+        self._has_pending_shell_notifications = has_pending_shell_notifications
         self._llm_clients_template = llm_clients
         self._model_profile_provider = model_profile_provider
         self._sub_agent_launcher: SubAgentLauncher | None = None
@@ -401,6 +406,7 @@ class AgentOperationHandler:
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
             model_profile_provider=profile_provider,
+            shell_task_manager=self._shell_task_manager,
         )
 
         # Another initializer may have completed while this one built the
@@ -498,6 +504,7 @@ class AgentOperationHandler:
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
             model_profile_provider=profile_provider,
+            shell_task_manager=self._shell_task_manager,
         )
         runtime.set_agent(agent)
         return agent
@@ -639,6 +646,10 @@ class AgentOperationHandler:
                 debug_type=DebugType.EXECUTION,
             )
             return
+        if (self._shell_task_manager is not None and session_id in self._shell_task_manager.active_session_ids()) or (
+            self._has_pending_shell_notifications is not None and self._has_pending_shell_notifications(session_id)
+        ):
+            return
         suppress = should_suggest(agent.session)
         if suppress is not None:
             log_debug(
@@ -752,7 +763,9 @@ class AgentOperationHandler:
                     )
                 ]
             )
-        if self._should_refresh_session_title_during_task(agent.session.id):
+        if operation.shell_notification_generation is None and self._should_refresh_session_title_during_task(
+            agent.session.id
+        ):
             self._schedule_session_title_refresh(agent.session)
 
         existing_active = self.get_active_task(operation.id)
@@ -763,7 +776,13 @@ class AgentOperationHandler:
 
         async def _run_with_event_context() -> None:
             with event_publish_context(task_id=task_id):
-                await self._run_agent_task(agent, frozen_input, task_id, operation.session_id)
+                await self._run_agent_task(
+                    agent,
+                    frozen_input,
+                    task_id,
+                    operation.session_id,
+                    shell_notification=operation.shell_notification_generation is not None,
+                )
 
         task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
         self._register_task(
@@ -1098,6 +1117,7 @@ class AgentOperationHandler:
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
             model_profile_provider=self._model_profile_provider,
+            shell_task_manager=self._shell_task_manager,
         )
 
         old_runtime.clear_execution_state()
@@ -1146,6 +1166,7 @@ class AgentOperationHandler:
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
             model_profile_provider=self._model_profile_provider,
+            shell_task_manager=self._shell_task_manager,
         )
 
         old_runtime.clear_execution_state()
@@ -1435,6 +1456,8 @@ class AgentOperationHandler:
         user_input: message.UserInputPayload,
         task_id: str,
         session_id: str,
+        *,
+        shell_notification: bool = False,
     ) -> None:
         try:
             log_debug(
@@ -1471,7 +1494,8 @@ class AgentOperationHandler:
 
             # Task completed normally — predict the user's next prompt in the
             # background. Cancelled implicitly when the next user turn starts.
-            self._schedule_prompt_suggestion(agent)
+            if not shell_notification:
+                self._schedule_prompt_suggestion(agent)
 
         except asyncio.CancelledError:
             log_debug(
@@ -1495,7 +1519,7 @@ class AgentOperationHandler:
             )
         finally:
             self._remove_task(session_id=session_id, task_id=task_id)
-            if not self._should_refresh_session_title_during_task(session_id):
+            if not shell_notification and not self._should_refresh_session_title_during_task(session_id):
                 self._schedule_session_title_refresh(agent.session)
             log_debug(
                 f"Cleaned up agent task {task_id}",

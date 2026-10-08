@@ -8,7 +8,7 @@ register_sub_agent(
     SubAgentProfile(
         name="code-reviewer",
         prompt_file="prompts/sub_agents/prompt-sub-agent-review.md",
-        tool_set=(tools.BASH, tools.READ),
+        tool_set=(tools.BASH, tools.MANAGE_SHELL, tools.READ),
         invoker_summary=REVIEW_SUMMARY,
         active_form="Reviewing",
     )

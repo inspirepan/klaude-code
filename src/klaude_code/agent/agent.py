@@ -12,6 +12,7 @@ from klaude_code.protocol.models import TaskMetadata
 from klaude_code.session import Session
 from klaude_code.tool import build_todo_context, get_registry
 from klaude_code.tool.core.context import RunSubtask
+from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 
 class Agent:
@@ -33,6 +34,7 @@ class Agent:
             | None
         ) = None,
         model_profile_provider: ModelProfileProvider | None = None,
+        shell_task_manager: ShellTaskManager | None = None,
     ):
         self.session: Session = session
         self.profile: AgentProfile = profile
@@ -47,6 +49,7 @@ class Agent:
         self._last_interrupt_prefill_text: str | None = None
         self.request_user_interaction = request_user_interaction
         self._model_profile_provider = model_profile_provider
+        self.shell_task_manager = shell_task_manager
         if not self.session.model_name:
             self.session.model_name = profile.llm_client.model_name
 
@@ -195,6 +198,7 @@ class Agent:
             run_subtask=run_subtask,
             request_user_interaction=self.request_user_interaction,
             prompt_cache_key=self.session.prompt_cache_key,
+            shell_task_manager=self.shell_task_manager,
         )
         context = TaskExecutionContext(
             session=self.session,

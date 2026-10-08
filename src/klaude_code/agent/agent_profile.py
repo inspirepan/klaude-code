@@ -38,7 +38,7 @@ class AgentProfile:
     attachments: list[Attachment]
 
 
-MAIN_AGENT_COMMON_BASE_TOOLS: list[str] = [tools.BASH, tools.READ]
+MAIN_AGENT_COMMON_BASE_TOOLS: list[str] = [tools.BASH, tools.MANAGE_SHELL, tools.READ]
 MAIN_AGENT_APPLY_PATCH_DIFF_TOOLS: list[str] = [tools.APPLY_PATCH, tools.TODO_WRITE]
 MAIN_AGENT_EDIT_WRITE_DIFF_TOOLS: list[str] = [tools.EDIT, tools.WRITE, tools.TODO_WRITE]
 MAIN_AGENT_COMMON_TOOLS: list[str] = [
@@ -219,6 +219,6 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         return AgentProfile(
             llm_client=llm_client,
             system_prompt="You're an agent running in user's terminal",
-            tools=get_tool_schemas([tools.BASH, tools.EDIT, tools.WRITE, tools.READ]),
+            tools=get_tool_schemas([tools.BASH, tools.MANAGE_SHELL, tools.EDIT, tools.WRITE, tools.READ]),
             attachments=[],
         )

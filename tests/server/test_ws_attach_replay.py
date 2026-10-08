@@ -551,7 +551,9 @@ def test_resume_reattaches_without_replaying_history(app_env: AppEnv) -> None:
         else:
             raise AssertionError("resume handshake never completed")
 
-        assert not [item for item in handshake_tail if item.get("event_type")]
+        snapshot_events = [item for item in handshake_tail if item.get("event_type")]
+        assert [item["event_type"] for item in snapshot_events] == ["shell_tasks_updated"]
+        assert snapshot_events[0]["event"]["tasks"] == []
 
         # The live stream still carries the next turn.
         app_env.fake_llm.enqueue(
@@ -595,7 +597,9 @@ def test_resume_without_prior_transcript_replays_nothing_still_streams(app_env: 
             tail.extend(items)
             if any(item.get("type") == "replay_complete" for item in items):
                 break
-        assert not [item for item in tail if item.get("event_type")]
+        snapshot_events = [item for item in tail if item.get("event_type")]
+        assert [item["event_type"] for item in snapshot_events] == ["shell_tasks_updated"]
+        assert snapshot_events[0]["event"]["tasks"] == []
 
 
 def test_event_consumer_survives_poisoned_event(app_env: AppEnv, monkeypatch: Any) -> None:

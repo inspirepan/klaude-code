@@ -31,6 +31,7 @@ async def run_prevent_sleep_monitor(
     snapshots_provider: Callable[[], Iterable[SessionActorSnapshot]],
     *,
     poll_interval: float = MONITOR_POLL_INTERVAL_SECONDS,
+    background_busy: Callable[[], bool] | None = None,
 ) -> None:
     """Hold macOS sleep assertions while any session actor is running.
 
@@ -47,6 +48,7 @@ async def run_prevent_sleep_monitor(
     try:
         while True:
             busy = any(derive_session_state_from_snapshot(snapshot) == "running" for snapshot in snapshots_provider())
+            busy = busy or (background_busy is not None and background_busy())
             if busy and not active:
                 start_prevent_sleep()
                 active = True

@@ -167,7 +167,9 @@ async def _submit_user_turn(state: ServerAppState, run_op: op.RunAgentOperation)
     def _agent_and_busy() -> tuple[Any, bool]:
         actor = runtime.session_registry.get_session_actor(session_id)
         agent = actor.get_agent() if actor is not None else None
-        busy = actor is not None and not actor.snapshot().is_idle
+        busy = (actor is not None and not actor.snapshot().is_idle) or (
+            state.headless is not None and state.headless.turn_start_pending(session_id)
+        )
         return agent, busy
 
     agent, busy = _agent_and_busy()
@@ -507,13 +509,14 @@ async def _send_attach_replay(session_id: str, websocket: WebSocket, *, state: S
     if cut is not None and cut.envelopes:
         batch: list[dict[str, Any]] = []
         for envelope in cut.envelopes:
+            if isinstance(envelope.event, events.ShellTasksUpdatedEvent):
+                continue
             batch.append(envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
             if len(batch) >= 200:
                 await websocket.send_json(batch)
                 batch = []
         if batch:
             await websocket.send_json(batch)
-    await websocket.send_json({"type": "replay_complete", "session_id": session_id})
     return cut.max_event_seq if cut is not None else 0
 
 
@@ -524,6 +527,7 @@ async def _forward_events(
     subscription: EventSubscription | None = None,
     skip_seq_at_or_below: int = 0,
     send_session_info_updates: bool = False,
+    shell_snapshot_cutoffs: dict[str, int] | None = None,
 ) -> None:
     state = get_server_state_from_ws(websocket)
     if subscription is None:
@@ -555,6 +559,12 @@ async def _forward_events(
     async def _read_events() -> None:
         try:
             async for envelope in subscription:
+                if (
+                    isinstance(envelope.event, events.ShellTasksUpdatedEvent)
+                    and shell_snapshot_cutoffs is not None
+                    and envelope.event_seq <= shell_snapshot_cutoffs.get(envelope.session_id, 0)
+                ):
+                    continue
                 if envelope.session_id == session_id or envelope.session_id in tracked_child_session_ids:
                     if envelope.task_id is not None:
                         tracked_task_ids.add(envelope.task_id)
@@ -661,6 +671,44 @@ async def _send_pending_interaction_snapshots(session_id: str, websocket: WebSoc
                 tool_call_id=request.tool_call_id,
             )
             await websocket.send_json(_synthetic_envelope_dict(request_event))
+
+
+async def _send_shell_task_snapshots(
+    session_id: str, work_dir: Path, websocket: WebSocket, *, state: ServerAppState
+) -> dict[str, int]:
+    manager = getattr(state.runtime, "shell_task_manager", None)
+    if manager is None:
+        return {}
+    actor = state.runtime.session_registry.get_session_actor(session_id)
+    agent = actor.get_agent() if actor is not None else None
+    descendants: set[str] = set()
+    if agent is None or any(
+        isinstance(item, message.SpawnSubAgentEntry) for item in agent.session.conversation_history
+    ):
+        descendants = await asyncio.to_thread(_collect_descendant_session_ids, session_id, work_dir)
+    descendants |= live_descendant_session_ids(state.runtime.session_registry, session_id)
+    target_ids = [session_id, *sorted(descendants)]
+    snapshots: list[events.ShellTasksUpdatedEvent] = []
+    cutoffs: dict[str, int] = {}
+    # Capture all state before socket sends yield to live updates. The caller
+    # already subscribed; suppress older queued shell events, not other events.
+    for target_id in target_ids:
+        actor = state.runtime.session_registry.get_session_actor(target_id)
+        agent = actor.get_agent() if actor is not None else None
+        task_work_dir = (
+            agent.session.work_dir
+            if agent is not None
+            else resolve_session_work_dir_fast(
+                state.session_live.index if state.session_live is not None else None, state.home_dir, target_id
+            )
+        )
+        tasks = await manager.list_tasks(target_id, work_dir=task_work_dir or work_dir)
+        snapshots.append(events.ShellTasksUpdatedEvent(session_id=target_id, tasks=tasks))
+        cut = state.tapes.cut(target_id) if state.tapes is not None else None
+        cutoffs[target_id] = cut.max_event_seq if cut is not None else 0
+    for snapshot in snapshots:
+        await websocket.send_json(_synthetic_envelope_dict(snapshot))
+    return cutoffs
 
 
 async def _receive_commands(
@@ -795,10 +843,11 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 # Skip the tape cut: the client already holds the transcript, so
                 # every event is new to it and the handshake ends immediately.
                 max_seq = 0
-                await websocket.send_json({"type": "replay_complete", "session_id": session_id})
             else:
                 max_seq = await _send_attach_replay(session_id, websocket, state=state)
             await _send_pending_interaction_snapshots(session_id, websocket)
+            shell_cutoffs = await _send_shell_task_snapshots(session_id, work_dir, websocket, state=state)
+            await websocket.send_json({"type": "replay_complete", "session_id": session_id})
             if can_input and state.headless is not None:
                 # A queue persisted before a restart/reclaim has no live
                 # drain trigger; attaching is the moment to resume it.
@@ -810,12 +859,17 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                     subscription=subscription,
                     skip_seq_at_or_below=max_seq,
                     send_session_info_updates=True,
+                    shell_snapshot_cutoffs=shell_cutoffs,
                 )
             )
         else:
+            subscription = state.subscribe_events(None)
             await websocket.send_json(await _load_usage_snapshot(session_id, work_dir, websocket))
             await _send_pending_interaction_snapshots(session_id, websocket)
-            send_task = asyncio.create_task(_forward_events(session_id, websocket))
+            shell_cutoffs = await _send_shell_task_snapshots(session_id, work_dir, websocket, state=state)
+            send_task = asyncio.create_task(
+                _forward_events(session_id, websocket, subscription=subscription, shell_snapshot_cutoffs=shell_cutoffs)
+            )
         recv_task = asyncio.create_task(_receive_commands(session_id, websocket, can_input=can_input))
         done, pending = await asyncio.wait({send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED)
         log_debug(
@@ -879,7 +933,14 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                     registry = cast(Any, state.runtime.session_registry)
                     actor = registry.get_session_actor(session_id)
                     agent = actor.get_agent() if actor is not None else None
-                    if agent is not None and agent.session.messages_count == 0 and actor.snapshot().is_idle:
+                    manager = getattr(state.runtime, "shell_task_manager", None)
+                    has_shell_work = manager is not None and session_id in manager.active_session_ids()
+                    if (
+                        agent is not None
+                        and agent.session.messages_count == 0
+                        and actor.snapshot().is_idle
+                        and not has_shell_work
+                    ):
                         closed = await state.runtime.close_session(session_id)
                         if closed:
                             if state.tapes is not None:

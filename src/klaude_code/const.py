@@ -113,7 +113,8 @@ BLOCKED_DEVICE_PATHS = frozenset(
 # Tool - Bash / Shell
 # =============================================================================
 
-BASH_DEFAULT_TIMEOUT_MS = 120000  # Default timeout for bash commands (milliseconds)
+BASH_DEFAULT_TIMEOUT_MS = 1800000  # Hard runtime limit for bash commands (milliseconds)
+BASH_DEFAULT_WAIT_MS = 10000  # Foreground wait before background handoff (milliseconds)
 BASH_TERMINATE_TIMEOUT_SEC = 1.0  # Timeout before escalating to SIGKILL (seconds)
 BASH_MODE_SESSION_OUTPUT_MAX_BYTES = 200 * 1024 * 1024  # Max command output captured for session history
 

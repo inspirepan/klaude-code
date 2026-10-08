@@ -489,6 +489,7 @@ def _is_control_operation(operation: op.Operation) -> bool:
     return isinstance(
         operation,
         op.FollowUpAgentOperation
+        | op.ManageShellOperation
         | op.InterruptOperation
         | op.UserInteractionRespondOperation
         | op.CloseSessionOperation,

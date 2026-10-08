@@ -321,6 +321,10 @@ def test_websocket_forwards_child_session_events_without_snapshot(
 
             usage_snapshot = websocket.receive_json()
             assert usage_snapshot["event_type"] == "usage.snapshot"
+            shell_snapshots = [websocket.receive_json(), websocket.receive_json()]
+            assert [item["session_id"] for item in shell_snapshots] == [parent_id, child_id]
+            assert all(item["event_type"] == "shell_tasks_updated" for item in shell_snapshots)
+            assert all(item["event"]["tasks"] == [] for item in shell_snapshots)
 
             # Publish an event with the CHILD session_id on the app loop's bus
             event_bus = cast(EventBus, holder["event_bus"])

@@ -19,6 +19,7 @@ from klaude_code.protocol.models import (
     ToolResultUIExtra,
     Usage,
 )
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 
 __all__ = [
     "AssistantTextDeltaEvent",
@@ -60,6 +61,7 @@ __all__ = [
     "RewindEvent",
     "SessionStatsEvent",
     "SessionTitleChangedEvent",
+    "ShellTasksUpdatedEvent",
     "SideQuestionEvent",
     "SideQuestionFailedEvent",
     "SideQuestionStartEvent",
@@ -164,6 +166,12 @@ class DeveloperMessageEvent(Event):
 
 class TodoChangeEvent(Event):
     todos: list[TodoItem]
+
+
+class ShellTasksUpdatedEvent(Event):
+    """Authoritative complete background shell task list for one session."""
+
+    tasks: list[ShellTaskSnapshot]
 
 
 class NoticeEvent(Event):
@@ -657,6 +665,8 @@ class UserInteractionCancelledEvent(Event):
 
 
 def _event_type_name_from_class_name(class_name: str) -> str:
+    if class_name == "ShellTasksUpdatedEvent":
+        return "shell_tasks_updated"
     event_name = class_name[:-5] if class_name.endswith("Event") else class_name
     words = re.findall(r"[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+", event_name)
     if not words:

@@ -49,6 +49,7 @@ from klaude_code.protocol.models import (
 from klaude_code.session.session import Session
 from klaude_code.tool import FileTracker, TodoContext, ToolABC, get_registry
 from klaude_code.tool.core.context import RunSubtask
+from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 type RequestUserInteraction = Callable[
     [
@@ -225,6 +226,7 @@ class SessionContext:
     run_subtask: RunSubtask | None
     request_user_interaction: RequestUserInteraction | None
     prompt_cache_key: str | None = None
+    shell_task_manager: ShellTaskManager | None = None
 
 
 @dataclass
@@ -295,6 +297,18 @@ class TaskExecutor:
     ) -> list[events.DeveloperMessageEvent]:
         ctx = self._context
         attachment_results = await collect_attachments(ctx.session, ctx.profile.attachments)
+        manager = ctx.session_ctx.shell_task_manager
+        if manager is not None:
+            tasks = await manager.list_tasks(ctx.session.id, work_dir=ctx.session.work_dir)
+            active = [task for task in tasks if task.status in ("running", "stopping")]
+            if active:
+                # Runtime-owned identifiers only; command/log text is untrusted.
+                summary = "\n".join(f"- {task.task_id}: {task.status}; log: {task.output_path}" for task in active)
+                attachment_results.append(
+                    message.DeveloperMessage(
+                        parts=[message.TextPart(text=f"Active background shell tasks in this session:\n{summary}")]
+                    )
+                )
         events_to_emit: list[events.DeveloperMessageEvent] = []
         existing: set[str] = set()
         if skip_existing:

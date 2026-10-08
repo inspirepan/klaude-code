@@ -134,7 +134,14 @@ def create_app(
         # The server owns the work, so it also owns the idle-sleep assertion;
         # clients may detach while their sessions keep running.
         prevent_sleep_task = asyncio.create_task(
-            run_prevent_sleep_monitor(state.runtime.session_registry.all_snapshots)
+            run_prevent_sleep_monitor(
+                state.runtime.session_registry.all_snapshots,
+                background_busy=(
+                    state.runtime.shell_task_manager.has_running_tasks
+                    if hasattr(state.runtime, "shell_task_manager")
+                    else None
+                ),
+            )
         )
         try:
             yield
@@ -147,6 +154,9 @@ def create_app(
                 await state.upgrade.aclose()
             log_debug("[server] lifespan shutdown: closing headless runtime", debug_type=DebugType.EXECUTION)
             await headless.aclose()
+            manager = getattr(state.runtime, "shell_task_manager", None)
+            if manager is not None:
+                await manager.aclose()
             if unregister_history_observer is not None:
                 unregister_history_observer()
             if unregister_meta_observer is not None:

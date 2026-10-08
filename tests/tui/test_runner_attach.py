@@ -460,6 +460,34 @@ def test_input_while_running_queues_follow_up(monkeypatch: pytest.MonkeyPatch) -
     assert client.ops_of(op.RunAgentOperation) == []
 
 
+def test_tasks_manage_shell_immediately_while_busy_and_exit_only_detaches(
+    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
+) -> None:
+    del isolated_home
+    monkeypatch.setattr(
+        runner_module,
+        "ClientCommandAgent",
+        lambda *args, **kwargs: SimpleNamespace(session=SimpleNamespace(id="sess-1")),
+    )
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client.set_running(True)
+        await _settle()
+        for text in ["/tasks", "/tasks output shell-1 0 512", "/tasks stop shell-1"]:
+            yield UserInputPayload(text=text)
+            await _settle()
+            assert client.is_running()
+        yield UserInputPayload(text="exit")
+
+    client = run_scenario(monkeypatch, script)
+    assert [item.action for item in client.ops_of(op.ManageShellOperation)] == ["list", "output", "stop"]
+    assert client.ops_of(op.FollowUpAgentOperation) == []
+    assert client.ops_of(op.RunAgentOperation) == []
+    assert client.ops_of(op.InterruptOperation) == []
+    assert client.emitted_user_messages == []
+    assert client.is_running() and client.closed
+
+
 def test_failed_queue_submit_rolls_back_mirror_with_notice(monkeypatch: pytest.MonkeyPatch) -> None:
     """A queued submit the server never accepted must not linger in the
     mirror as forever-pending; it rolls back and the user is told."""

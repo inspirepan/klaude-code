@@ -150,7 +150,8 @@ class UpgradeCoordinator:
                     events.TaskFinishEvent
                     | events.OperationFinishedEvent
                     | events.FollowUpQueueUpdatedEvent
-                    | events.InterruptEvent,
+                    | events.InterruptEvent
+                    | events.ShellTasksUpdatedEvent,
                 ):
                     self._nudge.set()
             # Bus dropped this subscriber on overflow; resubscribe.

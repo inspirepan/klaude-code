@@ -1,16 +1,14 @@
 import asyncio
+import codecs
 import contextlib
 import os
-import signal
-import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_TERMINATE_TIMEOUT_SEC
+from klaude_code.const import BASH_DEFAULT_TIMEOUT_MS, BASH_DEFAULT_WAIT_MS
 from klaude_code.protocol import llm_param, message, tools
 from klaude_code.protocol.models import BashUIExtra
 from klaude_code.tool.core.abc import ToolABC, load_desc
@@ -19,23 +17,15 @@ from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
 from klaude_code.tool.shell.command_safety import is_safe_command
 from klaude_code.tool.shell.file_tracking import ShellFileTracker
-
-_STREAM_POLL_INTERVAL_SEC = 0.05
-
-# 128 + SIGPIPE. A downstream stage closing the pipe early (`rg foo | head -5`)
-# is normal, but pipefail reports it as a pipeline failure, so it is normalized
-# back to success. SIGPIPE is absent on Windows.
-_SIGPIPE_EXIT_CODE = 128 + int(getattr(signal, "SIGPIPE", 13))
+from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 
 def _build_interrupted_output(command: str, elapsed_seconds: float, stdout: str, stderr: str) -> str:
     parts = [f"Interrupted by user after {elapsed_seconds:.2f} seconds running: {command}"]
-    stdout = stdout.rstrip("\n")
-    stderr = stderr.rstrip("\n")
-    if stdout:
-        parts.append(f"[stdout before interrupt]\n{stdout}")
-    if stderr:
-        parts.append(f"[stderr before interrupt]\n{stderr}")
+    if stdout.rstrip("\n"):
+        parts.append(f"[stdout before interrupt]\n{stdout.rstrip(chr(10))}")
+    if stderr.rstrip("\n"):
+        parts.append(f"[stderr before interrupt]\n{stderr.rstrip(chr(10))}")
     return "\n".join(parts)
 
 
@@ -50,27 +40,27 @@ class BashTool(ToolABC):
             parameters={
                 "type": "object",
                 "properties": {
-                    "command": {
-                        "type": "string",
-                        "description": "The bash command to run",
-                    },
+                    "command": {"type": "string", "description": "The bash command to run"},
                     "description": {
                         "type": "string",
-                        "description": (
-                            "Clear, concise description of what this command does in active voice. "
-                            "Prefer 3-5 words and keep it within 32 terminal cells "
-                            "(roughly 32 Latin characters or 16 CJK characters). "
-                            "This field is displayed to the user, so write it in the same language "
-                            "the user is using (e.g. Chinese if the user writes in Chinese, "
-                            "Japanese if the user writes in Japanese). "
-                            'Never use words like "complex" or "risk" in the description - just describe '
-                            "what it does."
-                        ),
+                        "description": "Short active-voice description, within 32 terminal cells, in the user's language.",
                     },
                     "timeout_ms": {
-                        "type": "integer",
-                        "description": f"The timeout for the command in milliseconds, default is {BASH_DEFAULT_TIMEOUT_MS}",
+                        "type": ["integer", "null"],
+                        "minimum": 0,
                         "default": BASH_DEFAULT_TIMEOUT_MS,
+                        "description": "Hard runtime limit in milliseconds, including background time. Default 1800000 (30 minutes). Set null explicitly for a dev server with no hard time limit.",
+                    },
+                    "wait_ms": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "default": BASH_DEFAULT_WAIT_MS,
+                        "description": "Foreground wait window before the same process becomes a managed background task.",
+                    },
+                    "run_in_background": {
+                        "type": "boolean",
+                        "default": False,
+                        "description": "Return a managed task ID immediately; requires the server-owned task manager.",
                     },
                 },
                 "required": ["command"],
@@ -80,280 +70,159 @@ class BashTool(ToolABC):
     class BashArguments(BaseModel):
         command: str
         description: str | None = None
-        timeout_ms: int = BASH_DEFAULT_TIMEOUT_MS
+        timeout_ms: int | None = Field(default=BASH_DEFAULT_TIMEOUT_MS, ge=0)
+        wait_ms: int = Field(default=BASH_DEFAULT_WAIT_MS, ge=0)
+        run_in_background: bool = False
 
     @classmethod
     async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         try:
-            args = BashTool.BashArguments.model_validate_json(arguments)
-        except ValueError as e:
-            return message.ToolResultMessage(
-                status="error",
-                output_text=f"Invalid arguments: {e}",
-            )
+            args = cls.BashArguments.model_validate_json(arguments)
+        except ValueError as error:
+            return message.ToolResultMessage(status="error", output_text=f"Invalid arguments: {error}")
         return await cls.call_with_args(args, context)
 
     @classmethod
     async def call_with_args(cls, args: BashArguments, context: ToolContext) -> message.ToolResultMessage:
-        # Safety check: only execute commands proven as "known safe"
-        result = is_safe_command(args.command, work_dir=str(context.work_dir))
-        if not result.is_safe:
+        safety = is_safe_command(args.command, work_dir=str(context.work_dir))
+        if not safety.is_safe:
+            return message.ToolResultMessage(status="error", output_text=f"Command rejected: {safety.error_msg}")
+        if args.run_in_background and context.shell_task_manager is None:
             return message.ToolResultMessage(
-                status="error",
-                output_text=f"Command rejected: {result.error_msg}",
+                status="error", output_text="Background execution requires a server-owned shell task manager."
             )
-
-        # Run the command using bash -lc so shell semantics work (pipes, &&, etc.)
-        # Capture stdout/stderr, respect timeout, and return a ToolMessage.
-        #
-        # Important: this tool is intentionally non-interactive.
-        # - Always detach stdin (DEVNULL) so interactive programs can't steal REPL input.
-        # - Always disable pagers/editors to avoid launching TUI subprocesses that can
-        #   leave the terminal in a bad state.
-        # pipefail makes a failing stage surface as a non-zero exit code. Without it
-        # `cmd | tail` always reports tail's status, hiding real failures from the UI
-        # and the model. The prologue sits on its own line so a command that opens
-        # with `#` stays intact.
-        cmd = ["bash", "-lc", f"set -o pipefail\n{args.command}"]
-        timeout_sec = max(0.0, args.timeout_ms / 1000.0)
-
         env = os.environ.copy()
         env.update(
             {
-                # Avoid blocking on git/jj prompts.
                 "GIT_TERMINAL_PROMPT": "0",
-                # Avoid pagers.
                 "PAGER": "cat",
                 "GIT_PAGER": "cat",
-                # Avoid opening editors.
                 "EDITOR": "true",
                 "VISUAL": "true",
                 "GIT_EDITOR": "true",
                 "JJ_EDITOR": "true",
-                # Encourage non-interactive output.
                 "TERM": "dumb",
-                # Make Python CLI scripts flush progress output even when stdout is not a TTY.
                 "PYTHONUNBUFFERED": "1",
-                # Identify the calling session so a nested `klaude send`
-                # attributes agent-to-agent messages to this agent.
                 "KLAUDE_SESSION_ID": context.session_id,
             }
         )
+        temporary = tempfile.TemporaryDirectory() if context.shell_task_manager is None else None
+        manager = context.shell_task_manager or ShellTaskManager(
+            storage_root=Path(temporary.name) if temporary else None
+        )
+        task_id: str | None = None
+        detached = False
+        started = time.monotonic()
+        stdout = ""
+        stderr = ""
+        offsets = {"stdout": 0, "stderr": 0}
+        decoders = {name: codecs.getincrementaldecoder("utf-8")("replace") for name in offsets}
 
-        emit_tool_output_delta = context.emit_tool_output_delta
-        shell_file_tracker = ShellFileTracker(context.file_tracker, context.work_dir)
-
-        async def _terminate_process(proc: asyncio.subprocess.Process) -> None:
-            # Best-effort termination. Ensure we don't hang on cancellation.
-            if proc.returncode is not None:
-                return
-
-            try:
-                if os.name == "posix":
-                    os.killpg(proc.pid, signal.SIGTERM)
+        def collect(*, final: bool = False) -> list[str]:
+            nonlocal stdout, stderr
+            chunks: list[str] = []
+            if task_id is None:
+                return chunks
+            for name in offsets:
+                data = manager.read_stream(context.session_id, task_id, name, offsets[name])
+                offsets[name] += len(data)
+                text = strip_ansi(decoders[name].decode(data, final=final))
+                if name == "stdout":
+                    stdout += text
                 else:
-                    proc.terminate()
-            except ProcessLookupError:
-                return
-            except OSError:
-                # Fall back to kill below.
-                pass
+                    stderr += text
+                if text:
+                    chunks.append(text)
+            return chunks
 
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(proc.wait(), timeout=BASH_TERMINATE_TIMEOUT_SEC)
-                return
+        def interrupted() -> message.ToolResultMessage:
+            collect()
+            return message.ToolResultMessage(
+                status="aborted",
+                output_text=_build_interrupted_output(args.command, time.monotonic() - started, stdout, stderr),
+            )
 
-            # Escalate to hard kill if it didn't exit quickly.
-            with contextlib.suppress(Exception):
-                if os.name == "posix":
-                    os.killpg(proc.pid, signal.SIGKILL)
-                else:
-                    proc.kill()
-            with contextlib.suppress(Exception):
-                await asyncio.wait_for(proc.wait(), timeout=BASH_TERMINATE_TIMEOUT_SEC)
-
-        async def _emit_output_delta(content: str) -> None:
-            if emit_tool_output_delta is None or not content:
-                return
-            await emit_tool_output_delta(content)
-
-        def _read_available_text(temp_file: Any, *, offset: int) -> tuple[str, int]:
-            temp_file.flush()
-            temp_file.seek(offset)
-            data = temp_file.read()
-            next_offset = temp_file.tell()
-            if not data:
-                return "", next_offset
-            return strip_ansi(data.decode(errors="replace")), next_offset
+        async def background_result() -> message.ToolResultMessage:
+            nonlocal detached
+            assert task_id is not None
+            detached = True
+            snapshot = await manager.background_task(context.session_id, task_id)
+            page = await manager.read_output(context.session_id, task_id)
+            return message.ToolResultMessage(
+                status="success",
+                output_text=f"Shell task {task_id} is {snapshot.status} in background.\nUse ManageShell with this task_id for output, wait, or stop.\nOutput offset: {page.next_offset}\n{page.output}".rstrip(
+                    "\n"
+                ),
+            )
 
         try:
-            # Create a dedicated process group so we can terminate the whole tree.
-            # (macOS/Linux support start_new_session; Windows does not.)
-            #
-            # Use temp files instead of PIPE for stdout/stderr to avoid hanging
-            # on background processes. With pipes, communicate() waits for EOF
-            # which only arrives when ALL holders of the write end close it.
-            # Background processes (cmd &) inherit pipe fds, so communicate()
-            # blocks even after the shell exits. Temp files sidestep this:
-            # proc.wait() returns as soon as the shell itself exits.
-            with tempfile.TemporaryFile() as stdout_tmp, tempfile.TemporaryFile() as stderr_tmp:
-                kwargs: dict[str, Any] = {
-                    "stdin": asyncio.subprocess.DEVNULL,
-                    "stdout": stdout_tmp,
-                    "stderr": stderr_tmp,
-                    "env": env,
-                    "cwd": str(context.work_dir),
-                }
-                if os.name == "posix":
-                    kwargs["start_new_session"] = True
-                elif os.name == "nt":  # pragma: no cover
-                    kwargs["creationflags"] = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-
-                proc = await asyncio.create_subprocess_exec(*cmd, **kwargs)
-                started_at = time.monotonic()
-                deadline = asyncio.get_running_loop().time() + timeout_sec
-                stdout_offset = 0
-                stderr_offset = 0
-                stdout_chunks: list[str] = []
-                stderr_chunks: list[str] = []
-
-                def _append_available_output() -> None:
-                    nonlocal stdout_offset, stderr_offset
-
-                    stdout_chunk, stdout_offset = _read_available_text(stdout_tmp, offset=stdout_offset)
-                    stderr_chunk, stderr_offset = _read_available_text(stderr_tmp, offset=stderr_offset)
-                    if stdout_chunk:
-                        stdout_chunks.append(stdout_chunk)
-                    if stderr_chunk:
-                        stderr_chunks.append(stderr_chunk)
-
-                def _build_interrupt_result() -> message.ToolResultMessage:
-                    _append_available_output()
-                    return message.ToolResultMessage(
-                        status="aborted",
-                        output_text=_build_interrupted_output(
-                            args.command,
-                            time.monotonic() - started_at,
-                            "".join(stdout_chunks),
-                            "".join(stderr_chunks),
-                        ),
-                    )
-
-                if context.register_tool_interrupt_result_getter is not None:
-                    context.register_tool_interrupt_result_getter(_build_interrupt_result)
-
-                try:
-                    while True:
-                        remaining = deadline - asyncio.get_running_loop().time()
-                        if remaining <= 0:
-                            raise TimeoutError
-                        try:
-                            await asyncio.wait_for(proc.wait(), timeout=min(_STREAM_POLL_INTERVAL_SEC, remaining))
-                            break
-                        except TimeoutError:
-                            pass
-
-                        stdout_chunk, stdout_offset = _read_available_text(stdout_tmp, offset=stdout_offset)
-                        stderr_chunk, stderr_offset = _read_available_text(stderr_tmp, offset=stderr_offset)
-                        if stdout_chunk:
-                            stdout_chunks.append(stdout_chunk)
-                            await _emit_output_delta(stdout_chunk)
-                        if stderr_chunk:
-                            stderr_chunks.append(stderr_chunk)
-                            await _emit_output_delta(stderr_chunk)
-
-                    stdout_chunk, stdout_offset = _read_available_text(stdout_tmp, offset=stdout_offset)
-                    stderr_chunk, stderr_offset = _read_available_text(stderr_tmp, offset=stderr_offset)
-                    if stdout_chunk:
-                        stdout_chunks.append(stdout_chunk)
-                        await _emit_output_delta(stdout_chunk)
-                    if stderr_chunk:
-                        stderr_chunks.append(stderr_chunk)
-                        await _emit_output_delta(stderr_chunk)
-                except TimeoutError:
-                    # Read any remaining output before terminating.
-                    stdout_chunk, stdout_offset = _read_available_text(stdout_tmp, offset=stdout_offset)
-                    stderr_chunk, stderr_offset = _read_available_text(stderr_tmp, offset=stderr_offset)
-                    if stdout_chunk:
-                        stdout_chunks.append(stdout_chunk)
-                    if stderr_chunk:
-                        stderr_chunks.append(stderr_chunk)
-
-                    with contextlib.suppress(Exception):
-                        await _terminate_process(proc)
-
-                    timeout_header = f"Timeout after {args.timeout_ms} ms running: {args.command}"
-                    collected_stdout = "".join(stdout_chunks).rstrip("\n")
-                    collected_stderr = "".join(stderr_chunks).rstrip("\n")
-                    parts = [timeout_header]
-                    if collected_stdout:
-                        parts.append(f"[stdout before timeout]\n{collected_stdout}")
-                    if collected_stderr:
-                        parts.append(f"[stderr before timeout]\n{collected_stderr}")
-                    return message.ToolResultMessage(
-                        status="error",
-                        output_text="\n".join(parts),
-                    )
-                except asyncio.CancelledError:
-                    _append_available_output()
-                    with contextlib.suppress(asyncio.CancelledError, Exception):
-                        await asyncio.shield(_terminate_process(proc))
-                    _append_available_output()
-                    return message.ToolResultMessage(
-                        status="aborted",
-                        output_text=_build_interrupted_output(
-                            args.command,
-                            time.monotonic() - started_at,
-                            "".join(stdout_chunks),
-                            "".join(stderr_chunks),
-                        ),
-                    )
-
-            stdout = "".join(stdout_chunks)
-            stderr = "".join(stderr_chunks)
-            rc = proc.returncode if proc.returncode is not None else 1
-            if rc == _SIGPIPE_EXIT_CODE:
-                rc = 0
-
+            tracker = ShellFileTracker(context.file_tracker, context.work_dir)
+            snapshot = await manager.start(
+                session_id=context.session_id,
+                work_dir=context.work_dir,
+                command=args.command,
+                description=args.description or "",
+                timeout_ms=args.timeout_ms,
+                env=env,
+                background=False,
+                on_success=lambda: tracker.update_from_command(args.command),
+            )
+            task_id = snapshot.task_id
+            if context.register_tool_interrupt_result_getter is not None:
+                context.register_tool_interrupt_result_getter(interrupted)
+            if args.run_in_background:
+                return await background_result()
+            while True:
+                remaining_ms = max(0, int(args.wait_ms - (time.monotonic() - started) * 1000))
+                snapshot = await manager.wait_task(
+                    context.session_id,
+                    task_id,
+                    wait_ms=min(50, remaining_ms) if context.shell_task_manager is not None else 50,
+                )
+                for chunk in collect():
+                    if context.emit_tool_output_delta is not None:
+                        await context.emit_tool_output_delta(chunk)
+                if snapshot.status not in {"running", "stopping"}:
+                    break
+                if context.shell_task_manager is not None and time.monotonic() - started >= args.wait_ms / 1000:
+                    # Set the guard before awaiting callbacks: cancellation after detach must not kill it.
+                    return await background_result()
+            for chunk in collect(final=True):
+                if context.emit_tool_output_delta is not None:
+                    await context.emit_tool_output_delta(chunk)
+            if snapshot.status in {"timed_out", "stopped"} or snapshot.reason is not None:
+                parts = [snapshot.reason or snapshot.status]
+                if stdout:
+                    parts.append(f"[stdout before timeout]\n{stdout.rstrip(chr(10))}")
+                if stderr:
+                    parts.append(f"[stderr before timeout]\n{stderr.rstrip(chr(10))}")
+                return message.ToolResultMessage(status="error", output_text="\n".join(parts))
+            rc = snapshot.exit_code if snapshot.exit_code is not None else 1
             if rc == 0:
-                output = stdout
-                # Include stderr if there is useful diagnostics despite success
-                if stderr.strip():
-                    output = (output + ("\n" if output else "")) + f"[stderr]\n{stderr}"
-
-                shell_file_tracker.update_from_command(args.command)
-                return message.ToolResultMessage(
-                    status="success",
-                    # Preserve leading whitespace for tools like `nl -ba`.
-                    # Only trim trailing newlines to avoid adding an extra blank line in the UI.
-                    output_text=output.rstrip("\n"),
-                    ui_extra=BashUIExtra(exit_code=rc),
-                )
+                output = stdout + (("\n" if stdout else "") + f"[stderr]\n{stderr}" if stderr.strip() else "")
             else:
-                await _emit_output_delta(f"\nCommand exited with code {rc}\n")
-                # Lead with the exit code so the failure stays visible even when the
-                # output is long enough to be truncated later.
-                combined = f"Command exited with code {rc}\n"
+                output = f"Command exited with code {rc}\n"
                 if stdout.strip():
-                    combined += f"[stdout]\n{stdout}\n"
+                    output += f"[stdout]\n{stdout}\n"
                 if stderr.strip():
-                    combined += f"[stderr]\n{stderr}"
-                return message.ToolResultMessage(
-                    status="success",
-                    # Preserve leading whitespace; only trim trailing newlines.
-                    output_text=combined.rstrip("\n"),
-                    ui_extra=BashUIExtra(exit_code=rc),
-                )
-        except FileNotFoundError:
+                    output += f"[stderr]\n{stderr}"
+                if context.emit_tool_output_delta is not None:
+                    await context.emit_tool_output_delta(f"\nCommand exited with code {rc}\n")
             return message.ToolResultMessage(
-                status="error",
-                output_text="bash not found on system path",
+                status="success", output_text=output.rstrip("\n"), ui_extra=BashUIExtra(exit_code=rc)
             )
         except asyncio.CancelledError:
-            # Propagate cooperative cancellation so outer layers can handle interrupts correctly.
-            raise
-        except OSError as e:  # safeguard: catch remaining OS-level errors (permissions, resources, etc.)
-            return message.ToolResultMessage(
-                status="error",
-                output_text=f"Execution error: {e}",
-            )
+            if task_id is None or detached:
+                raise
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.shield(manager.stop_task(context.session_id, task_id))
+            return interrupted()
+        except (OSError, ValueError) as error:
+            return message.ToolResultMessage(status="error", output_text=f"Execution error: {error}")
+        finally:
+            if task_id is not None and not detached:
+                with contextlib.suppress(OSError, ValueError):
+                    await manager.release_foreground(context.session_id, task_id)
+            if temporary is not None:
+                await manager.aclose()
+                temporary.cleanup()

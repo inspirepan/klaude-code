@@ -33,6 +33,7 @@ class CommandName(str, Enum):
     RECAP = "recap"
     GRILL_ME = "grill-me"
     BTW = "btw"
+    TASKS = "tasks"
 
     def __str__(self) -> str:
         return self.value

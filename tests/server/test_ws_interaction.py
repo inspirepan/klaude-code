@@ -8,6 +8,7 @@ from typing import Any, ClassVar, cast
 
 import pytest
 
+from klaude_code.control.event_bus import EventBus
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import message, op, user_interaction
 from klaude_code.server.routes import ws
@@ -164,7 +165,7 @@ def test_session_websocket_replays_pending_snapshots_before_forwarding_events(mo
         async def send_json(self, _payload: object) -> None:
             return None
 
-    async def _forward_events(_session_id: str, _websocket: FakeWebSocket) -> None:
+    async def _forward_events(_session_id: str, _websocket: FakeWebSocket, **_kwargs: Any) -> None:
         order.append("forward")
         forward_started.set()
         await receive_started.wait()
@@ -194,6 +195,7 @@ def test_session_websocket_replays_pending_snapshots_before_forwarding_events(mo
     state = SimpleNamespace(
         runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
     )
+    state.subscribe_events = EventBus().subscribe
 
     def _get_server_state(_websocket: object) -> Any:
         return state
@@ -229,7 +231,7 @@ def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyP
         async def send_json(self, _payload: object) -> None:
             return None
 
-    async def _forward_events(_session_id: str, _websocket: FakeWebSocket) -> None:
+    async def _forward_events(_session_id: str, _websocket: FakeWebSocket, **_kwargs: Any) -> None:
         return None
 
     async def _receive_commands(_session_id: str, _websocket: FakeWebSocket, **_kwargs: Any) -> None:
@@ -256,6 +258,7 @@ def test_websocket_handler_cancels_pending_peer_task(monkeypatch: pytest.MonkeyP
     state = SimpleNamespace(
         runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
     )
+    state.subscribe_events = EventBus().subscribe
 
     def _get_server_state(_websocket: object) -> Any:
         return state
@@ -293,7 +296,7 @@ def test_websocket_handler_does_not_hang_on_stubborn_peer_task(monkeypatch: pyte
         async def close(self) -> None:
             closed.set()
 
-    async def _forward_events(_session_id: str, _websocket: FakeWebSocket) -> None:
+    async def _forward_events(_session_id: str, _websocket: FakeWebSocket, **_kwargs: Any) -> None:
         try:
             await asyncio.Future()
         except asyncio.CancelledError:
@@ -323,6 +326,7 @@ def test_websocket_handler_does_not_hang_on_stubborn_peer_task(monkeypatch: pyte
     state = SimpleNamespace(
         runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
     )
+    state.subscribe_events = EventBus().subscribe
 
     def _get_server_state(_websocket: object) -> Any:
         return state
@@ -374,7 +378,7 @@ def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPat
 
     actor = _FakeActor()
 
-    async def _forward_events(_session_id: str, _websocket: FakeWebSocket) -> None:
+    async def _forward_events(_session_id: str, _websocket: FakeWebSocket, **_kwargs: Any) -> None:
         return None
 
     async def _receive_commands(_session_id: str, _websocket: FakeWebSocket, **_kwargs: Any) -> None:
@@ -401,6 +405,7 @@ def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPat
     state = SimpleNamespace(
         runtime=runtime, home_dir=Path("/tmp"), tapes=None, code_fingerprint="test", session_live=None
     )
+    state.subscribe_events = EventBus().subscribe
 
     def _get_server_state(_websocket: object) -> Any:
         return state

@@ -28,6 +28,7 @@ class OperationType(Enum):
     RUN_AGENT = "run_agent"
     FOLLOW_UP_AGENT = "follow_up_agent"
     RUN_BASH = "run_bash"
+    MANAGE_SHELL = "manage_shell"
     CONTINUE_AGENT = "continue_agent"
     COMPACT_SESSION = "compact_session"
     CHANGE_MODEL = "change_model"
@@ -66,6 +67,8 @@ class RunAgentOperation(Operation):
     type: OperationType = OperationType.RUN_AGENT
     session_id: str
     input: UserInputPayload
+    # Internal completion turns cannot lift a user's stop latch.
+    shell_notification_generation: int | None = None
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_agent(self)
@@ -91,6 +94,20 @@ class RunBashOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_bash(self)
+
+
+class ManageShellOperation(Operation):
+    """Inspect or stop background shells, including during an active turn."""
+
+    type: OperationType = OperationType.MANAGE_SHELL
+    session_id: str
+    action: Literal["list", "output", "stop"]
+    task_id: str | None = None
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=16384, ge=1, le=65536)
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_manage_shell(self)
 
 
 class ContinueAgentOperation(Operation):

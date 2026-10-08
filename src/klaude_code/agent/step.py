@@ -468,6 +468,7 @@ class StepExecutor:
             run_subtask=session_ctx.run_subtask,
             handoff_manager=ctx.handoff_manager,
             request_user_interaction=session_ctx.request_user_interaction,
+            shell_task_manager=session_ctx.shell_task_manager,
         )
 
         executor = ToolExecutor(

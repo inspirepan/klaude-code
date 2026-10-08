@@ -218,6 +218,11 @@ class EndAssistantStream(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
+class BackgroundShellCount(RenderCommand):
+    count: int
+
+
+@dataclass(frozen=True, slots=True)
 class SpinnerStart(RenderCommand):
     pass
 

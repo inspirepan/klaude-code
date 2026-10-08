@@ -33,6 +33,7 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
+    BackgroundShellCount,
     DynamicSeparatorText,
     EndAssistantStream,
     EndThinkingStream,
@@ -949,6 +950,7 @@ class DisplayStateMachine:
         self._terminal_title_prefix: str | None = None
         self._had_sub_agent_status_lines: bool = False
         self._side_question_pending: dict[str, str] = {}
+        self._background_shell_count = 0
         self._live_bash_tool_call_ids: set[str] = set()
         self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
         self._bash_mode_output_chunks_by_session: dict[str, list[str]] = {}
@@ -994,6 +996,7 @@ class DisplayStateMachine:
         self._spinner.reset()
         self._had_sub_agent_status_lines = False
         self._side_question_pending = {}
+        self._background_shell_count = 0
         self._terminal_title_prefix = None
         self._live_bash_tool_call_ids = set()
         self._pending_bash_tool_outputs = {}
@@ -1332,7 +1335,7 @@ class DisplayStateMachine:
         # session state so it is reconstructed from the taped events.
         self._reset_sessions()
         self._rebuilding = True
-        return [SpinnerStop(), PrintBlankLine()]
+        return [BackgroundShellCount(0), SpinnerStop(), PrintBlankLine()]
 
     def end_rebuild(self, *, drop_dangling_tasks: bool = False) -> list[RenderCommand]:
         """Restore the bottom UI from the rebuilt state after a tape rebuild.
@@ -1429,6 +1432,7 @@ class DisplayStateMachine:
         if self._primary_session_id is not None and self._primary_session_id != e.session_id:
             self._reset_sessions()
             self._session(e.session_id)
+            cmds.append(BackgroundShellCount(0))
         self._primary_session_id = e.session_id
         self._session_title = e.title
         cmds.append(RenderWelcome(e))
@@ -1440,6 +1444,21 @@ class DisplayStateMachine:
             )
         )
         return cmds
+
+    def _handle_ShellTasksUpdatedEvent(
+        self, e: events.ShellTasksUpdatedEvent, *, s: _SessionState
+    ) -> list[RenderCommand]:
+        if s.is_sub_agent:
+            return []
+        if self._primary_session_id is None:
+            self._primary_session_id = e.session_id
+        if not self._is_primary(e.session_id):
+            return []
+        self._background_shell_count = sum(
+            task.background and task.session_id == e.session_id and task.status in {"running", "stopping"}
+            for task in e.tasks
+        )
+        return [BackgroundShellCount(self._background_shell_count)]
 
     def _handle_WelcomeContextEvent(self, e: events.WelcomeContextEvent, *, s: _SessionState) -> list[RenderCommand]:
         del s

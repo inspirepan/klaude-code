@@ -9,6 +9,7 @@ register_sub_agent(
         name="general-purpose",
         tool_set=(
             tools.BASH,
+            tools.MANAGE_SHELL,
             tools.READ,
             tools.EDIT,
             tools.WRITE,

@@ -41,6 +41,7 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
+    BackgroundShellCount,
     DynamicSeparatorText,
     EndAssistantStream,
     EndThinkingStream,
@@ -260,6 +261,7 @@ class TUICommandRenderer:
         # content above it makes the whole bar visibly hop up one line.
         self._stream_end_pending: bool = False
         self._spinner_visible: bool = False
+        self._background_shell_count = 0
         self._progress_ui_suspended: bool = False
         self._spinner_last_update_key: _SpinnerUpdateKey | None = None
         self._spinner_pending_update: SpinnerUpdate | None = None
@@ -539,7 +541,14 @@ class TUICommandRenderer:
             case PrintBlankLine():
                 self._clear_open_blocks()
                 return
-            case SpinnerStart() | SpinnerStop() | SpinnerUpdate() | TaskClockStart() | TaskClockClear():
+            case (
+                BackgroundShellCount()
+                | SpinnerStart()
+                | SpinnerStop()
+                | SpinnerUpdate()
+                | TaskClockStart()
+                | TaskClockClear()
+            ):
                 return
             case UpdateTerminalTitlePrefix() | StartTitleBlink() | StopTitleBlink():
                 return
@@ -703,6 +712,27 @@ class TUICommandRenderer:
         if lines is None:
             lines = self._prompt_status_lines()
             separator_text = self._status_separator_text
+        # Prompt-toolkit owns status in both running and idle states.
+        if self._progress_ui_suspended and self._background_shell_count:
+            text = Text(
+                f"Background commands {self._background_shell_count} · /tasks to view",
+                style=ThemeKey.STATUS_TEXT,
+                no_wrap=True,
+                overflow="ellipsis",
+            )
+            rendered = self.console.render_lines(text, self.console.options, pad=False)
+            lines = (
+                *lines,
+                *(
+                    PromptStatusLine(
+                        "".join(segment.text for segment in line if not segment.control).rstrip(),
+                        "status",
+                        self._prompt_status_fragments(line),
+                        show_spinner=False,
+                    )
+                    for line in rendered
+                ),
+            )
         resolved_separator_text = self._resolve_separator_text(separator_text)
         self._status_sink(lines, resolved_separator_text, reset_bottom_height)
 
@@ -1885,6 +1915,9 @@ class TUICommandRenderer:
                         original_user_message=original_user_message,
                         messages_discarded=messages_discarded,
                     )
+                case BackgroundShellCount(count=count):
+                    self._background_shell_count = count
+                    self._emit_prompt_status()
                 case SpinnerStart():
                     self.spinner_start()
                 case SpinnerStop():

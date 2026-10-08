@@ -8,7 +8,7 @@ register_sub_agent(
     SubAgentProfile(
         name="finder",
         prompt_file="prompts/sub_agents/prompt-sub-agent-finder.md",
-        tool_set=(tools.BASH, tools.READ),
+        tool_set=(tools.BASH, tools.MANAGE_SHELL, tools.READ),
         invoker_summary=FINDER_SUMMARY,
         active_form="Finding",
     )

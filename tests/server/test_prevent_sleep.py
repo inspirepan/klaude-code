@@ -85,6 +85,25 @@ def test_monitor_exits_immediately_off_macos(monkeypatch: pytest.MonkeyPatch) ->
     asyncio.run(prevent_sleep.run_prevent_sleep_monitor(_provider, poll_interval=0.001))
 
 
+def test_monitor_holds_assertion_for_background_shell_without_actor(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(prevent_sleep, "_is_macos", lambda: True)
+    monkeypatch.setattr(prevent_sleep, "start_prevent_sleep", lambda: calls.append("start"))
+    monkeypatch.setattr(prevent_sleep, "stop_prevent_sleep", lambda: calls.append("stop"))
+
+    async def run() -> None:
+        monitor = asyncio.create_task(
+            prevent_sleep.run_prevent_sleep_monitor(lambda: [], background_busy=lambda: True, poll_interval=0.001)
+        )
+        await asyncio.sleep(0.01)
+        assert calls == ["start"]
+        monitor.cancel()
+        await asyncio.gather(monitor, return_exceptions=True)
+        assert calls == ["start", "stop"]
+
+    asyncio.run(run())
+
+
 def test_exit_signal_handler_does_not_acquire_prevent_sleep_lock(monkeypatch: pytest.MonkeyPatch) -> None:
     process = _FakeProcess()
     sent_signals: list[tuple[int, int]] = []

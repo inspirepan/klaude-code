@@ -66,6 +66,11 @@ def list_active_sessions(state: ServerAppState) -> list[dict[str, str]]:
         for session_id in state.headless.queued_session_ids():
             if session_id not in seen:
                 active.append({"session_id": session_id, "state": "queued"})
+    manager = getattr(state.runtime, "shell_task_manager", None)
+    if manager is not None:
+        seen = {item["session_id"] for item in active}
+        for session_id in manager.active_session_ids() - seen:
+            active.append({"session_id": session_id, "state": "running"})
     return active
 
 

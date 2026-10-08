@@ -15,6 +15,7 @@ EXPECTED_HANDLED_EVENT_NAMES = {
     "BashCommandStartEvent",
     "BashCommandOutputDeltaEvent",
     "BashCommandEndEvent",
+    "ShellTasksUpdatedEvent",
     "TaskStartEvent",
     "CompactionStartEvent",
     "CompactionEndEvent",

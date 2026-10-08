@@ -26,6 +26,7 @@ if TYPE_CHECKING:
         GetSessionStatsOperation,
         InitAgentOperation,
         InterruptOperation,
+        ManageShellOperation,
         RequestModelOperation,
         RequestSubAgentModelOperation,
         RewindWithSummaryOperation,
@@ -37,6 +38,10 @@ if TYPE_CHECKING:
 
 class OperationHandler(Protocol):
     """Protocol defining the interface for handling operations."""
+
+    async def handle_manage_shell(self, operation: ManageShellOperation) -> None:
+        """Inspect or stop background shell tasks."""
+        ...
 
     async def handle_run_agent(self, operation: RunAgentOperation) -> None:
         """Handle a run agent operation."""

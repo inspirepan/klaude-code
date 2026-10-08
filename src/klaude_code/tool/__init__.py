@@ -20,6 +20,7 @@ from .file.write_tool import WriteTool
 from .handoff_tool import HandoffTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
+from .shell.manage_shell_tool import ManageShellTool
 from .todo.todo_write_tool import TodoWriteTool
 from .web.web_fetch_tool import WebFetchTool
 from .web.web_search_tool import WebSearchTool
@@ -34,6 +35,7 @@ __all__ = [
     "FileTracker",
     "HandoffTool",
     "LookAtTool",
+    "ManageShellTool",
     "ReadTool",
     "RequestUserInteraction",
     "RunSubtask",

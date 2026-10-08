@@ -51,6 +51,7 @@ def ensure_commands_loaded() -> None:
     from .status_cmd import StatusCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
     from .switch_cmd import SwitchCommand
+    from .tasks_cmd import TasksCommand
 
     # Register in desired display order
     register(CopyCommand())
@@ -72,6 +73,7 @@ def ensure_commands_loaded() -> None:
     register(RecapCommand())
     register(GrillMeCommand())
     register(BtwCommand())
+    register(TasksCommand())
 
 
 # Lazy accessors for command classes
@@ -95,6 +97,7 @@ def __getattr__(name: str) -> object:
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
         "SwitchCommand": "switch_cmd",
+        "TasksCommand": "tasks_cmd",
     }
     if name in _commands_map:
         import importlib

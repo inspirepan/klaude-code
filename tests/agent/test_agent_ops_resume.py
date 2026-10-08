@@ -33,7 +33,7 @@ def test_run_agent_resumes_without_duplicate_user_message(isolated_home: Path, t
         async def _emit_event(_event: Any) -> None:
             return None
 
-        async def _run_agent_task(*_args: Any) -> None:
+        async def _run_agent_task(*_args: Any, **_kwargs: Any) -> None:
             task_ran.set()
 
         async def _unexpected_freeze(*_args: Any, **_kwargs: Any) -> None:

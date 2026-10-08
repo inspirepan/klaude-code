@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, MutableMapping
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 from klaude_code.protocol import message, user_interaction
 from klaude_code.protocol.models import FileChangeSummary, FileStatus, SubAgentState, TaskMetadata, TodoItem
@@ -99,6 +102,7 @@ class ToolContext:
     tool_batch_id: str | None = None
     tool_batch_index: int | None = None
     tool_batch_size: int | None = None
+    shell_task_manager: ShellTaskManager | None = None
 
     def with_record_sub_agent_session_id(self, callback: Callable[[str], None] | None) -> ToolContext:
         return replace(self, record_sub_agent_session_id=callback)

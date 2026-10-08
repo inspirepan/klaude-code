@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 from klaude_code.agent.agent import Agent
@@ -18,6 +20,7 @@ from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.op_handler import OperationHandler
+from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 
 @dataclass(frozen=True)
@@ -40,6 +43,7 @@ class OperationDispatcherPorts:
     # and awaits operations on them via these facade entry points.
     submit_operation: Callable[[op.Operation], Awaitable[str]]
     wait_for_operation: Callable[[str], Awaitable[Literal["completed", "rejected", "failed"] | None]]
+    disable_shell_notifications: Callable[[str], None]
 
 
 class OperationDispatcher:
@@ -59,10 +63,13 @@ class OperationDispatcher:
         ports: OperationDispatcherPorts,
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
+        shell_task_manager: ShellTaskManager | None = None,
+        has_pending_shell_notifications: Callable[[str], bool] | None = None,
     ):
         self._event_bus = event_bus
         self.llm_clients: LLMClients = llm_clients
         self._ports = ports
+        self._shell_task_manager = shell_task_manager
 
         resolved_profile_provider = model_profile_provider or DefaultModelProfileProvider()
         self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
@@ -79,6 +86,8 @@ class OperationDispatcher:
             register_task=ports.register_task,
             remove_task=ports.remove_task,
             request_user_interaction=self.request_user_interaction,
+            shell_task_manager=shell_task_manager,
+            has_pending_shell_notifications=has_pending_shell_notifications,
         )
         self._sub_agent_launcher = SubAgentLauncher(
             handler=self._agent_operation_handler,
@@ -216,6 +225,51 @@ class OperationDispatcher:
     async def handle_run_bash(self, operation: op.RunBashOperation) -> None:
         await self._agent_operation_handler.run_bash(operation)
 
+    async def handle_manage_shell(self, operation: op.ManageShellOperation) -> None:
+        manager = self._shell_task_manager
+        if manager is None:
+            return
+        actor = self._ports.get_session_actor(operation.session_id)
+        agent = actor.get_agent() if actor is not None else None
+        work_dir = agent.session.work_dir if agent is not None else None
+        try:
+            tasks = await manager.list_tasks(operation.session_id, work_dir=work_dir)
+            if operation.action == "list":
+                await self.emit_event(events.ShellTasksUpdatedEvent(session_id=operation.session_id, tasks=tasks))
+                content = (
+                    "\n".join(
+                        f"{task.task_id}  {task.status}  exit={task.exit_code}  {task.description or task.command}"
+                        for task in tasks
+                    )
+                    or "No background shell tasks."
+                )
+            else:
+                task_id = operation.task_id
+                if task_id is None:
+                    if not tasks:
+                        raise ValueError("No background shell tasks.")
+                    task_id = tasks[-1].task_id
+                if operation.action == "stop":
+                    task = await manager.stop_task(operation.session_id, task_id)
+                    content = f"{task.task_id}: {task.status}; log: {task.output_path}"
+                else:
+                    offset = operation.offset
+                    if operation.task_id is None and offset == 0:
+                        task = next(task for task in tasks if task.task_id == task_id)
+                        with contextlib.suppress(OSError):
+                            offset = max(0, Path(task.output_path).stat().st_size - operation.limit)
+                    output = await manager.read_output(
+                        operation.session_id, task_id, offset=offset, limit=operation.limit
+                    )
+                    content = (
+                        f"{output.task.task_id}: {output.task.status}; log: {output.task.output_path}\n"
+                        f"{output.output}\nNext offset: {output.next_offset}"
+                    )
+        except (ValueError, KeyError, OSError) as exc:
+            await self.emit_event(events.NoticeEvent(session_id=operation.session_id, content=str(exc), is_error=True))
+            return
+        await self.emit_event(events.NoticeEvent(session_id=operation.session_id, content=content))
+
     async def handle_continue_agent(self, operation: op.ContinueAgentOperation) -> None:
         await self._agent_operation_handler.continue_agent(operation)
 
@@ -282,6 +336,7 @@ class OperationDispatcher:
         )
         if not interrupted:
             return
+        self._ports.disable_shell_notifications(operation.session_id)
         cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
         # Sub-agents run in their own actors; cancelling the parent task no

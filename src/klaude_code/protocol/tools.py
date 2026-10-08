@@ -1,4 +1,5 @@
 BASH = "Bash"
+MANAGE_SHELL = "ManageShell"
 APPLY_PATCH = "apply_patch"
 EDIT = "Edit"
 

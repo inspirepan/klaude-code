@@ -11,7 +11,7 @@ from klaude_code.server.lifecycle import ServerLifecycle
 from klaude_code.server.upgrade import UpgradeCoordinator
 from klaude_code.update import AutoUpgradeResult
 
-from .conftest import AppEnv, arun, consume_ws_handshake, receive_events, send_user_message, usage
+from .conftest import AppEnv, arun, consume_ws_handshake, receive_events, send_user_message, usage, wait_for_event
 
 
 class _Harness:
@@ -226,6 +226,7 @@ def test_upgrade_endpoint_defers_install_until_the_running_turn_ends(app_env: Ap
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
         send_user_message(websocket, session_id, "go")
+        wait_for_event(websocket, "task.start")
         # The turn is running: registering keeps the upgrade pending.
         body = app_env.client.post("/api/server/upgrade", json={"check": False}).json()
         assert body["phase"] == "pending"
@@ -256,6 +257,7 @@ def test_reload_when_idle_registers_instead_of_refusing(app_env: AppEnv) -> None
     with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
         consume_ws_handshake(websocket)
         send_user_message(websocket, session_id, "go")
+        wait_for_event(websocket, "task.start")
         response = app_env.client.post("/api/server/reload", json={"force": False, "when": "idle"})
         assert response.status_code == 200
         body = response.json()
