@@ -13,6 +13,7 @@ This module provides:
 
 from __future__ import annotations
 
+import os
 import re
 import shutil
 import subprocess
@@ -66,6 +67,13 @@ def _clipboard_images_dir() -> Path:
     return Path(get_system_temp())
 
 
+def _macos_clipboard_env() -> dict[str, str]:
+    # Clipboard helpers must not inherit the terminal's macOS app identity.
+    env = os.environ.copy()
+    env.pop("__CFBundleIdentifier", None)
+    return env
+
+
 def _grab_clipboard_image_macos(dest_path: Path) -> bool:
     """Grab image from clipboard on macOS using pngpaste or osascript (JXA)."""
     # Try pngpaste first (faster, if installed)
@@ -75,6 +83,7 @@ def _grab_clipboard_image_macos(dest_path: Path) -> bool:
                 ["pngpaste", str(dest_path)],
                 capture_output=True,
                 timeout=5.0,
+                env=_macos_clipboard_env(),
             )
             return result.returncode == 0 and dest_path.exists() and dest_path.stat().st_size > 0
         except (OSError, subprocess.TimeoutExpired):
@@ -107,6 +116,7 @@ if (!pngData.isNil()) {{
             capture_output=True,
             text=True,
             timeout=10.0,
+            env=_macos_clipboard_env(),
         )
         return (
             result.returncode == 0 and "true" in result.stdout and dest_path.exists() and dest_path.stat().st_size > 0
@@ -194,6 +204,7 @@ def _has_clipboard_image_macos() -> bool:
             ["osascript", "-e", "the clipboard as \u00abclass PNGf\u00bb"],
             capture_output=True,
             timeout=2.0,
+            env=_macos_clipboard_env(),
         )
         return result.returncode == 0
     except (OSError, subprocess.TimeoutExpired):
