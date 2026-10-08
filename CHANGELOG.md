@@ -7,6 +7,65 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.34.0] - 2026-10-08
+
+### Added
+
+- 升级 Haiku 到 Claude Haiku 5.5 (`52643423`)
+- 同步 Nano Banana 2.1 图像生成技能 (`2ceac88b`)
+- 接入 GPT-6.1 Sol (`438af24e`)
+- 接入 Claude Sonnet 5.5 (`00e4557b`)
+- let the Agent tool run a sub-agent in another directory (`a2c10cc3`)
+- complete auto memory prompt and simplify its templating (`a1fecf41`)
+- own upgrade and reload scheduling at idle boundaries (`b9fc1997`)
+- add Parallel Search provider in fast mode (`d0c9865b`)
+- add Opus 5.5 and GPT-6 Sol/Luna (`8e1dc602`)
+- render mermaid fences as box art (`fdb87511`)
+- reattach transparently when the klaude server restarts (`53067169`)
+- re-login the active Codex account and survive slow token requests (`0729fd1f`)
+- print the exit message in grey (`cc380875`)
+- hang a bullet off markdown headings and indent their sections (`e6a4176c`)
+- tighten response verbosity and add visual explanation guidance (`54923731`)
+- set markdown h2 apart with a blue title and a rule (`cb7fe45a`)
+- frame markdown code blocks in a panel (`40c7e44b`)
+- add deepseek-flash high/max tiers to opencode-go, drop retired selectors (`12bf18da`)
+- align Codex OAuth wire format with the pi client (`9e0b6fde`)
+- mark deepseek-flash as vision-capable (`c5689385`)
+
+### Changed
+
+- drop duplicated command-safety matrix and a tautological assert (`41568c85`)
+- tighten away-summary prompt and soften TUI style (`52a5a550`)
+- retune prompt text for Claude Opus 5.5 (`8d67f145`)
+
+### Fixed
+
+- 额度耗尽时切换 provider，subagent 优先沿用父会话 provider (`825200b1`)
+- 校验图片内容并阻止无效图片请求 (`2725f5de`)
+- stop re-requesting auto-upgrade that cannot succeed (`f778222c`)
+- show sub-agent retry errors in compact transcript (`f0a754d2`)
+- only request Opus 5.5 updates display on first-party API (`281ab742`)
+- preserve Opus 5.5 progress updates (`54701571`)
+- use httpx2 for the anthropic clients and pin anthropic <2 (`5f7c51a3`)
+- surface boot failures and degrade unknown configured models (`ca275585`)
+- report the recovery after a reattach (`a1435f3d`)
+- allow reattach across code updates (`c8aa6b65`)
+- mark markdown headings with a triangle (`a00e45e1`)
+- repair pre-existing pre-push failures (`c5645bd5`)
+- convert dropped plain paths, not only file:// URIs (`e08613e3`)
+- skip invalid assistant turns in chat requests (`81c2d366`)
+- keep status and summary visible (`72a04591`)
+- use DeepSeek V4.1 Flash model ID (`ce7a9935`)
+- route DeepSeek default to V4.1 Flash (`311a7466`)
+- verify klaude-config skill asset instead of removed web-search (`39734d8b`)
+
+### Other
+
+- pnpm 优先、npm 回退,并声明 esbuild 构建审批 (`ed10cb82`)
+- make install 后重启运行中的 klaude server (`071ee19c`)
+- bump agent-skills submodule (`cea660a1`)
+- build web viewer bundle in make install (`14840d4f`)
+
 ## [2.33.0] - 2026-09-07
 
 ### Added
@@ -2730,7 +2789,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.33.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.34.0...HEAD
+[2.34.0]: https://github.com/inspirepan/klaude-code/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/inspirepan/klaude-code/compare/v2.32.0...v2.33.0
 [2.32.0]: https://github.com/inspirepan/klaude-code/compare/v2.31.0...v2.32.0
 [2.31.0]: https://github.com/inspirepan/klaude-code/compare/v2.30.0...v2.31.0
