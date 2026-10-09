@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from klaude_code.agent.runtime import agent_ops as agent_ops_module
+from klaude_code.agent.runtime import llm as llm_module
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
 from klaude_code.agent.runtime.llm import FallbackLLMClient, LLMClients
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
@@ -34,6 +35,12 @@ class _StubClient(LLMClientABC):
 
     async def call(self, param: llm_param.LLMCallParameter) -> Any:
         raise AssertionError("this test never calls the model")
+
+
+@pytest.fixture(autouse=True)
+def _stub_client_factory(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Cloning a stub must not create a real provider SDK client."""
+    monkeypatch.setattr(llm_module, "create_llm_client", _StubClient.create)
 
 
 class _StubActor:
@@ -113,6 +120,8 @@ def test_new_session_falls_back_to_startup_clients_when_config_cannot_resolve(
     clients = handler._ensure_session_llm_clients(session)
 
     assert clients.main_model_alias == "startup-model"
+    assert isinstance(clients.main, _StubClient)
+    assert clients.main is not handler._llm_clients_template.main
     assert clients.main.get_llm_config().model_id == "startup-model-id"
 
 

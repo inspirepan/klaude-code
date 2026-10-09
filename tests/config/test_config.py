@@ -18,7 +18,6 @@ from klaude_code.config.config import (
     UserConfig,
     UserProviderConfig,
     WebSearchConfig,
-    config_path,
     parse_env_var_syntax,
     prioritize_model_preference,
 )
@@ -1991,12 +1990,12 @@ class TestConfigPath:
 
     def test_config_path_is_in_home_directory(self) -> None:
         """Test that config_path is in home directory."""
-        assert config_path.parent.name == ".klaude"
-        assert config_path.parent.parent == Path.home()
+        assert _config_module.config_path.parent.name == ".klaude"
+        assert _config_module.config_path.parent.parent == Path.home()
 
     def test_config_path_filename(self) -> None:
         """Test that config_path has correct filename."""
-        assert config_path.name == "klaude-config.yaml"
+        assert _config_module.config_path.name == "klaude-config.yaml"
 
 
 # =============================================================================
