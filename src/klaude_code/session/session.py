@@ -836,6 +836,8 @@ class Session(BaseModel):
                             content=message.join_text_parts(um.parts),
                             session_id=self.id,
                             images=images or None,
+                            source=um.source,
+                            shell_tasks=um.shell_tasks,
                             timestamp=msg_ts,
                         )
                 case TaskMetadataItem() as mt:

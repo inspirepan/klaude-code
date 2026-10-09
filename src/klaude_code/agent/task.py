@@ -634,7 +634,7 @@ class TaskExecutor:
         ctx = self._context
         session_ctx = ctx.session_ctx
         self._started_at = time.perf_counter()
-        self._current_user_input_text = user_input.text
+        self._current_user_input_text = user_input.text if user_input.source != "shell_completion" else None
         self._task_visible_output_started = False
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text = None

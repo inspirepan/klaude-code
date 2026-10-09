@@ -176,3 +176,16 @@ def render_manage_shell_result(
             page_hint += " · has_more" if page_hint else "has_more"
         sections.append(Text(page_hint, style=ThemeKey.METADATA_DIM, overflow="fold"))
     return Group(*sections)
+
+
+def render_shell_completion(
+    tasks: list[ShellTaskSnapshot] | None,
+    *,
+    detail: Detail = Detail.COMPACT,
+) -> RenderableType:
+    header = ManageShellRow(Text("Background results", style=ThemeKey.METADATA_DIM))
+    if not tasks:
+        result: RenderableType = Text("Task details unavailable.", style=ThemeKey.METADATA_DIM)
+    else:
+        result = render_manage_shell_result(ShellTaskUIExtra(action="list", tasks=tasks), detail=detail)
+    return Group(header, AdaptiveIndent(result, TOOL_SUBJECT_INDENT))

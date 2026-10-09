@@ -263,7 +263,7 @@ class HeadlessRuntime:
                 pending[1][:0] = tasks
             self._schedule_follow_up_drain(session_id)
             return False
-        prompt = UserInputPayload(text="\n".join(chunks))
+        prompt = UserInputPayload(text="\n".join(chunks), source="shell_completion", shell_tasks=tasks)
         turn = QueuedUserInput(input=prompt)
         self.mark_turn_starting(session_id, turn.id)
         try:
@@ -1027,7 +1027,13 @@ class HeadlessRuntime:
         ):
             return
         await self._runtime.emit_event(
-            events.UserMessageEvent(content=prompt.text, session_id=session_id, images=prompt.images)
+            events.UserMessageEvent(
+                content=prompt.text,
+                session_id=session_id,
+                images=prompt.images,
+                source=prompt.source,
+                shell_tasks=prompt.shell_tasks,
+            )
         )
         operation_id = await self._runtime.submit(
             op.RunAgentOperation(

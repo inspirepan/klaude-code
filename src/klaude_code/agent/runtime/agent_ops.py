@@ -731,10 +731,7 @@ class AgentOperationHandler:
         frozen_images = await asyncio.to_thread(
             lambda: [freeze_image_for_history(image, images_dir=images_dir) for image in images]
         )
-        return message.UserInputPayload(
-            text=user_input.text,
-            images=frozen_images,
-        )
+        return user_input.model_copy(update={"images": frozen_images})
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
@@ -760,6 +757,8 @@ class AgentOperationHandler:
                             frozen_input.text,
                             frozen_input.images,
                         ),
+                        source=frozen_input.source,
+                        shell_tasks=frozen_input.shell_tasks,
                     )
                 ]
             )

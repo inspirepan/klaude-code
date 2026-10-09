@@ -110,6 +110,7 @@ from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMark
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
+from klaude_code.tui.components.tools._manage_shell import render_shell_completion
 from klaude_code.tui.input.pt_theme import CLASS_THINKING, CLASS_TOOL_RESULT
 from klaude_code.tui.status_runtime import clear_task_start, set_task_start
 from klaude_code.tui.terminal.image import print_kitty_image
@@ -1366,7 +1367,10 @@ class TUICommandRenderer:
             self.print(context)
 
     def display_user_message(self, event: events.UserMessageEvent) -> None:
-        self.print(c_user_input.render_user_input(event.content))
+        if event.source == "shell_completion":
+            self.print(render_shell_completion(event.shell_tasks, detail=self._detail.current))
+        else:
+            self.print(c_user_input.render_user_input(event.content))
         self.print()
 
     def display_time_marker(self, label: str) -> None:

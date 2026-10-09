@@ -24,6 +24,7 @@ from klaude_code.protocol.models import (
     ToolStatus,
     Usage,
 )
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 
 # Stream items
 
@@ -385,11 +386,16 @@ class DeveloperMessage(MessageBase):
     ui_extra: DeveloperUIExtra | None = None
 
 
+UserMessageSource = Literal["user", "bash_mode", "shell_completion"]
+
+
 class UserMessage(MessageBase):
     role: Literal["user"] = "user"
     parts: list[Part]
     # Tag the origin of this message for replay rendering
-    source: Literal["user", "bash_mode"] | None = None
+    source: UserMessageSource | None = None
+    # UI-only metadata; provider adapters serialize parts, not these snapshots.
+    shell_tasks: list[ShellTaskSnapshot] | None = None
 
 
 class AssistantMessage(MessageBase):
@@ -459,6 +465,8 @@ class UserInputPayload(BaseModel):
 
     text: str
     images: Sequence[ImageURLPart | ImageFilePart] | None = None
+    source: Literal["user", "shell_completion"] | None = None
+    shell_tasks: list[ShellTaskSnapshot] | None = None
     queued_edit: bool = Field(default=False, exclude=True)
 
 
