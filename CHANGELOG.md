@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.35.0] - 2026-10-10
+
+### Added
+
+- 完善后台 Shell 展示并精简模型结果 (`2540d4a1`)
+- 展示近期工具调用与模型输出以支持协作 (`b0b70816`)
+- 支持后台命令与生命周期管理 (`7e0b8b4a`)
+
+### Fixed
+
+- 隔离本地配置与凭据并消除环境依赖 (`f41f9d91`)
+- 将后台 Shell 完成报告显示为任务通知 (`26f71314`)
+- 隔离 macOS 剪贴板子进程的应用身份 (`f61a1d5c`)
+
 ## [2.34.0] - 2026-10-08
 
 ### Added
@@ -2789,7 +2803,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.34.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.35.0...HEAD
+[2.35.0]: https://github.com/inspirepan/klaude-code/compare/v2.34.0...v2.35.0
 [2.34.0]: https://github.com/inspirepan/klaude-code/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/inspirepan/klaude-code/compare/v2.32.0...v2.33.0
 [2.32.0]: https://github.com/inspirepan/klaude-code/compare/v2.31.0...v2.32.0
