@@ -13,6 +13,7 @@ This skill manages the release process for klaude-code, including version manage
 - Working directory must be the klaude-code repository root
 - Git repository must be clean (no uncommitted changes)
 - Git submodules must be initialized and up-to-date (`src/klaude_code/skill/assets`)
+- Node.js and pnpm (preferred) or npm must be available to build the web viewer
 
 Before starting the release workflow, run:
 
@@ -58,13 +59,27 @@ The script will:
 3. Update CHANGELOG.md with the new version section
 4. Move [Unreleased] changes to the new version
 
-### Step 4: Commit and Tag
+### Step 4: Validate and Build
+
+Inspect the commits being released relative to `origin/main`, then run all required checks before creating the release commit or pushing:
+
+```bash
+jj log -r 'main@origin..@'
+jj diff --from main@origin
+make pre-push
+```
+
+`make pre-push` formats, lints, tests, and runs `make build`. The build first runs `make web`, then builds the sdist and wheel and executes `scripts/verify_dist.py`. Verification checks the current version's two artifacts for the complete web bundle and system skill files, including references and scripts; it does not select an older wheel from `dist/`.
+
+Review any formatting changes before committing. If formatting changed files, rerun the affected checks. Stop if any check or artifact verification fails; do not tag, push, or publish an unverified release.
+
+### Step 5: Commit and Tag
 
 This project uses jj (Jujutsu) in colocated mode with git. Create a release commit and tag:
 
 ```bash
 # Describe current change as release commit
-jj describe -m "chore(release): v<new_version>"
+jj describe -m "chore(release): 发布 v<new_version>"
 
 # Create new empty change for future work
 jj new
@@ -76,53 +91,31 @@ jj log -r @- -T 'commit_id' --no-graph
 git tag v<new_version> <commit_id>
 ```
 
-### Step 5: Push Changes
+### Step 6: Push Changes
 
 Push the commit and tag to remote:
 
 ```bash
-# Move main bookmark to the release commit, then push
+# Move main bookmark to the verified release commit, then push only main
 jj bookmark set main -r @-
-jj git push
+jj git push --bookmark main
 
 # Push the tag
 git push origin v<new_version>
-
-# Ensure submodule commit is reachable to other environments
-git submodule update --init --recursive
 ```
 
-### Step 6: Build and Publish
+The submodule commit must already be available on its remote before pushing the release. Initializing a local submodule does not publish its commits.
 
-Build the Python package, verify the wheel bundles the system skill assets, then publish to PyPI:
+### Step 7: Publish Verified Artifacts
+
+Publish only the current version's artifacts built and verified in Step 4. Do not rebuild after tagging without rerunning validation; the published package must match the release commit.
 
 ```bash
-# Build Python package (sdist + wheel)
-uv build
-
-# Verify the wheel contains required bundled assets
-uv run python - <<'PY'
-from pathlib import Path
-from zipfile import ZipFile
-
-wheel = sorted(Path("dist").glob("*.whl"))[-1]
-with ZipFile(wheel) as archive:
-    names = set(archive.namelist())
-
-required = {
-    "klaude_code/skill/assets/klaude-config/SKILL.md",
-}
-missing = sorted(required - names)
-if missing:
-    raise SystemExit(f"Wheel is missing bundled assets: {', '.join(missing)}")
-
-print(f"Verified bundled skill assets in {wheel.name}")
-PY
-
-uv publish
+uv run .claude/skills/publish/scripts/verify_dist.py
+uv publish dist/klaude_code-<new_version>-py3-none-any.whl dist/klaude_code-<new_version>.tar.gz
 ```
 
-Do not publish if the wheel verification fails. That means the package build no longer includes required bundled skill assets.
+Do not use bare `uv publish`: `dist/` may contain artifacts from older versions. Do not publish if verification fails.
 
 ## Error Handling
 
@@ -134,3 +127,4 @@ Do not publish if the wheel verification fails. That means the package build no 
 
 - `scripts/bump_version.py` - Handles semantic version bumping
 - `scripts/update_changelog.py` - Updates CHANGELOG.md with commits since last tag
+- `scripts/verify_dist.py` - Checks the current wheel and sdist include the built web viewer and required system skills

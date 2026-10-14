@@ -20,7 +20,7 @@ help:
 		"  make pre-push     Run all formatting, linting, tests, and builds" \
 		"  make install      Install package (editable) + web viewer, then reload the running server" \
 		"  make web          Install web viewer deps and build the static bundle (pnpm preferred, npm fallback)" \
-		"  make build        Build Python package" \
+		"  make build        Build web viewer + Python package and verify bundled assets" \
 		"  make lint         Run ruff + ty + import-linter" \
 		"  make format       Auto-fix with ruff" \
 		"  make format-check Check formatting without fixing" \
@@ -59,8 +59,9 @@ web:
 	echo "==> Building web viewer bundle with $$pkg..."; \
 	cd $(WEB_DIR) && $$pkg install && $$pkg run build
 
-build:
+build: web
 	$(UV) build
+	$(UV) run .claude/skills/publish/scripts/verify_dist.py
 
 lint: ruff-check typecheck imports
 
