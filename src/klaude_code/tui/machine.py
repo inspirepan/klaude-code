@@ -1542,6 +1542,11 @@ class DisplayStateMachine:
     def _handle_TaskStartEvent(self, e: events.TaskStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         s.sub_agent_state = e.sub_agent_state
+        if s.compact_batch_flushed and s.sub_agent_state is not None:
+            # A wake after the original batch closed is an independent task.
+            s.sub_agent_state = s.sub_agent_state.model_copy(
+                update={"parent_tool_batch_id": None, "parent_tool_batch_index": None, "parent_tool_batch_size": None}
+            )
         s.parent_session_id = e.parent_session_id
         s.model_id = e.model_id
         s.effort = e.effort
@@ -2253,8 +2258,10 @@ class DisplayStateMachine:
                     session_title=self._session_title,
                 )
             )
-        else:
+        elif self._any_task_active():
             cmds.extend(self._spinner_update_commands())
+        else:
+            cmds.extend(self._spinner_stop_commands())
         return cmds
 
     def _handle_InterruptEvent(self, e: events.InterruptEvent, *, s: _SessionState) -> list[RenderCommand]:

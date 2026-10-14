@@ -30,7 +30,9 @@ from klaude_code.tui.commands import (
     RenderSubAgentThinking,
     RenderTaskFinish,
     RenderToolResult,
+    SpinnerStart,
     SpinnerStatusLine,
+    SpinnerStop,
     SpinnerUpdate,
 )
 from klaude_code.tui.components.rich.status import DynamicText
@@ -594,6 +596,64 @@ def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pyte
     assert batch.summaries[0].tool_count == 1
     assert batch.summaries[0].token_count == 120
     assert _last_spinner_update(second_finished).reset_bottom_height is True
+
+
+@pytest.mark.parametrize("remaining_activity", ["none", "main", "subagent", "side_question"])
+def test_finished_sub_agent_batch_wake_finishes_independently(remaining_activity: str) -> None:
+    machine = DisplayStateMachine()
+    machine.transition(events.TaskStartEvent(session_id="main"))
+    starts = [
+        events.TaskStartEvent(
+            session_id=session_id,
+            parent_session_id="main",
+            sub_agent_state=SubAgentState(
+                sub_agent_type="general-purpose",
+                sub_agent_desc=f"task {index}",
+                sub_agent_prompt="prompt",
+                parent_tool_batch_id="original-batch",
+                parent_tool_batch_index=index,
+                parent_tool_batch_size=2,
+            ),
+        )
+        for index, session_id in enumerate(("sub-a", "sub-b"))
+    ]
+    for start in starts:
+        machine.transition(start)
+    machine.transition(events.TaskFinishEvent(session_id="sub-a", task_result="Original result A"))
+    finished = machine.transition(events.TaskFinishEvent(session_id="sub-b", task_result="Original result B"))
+    batch = next(command for command in finished if isinstance(command, RenderSubAgentBatchSummary))
+    assert [summary.session_id for summary in batch.summaries] == ["sub-a", "sub-b"]
+
+    if remaining_activity != "main":
+        machine.transition(events.TaskFinishEvent(session_id="main", task_result="Main task done"))
+    if remaining_activity == "subagent":
+        machine.transition(starts[1])
+    elif remaining_activity == "side_question":
+        machine.transition(events.SideQuestionStartEvent(session_id="main", request_id="aside", question="why?"))
+
+    for _ in range(2):
+        wake = machine.transition(starts[0])
+        assert any(isinstance(command, SpinnerStart) for command in wake)
+        assert any(line.session_id == "sub-a" for line in _last_spinner_update(wake).status_lines)
+        finished = machine.transition(
+            events.TaskFinishEvent(session_id="sub-a", task_result="Background report handled")
+        )
+        batch = next(command for command in finished if isinstance(command, RenderSubAgentBatchSummary))
+        assert [summary.session_id for summary in batch.summaries] == ["sub-a"]
+        assert batch.summaries[0].result_summary == "Background report handled"
+        assert any(isinstance(command, SpinnerStop) for command in finished) == (remaining_activity == "none")
+        if remaining_activity != "none":
+            update = _last_spinner_update(finished)
+            assert all(line.session_id != "sub-a" for line in update.status_lines)
+            assert update.reset_bottom_height is (remaining_activity != "subagent")
+            if remaining_activity == "subagent":
+                assert any(line.session_id == "sub-b" for line in update.status_lines)
+            elif remaining_activity == "side_question":
+                assert [_line_plain(line) for line in update.status_lines] == ["Asking aside why?"]
+
+    assert starts[0].sub_agent_state is not None
+    assert starts[0].sub_agent_state.parent_tool_batch_id == "original-batch"
+    assert starts[0].sub_agent_state.parent_tool_batch_size == 2
 
 
 def test_finished_summary_uses_actual_status_budget(monkeypatch: pytest.MonkeyPatch) -> None:
