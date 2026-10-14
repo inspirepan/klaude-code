@@ -1,9 +1,26 @@
 from klaude_code.protocol.model_id import (
+    is_gemini3_model,
+    is_gemini3_plus_model,
+    is_gemini4_model,
     is_gpt5_model,
     is_gpt5_plus_model,
     is_gpt6_model,
+    supports_google_thinking,
     supports_prompt_cache_options_ttl,
 )
+
+
+def test_gemini_generation_helpers_and_thinking() -> None:
+    for model_id in ("gemini-4-argon", "google/gemini-4-argon", "GEMINI-4-ARGON:high"):
+        assert is_gemini4_model(model_id)
+        assert is_gemini3_plus_model(model_id)
+        assert supports_google_thinking(model_id)
+        assert not is_gemini3_model(model_id)
+    assert is_gemini3_plus_model("gemini-3.8-flash")
+    assert not is_gemini4_model("gemini-3.8-flash")
+    assert supports_google_thinking("gemini-2.5-pro")
+    for model_id in (None, "gemini-2.5-pro", "gpt-6-sol"):
+        assert not is_gemini3_plus_model(model_id)
 
 
 def test_gpt5_plus_covers_every_gpt_reasoning_generation() -> None:

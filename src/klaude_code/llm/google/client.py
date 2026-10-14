@@ -43,7 +43,7 @@ from klaude_code.llm.stream_parts import (
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param, message
-from klaude_code.protocol.model_id import supports_google_thinking
+from klaude_code.protocol.model_id import is_gemini4_model, supports_google_thinking
 from klaude_code.protocol.models import StopReason, Usage
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
@@ -106,7 +106,13 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
             include_thoughts=True,
         )
 
-        if param.thinking:
+        if is_gemini4_model(param.model_id):
+            effort = (param.thinking.reasoning_effort if param.thinking else None) or "medium"
+            if param.thinking and param.thinking.type == "disabled":
+                effort = "low"
+            effort = {"minimal": "low", "none": "low", "max": "high"}.get(effort, effort)
+            thinking_config.thinking_level = convert_gemini_thinking_level(effort)
+        elif param.thinking:
             if param.thinking.budget_tokens:
                 thinking_config.thinking_budget = param.thinking.budget_tokens
             if param.thinking.reasoning_effort:
@@ -114,7 +120,8 @@ def _build_config(param: llm_param.LLMCallParameter) -> GenerateContentConfig:
 
     return GenerateContentConfig(
         system_instruction=strip_system_prompt_boundary(param.system),
-        temperature=param.temperature,
+        temperature=None if is_gemini4_model(param.model_id) else param.temperature,
+        http_options=HttpOptions(timeout=1_200_000) if is_gemini4_model(param.model_id) else None,
         max_output_tokens=param.max_tokens,
         tools=cast(Any, tool_list) if tool_list else None,
         tool_config=tool_config,
@@ -488,7 +495,9 @@ class GoogleClient(LLMClientABC):
         config = _build_config(param)
 
         if param.session_id:
-            config.http_options = HttpOptions(headers={"x-session-id": param.session_id})
+            if config.http_options is None:
+                config.http_options = HttpOptions()
+            config.http_options.headers = {"x-session-id": param.session_id}
 
         log_debug(
             lambda: debug_json(

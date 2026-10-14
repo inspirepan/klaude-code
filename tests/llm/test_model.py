@@ -685,7 +685,8 @@ def test_developer_message_with_prepend_marker_prepends_tool_output_across_provi
     assert _ensure_dict(responses_tool_output[0])["text"] == "MEMORY\n\nTOOL"
 
 
-def test_google_tool_history_omits_function_ids() -> None:
+@pytest.mark.parametrize("model_id", ["gemini-3.5-flash", "gemini-4-argon"])
+def test_google_tool_history_omits_function_ids(model_id: str) -> None:
     history: list[message.Message] = [
         message.AssistantMessage(
             parts=[
@@ -704,7 +705,7 @@ def test_google_tool_history_omits_function_ids() -> None:
         ),
     ]
 
-    contents = google_history(history, model_name="gemini-3.5-flash")
+    contents = google_history(history, model_name=model_id)
 
     model_parts = contents[0].parts
     assert model_parts is not None
@@ -721,6 +722,30 @@ def test_google_tool_history_omits_function_ids() -> None:
     assert function_response is not None
     assert function_response.id is None
     assert function_response.name == "Read"
+
+
+@pytest.mark.parametrize("model_id", ["gemini-2.5-pro", "gemini-3.8-flash", "gemini-4-argon"])
+def test_google_tool_images_use_native_function_response_on_gemini3_plus(model_id: str) -> None:
+    contents = google_history(
+        [
+            message.ToolResultMessage(
+                call_id="call-1", tool_name="Read", status="success", output_text="image", parts=[_make_image_part()]
+            )
+        ],
+        model_name=model_id,
+    )
+    parts = contents[0].parts
+    assert parts is not None
+    response = parts[0].function_response
+    assert response is not None
+    if model_id == "gemini-2.5-pro":
+        assert response.parts is None
+        assert len(contents) == 2
+    else:
+        assert len(contents) == 1
+        assert response.parts is not None
+        assert response.parts[0].inline_data is not None
+        assert response.parts[0].inline_data.mime_type == "image/png"
 
 
 def test_anthropic_tool_group_includes_developer_images():

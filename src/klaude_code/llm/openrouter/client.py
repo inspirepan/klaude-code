@@ -21,7 +21,7 @@ from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param
-from klaude_code.protocol.model_id import model_supports_temperature, supports_adaptive_thinking
+from klaude_code.protocol.model_id import is_gemini4_model, model_supports_temperature, supports_adaptive_thinking
 
 _OPENROUTER_USER_AGENT = "klaude-code/2"
 
@@ -46,7 +46,13 @@ def build_payload(
         }  # https://openrouter.ai/docs/api/reference/errors-and-debugging#debug-option-shape
     extra_headers: dict[str, str] = {}
 
-    if param.thinking:
+    if is_gemini4_model(param.model_id):
+        effort = (param.thinking.reasoning_effort if param.thinking else None) or "medium"
+        if param.thinking and param.thinking.type == "disabled":
+            effort = "low"
+        effort = {"minimal": "low", "none": "low", "xhigh": "high", "max": "high"}.get(effort, effort)
+        extra_body["reasoning"] = {"effort": effort}
+    elif param.thinking:
         if param.thinking.type == "adaptive":
             # Opus 4.6+: adaptive thinking (no max_tokens), use verbosity for effort
             extra_body["reasoning"] = {"enabled": True}
@@ -154,6 +160,7 @@ class OpenRouterClient(LLMClientABC):
                 **payload,
                 extra_body=extra_body,
                 extra_headers=extra_headers,
+                timeout=1200.0 if is_gemini4_model(param.model_id) else create_http_timeout(),
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
             return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")

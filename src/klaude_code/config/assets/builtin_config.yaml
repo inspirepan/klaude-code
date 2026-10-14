@@ -279,6 +279,38 @@ provider_list:
   base_url: https://api.youtu.uk/gemini
   model_list:
 
+  # Argon introductory USD / million tokens through 2026-11-30;
+  # from 2026-12-01: input $4, output $20, cache read $0.20.
+  - &gemini4_argon
+    model_name: gemini-4-argon
+    model_alias: [ argon ]
+    model_id: gemini-4-argon
+    context_limit: 1048576
+    max_tokens: 65536
+    thinking:
+      reasoning_effort: medium
+    cost: { input: 2, output: 10, cache_read: 0.1 }
+
+  - &gemini4_argon_low
+    model_name: gemini-4-argon:low
+    model_alias: [ argon:low ]
+    model_id: gemini-4-argon
+    context_limit: 1048576
+    max_tokens: 65536
+    thinking:
+      reasoning_effort: low
+    cost: { input: 2, output: 10, cache_read: 0.1 }
+
+  - &gemini4_argon_high
+    model_name: gemini-4-argon:high
+    model_alias: [ argon:high ]
+    model_id: gemini-4-argon
+    context_limit: 1048576
+    max_tokens: 65536
+    thinking:
+      reasoning_effort: high
+    cost: { input: 2, output: 10, cache_read: 0.1 }
+
   - model_name: gemini-pro
     model_alias: [ gemini-3.1-pro-preview, gemini-pro-latest ]
     model_id: gemini-3.1-pro-preview
@@ -648,6 +680,10 @@ provider_list:
   api_key: ${GOOGLE_API_KEY|GEMINI_API_KEY}
   model_list:
 
+  - *gemini4_argon
+  - *gemini4_argon_low
+  - *gemini4_argon_high
+
   - model_name: gemini-pro
     model_id: gemini-3.1-pro-preview
     context_limit: 1048576
@@ -686,6 +722,10 @@ provider_list:
   google_cloud_project: ${GOOGLE_CLOUD_PROJECT}
   google_cloud_location: ${GOOGLE_CLOUD_LOCATION}
   model_list:
+
+  - *gemini4_argon
+  - *gemini4_argon_low
+  - *gemini4_argon_high
 
   - model_name: gemini-pro
     model_id: gemini-3.1-pro-preview
@@ -1136,6 +1176,35 @@ provider_list:
     thinking:
       type: adaptive
     cost: { input: 4, output: 20, cache_read: 0.2, cache_write: 5 }
+
+  # Same Argon introductory pricing as Google; expires 2026-11-30.
+  # From 2026-12-01: input $4, output $20, cache read $0.20.
+  - model_name: gemini-4-argon
+    model_alias: [ argon ]
+    model_id: google/gemini-4-argon
+    context_limit: 1048576
+    max_tokens: 65536
+    thinking:
+      reasoning_effort: medium
+    cost: { input: 2, output: 10, cache_read: 0.1 }
+
+  - model_name: gemini-4-argon:low
+    model_alias: [ argon:low ]
+    model_id: google/gemini-4-argon
+    context_limit: 1048576
+    max_tokens: 65536
+    thinking:
+      reasoning_effort: low
+    cost: { input: 2, output: 10, cache_read: 0.1 }
+
+  - model_name: gemini-4-argon:high
+    model_alias: [ argon:high ]
+    model_id: google/gemini-4-argon
+    context_limit: 1048576
+    max_tokens: 65536
+    thinking:
+      reasoning_effort: high
+    cost: { input: 2, output: 10, cache_read: 0.1 }
 
   - model_name: gemini-pro
     model_id: google/gemini-3.1-pro-preview

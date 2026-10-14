@@ -88,10 +88,11 @@ def supports_adaptive_thinking(model_name: str | None) -> bool:
 
 
 def model_supports_temperature(model_name: str | None) -> bool:
-    """Check if the Anthropic model accepts sampling temperature.
+    """Check if the model accepts sampling temperature.
 
     Haiku 5.x, Sonnet 5.x and Opus 4.7+ reject non-default temperature / top_p / top_k, so
     the caller must omit the parameter instead of sending a value.
+    Gemini 4 ignores sampling parameters, so omit them as well.
     """
     return not (
         is_opus_47_model(model_name)
@@ -99,6 +100,7 @@ def model_supports_temperature(model_name: str | None) -> bool:
         or is_opus_5_model(model_name)
         or is_sonnet_5_model(model_name)
         or is_haiku_5_model(model_name)
+        or is_gemini4_model(model_name)
     )
 
 
@@ -243,10 +245,20 @@ def is_gemini3_model(model_name: str | None) -> bool:
 
 
 def supports_google_thinking(model_name: str | None) -> bool:
-    """Check if the Google model supports thinking (Gemini 3 or Gemini 2.5 Pro)."""
+    """Check if the Google model supports thinking (Gemini 3+ or Gemini 2.5 Pro)."""
     if not model_name:
         return False
-    return "gemini-3" in model_name or "gemini-2.5-pro" in model_name
+    return is_gemini3_plus_model(model_name) or "gemini-2.5-pro" in model_name
+
+
+def is_gemini4_model(model_name: str | None) -> bool:
+    """Check if the model is any Gemini 4 variant."""
+    return model_name is not None and "gemini-4" in model_name.lower()
+
+
+def is_gemini3_plus_model(model_name: str | None) -> bool:
+    """Check for Gemini generations sharing level-based thinking and native tool images."""
+    return is_gemini3_model(model_name) or is_gemini4_model(model_name)
 
 
 # -- Zhipu (GLM) ---------------------------------------------------------------

@@ -8,9 +8,29 @@ from typing import Any
 import pytest
 
 from klaude_code.const import LLM_HTTP_TIMEOUT_TOTAL
-from klaude_code.llm.google.client import GoogleClient, GoogleStreamStateManager, parse_google_stream
+from klaude_code.llm.google.client import GoogleClient, GoogleStreamStateManager, _build_config, parse_google_stream
 from klaude_code.llm.usage import MetadataTracker
 from klaude_code.protocol import llm_param, message
+
+
+@pytest.mark.parametrize("model_id", ["gemini-3.8-flash", "gemini-2.5-pro"])
+def test_legacy_google_config_keeps_budget_minimal_and_temperature(model_id: str) -> None:
+    config = _build_config(
+        llm_param.LLMCallParameter(
+            model_id=model_id,
+            input=[],
+            temperature=0.2,
+            thinking=llm_param.Thinking(reasoning_effort="minimal", budget_tokens=1024),
+        )
+    )
+    assert config.temperature == 0.2
+    assert config.http_options is None
+    assert config.thinking_config is not None
+    assert config.thinking_config.model_dump(exclude_none=True) == {
+        "include_thoughts": True,
+        "thinking_budget": 1024,
+        "thinking_level": "MINIMAL",
+    }
 
 
 def test_google_client_sets_timeout(monkeypatch: pytest.MonkeyPatch) -> None:

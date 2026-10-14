@@ -55,6 +55,8 @@
 
 这类漏配**没有任何报错**：判定返回 `False`，模型照常能跑，只是行为退化成默认分支。`is_gpt5_plus_model` 这种「某代及更新」的聚合函数是唯一该被调用方引用的入口，`is_gpt5_model` / `is_gpt6_model` 只做单代际判定；新增代际就加一个单代际函数并挂进聚合函数，不要在调用方写第二个 `or`。
 
+Gemini 同样使用单代际判定（`is_gemini4_model`）和聚合判定（`is_gemini3_plus_model`）。新增代际时检查 thinking 与多模态 function response 的调用方，并用实际序列化请求测试验证：Gemini 4 只发 `low` / `medium` / `high`，不发 `thinkingBudget` 或采样参数，不使用显式缓存。其 1,048,576 是输入输出共享窗口；当前不实现 long decode continuation，`max_tokens` 只填单次流式上限 65,536，不填百万输出上限。代际特有的参数限制和超时只作用于该代际，不改旧模型行为。
+
 ---
 
 ## 2. 模型条目字段
