@@ -222,6 +222,7 @@ def render_tool_result(
     code_theme: str = "monokai",
     detail: Detail = Detail.COMPACT,
     max_lines: int = FULL_TOOL_RESULT_MAX_LINES,
+    show_shell_task_identity: bool = False,
 ) -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
@@ -331,7 +332,11 @@ def render_tool_result(
         case tools.MANAGE_SHELL:
             shell_ui = extract_shell_task_ui_extra(e.ui_extra, e.result)
             if shell_ui is not None:
-                return pad_result(render_manage_shell_result(shell_ui, detail=detail, max_lines=max_lines))
+                return pad_result(
+                    render_manage_shell_result(
+                        shell_ui, detail=detail, max_lines=max_lines, show_task_identity=show_shell_task_identity
+                    )
+                )
             return _render_fallback()
         case tools.WEB_SEARCH:
             search_results = parse_web_search_results(e.result)

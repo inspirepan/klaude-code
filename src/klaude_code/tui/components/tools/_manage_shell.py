@@ -114,15 +114,16 @@ def _task_status_style(task: ShellTaskSnapshot) -> ThemeKey:
     return ThemeKey.METADATA_DIM
 
 
-def _render_task(task: ShellTaskSnapshot, *, full_id: bool = False) -> Text:
+def _render_task(task: ShellTaskSnapshot, *, full_id: bool = False, show_identity: bool = True) -> Text:
     line = Text(overflow="fold")
-    description = one_line(task.description) or one_line(task.command)
-    if description:
-        line.append(description, style=ThemeKey.BASH_TOOL_DESCRIPTION)
-        line.append(" ")
-    line.append(task.task_id if full_id else task.task_id[:8], style=ThemeKey.METADATA_DIM)
+    if show_identity:
+        description = one_line(task.description) or one_line(task.command)
+        if description:
+            line.append(description, style=ThemeKey.BASH_TOOL_DESCRIPTION)
+            line.append(" ")
+        line.append(task.task_id if full_id else task.task_id[:8], style=ThemeKey.METADATA_DIM)
     style = _task_status_style(task)
-    line.append(f" · {task.status}", style=style)
+    line.append(f" · {task.status}" if show_identity else task.status, style=style)
     if task.exit_code is not None:
         line.append(f" · exit {task.exit_code}", style=style)
     if task.reason:
@@ -137,9 +138,11 @@ def render_manage_shell_result(
     *,
     detail: Detail = Detail.COMPACT,
     max_lines: int = FULL_TOOL_RESULT_MAX_LINES,
+    show_task_identity: bool = False,
 ) -> RenderableType:
     limit = _COMPACT_MAX_LINES if detail.is_compact else max(1, max_lines)
     tasks = ui_extra.tasks
+    show_task_identity = show_task_identity or ui_extra.action == "list" or len(tasks) != 1
     sections: list[RenderableType] = []
     if not tasks:
         sections.append(Text("No managed shell tasks.", style=ThemeKey.METADATA_DIM))
@@ -148,7 +151,9 @@ def render_manage_shell_result(
         priority = {idx for idx, task in enumerate(tasks) if _task_status_style(task) == ThemeKey.ERROR}
         selected = set((sorted(priority) + [idx for idx in range(len(tasks)) if idx not in priority])[:limit])
         sections.extend(
-            _render_task(task, full_id=not detail.is_compact) for idx, task in enumerate(tasks) if idx in selected
+            _render_task(task, full_id=not detail.is_compact, show_identity=show_task_identity)
+            for idx, task in enumerate(tasks)
+            if idx in selected
         )
         if len(tasks) > len(selected):
             hidden_failures = sum(idx not in selected for idx in priority)
@@ -156,9 +161,9 @@ def render_manage_shell_result(
             sections.append(
                 Text(f"\u2026 (more {len(tasks) - len(selected)} tasks{suffix})", style=ThemeKey.TOOL_RESULT_TRUNCATED)
             )
-        if not detail.is_compact and len(tasks) == 1 and tasks[0].description.strip():
+        if show_task_identity and not detail.is_compact and len(tasks) == 1 and tasks[0].description.strip():
             sections.append(Text(tasks[0].command, style=ThemeKey.BASH_ARGUMENT, overflow="fold"))
-    if ui_extra.output is not None:
+    if ui_extra.output is not None and not detail.is_compact:
         if ui_extra.output == "":
             sections.append(Text("(no output)", style=ThemeKey.METADATA_DIM))
         else:
@@ -166,9 +171,6 @@ def render_manage_shell_result(
             # A final newline belongs to Console, not Text (Rich 14/15 compatibility).
             if output.plain.endswith("\n"):
                 output = output[:-1]
-            if detail.is_compact:
-                output.no_wrap = True
-                output.overflow = "ellipsis"
             sections.append(output)
     if ui_extra.next_offset is not None or ui_extra.truncated:
         page_hint = f"next_offset {ui_extra.next_offset}" if ui_extra.next_offset is not None else ""

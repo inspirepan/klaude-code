@@ -141,7 +141,7 @@ def render_compact_tool_result(
     if tool_name == tools.MANAGE_SHELL and status == "success":
         shell_ui = extract_shell_task_ui_extra(ui_extra, result)
         if shell_ui is not None:
-            return ManageShellRow(render_manage_shell_result(shell_ui))
+            return ManageShellRow(render_manage_shell_result(shell_ui, show_task_identity=True))
     if tool_name == tools.BASH:
         description, command_summary = _bash_parts(parse_tool_arguments(arguments))
         if command_summary:

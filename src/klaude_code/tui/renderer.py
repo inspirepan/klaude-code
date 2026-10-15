@@ -304,6 +304,7 @@ class TUICommandRenderer:
         self._thinking_live_flush_handle: asyncio.TimerHandle | None = None
 
         self._sessions: dict[str, _SessionStatus] = {}
+        self._shell_calls_with_identity: set[tuple[str, str]] = set()
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
         self._sub_agent_batch_color_starts: dict[str, int] = {}
@@ -356,6 +357,7 @@ class TUICommandRenderer:
 
     def reset_replay_state(self) -> None:
         self._sessions = {}
+        self._shell_calls_with_identity.clear()
         self._sub_agent_color_index = 0
         self._sub_agent_batch_color_starts = {}
         self._current_sub_agent_color = None
@@ -1051,10 +1053,19 @@ class TUICommandRenderer:
         )
         if renderable is not None:
             self.print(renderable)
+            if (
+                e.tool_name == tools.MANAGE_SHELL
+                and shell_task is not None
+                and (shell_task.description.strip() or shell_task.command.strip())
+            ):
+                self._shell_calls_with_identity.add((e.session_id, e.tool_call_id))
             return True
         return False
 
     def display_tool_call_result(self, e: events.ToolResultEvent, *, is_sub_agent: bool = False) -> bool:
+        shell_call_key = (e.session_id, e.tool_call_id)
+        show_shell_task_identity = shell_call_key not in self._shell_calls_with_identity
+        self._shell_calls_with_identity.discard(shell_call_key)
         if self._compact and is_sub_agent:
             action = _COMPACT_SUB_AGENT_FILE_CHANGE_ACTIONS.get(e.tool_name)
             session = self._sessions.get(e.session_id)
@@ -1109,6 +1120,7 @@ class TUICommandRenderer:
             code_theme=self.themes.code_theme,
             detail=self._detail.current,
             max_lines=max_lines,
+            show_shell_task_identity=show_shell_task_identity,
         )
         if renderable is not None:
             self.print(renderable)
