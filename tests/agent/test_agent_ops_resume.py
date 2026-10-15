@@ -10,6 +10,26 @@ from klaude_code.protocol.message import UserInputPayload
 from klaude_code.session.session import Session
 
 
+def test_queued_run_does_not_resurrect_withdrawn_input(tmp_path: Path) -> None:
+    async def _test() -> None:
+        session = Session.create(work_dir=tmp_path)
+        agent = cast(Any, type("FakeAgent", (), {"session": session, "follow_up_count": lambda _: 0})())
+        handler = cast(Any, object.__new__(AgentOperationHandler))
+
+        async def ensure_agent(_session_id: str) -> Any:
+            return agent
+
+        handler.ensure_agent = ensure_agent
+        await handler.run_agent(
+            op.RunAgentOperation(
+                id="withdrawn", session_id=session.id, input=UserInputPayload(text="withdrawn"), queued_input=True
+            )
+        )
+        assert session.conversation_history == []
+
+    asyncio.run(_test())
+
+
 def test_run_agent_resumes_without_duplicate_user_message(isolated_home: Path, tmp_path: Path) -> None:
     del isolated_home
 
@@ -46,6 +66,7 @@ def test_run_agent_resumes_without_duplicate_user_message(isolated_home: Path, t
         handler._freeze_user_input_for_history = _unexpected_freeze
         handler._should_refresh_session_title_during_task = lambda _session_id: False
         handler.get_active_task = lambda _operation_id: None
+        handler._get_session_actor = lambda _session_id: None
         handler._run_agent_task = _run_agent_task
         handler._register_task = lambda **kwargs: tasks.append(kwargs["task"])
 

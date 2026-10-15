@@ -8,12 +8,37 @@ import pytest
 
 from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT, build_stream_error_continuation_prompt
 from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT
-from klaude_code.protocol import message
+from klaude_code.protocol import events, message, op
 from klaude_code.protocol.models import ToolStatus
 from klaude_code.server.headless import HeadlessRuntime
+from klaude_code.server.routes import headless as headless_routes
 from klaude_code.session.session import Session
 
 from .conftest import AppEnv, usage
+
+
+def test_session_list_loads_background_activity_only_for_returned_rows(
+    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for _ in range(4):
+        app_env.create_session()
+    loaded: list[str] = []
+    original = headless_routes._add_background_activity
+
+    async def capture(state: Any, row: dict[str, Any]) -> None:
+        loaded.append(row["id"])
+        await original(state, row)
+
+    monkeypatch.setattr(headless_routes, "_add_background_activity", capture)
+    response = app_env.client.get("/api/headless/sessions", params={"limit": 1})
+    assert response.status_code == 200
+    rows = response.json()["sessions"]
+    assert len(rows) == 1 and loaded == [rows[0]["id"]]
+    assert rows[0]["background_agent_count"] == 0
+    loaded.clear()
+    response = app_env.client.get("/api/headless/sessions", params={"state": "running"})
+    assert response.json()["sessions"] == []
+    assert loaded == []
 
 
 @pytest.fixture(autouse=True)
@@ -235,14 +260,14 @@ def test_send_idle_session_starts_new_turn(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "turn two")
     response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "again"})
     assert response.status_code == 200
-    assert response.json()["mode"] == "started"
+    assert response.json()["mode"] == "queued"
 
     _wait_for_state(app_env, session_id, "completed")
     output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
     assert output["output"] == "turn two"
 
 
-def test_send_with_from_label_wraps_agent_message(app_env: AppEnv) -> None:
+def test_send_with_from_label_preserves_structured_peer(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "turn one")
     body = _run(app_env, "start")
     session_id = body["session_id"]
@@ -257,11 +282,12 @@ def test_send_with_from_label_wraps_agent_message(app_env: AppEnv) -> None:
     _wait_for_state(app_env, session_id, "completed")
 
     output = app_env.client.get(f"/api/headless/sessions/{session_id}/output", params={"transcript": True}).json()
-    assert '<agent-message from="reviewer">' in output["output"]
+    assert '"sender_label":"reviewer"' in output["output"]
+    assert "source=peer_message" in output["output"]
     assert "hello from a peer" in output["output"]
 
 
-def test_send_with_sender_session_id_resolves_label(app_env: AppEnv) -> None:
+def test_send_claimed_session_id_does_not_establish_identity(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "sender done")
     sender = _run(app_env, "I am the sender", name="peer-agent")
     _wait_for_state(app_env, sender["session_id"], "completed")
@@ -280,11 +306,11 @@ def test_send_with_sender_session_id_resolves_label(app_env: AppEnv) -> None:
     _wait_for_state(app_env, target_id, "completed")
 
     output = app_env.client.get(f"/api/headless/sessions/{target_id}/output", params={"transcript": True}).json()
-    short_id = sender["session_id"][:8]
-    assert f'<agent-message from="peer-agent" session="{short_id}">' in output["output"]
+    assert '"sender_label":"external"' in output["output"]
+    assert sender["session_id"] not in output["output"]
 
 
-def test_send_without_sender_stays_plain(app_env: AppEnv) -> None:
+def test_send_without_sender_is_still_peer_data(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "turn one")
     body = _run(app_env, "start")
     session_id = body["session_id"]
@@ -297,7 +323,7 @@ def test_send_without_sender_stays_plain(app_env: AppEnv) -> None:
 
     output = app_env.client.get(f"/api/headless/sessions/{session_id}/output", params={"transcript": True}).json()
     assert "plain operator text" in output["output"]
-    assert "<agent-message" not in output["output"]
+    assert "source=peer_message" in output["output"]
 
 
 def test_send_idle_headless_session_obeys_global_slot(app_env: AppEnv) -> None:
@@ -347,7 +373,7 @@ def test_send_interactive_session_does_not_consume_headless_slot(app_env: AppEnv
     )
 
     assert response.status_code == 200
-    assert response.json()["mode"] == "started"
+    assert response.json()["mode"] == "queued"
     assert interactive_id not in headless.queued_session_ids()
     assert headless.is_running(interactive_id) is False
     _wait_for_state(app_env, interactive_id, "completed")
@@ -361,6 +387,10 @@ def test_send_while_running_queues_follow_up(app_env: AppEnv) -> None:
     body = _run(app_env, "slow task")
     session_id = body["session_id"]
     _wait_for_state(app_env, session_id, "running")
+    deadline = time.time() + 8.0
+    while app_env.fake_llm.call_count < 1 and time.time() < deadline:
+        time.sleep(0.01)
+    assert app_env.fake_llm.call_count == 1
 
     _enqueue_text_reply(app_env, "follow-up reply", delay_s=0.3)
     response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "and then"})
@@ -380,6 +410,47 @@ def test_send_while_running_queues_follow_up(app_env: AppEnv) -> None:
         assert row["state"] in ("queued", "running") or row["pending"] is True
         time.sleep(0.05)
     assert output["output"] == "follow-up reply"
+
+
+@pytest.mark.parametrize("headless_session", [True, False])
+def test_input_arriving_during_task_teardown_is_not_stranded(
+    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch, headless_session: bool
+) -> None:
+    handler = app_env.runtime._operation_dispatcher._agent_operation_handler
+    original_emit = handler._emit_event
+    queued_late = False
+
+    async def emit(event: events.Event) -> None:
+        nonlocal queued_late
+        if isinstance(event, events.TaskMetadataEvent) and not queued_late:
+            queued_late = True
+            await app_env.runtime.submit_and_wait(
+                op.FollowUpAgentOperation(
+                    session_id=event.session_id, input=message.UserInputPayload(text="late input")
+                )
+            )
+        await original_emit(event)
+
+    monkeypatch.setattr(handler, "_emit_event", emit)
+    _enqueue_text_reply(app_env, "first done")
+    _enqueue_text_reply(app_env, "late done")
+    if headless_session:
+        session_id = _run(app_env, "initial")["session_id"]
+    else:
+        session_id = app_env.create_session()
+        response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "initial"})
+        assert response.status_code == 200
+    _wait_for_state(app_env, session_id, "completed")
+    assert queued_late
+    output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
+    assert output["output"] == "late done" and output["pending"] is False
+    session = Session.load(session_id, work_dir=app_env.work_dir)
+    assert [
+        item.peer_message.body if item.peer_message is not None else message.join_text_parts(item.parts)
+        for item in session.conversation_history
+        if isinstance(item, message.UserMessage)
+    ] == ["initial", "late input"]
+    assert session.follow_up_queue == []
 
 
 def test_brief_shows_bounded_latest_turn_activity(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -592,8 +663,8 @@ def test_kill_running_session_cancels_queued_follow_up(app_env: AppEnv) -> None:
     assert session.follow_up_queue == []
 
 
-def test_steer_starts_fresh_scheduled_turn(app_env: AppEnv) -> None:
-    _enqueue_text_reply(app_env, "interrupted", delay_s=1.0)
+def test_steer_continues_current_task_without_interrupting_stream(app_env: AppEnv) -> None:
+    _enqueue_text_reply(app_env, "original stream completed", delay_s=1.0)
     body = _run(app_env, "long task")
     session_id = body["session_id"]
     _wait_for_state(app_env, session_id, "running")
@@ -630,6 +701,13 @@ def test_steer_starts_fresh_scheduled_turn(app_env: AppEnv) -> None:
     assert row["state"] == "completed"
     assert output["pending"] is False
     assert output["output"] == "steered result"
+    session = Session.load(session_id, work_dir=app_env.work_dir)
+    assert not any(isinstance(item, message.InterruptEntry) for item in session.conversation_history)
+    assert any(
+        isinstance(item, message.AssistantMessage)
+        and message.join_text_parts(item.parts) == "original stream completed"
+        for item in session.conversation_history
+    )
 
 
 def test_failed_persists_and_clears_when_next_turn_starts(app_env: AppEnv) -> None:

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from klaude_code.protocol import tools
-from klaude_code.protocol.models import TaskMetadata
+from klaude_code.protocol.models import TaskFileChange, TaskMetadata
 
 
 @dataclass
@@ -12,6 +13,9 @@ class SubAgentResult:
     session_id: str
     error: bool = False
     task_metadata: TaskMetadata | None = None
+    task_id: str | None = None
+    status: Literal["completed", "failed", "stopped", "lost"] | None = None
+    file_changes: list[TaskFileChange] | None = None
 
 
 @dataclass(frozen=True)

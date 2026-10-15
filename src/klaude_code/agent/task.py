@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from klaude_code.agent.agent_profile import AgentProfile
-from klaude_code.agent.attachments.collection import collect_attachments
+from klaude_code.agent.attachments.collection import AttachmentUserInputs, collect_attachments
 from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 from klaude_code.agent.cache_break_detection import CacheBreakReport, CacheTracker
 from klaude_code.agent.compaction import (
@@ -48,7 +48,7 @@ from klaude_code.protocol.models import (
 )
 from klaude_code.session.session import Session
 from klaude_code.tool import FileTracker, TodoContext, ToolABC, get_registry
-from klaude_code.tool.core.context import RunSubtask
+from klaude_code.tool.core.context import PeerControlPort, RunSubtask, TaskControlPort
 from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 type RequestUserInteraction = Callable[
@@ -227,6 +227,9 @@ class SessionContext:
     request_user_interaction: RequestUserInteraction | None
     prompt_cache_key: str | None = None
     shell_task_manager: ShellTaskManager | None = None
+    task_control: TaskControlPort | None = None
+    peer_control: PeerControlPort | None = None
+    pending_input_activity: asyncio.Event | None = None
 
 
 @dataclass
@@ -241,6 +244,7 @@ class TaskExecutionContext:
     # LLM client for compaction (uses main if not set)
     compact_llm_client: LLMClientABC | None = None
     apply_llm_client_change: Callable[[LLMClientABC], AgentProfile] | None = None
+    inject_pending_inputs: Callable[[], AsyncGenerator[events.Event]] | None = None
 
 
 def _build_task_file_change_summary(
@@ -287,16 +291,36 @@ class TaskExecutor:
         self._task_visible_output_started = False
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text: str | None = None
+        self._attachment_history_index = 0
+        self._attachment_user_messages: list[message.UserMessage] = []
+        self._admitted_attachment_inputs: list[message.UserMessage] = []
+        self._refresh_attachment_inputs = False
 
-    @staticmethod
-    def _developer_message_key(item: message.DeveloperMessage) -> str:
-        return item.model_dump_json(exclude={"id", "created_at", "response_id"})
+    def include_attachment_inputs(self, items: Sequence[message.UserMessage]) -> None:
+        self._admitted_attachment_inputs.extend(items)
 
-    async def _collect_and_append_attachments(
-        self, *, skip_existing: bool = False
-    ) -> list[events.DeveloperMessageEvent]:
+    async def _collect_and_append_attachments(self) -> list[events.DeveloperMessageEvent]:
         ctx = self._context
-        attachment_results = await collect_attachments(ctx.session, ctx.profile.attachments)
+        new_inputs = [
+            item
+            for item in ctx.session.conversation_history[self._attachment_history_index :]
+            if isinstance(item, message.UserMessage)
+        ]
+        self._attachment_history_index = len(ctx.session.conversation_history)
+        if self._admitted_attachment_inputs:
+            admitted_ids = {item.id for item in self._admitted_attachment_inputs}
+            new_inputs = [item for item in new_inputs if item.id not in admitted_ids]
+            new_inputs.extend(self._admitted_attachment_inputs)
+            self._admitted_attachment_inputs = []
+        if new_inputs:
+            self._attachment_user_messages = new_inputs
+        user_messages = self._attachment_user_messages if new_inputs or self._refresh_attachment_inputs else []
+        attachment_results = await collect_attachments(
+            ctx.session,
+            ctx.profile.attachments,
+            user_inputs=AttachmentUserInputs(messages=user_messages, refresh=self._refresh_attachment_inputs),
+        )
+        self._refresh_attachment_inputs = False
         manager = ctx.session_ctx.shell_task_manager
         if manager is not None:
             tasks = await manager.list_tasks(ctx.session.id, work_dir=ctx.session.work_dir)
@@ -310,20 +334,9 @@ class TaskExecutor:
                     )
                 )
         events_to_emit: list[events.DeveloperMessageEvent] = []
-        existing: set[str] = set()
-        if skip_existing:
-            existing = {
-                self._developer_message_key(item)
-                for item in ctx.session.get_llm_history()
-                if isinstance(item, message.DeveloperMessage)
-            }
         for item in attachment_results:
-            key = self._developer_message_key(item)
-            if skip_existing and key in existing:
-                continue
-            ctx.session.append_history([item])
-            existing.add(key)
             events_to_emit.append(events.DeveloperMessageEvent(session_id=ctx.session_ctx.session_id, item=item))
+        ctx.session.append_history(attachment_results)
         return events_to_emit
 
     @property
@@ -505,6 +518,7 @@ class TaskExecutor:
                 )
                 log_debug(f"[Compact:{reason.value}] result", str(entry), debug_type=DebugType.RESPONSE)
                 _reset_attachment_loaded_flags(ctx.session.file_tracker)
+                self._refresh_attachment_inputs = True
                 session_ctx.append_history([*request_log.ordered_entries, entry])
                 metadata_accumulator.cache.notify_compaction()
                 yield events.CompactionEndEvent(
@@ -586,6 +600,7 @@ class TaskExecutor:
             entry = result.to_entry(first_kept_line=ctx.session.line_index_of(result.first_kept_index))
             log_debug("[Handoff] result", str(entry), debug_type=DebugType.RESPONSE)
             _reset_attachment_loaded_flags(ctx.session.file_tracker)
+            self._refresh_attachment_inputs = True
             session_ctx.append_history([entry])
             metadata_accumulator.cache.notify_compaction()
             yield events.CompactionEndEvent(
@@ -634,10 +649,20 @@ class TaskExecutor:
         ctx = self._context
         session_ctx = ctx.session_ctx
         self._started_at = time.perf_counter()
-        self._current_user_input_text = user_input.text if user_input.source != "shell_completion" else None
+        self._current_user_input_text = (
+            user_input.text
+            if user_input.source not in {"shell_completion", "task_completion", "peer_message"}
+            else None
+        )
         self._task_visible_output_started = False
         self._last_interrupt_show_notice = True
         self._last_interrupt_prefill_text = None
+        # Only the current turn and later admissions can introduce references.
+        history = ctx.session.conversation_history
+        self._attachment_history_index = next(
+            (i for i in range(len(history) - 1, -1, -1) if isinstance(history[i], message.UserMessage)),
+            len(history),
+        )
         file_change_baseline = session_ctx.file_change_summary.model_copy(deep=True)
 
         if ctx.sub_agent_state is None:
@@ -700,11 +725,6 @@ class TaskExecutor:
                         session_id=session_ctx.session_id,
                     )
 
-            # Process attachments in parallel with error isolation after compaction
-            # resets transient loaded flags.
-            for event in await self._collect_and_append_attachments():
-                yield event
-
             step: StepExecutor | None = None
             step_succeeded = False
             last_error_message: str | None = None
@@ -713,6 +733,14 @@ class TaskExecutor:
             unreachable_attempts = 0
 
             while failed_attempts <= MAX_FAILED_STEP_RETRIES:
+                # Includes the first request and requests after compaction/backoff.
+                if ctx.inject_pending_inputs is not None:
+                    async for event in ctx.inject_pending_inputs():
+                        yield event
+                # Admissions during idle startup, compaction, or backoff must
+                # have their references loaded before this request.
+                for event in await self._collect_and_append_attachments():
+                    yield event
                 step_context = StepExecutionContext(
                     session_ctx=session_ctx,
                     llm_client=profile.llm_client,
@@ -825,8 +853,6 @@ class TaskExecutor:
                             if ctx.sub_agent_state is not None:
                                 raise RuntimeError(error_message) from overflow_result.error
                             return
-                        for event in await self._collect_and_append_attachments(skip_existing=True):
-                            yield event
                         failed_attempts += 1
                         continue
 
@@ -902,6 +928,14 @@ class TaskExecutor:
                 yield events.ErrorEvent(error_message=final_error, can_retry=False, session_id=session_ctx.session_id)
                 return
 
+            # A completed stream/tool batch is the safe insertion boundary.
+            injected_input = False
+            if ctx.inject_pending_inputs is not None:
+                async for event in ctx.inject_pending_inputs():
+                    if isinstance(event, events.UserMessageEvent):
+                        injected_input = True
+                    yield event
+
             if self._handoff_manager is not None:
                 pending_handoff = self._handoff_manager.fetch_pending()
                 if pending_handoff is not None:
@@ -921,6 +955,9 @@ class TaskExecutor:
                     continue
 
             if step is None or step.task_finished:
+                if injected_input:
+                    empty_response_retries = 0
+                    continue
                 # Empty response (no text, no tool calls): often caused by transient
                 # provider issues returning an empty stream. Inject a continuation
                 # prompt so the model can resume or explicitly signal completion

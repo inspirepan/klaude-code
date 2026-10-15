@@ -27,23 +27,25 @@ from klaude_code.agent.runtime.llm import (
     clone_llm_clients,
     create_llm_client_for_candidates,
 )
+from klaude_code.agent.runtime.peers import PeerControl
 from klaude_code.agent.runtime.sub_agent import SubAgentLauncher
+from klaude_code.agent.runtime.task_manager import TaskManager
 from klaude_code.agent.session_title import generate_session_title
 from klaude_code.agent.side_question import run_side_question
 from klaude_code.agent.skill_inventory import (
     get_skill_names_by_location,
     get_skill_warnings_by_location,
 )
+from klaude_code.agent.user_input import freeze_user_input_for_history
 from klaude_code.config import format_model_preference, load_config
 from klaude_code.config.config import ModelConfigCandidate
 from klaude_code.control.event_bus import event_publish_context
 from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.llm.client import LLMClientABC
-from klaude_code.llm.image import freeze_image_for_history
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, op, user_interaction
-from klaude_code.protocol.models import SubAgentState, TaskMetadata
+from klaude_code.protocol.models import SubAgentState
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
 from klaude_code.tool.shell.task_manager import ShellTaskManager
@@ -102,11 +104,13 @@ class AgentOperationHandler:
             Awaitable[user_interaction.UserInteractionResponse],
         ],
         shell_task_manager: ShellTaskManager | None = None,
-        has_pending_shell_notifications: Callable[[str], bool] | None = None,
+        task_manager: TaskManager | None = None,
+        peer_control: PeerControl | None = None,
     ) -> None:
         self._emit_event = emit_event
         self._shell_task_manager = shell_task_manager
-        self._has_pending_shell_notifications = has_pending_shell_notifications
+        self._task_manager = task_manager
+        self._peer_control = peer_control
         self._llm_clients_template = llm_clients
         self._model_profile_provider = model_profile_provider
         self._sub_agent_launcher: SubAgentLauncher | None = None
@@ -407,6 +411,8 @@ class AgentOperationHandler:
             request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
             model_profile_provider=profile_provider,
             shell_task_manager=self._shell_task_manager,
+            task_manager=self._task_manager,
+            peer_control=self._peer_control,
         )
 
         # Another initializer may have completed while this one built the
@@ -505,6 +511,8 @@ class AgentOperationHandler:
             request_user_interaction=self._build_request_user_interaction_callback(session_id=session.id),
             model_profile_provider=profile_provider,
             shell_task_manager=self._shell_task_manager,
+            task_manager=self._task_manager,
+            peer_control=self._peer_control,
         )
         runtime.set_agent(agent)
         return agent
@@ -646,9 +654,7 @@ class AgentOperationHandler:
                 debug_type=DebugType.EXECUTION,
             )
             return
-        if (self._shell_task_manager is not None and session_id in self._shell_task_manager.active_session_ids()) or (
-            self._has_pending_shell_notifications is not None and self._has_pending_shell_notifications(session_id)
-        ):
+        if self._task_manager is not None and session_id in self._task_manager.active_owner_ids():
             return
         suppress = should_suggest(agent.session)
         if suppress is not None:
@@ -723,18 +729,12 @@ class AgentOperationHandler:
         *,
         images_dir: Path,
     ) -> message.UserInputPayload:
-        images = user_input.images
-        if not images:
-            return user_input
-        # Freezing compresses each pasted image (~1s of CPU per multi-MB
-        # screenshot); run off the event loop so submit doesn't stall the TUI.
-        frozen_images = await asyncio.to_thread(
-            lambda: [freeze_image_for_history(image, images_dir=images_dir) for image in images]
-        )
-        return user_input.model_copy(update={"images": frozen_images})
+        return await freeze_user_input_for_history(user_input, images_dir=images_dir)
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
+        if operation.queued_input and agent.follow_up_count() == 0:
+            return
         # New user turn invalidates any pending suggestion for this session.
         self._cancel_prompt_suggestion(operation.session_id)
         self._cancel_auto_away_summary(operation.session_id)
@@ -744,7 +744,7 @@ class AgentOperationHandler:
             for item in agent.session.conversation_history
         )
         frozen_input = operation.input
-        if not user_message_exists:
+        if not user_message_exists and not operation.queued_input:
             frozen_input = await self._freeze_user_input_for_history(
                 operation.input,
                 images_dir=Session.paths(agent.session.work_dir).images_dir(agent.session.id),
@@ -758,18 +758,21 @@ class AgentOperationHandler:
                             frozen_input.images,
                         ),
                         source=frozen_input.source,
+                        peer_message=frozen_input.peer_message,
                         shell_tasks=frozen_input.shell_tasks,
                     )
                 ]
             )
-        if operation.shell_notification_generation is None and self._should_refresh_session_title_during_task(
-            agent.session.id
-        ):
+        if self._should_refresh_session_title_during_task(agent.session.id):
             self._schedule_session_title_refresh(agent.session)
 
         existing_active = self.get_active_task(operation.id)
         if existing_active is not None and not existing_active.task.done():
             raise RuntimeError(f"Active task already registered for operation {operation.id}")
+
+        actor = self._get_session_actor(operation.session_id)
+        if actor is not None and actor.run_was_cancelled(operation.id):
+            return
 
         task_id = uuid4().hex
 
@@ -780,7 +783,6 @@ class AgentOperationHandler:
                     frozen_input,
                     task_id,
                     operation.session_id,
-                    shell_notification=operation.shell_notification_generation is not None,
                 )
 
         task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
@@ -794,10 +796,20 @@ class AgentOperationHandler:
     async def follow_up_agent(self, operation: op.FollowUpAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
         agent.follow_up(operation.input)
+        self._cancel_prompt_suggestion(operation.session_id)
+        self._cancel_auto_away_summary(operation.session_id)
+        await self._emit_event(
+            events.FollowUpQueueUpdatedEvent(
+                session_id=operation.session_id, texts=[item.text for item in agent.follow_up_snapshot()]
+            )
+        )
 
     async def run_bash(self, operation: op.RunBashOperation) -> None:
         self._cancel_auto_away_summary(operation.session_id)
         agent = await self.ensure_agent(operation.session_id)
+        actor = self._get_session_actor(operation.session_id)
+        if actor is not None and actor.run_was_cancelled(operation.id):
+            return
 
         existing_active = self.get_active_task(operation.id)
         if existing_active is not None and not existing_active.task.done():
@@ -856,6 +868,9 @@ class AgentOperationHandler:
         """Continue agent execution without adding a new user message."""
         self._cancel_auto_away_summary(operation.session_id)
         agent = await self.ensure_agent(operation.session_id)
+        actor = self._get_session_actor(operation.session_id)
+        if actor is not None and actor.run_was_cancelled(operation.id):
+            return
 
         existing_active = self.get_active_task(operation.id)
         if existing_active is not None and not existing_active.task.done():
@@ -1117,9 +1132,12 @@ class AgentOperationHandler:
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
             model_profile_provider=self._model_profile_provider,
             shell_task_manager=self._shell_task_manager,
+            task_manager=self._task_manager,
+            peer_control=self._peer_control,
         )
 
-        old_runtime.clear_execution_state()
+        if not old_runtime.has_lifecycle_pins():
+            old_runtime.clear_execution_state()
         new_runtime = self._ensure_session_actor(new_session.id)
         new_runtime.set_llm_clients(session_clients)
         new_runtime.set_agent(new_agent)
@@ -1166,9 +1184,12 @@ class AgentOperationHandler:
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
             model_profile_provider=self._model_profile_provider,
             shell_task_manager=self._shell_task_manager,
+            task_manager=self._task_manager,
+            peer_control=self._peer_control,
         )
 
-        old_runtime.clear_execution_state()
+        if not old_runtime.has_lifecycle_pins():
+            old_runtime.clear_execution_state()
         new_runtime = self._ensure_session_actor(new_session.id)
         new_runtime.set_llm_clients(session_clients)
         new_runtime.set_agent(new_agent)
@@ -1397,16 +1418,19 @@ class AgentOperationHandler:
         runtime = self._get_session_actor(session_id)
         if runtime is None:
             return False
-        if expected_operation_id is not None:
-            active_root = runtime.snapshot().active_root_task
-            if active_root is None or active_root.operation_id != expected_operation_id:
-                log_debug(
-                    f"Ignoring stale interrupt for {session_id}: "
-                    f"expected operation {expected_operation_id}, "
-                    f"active operation {active_root.operation_id if active_root is not None else None}",
-                    debug_type=DebugType.EXECUTION,
-                )
-                return False
+        active_root = runtime.snapshot().active_root_task
+        if expected_operation_id is not None and (
+            active_root is None or active_root.operation_id != expected_operation_id
+        ):
+            log_debug(
+                f"Ignoring stale interrupt for {session_id}: "
+                f"expected operation {expected_operation_id}, "
+                f"active operation {active_root.operation_id if active_root is not None else None}",
+                debug_type=DebugType.EXECUTION,
+            )
+            return False
+        if active_root is not None:
+            runtime.cancel_queued_run(active_root.operation_id)
         agent = runtime.get_agent()
         show_notice = True
         retracted_text: str | None = None
@@ -1455,8 +1479,6 @@ class AgentOperationHandler:
         user_input: message.UserInputPayload,
         task_id: str,
         session_id: str,
-        *,
-        shell_notification: bool = False,
     ) -> None:
         try:
             log_debug(
@@ -1467,34 +1489,25 @@ class AgentOperationHandler:
             async def _runner(
                 state: SubAgentState,
                 record_session_id: Callable[[str], None] | None,
-                register_metadata_getter: Callable[[Callable[[], TaskMetadata | None]], None] | None,
-                register_progress_getter: Callable[[Callable[[], str | None]], None] | None,
             ) -> SubAgentResult:
                 if agent.session.sub_agent_state is not None or agent.session.parent_session_id is not None:
                     raise RuntimeError("Sub-agents cannot spawn nested sub-agents")
                 launcher = self._sub_agent_launcher
                 if launcher is None:
                     raise RuntimeError("Sub-agent launcher is not wired")
-                child_task_id = uuid4().hex
-                self._on_child_task_state_change(session_id, child_task_id, True)
-                try:
-                    return await launcher.run_sub_agent(
-                        agent,
-                        state,
-                        record_session_id=record_session_id,
-                        register_metadata_getter=register_metadata_getter,
-                        register_progress_getter=register_progress_getter,
-                    )
-                finally:
-                    self._on_child_task_state_change(session_id, child_task_id, False)
+                task = await launcher.start_sub_agent(agent, state, record_session_id=record_session_id)
+                return SubAgentResult(
+                    task_result=f"Agent task_id={task.ref.task_id}; session_id={task.ref.session_id}; status={task.status}. Use ManageTasks wait/output for the final report.",
+                    session_id=task.ref.session_id or "",
+                    task_id=task.ref.task_id,
+                )
 
             async for event in agent.run_task(user_input, run_subtask=_runner):
                 await self._emit_event(event)
 
             # Task completed normally — predict the user's next prompt in the
             # background. Cancelled implicitly when the next user turn starts.
-            if not shell_notification:
-                self._schedule_prompt_suggestion(agent)
+            self._schedule_prompt_suggestion(agent)
 
         except asyncio.CancelledError:
             log_debug(
@@ -1518,7 +1531,7 @@ class AgentOperationHandler:
             )
         finally:
             self._remove_task(session_id=session_id, task_id=task_id)
-            if not shell_notification and not self._should_refresh_session_title_during_task(session_id):
+            if not self._should_refresh_session_title_during_task(session_id):
                 self._schedule_session_title_refresh(agent.session)
             log_debug(
                 f"Cleaned up agent task {task_id}",

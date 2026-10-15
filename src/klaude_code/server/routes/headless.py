@@ -11,11 +11,13 @@ from typing import Any, Final, Literal
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import events, message, op, user_interaction
+from klaude_code.protocol.background_task import ACTIVE_TASK_STATUSES, TaskRequest, TaskResponse
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.peer import PeerMessage, validate_external_message_id
 from klaude_code.protocol.sub_agent import get_all_names
 from klaude_code.server.headless import HeadlessRuntime, format_tool_call_activity
 from klaude_code.server.routes.ws import input_attached_session_ids
@@ -74,9 +76,6 @@ def _resolve_target(summaries: list[SessionSummary], target: str) -> SessionSumm
     if len(name_matches) == 1:
         return name_matches[0]
     if len(name_matches) > 1:
-        active = [summary for summary in name_matches if not summary.archived]
-        if len(active) == 1:
-            return active[0]
         raise HTTPException(
             status_code=400,
             detail={
@@ -537,10 +536,21 @@ async def list_headless_sessions(
             rows = [row for row in rows if row["id"] in kept_roots or row.get("parent_session_id") in kept_roots]
         else:
             rows = rows[:limit]
+    for row in rows:
+        await _add_background_activity(state, row)
     return {"sessions": rows}
 
 
 # -- brief --
+
+
+async def _add_background_activity(state: ServerAppState, row: dict[str, Any]) -> None:
+    tasks = await state.runtime.task_manager.manage(row["id"], Path(row["work_dir"]), TaskRequest(action="list"))
+    count = sum(task.ref.kind == "agent" and task.status in ACTIVE_TASK_STATUSES for task in tasks.tasks)
+    row["background_agent_count"] = count
+    row["background_state"] = "running" if count else "idle"
+    if count:
+        row["activity"] = f"{row['activity'] or 'idle'}; {count} background agent(s)"
 
 
 @router.get("/sessions/{target}/brief")
@@ -549,6 +559,7 @@ async def get_headless_brief(target: str, state: ServerAppState = STATE_DEP) -> 
     summaries = _load_summaries(state)
     summary = _resolve_target(summaries, target)
     row = _serialize_row(state, headless, summary)
+    await _add_background_activity(state, row)
 
     session = _load_session_for_read(state, summary.id, Path(summary.work_dir))
     usage = session.last_request_usage
@@ -628,13 +639,21 @@ async def get_headless_output(
 
 
 class HeadlessSendRequest(BaseModel):
-    text: str
+    text: str = Field(min_length=1, max_length=100000)
+    message_id: str | None = Field(
+        default=None, min_length=1, max_length=256, description="Stable retry ID; task-result: is reserved."
+    )
+    reply_to: str | None = Field(default=None, max_length=256)
     steer: bool = False
-    # Sender identity for agent-to-agent messages. `sender` is a display
-    # label (`klaude send --from`); `sender_session_id` is the sending
-    # session, auto-filled by the CLI from KLAUDE_SESSION_ID.
+    # External labels and legacy claimed IDs never establish a trusted identity.
     sender: str | None = None
     sender_session_id: str | None = None
+    expected_operation_id: str | None = None
+
+    @field_validator("message_id")
+    @classmethod
+    def _validate_message_id(cls, value: str | None) -> str | None:
+        return validate_external_message_id(value) if value is not None else None
 
 
 def _sanitize_sender_label(label: str) -> str:
@@ -642,29 +661,17 @@ def _sanitize_sender_label(label: str) -> str:
     return " ".join(cleaned.split())[:64]
 
 
-def _tag_agent_message(text: str, payload: HeadlessSendRequest, summaries: list[SessionSummary]) -> str:
-    """Wrap a message sent by another agent so the target can tell it apart
-    from operator input. The tag is plain text on purpose: it survives
-    history, replay, compaction, and `klaude output` without renderer support.
-    Attribution is advisory, not a security boundary.
-    """
-    label = _sanitize_sender_label(payload.sender or "")
-    sender_id = (payload.sender_session_id or "").strip()
-    short_id = ""
-    if sender_id:
-        matches = [s for s in summaries if s.id == sender_id or s.id.startswith(sender_id)]
-        if len(matches) == 1:
-            short_id = matches[0].id[:8]
-            if not label:
-                label = _sanitize_sender_label(matches[0].name or "") or short_id
-        elif not label:
-            label = _sanitize_sender_label(sender_id[:8])
-    if not label:
-        return text
-    attrs = f' from="{label}"'
-    if short_id and short_id != label:
-        attrs += f' session="{short_id}"'
-    return f"<agent-message{attrs}>\n{text}\n</agent-message>"
+class ActiveHeadlessSendRequest(HeadlessSendRequest):
+    expected_operation_id: str = Field(min_length=1)
+
+
+@router.post("/sessions/{target}/send-active")
+async def send_active_headless_message(
+    target: str,
+    payload: ActiveHeadlessSendRequest,
+    state: ServerAppState = STATE_DEP,
+) -> dict[str, Any]:
+    return await send_headless_message(target, payload, state)
 
 
 @router.post("/sessions/{target}/send")
@@ -680,28 +687,43 @@ async def send_headless_message(
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="message text is empty")
-    text = _tag_agent_message(text, payload, summaries)
-    if headless.is_queued(summary.id) and (not payload.steer or not headless.can_replace_queued_for_steer(summary.id)):
-        raise HTTPException(status_code=409, detail="session is queued and has not started yet; wait for it first")
-
     _require_admission(state)
-    user_input = UserInputPayload(text=text)
+    peer = PeerMessage(
+        id=payload.message_id or uuid4().hex,
+        sender_label=_sanitize_sender_label(payload.sender or "external"),
+        recipient=summary.id,
+        body=text,
+        reply_to=payload.reply_to,
+    )
     try:
-        if payload.steer:
-            mode = await headless.steer(
-                session_id=summary.id,
-                prompt=user_input,
-                work_dir=Path(summary.work_dir),
-            )
-        else:
-            mode = await headless.send(
-                session_id=summary.id,
-                prompt=user_input,
-                work_dir=Path(summary.work_dir),
-            )
+        receipt = await headless.deliver_peer(
+            peer, Path(summary.work_dir), expected_operation_id=payload.expected_operation_id
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"failed to schedule message: {exc}") from exc
-    return {"session_id": summary.id, "mode": mode, "pending": True}
+    return {"session_id": summary.id, "pending": True, **receipt.model_dump()}
+
+
+@router.post("/sessions/{target}/tasks", response_model=TaskResponse)
+async def manage_headless_tasks(target: str, payload: TaskRequest, state: ServerAppState = STATE_DEP) -> TaskResponse:
+    summary = _resolve_target(_load_summaries(state), target)
+    try:
+        return await state.runtime.task_manager.manage(summary.id, Path(summary.work_dir), payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/sessions/{target}/stop")
+async def stop_headless_children(target: str, state: ServerAppState = STATE_DEP) -> dict[str, Any]:
+    summary = _resolve_target(_load_summaries(state), target)
+    await _require_headless(state)._ensure_agent(summary.id, Path(summary.work_dir))
+    operation_id = await state.runtime.submit(op.StopSubAgentsOperation(session_id=summary.id))
+    status = await state.runtime.wait_for(operation_id)
+    if status != "completed":
+        raise HTTPException(status_code=500, detail=f"stop child agents did not complete: {status}")
+    return {"session_id": summary.id, "scope": "sub_agents", "status": status}
 
 
 # -- respond --
@@ -820,5 +842,7 @@ async def interrupt_headless(target: str, state: ServerAppState = STATE_DEP) -> 
             return {"ok": True, "session_id": summary.id, "was": "queued"}
         return {"ok": True, "session_id": summary.id, "was": "idle"}
 
-    await state.runtime.submit(op.InterruptOperation(session_id=summary.id))
+    await state.runtime.submit_and_wait(op.InterruptOperation(session_id=summary.id))
+    # Admission can restore an unacknowledged batch during cancellation.
+    await headless.prepare_interrupt(summary.id, Path(summary.work_dir))
     return {"ok": True, "session_id": summary.id, "was": "running"}

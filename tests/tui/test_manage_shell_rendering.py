@@ -77,9 +77,10 @@ def test_call_dispatch_uses_shell_rows_and_description_hint(action: str) -> None
     )
     rendered = _render(render_tool_call(event, shell_task=_task()))
     assert "$ Shell" in rendered
-    assert action.title() in rendered
+    assert ("Waiting for" if action == "wait" else action.title()) in rendered
     if action != "list":
-        assert "Run targeted tests 12345678" in rendered
+        # The description names the task, so its ID stays out of the transcript.
+        assert "Run targeted tests" in rendered and "12345678" not in rendered
     else:
         assert "Run targeted tests" not in rendered
     assert _TASK_ID not in rendered
@@ -96,7 +97,7 @@ def test_call_command_fallback_and_nondefault_operation_options() -> None:
         arguments=json.dumps({"action": "wait", "task_id": _TASK_ID, "wait_ms": 120000}),
     )
     rendered = _render(render_tool_call(event, shell_task=_task(description="")))
-    assert "Wait uv run pytest tests/tui -q 12345678" in rendered
+    assert "Waiting for uv run pytest tests/tui -q" in rendered and "12345678" not in rendered
     assert "120s" in rendered
     event.arguments = json.dumps({"action": "output", "task_id": _TASK_ID, "offset": 42000, "wait_ms": 120000})
     rendered = _render(render_tool_call(event))
@@ -111,17 +112,20 @@ def test_presentation_and_activity_share_shell_identity_and_hint() -> None:
     assert get_tool_active_form(tools.MANAGE_SHELL) == "Managing Shell"
     assert get_tool_call_presentation(tools.MANAGE_SHELL, arguments).subject == "Wait 12345678"
     activity = render_compact_tool_activity(tools.MANAGE_SHELL, arguments, shell_task=_task(), status="success")
-    assert activity.plain == "Shell Wait Run targeted tests 12345678"
+    assert activity.plain == "Shell Waiting for Run targeted tests"
     assert "✓" not in activity.plain
-    assert any(span.style == ThemeKey.METADATA_DIM for span in activity.spans)
     clipped = render_compact_tool_activity(tools.MANAGE_SHELL, arguments, shell_task=_task(), max_target_chars=18)
-    assert clipped.plain == "Shell Wait Run targeted…"
+    assert clipped.plain == "Shell Waiting for Run t…"
 
 
 @pytest.mark.parametrize("action", ["list", "output", "wait", "stop"])
 @pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
 def test_result_dispatch_renders_ui_extra_without_model_text(action: str, detail: Detail) -> None:
     ui_extra = ShellTaskUIExtra.model_validate({"action": action, "tasks": [_task().model_dump()]})
+    if action == "wait" and detail.is_compact:
+        # A wait that returns with the task still running adds nothing to the status bar.
+        assert render_tool_result(_event(ui_extra), detail=detail) is None
+        return
     rendered = _render(render_tool_result(_event(ui_extra), detail=detail))
     assert ("Run targeted tests" in rendered) == (action == "list")
     assert "running" in rendered
@@ -136,7 +140,7 @@ def test_result_dispatch_renders_ui_extra_without_model_text(action: str, detail
         assert "uv run pytest tests/tui -q" in rendered
     else:
         assert _TASK_ID not in rendered
-        assert "12345678" in rendered
+        assert "12345678" not in rendered
 
 
 @pytest.mark.parametrize("has_snapshot", [False, True])
@@ -177,7 +181,7 @@ def test_renderer_only_omits_identity_already_shown_in_call(has_snapshot: bool, 
 )
 def test_result_status_has_correct_color_and_exit(status: str, exit_code: int | None, theme_key: ThemeKey) -> None:
     task = _task(status=status, exit_code=exit_code)
-    renderable = render_tool_result(_event(ShellTaskUIExtra(action="wait", tasks=[task])))
+    renderable = render_tool_result(_event(ShellTaskUIExtra(action="wait", tasks=[task])), detail=Detail.FULL)
     assert renderable is not None
     console = _console()
     segments = [segment for line in console.render_lines(renderable) for segment in line]
@@ -263,7 +267,8 @@ def test_list_and_output_limits_preserve_late_failures_and_output_tail(detail: D
     rendered = _render(render_tool_result(_event(ShellTaskUIExtra(action="list", tasks=tasks)), detail=detail))
     limit = 5 if detail.is_compact else FULL_TOOL_RESULT_MAX_LINES
     assert rendered.count("task description") == limit - 1
-    assert "important failure failure · failed · exit 9 · bad run" in rendered
+    identity = "important failure failure" if detail == Detail.FULL else "important failure"
+    assert f"{identity} · failed · exit 9 · bad run" in rendered
     assert f"more {20 - limit} tasks" in rendered
     ui_extra = ShellTaskUIExtra(
         action="output", tasks=[tasks[-2]], output="\n".join(f"output-{idx}" for idx in range(20))
@@ -350,7 +355,9 @@ def test_ui_extra_survives_event_serialization_and_compact_result_reuses_rendere
     event = _event(ShellTaskUIExtra(action="wait", tasks=[_task(status="running")]))
     restored = events.ToolResultEvent.model_validate_json(event.model_dump_json())
     assert isinstance(restored.ui_extra, ShellTaskUIExtra)
-    assert _render(render_tool_result(restored)) == _render(render_tool_result(event))
+    assert _render(render_tool_result(restored, detail=Detail.FULL)) == _render(
+        render_tool_result(event, detail=Detail.FULL)
+    )
     rendered = _render(
         render_compact_tool_result(
             tools.MANAGE_SHELL,
@@ -363,7 +370,7 @@ def test_ui_extra_survives_event_serialization_and_compact_result_reuses_rendere
     )
     assert "$ Shell" in rendered
     if width == 120:
-        assert "Run targeted tests 12345678 · running" in rendered
+        assert "Run targeted tests · running" in rendered
     else:
         assert "targeted" in rendered
         assert "running" in rendered

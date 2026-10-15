@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from klaude_code.protocol import events, op
+from klaude_code.protocol.background_task import TaskRequest, TaskResponse
+from klaude_code.protocol.peer import PeerReceipt
 
 
 class ClientConnectionError(Exception):
@@ -84,6 +86,14 @@ class RuntimeClient(Protocol):
         ...
 
     async def dequeue_follow_ups(self) -> tuple[str, ...]: ...
+
+    async def manage_tasks(self, request: TaskRequest) -> TaskResponse:
+        """Query/control owned tasks without transcript writes or delivery acknowledgments."""
+        ...
+
+    async def send_task_message(self, task_id: str, body: str) -> PeerReceipt:
+        """Send untrusted external peer data to one owned child, never root input."""
+        ...
 
     # -- mirrors (synchronous reads for the prompt bar) --
 

@@ -9,6 +9,7 @@ from typing import Any, Literal, cast
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol import llm_param, message, user_interaction
+from klaude_code.protocol.background_task import BackgroundTaskSnapshot, TaskRequest, TaskResponse
 from klaude_code.protocol.models import (
     ContextUsageUIExtra,
     SessionStatsUIExtra,
@@ -19,6 +20,7 @@ from klaude_code.protocol.models import (
     ToolResultUIExtra,
     Usage,
 )
+from klaude_code.protocol.peer import PeerMessage
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 
 __all__ = [
@@ -28,6 +30,7 @@ __all__ = [
     "AwaySummaryEndEvent",
     "AwaySummaryEvent",
     "AwaySummaryStartEvent",
+    "BackgroundTasksUpdatedEvent",
     "BashCommandEndEvent",
     "BashCommandOutputDeltaEvent",
     "BashCommandStartEvent",
@@ -68,6 +71,7 @@ __all__ = [
     "StepEndEvent",
     "StepStartEvent",
     "SubAgentModelChangedEvent",
+    "TaskControlResultEvent",
     "TaskFileChangeSummaryEvent",
     "TaskFinishEvent",
     "TaskMetadataEvent",
@@ -154,6 +158,7 @@ class ResponseEvent(Event):
 
 
 class UserMessageEvent(Event):
+    peer_message: PeerMessage | None = None
     content: str
     images: Sequence[message.ImageURLPart | message.ImageFilePart] | None = None
     source: message.UserMessageSource | None = None
@@ -174,6 +179,16 @@ class ShellTasksUpdatedEvent(Event):
     """Authoritative complete background shell task list for one session."""
 
     tasks: list[ShellTaskSnapshot]
+
+
+class BackgroundTasksUpdatedEvent(Event):
+    tasks: list[BackgroundTaskSnapshot]
+
+
+class TaskControlResultEvent(Event):
+    request: TaskRequest
+    response: TaskResponse | None = None
+    error: str | None = None
 
 
 class NoticeEvent(Event):

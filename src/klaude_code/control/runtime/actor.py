@@ -111,17 +111,34 @@ class SessionActor:
         self._handle_operation = handle_operation
         self._reject_operation = reject_operation
         self._state = SessionState(idle_since_monotonic=time.monotonic())
+        self._lifecycle_pins: set[str] = set()
         self._control_burst_quota = control_burst_quota
         self._prefetched_control: op.Operation | _StopSignal | None = None
         self._prefetched_normal: op.Operation | None = None
+        self._run_generation = 0
+        self._queued_run_generations: dict[str, int] = {}
+        self._cancelled_run_ids: set[str] = set()
         self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop())
 
     async def enqueue(self, operation: op.Operation) -> None:
         self._mark_active()
+        if isinstance(operation, op.RunAgentOperation | op.ContinueAgentOperation | op.FollowUpAgentOperation):
+            self._queued_run_generations[operation.id] = self._run_generation
         if _is_control_operation(operation):
             await self.control_mailbox.put(operation)
             return
         await self.normal_mailbox.put(operation)
+
+    def cancel_queued_runs(self) -> None:
+        """Invalidate queued runs, including an operation prefetched by the worker."""
+        self._run_generation += 1
+
+    def cancel_queued_run(self, operation_id: str) -> None:
+        # Admission may still be publishing acceptance before enqueue().
+        self._cancelled_run_ids.add(operation_id)
+
+    def run_was_cancelled(self, operation_id: str) -> bool:
+        return operation_id in self._cancelled_run_ids
 
     async def run_control_preemptive(self, operation: op.Operation) -> None:
         if not _is_control_operation(operation):
@@ -170,6 +187,15 @@ class SessionActor:
     def set_agent(self, agent: Agent) -> None:
         self._state.agent = agent
         self._mark_active()
+
+    def set_lifecycle_pin(self, pin_id: str, active: bool) -> None:
+        if active:
+            self._lifecycle_pins.add(pin_id)
+        else:
+            self._lifecycle_pins.discard(pin_id)
+
+    def has_lifecycle_pins(self) -> bool:
+        return bool(self._lifecycle_pins)
 
     def get_agent(self) -> Agent | None:
         return self._state.agent
@@ -274,6 +300,7 @@ class SessionActor:
     # -- Operation lifecycle --
 
     def mark_operation_completed(self, operation_id: str) -> None:
+        self._cancelled_run_ids.discard(operation_id)
         active = self._state.active_root_task
         if active is not None and active.operation_id == operation_id:
             self._state.active_root_task = None
@@ -380,6 +407,12 @@ class SessionActor:
             try:
                 if isinstance(item, _StopSignal):
                     return
+                generation = self._queued_run_generations.pop(item.id, self._run_generation)
+                cancelled = item.id in self._cancelled_run_ids
+                self._cancelled_run_ids.discard(item.id)
+                if generation != self._run_generation or cancelled:
+                    await self._reject_operation(item, None)
+                    continue
                 active_root_task = self._state.active_root_task
                 if _is_root_operation(item) and active_root_task is not None:
                     await self._reject_operation(item, active_root_task.task_id)
@@ -490,7 +523,9 @@ def _is_control_operation(operation: op.Operation) -> bool:
         operation,
         op.FollowUpAgentOperation
         | op.ManageShellOperation
+        | op.ManageTasksOperation
         | op.InterruptOperation
+        | op.StopSubAgentsOperation
         | op.UserInteractionRespondOperation
         | op.CloseSessionOperation,
     )

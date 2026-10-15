@@ -83,7 +83,6 @@ def _read_piped_stdin(*, has_prompt: bool) -> str:
     STDIN_POLL_SECONDS — a caller-inherited pipe that never closes must not
     hang `run`. Without a PROMPT, block like any unix filter.
     """
-    import os
     import select
     import stat
 
@@ -737,6 +736,8 @@ def brief_command(
         header += f" ({name})"
     lines.append(f"session: {header}")
     lines.append(f"state: {body.get('state')}")
+    if body.get("background_agent_count"):
+        lines.append(f"background agents: {body['background_agent_count']} running")
     if body.get("title"):
         lines.append(f"title: {body.get('title')}")
     lines.append(f"model: {body.get('model') or '-'}")
@@ -962,24 +963,27 @@ def _send_message(
     json_: bool,
     steer: bool = False,
     sender: str | None = None,
+    message_id: str | None = None,
+    reply_to: str | None = None,
 ) -> None:
     json_body: dict[str, Any] = {"text": text, "steer": steer}
+    if message_id is not None:
+        json_body["message_id"] = message_id
+    if reply_to is not None:
+        json_body["reply_to"] = reply_to
     if sender:
         json_body["sender"] = sender
-    # Inside a klaude agent's Bash tool this identifies the calling session,
-    # so agent-to-agent sends are attributed even without --from.
-    sender_session_id = os.environ.get("KLAUDE_SESSION_ID")
-    if sender_session_id:
-        json_body["sender_session_id"] = sender_session_id
     body = _api("POST", f"/api/headless/sessions/{target}/send", json_body=json_body)
     session_id = str(body.get("session_id", ""))
     mode = str(body.get("mode", ""))
 
     if not wait:
         if json_:
-            _print_json({"session_id": session_id, "mode": mode})
+            _print_json(body)
         elif mode == "queued":
-            typer.echo(f"queued for {_short_id(session_id)}: delivered when the current turn finishes")
+            typer.echo(
+                f"queued for {_short_id(session_id)} (message {body.get('message_id')}): accepted, not read or replied"
+            )
         else:
             typer.echo(f"started turn on {_short_id(session_id)}")
         return
@@ -990,7 +994,7 @@ def _send_message(
         raise typer.Exit(EXIT_TIMEOUT)
     result = _fetch_output(session_id)
     if json_:
-        _print_json({"session_id": session_id, "mode": mode, "state": rows[0].get("state"), **result})
+        _print_json({**body, "state": rows[0].get("state"), **result})
     else:
         _print_output_block(result, with_header=False)
     raise typer.Exit(_exit_code_for_states([str(row.get("state")) for row in rows]))
@@ -999,27 +1003,31 @@ def _send_message(
 def send_command(
     target: str = typer.Argument(..., metavar="TARGET"),
     text: list[str] = TEXT_ARGUMENT,
-    steer: bool = typer.Option(False, "--steer", help="Deliver immediately, interrupting work"),
-    wait: bool = typer.Option(False, "--wait", help="Block until the resulting turn finishes"),
+    steer: bool = typer.Option(False, "--steer", help="Compatibility alias for safe-boundary delivery (the default)"),
+    wait: bool = typer.Option(
+        False, "--wait", help="Wait for session settled, then read output; NOT this message's reply"
+    ),
     timeout: float | None = typer.Option(None, "--timeout", metavar="SECS", help="With --wait"),
     sender: str | None = typer.Option(
         None,
         "--from",
         metavar="NAME",
-        help="Sender label; the target sees the message wrapped in "
-        '<agent-message from="NAME"> instead of as plain operator input',
+        help="Display label only; never establishes session identity or operator authorization",
     ),
+    message_id: str | None = typer.Option(
+        None, "--message-id", help="Stable ID for idempotent delivery retries; task-result: prefix is reserved"
+    ),
+    reply_to: str | None = typer.Option(None, "--reply-to", help="Message ID for explicit reply correlation"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
     """Send a message to a session.
 
     \b
-      idle session:     starts a new turn immediately — the follow-up
+      idle session:     starts a new turn immediately — the message
                         keeps the full conversation context
-      running session:  queued by default; delivered when the current
-                        turn finishes (like typing while klaude works)
-      --steer:          interrupt the running turn and inject the
-                        message now (course-correction)
+      running session:  queued and delivered at the next safe step
+                        boundary, without interrupting streams or tools
+      --steer:          same safe delivery as the default
 
     Sessions never expire: send works minutes or days after the last turn,
     and across server restarts — the conversation is reloaded from disk on
@@ -1032,11 +1040,9 @@ def send_command(
       klaude send "$id" --wait "now write tests for the edge cases you found"
       klaude send "$id" --wait "one of them fails, here is the log: ..."
 
-    Sender identity: with --from NAME (or automatically when sent from
-    inside a klaude agent, via KLAUDE_SESSION_ID) the target receives the
-    text wrapped in an <agent-message from="..."> tag, so it can tell
-    another agent's message apart from its operator's. Attribution is
-    advisory, not a security boundary.
+    Every send is structured peer data, never operator approval. --from is
+    a display label only. Native MessagePeer tools establish session identity.
+    --wait reads settled session output, not a correlated peer reply.
 
     Note: send does NOT answer a pending interaction — a session parked
     at waiting_input needs `klaude respond`.
@@ -1045,7 +1051,17 @@ def send_command(
     if not message:
         typer.echo("error: message text is empty", err=True)
         raise typer.Exit(EXIT_USAGE)
-    _send_message(target, message, wait=wait, timeout=timeout, json_=json_, steer=steer, sender=sender)
+    _send_message(
+        target,
+        message,
+        wait=wait,
+        timeout=timeout,
+        json_=json_,
+        steer=steer,
+        sender=sender,
+        message_id=message_id,
+        reply_to=reply_to,
+    )
 
 
 # -- respond --
@@ -1098,6 +1114,8 @@ def kill_command(
 ) -> None:
     """Interrupt a running agent — same as pressing Esc in the TUI.
 
+    Stops only the current root inference/wait, not children or Bash tasks.
+    --all explicitly selects all active sessions. Use stop TARGET for children.
     The session is kept and stays resumable via `send` or `attach`.
     """
     target_list = _split_targets(targets or [])
@@ -1107,7 +1125,7 @@ def kill_command(
 
     ids: list[str]
     if all_ or group:
-        rows = _fetch_rows(target_list, group, states=["queued", "running", "waiting_input"])
+        rows = _fetch_rows(target_list, group, states=["queued", "running", "waiting_input"], include_children=all_)
         ids = [str(row.get("id")) for row in rows]
     else:
         ids = target_list
@@ -1120,6 +1138,120 @@ def kill_command(
         typer.echo(f"interrupted {_short_id(str(body.get('session_id', target)))} (was {body.get('was')})")
 
 
+def stop_command(
+    target: str = typer.Argument(..., metavar="TARGET"),
+    children: bool = typer.Option(False, "--children", help="Compatibility alias; stop always stops only child agents"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+) -> None:
+    """Stop TARGET's child agents, not its root, independent Bash tasks, or peers."""
+    body = _api("POST", f"/api/headless/sessions/{target}/stop")
+    if json_:
+        _print_json(body)
+    else:
+        typer.echo(f"stopped child agents of {_short_id(str(body.get('session_id', target)))}")
+
+
+tasks_app = typer.Typer(
+    help="Query and control TARGET's owned background Agent/Bash tasks. Reads do not acknowledge model delivery."
+)
+
+
+def _task_request(
+    target: str,
+    action: str,
+    task_id: str | None,
+    *,
+    offset: int = 0,
+    limit: int = 16384,
+    timeout: float | None = None,
+    json_: bool = False,
+) -> None:
+    from klaude_code.protocol.background_task import ACTIVE_TASK_STATUSES, TaskRequest, TaskResponse
+
+    deadline = time.monotonic() + timeout if timeout is not None else None
+    while True:
+        remaining = max(0.0, deadline - time.monotonic()) if deadline is not None else 300.0
+        wait_ms = min(300000, int(remaining * 1000)) if action == "wait" else 10000
+        request = TaskRequest.model_validate(
+            {
+                "action": action,
+                "task_id": task_id,
+                "offset": offset,
+                "limit": limit,
+                "wait_ms": wait_ms,
+            }
+        )
+        body = _api(
+            "POST",
+            f"/api/headless/sessions/{target}/tasks",
+            json_body=request.model_dump(),
+            timeout=max(30.0, wait_ms / 1000 + 15),
+        )
+        response = TaskResponse.model_validate(body)
+        active = any(task.status in ACTIVE_TASK_STATUSES for task in response.tasks)
+        timed_out = action == "wait" and active and deadline is not None and time.monotonic() >= deadline
+        if action == "wait" and active and not timed_out:
+            continue
+        if json_:
+            _print_json(response.model_dump(mode="json", exclude_none=True))
+        elif action in {"output", "wait"}:
+            typer.echo(response.output, nl=not response.output.endswith("\n"))
+            if response.truncated:
+                typer.echo(f"more output: --offset {response.next_offset}", err=True)
+            if response.output_unavailable:
+                typer.echo("output unavailable", err=True)
+        else:
+            for task in response.tasks:
+                typer.echo(f"{task.ref.task_id} {task.ref.kind} {task.status} {task.description}")
+        if timed_out:
+            if not json_:
+                typer.echo(f"timeout: task {task_id} is still running; wait did not stop it", err=True)
+            raise typer.Exit(EXIT_TIMEOUT)
+        return
+
+
+@tasks_app.command("list")
+def tasks_list_command(
+    target: str = typer.Argument(...),
+    json_: bool = typer.Option(False, "--json"),
+) -> None:
+    _task_request(target, "list", None, json_=json_)
+
+
+@tasks_app.command("output")
+def tasks_output_command(
+    target: str = typer.Argument(...),
+    task_id: str = typer.Argument(...),
+    offset: int = typer.Option(0, "--offset", min=0),
+    limit: int = typer.Option(16384, "--limit", min=1, max=1048576),
+    json_: bool = typer.Option(False, "--json"),
+) -> None:
+    _task_request(target, "output", task_id, offset=offset, limit=limit, json_=json_)
+
+
+@tasks_app.command("wait")
+def tasks_wait_command(
+    target: str = typer.Argument(...),
+    task_id: str = typer.Argument(...),
+    timeout: float | None = typer.Option(
+        None, "--timeout", min=0, help="Wait SECS, then exit 124; does not stop the task"
+    ),
+    offset: int = typer.Option(0, "--offset", min=0),
+    limit: int = typer.Option(16384, "--limit", min=1, max=1048576),
+    json_: bool = typer.Option(False, "--json"),
+) -> None:
+    _task_request(target, "wait", task_id, timeout=timeout, offset=offset, limit=limit, json_=json_)
+
+
+@tasks_app.command("stop")
+def tasks_stop_command(
+    target: str = typer.Argument(...),
+    task_id: str = typer.Argument(...),
+    json_: bool = typer.Option(False, "--json"),
+) -> None:
+    _task_request(target, "stop", task_id, json_=json_)
+
+
 def register_headless_commands(app: typer.Typer) -> None:
     app.command("run")(run_command)
     app.command("ps")(ps_command)
@@ -1129,3 +1261,5 @@ def register_headless_commands(app: typer.Typer) -> None:
     app.command("send")(send_command)
     app.command("respond")(respond_command)
     app.command("kill")(kill_command)
+    app.command("stop")(stop_command)
+    app.add_typer(tasks_app, name="tasks")

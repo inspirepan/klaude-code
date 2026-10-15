@@ -63,9 +63,10 @@ class TestResolveTarget:
         assert isinstance(detail, dict)
         assert set(detail["candidates"]) == {"abcd1234", "abzz9999"}
 
-    def test_archived_name_yields_to_active(self) -> None:
+    def test_duplicate_name_remains_ambiguous_even_if_archived(self) -> None:
         summaries = [_summary("abcd1234", name="dup", archived=True), _summary("efgh5678", name="dup")]
-        assert _resolve_target(summaries, "dup").id == "efgh5678"
+        with pytest.raises(HTTPException, match="ambiguous"):
+            _resolve_target(summaries, "dup")
 
     def test_unknown_target_404(self) -> None:
         with pytest.raises(HTTPException) as exc_info:
@@ -766,7 +767,7 @@ def test_shutdown_cancels_send_waiting_for_launch_initialization(isolated_home: 
     asyncio.run(_test())
 
 
-def test_steer_reserves_next_turn_until_interrupted_run_releases_slot(
+def test_steer_queues_without_interrupting_or_releasing_running_slot(
     isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del isolated_home
@@ -775,89 +776,79 @@ def test_steer_reserves_next_turn_until_interrupted_run_releases_slot(
         session = Session.create(work_dir=tmp_path)
         session.spawn_kind = "headless"
         session.ensure_meta_exists()
-        interrupt_started = asyncio.Event()
-        finish_interrupt = asyncio.Event()
-        launch_started = asyncio.Event()
-        finish_launch = asyncio.Event()
-        actor_busy = True
-
+        queue: list[UserInputPayload] = []
+        agent = SimpleNamespace(session=session, peek_next_follow_up=lambda: queue[0] if queue else None)
         actor = SimpleNamespace(
-            get_agent=lambda: SimpleNamespace(session=session),
-            snapshot=lambda: SimpleNamespace(is_idle=not actor_busy),
+            get_agent=lambda: agent,
+            snapshot=lambda: SimpleNamespace(is_idle=False),
         )
 
-        async def _submit_and_wait(operation: Any) -> None:
-            nonlocal actor_busy
-            assert isinstance(operation, op.InterruptOperation)
-            interrupt_started.set()
-            await finish_interrupt.wait()
-            actor_busy = False
+        async def _submit(operation: Any) -> str:
+            assert isinstance(operation, op.FollowUpAgentOperation)
+            queue.append(operation.input)
+            return cast(str, operation.id)
 
         facade = cast(
             Any,
             SimpleNamespace(
                 session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
-                submit_and_wait=_submit_and_wait,
+                submit=_submit,
+                wait_for=lambda _id: asyncio.sleep(0),
             ),
         )
         runtime = HeadlessRuntime(facade, max_running=1)
         runtime._running.add(session.id)  # pyright: ignore[reportPrivateUsage]
 
-        async def _launch(entry: QueuedRun) -> None:
-            launch_started.set()
-            await finish_launch.wait()
-            runtime._running.discard(entry.session_id)  # pyright: ignore[reportPrivateUsage]
-
-        monkeypatch.setattr(runtime, "_launch_logged", _launch)
-        steer_task = asyncio.create_task(
-            runtime.steer(
+        monkeypatch.setattr(runtime, "_schedule_follow_up_drain", lambda _id: None)
+        assert (
+            await runtime.steer(
                 session_id=session.id,
                 prompt=UserInputPayload(text="new direction"),
                 work_dir=tmp_path,
             )
+            == "queued"
         )
-
-        await interrupt_started.wait()
         assert runtime.has_pending(session.id)
-
-        # The old operation can finish naturally while its interrupt is in
-        # flight. The reserved turn must remain queued, not expose idle or run
-        # until the interrupt operation itself completes.
-        runtime._running.discard(session.id)  # pyright: ignore[reportPrivateUsage]
-        runtime._pump()  # pyright: ignore[reportPrivateUsage]
-        assert runtime.is_queued(session.id)
-        assert runtime.has_pending(session.id)
-        assert not launch_started.is_set()
-
-        finish_interrupt.set()
-        assert await asyncio.wait_for(steer_task, timeout=1) == "started"
-        await asyncio.wait_for(launch_started.wait(), timeout=1)
         assert runtime.is_running(session.id)
-
-        finish_launch.set()
-        await asyncio.sleep(0)
+        assert queue == [UserInputPayload(text="new direction")]
         await runtime.aclose()
 
     asyncio.run(_test())
 
 
-def test_latest_queued_steer_wins_when_slots_are_full(isolated_home: Path, tmp_path: Path) -> None:
+def test_consecutive_steers_preserve_queued_turn_when_slots_are_full(
+    isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     del isolated_home
 
     async def _test() -> None:
         session = Session.create(work_dir=tmp_path)
         session.spawn_kind = "headless"
         session.ensure_meta_exists()
+        queue: list[UserInputPayload] = []
+        agent = SimpleNamespace(session=session, peek_next_follow_up=lambda: queue[0] if queue else None)
         actor = SimpleNamespace(
-            get_agent=lambda: SimpleNamespace(session=session),
+            get_agent=lambda: agent,
             snapshot=lambda: SimpleNamespace(is_idle=True),
         )
+
+        async def _submit(operation: Any) -> str:
+            assert isinstance(operation, op.FollowUpAgentOperation)
+            queue.append(operation.input)
+            session.set_follow_up_queue([QueuedUserInput(input=item) for item in queue])
+            return cast(str, operation.id)
+
         facade = cast(
             Any,
-            SimpleNamespace(session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor)),
+            SimpleNamespace(
+                session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
+                submit=_submit,
+                wait_for=lambda _id: asyncio.sleep(0),
+            ),
         )
         runtime = HeadlessRuntime(facade, max_running=1)
         runtime._running.add("slot-blocker")  # pyright: ignore[reportPrivateUsage]
+        monkeypatch.setattr(runtime, "_schedule_follow_up_drain", lambda _id: None)
 
         assert (
             await runtime.steer(
@@ -879,7 +870,8 @@ def test_latest_queued_steer_wins_when_slots_are_full(isolated_home: Path, tmp_p
         assert runtime.queued_session_ids().count(session.id) == 1
         restored = Session.load_meta(session.id, work_dir=tmp_path)
         assert restored.headless_queued_turn is not None
-        assert restored.headless_queued_turn.input == UserInputPayload(text="latest direction")
+        assert restored.headless_queued_turn.input == UserInputPayload(text="first direction")
+        assert [item.input.text for item in restored.follow_up_queue] == ["latest direction"]
         await runtime.aclose()
 
     asyncio.run(_test())

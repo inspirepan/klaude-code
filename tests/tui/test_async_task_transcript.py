@@ -1,0 +1,246 @@
+import asyncio
+import json
+import time
+
+import pytest
+
+from klaude_code.protocol import events, llm_param, tools
+from klaude_code.protocol.background_task import (
+    MODEL_FACING_EXCLUDE,
+    BackgroundTaskResult,
+    BackgroundTaskSnapshot,
+    TaskReference,
+    TaskResponse,
+)
+from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState
+from klaude_code.protocol.peer import PeerMessage, PeerReceipt
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
+from klaude_code.tui import machine as machine_module
+from klaude_code.tui.commands import PromptStatusLine
+from klaude_code.tui.display import TUIDisplay
+from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
+
+from .test_transcript_toggle import make_envelope, patch_scrollback_writes
+
+REPORT = "## 结论\n- render_collaboration_result 已解析\n- 第二点\n- 第三点\n- 第四点"
+
+
+def _agent(task_id: str, session_id: str, description: str, status: str = "running") -> BackgroundTaskSnapshot:
+    return BackgroundTaskSnapshot.model_validate(
+        {
+            "ref": TaskReference(
+                kind="agent", owner_session_id="main", task_id=task_id, run_id=task_id, session_id=session_id
+            ),
+            "status": status,
+            "description": description,
+            "agent_type": "finder",
+            "started_at": 1,
+            "ended_at": None if status == "running" else 2,
+            "result": None if status == "running" else BackgroundTaskResult(text="", summary=REPORT),
+            "delivery_id": f"task-result:{task_id}",
+        }
+    )
+
+
+def _shell(status: str = "failed") -> BackgroundTaskSnapshot:
+    shell = ShellTaskSnapshot.model_validate(
+        {
+            "task_id": "shell-task-0000",
+            "session_id": "main",
+            "command": "pytest",
+            "description": "Run the suite",
+            "work_dir": "/tmp",
+            "status": status,
+            "exit_code": 1,
+            "background": True,
+            "started_at": 1.0,
+            "output_path": "/tmp/out",
+        }
+    )
+    return BackgroundTaskSnapshot(
+        ref=TaskReference(kind="shell", owner_session_id="main", task_id=shell.task_id, run_id=shell.task_id),
+        status="failed",
+        description=shell.description,
+        started_at=1,
+        ended_at=2,
+        shell=shell,
+        delivery_id="task-result:shell",
+    )
+
+
+def _welcome() -> events.WelcomeEvent:
+    return events.WelcomeEvent(
+        session_id="main",
+        work_dir="/tmp",
+        llm_config=llm_param.LLMConfigParameter(protocol=llm_param.LLMClientProtocol.OPENAI, model_id="test-model"),
+    )
+
+
+def _agent_call(call_id: str, description: str) -> events.ToolCallEvent:
+    return events.ToolCallEvent(
+        session_id="main",
+        tool_call_id=call_id,
+        tool_name=tools.AGENT,
+        arguments=json.dumps({"type": "finder", "description": description, "prompt": "..."}),
+    )
+
+
+def _wait(call_id: str, task_id: str) -> list[events.Event]:
+    response = TaskResponse(tasks=[_agent(task_id, "child-a", "Find the panel")], interrupted_wait=True)
+    return [
+        events.ToolCallEvent(
+            session_id="main",
+            tool_call_id=call_id,
+            tool_name=tools.MANAGE_TASKS,
+            arguments=json.dumps({"action": "wait", "task_id": task_id}),
+        ),
+        events.ToolResultEvent(
+            session_id="main",
+            tool_call_id=call_id,
+            tool_name=tools.MANAGE_TASKS,
+            status="success",
+            result="source=background_task\ninterrupted-wait; still-running.\n" + response.model_dump_json(),
+        ),
+    ]
+
+
+def test_compact_transcript_reports_each_background_fact_once(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        running = _agent("task-a", "child-a", "Find the panel")
+        done = _agent("task-a", "child-a", "Find the panel", "completed")
+        report = TaskResponse(tasks=[done], output=REPORT)
+        peer = PeerMessage(sender_session_id="child-a", sender_label="child-a", recipient="main", body="hello\nmore")
+        script: list[events.Event] = [
+            _welcome(),
+            events.TaskStartEvent(session_id="main", model_id="test-model"),
+            _agent_call("c1", "Find the panel"),
+            _agent_call("c2", "Review the style"),
+            events.ToolResultEvent(
+                session_id="main",
+                tool_call_id="c1",
+                tool_name=tools.AGENT,
+                status="success",
+                result="Agent task_id=task-a; status=running.",
+                ui_extra=SessionIdUIExtra(session_id="child-a"),
+            ),
+            events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[running]),
+            *_wait("w1", "task-a"),
+            *_wait("w2", "task-a"),
+            events.ToolCallEvent(
+                session_id="main",
+                tool_call_id="m1",
+                tool_name=tools.MESSAGE_PEER,
+                arguments=json.dumps({"target": "child-a", "body": "first line\nsecond line"}),
+            ),
+            events.ToolResultEvent(
+                session_id="main",
+                tool_call_id="m1",
+                tool_name=tools.MESSAGE_PEER,
+                status="success",
+                result=PeerReceipt(message_id="m", target="child-a", accepted=True, mode="queued").model_dump_json(),
+            ),
+            events.UserMessageEvent(session_id="main", source="peer_message", peer_message=peer, content="x"),
+            events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[done]),
+            events.UserMessageEvent(
+                session_id="main",
+                source="task_completion",
+                content="source=background_task\n" + report.model_dump_json(),
+            ),
+            *(
+                events.UserMessageEvent(
+                    session_id="main",
+                    source="task_completion",
+                    content="source=background_task\n" + TaskResponse(tasks=[_shell()]).model_dump_json(),
+                )
+                for _ in range(2)
+            ),
+        ]
+        try:
+            for event in script:
+                await display.consume_envelope(make_envelope(event))
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+    out = capsys.readouterr().out
+    # Consecutive launches share one header; the agent type names each row.
+    assert out.count("◈ Agents") == 1
+    assert "↳ Finder: Find the panel" in out and "↳ Finder: Review the style" in out
+    # Repeated waits on one task collapse; a still-running result prints nothing.
+    assert out.count("Waiting for Find the panel") == 1
+    assert "· running" not in out and "interrupted" not in out
+    # Messages name the peer by its task, show one line, and hide the receipt.
+    assert "✉ Message to Find the panel: first line second line" in out
+    assert "› Message from Find the panel: hello more" in out and "queued" not in out
+    # One block per finished agent, with the type, the report head, and no IDs or cost tree.
+    assert out.count("Finder: Find the panel ✓") == 1
+    assert "render_collaboration_result 已解析" in out and "第二点" in out and "第三点" not in out
+    assert "Background task" not in out and "total cost" not in out
+    assert "task-a" not in out and "child-a" not in out
+    # A finished Bash task prints one tool-style row, once.
+    assert out.count("$ Shell") == 1 and "Run the suite  failed · exit 1" in out
+
+
+def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        monkeypatch.setattr(machine_module, "_terminal_columns_cache", (time.monotonic(), 100))
+        monkeypatch.setattr(machine_module, "_terminal_lines_cache", (time.monotonic(), 40))
+        bar = PromptBottomBar(invalidate=lambda: None)
+        updates: list[tuple[PromptStatusLine, ...]] = []
+
+        def sink(lines: tuple[PromptStatusLine, ...], separator: str | None, reset: bool) -> None:
+            updates.append(lines)
+            bar.set_status_lines(lines, separator_text=separator, reset_bottom_height=reset)
+
+        display = TUIDisplay(on_status_update=sink)
+        display.set_progress_ui_suspended(True)
+        try:
+            for event in [
+                _welcome(),
+                events.TaskStartEvent(session_id="main", model_id="test-model"),
+                events.BackgroundTasksUpdatedEvent(
+                    session_id="main", tasks=[_agent("task-a", "child-a", "Find the panel")]
+                ),
+                events.TaskStartEvent(
+                    session_id="child-a",
+                    parent_session_id="main",
+                    sub_agent_state=SubAgentState(
+                        sub_agent_type="finder", sub_agent_desc="Find the panel", sub_agent_prompt=""
+                    ),
+                ),
+                events.ToolCallEvent(
+                    session_id="child-a",
+                    tool_call_id="r1",
+                    tool_name=tools.READ,
+                    arguments=json.dumps({"file_path": "src/app.py"}),
+                ),
+                _wait("w1", "task-a")[0],
+            ]:
+                await display.consume_envelope(make_envelope(event))
+            display.refresh_prompt_status()
+            texts = [line.text for line in updates[-1]]
+            head = [line.text for line in bar._status_head_lines()]
+            tail = [line.text for line in bar._status_tail_lines()]
+        finally:
+            await display.stop()
+        assert "Waiting for Find the panel" in texts[0]
+        assert "Finder: Find the panel · 1 tool" in texts[1]
+        assert any("Reading" in text and "src/app.py" in text for text in texts)
+        assert texts[-1] == " ◈  1 agent  /tasks · Esc main · /stop agents"
+        # The live tail (thinking preview) renders between the main row and the child rows.
+        assert head == texts[:1]
+        assert tail == texts[1:]
+
+    asyncio.run(run())
+
+
+def test_snapshot_summary_is_display_only() -> None:
+    response = TaskResponse(tasks=[_agent("task-a", "child-a", "Find the panel", "completed")])
+    model_text = response.model_dump_json(exclude_none=True, exclude=MODEL_FACING_EXCLUDE)
+    assert "summary" not in model_text and '"agent_type":"finder"' in model_text
+    assert "render_collaboration_result" in response.model_dump_json()

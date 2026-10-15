@@ -27,17 +27,23 @@ if TYPE_CHECKING:
         InitAgentOperation,
         InterruptOperation,
         ManageShellOperation,
+        ManageTasksOperation,
         RequestModelOperation,
         RequestSubAgentModelOperation,
         RewindWithSummaryOperation,
         RunAgentOperation,
         RunBashOperation,
+        StopSubAgentsOperation,
         UserInteractionRespondOperation,
     )
 
 
 class OperationHandler(Protocol):
     """Protocol defining the interface for handling operations."""
+
+    async def handle_stop_sub_agents(self, operation: StopSubAgentsOperation) -> None: ...
+
+    async def handle_manage_tasks(self, operation: ManageTasksOperation) -> None: ...
 
     async def handle_manage_shell(self, operation: ManageShellOperation) -> None:
         """Inspect or stop background shell tasks."""

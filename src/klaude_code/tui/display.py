@@ -61,6 +61,9 @@ class TUIDisplay(DisplayABC):
     def compact_transcript(self) -> bool:
         return self._detail.is_compact
 
+    def task_attention(self) -> dict[str, str]:
+        return self._machine.task_attention()
+
     def _create_bg_task(self, coro: Coroutine[Any, Any, None]) -> None:
         task = asyncio.create_task(coro)
         self._bg_tasks.add(task)

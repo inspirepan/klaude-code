@@ -58,6 +58,9 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._external_input_resume_event = asyncio.Event()
     prompt_input._external_input_resume_event.set()
     prompt_input._model_picker = None
+    prompt_input._task_picker = None
+    prompt_input._task_choice = None
+    prompt_input._resumed_cursor_position = None
     return prompt_input  # type: ignore[return-value]
 
 
@@ -159,14 +162,14 @@ def test_placeholder_shows_paste_image_hint_with_prompt_suggestion() -> None:
     assert any("ctrl-v to paste image" in text and "\n" not in text for _style, text, *_ in placeholder)
 
 
-def test_running_placeholder_prompts_for_follow_up() -> None:
+def test_running_placeholder_prompts_for_steering() -> None:
     prompt_input = _build_input("")
     prompt_input._agent_running = True
     prompt_input._prompt_suggestion = "run tests"
 
     placeholder = prompt_input._build_placeholder()
 
-    assert placeholder == [("class:placeholder", "   Queue a follow-up")]
+    assert placeholder == [("class:placeholder", "   Steer the main agent")]
 
 
 def test_running_prompt_uses_cyan_style() -> None:
@@ -489,7 +492,7 @@ def test_input_footer_renders_interrupt_hint_after_context() -> None:
     prompt_input._agent_running = True
     prompt_input._session.default_buffer.text = "/btw ask this"
 
-    assert prompt_input._get_input_footer_fragments()[-1] == ("class:meta", " · tab to queue follow-up")
+    assert prompt_input._get_input_footer_fragments()[-1] == ("class:meta", " · tab to steer the agent")
 
 
 def test_input_footer_context_name_uses_blue_not_placeholder() -> None:
@@ -717,7 +720,9 @@ def test_sub_agent_status_line_does_not_add_global_spinner() -> None:
         )
     )
 
-    fragments = bottom_bar._get_status_fragments()
+    # Sub-agent rows render below the live tail, not in the main status head.
+    assert bottom_bar._get_status_fragments() == []
+    fragments = bottom_bar._get_status_tail_fragments()
     assert fragments == [
         ("fg:#55aaff bold", "·   "),
         ("fg:#55aaff bold", "Finder"),
@@ -912,7 +917,7 @@ def test_pending_messages_render_above_prompt() -> None:
     # no trailing blank between the queue and the input rule.
     assert bar.reserved_layout_rows() == 6
     assert bar._get_pending_message_fragments() == [
-        ("class:meta", "Queued follow-up message (2 pending) · ↑ to edit."),
+        ("class:meta", "Steering (2 pending) · next safe step · ↑ to edit."),
         ("", "\n"),
         ("class:meta", "  1. "),
         ("class:user.input", "first queued"),

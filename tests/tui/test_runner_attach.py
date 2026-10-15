@@ -22,6 +22,7 @@ import pytest
 
 import klaude_code.tui.runner as runner_module
 from klaude_code.protocol import events, op
+from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.client import ClientConnectionError
 from klaude_code.tui.client.base import SessionInfoSnapshot
@@ -38,6 +39,7 @@ class FakeRuntimeClient:
         self.reattached_to: list[str] = []
         self.closed = False
         self.dequeue_calls = 0
+        self.task_requests: list[TaskRequest] = []
         self.hold_run_ops = False
 
         self._info = SessionInfoSnapshot(session_id=session_id, work_dir="/nonexistent-work-dir")
@@ -132,6 +134,10 @@ class FakeRuntimeClient:
         self._info.follow_ups = ()
         self._state_changed.set()
         return texts
+
+    async def manage_tasks(self, request: TaskRequest) -> TaskResponse:
+        self.task_requests.append(request)
+        return TaskResponse(tasks=[])
 
     def is_running(self) -> bool:
         return self._running
@@ -248,8 +254,17 @@ class FakeInputProvider:
     async def pause_for_external_input(self) -> Callable[[], None]:
         return lambda: None
 
+    async def choose_task_action(self, *args: Any, **kwargs: Any) -> str | None:
+        return None
+
+    def close_task_overlay(self) -> None:
+        return None
+
 
 class FakeDisplay:
+    def task_attention(self) -> dict[str, str]:
+        return {}
+
     def __init__(self, **kwargs: Any) -> None:
         self.envelopes: list[events.EventEnvelope] = []
 
@@ -460,7 +475,7 @@ def test_input_while_running_queues_follow_up(monkeypatch: pytest.MonkeyPatch) -
     assert client.ops_of(op.RunAgentOperation) == []
 
 
-def test_tasks_manage_shell_immediately_while_busy_and_exit_only_detaches(
+def test_tasks_and_stop_immediately_while_busy_and_exit_only_detaches(
     monkeypatch: pytest.MonkeyPatch, isolated_home: Path
 ) -> None:
     del isolated_home
@@ -473,19 +488,43 @@ def test_tasks_manage_shell_immediately_while_busy_and_exit_only_detaches(
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
         client.set_running(True)
         await _settle()
-        for text in ["/tasks", "/tasks output shell-1 0 512", "/tasks stop shell-1"]:
+        for text in ["/tasks", "/tasks output shell-1 0 512", "/tasks stop shell-1", "/tasks wait agent-1", "/stop"]:
             yield UserInputPayload(text=text)
             await _settle()
             assert client.is_running()
         yield UserInputPayload(text="exit")
 
     client = run_scenario(monkeypatch, script)
-    assert [item.action for item in client.ops_of(op.ManageShellOperation)] == ["list", "output", "stop"]
+    assert [item.request.action for item in client.ops_of(op.ManageTasksOperation)] == [
+        "output",
+        "stop",
+        "wait",
+    ]
+    assert [request.action for request in client.task_requests] == ["list"]
+    assert len(client.ops_of(op.StopSubAgentsOperation)) == 1
     assert client.ops_of(op.FollowUpAgentOperation) == []
     assert client.ops_of(op.RunAgentOperation) == []
     assert client.ops_of(op.InterruptOperation) == []
     assert client.emitted_user_messages == []
     assert client.is_running() and client.closed
+
+
+def test_stop_while_idle_does_not_start_or_echo_a_turn(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        runner_module,
+        "ClientCommandAgent",
+        lambda *args, **kwargs: SimpleNamespace(session=SimpleNamespace(id="sess-1")),
+    )
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        yield UserInputPayload(text="/stop")
+        await _settle()
+        assert not client.is_running()
+
+    client = run_scenario(monkeypatch, script)
+    assert len(client.ops_of(op.StopSubAgentsOperation)) == 1
+    assert not client.ops_of(op.RunAgentOperation) and not client.ops_of(op.FollowUpAgentOperation)
+    assert not client.emitted_user_messages
 
 
 def test_failed_queue_submit_rolls_back_mirror_with_notice(monkeypatch: pytest.MonkeyPatch) -> None:

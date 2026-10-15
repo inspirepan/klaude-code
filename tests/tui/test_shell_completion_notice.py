@@ -59,13 +59,14 @@ def _render(event: events.UserMessageEvent, *, detail: Detail = Detail.COMPACT, 
 
 def _assert_notice(text: str) -> None:
     assert "Shell" in text
-    assert "Background results" in text
     assert USER_MESSAGE_MARK not in text
     assert "Background shell completion report" not in text
     assert "RAW OUTPUT BLOB" not in text
     assert '"output"' not in text
     assert "output_path" not in text
-    notice = text[text.index("Background results") :].split("\n\n", 1)[0]
+    # Compact mode prints one `$ Shell` row per task; full mode keeps a headed block.
+    start = text.index("Background results") if "Background results" in text else text.index("$ Shell")
+    notice = text[start:].split("\n\n", 1)[0]
     assert "✓" not in notice
 
 
@@ -77,7 +78,7 @@ def test_typed_completion_uses_shell_rows_without_report_or_user_input_style(cou
     _assert_notice(rendered)
     for task in tasks:
         assert task.description in rendered
-        assert task.task_id[:8] in rendered
+        assert (task.task_id[:8] in rendered) == (detail == Detail.FULL)
     assert rendered.count("completed") == count
     assert rendered.count("exit 0") == count
 
@@ -109,7 +110,7 @@ def test_unsuccessful_completion_keeps_status_exit_reason_and_never_claims_succe
     task = _task(status=status, exit_code=exit_code, reason="Process no longer available")
     rendered = _render(_event([task]))
     _assert_notice(rendered)
-    assert f"Run targeted tests 12345678 · {status}" in rendered
+    assert f"Run targeted tests · {status}" in rendered
     assert "Process no longer available" in rendered
     if exit_code is not None:
         assert f"exit {exit_code}" in rendered
@@ -155,10 +156,10 @@ def test_batch_is_bounded_in_compact_mode_and_keeps_late_failure_visible() -> No
     tasks[-1] = _task(task_id="failure-long-id", description="Important failure", status="failed", exit_code=9)
     compact = _render(_event(tasks))
     _assert_notice(compact)
-    assert "Important failure failure- · failed · exit 9" in compact
+    assert "Important failure · failed · exit 9" in compact
     assert compact.count("Run suite") == 4
     assert "more 11 tasks" in compact
-    assert len(compact.splitlines()) == 8
+    assert len(compact.splitlines()) == 7
     full = _render(_event(tasks), detail=Detail.FULL)
     assert full.count("Run suite") == 9
     assert "more 6 tasks" in full
@@ -175,7 +176,7 @@ def test_narrow_unicode_and_markup_are_literal_and_fit_terminal(width: int, deta
     text = "".join(segment.text.strip() for line in lines for segment in line)
     assert "[red]测试[/red]" in text
     assert "[bold]原因[/bold]" in text
-    assert "12345678" in text
+    assert ("12345678" in text) == (detail == Detail.FULL)
     if width == 120:
         description_segments = [segment for line in lines for segment in line if "[red]" in segment.text]
         assert description_segments
@@ -220,7 +221,7 @@ def test_display_tape_toggle_refresh_and_following_stream_preserve_notice_and_sp
             _assert_notice(live)
             lines = [line.rstrip() for line in live.splitlines()]
             before = next(idx for idx, line in enumerate(lines) if "Before notification." in line)
-            header = next(idx for idx, line in enumerate(lines) if "Background results" in line)
+            header = next(idx for idx, line in enumerate(lines) if "$ Shell" in line)
             after = next(idx for idx, line in enumerate(lines) if "After notification." in line)
             assert lines[before + 1 : header] == [""]
             assert lines[after - 1] == ""

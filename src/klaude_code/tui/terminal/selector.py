@@ -841,6 +841,7 @@ class SelectOverlay[T]:
         self._on_cancel = on_cancel
 
         self._is_open = False
+        self.text_entry = False
         self._message: str = ""
         self._items: list[SelectItem[T]] = []
         self._pointed_at = 0
@@ -863,7 +864,13 @@ class SelectOverlay[T]:
         return ""
 
     def _get_visible_indices(self) -> tuple[list[int], bool]:
+        if self.text_entry:
+            return list(range(len(self._items))), True
         return _filter_items(self._items, self._get_filter_text())
+
+    @property
+    def input_text(self) -> str:
+        return self._get_filter_text()
 
     def _on_search_changed(self, _buf: Buffer) -> None:
         self._pointed_at = 0
@@ -957,7 +964,7 @@ class SelectOverlay[T]:
 
         @kb.add(Keys.ControlL, filter=is_open_filter, eager=True)
         def _(event: KeyPressEvent) -> None:
-            self.close()
+            self._close_and_invoke_cancel(event)
             event.app.invalidate()
 
         @kb.add(Keys.ControlC, filter=is_open_filter, eager=True)

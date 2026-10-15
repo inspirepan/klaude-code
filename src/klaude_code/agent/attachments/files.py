@@ -32,6 +32,7 @@ from klaude_code.tool import BashTool, ReadTool
 from klaude_code.workspace import resolve_workspace_path
 
 from . import truncate_text_by_lines
+from .collection import get_attachment_user_messages, should_refresh_user_input_attachments
 from .memory import Memory, discover_memory_files_near_paths, format_memory_content
 from .skills import build_dynamic_skill_listing_attachment
 from .state import (
@@ -85,21 +86,21 @@ def _parse_at_file_ref(raw: str, work_dir: Path) -> AtFileRef:
 
 
 def get_at_patterns(session: Session) -> list[AtFileRef]:
-    """Get @ patterns from the last user message."""
-
-    for item in reversed(session.conversation_history):
-        if isinstance(item, message.ToolResultMessage):
-            break
-        if isinstance(item, message.UserMessage):
-            content = message.join_text_parts(item.parts)
-            refs: list[AtFileRef] = []
-            if "@" in content:
-                for match in AT_FILE_PATTERN.finditer(content):
-                    path_str = match.group("quoted") or match.group("plain")
-                    if path_str:
-                        refs.append(_parse_at_file_ref(path_str, session.work_dir))
-            return refs
-    return []
+    """Get distinct @ references from the current user-input batch."""
+    refs: list[AtFileRef] = []
+    seen: set[tuple[str, int | None, int | None]] = set()
+    for item in get_attachment_user_messages(session):
+        content = message.join_text_parts(item.parts)
+        for match in AT_FILE_PATTERN.finditer(content):
+            path_str = match.group("quoted") or match.group("plain")
+            if not path_str:
+                continue
+            ref = _parse_at_file_ref(path_str, session.work_dir)
+            key = (str(resolve_workspace_path(ref.path, session.work_dir)), ref.line_start, ref.line_end)
+            if key not in seen:
+                seen.add(key)
+                refs.append(ref)
+    return refs
 
 
 async def _load_at_file(
@@ -117,7 +118,11 @@ async def _load_at_file(
     tool_context = build_attachment_tool_context(session)
 
     if path.exists() and path.is_file():
-        if is_tracked_file_unchanged(session, path_str) and ref.line_start is None:
+        if (
+            not should_refresh_user_input_attachments()
+            and is_tracked_file_unchanged(session, path_str)
+            and ref.line_start is None
+        ):
             at_ops.append(AtFileOp(operation="Read", path=path_str))
             formatted_blocks.append(_fmt_file_already_in_context(path_str, tools.READ))
             return
@@ -127,6 +132,10 @@ async def _load_at_file(
         if ref.line_end is not None and ref.line_start is not None:
             limit = ref.line_end - ref.line_start + 1
         args = ReadTool.ReadArguments(file_path=path_str, offset=offset, limit=limit)
+        status = session.file_tracker.get(path_str)
+        if should_refresh_user_input_attachments() and status is not None:
+            # ReadTool has its own unchanged-file shortcut.
+            status.read_complete = False
         tool_result = await ReadTool.call_with_args(args, tool_context)
         images = [part for part in tool_result.parts if isinstance(part, (message.ImageURLPart, message.ImageFilePart))]
 
@@ -189,7 +198,7 @@ def _append_dynamic_skill_listing(
 
 
 async def at_file_reader_attachment(session: Session) -> message.DeveloperMessage | None:
-    """Parse @foo/bar references from the last user message and load them."""
+    """Load explicit file references from the current user-input batch."""
 
     refs = get_at_patterns(session)
     if not refs:

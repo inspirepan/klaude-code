@@ -29,11 +29,13 @@ from klaude_code.const import (
 )
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, tools
+from klaude_code.protocol.background_task import TaskResponse
 from klaude_code.protocol.models import (
     AtFileImagesUIItem,
     BashUIExtra,
     ImageUIExtra,
     ReadPreviewUIExtra,
+    SessionIdUIExtra,
     SubAgentState,
     UserImagesUIItem,
 )
@@ -42,10 +44,11 @@ from klaude_code.tui.commands import (
     AppendAssistant,
     AppendBashCommandOutput,
     AppendThinking,
-    BackgroundShellCount,
+    BackgroundTasksStatus,
     DynamicSeparatorText,
     EndAssistantStream,
     EndThinkingStream,
+    MainTaskStatus,
     PrintBlankLine,
     PromptStatusLine,
     RenderAwaySummary,
@@ -67,6 +70,7 @@ from klaude_code.tui.commands import (
     RenderSideQuestion,
     RenderSubAgentBatchSummary,
     RenderSubAgentThinking,
+    RenderTaskControlResult,
     RenderTaskFileChangeSummary,
     RenderTaskFinish,
     RenderTaskMetadata,
@@ -105,12 +109,24 @@ from klaude_code.tui.components import thinking as c_thinking
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
-from klaude_code.tui.components.common import format_elapsed_compact, format_more_lines_indicator
+from klaude_code.tui.components.background_tasks import (
+    TaskDirectory,
+    parse_task_response,
+    render_agent_launch,
+    render_collaboration_call,
+    render_sourced_message,
+    render_task_control,
+    render_task_outcome,
+    unreported_finished_tasks,
+)
+from klaude_code.tui.components.common import format_elapsed_compact, format_more_lines_indicator, format_pascal_case
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
+from klaude_code.tui.components.tools._common import AdaptiveIndent
 from klaude_code.tui.components.tools._manage_shell import render_shell_completion
+from klaude_code.tui.components.tools._presentation import parse_tool_arguments
 from klaude_code.tui.input.pt_theme import CLASS_THINKING, CLASS_TOOL_RESULT
 from klaude_code.tui.status_runtime import clear_task_start, set_task_start
 from klaude_code.tui.terminal.image import print_kitty_image
@@ -263,8 +279,8 @@ class TUICommandRenderer:
         # content above it makes the whole bar visibly hop up one line.
         self._stream_end_pending: bool = False
         self._spinner_visible: bool = False
-        self._background_shell_count = 0
         self._progress_ui_suspended: bool = False
+        self._main_task_status: str | None = None
         self._spinner_last_update_key: _SpinnerUpdateKey | None = None
         self._spinner_pending_update: SpinnerUpdate | None = None
         self._spinner_flush_handle: asyncio.TimerHandle | None = None
@@ -305,6 +321,11 @@ class TUICommandRenderer:
 
         self._sessions: dict[str, _SessionStatus] = {}
         self._shell_calls_with_identity: set[tuple[str, str]] = set()
+        self._task_directory = TaskDirectory()
+        self._task_call_actions: dict[tuple[str, str], str] = {}
+        # What the last scrollback write was, when it can absorb a repeat:
+        # consecutive Agent launches share a header, identical waits print once.
+        self._last_print_key: tuple[str, ...] | None = None
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
         self._sub_agent_batch_color_starts: dict[str, int] = {}
@@ -357,7 +378,11 @@ class TUICommandRenderer:
 
     def reset_replay_state(self) -> None:
         self._sessions = {}
+        self._main_task_status = None
         self._shell_calls_with_identity.clear()
+        self._task_directory.reset()
+        self._task_call_actions.clear()
+        self._last_print_key = None
         self._sub_agent_color_index = 0
         self._sub_agent_batch_color_starts = {}
         self._current_sub_agent_color = None
@@ -418,6 +443,7 @@ class TUICommandRenderer:
     def register_session(self, session_id: str, sub_agent_state: SubAgentState | None = None) -> None:
         st = _SessionStatus(sub_agent_state=sub_agent_state)
         if sub_agent_state is not None:
+            self._task_directory.name_session(session_id, sub_agent_state.sub_agent_desc)
             batch_id = sub_agent_state.parent_tool_batch_id
             batch_index = sub_agent_state.parent_tool_batch_index
             batch_size = sub_agent_state.parent_tool_batch_size
@@ -483,6 +509,7 @@ class TUICommandRenderer:
         end: str = "\n",
         overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "ellipsis",
     ) -> None:
+        self._last_print_key = None
         if self._current_sub_agent_color:
             if objects:
                 self._set_scrollback_boundary(False)
@@ -546,7 +573,8 @@ class TUICommandRenderer:
                 self._clear_open_blocks()
                 return
             case (
-                BackgroundShellCount()
+                MainTaskStatus()
+                | BackgroundTasksStatus()
                 | SpinnerStart()
                 | SpinnerStop()
                 | SpinnerUpdate()
@@ -716,31 +744,10 @@ class TUICommandRenderer:
         if lines is None:
             lines = self._prompt_status_lines()
             separator_text = self._status_separator_text
-        # Prompt-toolkit owns status in both running and idle states.
-        if self._progress_ui_suspended and self._background_shell_count:
-            text = Text(
-                "  $ ",
-                style=ThemeKey.STATUS_HINT,
-                no_wrap=True,
-                overflow="ellipsis",
-            )
-            text.append(
-                f"Background commands {self._background_shell_count} · /tasks to view",
-                style=ThemeKey.STATUS_TEXT,
-            )
-            rendered = self.console.render_lines(text, self.console.options, pad=False)
-            lines = (
-                *lines,
-                *(
-                    PromptStatusLine(
-                        "".join(segment.text for segment in line if not segment.control).rstrip(),
-                        "status",
-                        self._prompt_status_fragments(line),
-                        show_spinner=False,
-                    )
-                    for line in rendered
-                ),
-            )
+        # Prompt-toolkit owns status in both running and idle states; the
+        # background-task footer always closes the block.
+        if self._main_task_status is not None:
+            lines = (*lines, PromptStatusLine(self._main_task_status, show_spinner=False))
         resolved_separator_text = self._resolve_separator_text(separator_text)
         self._status_sink(lines, resolved_separator_text, reset_bottom_height)
 
@@ -1041,16 +1048,29 @@ class TUICommandRenderer:
     # Event-specific rendering helpers
     # ---------------------------------------------------------------------
 
+    def _print_keyed(self, renderable: RenderableType, key: tuple[str, ...]) -> None:
+        self.print(renderable)
+        self._last_print_key = key
+
     def display_tool_call(self, e: events.ToolCallEvent, *, shell_task: ShellTaskSnapshot | None = None) -> bool:
         if not self._visible(e):
             return False
         if c_tools.is_sub_agent_tool(e.tool_name):
-            return False
-        renderable = (
-            c_tools.render_tool_call(e, shell_task=shell_task)
-            if shell_task is not None
-            else c_tools.render_tool_call(e)
-        )
+            # The child's own block reports its work; the launch itself is one row.
+            key = ("agent-launch", e.session_id)
+            self._print_keyed(render_agent_launch(e.arguments, first=self._last_print_key != key), key)
+            return True
+        if e.tool_name == tools.MANAGE_TASKS:
+            args = parse_tool_arguments(e.arguments)
+            action = str(args.get("action", ""))
+            self._task_call_actions[(e.session_id, e.tool_call_id)] = action
+            if action == "wait":
+                key = ("task-wait", e.session_id, str(args.get("task_id") or ""))
+                if self._last_print_key == key:
+                    return True
+                self._print_keyed(render_collaboration_call(e.tool_name, e.arguments, self._task_directory), key)
+                return True
+        renderable = c_tools.render_tool_call(e, shell_task=shell_task, task_directory=self._task_directory)
         if renderable is not None:
             self.print(renderable)
             if (
@@ -1083,8 +1103,23 @@ class TUICommandRenderer:
                 )
             )
             return True
+        task_action = self._task_call_actions.pop((e.session_id, e.tool_call_id), "")
+        if e.tool_name == tools.MANAGE_TASKS and self._compact and task_action != "list" and e.status == "success":
+            response = parse_task_response(e.result)
+            if response is not None:
+                return self.display_task_outcomes(response)
         if c_tools.is_sub_agent_tool(e.tool_name):
-            return False
+            # A launched child reports through its own block; only a launch that
+            # never produced a child has nowhere else to show its error.
+            if not e.is_error or isinstance(e.ui_extra, SessionIdUIExtra):
+                return False
+            self.print(
+                AdaptiveIndent(
+                    c_errors.render_tool_error(e.result, style=ThemeKey.ERROR, detail=self._detail.current),
+                    c_tools.TOOL_SUBJECT_INDENT,
+                )
+            )
+            return True
 
         if (
             self._compact
@@ -1121,6 +1156,8 @@ class TUICommandRenderer:
             detail=self._detail.current,
             max_lines=max_lines,
             show_shell_task_identity=show_shell_task_identity,
+            task_action=task_action,
+            task_directory=self._task_directory,
         )
         if renderable is not None:
             self.print(renderable)
@@ -1378,8 +1415,59 @@ class TUICommandRenderer:
         if context is not None:
             self.print(context)
 
+    def display_task_outcomes(self, response: TaskResponse) -> bool:
+        """Report newly finished tasks once, in their compact transcript shape.
+
+        A finished agent normally prints through its `▌` batch block; when that
+        block never printed (history replay without snapshots), the report or
+        wait result that carries the result builds the same block instead.
+        """
+        self._task_directory.update(response.tasks)
+        finished = unreported_finished_tasks(response, self._task_directory)
+        summaries: list[SubAgentSummary] = []
+        for task in finished:
+            if task.ref.kind != "agent":
+                continue
+            metadata = task.result.metadata if task.result is not None else None
+            text = (task.result.text or task.result.summary or "") if task.result is not None else ""
+            text = text or (response.output if len(response.tasks) == 1 else "")
+            summaries.append(
+                SubAgentSummary(
+                    session_id=task.ref.session_id or f"task:{task.ref.task_id}",
+                    title=format_pascal_case(task.agent_type or "agent"),
+                    description=task.description,
+                    status="success"
+                    if task.status == "completed"
+                    else "aborted"
+                    if task.status == "stopped"
+                    else "error",
+                    model_id=metadata.model_name if metadata is not None else None,
+                    duration_s=task.ended_at - task.started_at if task.ended_at is not None else None,
+                    tool_count=0,
+                    token_count=c_sub_agent.sub_agent_token_count(metadata),
+                    result_summary=c_sub_agent.extract_result_summary(text) if text.strip() else task.status,
+                )
+            )
+        shells = [render_task_outcome(task) for task in finished if task.ref.kind == "shell"]
+        if shells:
+            self.print(Group(*shells))
+            self.print()
+        if summaries:
+            self._render_sub_agent_summaries(tuple(summaries))
+        return bool(shells or summaries)
+
     def display_user_message(self, event: events.UserMessageEvent) -> None:
-        if event.source == "shell_completion":
+        if event.source == "task_completion" and self._compact:
+            response = parse_task_response(event.content)
+            if response is not None:
+                self.display_task_outcomes(response)
+                return
+        if event.source in {"peer_message", "task_completion"}:
+            sourced = render_sourced_message(event, detail=self._detail.current, directory=self._task_directory)
+            if sourced is None:
+                return
+            self.print(sourced)
+        elif event.source == "shell_completion":
             self.print(render_shell_completion(event.shell_tasks, detail=self._detail.current))
         else:
             self.print(c_user_input.render_user_input(event.content))
@@ -1436,6 +1524,8 @@ class TUICommandRenderer:
         renderable = c_metadata.render_task_metadata(event, detail=self._detail.current)
         if renderable is None:
             return
+        if event.metadata.background_task_id is not None:
+            self.print(Text(f"Background task {event.metadata.background_task_id}", style=ThemeKey.METADATA_DIM))
         self.print(renderable)
         self.print()
 
@@ -1466,6 +1556,10 @@ class TUICommandRenderer:
             )
 
     def display_sub_agent_batch_summary(self, summaries: tuple[SubAgentSummary, ...]) -> None:
+        summaries = tuple(summary for summary in summaries if self._task_directory.claim_summary(summary.session_id))
+        self._render_sub_agent_summaries(summaries)
+
+    def _render_sub_agent_summaries(self, summaries: tuple[SubAgentSummary, ...]) -> None:
         rendered: list[RenderableType] = []
         for summary in summaries:
             session_id = summary.session_id
@@ -1944,9 +2038,30 @@ class TUICommandRenderer:
                         original_user_message=original_user_message,
                         messages_discarded=messages_discarded,
                     )
-                case BackgroundShellCount(count=count):
-                    self._background_shell_count = count
-                    self._emit_prompt_status()
+                case MainTaskStatus(text=text):
+                    if text != self._main_task_status:
+                        self._main_task_status = text
+                        self._emit_prompt_status()
+                case BackgroundTasksStatus(event=event):
+                    self._task_directory.update(event.tasks)
+                    for task in event.tasks:
+                        child_id = task.ref.session_id or f"task:{task.ref.task_id}"
+                        if (
+                            task.ref.kind == "agent"
+                            and task.ref.owner_session_id == event.session_id
+                            and child_id not in self._sessions
+                        ):
+                            self.register_session(
+                                child_id,
+                                SubAgentState(
+                                    sub_agent_type=task.agent_type or "agent",
+                                    sub_agent_desc=task.description,
+                                    sub_agent_prompt="",
+                                ),
+                            )
+                case RenderTaskControlResult(event=event):
+                    self.print(render_task_control(event, detail=self._detail.current))
+                    self.print()
                 case SpinnerStart():
                     self.spinner_start()
                 case SpinnerStop():

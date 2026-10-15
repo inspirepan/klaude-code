@@ -17,7 +17,9 @@ from typing import Any
 
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op
+from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.events import EventEnvelope, parse_event_envelope
+from klaude_code.protocol.peer import PeerReceipt
 from klaude_code.protocol.version import PROTOCOL_VERSION, is_protocol_compatible
 from klaude_code.server.paths import server_socket_path
 from klaude_code.tui.client.base import ClientConnectionError, SessionInfoSnapshot
@@ -406,6 +408,16 @@ class SocketRuntimeClient:
 
     def interaction_requests(self) -> asyncio.Queue[events.UserInteractionRequestEvent]:
         return self._interaction_queue
+
+    async def manage_tasks(self, request: TaskRequest) -> TaskResponse:
+        from klaude_code.tui.client.server_api import manage_session_tasks
+
+        return await asyncio.to_thread(manage_session_tasks, self.session_id, request)
+
+    async def send_task_message(self, task_id: str, body: str) -> PeerReceipt:
+        from klaude_code.tui.client.server_api import send_owned_task_message
+
+        return await asyncio.to_thread(send_owned_task_message, self.session_id, task_id, body)
 
     def _notify_state_changed(self) -> None:
         self._state_changed.set()
@@ -829,7 +841,12 @@ class SocketRuntimeClient:
         if envelope.session_id in self._child_session_ids and isinstance(event, events.UserInteractionRequestEvent):
             self._interaction_queue.put_nowait(event)
         if envelope.session_id == self._session_id:
-            if isinstance(event, events.TaskStartEvent):
+            if isinstance(event, events.BackgroundTasksUpdatedEvent):
+                owned = [task for task in event.tasks if task.ref.owner_session_id == self._session_id]
+                self._child_session_ids.update(
+                    task.ref.session_id for task in owned if task.ref.kind == "agent" and task.ref.session_id
+                )
+            elif isinstance(event, events.TaskStartEvent):
                 self._running = True
                 self._active_operation_id = envelope.operation_id
                 self._notify_state_changed()
@@ -863,7 +880,11 @@ class SocketRuntimeClient:
                     self._notify_state_changed()
             elif isinstance(event, events.UserInteractionRequestEvent):
                 self._interaction_queue.put_nowait(event)
-            if isinstance(event, events.UserMessageEvent) and self._swallow_pending_echo(event.content):
+            if (
+                isinstance(event, events.UserMessageEvent)
+                and event.source not in {"peer_message", "task_completion", "shell_completion"}
+                and self._swallow_pending_echo(event.content)
+            ):
                 # Canonical echo of a message this client already rendered.
                 return
         if (

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
+from pathlib import Path
 from typing import Literal
 
 from klaude_code.agent.agent import Agent
@@ -95,10 +96,6 @@ class RuntimeFacade:
         on_model_change: Callable[[str], None] | None = None,
     ):
         self._stopped = False
-        self._shell_notification_generations: dict[str, int] = {}
-        self._shell_notifications_disabled: set[str] = set()
-        self._shell_completion_handler: Callable[[ShellTaskSnapshot, int], Awaitable[None]] | None = None
-        self._shell_pending_provider: Callable[[str], bool] | None = None
         self.shell_task_manager = ShellTaskManager(
             on_update=self._shell_tasks_updated, on_complete=self._shell_completed
         )
@@ -135,14 +132,14 @@ class RuntimeFacade:
                 on_child_task_state_change=self._on_child_task_state_change,
                 submit_operation=self.submit,
                 wait_for_operation=self.wait_for,
-                disable_shell_notifications=self.disable_shell_notifications,
             ),
             model_profile_provider,
             on_model_change,
             shell_task_manager=self.shell_task_manager,
-            has_pending_shell_notifications=self.has_pending_shell_notifications,
         )
         self._operation_awaiter = OperationCompletionAwaiter(event_bus)
+        self.task_manager = self._operation_dispatcher.task_manager
+        self.peer_control = self._operation_dispatcher.peer_control
         self._stopped = False
         self._reclaim_exclusions_provider: Callable[[], set[str]] | None = None
 
@@ -327,34 +324,11 @@ class RuntimeFacade:
         if self._stopped:
             raise RuntimeError("RuntimeFacade is stopped")
 
-        if isinstance(operation, op.InterruptOperation):
-            actor = self.session_registry.get_session_actor(operation.session_id)
-            root = actor.snapshot().active_root_task if actor is not None else None
-            if operation.expected_operation_id is None or (
-                root is not None and root.operation_id == operation.expected_operation_id
-            ):
-                pending = [operation.session_id]
-                disabled: set[str] = set()
-                actors = self.session_registry.list_session_actors()
-                while pending:
-                    session_id = pending.pop()
-                    if session_id in disabled:
-                        continue
-                    disabled.add(session_id)
-                    self.disable_shell_notifications(session_id)
-                    for actor in actors:
-                        agent = actor.get_agent()
-                        if agent is not None and agent.session.parent_session_id == session_id:
-                            pending.append(actor.session_id)
-        elif (
-            isinstance(operation, op.RunAgentOperation) and operation.shell_notification_generation is None
-        ) or isinstance(operation, op.RunBashOperation | op.FollowUpAgentOperation):
-            self.resume_shell_notifications(operation.session_id)
-
         self._operation_awaiter.register(operation.id)
         try:
             await self.session_registry.submit(operation)
         except Exception:
+            self.session_registry.mark_operation_completed(operation.id)
             self._operation_awaiter.discard(operation.id)
             raise
 
@@ -370,36 +344,21 @@ class RuntimeFacade:
 
     async def _shell_tasks_updated(self, session_id: str, tasks: list[ShellTaskSnapshot]) -> None:
         if not self._stopped:
+            manager = getattr(self, "task_manager", None)
+            if manager is not None:
+                for task in tasks:
+                    await manager.record_shell(task, Path(task.work_dir))
+                if tasks:
+                    await self.emit_event(
+                        events.BackgroundTasksUpdatedEvent(
+                            session_id=session_id,
+                            tasks=await manager.list_tasks(session_id, Path(tasks[0].work_dir)),
+                        )
+                    )
             await self.emit_event(events.ShellTasksUpdatedEvent(session_id=session_id, tasks=tasks))
 
     async def _shell_completed(self, task: ShellTaskSnapshot) -> None:
-        generation = self.shell_notification_generation(task.session_id)
-        if generation is not None and self._shell_completion_handler is not None:
-            await self._shell_completion_handler(task, generation)
-
-    def set_shell_completion_handler(
-        self,
-        handler: Callable[[ShellTaskSnapshot, int], Awaitable[None]] | None,
-        *,
-        has_pending: Callable[[str], bool] | None = None,
-    ) -> None:
-        self._shell_completion_handler = handler
-        self._shell_pending_provider = has_pending
-
-    def has_pending_shell_notifications(self, session_id: str) -> bool:
-        return self._shell_pending_provider is not None and self._shell_pending_provider(session_id)
-
-    def shell_notification_generation(self, session_id: str) -> int | None:
-        if self._stopped or session_id in self._shell_notifications_disabled:
-            return None
-        return self._shell_notification_generations.get(session_id, 0)
-
-    def disable_shell_notifications(self, session_id: str) -> None:
-        self._shell_notification_generations[session_id] = self._shell_notification_generations.get(session_id, 0) + 1
-        self._shell_notifications_disabled.add(session_id)
-
-    def resume_shell_notifications(self, session_id: str) -> None:
-        self._shell_notifications_disabled.discard(session_id)
+        await self.task_manager.record_shell(task, Path(task.work_dir))
 
     async def replay_session_history(self, session_id: str) -> None:
         """Replay an initialized session's transcript to the display."""
@@ -433,11 +392,16 @@ class RuntimeFacade:
         self._operation_dispatcher.cancel_side_questions(session_id)
         cancelled_requests: list[PendingUserInteractionRequest] = []
         if force:
+            # Stop the owner first so it cannot launch another child during teardown.
+            actor = self.session_registry.get_session_actor(session_id)
+            if actor is not None:
+                actor.cancel_queued_runs()
+            await self._operation_dispatcher.handle_interrupt(op.InterruptOperation(session_id=session_id))
+            await self._operation_dispatcher.handle_stop_sub_agents(op.StopSubAgentsOperation(session_id=session_id))
             cancelled_requests = self.session_registry.cancel_pending_interactions_with_requests(session_id=session_id)
 
         closed = await self.session_registry.close_session(session_id, force=force)
         if closed:
-            self.disable_shell_notifications(session_id)
             await self.shell_task_manager.stop_session(session_id)
             for request in cancelled_requests:
                 await self._operation_dispatcher.emit_event(
@@ -466,12 +430,7 @@ class RuntimeFacade:
         # Never reclaim the primary (TUI-active) session or any session an
         # exclusion provider vouches for (the server excludes every session
         # with a live WS attach — an attached-but-quiet TUI is still in use).
-        exclude: set[str] = self.shell_task_manager.active_session_ids()
-        exclude |= {
-            actor.session_id
-            for actor in self.session_registry.list_session_actors()
-            if self.has_pending_shell_notifications(actor.session_id)
-        }
+        exclude: set[str] = self.shell_task_manager.active_session_ids() | self.task_manager.active_owner_ids()
         primary = self._operation_dispatcher.current_session_id()
         if primary is not None:
             exclude.add(primary)
@@ -491,6 +450,7 @@ class RuntimeFacade:
 
     async def stop(self) -> None:
         self._stopped = True
+        await self.task_manager.aclose()
         await self.shell_task_manager.aclose()
         sessions_to_flush: list[Agent] = []
         for runtime in self.session_registry.list_session_actors():
@@ -539,12 +499,6 @@ class RuntimeFacade:
         log_debug("RuntimeFacade stopped", debug_type=DebugType.EXECUTION)
 
     async def _execute_operation(self, operation: op.Operation) -> None:
-        if (
-            isinstance(operation, op.RunAgentOperation)
-            and operation.shell_notification_generation is not None
-            and self.shell_notification_generation(operation.session_id) != operation.shell_notification_generation
-        ):
-            return
         try:
             log_debug(
                 f"Handling operation {operation.id} of type {operation.type.value}",
@@ -559,6 +513,9 @@ class RuntimeFacade:
                 f"Failed to handle operation {operation.id}: {e!s}",
                 debug_type=DebugType.EXECUTION,
             )
+            if isinstance(operation, op.StopSubAgentsOperation):
+                # Its failed lifecycle receipt must not end an unrelated root turn.
+                raise
             session_id = getattr(operation, "session_id", None)
             await self._operation_dispatcher.emit_event(
                 events.ErrorEvent(

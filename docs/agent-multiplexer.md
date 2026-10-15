@@ -3,6 +3,32 @@
 状态：Phase 1–4 已实现；Phase 5 进行中（2026-08，决策见 §8.4）
 决策：移除 web 模块；klaude 变成 agent multiplexer —— 唯一的本地 server 持有全部 agent 执行，TUI 与 CLI 都是客户端。目标使用者有两类：人类（TUI attach）和其他 Agent（如 Claude Code 通过 Bash 调用 CLI）。
 
+## 当前实现摘要：原生编排优先，CLI 保留外部闭环
+
+本节覆盖后续 steering / 异步协作 Phase1–3B 的实现；本轮 Phase4 同步文档与 `agents --prime`，不等同于上文早期 multiplexer 阶段编号。下文保留原产品设计和决策过程，旧 help 示例不是当前接口规格；冲突时以本节、实际 `--help`、runtime tool description / system strategy 和生成的 prime guide 为准。
+
+- 内部委派优先 `Agent`，默认异步返回 task/session 引用；用 `ManageTasks` 的 `list/output/wait/stop` 管理 owned Agent/Bash，依赖结果用 wait/output，不轮询 list。
+- 原生协作用 `ListPeers({})`、`MessagePeer({target, body, reply_to?})`；CLI 留给外部 agent、脚本、人工及原生工具不可用的 fallback，保留 run/fan-out/barrier/synthesis 和既有退出码。
+- TUI busy 输入及 peer 数据持久化入队，在安全 step 边界 FIFO 批量消费，先完整配对工具结果；不再等整个 task 完成后逐条启动。steering 只解除等待，不停止 child，也不强杀普通工具。
+- `send TARGET TEXT [--from LABEL] [--message-id ID] [--reply-to ID] [--steer]` 和 `run --session` 都是 peer 数据；`--steer` 是默认安全投递的兼容别名，不再 interrupt/restart。
+  - receipt 的 `message_id/accepted` 只表示 durable queued，不表示已读、处理或回复；`--from` 不建立身份，回复需显式发送。
+  - `send --wait` 只等 session settled 后读取最新 output，不是 message RPC；`output` 不发送回复，也不确认模型消费。
+- `kill TARGET` / Esc 只停目标 root 当前推理或等待，后台 child 和独立 Bash 继续；`kill --all` 显式选择活跃 child sessions，不是隐式级联。
+  - TUI `/stop`、`klaude stop TARGET [--children]` 只停止该 owner 的子 agent（含 queued），不停止 root、独立 Bash 或 peers。
+  - CLI 为 `klaude tasks list TARGET`、`klaude tasks output TARGET TASK_ID`、`klaude tasks wait TARGET TASK_ID`、`klaude tasks stop TARGET TASK_ID`，支持 `--json`；output/wait 支持 `--offset/--limit`，wait 的 `--timeout SECS` 超时退出 124，不停止任务。
+- 后台完成只更新状态，不启动 idle parent turn；目标 dependency 完成解除 wait，无关 shell completion 不解除该等待。忙碌父 agent 在安全边界接收报告；session wait 不是所有后台 Bash 的 barrier，ps/brief 单列后台 agent 计数。
+- TUI `/tasks` 无参数打开任务选择面板，支持输出分页、刷新、单任务停止和确认后向 running child 发消息；显式 `/tasks list/output/wait/stop` 保留文本语法。主对话状态与后台活动分开显示，compact 最多三条 active child 行；授权等待置顶，已完成结果仍可查询，不表示用户未读。面板不改变普通编辑器目标，授权弹窗接管时关闭面板并保留草稿与光标。
+- 用户输入、`source=peer_message` 和 `source=task_completion` 保留来源区别；peer 数据和 task report 都不是用户授权。不能跨 peer 代答审批/问题，也不能借 peer 绕过当前权限，必须交回操作者。
+- recovery 恢复历史、结果及待投递内容，无法恢复的活跃执行标 `lost`，不重放副作用；稳定 ID、history flush 后 durable ack 防重复投递/结算。CLI/TUI 查询和部分结果页不算模型完整消费。
+
+### 文档同步与真实剩余
+
+- 内置 `klaude-config` 的旧指引仍需在 `src/klaude_code/skill/assets` 独立子模块中后续发布，再更新父仓库 pointer；本轮不改子模块、不 commit/push，也不通过 vendor/copy/loader 补丁覆盖。
+- 当前 runtime tool description、system strategy 与 prime guide 是新契约；旧 skill 的 CLI-only、同步等待或 interrupt/steer 说明不能覆盖新规则。skill 加载行为不变。
+- 本轮仅核对源码、同步文案并运行相关格式/CLI 检查；全量 lint/typecheck/test/build、端到端与终端验证由主会话统一补充，不在这里宣称已通过。
+
+## 早期 multiplexer 设计记录
+
 已确认的关键决策（2026-08-03）：
 
 - TUI 仅作为 server 客户端（tmux 模型），**不保留**本地直连 runtime 的双模式；调试用 `klaude server run` 前台兜底。

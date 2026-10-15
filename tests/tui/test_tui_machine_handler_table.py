@@ -9,6 +9,12 @@ from klaude_code.tui.machine import _NOTICE_EVENT_SPECS, DisplayStateMachine, _b
 # Event types the machine is expected to dispatch. Pinned so the reflection-built table
 # cannot silently lose (or gain) an entry.
 EXPECTED_HANDLED_EVENT_NAMES = {
+    "UserInteractionRequestEvent",
+    "UserInteractionResolvedEvent",
+    "UserInteractionCancelledEvent",
+    "BackgroundTasksUpdatedEvent",
+    "TaskControlResultEvent",
+    "OperationFinishedEvent",
     "WelcomeEvent",
     "WelcomeContextEvent",
     "UserMessageEvent",
@@ -98,7 +104,7 @@ def test_handler_shadowing_a_notice_event_raises(monkeypatch: pytest.MonkeyPatch
 
 def test_unhandled_event_type_yields_no_commands() -> None:
     machine = DisplayStateMachine()
-    event = events.UserInteractionCancelledEvent(session_id="main", request_id="r1", reason="interrupt")
+    event = events.UserInteractionResponseReceivedEvent(session_id="main", request_id="r1", status="submitted")
     assert event.__class__ not in DisplayStateMachine._EVENT_HANDLERS
     assert machine.transition(event) == []
 

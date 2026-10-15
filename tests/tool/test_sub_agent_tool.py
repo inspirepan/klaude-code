@@ -34,9 +34,7 @@ def _tool_context(*, run_subtask: RunSubtask | None = None, work_dir: Path | Non
 def _record_runner(captured: dict[str, Any], *, fail_if_called: bool = False) -> RunSubtask:
     """Runner that records the SubAgentState it receives."""
 
-    async def _runner(
-        state: Any, _record_session_id: Any, _register_metadata_getter: Any, _register_progress_getter: Any
-    ) -> Any:
+    async def _runner(state: Any, _record_session_id: Any) -> Any:
         captured["state"] = state
         if fail_if_called:
             raise AssertionError("runner must not be called")
@@ -85,9 +83,7 @@ def test_agent_tool_call_without_runner() -> None:
 def test_agent_tool_call_includes_session_id() -> None:
     captured: dict[str, Any] = {}
 
-    async def _runner(
-        state: Any, record_session_id: Any, register_metadata_getter: Any, register_progress_getter: Any
-    ) -> Any:
+    async def _runner(state: Any, record_session_id: Any) -> Any:
         captured["sub_agent_type"] = state.sub_agent_type
         captured["model"] = state.model
         if callable(record_session_id):

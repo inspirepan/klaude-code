@@ -1,5 +1,8 @@
 BASH = "Bash"
 MANAGE_SHELL = "ManageShell"
+MANAGE_TASKS = "ManageTasks"
+LIST_PEERS = "ListPeers"
+MESSAGE_PEER = "MessagePeer"
 APPLY_PATCH = "apply_patch"
 EDIT = "Edit"
 

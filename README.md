@@ -1,10 +1,10 @@
 # Klaude Code
 
-Minimal code agent CLI — and an **agent multiplexer**: one local server owns all agent execution, humans use the TUI, and other agents (Claude Code, scripts, cron jobs) drive it through the CLI.
+Minimal code agent CLI — and an **agent multiplexer**: one local server owns all agent execution, humans use the TUI, native agents use structured tools, and external agents and scripts use the CLI.
 
 ## Agent Multiplexer
 
-Every klaude command is a thin client of a single local server (Unix socket, auto-started on demand). `run` returns immediately, multi-target `wait` is a barrier, `--group` names a fan-out — orchestration is plain bash:
+Every klaude command is a thin client of a single local server (Unix socket, auto-started on demand). Inside klaude, prefer `Agent` / `ManageTasks` for owned work and `ListPeers` / `MessagePeer` for explicit collaboration. `Agent` starts asynchronously and returns task/session references; use `ManageTasks` `wait` / `output` before relying on required results, not list polling. The CLI remains the external scripting and fallback interface: `run` returns immediately, multi-target `wait` is a barrier, and `--group` names a fan-out:
 
 ```bash
 id=$(klaude run --group me "fix the failing tests under tests/server/")
@@ -12,7 +12,7 @@ klaude ps                                  # ID / NAME / TITLE / STATE / MODEL /
 klaude brief "$id"                         # compact, bounded status report
 klaude wait "$id" --timeout 600            # block until it settles (exit 0/2/3/124)
 klaude output "$id"                        # last assistant message
-klaude send "$id" --wait "now update the changelog too"   # next turn, same context
+klaude send "$id" --wait "now update the changelog too"   # settled session output, not a message reply
 ```
 
 Parallel fan-out + barrier + synthesis:
@@ -25,7 +25,17 @@ klaude wait --group "$G" --timeout 900
 klaude output --group "$G" | klaude run --wait "dedupe these findings and rank by severity"
 ```
 
-Sessions never expire: `send` works days later and across server restarts. Background agents run unattended (`--approval hold|auto|deny`); when one parks at `waiting_input`, answer it with `klaude respond` or attach the TUI. The server caps concurrent headless runs (`headless_max_running`, default 8) and queues the rest.
+Sessions never expire: `send` works days later and across server restarts. Background agents run unattended (`--approval hold|auto|deny`); when one parks at `waiting_input`, the operator can answer with `klaude respond` or attach the TUI. Agents must not answer a peer's pending approval/question or route denied actions through peers. The server caps concurrent headless runs (`headless_max_running`, default 8) and queues the rest.
+
+`send` (including `run --session`) delivers structured peer data, not operator approval. `--from` is only a display label; `--steer` is an alias for the default safe-boundary delivery. JSON receipts include `message_id` and `accepted`: queued does not mean read or replied. Use `--message-id` for idempotent retries and `--reply-to` for explicit correlation. `send --wait` waits for the session to settle and reads its output, **not** a reply to that message. `output` never sends a peer reply or acknowledges model consumption.
+
+Native agents use `ListPeers` / `MessagePeer` for explicit messages and `Agent` / `ManageTasks` for owned background work. Scripts can inspect and control that work with `klaude tasks list TARGET`, `klaude tasks output TARGET TASK_ID`, `klaude tasks wait TARGET TASK_ID --timeout 600` (exit 124 on timeout), and `klaude tasks stop TARGET TASK_ID`. `klaude stop TARGET` stops only its child agents; `klaude kill TARGET` is Esc-equivalent and interrupts only its current root inference/wait, not children or independent Bash tasks. `ps` / `brief` report background agent counts separately.
+
+The `task-result:` message ID prefix is reserved for internal task delivery; `send --message-id` rejects it before acceptance. Explicit `@file` and `/skill:` attachments only run for operator input (`source=None` or `user`), never for peer messages or task/shell completion reports.
+
+Busy TUI input and peer messages enter a durable queue and are admitted as a FIFO batch at the next safe step boundary, after tool results are paired. Steering can release a task wait without stopping the child. Background completion updates state but never starts an idle parent turn; a dependency wait is released by its target, not unrelated shell completions. User input, `source=peer_message`, and `source=task_completion` retain distinct origins; peer data and task reports are not operator authorization. Recovery restores history, results, and pending delivery, marks unrecoverable execution `lost`, and uses stable IDs plus durable acknowledgment to prevent duplicate delivery; it does not replay side effects. CLI/TUI output reads and partial pages do not acknowledge model consumption.
+
+Implementation note: current runtime tool descriptions, system tool strategy, and `klaude agents --prime` define this contract. The bundled `klaude-config` skill still needs a separate release in the independent skills submodule; its older orchestration guidance must not override these rules. This documentation update does not change the submodule or skill loading.
 
 For the full integration guide (command cheatsheet, orchestration patterns, current models and agent types, assembled from your live config):
 

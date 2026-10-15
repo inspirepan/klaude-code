@@ -20,6 +20,7 @@ from klaude_code.server.history_bridge import HistoryAppendBridge
 from klaude_code.server.host_guard import HostHeaderGuardMiddleware
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.lifecycle import ServerLifecycle
+from klaude_code.server.peers import wire_peers
 from klaude_code.server.prevent_sleep import run_prevent_sleep_monitor
 from klaude_code.server.routes import (
     headless_router,
@@ -115,6 +116,7 @@ def create_app(
         headless = state.headless
         if headless is None:
             raise RuntimeError("headless runtime is not initialized")
+        wire_peers(state)
         headless.start(state.event_bus)
         if state.upgrade is not None:
             state.upgrade.start(state.event_bus)

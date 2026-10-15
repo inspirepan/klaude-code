@@ -38,6 +38,13 @@ class RenderCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class MainTaskStatus(RenderCommand):
+    """Background-task footer under the status rows; None hides it."""
+
+    text: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class RenderWelcome(RenderCommand):
     event: events.WelcomeEvent
 
@@ -220,8 +227,13 @@ class EndAssistantStream(RenderCommand):
 
 
 @dataclass(frozen=True, slots=True)
-class BackgroundShellCount(RenderCommand):
-    count: int
+class BackgroundTasksStatus(RenderCommand):
+    event: events.BackgroundTasksUpdatedEvent
+
+
+@dataclass(frozen=True, slots=True)
+class RenderTaskControlResult(RenderCommand):
+    event: events.TaskControlResultEvent
 
 
 @dataclass(frozen=True, slots=True)

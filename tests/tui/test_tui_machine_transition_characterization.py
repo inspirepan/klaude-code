@@ -20,7 +20,8 @@ from klaude_code.tui.transcript_detail import Detail
 
 
 def _types(cmds: list[c.RenderCommand]) -> list[str]:
-    return [type(cmd).__name__ for cmd in cmds]
+    # Main-session status is independently covered by the shared-task UX tests.
+    return [type(cmd).__name__ for cmd in cmds if not isinstance(cmd, c.MainTaskStatus)]
 
 
 def _llm_config() -> LLMConfigParameter:
@@ -64,8 +65,8 @@ def test_welcome_with_new_session_id_resets_then_renders() -> None:
     _ = m.transition(_welcome("s1", "First"))
     cmds = m.transition(_welcome("s2", "Second"))
 
-    assert _types(cmds) == ["BackgroundShellCount", "RenderWelcome", "UpdateTerminalTitlePrefix"]
-    assert cmds[0] == c.BackgroundShellCount(0)
+    assert _types(cmds) == ["RenderWelcome", "UpdateTerminalTitlePrefix"]
+    assert cmds[-1] == c.MainTaskStatus(None)
     assert m.session_title == "Second"
 
 
@@ -459,6 +460,6 @@ def test_replay_begin_and_end_helpers() -> None:
     m = DisplayStateMachine()
     begin = m.begin_rebuild()
     end = m.end_rebuild()
-    assert _types(begin) == ["BackgroundShellCount", "SpinnerStop", "PrintBlankLine"]
-    assert begin[0] == c.BackgroundShellCount(0)
+    assert _types(begin) == ["SpinnerStop", "PrintBlankLine"]
+    assert begin[0] == c.MainTaskStatus(None)
     assert _types(end) == ["SpinnerStop"]

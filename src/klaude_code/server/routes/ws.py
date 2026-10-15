@@ -191,7 +191,6 @@ async def _submit_user_turn(state: ServerAppState, run_op: op.RunAgentOperation)
             _agent2, busy = _agent_and_busy()
     if busy:
         await runtime.submit(op.FollowUpAgentOperation(session_id=session_id, input=run_op.input))
-        await _emit_follow_up_queue_event(state, session_id)
         # The turn was absorbed into the follow-up queue, so the run operation
         # itself will never reach the registry. Clients that track it as a
         # foreground turn (TUI local_turn_ops) need a terminal lifecycle event,
@@ -214,6 +213,12 @@ async def _submit_user_turn(state: ServerAppState, run_op: op.RunAgentOperation)
         if state.headless is not None:
             state.headless.clear_turn_starting(session_id, run_op.id)
         raise
+
+
+async def _submit_stop_sub_agents(state: ServerAppState, operation: op.StopSubAgentsOperation) -> None:
+    # The runtime publishes the failed lifecycle receipt; do not turn it into a root error frame.
+    with contextlib.suppress(Exception):
+        await state.runtime.submit(operation)
 
 
 async def _handle_operation_frame(
@@ -265,6 +270,9 @@ async def _handle_operation_frame(
             # loop (an interrupt frame could be right behind it).
             _spawn_ws_task(_submit_user_turn(state, operation))
             return
+        if isinstance(operation, op.StopSubAgentsOperation):
+            _spawn_ws_task(_submit_stop_sub_agents(state, operation))
+            return
         if isinstance(operation, op.InterruptOperation):
             _spawn_ws_task(runtime.submit(operation))
             return
@@ -273,11 +281,6 @@ async def _handle_operation_frame(
             # by a failed turn or a kill must accept and run it.
             state.headless.mark_session_active(session_id)
         await runtime.submit(operation)
-        if isinstance(operation, op.FollowUpAgentOperation):
-            # Submit is accepted before execution; the queue event needs the
-            # applied state, so wait for the (cheap) operation to finish.
-            await runtime.wait_for(operation.id)
-            await _emit_follow_up_queue_event(state, session_id)
     except FutureCancelledError:
         return
     except Exception as exc:
@@ -379,6 +382,10 @@ def _validate_incoming_frame(payload: dict[str, Any], frame_type: str) -> Incomi
 
 
 def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]:
+    return set(_collect_descendant_work_dirs(session_id, work_dir))
+
+
+def _collect_descendant_work_dirs(session_id: str, work_dir: Path) -> dict[str, Path]:
     """Collect all descendant sub-agent session IDs by scanning session histories.
 
     Uses BFS to find SpawnSubAgentEntry items in the parent session and recurse
@@ -389,25 +396,24 @@ def _collect_descendant_session_ids(session_id: str, work_dir: Path) -> set[str]
     Each child is read from its own work_dir: a child spawned with a work_dir
     override lives under another project key than its parent.
     """
-    result: set[str] = set()
+    result: dict[str, Path] = {}
     queue: list[tuple[str, Path]] = [(session_id, work_dir)]
     visited: set[str] = {session_id}
     while queue:
         current_id, current_work_dir = queue.pop(0)
         try:
-            history = get_store_for_path(current_work_dir).load_history(current_id)
+            spawns = get_store_for_path(current_work_dir).scan_spawned_sub_agents(current_id)
         except Exception:
             continue
-        for item in history:
-            if isinstance(item, message.SpawnSubAgentEntry):
-                child_id = item.session_id
-                if child_id not in visited:
-                    visited.add(child_id)
-                    result.add(child_id)
-                    # A legacy entry carries no work_dir: the child then sits in its
-                    # parent's directory.
-                    child_work_dir = Path(item.work_dir) if item.work_dir else current_work_dir
-                    queue.append((child_id, child_work_dir))
+        for _, item in spawns:
+            child_id = item.session_id
+            if child_id not in visited:
+                visited.add(child_id)
+                # A legacy entry carries no work_dir: the child then sits in its
+                # parent's directory.
+                child_work_dir = Path(item.work_dir) if item.work_dir else current_work_dir
+                result[child_id] = child_work_dir
+                queue.append((child_id, child_work_dir))
     return result
 
 
@@ -548,7 +554,7 @@ async def _send_attach_replay(session_id: str, websocket: WebSocket, *, state: S
     if cut is not None and cut.envelopes:
         batch: list[dict[str, Any]] = []
         for envelope in cut.envelopes:
-            if isinstance(envelope.event, events.ShellTasksUpdatedEvent):
+            if isinstance(envelope.event, events.ShellTasksUpdatedEvent | events.BackgroundTasksUpdatedEvent):
                 continue
             replay_envelope = envelope.model_copy(update={"event": await _with_shell_task_hint(envelope.event)})
             batch.append(replay_envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
@@ -568,12 +574,14 @@ async def _forward_events(
     skip_seq_at_or_below: int = 0,
     send_session_info_updates: bool = False,
     shell_snapshot_cutoffs: dict[str, int] | None = None,
+    background_snapshot_cutoffs: dict[str, int] | None = None,
+    descendant_session_ids: set[str] | None = None,
 ) -> None:
     state = get_server_state_from_ws(websocket)
     if subscription is None:
         subscription = state.subscribe_events(None)
     tracked_task_ids: set[str] = set()
-    tracked_child_session_ids: set[str] = set()
+    tracked_child_session_ids = set(descendant_session_ids or ())
 
     snapshot = state.runtime.session_registry.snapshot(session_id)
     if snapshot is not None and snapshot.active_root_task is not None:
@@ -582,7 +590,7 @@ async def _forward_events(
     # When there is no active root task tracked (e.g. viewing a TUI-owned session
     # or reconnecting after a server restart), scan the persisted history for
     # sub-agent sessions so their real-time events are forwarded to this WebSocket.
-    if not tracked_task_ids:
+    if not tracked_task_ids and descendant_session_ids is None:
         work_dir = resolve_session_work_dir_fast(
             state.session_live.index if state.session_live is not None else None, state.home_dir, session_id
         )
@@ -599,6 +607,12 @@ async def _forward_events(
     async def _read_events() -> None:
         try:
             async for envelope in subscription:
+                if (
+                    isinstance(envelope.event, events.BackgroundTasksUpdatedEvent)
+                    and background_snapshot_cutoffs is not None
+                    and envelope.event_seq <= background_snapshot_cutoffs.get(envelope.session_id, 0)
+                ):
+                    continue
                 if (
                     isinstance(envelope.event, events.ShellTasksUpdatedEvent)
                     and shell_snapshot_cutoffs is not None
@@ -713,39 +727,81 @@ async def _send_pending_interaction_snapshots(session_id: str, websocket: WebSoc
             await websocket.send_json(_synthetic_envelope_dict(request_event))
 
 
-async def _send_shell_task_snapshots(
-    session_id: str, work_dir: Path, websocket: WebSocket, *, state: ServerAppState
-) -> dict[str, int]:
-    manager = getattr(state.runtime, "shell_task_manager", None)
-    if manager is None:
+async def _prepare_task_snapshot_targets(session_id: str, work_dir: Path, *, state: ServerAppState) -> dict[str, Path]:
+    if (
+        getattr(state.runtime, "shell_task_manager", None) is None
+        and getattr(state.runtime, "task_manager", None) is None
+    ):
         return {}
     actor = state.runtime.session_registry.get_session_actor(session_id)
     agent = actor.get_agent() if actor is not None else None
-    descendants: set[str] = set()
+    descendants: dict[str, Path] = {}
     if agent is None or any(
         isinstance(item, message.SpawnSubAgentEntry) for item in agent.session.conversation_history
     ):
-        descendants = await asyncio.to_thread(_collect_descendant_session_ids, session_id, work_dir)
-    descendants |= live_descendant_session_ids(state.runtime.session_registry, session_id)
-    target_ids = [session_id, *sorted(descendants)]
-    snapshots: list[events.ShellTasksUpdatedEvent] = []
-    cutoffs: dict[str, int] = {}
-    # Capture all state before socket sends yield to live updates. The caller
-    # already subscribed; suppress older queued shell events, not other events.
-    for target_id in target_ids:
+        descendants = await asyncio.to_thread(_collect_descendant_work_dirs, session_id, work_dir)
+    targets = {session_id: work_dir}
+    for target_id in sorted(set(descendants) | live_descendant_session_ids(state.runtime.session_registry, session_id)):
         actor = state.runtime.session_registry.get_session_actor(target_id)
         agent = actor.get_agent() if actor is not None else None
-        task_work_dir = (
+        targets[target_id] = (
             agent.session.work_dir
             if agent is not None
             else resolve_session_work_dir_fast(
                 state.session_live.index if state.session_live is not None else None, state.home_dir, target_id
             )
+            or descendants.get(target_id, work_dir)
         )
-        tasks = await manager.list_tasks(target_id, work_dir=task_work_dir or work_dir)
+    return targets
+
+
+async def _send_shell_task_snapshots(
+    session_id: str,
+    work_dir: Path,
+    websocket: WebSocket,
+    *,
+    state: ServerAppState,
+    targets: dict[str, Path] | None = None,
+) -> dict[str, int]:
+    manager = getattr(state.runtime, "shell_task_manager", None)
+    if manager is None:
+        return {}
+    if targets is None:
+        targets = await _prepare_task_snapshot_targets(session_id, work_dir, state=state)
+    snapshots: list[events.ShellTasksUpdatedEvent] = []
+    cutoffs: dict[str, int] = {}
+    # Capture all state before socket sends yield to live updates. The caller
+    # already subscribed; suppress older queued shell events, not other events.
+    for target_id, task_work_dir in targets.items():
+        tasks = await manager.list_tasks(target_id, work_dir=task_work_dir)
         snapshots.append(events.ShellTasksUpdatedEvent(session_id=target_id, tasks=tasks))
         cut = state.tapes.cut(target_id) if state.tapes is not None else None
         cutoffs[target_id] = cut.max_event_seq if cut is not None else 0
+    for snapshot in snapshots:
+        await websocket.send_json(_synthetic_envelope_dict(snapshot))
+    return cutoffs
+
+
+async def _send_background_task_snapshots(
+    session_id: str,
+    work_dir: Path,
+    websocket: WebSocket,
+    *,
+    state: ServerAppState,
+    targets: dict[str, Path] | None = None,
+) -> dict[str, int]:
+    manager = getattr(state.runtime, "task_manager", None)
+    if manager is None:
+        return {}
+    if targets is None:
+        targets = await _prepare_task_snapshot_targets(session_id, work_dir, state=state)
+    snapshots: list[events.BackgroundTasksUpdatedEvent] = []
+    cutoffs: dict[str, int] = {}
+    for target, target_dir in targets.items():
+        tasks = await manager.list_tasks(target, target_dir)
+        snapshots.append(events.BackgroundTasksUpdatedEvent(session_id=target, tasks=tasks))
+        cut = state.tapes.cut(target) if state.tapes is not None else None
+        cutoffs[target] = cut.max_event_seq if cut is not None else 0
     for snapshot in snapshots:
         await websocket.send_json(_synthetic_envelope_dict(snapshot))
     return cutoffs
@@ -886,7 +942,13 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             else:
                 max_seq = await _send_attach_replay(session_id, websocket, state=state)
             await _send_pending_interaction_snapshots(session_id, websocket)
-            shell_cutoffs = await _send_shell_task_snapshots(session_id, work_dir, websocket, state=state)
+            targets = await _prepare_task_snapshot_targets(session_id, work_dir, state=state)
+            shell_cutoffs = await _send_shell_task_snapshots(
+                session_id, work_dir, websocket, state=state, targets=targets
+            )
+            background_cutoffs = await _send_background_task_snapshots(
+                session_id, work_dir, websocket, state=state, targets=targets
+            )
             await websocket.send_json({"type": "replay_complete", "session_id": session_id})
             if can_input and state.headless is not None:
                 # A queue persisted before a restart/reclaim has no live
@@ -900,15 +962,30 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                     skip_seq_at_or_below=max_seq,
                     send_session_info_updates=True,
                     shell_snapshot_cutoffs=shell_cutoffs,
+                    background_snapshot_cutoffs=background_cutoffs,
+                    descendant_session_ids=set(targets) - {session_id} if targets else None,
                 )
             )
         else:
             subscription = state.subscribe_events(None)
             await websocket.send_json(await _load_usage_snapshot(session_id, work_dir, websocket))
             await _send_pending_interaction_snapshots(session_id, websocket)
-            shell_cutoffs = await _send_shell_task_snapshots(session_id, work_dir, websocket, state=state)
+            targets = await _prepare_task_snapshot_targets(session_id, work_dir, state=state)
+            shell_cutoffs = await _send_shell_task_snapshots(
+                session_id, work_dir, websocket, state=state, targets=targets
+            )
+            background_cutoffs = await _send_background_task_snapshots(
+                session_id, work_dir, websocket, state=state, targets=targets
+            )
             send_task = asyncio.create_task(
-                _forward_events(session_id, websocket, subscription=subscription, shell_snapshot_cutoffs=shell_cutoffs)
+                _forward_events(
+                    session_id,
+                    websocket,
+                    subscription=subscription,
+                    shell_snapshot_cutoffs=shell_cutoffs,
+                    background_snapshot_cutoffs=background_cutoffs,
+                    descendant_session_ids=set(targets) - {session_id} if targets else None,
+                )
             )
         recv_task = asyncio.create_task(_receive_commands(session_id, websocket, can_input=can_input))
         done, pending = await asyncio.wait({send_task, recv_task}, return_when=asyncio.FIRST_COMPLETED)

@@ -6,6 +6,7 @@ from rich.console import Console
 from klaude_code.protocol import events, message
 from klaude_code.protocol.models import (
     DeveloperUIExtra,
+    ExternalFileChangesUIItem,
     MemoryFileLoaded,
     MemoryLoadedUIItem,
     SkillActivatedUIItem,
@@ -144,3 +145,20 @@ def test_render_developer_message_incremental_available_skills_lists_names() -> 
     assert full_text == "  + Updated available skills commit, submit-pr"
     assert next(style for text, style in parts if "+" in text) == console.get_style(ThemeKey.TOOL_MARK)
     assert all(style == console.get_style(ThemeKey.ATTACHMENT) for text, style in parts if text.strip(" +"))
+
+
+def test_render_developer_message_external_change_read_verb_is_bold_like_tool_rows() -> None:
+    console = Console(width=120, record=False, force_terminal=False, theme=get_theme().app_theme)
+    event = events.DeveloperMessageEvent(
+        session_id="test-session",
+        item=message.DeveloperMessage(
+            parts=[],
+            ui_extra=DeveloperUIExtra(items=[ExternalFileChangesUIItem(paths=["src/app.py"])]),
+        ),
+    )
+
+    line = console.render_lines(render_developer_message(event), console.options, pad=False)[0]
+    parts: list[tuple[str, object]] = [(segment.text, segment.style) for segment in line]
+    assert "".join(text for text, _ in parts) == "  + Read ./src/app.py after external changes"
+    assert next(style for text, style in parts if text == "Read") == console.get_style(ThemeKey.TOOL_NAME)
+    assert console.get_style(ThemeKey.TOOL_NAME).bold

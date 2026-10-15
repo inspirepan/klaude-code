@@ -14,6 +14,7 @@ from pathlib import Path
 from klaude_code.const import BASH_TERMINATE_TIMEOUT_SEC, ProjectPaths, project_key_from_path
 from klaude_code.protocol.shell_task import ShellTaskOutput, ShellTaskSnapshot
 from klaude_code.tool.core.ansi import strip_ansi
+from klaude_code.tool.core.disk import write_snapshot
 
 type UpdateCallback = Callable[[str, list[ShellTaskSnapshot]], Awaitable[None]]
 type CompleteCallback = Callable[[ShellTaskSnapshot], Awaitable[None]]
@@ -76,27 +77,11 @@ class ShellTaskManager:
             return self._storage_root / session_id / "shell_tasks"
         return ProjectPaths(project_key_from_path(work_dir)).session_dir(session_id) / "shell_tasks"
 
-    @staticmethod
-    def _write_snapshot(directory: Path, task_id: str, payload: str) -> None:
-        path = directory / f"{task_id}.json"
-        temporary = path.with_suffix(f".{uuid.uuid4().hex}.tmp")
-        with temporary.open("x", encoding="utf-8") as writer:
-            writer.write(payload)
-            writer.flush()
-            os.fsync(writer.fileno())
-        temporary.replace(path)
-        if os.name == "posix":
-            fd = os.open(directory, os.O_RDONLY)
-            try:
-                os.fsync(fd)
-            finally:
-                os.close(fd)
-
     async def _persist(self, task: _Task) -> None:
         async with task.write_lock:
             payload = task.snapshot.model_dump_json()
             write = asyncio.create_task(
-                asyncio.to_thread(self._write_snapshot, task.directory, task.snapshot.task_id, payload)
+                asyncio.to_thread(write_snapshot, task.directory, task.snapshot.task_id, payload)
             )
             cancelled = False
             # Keep ownership of the write until its thread finishes, even on cancellation.

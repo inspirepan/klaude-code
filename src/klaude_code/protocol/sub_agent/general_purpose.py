@@ -10,6 +10,9 @@ register_sub_agent(
         tool_set=(
             tools.BASH,
             tools.MANAGE_SHELL,
+            tools.MANAGE_TASKS,
+            tools.LIST_PEERS,
+            tools.MESSAGE_PEER,
             tools.READ,
             tools.EDIT,
             tools.WRITE,

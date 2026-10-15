@@ -9,8 +9,57 @@ from __future__ import annotations
 import functools
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
+from uuid import uuid4
 
+from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.env_sync import ENV_SYNC_HEADER, encode_env_header
+from klaude_code.protocol.peer import PeerReceipt
+
+
+class ServerAPIError(RuntimeError):
+    def __init__(self, status_code: int, detail: Any) -> None:
+        self.status_code = status_code
+        super().__init__(f"server error {status_code}: {detail}")
+
+
+def manage_session_tasks(session_id: str, request: TaskRequest) -> TaskResponse:
+    body = _request(
+        "POST",
+        f"/api/headless/sessions/{quote(session_id, safe='')}/tasks",
+        json_body=request.model_dump(),
+        timeout=max(30.0, request.wait_ms / 1000 + 5),
+    )
+    return TaskResponse.model_validate(body)
+
+
+def send_owned_task_message(session_id: str, task_id: str, body: str) -> PeerReceipt:
+    tasks = manage_session_tasks(session_id, TaskRequest(action="list")).tasks
+    task = next(
+        (task for task in tasks if task.ref.task_id == task_id and task.ref.owner_session_id == session_id), None
+    )
+    if task is None or task.ref.kind != "agent" or not task.ref.session_id:
+        raise ValueError("Selected task is not an owned child agent")
+    if task.status != "running" or not task.ref.operation_id:
+        raise ValueError("Selected child agent is no longer running")
+    try:
+        result = _request(
+            "POST",
+            f"/api/headless/sessions/{quote(task.ref.session_id, safe='')}/send-active",
+            json_body={
+                "text": body,
+                "message_id": uuid4().hex,
+                "sender": "TUI task panel (external)",
+                "expected_operation_id": task.ref.operation_id,
+            },
+        )
+    except ServerAPIError as exc:
+        if exc.status_code == 404:
+            raise RuntimeError(
+                "Active-task messaging is unsupported or the child is unavailable; message not sent."
+            ) from exc
+        raise
+    return PeerReceipt.model_validate(result)
 
 
 @functools.cache
@@ -49,7 +98,7 @@ def _request(method: str, path: str, *, json_body: dict[str, Any] | None = None,
             detail = response.json().get("detail")
         except Exception:
             detail = response.text
-        raise RuntimeError(f"server error {response.status_code}: {detail}")
+        raise ServerAPIError(response.status_code, detail)
     return response.json()
 
 

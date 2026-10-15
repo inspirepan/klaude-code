@@ -23,14 +23,19 @@ from klaude_code.control.event_bus import EventBus
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT, FORK_CONTEXT_WITH_ROLE_PROMPT
 from klaude_code.protocol import events, message, op
-from klaude_code.protocol.models import SubAgentState, TaskMetadata, build_file_changes_since, merge_file_changes
+from klaude_code.protocol.background_task import BackgroundTaskSnapshot
+from klaude_code.protocol.models import (
+    SubAgentState,
+    TaskMetadata,
+    TaskMetadataItem,
+    build_file_changes_since,
+)
 from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
 from klaude_code.session.session import Session
 
 if TYPE_CHECKING:
     from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
-
-_ARGS_MAX_LEN = 500
+    from klaude_code.agent.runtime.task_manager import TaskManager
 
 
 class SubAgentLauncher:
@@ -43,20 +48,38 @@ class SubAgentLauncher:
         event_bus: EventBus,
         submit_operation: Callable[[op.Operation], Awaitable[str]],
         wait_for_operation: Callable[[str], Awaitable[str | None]],
+        task_manager: TaskManager,
     ) -> None:
         self._handler = handler
         self._event_bus = event_bus
         self._submit_operation = submit_operation
         self._wait_for_operation = wait_for_operation
+        self._task_manager = task_manager
 
-    async def run_sub_agent(
+    async def start_sub_agent(
+        self, parent_agent: Agent, state: SubAgentState, *, record_session_id: Callable[[str], None] | None = None
+    ) -> BackgroundTaskSnapshot:
+        async def collect(task_id: str, started: Callable[[str, str], Awaitable[None]]) -> SubAgentResult:
+            return await self._collect_sub_agent(
+                parent_agent, state, record_session_id=record_session_id, on_started=started
+            )
+
+        return await self._task_manager.start_agent(
+            parent_agent.session.id,
+            parent_agent.session.work_dir,
+            state.sub_agent_desc,
+            collect,
+            agent_type=state.sub_agent_type,
+            on_result=lambda: self._task_manager.settle_agent_results(parent_agent.session),
+        )
+
+    async def _collect_sub_agent(
         self,
         parent_agent: Agent,
         state: SubAgentState,
         *,
         record_session_id: Callable[[str], None] | None = None,
-        register_metadata_getter: Callable[[Callable[[], TaskMetadata | None]], None] | None = None,
-        register_progress_getter: Callable[[Callable[[], str | None]], None] | None = None,
+        on_started: Callable[[str, str], Awaitable[None]] | None = None,
     ) -> SubAgentResult:
         parent_session = parent_agent.session
         child_session = self._prepare_child_session(parent_session, state)
@@ -85,38 +108,12 @@ class SubAgentLauncher:
 
         self._append_fork_context_reminder(child_session, parent_session, state)
 
-        child_agent = await self._handler.init_sub_agent_session(child_session)
+        await self._handler.init_sub_agent_session(child_session)
 
         log_debug(
             f"Running sub-agent {state.sub_agent_type} in session {child_session.id}",
             debug_type=DebugType.EXECUTION,
         )
-
-        def _get_partial_metadata() -> TaskMetadata | None:
-            metadata = child_agent.get_partial_metadata()
-            if metadata is not None:
-                metadata.sub_agent_name = state.sub_agent_type
-                metadata.description = state.sub_agent_desc or None
-            return metadata
-
-        if register_metadata_getter is not None:
-            register_metadata_getter(_get_partial_metadata)
-
-        tool_call_log: dict[str, tuple[str, str]] = {}
-        completed_calls: set[str] = set()
-
-        def _get_progress() -> str | None:
-            if not tool_call_log:
-                return None
-            lines: list[str] = []
-            for call_id, (tool_name, arguments) in tool_call_log.items():
-                status = "completed" if call_id in completed_calls else "interrupted"
-                args_display = arguments if len(arguments) <= _ARGS_MAX_LEN else arguments[:_ARGS_MAX_LEN] + "..."
-                lines.append(f"- {tool_name}({args_display}) [{status}]")
-            return "\n".join(lines)
-
-        if register_progress_getter is not None:
-            register_progress_getter(_get_progress)
 
         run_op = op.RunAgentOperation(
             session_id=child_session.id,
@@ -124,27 +121,34 @@ class SubAgentLauncher:
         )
 
         task_result = ""
+        child_history_baseline = len(child_session.conversation_history)
         task_metadata: TaskMetadata | None = None
         finished = False
         error_message: str | None = None
         status: str | None = None
+        interrupted = False
 
         # Subscribe before submitting so no child event is missed.
         subscription = self._event_bus.subscribe(child_session.id)
         envelopes = subscription.__aiter__()
         try:
+            # Persist the run reference before submitting any executable work.
+            if on_started is not None:
+                await on_started(child_session.id, run_op.id)
             await self._submit_operation(run_op)
             async for envelope in envelopes:
                 event = envelope.event
-                if isinstance(event, events.ToolCallEvent):
-                    tool_call_log[event.tool_call_id] = (event.tool_name, event.arguments)
-                elif isinstance(event, events.ToolResultEvent):
-                    completed_calls.add(event.tool_call_id)
-                elif isinstance(event, events.TaskFinishEvent):
+                if isinstance(event, events.InterruptEvent):
+                    interrupted = True
+                if isinstance(
+                    event, events.TaskFinishEvent | events.TaskMetadataEvent | events.ErrorEvent
+                ) and envelope.operation_id not in {None, run_op.id}:
+                    continue
+                if isinstance(event, events.TaskFinishEvent):
                     task_result = event.task_result
                     finished = True
                 elif isinstance(event, events.TaskMetadataEvent):
-                    task_metadata = event.metadata.main_agent
+                    task_metadata = event.metadata.main_agent.model_copy(deep=True)
                     task_metadata.sub_agent_name = state.sub_agent_type
                     task_metadata.description = state.sub_agent_desc or None
                 elif isinstance(event, events.ErrorEvent):
@@ -159,9 +163,23 @@ class SubAgentLauncher:
             if status is None:
                 # The bus dropped this subscriber on overflow; fall back to the
                 # operation awaiter and recover the result from history.
-                status = await self._wait_for_operation(run_op.id) or "completed"
-            if not finished and status == "completed" and error_message is None:
-                for item in reversed(child_session.conversation_history):
+                status = await self._wait_for_operation(run_op.id) or "lost"
+            run_history = child_session.conversation_history[child_history_baseline:]
+            for index, item in enumerate(run_history):
+                if isinstance(item, TaskMetadataItem):
+                    task_metadata = item.main_agent.model_copy(deep=True)
+                    task_metadata.sub_agent_name = state.sub_agent_type
+                    task_metadata.description = state.sub_agent_desc or None
+                    interrupted = interrupted or item.is_partial
+                    run_history = run_history[: index + 1]
+                    break
+            interrupted = interrupted or any(
+                isinstance(item, message.InterruptEntry)
+                or (isinstance(item, message.AssistantMessage) and item.stop_reason == "aborted")
+                for item in run_history
+            )
+            if not finished and status == "completed" and error_message is None and not interrupted:
+                for item in reversed(run_history):
                     if isinstance(item, message.AssistantMessage):
                         text = message.join_text_parts(item.parts)
                         if text.strip():
@@ -170,7 +188,8 @@ class SubAgentLauncher:
                             break
 
             await child_session.wait_for_flush()
-            if status in ("failed", "rejected") or not finished:
+            child_changes = build_file_changes_since(child_file_change_baseline, child_session.file_change_summary)
+            if status != "completed" or not finished or interrupted:
                 log_debug(
                     f"Sub-agent task for {state.sub_agent_type} ended with status={status}: {error_message}",
                     debug_type=DebugType.EXECUTION,
@@ -179,19 +198,18 @@ class SubAgentLauncher:
                     task_result=error_message or task_result or f"Sub-agent task {status} before completion",
                     session_id=child_session.id,
                     error=True,
+                    status="lost" if status == "lost" else "stopped" if interrupted else "failed",
                     task_metadata=task_metadata,
+                    file_changes=child_changes,
                 )
             return SubAgentResult(
                 task_result=task_result,
                 session_id=child_session.id,
                 task_metadata=task_metadata,
+                file_changes=child_changes,
             )
         finally:
-            # Parent interrupt cascades to the child via the dispatcher, so
-            # cancellation needs no handling here beyond cleanup.
             await envelopes.aclose()
-            child_changes = build_file_changes_since(child_file_change_baseline, child_session.file_change_summary)
-            merge_file_changes(parent_session.file_change_summary, child_changes)
 
     def _prepare_child_session(self, parent_session: Session, state: SubAgentState) -> Session:
         if state.fork_context:

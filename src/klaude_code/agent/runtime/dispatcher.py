@@ -14,11 +14,14 @@ from klaude_code.agent.agent_profile import DefaultModelProfileProvider, ModelPr
 from klaude_code.agent.runtime.agent_ops import ActiveTask, AgentOperationHandler
 from klaude_code.agent.runtime.config_ops import ConfigHandler, ModelSwitcher
 from klaude_code.agent.runtime.llm import LLMClients
+from klaude_code.agent.runtime.peers import PeerControl
 from klaude_code.agent.runtime.sub_agent import SubAgentLauncher
+from klaude_code.agent.runtime.task_manager import TaskManager
 from klaude_code.control.event_bus import EventBus
 from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import events, op, user_interaction
+from klaude_code.protocol.background_task import TaskReference
 from klaude_code.protocol.op_handler import OperationHandler
 from klaude_code.tool.shell.task_manager import ShellTaskManager
 
@@ -43,7 +46,6 @@ class OperationDispatcherPorts:
     # and awaits operations on them via these facade entry points.
     submit_operation: Callable[[op.Operation], Awaitable[str]]
     wait_for_operation: Callable[[str], Awaitable[Literal["completed", "rejected", "failed"] | None]]
-    disable_shell_notifications: Callable[[str], None]
 
 
 class OperationDispatcher:
@@ -64,12 +66,21 @@ class OperationDispatcher:
         model_profile_provider: ModelProfileProvider | None = None,
         on_model_change: Callable[[str], None] | None = None,
         shell_task_manager: ShellTaskManager | None = None,
-        has_pending_shell_notifications: Callable[[str], bool] | None = None,
     ):
         self._event_bus = event_bus
         self.llm_clients: LLMClients = llm_clients
         self._ports = ports
+        self.peer_control = PeerControl()
         self._shell_task_manager = shell_task_manager
+        self._task_control_tasks: dict[str, asyncio.Task[None]] = {}
+        self.task_manager = TaskManager(
+            shell_task_manager,
+            self._stop_child_run,
+            self.emit_event,
+            pin_owner=lambda owner, task_id, active: ports.ensure_session_actor(owner).set_lifecycle_pin(
+                task_id, active
+            ),
+        )
 
         resolved_profile_provider = model_profile_provider or DefaultModelProfileProvider()
         self.model_profile_provider: ModelProfileProvider = resolved_profile_provider
@@ -87,13 +98,15 @@ class OperationDispatcher:
             remove_task=ports.remove_task,
             request_user_interaction=self.request_user_interaction,
             shell_task_manager=shell_task_manager,
-            has_pending_shell_notifications=has_pending_shell_notifications,
+            task_manager=self.task_manager,
+            peer_control=self.peer_control,
         )
         self._sub_agent_launcher = SubAgentLauncher(
             handler=self._agent_operation_handler,
             event_bus=event_bus,
             submit_operation=ports.submit_operation,
             wait_for_operation=ports.wait_for_operation,
+            task_manager=self.task_manager,
         )
         self._agent_operation_handler.set_sub_agent_launcher(self._sub_agent_launcher)
         self._model_switcher = ModelSwitcher(resolved_profile_provider)
@@ -270,6 +283,37 @@ class OperationDispatcher:
             return
         await self.emit_event(events.NoticeEvent(session_id=operation.session_id, content=content))
 
+    async def handle_manage_tasks(self, operation: op.ManageTasksOperation) -> None:
+        if operation.request.action == "wait":
+            task = asyncio.create_task(self._manage_tasks(operation))
+            self._task_control_tasks[operation.id] = task
+            task.add_done_callback(lambda _task: self._task_control_tasks.pop(operation.id, None))
+            return
+        await self._manage_tasks(operation)
+
+    async def _manage_tasks(self, operation: op.ManageTasksOperation) -> None:
+        actor = self._ports.get_session_actor(operation.session_id)
+        agent = actor.get_agent() if actor is not None else None
+        try:
+            if agent is None:
+                raise ValueError("Session is unavailable.")
+            response = await self.task_manager.manage(
+                operation.session_id,
+                agent.session.work_dir,
+                operation.request,
+                activity=agent.pending_input_activity,
+            )
+        except Exception as exc:
+            await self.emit_event(
+                events.TaskControlResultEvent(
+                    session_id=operation.session_id, request=operation.request, error=str(exc)
+                )
+            )
+            return
+        await self.emit_event(
+            events.TaskControlResultEvent(session_id=operation.session_id, request=operation.request, response=response)
+        )
+
     async def handle_continue_agent(self, operation: op.ContinueAgentOperation) -> None:
         await self._agent_operation_handler.continue_agent(operation)
 
@@ -327,33 +371,69 @@ class OperationDispatcher:
 
     async def handle_interrupt(self, operation: op.InterruptOperation) -> None:
         """Handle an interrupt by invoking agent.on_interrupt() and cancelling tasks."""
-
-        interrupted = await self._agent_operation_handler.interrupt(
+        if operation.expected_operation_id is not None:
+            actor = self._ports.get_session_actor(operation.session_id)
+            root = actor.snapshot().active_root_task if actor is not None else None
+            if root is None or root.operation_id != operation.expected_operation_id:
+                return
+        # Cancel before the root unwinds and removes its interaction futures,
+        # so clients receive cancellation/resolution events for these requests.
+        cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
+        await self._agent_operation_handler.interrupt(
             operation.session_id,
             expected_operation_id=operation.expected_operation_id,
             retract_unanswered_input=operation.retract_unanswered_input,
             resume_follow_ups=operation.resume_follow_ups,
         )
-        if not interrupted:
-            return
-        self._ports.disable_shell_notifications(operation.session_id)
-        cancelled_requests = self.cancel_pending_user_interactions(session_id=operation.session_id)
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
-        # Sub-agents run in their own actors; cancelling the parent task no
-        # longer reaches them, so cascade the interrupt down the tree.
-        for child_id in self._live_child_session_ids(operation.session_id):
-            await self.handle_interrupt(op.InterruptOperation(session_id=child_id))
 
-    def _live_child_session_ids(self, session_id: str) -> list[str]:
-        children: list[str] = []
-        for actor in self._ports.list_session_actors():
-            agent = actor.get_agent()
-            if agent is None or agent.session.parent_session_id != session_id:
+    async def _stop_child_run(self, ref: TaskReference) -> None:
+        if ref.session_id is None or ref.operation_id is None:
+            return
+        # Wait until this specific submitted run is admitted or has terminated.
+        # A stop must never target a later explicit resume of the same session.
+        actor = self._ports.get_session_actor(ref.session_id)
+        if actor is None:
+            return
+        agent = actor.get_agent()
+        if agent is None or agent.session.parent_session_id != ref.owner_session_id:
+            raise ValueError("Child is not owned by this session")
+        # Also cancel admission that has not registered on the registry yet.
+        actor.cancel_queued_run(ref.operation_id)
+        while True:
+            root = actor.snapshot().active_root_task
+            if root is not None:
+                if root.operation_id != ref.operation_id:
+                    return
+                await self.handle_interrupt(
+                    op.InterruptOperation(
+                        session_id=ref.session_id,
+                        expected_operation_id=ref.operation_id,
+                    )
+                )
+                return
+            # The collector remains authoritative about operation completion.
+            if self._ports.get_session_actor_for_operation(ref.operation_id) is None:
+                return
+            await asyncio.sleep(0.001)
+
+    async def handle_stop_sub_agents(self, operation: op.StopSubAgentsOperation) -> None:
+        actor = self._ports.get_session_actor(operation.session_id)
+        agent = actor.get_agent() if actor is not None else None
+        if agent is None:
+            raise ValueError("Session is unavailable; child agents were not stopped.")
+        await self.task_manager.stop_sub_agents(operation.session_id, agent.session.work_dir)
+        for child in self._ports.list_session_actors():
+            child_agent = child.get_agent()
+            if child_agent is None or child_agent.session.parent_session_id != operation.session_id:
                 continue
-            if actor.snapshot().is_idle:
-                continue
-            children.append(actor.session_id)
-        return children
+            child.cancel_queued_runs()
+            if not child.snapshot().is_idle:
+                await self.handle_interrupt(op.InterruptOperation(session_id=child.session_id))
+            if child_agent.follow_up_count():
+                child_agent.pop_all_follow_up()
+                await child_agent.session.wait_for_flush()
+                await self.emit_event(events.FollowUpQueueUpdatedEvent(session_id=child.session_id, texts=[]))
 
     async def handle_close_session(self, operation: op.CloseSessionOperation) -> None:
         await self._ports.close_session(operation.session_id, operation.force)
@@ -395,6 +475,8 @@ class OperationDispatcher:
         return self._agent_operation_handler.list_active_tasks()
 
     def clear_active_tasks(self) -> None:
+        for task in self._task_control_tasks.values():
+            task.cancel()
         self._agent_operation_handler.clear_active_tasks()
 
 

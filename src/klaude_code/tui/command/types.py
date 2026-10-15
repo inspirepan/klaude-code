@@ -34,6 +34,7 @@ class CommandName(str, Enum):
     GRILL_ME = "grill-me"
     BTW = "btw"
     TASKS = "tasks"
+    STOP = "stop"
 
     def __str__(self) -> str:
         return self.value

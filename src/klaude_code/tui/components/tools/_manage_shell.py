@@ -31,16 +31,18 @@ def render_manage_shell_subject(arguments: str, *, shell_task: ShellTaskSnapshot
     args = parse_tool_arguments(arguments)
     action = one_line(args.get("action", "")).title()
     line = Text(overflow="fold")
-    line.append(action, style=ThemeKey.TOOL_PARAM)
+    line.append("Waiting for" if action == "Wait" else action, style=ThemeKey.TOOL_PARAM)
     if action != "List":
         task_id = args.get("task_id")
+        description = ""
         if shell_task is not None:
             description = one_line(shell_task.description) or one_line(shell_task.command)
             if description:
                 line.append(" ")
                 line.append(description, style=ThemeKey.BASH_TOOL_DESCRIPTION)
             task_id = shell_task.task_id
-        if isinstance(task_id, str) and task_id:
+        # The ID only stands in for a task the reader cannot otherwise name.
+        if not description and isinstance(task_id, str) and task_id:
             line.append(f" {task_id[:8]}", style=ThemeKey.METADATA_DIM)
     wait_ms = args.get("wait_ms")
     if action == "Wait" and isinstance(wait_ms, int) and not isinstance(wait_ms, bool) and wait_ms != 10000:
@@ -120,8 +122,10 @@ def _render_task(task: ShellTaskSnapshot, *, full_id: bool = False, show_identit
         description = one_line(task.description) or one_line(task.command)
         if description:
             line.append(description, style=ThemeKey.BASH_TOOL_DESCRIPTION)
-            line.append(" ")
-        line.append(task.task_id if full_id else task.task_id[:8], style=ThemeKey.METADATA_DIM)
+        if full_id or not description:
+            if description:
+                line.append(" ")
+            line.append(task.task_id if full_id else task.task_id[:8], style=ThemeKey.METADATA_DIM)
     style = _task_status_style(task)
     line.append(f" · {task.status}" if show_identity else task.status, style=style)
     if task.exit_code is not None:
@@ -131,6 +135,20 @@ def _render_task(task: ShellTaskSnapshot, *, full_id: bool = False, show_identit
     if task.output_expired:
         line.append(" · output expired", style=ThemeKey.WARN)
     return line
+
+
+def _select_tasks(tasks: list[ShellTaskSnapshot], limit: int) -> tuple[list[ShellTaskSnapshot], Text | None]:
+    """Up to `limit` tasks in their order, keeping failures visible past the preview."""
+    priority = {idx for idx, task in enumerate(tasks) if _task_status_style(task) == ThemeKey.ERROR}
+    chosen = set((sorted(priority) + [idx for idx in range(len(tasks)) if idx not in priority])[:limit])
+    selected = [task for idx, task in enumerate(tasks) if idx in chosen]
+    if len(tasks) == len(selected):
+        return selected, None
+    hidden_failures = sum(idx not in chosen for idx in priority)
+    suffix = f", {hidden_failures} failures" if hidden_failures else ""
+    return selected, Text(
+        f"\u2026 (more {len(tasks) - len(selected)} tasks{suffix})", style=ThemeKey.TOOL_RESULT_TRUNCATED
+    )
 
 
 def render_manage_shell_result(
@@ -147,20 +165,12 @@ def render_manage_shell_result(
     if not tasks:
         sections.append(Text("No managed shell tasks.", style=ThemeKey.METADATA_DIM))
     else:
-        # Keep failures visible even if they occur after the normal list preview.
-        priority = {idx for idx, task in enumerate(tasks) if _task_status_style(task) == ThemeKey.ERROR}
-        selected = set((sorted(priority) + [idx for idx in range(len(tasks)) if idx not in priority])[:limit])
+        selected, more = _select_tasks(tasks, limit)
         sections.extend(
-            _render_task(task, full_id=not detail.is_compact, show_identity=show_task_identity)
-            for idx, task in enumerate(tasks)
-            if idx in selected
+            _render_task(task, full_id=not detail.is_compact, show_identity=show_task_identity) for task in selected
         )
-        if len(tasks) > len(selected):
-            hidden_failures = sum(idx not in selected for idx in priority)
-            suffix = f", {hidden_failures} failures" if hidden_failures else ""
-            sections.append(
-                Text(f"\u2026 (more {len(tasks) - len(selected)} tasks{suffix})", style=ThemeKey.TOOL_RESULT_TRUNCATED)
-            )
+        if more is not None:
+            sections.append(more)
         if show_task_identity and not detail.is_compact and len(tasks) == 1 and tasks[0].description.strip():
             sections.append(Text(tasks[0].command, style=ThemeKey.BASH_ARGUMENT, overflow="fold"))
     if ui_extra.output is not None and not detail.is_compact:
@@ -180,11 +190,27 @@ def render_manage_shell_result(
     return Group(*sections)
 
 
+def is_pending_shell_wait(ui_extra: ShellTaskUIExtra) -> bool:
+    """A wait that returned with every task still running: the status bar already says so."""
+    return (
+        ui_extra.action == "wait"
+        and bool(ui_extra.tasks)
+        and all(task.status in ("running", "stopping") for task in ui_extra.tasks)
+    )
+
+
 def render_shell_completion(
     tasks: list[ShellTaskSnapshot] | None,
     *,
     detail: Detail = Detail.COMPACT,
 ) -> RenderableType:
+    if detail.is_compact and tasks:
+        # One `$ Shell` row per finished task, the same shape as its call line.
+        selected, more = _select_tasks(tasks, _COMPACT_MAX_LINES)
+        rows: list[RenderableType] = [ManageShellRow(_render_task(task)) for task in selected]
+        if more is not None:
+            rows.append(AdaptiveIndent(more, TOOL_SUBJECT_INDENT))
+        return Group(*rows)
     header = ManageShellRow(Text("Background results", style=ThemeKey.METADATA_DIM))
     if not tasks:
         result: RenderableType = Text("Task details unavailable.", style=ThemeKey.METADATA_DIM)

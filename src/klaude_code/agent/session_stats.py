@@ -52,7 +52,7 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
 
     for item in session.conversation_history:
         if isinstance(item, TaskMetadataItem):
-            task_count += 1
+            task_count += int(item.background_task_id is None)
             all_metadata.append(item.main_agent)
             all_metadata.extend(item.sub_agent_task_metadata)
 

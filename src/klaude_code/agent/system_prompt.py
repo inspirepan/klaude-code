@@ -114,10 +114,18 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
     if tools.BASH in tool_name_set:
         strategy_lines.append(BASH_SPECIALIZED_TOOL_INST)
 
+    if tools.MESSAGE_PEER in tool_name_set:
+        strategy_lines.append(
+            "- Coordinate with ListPeers/MessagePeer; delegate with Agent and track with ManageTasks, not Bash klaude run/send."
+        )
+
     has_edit_tool = tools.EDIT in tool_name_set or tools.WRITE in tool_name_set or tools.APPLY_PATCH in tool_name_set
 
     if tools.AGENT in tool_name_set:
         strategy_lines.append(AGENT_FINDER_INST)
+        strategy_lines.append(
+            "- Agent starts background work. Before using a required result or declaring dependent work complete, use ManageTasks wait/output; steering interrupts only the wait, not the child."
+        )
 
     if has_edit_tool:
         strategy_lines.append(EDIT_VALIDATION_LOOP_INST)

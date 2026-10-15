@@ -263,7 +263,14 @@ class PromptBottomBar:
         )
         status_window = Window(
             content=FormattedTextControl(self._get_status_fragments),
-            height=self._status_window_height,
+            height=self._status_head_height,
+            dont_extend_height=True,
+        )
+        # Child-agent rows and the task footer sit below the live tail, so the
+        # main agent's thinking preview stays directly under its own status line.
+        status_tail_window = Window(
+            content=FormattedTextControl(self._get_status_tail_fragments),
+            height=lambda: len(self._status_tail_lines()),
             dont_extend_height=True,
         )
         queue_window = Window(
@@ -277,6 +284,7 @@ class PromptBottomBar:
             _spacer(),
             status_window,
             ConditionalContainer(stream_window, filter=stream_visible),
+            ConditionalContainer(status_tail_window, filter=Condition(lambda: bool(self._status_tail_lines()))),
             ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._pending_messages))),
             ConditionalContainer(queue_window, filter=Condition(lambda: bool(self._pending_messages))),
         ]
@@ -307,6 +315,22 @@ class PromptBottomBar:
     def _visible_status_lines(self) -> tuple[PromptStatusLine, ...]:
         return tuple(line for line in self._status_lines if line.kind != "metadata")
 
+    def _status_head_lines(self) -> tuple[PromptStatusLine, ...]:
+        """Leading rows that carry the plain spinner: the main agent and `/btw` asides."""
+        lines = self._visible_status_lines()
+        count = 0
+        while count < len(lines) and lines[count].show_spinner and lines[count].inline_spinner_style is None:
+            count += 1
+        return lines[:count]
+
+    def _status_tail_lines(self) -> tuple[PromptStatusLine, ...]:
+        return self._visible_status_lines()[len(self._status_head_lines()) :]
+
+    def _status_head_height(self) -> int:
+        # The reservation pads the head, so the tail and the input below never move.
+        tail = len(self._status_tail_lines())
+        return max(0 if tail else 1, self._status_window_height() - tail)
+
     def _pending_window_height(self) -> int:
         return len(self._pending_messages) + 1
 
@@ -318,11 +342,11 @@ class PromptBottomBar:
 
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []
-        spinner = _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
-        visible_lines = self._visible_status_lines()
-        show_waiting = bool(not visible_lines and not self._startup_loading and self._agent_running)
+        spinner = self._spinner_frame()
+        visible_lines = self._status_head_lines()
+        show_waiting = bool(not self._visible_status_lines() and not self._startup_loading and self._agent_running)
         content_line_count = len(visible_lines) or int(self._startup_loading or show_waiting)
-        top_padding = self._status_window_height() - content_line_count
+        top_padding = self._status_head_height() - content_line_count
         if content_line_count and top_padding > 0:
             fragments.append(("", "\n" * top_padding))
         if not visible_lines:
@@ -339,7 +363,19 @@ class PromptBottomBar:
             if show_waiting:
                 fragments.extend([(CLASS_META, f"{spinner} "), (CLASS_META, STATUS_WAITING_TEXT)])
             return fragments
-        for index, line in enumerate(visible_lines):
+        return self._append_status_line_fragments(fragments, visible_lines)
+
+    def _get_status_tail_fragments(self) -> StyleAndTextTuples:
+        return self._append_status_line_fragments([], self._status_tail_lines())
+
+    def _spinner_frame(self) -> str:
+        return _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
+
+    def _append_status_line_fragments(
+        self, fragments: StyleAndTextTuples, lines: tuple[PromptStatusLine, ...]
+    ) -> StyleAndTextTuples:
+        spinner = self._spinner_frame()
+        for index, line in enumerate(lines):
             if index:
                 fragments.append(("", "\n"))
             if line.inline_spinner_style is not None:
@@ -361,7 +397,7 @@ class PromptBottomBar:
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
         count = len(self._pending_messages)
-        fragments: StyleAndTextTuples = [(CLASS_META, f"Queued follow-up message ({count} pending) · ↑ to edit.")]
+        fragments: StyleAndTextTuples = [(CLASS_META, f"Steering ({count} pending) · next safe step · ↑ to edit.")]
         for index, message in enumerate(self._pending_messages, start=1):
             preview = " ".join(message.split())
             fragments.append(("", "\n"))

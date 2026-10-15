@@ -11,7 +11,10 @@ import pytest
 
 import klaude_code.agent.runtime.llm as runtime_llm
 import klaude_code.agent.task as task_module
+from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import AgentProfile
+from klaude_code.agent.attachments.files import at_file_reader_attachment, file_changed_externally_attachment
+from klaude_code.agent.attachments.skills import skill_attachment
 from klaude_code.agent.compaction import CompactionResult
 from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.agent.task import SessionContext, TaskExecutionContext, TaskExecutor
@@ -20,11 +23,580 @@ from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.openai_compatible.client import build_payload
 from klaude_code.llm.usage import MetadataTracker, error_stream_items
 from klaude_code.protocol import events, llm_param, message
-from klaude_code.protocol.models import TaskMetadataItem, Usage
+from klaude_code.protocol.models import AtFileOpsUIItem, ExternalFileChangesUIItem, TaskMetadataItem, Usage
+from klaude_code.session import store as session_store
+from klaude_code.session.codec import encode_jsonl_line
 from klaude_code.session.session import Session
+from klaude_code.skill.loader import Skill
 from klaude_code.tool.core.abc import ToolABC
 from klaude_code.tool.core.context import ToolContext, build_todo_context
 from tests.agent.agent_harness import ScriptedLLMStream, create_harness
+
+
+@pytest.mark.parametrize("with_tools", [False, True])
+def test_steering_batches_fifo_after_complete_step(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, with_tools: bool
+) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        profile = AgentProfile(
+            llm_client=harness.fake_llm,
+            system_prompt="test",
+            attachments=[],
+            tools=[MockEchoTool.schema()] if with_tools else [],
+        )
+        monkeypatch.setattr("klaude_code.agent.agent.get_registry", lambda: {"echo": MockEchoTool})
+        agent = Agent(harness.session, profile)
+        harness.session.append_history([message.UserMessage(parts=message.text_parts_from_str("initial"))])
+        queued_ids: list[str] = []
+
+        def first_request(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            assert [
+                message.join_text_parts(item.parts) for item in param.input if isinstance(item, message.UserMessage)
+            ] == ["initial"]
+            agent.follow_up(message.UserInputPayload(text="first", source="user"))
+            agent.follow_up(message.UserInputPayload(text="second"))
+            queued_ids.extend(item.id for item in harness.session.follow_up_queue)
+            if with_tools:
+                return [_tool_call_assistant_message([("echo", "a", '{"text":"a"}'), ("echo", "b", '{"text":"b"}')])]
+            return [_text_assistant_message("original final")]
+
+        def next_request(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            users = [item for item in param.input if isinstance(item, message.UserMessage)]
+            assert [message.join_text_parts(item.parts) for item in users] == ["initial", "first", "second"]
+            assert [item.id for item in users[1:]] == queued_ids
+            assert users[1].source == "user"
+            if with_tools:
+                results = [item for item in param.input if isinstance(item, message.ToolResultMessage)]
+                assert {item.call_id for item in results} == {"a", "b"}
+                assert all(param.input.index(item) < param.input.index(users[1]) for item in results)
+            return [_text_assistant_message("steered final")]
+
+        harness.fake_llm.enqueue_factory(first_request)
+        harness.fake_llm.enqueue_factory(next_request)
+        collected = [event async for event in agent.run_task(message.UserInputPayload(text="initial"))]
+        assert [event.content for event in collected if isinstance(event, events.UserMessageEvent)] == [
+            "first",
+            "second",
+        ]
+        assert len([event for event in collected if isinstance(event, events.TaskStartEvent)]) == 1
+        finishes = [event for event in collected if isinstance(event, events.TaskFinishEvent)]
+        assert len(finishes) == 1 and finishes[0].task_result == "steered final"
+        assert not agent.pending_input_activity.is_set()
+        assert Session.load(harness.session.id, tmp_path).follow_up_queue == []
+
+    arun(_test())
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+@pytest.mark.parametrize("restart", [False, True])
+def test_steering_history_flush_precedes_ack_and_restore_deduplicates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, cancel: bool, restart: bool
+) -> None:
+    async def _test() -> None:
+        from PIL import Image
+
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        profile = AgentProfile(llm_client=harness.fake_llm, system_prompt="test", tools=[], attachments=[])
+        agent = Agent(harness.session, profile)
+        image_path = tmp_path / "input.png"
+        Image.new("RGB", (2, 2), color="red").save(image_path)
+        agent.follow_up(
+            message.UserInputPayload(
+                text="image", source="user", images=[message.ImageFilePart(file_path=str(image_path))]
+            )
+        )
+        agent.follow_up(message.UserInputPayload(text="second"))
+        ids = [item.id for item in harness.session.follow_up_queue]
+        flushed = asyncio.Event()
+        release = asyncio.Event()
+        original_flush = Session.wait_for_flush
+
+        async def block_ack(session: Session) -> None:
+            await original_flush(session)
+            flushed.set()
+            await release.wait()
+            if not cancel:
+                raise OSError("ack window crash")
+
+        monkeypatch.setattr(Session, "wait_for_flush", block_ack)
+
+        async def inject() -> list[events.Event]:
+            return [event async for event in agent.inject_pending_inputs()]
+
+        task = asyncio.create_task(inject())
+        await asyncio.wait_for(flushed.wait(), timeout=5)
+        assert [item.id for item in Session.load_meta(harness.session.id, tmp_path).follow_up_queue] == ids
+        assert [item.text for item in agent.follow_up_snapshot()] == ["image", "second"]
+        # New enqueue and withdrawal must not delete the admitting batch.
+        agent.follow_up(message.UserInputPayload(text="withdraw me"))
+        assert [item.text for item in agent.pop_all_follow_up()] == ["withdraw me"]
+        assert [item.id for item in Session.load_meta(harness.session.id, tmp_path).follow_up_queue] == ids
+        if cancel:
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            release.set()
+            with pytest.raises(OSError, match="ack window crash"):
+                await task
+        release.set()
+        await asyncio.sleep(0)
+        monkeypatch.setattr(Session, "wait_for_flush", original_flush)
+        restored_session = Session.load(harness.session.id, tmp_path) if restart else harness.session
+        restored = Agent(restored_session, profile) if restart else agent
+        restored.follow_up(message.UserInputPayload(text="after restart"))
+        emitted = [event async for event in restored.inject_pending_inputs()]
+        assert [event.content for event in emitted if isinstance(event, events.UserMessageEvent)] == (
+            ["after restart"] if restart else ["image", "second", "after restart"]
+        )
+        users = [
+            item
+            for item in Session.load(harness.session.id, tmp_path).conversation_history
+            if isinstance(item, message.UserMessage)
+        ]
+        assert [item.id for item in users[:2]] == ids
+        assert len(users) == 3
+        frozen = next(part for part in users[0].parts if isinstance(part, message.ImageFilePart))
+        assert frozen.frozen and frozen.file_path != str(image_path)
+        assert Path(frozen.file_path).read_bytes() == image_path.read_bytes()
+        assert users[0].source == "user"
+        assert restored_session.follow_up_queue == []
+
+    arun(_test())
+
+
+@pytest.mark.parametrize("operation", ["fresh_enqueue", "enqueue", "withdraw", "admit"])
+def test_operator_queue_metadata_failure_rolls_back_and_retries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        agent = Agent(
+            harness.session, AgentProfile(llm_client=harness.fake_llm, system_prompt="test", tools=[], attachments=[])
+        )
+        if operation != "fresh_enqueue":
+            agent.follow_up(message.UserInputPayload(text="original"))
+        before = agent.follow_up_records()
+        original = session_store._write_json_dict_atomic
+        failed = True
+
+        def write(path: Path, data: dict[str, Any], suffix: str) -> None:
+            if failed and suffix in {"u", "c"}:
+                raise OSError("queue metadata failure")
+            original(path, data, suffix)
+
+        monkeypatch.setattr(session_store, "_write_json_dict_atomic", write)
+
+        async def change() -> None:
+            if operation in {"fresh_enqueue", "enqueue"}:
+                agent.follow_up(message.UserInputPayload(text="new"))
+            elif operation == "withdraw":
+                agent.pop_all_follow_up()
+            else:
+                async for _ in agent.inject_pending_inputs():
+                    pass
+
+        for _ in range(2):
+            with pytest.raises(OSError):
+                await change()
+            assert agent.follow_up_records() == before
+            assert agent.session.follow_up_queue == list(before)
+            assert agent.pending_input_activity.is_set() == bool(before)
+            assert Session.load_meta(agent.session.id, tmp_path).follow_up_queue == list(before)
+        failed = False
+        await change()
+        expected = ["new"] if operation == "fresh_enqueue" else ["original", "new"] if operation == "enqueue" else []
+        assert [item.text for item in agent.follow_up_snapshot()] == expected
+        assert [item.input.text for item in Session.load_meta(agent.session.id, tmp_path).follow_up_queue] == expected
+        if operation == "admit":
+            loaded = Session.load(agent.session.id, tmp_path)
+            assert sum(isinstance(item, message.UserMessage) for item in loaded.conversation_history) == 1
+
+    arun(_test())
+
+
+@pytest.mark.parametrize("failure", ["before", "prefix", "tail", "meta"])
+@pytest.mark.parametrize("restart", [False, True])
+@pytest.mark.parametrize("interleave", [False, True])
+def test_steering_writer_failure_retains_batch_and_retry_reaches_disk(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure: str, restart: bool, interleave: bool
+) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        agent = Agent(
+            harness.session,
+            AgentProfile(llm_client=harness.fake_llm, system_prompt="test", tools=[], attachments=[]),
+        )
+        agent.follow_up(message.UserInputPayload(text="first"))
+        agent.follow_up(message.UserInputPayload(text="second"))
+        ids = [item.id for item in harness.session.follow_up_queue]
+        original_write = session_store.JsonlSessionWriter._write_batch_sync
+        original_meta_write = session_store._write_json_dict_atomic  # pyright: ignore[reportPrivateUsage]
+        batches: list[list[str | None]] = []
+
+        def failing_meta_write(path: Path, data: dict[str, Any], suffix: str) -> None:
+            if failure == "meta" and suffix == "w" and len(batches) == 1:
+                raise OSError("writer failed")
+            original_meta_write(path, data, suffix)
+
+        def failing_write(writer: session_store.JsonlSessionWriter, batch: Any) -> None:
+            batches.append([item.id for item in batch.items])
+            if len(batches) != 1:
+                original_write(writer, batch)
+                return
+            if failure in ("prefix", "tail"):
+                path = Session.paths(tmp_path).events_file(harness.session.id)
+                data = encode_jsonl_line(batch.items[0]).encode()
+                if failure == "tail":
+                    data += encode_jsonl_line(batch.items[1]).encode()[:30]
+                path.write_bytes(data)
+            elif failure == "meta":
+                original_write(writer, batch)
+            raise OSError("writer failed")
+
+        monkeypatch.setattr(session_store.JsonlSessionWriter, "_write_batch_sync", failing_write)
+        monkeypatch.setattr(session_store, "_write_json_dict_atomic", failing_meta_write)
+        with pytest.raises(OSError, match="writer failed"):
+            _ = [event async for event in agent.inject_pending_inputs()]
+        assert batches == [ids]
+        assert [item.text for item in agent.follow_up_snapshot()] == ["first", "second"]
+        assert agent.pending_input_activity.is_set()
+        assert [item.id for item in Session.load_meta(harness.session.id, tmp_path).follow_up_queue] == ids
+
+        if restart:
+            agent = Agent(Session.load(harness.session.id, tmp_path), agent.profile)
+        fresh = message.UserMessage(id="ordinary-input", parts=message.text_parts_from_str("ordinary new input"))
+        if interleave:
+            # run_agent appends ordinary input before the pending batch retries.
+            agent.session.append_history([fresh])
+        emitted = [event async for event in agent.inject_pending_inputs()]
+        assert batches == ([ids, [fresh.id], ids] if interleave else [ids, ids])
+        expected_echoes = ["first", "second"]
+        if restart and failure != "before":
+            expected_echoes = [] if failure == "meta" else ["second"]
+        assert [event.content for event in emitted if isinstance(event, events.UserMessageEvent)] == expected_echoes
+        loaded = Session.load(harness.session.id, tmp_path)
+        prefix_count = {"before": 0, "prefix": 1, "tail": 1, "meta": 2}[failure]
+        disk_ids: list[str | None] = [*ids[:prefix_count], fresh.id, *ids[prefix_count:]] if interleave else [*ids]
+        assert [item.id for item in loaded.conversation_history if isinstance(item, message.UserMessage)] == disk_ids
+        users = [item for item in agent.session.conversation_history if isinstance(item, message.UserMessage)]
+        assert {item.id for item in users} == set(disk_ids)
+        assert [
+            message.join_text_parts(item.parts)
+            for item in loaded.conversation_history
+            if isinstance(item, message.UserMessage)
+        ] == [{ids[0]: "first", ids[1]: "second", fresh.id: "ordinary new input"}[item_id] for item_id in disk_ids]
+        assert loaded.follow_up_queue == []
+        assert not agent.pending_input_activity.is_set()
+        assert Session.paths(tmp_path).events_file(loaded.id).read_text().count("\n") == len(disk_ids)
+        assert [agent.session.line_index_of(i) for i in range(len(users))] == [
+            disk_ids.index(item.id) for item in users
+        ]
+        agent.session.append_history([message.DeveloperMessage(parts=[])])
+        await agent.session.wait_for_flush()
+        assert agent.session.line_index_of(len(users)) == len(disk_ids)
+
+    arun(_test())
+
+
+@pytest.mark.parametrize("persisted_count", [1, 2])
+def test_restored_admission_loads_all_references_without_scanning_stale_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, persisted_count: int
+) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        (tmp_path / "recent.txt").write_text("RECENT_FILE_CONTENT")
+        (tmp_path / "stale.txt").write_text("STALE_FILE_CONTENT")
+        skill_path = tmp_path / "SKILL.md"
+        skill_path.write_text("RECENT_SKILL_CONTENT")
+        skill = Skill(name="recent", description="test", location="project", skill_path=skill_path, base_dir=tmp_path)
+        resolved: list[str] = []
+
+        def resolve(_: Session, name: str) -> Skill:
+            resolved.append(name)
+            return skill
+
+        monkeypatch.setattr("klaude_code.agent.attachments.skills.resolve_skill_for_input", resolve)
+        profile = AgentProfile(
+            llm_client=harness.fake_llm,
+            system_prompt="test",
+            tools=[],
+            attachments=[at_file_reader_attachment, skill_attachment],
+        )
+        harness.session.append_history(
+            [message.UserMessage(parts=message.text_parts_from_str("@stale.txt /skill:stale"))]
+        )
+        await harness.session.wait_for_flush()
+        agent = Agent(harness.session, profile)
+        agent.follow_up(message.UserInputPayload(text="@recent.txt /skill:recent"))
+        agent.follow_up(message.UserInputPayload(text="last without references"))
+        queued = harness.session.follow_up_queue
+        # Simulate a crash after history reached disk but before queue ack.
+        harness.session.append_history(
+            [
+                message.UserMessage(id=item.id, parts=message.text_parts_from_str(item.input.text))
+                for item in queued[:persisted_count]
+            ],
+            deduplicate_user_inputs=True,
+        )
+        await harness.session.wait_for_flush()
+        restored = Agent(Session.load(harness.session.id, tmp_path), profile)
+
+        def request(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            content = "\n".join(
+                message.join_text_parts(item.parts)
+                for item in param.input
+                if isinstance(item, message.DeveloperMessage)
+            )
+            assert content.count("RECENT_FILE_CONTENT") == 1
+            assert content.count("RECENT_SKILL_CONTENT") == 1
+            assert "stale" not in content
+            assert resolved == ["recent"]
+            return [_text_assistant_message("done")]
+
+        harness.fake_llm.enqueue_factory(request)
+        collected = [event async for event in restored.run_task(message.UserInputPayload(text=""))]
+        assert any(isinstance(event, events.TaskFinishEvent) and event.task_result == "done" for event in collected)
+        assert [
+            item.id
+            for item in Session.load(harness.session.id, tmp_path).conversation_history
+            if isinstance(item, message.UserMessage)
+        ][1:] == [item.id for item in queued]
+
+    arun(_test())
+
+
+def test_repeated_external_file_transitions_reach_each_request(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        file_path = tmp_path / "state.txt"
+        file_path.write_text("A\n")
+        agent = Agent(
+            harness.session,
+            AgentProfile(
+                llm_client=harness.fake_llm,
+                system_prompt="test",
+                tools=[],
+                attachments=[at_file_reader_attachment, file_changed_externally_attachment],
+            ),
+        )
+        harness.session.append_history([message.UserMessage(parts=message.text_parts_from_str("@state.txt"))])
+        transitions: list[str] = []
+        request_count = 0
+
+        def request(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            nonlocal request_count
+            changes = [
+                item
+                for item in param.input
+                if isinstance(item, message.DeveloperMessage)
+                and item.ui_extra is not None
+                and any(isinstance(extra, ExternalFileChangesUIItem) for extra in item.ui_extra.items)
+            ]
+            assert len(changes) == request_count
+            if changes:
+                transitions.append(message.join_text_parts(changes[-1].parts))
+                assert f"+\t{'B' if request_count % 2 else 'A'}" in transitions[-1]
+            assert harness.session.file_tracker[str(file_path)].cached_content == (
+                "B\n" if request_count % 2 else "A\n"
+            )
+            request_count += 1
+            if request_count < 4:
+                file_path.write_text("B\n" if request_count % 2 else "A\n")
+                agent.follow_up(message.UserInputPayload(text="continue"))
+            return [_text_assistant_message("done")]
+
+        for _ in range(4):
+            harness.fake_llm.enqueue_factory(request)
+        collected = [event async for event in agent.run_task(message.UserInputPayload(text="@state.txt"))]
+        assert request_count == 4
+        assert transitions[0] == transitions[2]
+        assert len([event for event in collected if isinstance(event, events.DeveloperMessageEvent)]) == 4
+
+    arun(_test())
+
+
+@pytest.mark.parametrize("boundary", ["first", "threshold", "overflow", "retry", "complete"])
+def test_steering_is_checked_before_first_compacted_and_retried_requests(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, boundary: str
+) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        file_path = tmp_path / "steering.txt"
+        file_path.write_text("STEERING_FILE_CONTENT")
+        (tmp_path / "stale.txt").write_text("STALE_FILE_CONTENT")
+        skill_path = tmp_path / "SKILL.md"
+        skill_path.write_text("STEERING_SKILL_CONTENT")
+        skill = Skill(name="steer", description="test", location="project", skill_path=skill_path, base_dir=tmp_path)
+        resolved: list[str] = []
+
+        def resolve(_: Session, name: str) -> Skill:
+            resolved.append(name)
+            return skill
+
+        monkeypatch.setattr("klaude_code.agent.attachments.skills.resolve_skill_for_input", resolve)
+        profile = AgentProfile(
+            llm_client=harness.fake_llm,
+            system_prompt="test",
+            tools=[],
+            attachments=[at_file_reader_attachment, skill_attachment],
+        )
+        agent = Agent(harness.session, profile)
+        harness.session.append_history(
+            [
+                message.UserMessage(parts=message.text_parts_from_str("old @stale.txt /skill:stale")),
+                message.UserMessage(parts=message.text_parts_from_str("initial")),
+            ]
+        )
+
+        batch_queued = False
+
+        def enqueue_batch() -> None:
+            nonlocal batch_queued
+            if batch_queued:
+                return
+            batch_queued = True
+            agent.follow_up(message.UserInputPayload(text="pending @steering.txt /skill:steer"))
+            agent.follow_up(message.UserInputPayload(text="duplicate @./steering.txt /skill:steer"))
+            agent.follow_up(message.UserInputPayload(text="last message without references"))
+
+        if boundary == "first":
+            enqueue_batch()
+        elif boundary == "threshold":
+            monkeypatch.setattr(task_module, "should_compact_threshold", lambda **_: True)
+
+        async def compact(**_: Any) -> CompactionResult:
+            enqueue_batch()
+            return CompactionResult(
+                summary="summary", first_kept_index=0, tokens_before=100, details=None, kept_items_brief=[]
+            )
+
+        monkeypatch.setattr(task_module, "run_compaction", compact)
+        monkeypatch.setattr(task_module, "_retry_delay_seconds", lambda _: 0)
+        if boundary in ("overflow", "retry"):
+            harness.fake_llm.enqueue(
+                message.StreamErrorItem(
+                    error="maximum context length exceeded" if boundary == "overflow" else "temporary failure"
+                )
+            )
+        elif boundary == "complete":
+
+            def complete_request(_: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+                enqueue_batch()
+                return [_text_assistant_message("original final")]
+
+            harness.fake_llm.enqueue_factory(complete_request)
+
+        admitted_requests = 0
+
+        def request(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            nonlocal admitted_requests
+            admitted_requests += 1
+            assert any(
+                isinstance(item, message.UserMessage) and message.join_text_parts(item.parts).startswith("pending")
+                for item in param.input
+            )
+            attachments = [item for item in param.input if isinstance(item, message.DeveloperMessage)]
+            content = "\n".join(message.join_text_parts(item.parts) for item in attachments)
+            assert content.count("STEERING_FILE_CONTENT") == 1
+            assert content.count("STEERING_SKILL_CONTENT") == 1
+            assert "stale.txt" not in content
+            file_ops = [
+                op
+                for item in attachments
+                if item.ui_extra is not None
+                for ui_item in item.ui_extra.items
+                if isinstance(ui_item, AtFileOpsUIItem)
+                for op in ui_item.ops
+            ]
+            assert [op.path for op in file_ops] == [str(file_path.resolve())]
+            assert resolved == ["steer"]
+            if admitted_requests == 1:
+                return [message.StreamErrorItem(error="temporary failure after admission")]
+            return [_text_assistant_message("done")]
+
+        harness.fake_llm.enqueue_factory(request)
+        harness.fake_llm.enqueue_factory(request)
+        collected: list[events.Event] = []
+        async for event in agent.run_task(message.UserInputPayload(text="initial")):
+            collected.append(event)
+            if boundary == "retry" and isinstance(event, events.ErrorEvent) and event.can_retry:
+                enqueue_batch()
+        assert len([event for event in collected if isinstance(event, events.UserMessageEvent)]) == 3
+        assert admitted_requests == 2
+        assert any(isinstance(event, events.TaskFinishEvent) and event.task_result == "done" for event in collected)
+
+    arun(_test())
+
+
+def test_steering_reloads_recent_batch_references_after_compaction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        (tmp_path / "recent.txt").write_text("RECENT_FILE_CONTENT")
+        (tmp_path / "stale.txt").write_text("STALE_FILE_CONTENT")
+        skill_path = tmp_path / "SKILL.md"
+        skill_path.write_text("RECENT_SKILL_CONTENT")
+        skill = Skill(name="recent", description="test", location="project", skill_path=skill_path, base_dir=tmp_path)
+        resolved: list[str] = []
+
+        def resolve(_: Session, name: str) -> Skill:
+            resolved.append(name)
+            return skill
+
+        monkeypatch.setattr("klaude_code.agent.attachments.skills.resolve_skill_for_input", resolve)
+        profile = AgentProfile(
+            llm_client=harness.fake_llm,
+            system_prompt="test",
+            tools=[],
+            attachments=[at_file_reader_attachment, skill_attachment],
+        )
+        agent = Agent(harness.session, profile)
+        harness.session.append_history(
+            [
+                message.UserMessage(parts=message.text_parts_from_str("@stale.txt /skill:stale")),
+                message.UserMessage(parts=message.text_parts_from_str("initial")),
+            ]
+        )
+        agent.follow_up(message.UserInputPayload(text="@recent.txt /skill:recent"))
+        agent.follow_up(message.UserInputPayload(text="last without references"))
+
+        async def compact(**_: Any) -> CompactionResult:
+            # Drop the user messages and attachments: only the recent admission
+            # batch, not a history-wide scan, can restore these references.
+            return CompactionResult(
+                summary="summary",
+                first_kept_index=len(harness.session.conversation_history),
+                tokens_before=100,
+                details=None,
+                kept_items_brief=[],
+            )
+
+        monkeypatch.setattr(task_module, "run_compaction", compact)
+
+        def request(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            content = "\n".join(
+                message.join_text_parts(item.parts)
+                for item in param.input
+                if isinstance(item, message.DeveloperMessage)
+            )
+            assert content.count("RECENT_FILE_CONTENT") == 1
+            assert content.count("RECENT_SKILL_CONTENT") == 1
+            assert "stale" not in content
+            if len(resolved) == 1:
+                return [message.StreamErrorItem(error="maximum context length exceeded")]
+            assert resolved == ["recent", "recent"]
+            return [_text_assistant_message("done")]
+
+        harness.fake_llm.enqueue_factory(request)
+        harness.fake_llm.enqueue_factory(request)
+        collected = [event async for event in agent.run_task(message.UserInputPayload(text="initial"))]
+        assert any(isinstance(event, events.TaskFinishEvent) and event.task_result == "done" for event in collected)
+        assert resolved == ["recent", "recent"]
+
+    arun(_test())
 
 
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:

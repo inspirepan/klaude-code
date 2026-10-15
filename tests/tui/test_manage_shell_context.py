@@ -98,7 +98,7 @@ def test_waiting_shell_description_is_visible_before_result_and_after_rebuild(
                 await display.consume_envelope(make_envelope(event))
             transcript = capsys.readouterr().out
             assert "Wait for draft" in transcript
-            assert "0262c6ae" in transcript
+            assert "0262c6ae" not in transcript
             assert "120s" in transcript or "2m" in transcript
             assert "wait_ms:" not in transcript
             control = events.ToggleTranscriptDetailEvent if rebuild == "toggle" else events.RefreshDisplayEvent

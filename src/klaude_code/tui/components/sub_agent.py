@@ -6,7 +6,7 @@ from rich.panel import Panel
 from rich.style import Style
 from rich.text import Text
 
-from klaude_code.protocol.models import SubAgentState
+from klaude_code.protocol.models import SubAgentState, TaskMetadata
 from klaude_code.tui.components.common import (
     format_compact_count,
     format_elapsed_compact,
@@ -25,7 +25,16 @@ COMPACT_CONTINUATION_PREFIX = "↳ "
 COMPACT_CONTINUATION_INDENT = " " * len(COMPACT_CONTINUATION_PREFIX)
 # A one-line summary ellipsised mid-sentence says very little; a few wrapped
 # lines usually carry the whole conclusion.
-COMPACT_RESULT_MAX_LINES = 4
+COMPACT_RESULT_MAX_LINES = 3
+
+
+def sub_agent_token_count(metadata: TaskMetadata | None) -> int | None:
+    """Total tokens a child spent, normalized across providers (see the Usage notes in AGENTS.md)."""
+    if metadata is None or metadata.usage is None:
+        return None
+    usage = metadata.usage
+    input_tokens = max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
+    return input_tokens + usage.output_tokens
 
 
 def extract_result_summary(result: str) -> str:
@@ -42,7 +51,9 @@ def extract_result_summary(result: str) -> str:
             continue
         text = _MARKDOWN_PREFIX_RE.sub("", _MARKDOWN_HEADING_RE.sub("", line))
         text = re.sub(r"!?(?:\[([^]]+)\])\([^)]+\)", r"\1", text)
-        text = re.sub(r"[*_`~]+", "", text)
+        text = re.sub(r"[*`~]+", "", text)
+        # Underscores only delimit emphasis at word edges; inside snake_case names they are text.
+        text = re.sub(r"(?<!\w)_+|_+(?!\w)", "", text)
         text = " ".join(text.split())
         if text:
             cleaned.append(text)

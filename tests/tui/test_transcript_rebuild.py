@@ -222,7 +222,7 @@ def test_end_rebuild_restarts_spinner_only_while_running() -> None:
 
     machine.transition_rebuild(events.TaskFinishEvent(session_id="s1", task_result="done"))
     idle_cmds = machine.end_rebuild()
-    assert [type(cmd).__name__ for cmd in idle_cmds] == ["SpinnerStop"]
+    assert [type(cmd).__name__ for cmd in idle_cmds] == ["MainTaskStatus", "SpinnerStop"]
 
 
 def test_end_rebuild_drops_dangling_tasks_from_persisted_history() -> None:
@@ -242,7 +242,7 @@ def test_end_rebuild_drops_dangling_tasks_from_persisted_history() -> None:
         )
     )
     cmds = machine.end_rebuild(drop_dangling_tasks=True)
-    assert [type(cmd).__name__ for cmd in cmds] == ["SpinnerStop"]
+    assert [type(cmd).__name__ for cmd in cmds] == ["MainTaskStatus", "SpinnerStop"]
 
     # Toggle/refresh repaints replay the display tape, which does include a
     # genuinely live turn: those must keep the spinner running.

@@ -23,6 +23,7 @@ class LoadedSessionMeta:
     sub_agent_state: SubAgentState | None
     file_tracker: dict[str, FileStatus]
     file_change_summary: FileChangeSummary
+    background_task_ids: set[str]
     todos: list[TodoItem]
     created_at: float
     updated_at: float
@@ -102,13 +103,17 @@ def _parse_follow_up_queue(raw: object, *, fallback_enqueued_at: float) -> list[
             continue
         try:
             if "input" in item:
-                inputs.append(message.QueuedUserInput.model_validate(item))
+                inputs.append(
+                    message.QueuedUserInput.model_validate(item, context={"allow_reserved_message_ids": True})
+                )
             else:
                 # Legacy queues had payloads only. Their cross-session order
                 # cannot be recovered exactly, so use session recency once.
                 inputs.append(
                     message.QueuedUserInput(
-                        input=message.UserInputPayload.model_validate(item),
+                        input=message.UserInputPayload.model_validate(
+                            item, context={"allow_reserved_message_ids": True}
+                        ),
                         enqueued_at=fallback_enqueued_at,
                     )
                 )
@@ -183,6 +188,9 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         else None,
         file_tracker=_parse_file_tracker(raw.get("file_tracker")),
         file_change_summary=_parse_file_change_summary(raw.get("file_change_summary")),
+        background_task_ids={item for item in raw.get("background_task_ids", []) if isinstance(item, str)}
+        if isinstance(raw.get("background_task_ids", []), list)
+        else set(),
         todos=_parse_todos(raw.get("todos")),
         created_at=created_at,
         updated_at=updated_at,

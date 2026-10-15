@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 
+import klaude_code.tool.shell.task_manager as shell_task_manager_module
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tool.core.context import TodoContext, ToolContext
 from klaude_code.tool.shell.bash_tool import BashTool
@@ -592,7 +593,7 @@ def test_storage_failure_publishes_final_state_and_releases_tracker(
             if failure == "fsync":
                 monkeypatch.setattr(manager, "_sync_output", fail_sync)
             elif failure == "persist":
-                monkeypatch.setattr(manager, "_write_snapshot", fail_sync)
+                monkeypatch.setattr(shell_task_manager_module, "write_snapshot", fail_sync)
             else:
                 monkeypatch.setattr(manager, "_prune", fail_prune)
             done = await manager.wait_task("test", task.task_id, wait_ms=3000)
@@ -619,7 +620,7 @@ def test_metadata_writer_is_responsive_immutable_and_cancel_safe(
         entered = asyncio.Event()
         loop = asyncio.get_running_loop()
         writes: list[dict[str, object]] = []
-        original = manager._write_snapshot
+        original = shell_task_manager_module.write_snapshot
         first = True
 
         def write(directory: Path, task_id: str, payload: str) -> None:
@@ -636,7 +637,7 @@ def test_metadata_writer_is_responsive_immutable_and_cancel_safe(
         stopping: asyncio.Task[ShellTaskSnapshot] | None = None
         try:
             task = await _start(manager, tmp_path, "sleep 20", background=False)
-            monkeypatch.setattr(manager, "_write_snapshot", write)
+            monkeypatch.setattr(shell_task_manager_module, "write_snapshot", write)
             background = asyncio.create_task(manager.background_task("test", task.task_id))
             await asyncio.wait_for(entered.wait(), 2)
             manager._get("test", task.task_id).snapshot.description = "changed while writing"
@@ -676,7 +677,7 @@ def test_cancelled_detach_still_notifies_already_completed_task(
             completions.append(task)
 
         manager = ShellTaskManager(on_complete=complete)
-        original = manager._write_snapshot
+        original = shell_task_manager_module.write_snapshot
 
         def write(directory: Path, task_id: str, payload: str) -> None:
             loop.call_soon_threadsafe(persisted.set)
@@ -689,7 +690,7 @@ def test_cancelled_detach_still_notifies_already_completed_task(
             task = await _start(manager, tmp_path, "true", background=False)
             await manager.wait_task("test", task.task_id, wait_ms=3000)
             assert not completions
-            monkeypatch.setattr(manager, "_write_snapshot", write)
+            monkeypatch.setattr(shell_task_manager_module, "write_snapshot", write)
             background = asyncio.create_task(manager.background_task("test", task.task_id))
             await asyncio.wait_for(persisted.wait(), 2)
             background.cancel()

@@ -18,6 +18,8 @@ from .file.look_at_tool import LookAtTool
 from .file.read_tool import ReadTool
 from .file.write_tool import WriteTool
 from .handoff_tool import HandoffTool
+from .manage_tasks_tool import ManageTasksTool
+from .peer_tool import ListPeersTool, MessagePeerTool
 from .shell.bash_tool import BashTool
 from .shell.command_safety import SafetyCheckResult, is_safe_command
 from .shell.manage_shell_tool import ManageShellTool
@@ -34,8 +36,11 @@ __all__ = [
     "EditTool",
     "FileTracker",
     "HandoffTool",
+    "ListPeersTool",
     "LookAtTool",
     "ManageShellTool",
+    "ManageTasksTool",
+    "MessagePeerTool",
     "ReadTool",
     "RequestUserInteraction",
     "RunSubtask",

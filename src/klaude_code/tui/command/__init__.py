@@ -49,6 +49,7 @@ def ensure_commands_loaded() -> None:
     from .reload_cmd import ReloadCommand
     from .rewind_cmd import RewindCommand
     from .status_cmd import StatusCommand
+    from .stop_cmd import StopCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
     from .switch_cmd import SwitchCommand
     from .tasks_cmd import TasksCommand
@@ -74,6 +75,7 @@ def ensure_commands_loaded() -> None:
     register(GrillMeCommand())
     register(BtwCommand())
     register(TasksCommand())
+    register(StopCommand())
 
 
 # Lazy accessors for command classes
@@ -98,6 +100,7 @@ def __getattr__(name: str) -> object:
         "SubAgentModelCommand": "sub_agent_model_cmd",
         "SwitchCommand": "switch_cmd",
         "TasksCommand": "tasks_cmd",
+        "StopCommand": "stop_cmd",
     }
     if name in _commands_map:
         import importlib

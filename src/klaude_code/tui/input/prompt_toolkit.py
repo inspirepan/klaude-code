@@ -10,10 +10,11 @@ from pathlib import Path
 from typing import override
 
 from prompt_toolkit import PromptSession
-from prompt_toolkit.application.current import get_app
+from prompt_toolkit.application.current import get_app, set_app
 from prompt_toolkit.buffer import Buffer, CompletionState
 from prompt_toolkit.completion import Completion, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import CursorShape
+from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, to_plain_text
 from prompt_toolkit.history import FileHistory
@@ -250,6 +251,7 @@ class PromptToolkitInput(InputProviderABC):
         self._resize_watcher: ResizeWatcher | None = None
         self._next_prefill_text: str | None = None
         self._resumed_buffer_text: str | None = None
+        self._resumed_cursor_position: int | None = None
         self._clipboard_has_image: bool = False
         self._clipboard_watcher_task: asyncio.Task[None] | None = None
         self._prompt_suggestion: str | None = None
@@ -418,6 +420,7 @@ class PromptToolkitInput(InputProviderABC):
         """Pause the active REPL prompt so a modal selector can read stdin exclusively."""
 
         self._external_input_pause_count += 1
+        self.close_task_overlay()
         self._external_input_resume_event.clear()
 
         def _resume() -> None:
@@ -437,6 +440,7 @@ class PromptToolkitInput(InputProviderABC):
         with contextlib.suppress(Exception):
             text = self._session.default_buffer.text
             self._resumed_buffer_text = text or None
+            self._resumed_cursor_position = self._session.default_buffer.cursor_position
         try:
             self._session.app.exit(exception=_PromptPaused())
         except Exception:
@@ -477,7 +481,9 @@ class PromptToolkitInput(InputProviderABC):
 
         # The model picker will be set up later; create placeholder condition.
         self._model_picker: SelectOverlay[str] | None = None
-        input_enabled = Condition(lambda: self._model_picker is None or not self._model_picker.is_open)
+        self._task_picker: SelectOverlay[str] | None = None
+        self._task_choice: asyncio.Future[str | None] | None = None
+        input_enabled = Condition(lambda: not self._is_picker_open())
 
         kb = create_key_bindings(
             capture_clipboard_tag=capture_clipboard_tag,
@@ -539,7 +545,7 @@ class PromptToolkitInput(InputProviderABC):
         paste reminder.
         """
         if self._is_agent_running():
-            text = "   Queue a follow-up"
+            text = "   Steer the main agent"
             if self._clipboard_has_image:
                 text = f"{text} · ctrl-v to paste image"
             return FormattedText([("class:placeholder", text)])
@@ -681,12 +687,53 @@ class PromptToolkitInput(InputProviderABC):
             get_reserved_rows=self._get_picker_reserved_rows,
         )
         self._model_picker = model_picker
+        self._task_picker = SelectOverlay[str](
+            list_height=12,
+            get_reserved_rows=self._get_picker_reserved_rows,
+            on_select=self._select_task_choice,
+            on_cancel=self.close_task_overlay,
+        )
 
         # Merge overlay key bindings with existing session key bindings
         existing_kb = self._session.key_bindings
         if existing_kb is not None:
-            merged_kb = merge_key_bindings([existing_kb, model_picker.key_bindings])
+            merged_kb = merge_key_bindings([existing_kb, model_picker.key_bindings, self._task_picker.key_bindings])
             self._session.key_bindings = merged_kb
+
+    def _select_task_choice(self, value: str) -> None:
+        if self._task_choice is not None and not self._task_choice.done():
+            self._task_choice.set_result(value)
+
+    def close_task_overlay(self) -> None:
+        if self._task_picker is not None:
+            self._task_picker.close()
+        if self._task_choice is not None and not self._task_choice.done():
+            self._task_choice.set_result(None)
+
+    async def choose_task_action(
+        self, heading: str, items: list[SelectItem[str]], *, text_entry: bool = False
+    ) -> str | None:
+        while not self._session.app.is_running:
+            if self._external_input_pause_count or self._exit_requested:
+                return None
+            await asyncio.sleep(0.01)
+        if self._external_input_pause_count or self._task_picker is None:
+            return None
+        picker = self._task_picker
+        choice = asyncio.get_running_loop().create_future()
+        self._task_choice = choice
+        with set_app(self._session.app):
+            if self._model_picker is not None:
+                self._model_picker.close()
+            picker.text_entry = text_entry
+            picker.set_content(message=heading, items=items)
+            picker.open()
+            try:
+                result = await choice
+                return picker.input_text if text_entry and result is not None else result
+            finally:
+                picker.close()
+                self._task_choice = None
 
     def _apply_layout_customizations(self) -> None:
         """Apply layout customizations after session is created."""
@@ -753,6 +800,8 @@ class PromptToolkitInput(InputProviderABC):
             ]
             if self._model_picker is not None:
                 dynamic_panels.append(self._model_picker.container)
+            if self._task_picker is not None:
+                dynamic_panels.append(self._task_picker.container)
             self._session.app.layout.container = HSplit(
                 [*bar_containers, input_top_rule, root, input_bottom_rule, *dynamic_panels, input_footer]
             )
@@ -774,7 +823,7 @@ class PromptToolkitInput(InputProviderABC):
         fragments = self._build_prompt_context_fragments(prefix="  ")
         status_hint = self._bottom_bar.running_separator_label
         if status_hint:
-            mode_hint = "tab to queue follow-up" if self._is_btw_mode_active() else "tab to ask /btw"
+            mode_hint = "tab to steer the agent" if self._is_btw_mode_active() else "tab to ask /btw"
             fragments.extend([(CLASS_META, " · "), (CLASS_META, status_hint), (CLASS_META, f" · {mode_hint}")])
         for line in self._bottom_bar.metadata_footer_lines:
             fragments.extend([("", "\n"), (CLASS_METADATA_FOOTER, f"  {line}")])
@@ -786,7 +835,7 @@ class PromptToolkitInput(InputProviderABC):
         return 1 + max(1, len(self._bottom_bar.metadata_footer_lines))
 
     def _is_picker_open(self) -> bool:
-        return self._model_picker is not None and self._model_picker.is_open
+        return any(picker is not None and picker.is_open for picker in (self._model_picker, self._task_picker))
 
     def _is_completion_active(self) -> bool:
         try:
@@ -1205,7 +1254,13 @@ class PromptToolkitInput(InputProviderABC):
                 if default_text is None:
                     line = await self._session.prompt_async(message=self._get_prompt_message)
                 else:
-                    line = await self._session.prompt_async(message=self._get_prompt_message, default=default_text)
+                    default = (
+                        Document(default_text, cursor_position=min(self._resumed_cursor_position, len(default_text)))
+                        if resumed_text is not None and self._resumed_cursor_position is not None
+                        else default_text
+                    )
+                    self._resumed_cursor_position = None
+                    line = await self._session.prompt_async(message=self._get_prompt_message, default=default)
                 queued_edit = self._queued_edit_active
             except _PromptPaused:
                 prompt_paused = True

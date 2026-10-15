@@ -71,7 +71,8 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                     grid.add_row(
                         Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                         Text.assemble(
-                            ("Read memory ", ThemeKey.ATTACHMENT),
+                            ("Read", ThemeKey.TOOL_NAME),
+                            (" memory ", ThemeKey.ATTACHMENT),
                             Text(", ", ThemeKey.ATTACHMENT).join(
                                 render_path(mem.path, ThemeKey.ATTACHMENT_BOLD) for mem in item.files
                             ),
@@ -84,7 +85,9 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                         grid.add_row(
                             Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                             Text.assemble(
-                                ("Read ", ThemeKey.ATTACHMENT),
+                                # The verb reads like a tool name, matching `→ Read` rows.
+                                ("Read", ThemeKey.TOOL_NAME),
+                                (" ", ThemeKey.ATTACHMENT),
                                 render_path(file_path, ThemeKey.ATTACHMENT_BOLD),
                                 (" after external changes", ThemeKey.ATTACHMENT),
                             ),
@@ -117,7 +120,8 @@ def render_developer_message(e: events.DeveloperMessageEvent) -> RenderableType:
                         grid.add_row(
                             Text(ATTACHMENT_BULLET, style=ThemeKey.TOOL_MARK),
                             Text.assemble(
-                                (f"{operation} ", ThemeKey.ATTACHMENT),
+                                (operation, ThemeKey.TOOL_NAME),
+                                (" ", ThemeKey.ATTACHMENT),
                                 path_texts,
                             ),
                         )

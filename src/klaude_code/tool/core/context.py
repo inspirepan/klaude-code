@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import builtins
 from collections.abc import Awaitable, Callable, MutableMapping
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -9,22 +11,20 @@ if TYPE_CHECKING:
     from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 from klaude_code.protocol import message, user_interaction
-from klaude_code.protocol.models import FileChangeSummary, FileStatus, SubAgentState, TaskMetadata, TodoItem
+from klaude_code.protocol.background_task import TaskRequest, TaskResponse
+from klaude_code.protocol.models import FileChangeSummary, FileStatus, SubAgentState, TodoItem
+from klaude_code.protocol.peer import PeerInfo, PeerReceipt
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
 
 type FileTracker = MutableMapping[str, FileStatus]
 
-GetMetadataFn = Callable[[], TaskMetadata | None]
-GetProgressFn = Callable[[], str | None]
 GetInterruptResultFn = Callable[[], message.ToolResultMessage | None]
 
 RunSubtask = Callable[
     [
         SubAgentState,
         Callable[[str], None] | None,
-        Callable[[GetMetadataFn], None] | None,
-        Callable[[GetProgressFn], None] | None,
     ],
     Awaitable[SubAgentResult],
 ]
@@ -78,6 +78,18 @@ class HandoffManagerABC(Protocol):
     def send_handoff(self, goal: str) -> str: ...
 
 
+class TaskControlPort(Protocol):
+    async def manage(
+        self, session_id: str, work_dir: Path, request: TaskRequest, *, activity: asyncio.Event | None = None
+    ) -> TaskResponse: ...
+
+
+class PeerControlPort(Protocol):
+    async def list(self, sender: str, work_dir: Path) -> builtins.list[PeerInfo]: ...
+
+    async def send(self, sender: str, target: str, body: str, reply_to: str | None = None) -> PeerReceipt: ...
+
+
 @dataclass(frozen=True)
 class ToolContext:
     """Tool execution context.
@@ -93,8 +105,6 @@ class ToolContext:
     file_change_summary: FileChangeSummary | None = None
     run_subtask: RunSubtask | None = None
     record_sub_agent_session_id: Callable[[str], None] | None = None
-    register_sub_agent_metadata_getter: Callable[[GetMetadataFn], None] | None = None
-    register_sub_agent_progress_getter: Callable[[GetProgressFn], None] | None = None
     register_tool_interrupt_result_getter: Callable[[GetInterruptResultFn], None] | None = None
     handoff_manager: HandoffManagerABC | None = None
     request_user_interaction: RequestUserInteraction | None = None
@@ -103,15 +113,12 @@ class ToolContext:
     tool_batch_index: int | None = None
     tool_batch_size: int | None = None
     shell_task_manager: ShellTaskManager | None = None
+    task_control: TaskControlPort | None = None
+    peer_control: PeerControlPort | None = None
+    pending_input_activity: asyncio.Event | None = None
 
     def with_record_sub_agent_session_id(self, callback: Callable[[str], None] | None) -> ToolContext:
         return replace(self, record_sub_agent_session_id=callback)
-
-    def with_register_sub_agent_metadata_getter(self, callback: Callable[[GetMetadataFn], None] | None) -> ToolContext:
-        return replace(self, register_sub_agent_metadata_getter=callback)
-
-    def with_register_sub_agent_progress_getter(self, callback: Callable[[GetProgressFn], None] | None) -> ToolContext:
-        return replace(self, register_sub_agent_progress_getter=callback)
 
     def with_register_tool_interrupt_result_getter(
         self, callback: Callable[[GetInterruptResultFn], None] | None

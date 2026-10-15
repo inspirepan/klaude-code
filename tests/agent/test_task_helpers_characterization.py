@@ -2,7 +2,6 @@
 
 Locks in CURRENT observable behavior of:
 - ``TaskExecutor._has_tool`` (membership over profile.tools by ToolSchema.name).
-- ``TaskExecutor._developer_message_key`` (attachment dedup key derivation).
 - ``TaskExecutor._fallback_model`` vs ``TaskExecutor._fallback_compact_model``
   observable effects on ctx.profile / ctx.tool_registry / appended history /
   returned event, including the no-fallback (returns None) path.
@@ -110,25 +109,6 @@ def _fallback_client() -> FallbackLLMClient:
             ),
         ]
     )
-
-
-# ---------------------------------------------------------------------------
-# _developer_message_key (attachment dedup key)
-# ---------------------------------------------------------------------------
-
-
-def test_developer_message_key_ignores_id_created_at_response_id() -> None:
-    a = message.DeveloperMessage(parts=[message.TextPart(text="reminder body")], id="id-a", response_id="resp-a")
-    b = message.DeveloperMessage(parts=[message.TextPart(text="reminder body")], id="id-b", response_id="resp-b")
-    # Distinct ids/response_ids/timestamps, but same content -> same dedup key.
-    assert a.id != b.id
-    assert TaskExecutor._developer_message_key(a) == TaskExecutor._developer_message_key(b)  # pyright: ignore[reportPrivateUsage]
-
-
-def test_developer_message_key_differs_on_content() -> None:
-    a = message.DeveloperMessage(parts=[message.TextPart(text="one")])
-    b = message.DeveloperMessage(parts=[message.TextPart(text="two")])
-    assert TaskExecutor._developer_message_key(a) != TaskExecutor._developer_message_key(b)  # pyright: ignore[reportPrivateUsage]
 
 
 # ---------------------------------------------------------------------------

@@ -24,6 +24,7 @@ from klaude_code.protocol.models import (
     ToolStatus,
     Usage,
 )
+from klaude_code.protocol.peer import PeerMessage
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 
 # Stream items
@@ -386,13 +387,14 @@ class DeveloperMessage(MessageBase):
     ui_extra: DeveloperUIExtra | None = None
 
 
-UserMessageSource = Literal["user", "bash_mode", "shell_completion"]
+UserMessageSource = Literal["user", "bash_mode", "shell_completion", "task_completion", "peer_message"]
 
 
 class UserMessage(MessageBase):
+    peer_message: PeerMessage | None = None
     role: Literal["user"] = "user"
     parts: list[Part]
-    # Tag the origin of this message for replay rendering
+    # Only None/user are operator inputs; completion and peer sources are untrusted data.
     source: UserMessageSource | None = None
     # UI-only metadata; provider adapters serialize parts, not these snapshots.
     shell_tasks: list[ShellTaskSnapshot] | None = None
@@ -407,6 +409,7 @@ class AssistantMessage(MessageBase):
 
 
 class ToolResultMessage(MessageBase):
+    task_delivery_id: str | None = None
     role: Literal["tool"] = "tool"
     call_id: str = ""
     tool_name: str = ""
@@ -457,6 +460,7 @@ LLMStreamItem = HistoryEvent | StreamItem
 
 
 class UserInputPayload(BaseModel):
+    peer_message: PeerMessage | None = None
     """Structured payload for user input containing text and optional images.
 
     This is the unified data structure for user input across the entire
@@ -465,13 +469,13 @@ class UserInputPayload(BaseModel):
 
     text: str
     images: Sequence[ImageURLPart | ImageFilePart] | None = None
-    source: Literal["user", "shell_completion"] | None = None
+    source: Literal["user", "shell_completion", "task_completion", "peer_message"] | None = None
     shell_tasks: list[ShellTaskSnapshot] | None = None
     queued_edit: bool = Field(default=False, exclude=True)
 
 
 class QueuedUserInput(BaseModel):
-    """A durable user input waiting for a future turn."""
+    """A durable user input waiting for a safe step boundary."""
 
     id: str = Field(default_factory=lambda: uuid4().hex)
     input: UserInputPayload

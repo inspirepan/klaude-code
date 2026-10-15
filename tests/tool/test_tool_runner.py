@@ -570,8 +570,8 @@ class TestToolExecutor:
         assert events[1].tool_result.output_text == "Interrupted by user after 0.12 seconds running: sleep 10"
         assert history[-1] == events[1].tool_result
 
-    def test_cancel_includes_task_metadata_when_available(self, executor: ToolExecutor):
-        """Test cancelling includes sub-agent task metadata when getter is registered."""
+    def test_cancel_preserves_metadata_from_interrupt_result(self, executor: ToolExecutor):
+        """The generic interrupt result owns any partial metadata."""
         tool_call = ToolCallRequest(
             response_id=None,
             call_id="test_123",
@@ -579,10 +579,14 @@ class TestToolExecutor:
             arguments_json="{}",
         )
         executor._unfinished_calls["test_123"] = tool_call
-        executor._sub_agent_metadata_getters["test_123"] = lambda: TaskMetadata(
-            model_name="test-model",
-            usage=Usage(input_tokens=100, output_tokens=50),
-            description="Test sub-agent",
+        executor._tool_interrupt_result_getters["test_123"] = lambda: message.ToolResultMessage(
+            status="aborted",
+            output_text="interrupted",
+            task_metadata=TaskMetadata(
+                model_name="test-model",
+                usage=Usage(input_tokens=100, output_tokens=50),
+                description="Test sub-agent",
+            ),
         )
 
         events = list(executor.on_interrupt())

@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 from rich import box
 from rich.console import Group, RenderableType
 from rich.constrain import Constrain
@@ -39,6 +41,7 @@ from klaude_code.tui.components.tools._file import (
 from klaude_code.tui.components.tools._look_at import render_look_at_tool_call
 from klaude_code.tui.components.tools._manage_shell import (
     extract_shell_task_ui_extra,
+    is_pending_shell_wait,
     render_manage_shell_result,
     render_manage_shell_tool_call,
 )
@@ -58,6 +61,9 @@ from klaude_code.tui.components.tools._web import (
 )
 from klaude_code.tui.transcript_detail import Detail
 
+if TYPE_CHECKING:
+    from klaude_code.tui.components.background_tasks import TaskDirectory
+
 _COMPACT_MARKDOWN_PREVIEW_LINES = 5
 # Upper bound on result panels, so they read as one consistent column instead
 # of each box sizing itself to its longest line.
@@ -65,7 +71,12 @@ _COMPACT_MARKDOWN_PREVIEW_LINES = 5
 RESULT_PANEL_MAX_WIDTH = DIFF_MAX_RENDER_WIDTH + 4
 
 
-def render_tool_call(e: events.ToolCallEvent, *, shell_task: ShellTaskSnapshot | None = None) -> RenderableType | None:
+def render_tool_call(
+    e: events.ToolCallEvent,
+    *,
+    shell_task: ShellTaskSnapshot | None = None,
+    task_directory: "TaskDirectory | None" = None,
+) -> RenderableType | None:
     """Unified entry point for rendering tool calls.
 
     Returns a Rich Renderable or None if the tool call should not be rendered.
@@ -73,6 +84,11 @@ def render_tool_call(e: events.ToolCallEvent, *, shell_task: ShellTaskSnapshot |
 
     if is_sub_agent_tool(e.tool_name):
         return None
+
+    if e.tool_name in {tools.MANAGE_TASKS, tools.LIST_PEERS, tools.MESSAGE_PEER}:
+        from klaude_code.tui.components.background_tasks import render_collaboration_call
+
+        return render_collaboration_call(e.tool_name, e.arguments, task_directory)
 
     match e.tool_name:
         case tools.READ:
@@ -223,6 +239,8 @@ def render_tool_result(
     detail: Detail = Detail.COMPACT,
     max_lines: int = FULL_TOOL_RESULT_MAX_LINES,
     show_shell_task_identity: bool = False,
+    task_action: str = "",
+    task_directory: "TaskDirectory | None" = None,
 ) -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
@@ -236,6 +254,19 @@ def render_tool_result(
         # block-result level. Everything else lines up under its arguments.
         indent = TOOL_RESULT_INDENT if e.tool_name == tools.TODO_WRITE else TOOL_SUBJECT_INDENT
         return AdaptiveIndent(content, indent)
+
+    if e.tool_name == tools.MANAGE_TASKS:
+        from klaude_code.tui.components.background_tasks import render_manage_tasks_result
+
+        result = render_manage_tasks_result(
+            e.result,
+            detail=detail,
+            action=task_action,
+            directory=task_directory,
+            max_lines=max_lines,
+            status=e.status,
+        )
+        return pad_result(result) if result is not None else None
 
     # Handle error case
     if e.is_error and e.ui_extra is None:
@@ -331,6 +362,8 @@ def render_tool_result(
             return _render_fallback()
         case tools.MANAGE_SHELL:
             shell_ui = extract_shell_task_ui_extra(e.ui_extra, e.result)
+            if shell_ui is not None and detail.is_compact and is_pending_shell_wait(shell_ui):
+                return None
             if shell_ui is not None:
                 return pad_result(
                     render_manage_shell_result(
@@ -338,6 +371,18 @@ def render_tool_result(
                     )
                 )
             return _render_fallback()
+        case tools.LIST_PEERS | tools.MESSAGE_PEER:
+            from klaude_code.tui.components.background_tasks import (
+                is_accepted_peer_receipt,
+                render_collaboration_result,
+            )
+
+            if e.tool_name == tools.MESSAGE_PEER and detail.is_compact and is_accepted_peer_receipt(e.result):
+                return None
+            result = render_collaboration_result(
+                e.tool_name, e.result, detail=detail, max_lines=max_lines, directory=task_directory
+            )
+            return pad_result(result) if result is not None else _render_fallback()
         case tools.WEB_SEARCH:
             search_results = parse_web_search_results(e.result)
             if search_results:

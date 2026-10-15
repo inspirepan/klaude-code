@@ -37,6 +37,7 @@ from klaude_code.skill.system_skills import install_system_skills
 from klaude_code.tool.file._utils import hash_text_sha256
 
 from . import truncate_text_by_lines
+from .collection import get_attachment_user_messages, should_refresh_user_input_attachments
 from .state import is_tracked_file_unchanged
 
 # Match /skill:xxx or //skill:xxx inline (at start of line or after whitespace).
@@ -86,20 +87,16 @@ def _fmt_skill_already_in_context(skill_name: str, path: str, read_tool_name: st
 
 
 def get_skills_from_user_input(session: Session) -> list[str]:
-    for item in reversed(session.conversation_history):
-        if isinstance(item, message.ToolResultMessage):
-            return []
-        if isinstance(item, message.UserMessage):
-            content = message.join_text_parts(item.parts)
-            seen: set[str] = set()
-            result: list[str] = []
-            for match in SLASH_SKILL_PATTERN.finditer(content):
-                name = match.group("skill")
-                if name not in seen:
-                    seen.add(name)
-                    result.append(name)
-            return result
-    return []
+    seen: set[str] = set()
+    result: list[str] = []
+    for item in get_attachment_user_messages(session):
+        content = message.join_text_parts(item.parts)
+        for match in SLASH_SKILL_PATTERN.finditer(content):
+            name = match.group("skill")
+            if name not in seen:
+                seen.add(name)
+                result.append(name)
+    return result
 
 
 def _get_dynamic_skills_for_session(session: Session) -> list[Skill]:
@@ -355,7 +352,11 @@ def _collect_skill_blocks(session: Session, skills: list[Skill], *, explicit: bo
             continue
 
         skill_path = str(skill.skill_path)
-        if explicit and _is_skill_content_already_in_context(session, skill_path):
+        if (
+            explicit
+            and not should_refresh_user_input_attachments()
+            and _is_skill_content_already_in_context(session, skill_path)
+        ):
             _mark_skill_loaded(session, skill_path, skill_content, source="explicit")
             loaded_dynamic_paths_by_name[skill.name] = skill_path
             loaded_all_paths_by_name[skill.name] = skill_path

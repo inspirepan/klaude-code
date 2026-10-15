@@ -20,11 +20,12 @@ from typing import Any
 
 import pytest
 
-from klaude_code.protocol import llm_param, message
+from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
     SubAgentState,
+    TaskMetadataItem,
     TodoItem,
 )
 from klaude_code.session.session import Session
@@ -39,6 +40,35 @@ from klaude_code.session.store_registry import close_default_store, get_store_fo
 
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:
     return asyncio.run(coro)
+
+
+def test_find_user_message_copies_only_hit_and_reserves_retracted_ids(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def _test() -> None:
+        session = Session(work_dir=tmp_path)
+        first = message.UserMessage(id="first", parts=message.text_parts_from_str("first"))
+        target = message.UserMessage(id="target", parts=message.text_parts_from_str("target"))
+        session.append_history([first, target, message.RetractEntry(retracted_text="target", retracted_line=1)])
+        await session.wait_for_flush()
+        store = get_store_for_path(tmp_path)
+        copied: list[str | None] = []
+        original = message.UserMessage.model_copy
+
+        def copy(item: message.UserMessage, **kwargs: Any) -> message.UserMessage:
+            copied.append(item.id)
+            return original(item, **kwargs)
+
+        monkeypatch.setattr(message.UserMessage, "model_copy", copy)
+        found = store.find_user_message(session.id, "target")
+        assert found == target
+        assert found is not None
+        found.parts.clear()
+        assert store.find_user_message(session.id, "target") == target
+        assert store.find_user_message(session.id, "absent") is None
+        assert copied == ["target", "target"]
+
+    arun(_test())
 
 
 @pytest.fixture(autouse=True)
@@ -178,6 +208,195 @@ class TestSaveLoadRoundTrip:
 # =====================================================================
 # 2. store.update_meta merge-update behavior.
 # =====================================================================
+
+
+@pytest.mark.parametrize("assistant_count", [1, 2])
+def test_partial_metadata_retry_calibrates_assistant_lines_and_compaction_replay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, assistant_count: int
+) -> None:
+    import klaude_code.session.store as store_module
+
+    async def test() -> None:
+        session = Session(work_dir=tmp_path)
+        metadata = [TaskMetadataItem(background_task_id=f"task-{index}") for index in range(2)]
+        original_encode = store_module.encode_jsonl_line
+        failed = False
+
+        def encode(item: message.HistoryEvent) -> str:
+            nonlocal failed
+            if item is metadata[1] and not failed:
+                failed = True
+                raise OSError("exact partial write")
+            return original_encode(item)
+
+        monkeypatch.setattr(store_module, "encode_jsonl_line", encode)
+        session.append_history(metadata, deduplicate_background_tasks=True)
+        with pytest.raises(OSError, match="exact partial write"):
+            await session.wait_for_background_task_flush()
+        path = Session.paths(tmp_path).events_file(session.id)
+        assert path.read_text() == original_encode(metadata[0])
+
+        assistant = message.AssistantMessage(parts=message.text_parts_from_str("must retain A"))
+        assistants = [assistant.model_copy(deep=True) for _ in range(assistant_count)]
+        session.append_history(assistants)
+        await session.wait_for_flush()
+        session.append_history(metadata, deduplicate_background_tasks=True)
+        await session.wait_for_background_task_flush()
+        assert session.conversation_history == [*metadata, *assistants]
+        assert [session.line_index_of(i) for i in range(len(session.conversation_history))] == [
+            0,
+            assistant_count + 1,
+            *range(1, assistant_count + 1),
+        ]
+        rows = session._store.load_history_lines(session.id)
+        for index, item in enumerate(session.conversation_history):
+            assert rows[session.line_index_of(index)][1] == item
+        assert session.line_index_of(len(session.conversation_history)) == len(rows)
+
+        session.append_history(
+            [message.CompactionEntry(summary="summary", first_kept_index=2, first_kept_line=session.line_index_of(2))]
+        )
+        await session.wait_for_flush()
+        loaded = Session.load(session.id, work_dir=tmp_path)
+        for current in (session, loaded):
+            kept = [item for item in current.get_llm_history() if isinstance(item, message.AssistantMessage)]
+            assert kept == assistants
+        replayed = [
+            event.content for event in loaded.get_history_item() if isinstance(event, events.AssistantTextDeltaEvent)
+        ]
+        assert replayed == ["must retain A"] * assistant_count
+        assert [loaded.line_index_of(i) for i in range(len(loaded.conversation_history))] == list(range(len(rows) + 1))
+
+    arun(test())
+
+
+@pytest.mark.parametrize("background_first", [False, True])
+@pytest.mark.parametrize("assistant_between", [False, True])
+@pytest.mark.parametrize("wait_order", ["user", "background", "concurrent"])
+def test_overlapping_flush_receipts_preserve_physical_lines_and_compaction(
+    tmp_path: Path, background_first: bool, assistant_between: bool, wait_order: str
+) -> None:
+    from klaude_code.session.codec import encode_jsonl_line
+
+    async def test() -> None:
+        session = Session(work_dir=tmp_path)
+        user = message.UserMessage(id="user", parts=message.text_parts_from_str("original input"))
+        path = Session.paths(tmp_path).events_file(session.id)
+        path.parent.mkdir(parents=True)
+        path.write_text(encode_jsonl_line(user) + '{"type":')
+        session = Session.load(session.id, work_dir=tmp_path)
+        metadata = TaskMetadataItem(background_task_id="task")
+        assistant = message.AssistantMessage(parts=message.text_parts_from_str("must retain A"))
+
+        def append_user() -> None:
+            session.append_history([user], deduplicate_user_inputs=True)
+
+        def append_background() -> None:
+            session.append_history([metadata], deduplicate_background_tasks=True)
+
+        first, second = (append_background, append_user) if background_first else (append_user, append_background)
+        first()
+        if assistant_between:
+            session.append_history([assistant])
+        second()
+        if wait_order == "concurrent":
+            await asyncio.gather(session.wait_for_flush(), session.wait_for_background_task_flush())
+        elif wait_order == "background":
+            await session.wait_for_background_task_flush()
+            await session.wait_for_flush()
+        else:
+            await session.wait_for_flush()
+            await session.wait_for_background_task_flush()
+
+        session.append_history([assistant])
+        await session.wait_for_flush()
+        rows = session._store.load_history_lines(session.id)
+        assert session.line_index_of(len(session.conversation_history)) == len(rows)
+        for index, item in enumerate(session.conversation_history):
+            assert rows[session.line_index_of(index)][1] == item
+
+        kept_index = len(session.conversation_history) - 1
+        assert session.line_index_of(kept_index) == len(rows) - 1
+        session.append_history(
+            [
+                message.CompactionEntry(
+                    summary="summary", first_kept_index=kept_index, first_kept_line=session.line_index_of(kept_index)
+                )
+            ]
+        )
+        await session.wait_for_flush()
+        loaded = Session.load(session.id, work_dir=tmp_path)
+        for current in (session, loaded):
+            assert [item for item in current.get_llm_history() if isinstance(item, message.AssistantMessage)] == [
+                assistant
+            ]
+        assert [
+            event.content for event in loaded.get_history_item() if isinstance(event, events.AssistantTextDeltaEvent)
+        ] == ["must retain A"]
+
+    arun(test())
+
+
+@pytest.mark.parametrize("append_while_waiting", [False, True])
+def test_flush_receipts_calibrate_new_pending_batches_during_overlapping_waits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, append_while_waiting: bool
+) -> None:
+    import klaude_code.session.store as store_module
+
+    async def test() -> None:
+        session = Session(work_dir=tmp_path)
+        user = message.UserMessage(id="user", parts=message.text_parts_from_str("original input"))
+        path = Session.paths(tmp_path).events_file(session.id)
+        path.parent.mkdir(parents=True)
+        path.write_text(store_module.encode_jsonl_line(user) + '{"type":')
+        session = Session.load(session.id, work_dir=tmp_path)
+        metadata = TaskMetadataItem(background_task_id="first-task")
+        entered = threading.Event()
+        release = threading.Event()
+        original_encode = store_module.encode_jsonl_line
+
+        def encode(item: message.HistoryEvent) -> str:
+            if item is metadata:
+                entered.set()
+                assert release.wait(timeout=5)
+            return original_encode(item)
+
+        monkeypatch.setattr(store_module, "encode_jsonl_line", encode)
+        session.append_history([user], deduplicate_user_inputs=True)
+        session.append_history([metadata], deduplicate_background_tasks=True)
+        waiting = asyncio.create_task(session.wait_for_background_task_flush())
+        try:
+            assert await asyncio.to_thread(entered.wait, 5)
+            assert not waiting.done()
+            if not append_while_waiting:
+                release.set()
+                await asyncio.wait_for(waiting, timeout=5)
+            session.append_history([message.AssistantMessage(parts=message.text_parts_from_str("between batches"))])
+            session.append_history(
+                [message.UserMessage(id="next-user", parts=message.text_parts_from_str("next input"))],
+                deduplicate_user_inputs=True,
+            )
+            session.append_history(
+                [TaskMetadataItem(background_task_id="next-task")], deduplicate_background_tasks=True
+            )
+        finally:
+            release.set()
+        await asyncio.wait_for(
+            asyncio.gather(waiting, session.wait_for_background_task_flush(), session.wait_for_flush()), timeout=5
+        )
+        rows = session._store.load_history_lines(session.id)
+        assert session.line_index_of(len(session.conversation_history)) == len(rows) == 5
+        for index, item in enumerate(session.conversation_history):
+            assert rows[session.line_index_of(index)][1] == item
+        session.append_history(
+            [message.RetractEntry(retracted_text="next input", retracted_line=session.line_index_of(3))]
+        )
+        await session.wait_for_flush()
+        loaded = Session.load(session.id, work_dir=tmp_path)
+        assert [item.id for item in loaded.conversation_history if isinstance(item, message.UserMessage)] == ["user"]
+        assert any(isinstance(item, message.AssistantMessage) for item in loaded.conversation_history)
+
+    arun(test())
 
 
 def _make_store(work_dir: Path) -> JsonlSessionStore:

@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from klaude_code.protocol.background_task import TaskRequest
 from klaude_code.protocol.llm_param import Thinking
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.user_interaction import UserInteractionResponse
@@ -29,6 +30,7 @@ class OperationType(Enum):
     FOLLOW_UP_AGENT = "follow_up_agent"
     RUN_BASH = "run_bash"
     MANAGE_SHELL = "manage_shell"
+    MANAGE_TASKS = "manage_tasks"
     CONTINUE_AGENT = "continue_agent"
     COMPACT_SESSION = "compact_session"
     CHANGE_MODEL = "change_model"
@@ -42,6 +44,7 @@ class OperationType(Enum):
     CLEAR_SESSION = "clear_session"
     FORK_AND_SWITCH_SESSION = "fork_and_switch_session"
     INTERRUPT = "interrupt"
+    STOP_SUB_AGENTS = "stop_sub_agents"
     CLOSE_SESSION = "close_session"
     USER_INTERACTION_RESPOND = "user_interaction_respond"
     INIT_AGENT = "init_agent"
@@ -67,15 +70,15 @@ class RunAgentOperation(Operation):
     type: OperationType = OperationType.RUN_AGENT
     session_id: str
     input: UserInputPayload
-    # Internal completion turns cannot lift a user's stop latch.
-    shell_notification_generation: int | None = None
+    # Wake a queued batch without re-appending a head withdrawn during launch.
+    queued_input: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_run_agent(self)
 
 
 class FollowUpAgentOperation(Operation):
-    """Operation for queueing a follow-up message while an agent task is running."""
+    """Queue user input for admission at the next safe step boundary."""
 
     type: OperationType = OperationType.FOLLOW_UP_AGENT
     session_id: str
@@ -108,6 +111,17 @@ class ManageShellOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_manage_shell(self)
+
+
+class ManageTasksOperation(Operation):
+    """Control owned background tasks without starting a model turn."""
+
+    type: OperationType = OperationType.MANAGE_TASKS
+    session_id: str
+    request: TaskRequest
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_manage_tasks(self)
 
 
 class ContinueAgentOperation(Operation):
@@ -307,6 +321,16 @@ class InterruptOperation(Operation):
     async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""
         await handler.handle_interrupt(self)
+
+
+class StopSubAgentsOperation(Operation):
+    """Stop owned child runs without closing their durable sessions."""
+
+    type: OperationType = OperationType.STOP_SUB_AGENTS
+    session_id: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_stop_sub_agents(self)
 
 
 class CloseSessionOperation(Operation):

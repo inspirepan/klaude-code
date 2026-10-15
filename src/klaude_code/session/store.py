@@ -11,11 +11,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from pydantic import BaseModel
+
 from klaude_code.const import ProjectPaths
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
+    TaskMetadataItem,
     TodoItem,
 )
 from klaude_code.session.codec import decode_jsonl_line, encode_conversation_item, encode_jsonl_line
@@ -134,12 +137,20 @@ class _WriterClosedError(RuntimeError):
     pass
 
 
+class UserInputFlushResult(BaseModel):
+    line_count: int
+    user_lines: dict[str, int]
+    background_task_lines: dict[str, int]
+
+
 @dataclass
 class _WriteBatch:
     session_id: str
     items: Sequence[message.HistoryEvent]
     meta: dict[str, Any]
-    done: asyncio.Future[None]
+    done: asyncio.Future[UserInputFlushResult | None]
+    deduplicate_user_inputs: bool = False
+    deduplicate_background_tasks: bool = False
 
 
 class JsonlSessionWriter:
@@ -205,12 +216,74 @@ class JsonlSessionWriter:
         session_dir.mkdir(parents=True, exist_ok=True)
 
         events_path = self._paths.events_file(batch.session_id)
+        items = batch.items
+        user_lines: dict[str, int] = {}
+        user_sources: dict[str, message.UserMessageSource | None] = {}
+        background_task_lines: dict[str, int] = {}
+        with events_path.open("a+b") as f:
+            # Every append must discard a failed write's incomplete tail first.
+            f.seek(0, 2)
+            end = f.tell()
+            while end:
+                start = max(0, end - 8192)
+                f.seek(start)
+                chunk = f.read(end - start)
+                newline = chunk.rfind(b"\n")
+                if newline >= 0:
+                    f.truncate(start + newline + 1)
+                    break
+                end = start
+            else:
+                f.truncate(0)
+            if batch.deduplicate_user_inputs or batch.deduplicate_background_tasks:
+                # Retry only missing IDs on the serialized writer.
+                f.seek(0)
+                line_index = 0
+                while line := f.readline():
+                    item = decode_jsonl_line(line.decode("utf-8"))
+                    if isinstance(item, message.UserMessage) and item.id is not None:
+                        user_lines[item.id] = line_index
+                        user_sources[item.id] = item.source
+                    elif isinstance(item, TaskMetadataItem) and item.background_task_id is not None:
+                        background_task_lines[item.background_task_id] = line_index
+                    line_index += 1
+        if batch.deduplicate_user_inputs:
+            for item in items:
+                if (
+                    isinstance(item, message.UserMessage)
+                    and item.id in user_sources
+                    and item.source != user_sources[item.id]
+                ):
+                    raise ValueError(f"Input ID {item.id!r} already belongs to a different source on disk")
+            items = [
+                item
+                for item in items
+                if not isinstance(item, message.UserMessage) or item.id is None or item.id not in user_lines
+            ]
+        if batch.deduplicate_background_tasks:
+            items = [
+                item
+                for item in items
+                if not isinstance(item, TaskMetadataItem)
+                or item.background_task_id is None
+                or item.background_task_id not in background_task_lines
+            ]
         line_count = self._line_count_before_append(batch.session_id, events_path)
+        result: UserInputFlushResult | None = None
+        if batch.deduplicate_user_inputs or batch.deduplicate_background_tasks:
+            for offset, item in enumerate(items):
+                if isinstance(item, message.UserMessage) and item.id is not None:
+                    user_lines[item.id] = line_count + offset
+                elif isinstance(item, TaskMetadataItem) and item.background_task_id is not None:
+                    background_task_lines[item.background_task_id] = line_count + offset
+            result = UserInputFlushResult(
+                line_count=line_count + len(items), user_lines=user_lines, background_task_lines=background_task_lines
+            )
         with events_path.open("a", encoding="utf-8") as f:
-            for item in batch.items:
+            for item in items:
                 f.write(encode_jsonl_line(item))
             f.flush()
-        line_count += len(batch.items)
+        line_count += len(items)
         self._remember_line_count(batch.session_id, events_path, line_count)
         if self._on_history_written is not None:
             self._on_history_written(batch.session_id)
@@ -234,7 +307,7 @@ class JsonlSessionWriter:
         _notify_session_meta_observers(batch.session_id, meta)
 
         if not batch.done.done():
-            batch.done.set_result(None)
+            batch.done.set_result(result)
 
     def _line_count_before_append(self, session_id: str, events_path: Path) -> int:
         try:
@@ -269,7 +342,7 @@ class JsonlSessionStore:
         self._writer = JsonlSessionWriter(
             self._paths, meta_lock=self._meta_lock, on_history_written=self._invalidate_history_cache
         )
-        self._last_flush: dict[str, asyncio.Future[None]] = {}
+        self._last_flush: dict[str, asyncio.Future[UserInputFlushResult | None]] = {}
         # In-memory cache of decoded history keyed by session_id. Invalidated
         # when the events file's (mtime_ns, size) changes, so repeated loads of
         # an unchanged session avoid re-deserializing the whole jsonl.
@@ -292,7 +365,7 @@ class JsonlSessionStore:
             return None
         return _read_json_dict(meta_path)
 
-    def update_meta(self, session_id: str, updates: dict[str, Any]) -> bool:
+    def update_meta(self, session_id: str, updates: dict[str, Any], *, raise_on_error: bool = False) -> bool:
         meta_path = self._paths.meta_file(session_id)
         with self._meta_lock:
             if not meta_path.exists():
@@ -306,6 +379,8 @@ class JsonlSessionStore:
             try:
                 _write_json_dict_atomic(meta_path, data, "u")
             except OSError:
+                if raise_on_error:
+                    raise
                 return False
             _notify_session_meta_observers(session_id, data)
             return True
@@ -404,6 +479,13 @@ class JsonlSessionStore:
             if isinstance(item, message.SpawnSubAgentEntry)
         ]
 
+    def find_user_message(self, session_id: str, input_id: str) -> message.UserMessage | None:
+        """Find a transport ID in raw history, including retracted inputs."""
+        for _, item in self._cached_rows(session_id):
+            if isinstance(item, message.UserMessage) and item.id == input_id:
+                return item.model_copy(deep=True)
+        return None
+
     def scan_history_lines(self, session_id: str) -> ScanResult:
         """Per-line ledger statuses for the whole events file, cached.
 
@@ -497,19 +579,30 @@ class JsonlSessionStore:
             self._scan_cache.pop(session_id, None)
             self._ordinals_cache.pop(session_id, None)
 
-    def append_and_flush(self, *, session_id: str, items: Sequence[message.HistoryEvent], meta: dict[str, Any]) -> None:
+    def append_and_flush(
+        self,
+        *,
+        session_id: str,
+        items: Sequence[message.HistoryEvent],
+        meta: dict[str, Any],
+        deduplicate_user_inputs: bool = False,
+        deduplicate_background_tasks: bool = False,
+    ) -> asyncio.Future[UserInputFlushResult | None] | None:
         if not items:
-            return
+            return None
         loop = asyncio.get_running_loop()
-        done: asyncio.Future[None] = loop.create_future()
+        done: asyncio.Future[UserInputFlushResult | None] = loop.create_future()
         self._last_flush[session_id] = done
         batch = _WriteBatch(
             session_id=session_id,
             items=items,
             meta=meta,
             done=done,
+            deduplicate_user_inputs=deduplicate_user_inputs,
+            deduplicate_background_tasks=deduplicate_background_tasks,
         )
         self._writer.enqueue(batch)
+        return done
 
     async def wait_for_flush(self, session_id: str) -> None:
         fut = self._last_flush.get(session_id)
@@ -541,6 +634,7 @@ def build_meta_snapshot(
     title: str | None,
     file_tracker: dict[str, FileStatus],
     file_change_summary: FileChangeSummary,
+    background_task_ids: set[str] | None = None,
     todos: list[TodoItem],
     user_messages: list[str],
     created_at: float,
@@ -574,6 +668,7 @@ def build_meta_snapshot(
         "title": title,
         "file_tracker": {path: status.model_dump(mode="json") for path, status in file_tracker.items()},
         "file_change_summary": file_change_summary.model_dump(mode="json", exclude_defaults=True),
+        "background_task_ids": sorted(background_task_ids or []),
         "todos": [todo.model_dump(mode="json", exclude_defaults=True) for todo in todos],
         # Cache user messages to avoid scanning events.jsonl during session listing.
         "user_messages": list(user_messages),

@@ -17,7 +17,7 @@ from klaude_code.tui.machine import DisplayStateMachine
 
 
 def _types(cmds: list[c.RenderCommand]) -> list[str]:
-    return [type(cmd).__name__ for cmd in cmds]
+    return [type(cmd).__name__ for cmd in cmds if not isinstance(cmd, c.MainTaskStatus)]
 
 
 def _status_texts(cmds: list[c.RenderCommand]) -> list[str]:

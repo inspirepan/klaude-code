@@ -44,14 +44,14 @@ def decode_conversation_item(obj: dict[str, Any]) -> message.HistoryEvent | None
     if cls is None:
         return None
     try:
-        item = cls(**payload)
+        item = cls.model_validate(payload, context={"allow_reserved_message_ids": True})
     except (TypeError, ValidationError):
         if "ui_extra" not in payload:
             return None
         data_without_ui_extra: dict[str, Any] = dict(payload)
         data_without_ui_extra["ui_extra"] = None
         try:
-            item = cls(**data_without_ui_extra)
+            item = cls.model_validate(data_without_ui_extra, context={"allow_reserved_message_ids": True})
         except (TypeError, ValidationError):
             return None
     # Return is a BaseModel instance from the registry; cast to HistoryEvent union.

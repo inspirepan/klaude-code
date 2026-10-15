@@ -5,6 +5,7 @@ from collections.abc import Coroutine
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, TypeVar, cast
+from unittest.mock import AsyncMock
 
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
@@ -58,6 +59,9 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
             assert force is True
             return True
 
+        def get_session_actor(self, session_id: str) -> None:
+            assert session_id == "s1"
+
     class _StubOperationDispatcher:
         def __init__(self) -> None:
             self.events: list[tuple[events.Event, dict[str, str | None]]] = []
@@ -65,6 +69,12 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
 
         def cancel_side_questions(self, session_id: str) -> None:
             self.cancelled_side_questions.append(session_id)
+
+        async def handle_stop_sub_agents(self, operation: Any) -> None:
+            assert operation.session_id == "s1"
+
+        async def handle_interrupt(self, operation: Any) -> None:
+            assert operation.session_id == "s1"
 
         async def emit_event(
             self,
@@ -89,8 +99,6 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
         runtime_any = cast(Any, object.__new__(RuntimeFacade))
         runtime_any.session_registry = _StubSessionRegistry()
         runtime_any._operation_dispatcher = _StubOperationDispatcher()
-        runtime_any._shell_notification_generations = {}
-        runtime_any._shell_notifications_disabled = set()
         runtime_any.shell_task_manager = ShellTaskManager()
 
         runtime = cast(RuntimeFacade, runtime_any)
@@ -190,6 +198,7 @@ def test_runtime_stop_flushes_sessions(tmp_path: Path) -> None:
         runtime_any._operation_dispatcher = _StubOperationDispatcher(task)
         runtime_any._operation_awaiter = _StubOperationAwaiter()
         runtime_any._stopped = False
+        runtime_any.task_manager = SimpleNamespace(aclose=AsyncMock())
         runtime_any.shell_task_manager = ShellTaskManager()
 
         runtime = cast(RuntimeFacade, runtime_any)

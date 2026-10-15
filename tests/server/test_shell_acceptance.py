@@ -146,7 +146,7 @@ def _operation_finished(websocket: Any, operation: op.Operation) -> list[dict[st
     raise AssertionError(f"Operation did not finish: {operation.id}")
 
 
-def test_real_bash_handoff_continues_same_process_and_wakes_model(
+def test_real_bash_handoff_continues_same_process_and_delivers_on_next_input(
     app_env: AppEnv, model_inputs: list[llm_param.LLMCallParameter]
 ) -> None:
     session_id = app_env.create_session()
@@ -160,12 +160,22 @@ def test_real_bash_handoff_continues_same_process_and_wakes_model(
 
         _enqueue_reply(app_env)
         gate.touch()
+        assert app_env.client.portal is not None
+        app_env.client.portal.call(app_env.runtime.shell_task_manager.wait_task, session_id, task.task_id)
+        assert app_env.fake_llm.call_count == 2
+        response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "Read the result"})
+        assert response.status_code == 200
         _wait(app_env, lambda: app_env.fake_llm.call_count == 3 and _idle(app_env, session_id))
         assert len(model_inputs) == 3
-        completion_inputs = [item for item in model_inputs[2].input if isinstance(item, message.UserMessage)]
-        report = completion_inputs[-1].model_dump_json()
+        completion_inputs = [
+            item
+            for item in model_inputs[2].input
+            if isinstance(item, message.UserMessage) and item.source == "task_completion"
+        ]
+        assert len(completion_inputs) == 1
+        report = message.join_text_parts(completion_inputs[0].parts)
         assert task.task_id in report
-        assert "status=completed" in report
+        assert '"status":"completed"' in report
         assert f"DONE:{task.pid}" in report
 
         assert app_env.client.portal is not None

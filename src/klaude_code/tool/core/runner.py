@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from klaude_code.prompts.messages import CANCEL_OUTPUT
 from klaude_code.protocol import message, tools
-from klaude_code.protocol.models import SessionIdUIExtra, TaskMetadata, TodoItem, TodoListUIExtra, ToolSideEffect
+from klaude_code.protocol.models import SessionIdUIExtra, TodoItem, TodoListUIExtra, ToolSideEffect
 from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy
 from klaude_code.tool.core.context import GetInterruptResultFn, ToolContext
 from klaude_code.tool.core.offload import offload_tool_output
@@ -51,6 +51,8 @@ async def run_tool(
         if tool_result.output_text:
             offload_result = offload_tool_output(tool_result.output_text, tool_call)
             tool_result.output_text = offload_result.output
+            if offload_result.was_truncated:
+                tool_result.task_delivery_id = None
         return tool_result
     except asyncio.CancelledError:
         # Propagate cooperative cancellation so outer layers can handle interrupts correctly.
@@ -139,8 +141,6 @@ class ToolExecutor:
         self._call_event_emitted: set[str] = set()
         self._concurrent_tasks: set[asyncio.Task[None]] = set()
         self._sub_agent_session_ids: dict[str, str] = {}
-        self._sub_agent_metadata_getters: dict[str, Callable[[], TaskMetadata | None]] = {}
-        self._sub_agent_progress_getters: dict[str, Callable[[], str | None]] = {}
         self._tool_interrupt_result_getters: dict[str, GetInterruptResultFn] = {}
         self._tool_batch_info: dict[str, tuple[str, int, int]] = {}
 
@@ -241,13 +241,6 @@ class ToolExecutor:
         unfinished = list(self._unfinished_calls.items())
         for idx, (call_id, tool_call) in enumerate(unfinished):
             session_id = self._sub_agent_session_ids.get(call_id)
-            # Get partial metadata from sub-agent if available
-            metadata_getter = self._sub_agent_metadata_getters.get(call_id)
-            task_metadata = metadata_getter() if metadata_getter is not None else None
-
-            # Get partial progress (tool calls made) from sub-agent if available
-            progress_getter = self._sub_agent_progress_getters.get(call_id)
-            progress = progress_getter() if progress_getter is not None else None
             interrupt_result_getter = self._tool_interrupt_result_getters.get(call_id)
             cancel_result: message.ToolResultMessage | None = None
             if interrupt_result_getter is not None:
@@ -256,13 +249,8 @@ class ToolExecutor:
                 except Exception:
                     cancel_result = None
             if cancel_result is None:
-                if progress:
-                    cancel_output = f"Overview of sub-agent transcript:\n{progress}\n\n{CANCEL_OUTPUT}"
-                else:
-                    cancel_output = CANCEL_OUTPUT
-
                 cancel_result = message.ToolResultMessage(
-                    output_text=cancel_output,
+                    output_text=CANCEL_OUTPUT,
                     status="aborted",
                 )
 
@@ -270,8 +258,6 @@ class ToolExecutor:
             cancel_result.tool_name = tool_call.tool_name
             if session_id and cancel_result.ui_extra is None:
                 cancel_result.ui_extra = SessionIdUIExtra(session_id=session_id)
-            if task_metadata is not None and cancel_result.task_metadata is None:
-                cancel_result.task_metadata = task_metadata
 
             if call_id not in self._call_event_emitted:
                 events_to_yield.append(ToolExecutionCallStarted(tool_call=tool_call))
@@ -288,8 +274,6 @@ class ToolExecutor:
             self._append_history([cancel_result])
             self._unfinished_calls.pop(call_id, None)
             self._sub_agent_session_ids.pop(call_id, None)
-            self._sub_agent_metadata_getters.pop(call_id, None)
-            self._sub_agent_progress_getters.pop(call_id, None)
             self._tool_interrupt_result_getters.pop(call_id, None)
             self._tool_batch_info.pop(call_id, None)
 
@@ -342,12 +326,6 @@ class ToolExecutor:
             if tool_call.call_id not in self._sub_agent_session_ids:
                 self._sub_agent_session_ids[tool_call.call_id] = session_id
 
-        def _register_metadata_getter(getter: Callable[[], TaskMetadata | None]) -> None:
-            self._sub_agent_metadata_getters[tool_call.call_id] = getter
-
-        def _register_progress_getter(getter: Callable[[], str | None]) -> None:
-            self._sub_agent_progress_getters[tool_call.call_id] = getter
-
         def _register_interrupt_result_getter(getter: GetInterruptResultFn) -> None:
             self._tool_interrupt_result_getters[tool_call.call_id] = getter
 
@@ -358,8 +336,6 @@ class ToolExecutor:
                 await event_queue.put(ToolExecutionOutputDelta(tool_call=tool_call, content=content))
 
         call_context = self._context.with_record_sub_agent_session_id(_record_sub_agent_session_id)
-        call_context = call_context.with_register_sub_agent_metadata_getter(_register_metadata_getter)
-        call_context = call_context.with_register_sub_agent_progress_getter(_register_progress_getter)
         call_context = call_context.with_register_tool_interrupt_result_getter(_register_interrupt_result_getter)
         call_context = call_context.with_emit_tool_output_delta(_emit_tool_output_delta)
         batch_info = self._tool_batch_info.get(tool_call.call_id)
@@ -415,8 +391,6 @@ class ToolExecutor:
 
         self._unfinished_calls.pop(tool_call.call_id, None)
         self._sub_agent_session_ids.pop(tool_call.call_id, None)
-        self._sub_agent_metadata_getters.pop(tool_call.call_id, None)
-        self._sub_agent_progress_getters.pop(tool_call.call_id, None)
         self._tool_interrupt_result_getters.pop(tool_call.call_id, None)
         self._tool_batch_info.pop(tool_call.call_id, None)
 

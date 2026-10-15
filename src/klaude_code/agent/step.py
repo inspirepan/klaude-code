@@ -469,6 +469,9 @@ class StepExecutor:
             handoff_manager=ctx.handoff_manager,
             request_user_interaction=session_ctx.request_user_interaction,
             shell_task_manager=session_ctx.shell_task_manager,
+            task_control=session_ctx.task_control,
+            peer_control=session_ctx.peer_control,
+            pending_input_activity=session_ctx.pending_input_activity,
         )
 
         executor = ToolExecutor(

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 import uuid
+from collections import defaultdict, deque
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any, cast
@@ -29,7 +31,7 @@ from klaude_code.session.history import (
     update_last_request_usage,
 )
 from klaude_code.session.meta import parse_session_meta, read_json_dict
-from klaude_code.session.store import JsonlSessionStore, build_meta_snapshot
+from klaude_code.session.store import JsonlSessionStore, UserInputFlushResult, build_meta_snapshot
 from klaude_code.session.store_registry import get_store_for_path
 
 _FORK_TITLE_PREFIX = "Fork · "
@@ -57,6 +59,7 @@ class Session(BaseModel):
     sub_agent_state: SubAgentState | None = None
     file_tracker: dict[str, FileStatus] = Field(default_factory=dict)
     file_change_summary: FileChangeSummary = Field(default_factory=FileChangeSummary)
+    background_task_ids: set[str] = Field(default_factory=set)
     todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     follow_up_queue: list[message.QueuedUserInput] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     headless_queued_turn: message.QueuedUserInput | None = None
@@ -96,6 +99,11 @@ class Session(BaseModel):
     # appended item gets.
     _history_lines: list[int] = PrivateAttr(default_factory=list)
     _line_count: int = PrivateAttr(default=0)
+    _user_input_flush: asyncio.Future[UserInputFlushResult | None] | None = PrivateAttr(default=None)
+    _background_task_flush: asyncio.Future[UserInputFlushResult | None] | None = PrivateAttr(default=None)
+    _pending_idempotent_flushes: list[tuple[asyncio.Future[UserInputFlushResult | None], int]] = PrivateAttr(
+        default_factory=list
+    )
     # Replay-only cut: items before this index were compacted away before the
     # session was loaded from disk (see ``get_history_item``). Live appends
     # never move it.
@@ -200,6 +208,7 @@ class Session(BaseModel):
             sub_agent_state=meta.sub_agent_state,
             file_tracker=meta.file_tracker,
             file_change_summary=meta.file_change_summary,
+            background_task_ids=meta.background_task_ids,
             todos=meta.todos,
             created_at=meta.created_at,
             updated_at=meta.updated_at,
@@ -274,9 +283,35 @@ class Session(BaseModel):
     def persist_headless_failed(cls, session_id: str, work_dir: Path, *, failed: bool) -> None:
         get_store_for_path(work_dir).update_meta(session_id, {"headless_failed": failed or None})
 
-    def append_history(self, items: Sequence[message.HistoryEvent]) -> None:
+    def append_history(
+        self,
+        items: Sequence[message.HistoryEvent],
+        *,
+        deduplicate_user_inputs: bool = False,
+        deduplicate_background_tasks: bool = False,
+    ) -> None:
         if not items:
             return
+
+        write_items = items
+        if deduplicate_background_tasks:
+            existing_tasks = {
+                item.background_task_id
+                for item in self.conversation_history
+                if isinstance(item, TaskMetadataItem) and item.background_task_id is not None
+            }
+            items = [
+                item
+                for item in items
+                if not isinstance(item, TaskMetadataItem) or item.background_task_id not in existing_tasks
+            ]
+        if deduplicate_user_inputs:
+            existing_ids = {item.id for item in self.conversation_history if isinstance(item, message.UserMessage)}
+            items = [
+                item
+                for item in items
+                if not isinstance(item, message.UserMessage) or item.id is None or item.id not in existing_ids
+            ]
 
         self.conversation_history.extend(items)
         # Every appended item becomes exactly one jsonl line, in order.
@@ -311,6 +346,7 @@ class Session(BaseModel):
             title=self.title,
             file_tracker=self.file_tracker,
             file_change_summary=self.file_change_summary,
+            background_task_ids=self.background_task_ids,
             todos=list(self.todos),
             user_messages=self.user_messages,
             created_at=self.created_at,
@@ -334,13 +370,42 @@ class Session(BaseModel):
             parent_session_id=self.parent_session_id,
             vanilla=self.vanilla,
         )
-        self._store.append_and_flush(session_id=self.id, items=items, meta=meta)
+        flush = self._store.append_and_flush(
+            session_id=self.id,
+            items=write_items,
+            meta=meta,
+            deduplicate_user_inputs=deduplicate_user_inputs,
+            deduplicate_background_tasks=deduplicate_background_tasks,
+        )
+        if deduplicate_user_inputs:
+            self._user_input_flush = flush
+        if deduplicate_background_tasks:
+            self._background_task_flush = flush
+        if flush is not None and (deduplicate_user_inputs or deduplicate_background_tasks):
+            self._pending_idempotent_flushes.append((flush, self._line_count))
+
+    async def wait_for_background_task_flush(self) -> None:
+        # Capture this batch's receipt; a later ordinary append cannot confirm it.
+        flush = self._background_task_flush
+        if flush is not None:
+            await asyncio.shield(flush)
+            if self._background_task_flush is flush:
+                self._settle_idempotent_flushes(flush)
+                self._background_task_flush = None
 
     def set_follow_up_queue(self, items: Sequence[message.QueuedUserInput]) -> None:
+        previous = self.follow_up_queue
         self.follow_up_queue = [item.model_copy(deep=True) for item in items]
         payload = [item.model_dump(mode="json", exclude_none=True) for item in self.follow_up_queue]
-        if not self._store.update_meta(self.id, {"follow_up_queue": payload or None}) and payload:
-            self.ensure_meta_exists()
+        updates = {"follow_up_queue": payload or None}
+        try:
+            if not self._store.update_meta(self.id, updates, raise_on_error=True):
+                self.ensure_meta_exists()
+                if not self._store.update_meta(self.id, updates, raise_on_error=True):
+                    raise OSError(f"Could not persist follow-up queue for session {self.id}")
+        except BaseException:
+            self.follow_up_queue = previous
+            raise
 
     def update_title(self, title: str | None) -> bool:
         normalized = title.strip() if isinstance(title, str) else None
@@ -359,6 +424,7 @@ class Session(BaseModel):
             title=self.title,
             file_tracker=self.file_tracker,
             file_change_summary=self.file_change_summary,
+            background_task_ids=self.background_task_ids,
             todos=list(self.todos),
             user_messages=self.user_messages,
             created_at=self.created_at,
@@ -495,7 +561,15 @@ class Session(BaseModel):
         kept_start = last_compaction.first_kept_index
         if kept_start > len(history):
             kept_start = last_compaction_idx + 1
-        kept = [it for it in history[kept_start:] if not isinstance(it, message.CompactionEntry)]
+        if last_compaction.first_kept_line is not None:
+            kept = [
+                it
+                for index, it in enumerate(history)
+                if self._history_lines[index] >= last_compaction.first_kept_line
+                and not isinstance(it, message.CompactionEntry)
+            ]
+        else:
+            kept = [it for it in history[kept_start:] if not isinstance(it, message.CompactionEntry)]
 
         # Guard against old/bad persisted compaction boundaries that start with tool results.
         # Tool results must not appear without their corresponding assistant tool call.
@@ -551,6 +625,59 @@ class Session(BaseModel):
 
     async def wait_for_flush(self) -> None:
         await self._store.wait_for_flush(self.id)
+        flush = self._user_input_flush
+        if flush is not None:
+            await asyncio.shield(flush)
+            if self._user_input_flush is not flush:
+                return
+            self._settle_idempotent_flushes(flush)
+            self._user_input_flush = None
+
+    def _settle_idempotent_flushes(self, target: asyncio.Future[UserInputFlushResult | None]) -> None:
+        # Settle in writer order, even when callers await the receipts in reverse.
+        target_index = next(
+            (index for index, (flush, _) in enumerate(self._pending_idempotent_flushes) if flush is target), None
+        )
+        if target_index is None:
+            return
+        delta = 0
+        for flush, expected_line_count in self._pending_idempotent_flushes[: target_index + 1]:
+            # Failed prefixes are calibrated by a later successful retry.
+            if flush.cancelled() or flush.exception() is not None:
+                continue
+            result = flush.result()
+            assert result is not None
+            expected_line_count += delta
+            self._apply_idempotent_flush(result, expected_line_count)
+            delta += result.line_count - expected_line_count
+        self._pending_idempotent_flushes = [
+            (flush, expected_line_count + delta)
+            for flush, expected_line_count in self._pending_idempotent_flushes[target_index + 1 :]
+        ]
+
+    def _apply_idempotent_flush(self, result: UserInputFlushResult, expected_line_count: int) -> None:
+        # Tail repair or a resumed partial batch can change physical lines.
+        delta = result.line_count - expected_line_count
+        # Ordinary messages can land between a failed prefix and its retry.
+        # Match all persisted active items, including repeated equal messages.
+        rows = self._store.load_history_lines(self.id)[: result.line_count]
+        scanned = scan_history(rows)
+        physical_lines: dict[str, deque[int]] = defaultdict(deque)
+        for line, item in zip(scanned.active_lines, scanned.active, strict=True):
+            physical_lines[f"{type(item).__name__}:{item.model_dump_json()}"].append(line)
+        for index, item in enumerate(self.conversation_history):
+            line = None
+            if isinstance(item, TaskMetadataItem) and item.background_task_id is not None:
+                line = result.background_task_lines.get(item.background_task_id)
+            elif isinstance(item, message.UserMessage) and item.id is not None:
+                line = result.user_lines.get(item.id)
+            if line is not None:
+                self._history_lines[index] = line
+            elif lines := physical_lines.get(f"{type(item).__name__}:{item.model_dump_json()}"):
+                self._history_lines[index] = lines.popleft()
+            elif self._history_lines[index] >= expected_line_count:
+                self._history_lines[index] += delta
+        self._line_count += delta
 
     @classmethod
     def most_recent_session_id(cls, work_dir: Path) -> str | None:
@@ -661,7 +788,7 @@ class Session(BaseModel):
                 pending_tool_calls.clear()
 
             # Emit task boundary before user message to produce inter-step separators during replay
-            if isinstance(it, message.UserMessage):
+            if isinstance(it, message.UserMessage) and it.source != "task_completion":
                 if had_any_step:
                     yield from _flush_task_finish(msg_ts)
                     yield events.TaskStartEvent(
@@ -837,10 +964,15 @@ class Session(BaseModel):
                             session_id=self.id,
                             images=images or None,
                             source=um.source,
+                            peer_message=um.peer_message,
                             shell_tasks=um.shell_tasks,
                             timestamp=msg_ts,
                         )
                 case TaskMetadataItem() as mt:
+                    if mt.background_task_id is not None:
+                        # Independent child accounting is not a parent turn boundary.
+                        yield events.TaskMetadataEvent(session_id=self.id, metadata=mt, timestamp=msg_ts)
+                        continue
                     yield events.TaskMetadataEvent(
                         session_id=self.id, metadata=mt, is_partial=mt.is_partial, timestamp=msg_ts
                     )

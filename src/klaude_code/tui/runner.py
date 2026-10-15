@@ -565,6 +565,9 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         on_color_scheme_change=_on_terminal_color_scheme_change if cfg.theme is None else None,
     )
     input_provider.set_dequeue_pending_messages(_dequeue_pending_messages)
+    from klaude_code.tui.task_panel import TaskPanel
+
+    task_panel = TaskPanel(client, input_provider, tui_display.task_attention)
 
     # -- interrupt handling (Esc / Ctrl+C while the agent runs) --
 
@@ -697,6 +700,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             request_event = await queue.get()
             if peek:
                 continue
+            task_panel.close()
             try:
                 response = await _collect_interaction_response(request_event)
             except asyncio.CancelledError:
@@ -869,6 +873,9 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             result = await dispatch_command(user_input, agent, submission_id=uuid4().hex)
         except Exception as exc:
             await _emit_local_notice(f"Command failed: {exc}")
+            return
+        if result.open_task_panel:
+            _spawn(task_panel.open())
             return
         for evt in result.events or []:
             await client.emit_local_event(evt)

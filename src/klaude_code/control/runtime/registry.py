@@ -185,7 +185,8 @@ class SessionRegistry:
         runtime = self._session_actors.get(session_id)
         if runtime is None:
             return False
-        if not force and not runtime.is_idle():
+        # Even force callers must drain collectors before releasing their owner.
+        if runtime.has_lifecycle_pins() or (not force and not runtime.is_idle()):
             return False
 
         runtime.cancel_pending_interactions()
@@ -372,4 +373,4 @@ class SessionRegistry:
 def _should_preempt_control(runtime: SessionActor, operation: op.Operation) -> bool:
     if not runtime.has_active_root_task():
         return False
-    return isinstance(operation, op.InterruptOperation | op.UserInteractionRespondOperation)
+    return isinstance(operation, op.InterruptOperation | op.StopSubAgentsOperation | op.UserInteractionRespondOperation)

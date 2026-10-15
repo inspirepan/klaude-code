@@ -11,11 +11,65 @@ from __future__ import annotations
 import time
 from typing import Any
 
+import pytest
+
 from klaude_code.protocol import events as protocol_events
 from klaude_code.protocol import message, op
 from klaude_code.protocol.version import PROTOCOL_VERSION
+from klaude_code.session.session import Session
+from klaude_code.session.store import JsonlSessionStore
 
 from .conftest import AppEnv, op_frame, receive_events, usage
+
+
+@pytest.mark.parametrize("has_child", [False, True])
+@pytest.mark.parametrize("mode", ["replay", "resume"])
+def test_attach_reuses_task_snapshot_targets_without_full_history_copies(
+    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch, has_child: bool, mode: str
+) -> None:
+    parent_id = app_env.create_session()
+    target_ids = {parent_id}
+    if has_child:
+        child_dir = app_env.work_dir / "child-workspace"
+        child_dir.mkdir()
+        child_id = app_env.create_session(child_dir)
+        target_ids.add(child_id)
+        actor = app_env.runtime.session_registry.get_session_actor(parent_id)
+        assert actor is not None
+        agent = actor.get_agent()
+        assert agent is not None
+
+        async def seed() -> None:
+            agent.session.append_history(
+                [
+                    message.SpawnSubAgentEntry(
+                        session_id=child_id, sub_agent_type="finder", sub_agent_desc="child", work_dir=str(child_dir)
+                    )
+                ]
+            )
+            await agent.session.wait_for_flush()
+
+        assert app_env.client.portal is not None
+        app_env.client.portal.call(seed)
+    scans: list[str] = []
+    original = JsonlSessionStore.scan_spawned_sub_agents
+
+    def scan(store: JsonlSessionStore, session_id: str) -> list[tuple[int, message.SpawnSubAgentEntry]]:
+        scans.append(session_id)
+        return original(store, session_id)
+
+    def full_copy(*_args: Any, **_kwargs: Any) -> Any:
+        raise AssertionError("descendant discovery must not copy full history")
+
+    monkeypatch.setattr(JsonlSessionStore, "scan_spawned_sub_agents", scan)
+    monkeypatch.setattr(JsonlSessionStore, "load_history", full_copy)
+    with app_env.client.websocket_connect(f"/api/sessions/{parent_id}/ws?{mode}=1") as websocket:
+        handshake = _consume_attach_handshake(websocket)
+    for event_type in ("shell_tasks_updated", "background.tasks.updated"):
+        assert {
+            item["session_id"] for item in handshake["replay"] if item.get("event_type") == event_type
+        } == target_ids
+    assert sorted(scans) == sorted(target_ids) if has_child else scans == []
 
 
 def _attach(app_env: AppEnv, session_id: str, **params: str) -> Any:
@@ -260,9 +314,7 @@ def test_server_drains_interactive_follow_up_queue(app_env: AppEnv) -> None:
         message.AssistantMessage(parts=[message.TextPart(text="slow first")], stop_reason="stop", usage=usage()),
         delay_s=0.4,
     )
-    # After the first turn the interactive session schedules an LLM title
-    # refresh, which races the drained turn for the next queued response;
-    # enqueue two more so both get one (order does not matter here).
+    # Steering continues the same task before the title refresh can run.
     app_env.fake_llm.enqueue(
         message.AssistantTextDelta(content="drained second"),
         message.AssistantMessage(parts=[message.TextPart(text="drained second")], stop_reason="stop", usage=usage()),
@@ -280,8 +332,7 @@ def test_server_drains_interactive_follow_up_queue(app_env: AppEnv) -> None:
                 "operation": {"type": "run_agent", "session_id": session_id, "input": {"text": "first"}},
             }
         )
-        # Queue a follow-up while the first turn is streaming; the server
-        # (not an in-process TUI runner) must start the second turn.
+        # Queue steering while the first task is streaming.
         websocket.send_json(
             {
                 "type": "op",
@@ -297,13 +348,13 @@ def test_server_drains_interactive_follow_up_queue(app_env: AppEnv) -> None:
                     finishes += 1
                 if event.get("event_type") == "follow.up.queue.updated":
                     queue_updates.append(list(event["event"].get("texts", [])))
-            if finishes >= 2 and [] in queue_updates:
+            if finishes >= 1 and [] in queue_updates:
                 break
-        assert finishes >= 2
+        assert finishes == 1
 
     # The queue event mirrored the enqueue and the drain.
-    assert ["second"] in queue_updates
-    assert [] in queue_updates
+    assert queue_updates.count(["second"]) == 1
+    assert queue_updates.count([]) == 1
 
     assert _history_user_messages(app_env, session_id) == ["first", "second"]
 
@@ -339,17 +390,15 @@ def test_peek_connection_cannot_send(app_env: AppEnv) -> None:
         assert frame["code"] == "peek_read_only"
 
 
-def test_send_steer_interrupts_and_injects(app_env: AppEnv) -> None:
+def test_send_steer_queues_and_preserves_stream(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
 
-    # A wide window (4 x 5s per stream item) keeps the steer request inside
-    # the first turn even under parallel test load; the interrupt cancels the
-    # stream, so the test never actually waits this long.
+    # Wait for a real model request, not just the task-start event.
     app_env.fake_llm.enqueue(
         message.AssistantTextDelta(content="long running "),
         message.AssistantTextDelta(content="output"),
         message.AssistantMessage(parts=[message.TextPart(text="long running output")], stop_reason="stop"),
-        delay_s=5.0,
+        delay_s=0.3,
     )
     app_env.fake_llm.enqueue(
         message.AssistantTextDelta(content="steered reply"),
@@ -361,13 +410,17 @@ def test_send_steer_interrupts_and_injects(app_env: AppEnv) -> None:
         json={"text": "long task"},
     )
     assert response.status_code == 200
+    deadline = time.monotonic() + 5.0
+    while app_env.fake_llm.call_count < 1 and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert app_env.fake_llm.call_count == 1
 
     steer = app_env.client.post(
         f"/api/headless/sessions/{session_id}/send",
         json={"text": "change course", "steer": True},
     )
     assert steer.status_code == 200
-    assert steer.json()["mode"] == "started"
+    assert steer.json()["mode"] == "queued"
 
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
@@ -378,6 +431,12 @@ def test_send_steer_interrupts_and_injects(app_env: AppEnv) -> None:
 
     output = app_env.client.get(f"/api/headless/sessions/{session_id}/output").json()
     assert output["output"] == "steered reply"
+    session = Session.load(session_id, work_dir=app_env.work_dir)
+    assert not any(isinstance(item, message.InterruptEntry) for item in session.conversation_history)
+    assert any(
+        isinstance(item, message.AssistantMessage) and message.join_text_parts(item.parts) == "long running output"
+        for item in session.conversation_history
+    )
 
 
 def test_attach_rehydrates_reclaimed_actor(app_env: AppEnv) -> None:
@@ -399,7 +458,11 @@ def test_attach_rehydrates_reclaimed_actor(app_env: AppEnv) -> None:
     # Content may arrive via synthesized history or via the retained tape
     # (both splice to the same transcript); assert across both sources.
     replay_events = _replay_history_events(handshake) + handshake["replay"]
-    contents = [event["event"].get("content") for event in replay_events if event.get("event_type") == "user.message"]
+    contents = [
+        event["event"].get("peer_message", {}).get("body", event["event"].get("content"))
+        for event in replay_events
+        if event.get("event_type") == "user.message"
+    ]
     assert contents == ["before reclaim"]
     texts = "".join(
         str(event["event"].get("content", ""))
@@ -423,7 +486,11 @@ def test_attach_rehydrates_actor_without_agent(app_env: AppEnv) -> None:
         handshake = _consume_attach_handshake(websocket)
 
     replay_events = _replay_history_events(handshake) + handshake["replay"]
-    contents = [event["event"].get("content") for event in replay_events if event.get("event_type") == "user.message"]
+    contents = [
+        event["event"].get("peer_message", {}).get("body", event["event"].get("content"))
+        for event in replay_events
+        if event.get("event_type") == "user.message"
+    ]
     assert contents == ["before partial init"]
 
 
@@ -552,7 +619,7 @@ def test_resume_reattaches_without_replaying_history(app_env: AppEnv) -> None:
             raise AssertionError("resume handshake never completed")
 
         snapshot_events = [item for item in handshake_tail if item.get("event_type")]
-        assert [item["event_type"] for item in snapshot_events] == ["shell_tasks_updated"]
+        assert [item["event_type"] for item in snapshot_events] == ["shell_tasks_updated", "background.tasks.updated"]
         assert snapshot_events[0]["event"]["tasks"] == []
 
         # The live stream still carries the next turn.
@@ -598,7 +665,7 @@ def test_resume_without_prior_transcript_replays_nothing_still_streams(app_env: 
             if any(item.get("type") == "replay_complete" for item in items):
                 break
         snapshot_events = [item for item in tail if item.get("event_type")]
-        assert [item["event_type"] for item in snapshot_events] == ["shell_tasks_updated"]
+        assert [item["event_type"] for item in snapshot_events] == ["shell_tasks_updated", "background.tasks.updated"]
         assert snapshot_events[0]["event"]["tasks"] == []
 
 

@@ -28,6 +28,9 @@ class ToolDefinition:
 _TOOL_DEFINITIONS: dict[str, ToolDefinition] = {
     tools.BASH: ToolDefinition("Bash", "Bashing"),
     tools.MANAGE_SHELL: ToolDefinition("Shell", "Managing Shell"),
+    tools.MANAGE_TASKS: ToolDefinition("Tasks", "Managing Tasks"),
+    tools.LIST_PEERS: ToolDefinition("Peers", "Finding Peers"),
+    tools.MESSAGE_PEER: ToolDefinition("Message Peer", "Messaging Peer"),
     tools.APPLY_PATCH: ToolDefinition("Patch", "Patching"),
     tools.EDIT: ToolDefinition("Edit", "Editing"),
     tools.READ: ToolDefinition("Read", "Reading"),
@@ -107,12 +110,23 @@ def get_tool_call_presentation(tool_name: str, arguments: str) -> ToolCallPresen
     args = parse_tool_arguments(arguments)
     name = _tool_display_name(tool_name, args)
 
-    if tool_name == tools.MANAGE_SHELL:
+    if tool_name == tools.MESSAGE_PEER:
+        body = str(args.get("body", "")).splitlines()
+        return ToolCallPresentation(name, f"→ {one_line(args.get('target', ''))}: {body[0][:160] if body else ''}")
+
+    if tool_name in {tools.MANAGE_SHELL, tools.MANAGE_TASKS}:
         action = one_line(args.get("action", "")).title()
         task_id = args.get("task_id")
         subject = action
         if action != "List" and isinstance(task_id, str) and task_id:
             subject = f"{action} {task_id[:8]}".strip()
+        if tool_name == tools.MANAGE_TASKS:
+            wait_ms = args.get("wait_ms")
+            if action == "Wait" and isinstance(wait_ms, int) and not isinstance(wait_ms, bool):
+                subject += f" · up to {wait_ms / 1000:g}s"
+            offset = args.get("offset")
+            if action in {"Output", "Wait"} and isinstance(offset, int) and not isinstance(offset, bool) and offset:
+                subject += f" · offset {offset}"
         return ToolCallPresentation(name, subject)
 
     if tool_name == tools.READ:

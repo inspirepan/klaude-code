@@ -12,6 +12,7 @@ from starlette.websockets import WebSocketDisconnect
 
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
 from klaude_code.protocol import events, message, op
+from klaude_code.protocol.background_task import TaskRequest
 from klaude_code.protocol.shell_task import ShellTaskOutput, ShellTaskSnapshot
 from klaude_code.server.routes import ws
 from klaude_code.server.state import get_server_state_from_app
@@ -67,22 +68,43 @@ def _idle(app_env: AppEnv, session_id: str) -> bool:
     return actor is not None and actor.snapshot().is_idle
 
 
-def test_idle_completion_becomes_bounded_model_input(app_env: AppEnv) -> None:
+def test_idle_completion_is_readable_without_starting_model(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
-    _reply(app_env)
     task = _start(app_env, session_id, "printf 'shell output'")
-    _wait(app_env, lambda: app_env.fake_llm.call_count == 1 and _idle(app_env, session_id))
+    response = _call(
+        app_env,
+        app_env.runtime.task_manager.manage,
+        session_id,
+        app_env.work_dir,
+        TaskRequest(action="wait", task_id=task.task_id),
+    )
+    assert response.output == "shell output" and response.tasks[0].status == "completed"
+    assert response.delivery_id is not None
+    assert app_env.fake_llm.call_count == 0 and _idle(app_env, session_id)
     actor = app_env.runtime.session_registry.get_session_actor(session_id)
     assert actor is not None
     agent = actor.get_agent()
     assert agent is not None
     reports = [item.content for item in agent.session.get_history_item() if isinstance(item, events.UserMessageEvent)]
-    assert len(reports) == 1
-    assert task.task_id in reports[0]
-    assert "status=completed, exit=0" in reports[0]
-    assert "shell output" in reports[0]
-    assert "untrusted_output" in reports[0]
-    assert task.output_path in reports[0]
+    assert reports == []
+    assert len(_call(app_env, app_env.runtime.task_manager.pending_results, session_id, app_env.work_dir)) == 1
+
+
+def test_acknowledged_completion_does_not_start_idle_turn(app_env: AppEnv) -> None:
+    session_id = app_env.create_session()
+    task = _start(app_env, session_id, "printf report")
+    response = _call(
+        app_env,
+        app_env.runtime.task_manager.manage,
+        session_id,
+        app_env.work_dir,
+        TaskRequest(action="wait", task_id=task.task_id),
+    )
+    assert response.delivery_id is not None
+    _call(app_env, app_env.runtime.task_manager.acknowledge, session_id, response.delivery_id)
+    _call(app_env, asyncio.sleep, 0.05)
+    assert app_env.fake_llm.call_count == 0 and _idle(app_env, session_id)
+    assert _call(app_env, app_env.runtime.task_manager.pending_results, session_id, app_env.work_dir) == []
 
 
 def test_busy_completion_waits_for_turn_and_does_not_interrupt(app_env: AppEnv) -> None:
@@ -106,7 +128,7 @@ def test_busy_completion_waits_for_turn_and_does_not_interrupt(app_env: AppEnv) 
     assert len([item for item in history if isinstance(item, message.AssistantMessage)]) == 2, history
 
 
-def test_interrupt_drops_pending_notification_even_after_real_input(app_env: AppEnv) -> None:
+def test_interrupt_retains_pending_result_until_real_input(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
     _reply(app_env, delay_s=10)
     response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "slow turn"})
@@ -127,7 +149,8 @@ def test_interrupt_drops_pending_notification_even_after_real_input(app_env: App
     agent = actor.get_agent()
     assert agent is not None
     reports = [item.content for item in agent.session.get_history_item() if isinstance(item, events.UserMessageEvent)]
-    assert not any(task.task_id in text for text in reports)
+    assert sum(task.task_id in text for text in reports) == 1
+    assert _call(app_env, app_env.runtime.task_manager.pending_results, session_id, app_env.work_dir) == []
 
 
 def test_running_shell_excludes_idle_reclaim(app_env: AppEnv) -> None:
@@ -188,7 +211,7 @@ def test_shell_event_round_trip_retains_snapshot(app_env: AppEnv) -> None:
         _call(app_env, app_env.runtime.shell_task_manager.stop_task, session_id, task.task_id)
 
 
-def test_completions_during_one_turn_are_batched_into_one_follow_up(app_env: AppEnv) -> None:
+def test_completions_during_one_turn_share_one_safe_boundary(app_env: AppEnv) -> None:
     session_id = app_env.create_session()
     _reply(app_env, delay_s=0.2)
     _reply(app_env)
@@ -206,9 +229,11 @@ def test_completions_during_one_turn_are_batched_into_one_follow_up(app_env: App
     agent = actor.get_agent()
     assert agent is not None
     inputs = [item for item in agent.session.conversation_history if isinstance(item, message.UserMessage)]
-    assert len(inputs) == 2
-    report = inputs[-1].model_dump_json()
+    assert len(inputs) == 3
+    assert [item.source for item in inputs[1:]] == ["task_completion", "task_completion"]
+    report = "".join(item.model_dump_json() for item in inputs[1:])
     assert first.task_id in report and second.task_id in report
+    assert _call(app_env, app_env.runtime.task_manager.pending_results, session_id, app_env.work_dir) == []
 
 
 def test_resume_loads_lost_snapshot_after_manager_restart(app_env: AppEnv) -> None:
@@ -274,6 +299,16 @@ def test_user_turn_during_output_read_defers_notification_instead_of_losing_it(
 
     monkeypatch.setattr(manager, "read_output", delayed_read)
     task = _start(app_env, session_id, "printf completion")
+    _call(app_env, manager.wait_task, session_id, task.task_id)
+    assert app_env.client.portal is not None
+    read = app_env.client.portal.start_task_soon(
+        partial(
+            app_env.runtime.task_manager.manage,
+            session_id,
+            app_env.work_dir,
+            TaskRequest(action="output", task_id=task.task_id),
+        )
+    )
     _wait(app_env, reading.is_set)
     assert (
         app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "racing user"}).status_code
@@ -281,27 +316,33 @@ def test_user_turn_during_output_read_defers_notification_instead_of_losing_it(
     )
     _wait(app_env, lambda: app_env.fake_llm.call_count == 1)
     _call(app_env, release.set)
-    _wait(app_env, lambda: app_env.fake_llm.call_count == 2 and _idle(app_env, session_id))
+    assert read.result(timeout=3).output == "completion"
+    _wait(app_env, lambda: app_env.fake_llm.call_count == 1 and _idle(app_env, session_id))
     actor = app_env.runtime.session_registry.get_session_actor(session_id)
     assert actor is not None
     agent = actor.get_agent()
     assert agent is not None
-    inputs = [
-        item.model_dump_json() for item in agent.session.conversation_history if isinstance(item, message.UserMessage)
-    ]
+    inputs = [item for item in agent.session.conversation_history if isinstance(item, message.UserMessage)]
     assert len(inputs) == 2
-    assert "racing user" in inputs[0]
-    assert task.task_id in inputs[1]
+    peer_input = next(item for item in inputs if item.source == "peer_message")
+    report_input = next(item for item in inputs if item.source == "task_completion")
+    assert "racing user" in peer_input.model_dump_json()
+    assert task.task_id in report_input.model_dump_json()
+    assert _call(app_env, app_env.runtime.task_manager.pending_results, session_id, app_env.work_dir) == []
 
 
-def test_snapshot_send_race_drops_older_queued_shell_state(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("typed_tasks", [False, True])
+def test_snapshot_send_race_drops_older_queued_shell_state(
+    app_env: AppEnv,
+    monkeypatch: pytest.MonkeyPatch,
+    typed_tasks: bool,
+) -> None:
     session_id = app_env.create_session()
     state = get_server_state_from_app(cast(Any, app_env.client.app))
     monkeypatch.setattr(ws, "get_server_state_from_ws", lambda _websocket: state)
     seen: list[str] = []
 
     async def run() -> None:
-        app_env.runtime.disable_shell_notifications(session_id)
         subscription = app_env.event_bus.subscribe(None)
         manager = app_env.runtime.shell_task_manager
         task = await manager.start(
@@ -318,7 +359,7 @@ def test_snapshot_send_race_drops_older_queued_shell_state(app_env: AppEnv, monk
             async def send_json(self, payload: Any) -> None:
                 items = payload if isinstance(payload, list) else [payload]
                 for item in items:
-                    if item.get("event_type") != "shell_tasks_updated":
+                    if item.get("event_type") != ("background.tasks.updated" if typed_tasks else "shell_tasks_updated"):
                         continue
                     status = item["event"]["tasks"][0]["status"]
                     seen.append(status)
@@ -329,9 +370,16 @@ def test_snapshot_send_race_drops_older_queued_shell_state(app_env: AppEnv, monk
                         raise WebSocketDisconnect()
 
         socket = cast(Any, Socket())
-        cutoffs = await ws._send_shell_task_snapshots(session_id, app_env.work_dir, socket, state=state)
+        snapshots = ws._send_background_task_snapshots if typed_tasks else ws._send_shell_task_snapshots
+        cutoffs = await snapshots(session_id, app_env.work_dir, socket, state=state)
         await asyncio.wait_for(
-            ws._forward_events(session_id, socket, subscription=subscription, shell_snapshot_cutoffs=cutoffs),
+            ws._forward_events(
+                session_id,
+                socket,
+                subscription=subscription,
+                shell_snapshot_cutoffs=None if typed_tasks else cutoffs,
+                background_snapshot_cutoffs=cutoffs if typed_tasks else None,
+            ),
             timeout=1,
         )
 
@@ -342,9 +390,7 @@ def test_snapshot_send_race_drops_older_queued_shell_state(app_env: AppEnv, monk
     assert app_env.fake_llm.call_count == 0
 
 
-def test_parent_stop_latches_child_notifications_before_cancellation_wait(
-    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_parent_interrupt_does_not_latch_child_notifications(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
     parent_id = app_env.create_session()
     child_id = app_env.create_session()
     child_actor = app_env.runtime.session_registry.get_session_actor(child_id)
@@ -371,7 +417,7 @@ def test_parent_stop_latches_child_notifications_before_cancellation_wait(
         task = _start(app_env, child_id, "printf child-completion")
         _call(app_env, app_env.runtime.shell_task_manager.wait_task, child_id, task.task_id)
         _call(app_env, asyncio.sleep, 0.05)
-        assert app_env.runtime.shell_notification_generation(child_id) is None
+        assert len(_call(app_env, app_env.runtime.task_manager.pending_results, child_id, app_env.work_dir)) == 1
         assert app_env.fake_llm.call_count == 0
     finally:
         _call(app_env, release.set)

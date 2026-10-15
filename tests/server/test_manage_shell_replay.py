@@ -44,7 +44,6 @@ def test_attach_manage_shell_hint_preserves_source_and_is_session_scoped(
     state = get_server_state_from_app(cast(Any, app_env.client.app))
 
     async def run() -> None:
-        app_env.runtime.disable_shell_notifications(owner_id)
         manager = app_env.runtime.shell_task_manager
         task = await manager.start(
             session_id=owner_id,
@@ -186,7 +185,6 @@ def test_attach_manage_shell_recovers_snapshot_from_session_work_dir(app_env: Ap
     state = get_server_state_from_app(cast(Any, app_env.client.app))
 
     async def run() -> None:
-        app_env.runtime.disable_shell_notifications(session_id)
         manager = app_env.runtime.shell_task_manager
         task = await manager.start(
             session_id=session_id,

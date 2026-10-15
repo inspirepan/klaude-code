@@ -9,7 +9,7 @@ the runner renders the event stream and sends operations over the socket.
 Exiting the TUI is a detach — the server keeps the session running.
 
 During interactive `run_attach()` sessions, prompt-toolkit owns the bottom
-dynamic UI while an agent task is running:
+dynamic UI in both busy and idle states:
 
 - Rich prints stable scrollback content above the prompt.
 - prompt-toolkit renders live output, running status, queued follow-up block,
@@ -96,6 +96,60 @@ The status data still originates in the existing renderer/status pipeline:
 Do not bypass this pipeline with direct prompt-toolkit status strings unless you
 also preserve sub-agent coloring/truncation semantics and metadata formatting.
 
+### Shared background tasks and peer messages
+
+- `/tasks` without arguments opens `TaskPanel` in the existing prompt-toolkit
+  `SelectOverlay`; explicit `/tasks list/output/wait/stop` keeps text output.
+  `RuntimeClient.manage_tasks()` uses the existing owned-task HTTP endpoint;
+  panel queries do not enter the transcript or acknowledge model delivery.
+- Status bar order: the main agent's spinner row (kept while background
+  children run; hidden only while a blocking Agent call is pending), then the
+  live tail (thinking preview / bash output), then compact child groups (type,
+  description, model, tool count, up to the latest tool rows; attention first,
+  under the height budget), then one ` ◈  N agents · N shells … /tasks …` footer
+  (`MainTaskStatus`) shown only while background tasks are active.
+  `PromptBottomBar` splits status lines at the first row without the plain
+  spinner so the live tail sits under the main row.
+- Each background fact reaches the compact transcript once. Agent launches are
+  `◈ Agents` rows (consecutive launches share the header); waits are one
+  `◈ Tasks  Waiting for <description>` row (repeats collapse) and still-running
+  results print nothing; a finished agent prints only its `▌` batch block
+  (`TaskDirectory.claim_summary` / `claim_report` dedupe the block against task
+  reports and wait results, and a report builds the block when none printed);
+  a finished Bash task prints one `$ Shell` row. Background `TaskMetadataEvent`
+  cost trees are full-mode only. Name tasks and peers by description through
+  `TaskDirectory`, never by ID; IDs belong to `/tasks` and expanded mode.
+- Interaction request/resolved/cancelled events join by child session and
+  request ID. The existing approval dialog remains the only approval surface.
+  It cancels the task panel before `pause_for_external_input()` yields stdin;
+  embedded overlays never save/restore editor drafts. External modal pause
+  restores both the current draft and its cursor exactly once.
+- Task-panel messages require explicit confirmation and a running owned child.
+  `send_task_message()` rechecks the task and sends external peer data with
+  `expected_operation_id` on `/send-active` (required, no `/send` fallback on
+  older servers); server admission checks that operation immediately
+  before enqueue. Labels confer no operator identity. A receipt is queued, not
+  read; normal safe-boundary peer/follow-up semantics still apply after enqueue.
+- `/stop` submits `StopSubAgentsOperation` immediately, even while busy. It stops
+  only owned child agents (including queued runs); Esc interrupts only the root.
+  Render its actual `OperationFinishedEvent` outcome, never an optimistic success.
+- `/tasks list/output/wait/stop` submits `ManageTasksOperation(TaskRequest)`.
+  `TaskControlResultEvent` carries the typed response or error through the normal
+  display/tape path. Queries never acknowledge model delivery. Long waits run
+  outside the actor mailbox and do not occupy a root execution slot.
+- `BackgroundTasksUpdatedEvent` is an authoritative full list per owner. It
+  reconciles existing sub-agent rows and counts; legacy shell events must not
+  override its counts. A running Agent tool reference is not child completion.
+  Root completion/interruption does not end child rows or block the editor.
+- Peer and task reports are sourced messages, not operator input cards. Render
+  `peer_message` fields directly; never parse `<agent-message>` body text.
+  Peer messages are tool-style rows (`› Message from …`, `✉ Message to …`) whose
+  wrapped lines hang under the text; compact shows the first paragraph in at
+  most three lines, expanded mode adds metadata and the full body.
+- `TaskMetadataItem.background_task_id` identifies independent background costs.
+  Replay it without synthesizing a parent turn finish, and deduplicate against
+  typed task snapshots. Background completion never starts an assistant turn.
+
 ### Queued follow-up input flow
 
 - Busy-time Enter submits a `FollowUpAgentOperation` instead of interrupting or
@@ -104,8 +158,10 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   session history or emitted as normal user turns.
 - The queue panel is prompt-toolkit dynamic UI, not scrollback. Do not emit
   queued-message `NoticeEvent`s for the queue panel.
-- Current task completion drains queued follow-ups FIFO. Each queued message is
-  rendered as a normal user turn only when it actually begins execution.
+- At safe step boundaries, the current task admits a FIFO batch of queued
+  follow-ups before its next request, including retries and final responses.
+  Each batch reaches history in one confirmed write before its durable queue
+  copy is cleared and its messages are rendered as normal user turns.
 - Plain `Up` on an empty editor with queued messages dequeues all queued
   messages at once, clears the queue, and writes them back into the editor
   separated by standalone `--- split ---` lines. Queue-edit parsing also

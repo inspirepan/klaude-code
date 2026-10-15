@@ -55,6 +55,7 @@ class CommandResult(BaseModel):
         | None
     ) = None  # List of UI events to display immediately
     operations: list[op.Operation] | None = None
+    open_task_panel: bool = False
 
 
 class CommandABC(ABC):
