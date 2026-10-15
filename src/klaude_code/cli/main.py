@@ -378,7 +378,19 @@ def main_callback(
             session_id = resume_by_id_value
         # If still no session_id, leave as None to create a new session
 
+        from klaude_code.cli.uds_client import ServerNotRunningError, ensure_server_running, request
+
+        session_loaded = False
         if session_id is not None and chosen_model is None:
+            # Keep the live model, which may differ from persisted metadata.
+            try:
+                status, body = request("GET", f"/api/web/sessions/{session_id}/meta")
+            except ServerNotRunningError:
+                pass
+            else:
+                session_loaded = status == 200 and isinstance(body, dict) and body.get("loaded") is True
+
+        if session_id is not None and chosen_model is None and not session_loaded:
             from klaude_code.config import ConfigValidationError, load_config
             from klaude_code.log import log
 
@@ -424,8 +436,8 @@ def main_callback(
             # error + picker flow as when chosen_model starts out None.
 
         # If still no model, check main_model; if not configured or invalid,
-        # trigger interactive selection.
-        if chosen_model is None:
+        # trigger interactive selection. Loaded sessions only need an attach.
+        if chosen_model is None and not session_loaded:
             from klaude_code.config import (
                 ConfigValidationError,
                 ModelAvailability,
@@ -487,7 +499,6 @@ def main_callback(
 
         # TUI = client of the single local server: auto-start it, create the
         # session server-side when needed, then attach (replay + live).
-        from klaude_code.cli.uds_client import ServerNotRunningError, ensure_server_running
         from klaude_code.tui.runner import run_attach
 
         try:
@@ -510,8 +521,6 @@ def main_callback(
             log(f"Debug log: {log_path}")
 
         if session_id is None:
-            from klaude_code.cli.uds_client import request
-
             status, body = request(
                 "POST",
                 "/api/sessions",
@@ -525,8 +534,6 @@ def main_callback(
         elif chosen_model:
             # Resuming: persist the resolved model (explicit -m, the session's
             # own model, or the fallback) so the server rehydrates with it.
-            from klaude_code.cli.uds_client import request
-
             status, body = request(
                 "PUT",
                 f"/api/sessions/{session_id}/model/config",

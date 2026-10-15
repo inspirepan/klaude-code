@@ -138,6 +138,59 @@ def test_meta_of_an_unknown_session_is_404(app_env: AppEnv) -> None:
     assert app_env.client.get("/api/web/sessions/nope/meta").status_code == 404
 
 
+def test_cli_resume_keeps_the_loaded_actor(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+    from typing import cast
+
+    import typer
+
+    from klaude_code.cli import main as cli_main
+
+    session_id = app_env.create_session()
+    actor = app_env.runtime.session_registry.get_session_actor(session_id)
+    attached: list[str] = []
+    requests: list[str] = []
+
+    def _request(method: str, path: str, **kwargs: Any) -> tuple[int, Any]:
+        requests.append(method)
+        response = app_env.client.request(method, path, json=kwargs.get("json_body"))
+        return response.status_code, response.json()
+
+    async def _run_attach(target: str, *, upgrade_notice: object = None) -> None:
+        attached.append(target)
+
+    def _load_config() -> None:
+        raise AssertionError("loaded sessions should keep their live model")
+
+    monkeypatch.chdir(app_env.work_dir)
+    monkeypatch.setattr(cli_main, "_maybe_start_auto_upgrade", lambda: None)
+    monkeypatch.setattr(cli_main, "prepare_debug_logging", lambda _debug: (False, None))
+    monkeypatch.setattr(cli_main.sys, "stdin", SimpleNamespace(isatty=lambda: True))
+    monkeypatch.setattr(cli_main.sys, "stdout", SimpleNamespace(isatty=lambda: True))
+    monkeypatch.setattr("klaude_code.cli.uds_client.request", _request)
+    monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda: None)
+    monkeypatch.setattr("klaude_code.tui.runner.run_attach", _run_attach)
+    monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", lambda: None)
+    monkeypatch.setattr("klaude_code.config.load_config", _load_config)
+
+    cli_main.main_callback(
+        ctx=cast(typer.Context, SimpleNamespace(invoked_subcommand=None)),
+        model=None,
+        continue_=False,
+        resume=False,
+        resume_by_id=session_id,
+        select_model=False,
+        debug=False,
+        vanilla=False,
+        version=False,
+    )
+
+    assert attached == [session_id]
+    assert requests == ["GET"]
+    assert actor is not None
+    assert app_env.runtime.session_registry.get_session_actor(session_id) is actor
+
+
 # -- history paging --
 
 
