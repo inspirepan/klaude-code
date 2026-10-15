@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.36.0] - 2026-10-15
+
+### Added
+
+- 接入 Gemini 4 Argon (`993434ad`)
+
+### Fixed
+
+- 精简 ManageShell 任务信息与简洁模式输出 (`6886046a`)
+- 恢复已加载会话时保留运行态模型 (`d97948a6`)
+- 构建并校验发布包中的 Web 静态资源 (`720da13a`)
+- 清理后台唤醒后已完成的子代理状态 (`7222688b`)
+
 ## [2.35.0] - 2026-10-10
 
 ### Added
@@ -2803,7 +2816,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.35.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.36.0...HEAD
+[2.36.0]: https://github.com/inspirepan/klaude-code/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/inspirepan/klaude-code/compare/v2.34.0...v2.35.0
 [2.34.0]: https://github.com/inspirepan/klaude-code/compare/v2.33.0...v2.34.0
 [2.33.0]: https://github.com/inspirepan/klaude-code/compare/v2.32.0...v2.33.0
