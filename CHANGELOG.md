@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.37.0] - 2026-10-16
+
+### Added
+
+- 异步后台 Agent、任务管理与 Peer 协作，并统一 TUI 展示 (`47fb0d25`)
+
 ## [2.36.0] - 2026-10-15
 
 ### Added
@@ -2816,7 +2822,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.36.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.37.0...HEAD
+[2.37.0]: https://github.com/inspirepan/klaude-code/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/inspirepan/klaude-code/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/inspirepan/klaude-code/compare/v2.34.0...v2.35.0
 [2.34.0]: https://github.com/inspirepan/klaude-code/compare/v2.33.0...v2.34.0
