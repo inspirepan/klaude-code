@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.0] - 2026-10-16
+
+### Added
+
+- 子 agent 改动汇总进完成块，agent 消息改为按方向着色的面板 (`674b0ad9`)
+- 升级等待时说明阻塞会话与原因 (`95761e57`)
+- 按改动规模折叠 diff 并新增 ctrl-t 展开，统一后台回填展示 (`bd1c5bb4`)
+
+### Fixed
+
+- 合并分块的历史回放并统一快捷键写法 (`98c6bb4b`)
+- 修复刷新活跃会话时工具记录重复展示 (`7f83bb74`)
+- 修复 peer 会话事件串流，明确 wait/awaiting 状态并约束 peer 沟通 (`4ce61a33`)
+
 ## [2.37.0] - 2026-10-16
 
 ### Added
@@ -2822,7 +2836,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.37.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.38.0...HEAD
+[2.38.0]: https://github.com/inspirepan/klaude-code/compare/v2.37.0...v2.38.0
 [2.37.0]: https://github.com/inspirepan/klaude-code/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/inspirepan/klaude-code/compare/v2.35.0...v2.36.0
 [2.35.0]: https://github.com/inspirepan/klaude-code/compare/v2.34.0...v2.35.0
