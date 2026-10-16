@@ -55,6 +55,8 @@ def _upgrade_via_server() -> bool:
 
     from klaude_code.cli.uds_client import (
         ServerNotRunningError,
+        describe_active_sessions,
+        describe_upgrade_options,
         describe_upgrade_status,
         request,
         request_server_upgrade,
@@ -81,9 +83,10 @@ def _upgrade_via_server() -> bool:
             active = status.get("active_sessions") or []
             if active and time.monotonic() - pending_since > _SERVER_UPGRADE_PENDING_GRACE_SECONDS:
                 log((describe_upgrade_status(status) or "klaude server is busy; upgrade pending", "yellow"))
-                for item in active:
-                    log((f"  {item.get('session_id')}  {item.get('state')}", "dim"))
-                log(("It installs when they finish; interrupt with: klaude server reload --force", "dim"))
+                for line in describe_active_sessions(active):
+                    log(line)
+                for line in describe_upgrade_options(active):
+                    log((line, "dim"))
                 return True
         elif phase == "installing":
             if "installing" not in announced:

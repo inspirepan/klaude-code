@@ -273,7 +273,9 @@ def test_idle_reload_waits_for_background_shell_even_without_active_model(app_en
         assert _idle(app_env, session_id)
         refusal = app_env.client.post("/api/server/reload", json={"force": False})
         assert refusal.status_code == 409
-        assert refusal.json()["detail"]["sessions"] == [{"session_id": session_id, "state": "running"}]
+        sessions = refusal.json()["detail"]["sessions"]
+        assert [(item["session_id"], item["state"]) for item in sessions] == [(session_id, "background_shell")]
+        assert sessions[0]["detail"].startswith("background shell: Acceptance shell (")
 
         # Stop notifications through the same user-facing interrupt path, then allow idle reload.
         assert app_env.client.portal is not None

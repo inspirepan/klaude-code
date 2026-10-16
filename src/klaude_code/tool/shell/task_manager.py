@@ -539,6 +539,10 @@ class ShellTaskManager:
             )
         )
 
+    def active_tasks(self) -> list[ShellTaskSnapshot]:
+        """Snapshots of tasks still running, for status reports outside a session."""
+        return [self._snapshot(t) for t in self._tasks.values() if not t.done.is_set()]
+
     def active_session_ids(self) -> set[str]:
         return {t.snapshot.session_id for t in self._tasks.values() if not t.done.is_set()}
 

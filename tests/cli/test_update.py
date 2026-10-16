@@ -143,7 +143,18 @@ def test_persist_current_update_info_writes_state_file(monkeypatch: pytest.Monke
     [
         (
             {"phase": "pending", "action": "upgrade", "active_sessions": [{"session_id": "a", "state": "running"}]},
-            "klaude server will install the update and restart once 1 active session finish (/reload to check).",
+            "klaude server will install the update and restart once 1 agent turn finishes (/reload to check).",
+        ),
+        (
+            {
+                "phase": "pending",
+                "action": "upgrade",
+                "active_sessions": [
+                    {"session_id": "a", "state": "background_shell"},
+                    {"session_id": "b", "state": "background_shell"},
+                ],
+            },
+            "klaude server will install the update and restart once 2 background shells finish (/reload to check).",
         ),
         (
             {"phase": "pending", "action": "upgrade", "active_sessions": []},
@@ -477,3 +488,24 @@ def test_fetch_version_info_falls_back_to_pypi_when_source_not_a_git_repo(
     assert info.update_source == update.UPDATE_SOURCE_PYPI
     assert info.latest == "1.1.0"
     assert info.update_available is True
+
+
+def test_blocking_sessions_are_named_with_what_holds_them() -> None:
+    from klaude_code.cli import uds_client
+
+    active = [
+        {
+            "session_id": "5f8f46394f954b969a5fcf56261c2083",
+            "state": "background_shell",
+            "title": "",
+            "detail": "background shell: dev server (12m)",
+        },
+        {"session_id": "b", "state": "running", "title": "优化归因风格", "detail": "agent turn running"},
+    ]
+    assert uds_client.describe_active_sessions(active) == [
+        "  5f8f4639 · background shell: dev server (12m)",
+        "  优化归因风格 · agent turn running",
+    ]
+    options = uds_client.describe_upgrade_options(active)
+    assert any("/tasks" in line for line in options)
+    assert any("reload --force" in line and "stops background shells" in line for line in options)

@@ -154,3 +154,34 @@ def test_singleton_lock_rejects_second_holder(tmp_path: Path) -> None:
     # After release the lock can be re-acquired.
     second.acquire()
     second.release()
+
+
+def test_upgrade_blockers_name_background_shells_instead_of_reporting_a_running_turn(app_env: AppEnv) -> None:
+    from functools import partial
+    from typing import Any, cast
+
+    from klaude_code.protocol import op
+    from klaude_code.server.state import get_server_state_from_app
+
+    assert app_env.client.portal is not None
+    session_id = app_env.create_session()
+    start = partial(
+        app_env.runtime.shell_task_manager.start,
+        session_id=session_id,
+        command="sleep 60",
+        description="dev server",
+        work_dir=app_env.work_dir,
+        env=dict(os.environ),
+        timeout_ms=None,
+        background=True,
+    )
+    task = app_env.client.portal.call(start)
+    try:
+        status = app_env.client.get("/api/server/status").json()
+        assert status["sessions"]["running"] == 0
+        blockers = routes.server.list_active_sessions(get_server_state_from_app(cast(Any, app_env.client.app)))
+        assert [(item["session_id"], item["state"]) for item in blockers] == [(session_id, "background_shell")]
+        assert blockers[0]["detail"].startswith("background shell: dev server (")
+    finally:
+        app_env.client.portal.call(app_env.runtime.submit_and_wait, op.InterruptOperation(session_id=session_id))
+        app_env.client.portal.call(app_env.runtime.shell_task_manager.stop_task, session_id, task.task_id)

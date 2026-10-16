@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Any, Final, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -48,30 +49,62 @@ def _require_upgrade(state: ServerAppState) -> UpgradeCoordinator:
 
 
 def list_active_sessions(state: ServerAppState) -> list[dict[str, str]]:
-    """Sessions with live work: running tasks, pending interactions, or queued runs."""
+    """Sessions with live work: running tasks, pending interactions, queued runs, or background shells.
+
+    Each item names the session (`title`) and what holds it (`detail`), so a
+    client can say why an upgrade waits instead of listing bare session IDs.
+    """
+
+    titles = {
+        actor.session_id: agent.session.title or ""
+        for actor in state.runtime.session_registry.list_session_actors()
+        if (agent := actor.get_agent()) is not None
+    }
+
+    def item(session_id: str, item_state: str, detail: str) -> dict[str, str]:
+        return {"session_id": session_id, "state": item_state, "title": titles.get(session_id, ""), "detail": detail}
 
     active: list[dict[str, str]] = []
     for actor in state.runtime.session_registry.list_session_actors():
         actor_state = derive_session_state_from_snapshot(actor.snapshot())
         if actor_state == "waiting_user_input":
-            active.append({"session_id": actor.session_id, "state": "waiting_input"})
+            active.append(item(actor.session_id, "waiting_input", "waiting for your input"))
         elif actor_state == "running":
-            active.append({"session_id": actor.session_id, "state": "running"})
+            active.append(item(actor.session_id, "running", "agent turn running"))
         elif state.headless is not None and state.headless.has_live_follow_ups(actor.session_id):
             # The drain starts the next turn as soon as this one ends; a reload
             # in between would strand the queue until the client reattaches.
-            active.append({"session_id": actor.session_id, "state": "queued"})
+            active.append(item(actor.session_id, "queued", "queued messages"))
     if state.headless is not None:
-        seen = {item["session_id"] for item in active}
+        seen = {entry["session_id"] for entry in active}
         for session_id in state.headless.queued_session_ids():
             if session_id not in seen:
-                active.append({"session_id": session_id, "state": "queued"})
+                active.append(item(session_id, "queued", "queued run"))
     manager = getattr(state.runtime, "shell_task_manager", None)
     if manager is not None:
-        seen = {item["session_id"] for item in active}
-        for session_id in manager.active_session_ids() - seen:
-            active.append({"session_id": session_id, "state": "running"})
+        seen = {entry["session_id"] for entry in active}
+        shells: dict[str, list[str]] = {}
+        now = time.time()
+        for shell in manager.active_tasks():
+            if shell.session_id in seen:
+                continue
+            label = " ".join((shell.description or shell.command).split())
+            if len(label) > 60:
+                label = label[:59] + "…"
+            shells.setdefault(shell.session_id, []).append(f"{label} ({_format_age(now - shell.started_at)})")
+        for session_id, labels in shells.items():
+            noun = "background shell" if len(labels) == 1 else f"{len(labels)} background shells"
+            active.append(item(session_id, "background_shell", f"{noun}: {', '.join(labels)}"))
     return active
+
+
+def _format_age(seconds: float) -> str:
+    minutes = int(seconds // 60)
+    if minutes < 1:
+        return f"{int(seconds)}s"
+    if minutes < 60:
+        return f"{minutes}m"
+    return f"{minutes // 60}h{minutes % 60:02d}m"
 
 
 @router.get("/status")

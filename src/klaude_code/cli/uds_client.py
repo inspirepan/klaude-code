@@ -280,6 +280,42 @@ def settle_upgrade_status(status: dict[str, Any], *, timeout: float = _UPGRADE_S
     return status
 
 
+def _count(count: int, noun: str) -> str:
+    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+
+
+def _describe_blockers(active: list[dict[str, Any]]) -> str:
+    """`1 agent turn and 1 background shell`: what an upgrade waits on, by kind."""
+    shells = sum(item.get("state") == "background_shell" for item in active)
+    waiting = sum(item.get("state") == "waiting_input" for item in active)
+    turns = len(active) - shells - waiting
+    parts = [
+        _count(count, noun)
+        for count, noun in ((turns, "agent turn"), (waiting, "session waiting for input"), (shells, "background shell"))
+        if count
+    ]
+    return " and ".join(parts)
+
+
+def describe_active_sessions(active: list[dict[str, Any]]) -> list[str]:
+    """One line per blocking session: its title (or short ID) and what holds it."""
+    lines: list[str] = []
+    for item in active:
+        name = str(item.get("title") or "").strip() or str(item.get("session_id") or "")[:8]
+        lines.append(f"  {name} · {item.get('detail') or item.get('state') or 'active'}")
+    return lines
+
+
+def describe_upgrade_options(active: list[dict[str, Any]]) -> list[str]:
+    """How to stop waiting: shells never finish on their own when they are servers or watchers."""
+    lines: list[str] = []
+    if any(item.get("state") == "background_shell" for item in active):
+        lines.append("Background shells run until they exit; stop one with /tasks in its session.")
+    lines.append("It installs automatically once they finish.")
+    lines.append("Install now with: klaude server reload --force (interrupts running turns, stops background shells)")
+    return lines
+
+
 def describe_upgrade_status(status: dict[str, Any]) -> str | None:
     """One user-facing line for a server upgrade status, or None when idle."""
 
@@ -288,8 +324,8 @@ def describe_upgrade_status(status: dict[str, Any]) -> str | None:
     if phase == "pending":
         active = status.get("active_sessions") or []
         if active:
-            noun = "session" if len(active) == 1 else "sessions"
-            return f"klaude server will {action} once {len(active)} active {noun} finish (/reload to check)."
+            verb = "finishes" if len(active) == 1 else "finish"
+            return f"klaude server will {action} once {_describe_blockers(active)} {verb} (/reload to check)."
         return f"klaude server is about to {action}; this client reconnects automatically."
     if phase == "installing":
         return "klaude server is installing the update and restarts when done."
