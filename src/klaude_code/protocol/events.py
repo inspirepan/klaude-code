@@ -415,6 +415,11 @@ class TaskFinishEvent(Event):
     task_result: str
 
 
+def is_cancelled_task_result(task_result: str) -> bool:
+    """Whether a TaskFinishEvent result marks a turn that was interrupted, not completed."""
+    return task_result.strip().lower() in {"task cancelled", "task canceled"}
+
+
 class StepStartEvent(Event):
     pass
 

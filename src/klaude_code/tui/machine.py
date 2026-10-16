@@ -208,8 +208,7 @@ def _empty_bash_chunks() -> list[str]:
     return []
 
 
-def is_cancelled_task_result(task_result: str) -> bool:
-    return task_result.strip().lower() in {"task cancelled", "task canceled"}
+is_cancelled_task_result = events.is_cancelled_task_result
 
 
 @dataclass
@@ -1385,6 +1384,10 @@ class DisplayStateMachine:
             counts.append(f"{done} done")
         if failed:
             counts.append(f"{failed} failed")
+        if agents and not self._main_task_active():
+            # No turn but children running: they wake the main agent when they finish,
+            # unless the user interrupted it, which holds their reports for the next message.
+            counts.insert(0, "Paused" if primary is not None and primary.paused else "Awaiting")
         keys = ["/tasks"]
         if self._main_task_active():
             keys.append("Esc main")
@@ -1677,6 +1680,9 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
         if s.is_sub_agent and e.source not in {"peer_message", "task_completion"}:
             return []
+        if not s.is_sub_agent and self._primary_session_id not in (None, e.session_id):
+            # Another top-level session's input (a peer's) is not part of this view.
+            return []
         cmds.append(RenderUserMessage(e))
         return cmds
 
@@ -1746,6 +1752,10 @@ class DisplayStateMachine:
 
     def _handle_TaskStartEvent(self, e: events.TaskStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        if e.sub_agent_state is None and not s.is_sub_agent and self._primary_session_id not in (None, e.session_id):
+            # A session switch arrives as WelcomeEvent; a foreign top-level turn
+            # (a peer's) must never take over this view.
+            return cmds
         s.sub_agent_state = e.sub_agent_state
         if s.compact_batch_flushed and s.sub_agent_state is not None:
             # A wake after the original batch closed is an independent task.
@@ -1779,8 +1789,6 @@ class DisplayStateMachine:
         s.step_count = 0
         s.clear_status_activity()
         if not s.is_sub_agent:
-            # Keep primary session tracking in sync even if the session id changes
-            # during the process lifetime (e.g., /new).
             self._primary_session_id = e.session_id
             cmds.append(TaskClockStart())
             self._terminal_title_prefix = "◐"
@@ -2509,7 +2517,8 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
         self._spinner.clear_task_state()
         s.task_active = False
-        s.paused = True
+        # An Esc that resumes queued messages is not a pause; the server keeps waking.
+        s.paused = not e.resume_follow_ups
         s.pending_interactions.clear()
         s.clear_status_activity()
         cmds.extend(self._spinner_stop_commands())

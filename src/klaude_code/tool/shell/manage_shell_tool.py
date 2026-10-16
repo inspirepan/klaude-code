@@ -95,8 +95,14 @@ class ManageShellTool(ToolABC):
                         truncated=page.truncated,
                     )
                 elif args.action == "wait":
-                    task = await manager.wait_task(context.session_id, args.task_id, wait_ms=args.wait_ms)
+                    activity = context.pending_input_activity
+                    task = await manager.wait_task(
+                        context.session_id, args.task_id, wait_ms=args.wait_ms, activity=activity
+                    )
                     output = _format_task(task)
+                    if activity is not None and activity.is_set() and task.status in ("running", "stopping"):
+                        # Same contract as ManageTasks: new input ended the wait, not the task.
+                        output = f"interrupted-wait; still-running.\n{output}"
                     ui_extra = ShellTaskUIExtra(action=args.action, tasks=[task])
                 else:
                     task = await manager.stop_task(context.session_id, args.task_id)

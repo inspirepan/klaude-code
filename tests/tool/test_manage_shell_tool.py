@@ -83,7 +83,7 @@ def test_actions_preserve_ui_snapshot_and_report_process_status(
         assert result.ui_extra.output is None
         manager.read_output.assert_not_awaited()
         if action == "wait":
-            manager.wait_task.assert_awaited_once_with("owner", task.task_id, wait_ms=10000)
+            manager.wait_task.assert_awaited_once_with("owner", task.task_id, wait_ms=10000, activity=None)
         elif action == "stop":
             manager.stop_task.assert_awaited_once_with("owner", task.task_id)
 

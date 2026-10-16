@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from klaude_code.control.event_bus import detached_context
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param, op, user_interaction
@@ -118,7 +119,8 @@ class SessionActor:
         self._run_generation = 0
         self._queued_run_generations: dict[str, int] = {}
         self._cancelled_run_ids: set[str] = set()
-        self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop())
+        # An actor outlives whoever created it first; its events never inherit that caller's IDs.
+        self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop(), context=detached_context())
 
     async def enqueue(self, operation: op.Operation) -> None:
         self._mark_active()

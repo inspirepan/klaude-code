@@ -389,6 +389,9 @@ def test_cancelled_follow_up_stays_queued_until_turn_confirmation(
             def peek_next_follow_up_record(self) -> QueuedUserInput | None:
                 return self.queue[0] if self.queue else None
 
+            def follow_up_records(self) -> tuple[QueuedUserInput, ...]:
+                return tuple(self.queue)
+
             def begin_follow_up(self, item_id: str) -> bool:
                 if not self.queue or self.queue[0].id != item_id:
                     return False

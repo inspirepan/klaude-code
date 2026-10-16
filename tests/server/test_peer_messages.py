@@ -13,6 +13,7 @@ import klaude_code.agent.agent as agent_module
 from klaude_code.agent.agent import Agent
 from klaude_code.agent.attachments import skills
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
+from klaude_code.control.event_bus import event_publish_context
 from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.background_task import TaskRequest
 from klaude_code.protocol.models import TaskMetadataItem
@@ -340,7 +341,9 @@ def test_discovery_excludes_self_and_other_workspaces_and_rejects_ambiguous_targ
     assert target in {peer.session_id for peer in peers}
     assert sender not in {peer.session_id for peer in peers}
     assert foreign not in {peer.session_id for peer in peers}
-    for session_id in (sender, target):
+    # The sender is never its own target, so ambiguity needs two other sessions.
+    twin = env.create_session()
+    for session_id in (sender, target, twin):
         actor = env.runtime.session_registry.get_session_actor(session_id)
         assert actor is not None
         agent = actor.get_agent()
@@ -648,3 +651,60 @@ def test_background_task_snapshot_is_available_without_live_completion(app_env: 
     assert tasks[0]["ref"]["owner_session_id"] == target
     assert tasks[0]["status"] == "completed" and tasks[0]["delivered"] is False
     assert env.fake_llm.call_count == 0
+
+
+def test_peer_delivery_never_stamps_recipient_events_with_sender_turn_ids(app_env: AppEnv) -> None:
+    """A delivery runs inside the sender's turn; clients follow task IDs, so a
+    borrowed one would stream the sender's turn into the recipient's view."""
+    env = app_env
+    sender, target = env.create_session(), env.create_session()
+    _reply(env, "answered")
+
+    async def deliver_and_collect() -> list[events.EventEnvelope]:
+        seen: list[events.EventEnvelope] = []
+        subscription = env.event_bus.subscribe(target)
+
+        async def collect() -> None:
+            async for envelope in subscription:
+                seen.append(envelope)
+                if isinstance(envelope.event, events.TaskFinishEvent):
+                    return
+
+        collector = asyncio.create_task(collect())
+        with event_publish_context(operation_id="sender-op", task_id="sender-task", causation_id="sender-cause"):
+            await env.runtime.peer_control.send(sender, target, "question")
+        async with asyncio.timeout(5):
+            await collector
+        return seen
+
+    recipient = _call(env, deliver_and_collect)
+    assert any(isinstance(item.event, events.TaskStartEvent) for item in recipient)
+    assert all(item.task_id != "sender-task" for item in recipient)
+    assert all(item.operation_id != "sender-op" and item.causation_id != "sender-cause" for item in recipient)
+
+
+def test_agent_messages_start_at_most_three_turns_between_user_inputs(app_env: AppEnv) -> None:
+    env = app_env
+    sender, target = env.create_session(), env.create_session()
+    actor = env.runtime.session_registry.get_session_actor(target)
+    assert actor is not None
+    for index in range(3):
+        _reply(env, f"reply {index}")
+        _call(env, env.runtime.peer_control.send, sender, target, f"ping {index}")
+        _wait(env, lambda index=index: env.fake_llm.call_count == index + 1 and actor.snapshot().is_idle)
+    _call(env, env.runtime.peer_control.send, sender, target, "ping 3")
+    _call(env, asyncio.sleep, 0.2)
+    assert env.fake_llm.call_count == 3
+    agent = actor.get_agent()
+    assert agent is not None and agent.follow_up_count() == 1
+
+    _reply(env, "user turn sees the queued ping")
+    assert env.client.post(f"/api/headless/sessions/{target}/send", json={"text": "what happened?"}).status_code == 200
+    _wait(env, lambda: env.fake_llm.call_count == 4 and actor.snapshot().is_idle)
+    assert agent.follow_up_count() == 0
+    bodies = [
+        item.peer_message.body
+        for item in _history(env, target)
+        if isinstance(item, message.UserMessage) and item.peer_message is not None
+    ]
+    assert bodies[-2:] == ["ping 3", "what happened?"]

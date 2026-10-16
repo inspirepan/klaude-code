@@ -500,12 +500,22 @@ class ShellTaskManager:
             reader.seek(offset)
             return reader.read(self._max_output_bytes)
 
-    async def wait_task(self, session_id: str, task_id: str, *, wait_ms: int = 10000) -> ShellTaskSnapshot:
+    async def wait_task(
+        self, session_id: str, task_id: str, *, wait_ms: int = 10000, activity: asyncio.Event | None = None
+    ) -> ShellTaskSnapshot:
+        """Wait for the task to end, `wait_ms` to pass, or `activity` (new input) to fire."""
         if wait_ms < 0:
             raise ValueError("wait_ms must be nonnegative")
         task = self._get(session_id, task_id)
-        with contextlib.suppress(TimeoutError):
-            await asyncio.wait_for(task.done.wait(), wait_ms / 1000)
+        waits = [asyncio.create_task(task.done.wait())]
+        if activity is not None:
+            waits.append(asyncio.create_task(activity.wait()))
+        try:
+            await asyncio.wait(waits, timeout=wait_ms / 1000, return_when=asyncio.FIRST_COMPLETED)
+        finally:
+            for waiter in waits:
+                waiter.cancel()
+            await asyncio.gather(*waits, return_exceptions=True)
         return self._snapshot(task)
 
     async def stop_task(self, session_id: str, task_id: str) -> ShellTaskSnapshot:

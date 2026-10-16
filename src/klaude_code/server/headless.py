@@ -17,9 +17,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 from klaude_code.app.runtime_facade import RuntimeFacade
-from klaude_code.control.event_bus import EventBus, EventSubscription
+from klaude_code.control.event_bus import EventBus, EventSubscription, detached_context, detached_event_context
 from klaude_code.log import DebugType, log_debug, log_info
 from klaude_code.protocol import events, message, op
+from klaude_code.protocol.background_task import ACTIVE_TASK_STATUSES
 from klaude_code.protocol.message import QueuedUserInput, UserInputPayload
 from klaude_code.protocol.peer import PeerMessage, PeerReceipt, validate_external_message_id
 from klaude_code.server.session_index import SessionSummary
@@ -155,6 +156,28 @@ class SessionActivityTracker:
         self._entry(session_id).failed = True
 
 
+PEER_TURNS_WITHOUT_USER_LIMIT = 3
+
+
+def _is_agent_peer_input(user_input: UserInputPayload) -> bool:
+    return (
+        user_input.source == "peer_message"
+        and user_input.peer_message is not None
+        and user_input.peer_message.sender_session_id is not None
+    )
+
+
+def _is_operator_input(event: events.UserMessageEvent) -> bool:
+    """Input from the user: typed, bash mode, or an operator `send` (a peer message no agent sent)."""
+    if event.source in (None, "user", "bash_mode"):
+        return True
+    return (
+        event.source == "peer_message"
+        and event.peer_message is not None
+        and event.peer_message.sender_session_id is None
+    )
+
+
 @dataclass
 class QueuedRun:
     session_id: str
@@ -195,6 +218,15 @@ class HeadlessRuntime:
         # The registry looks idle in that window; the drain must back off or
         # it would steal the slot and get the user's turn busy-rejected.
         self._turn_starting: dict[str, str] = {}
+        # Task deliveries already announced to their owner / already given a wake turn.
+        self._signalled_deliveries: set[str] = set()
+        self._woken_deliveries: set[str] = set()
+        # Owners the user interrupted: reports wait for the user's next message.
+        # Unlike the drain latches, attach does not lift this.
+        self._wake_paused: set[str] = set()
+        # Turns started only by other agents' messages since the last user input.
+        self._peer_turns: dict[str, int] = {}
+        self._peer_cap_noticed: set[str] = set()
 
     @property
     def max_running(self) -> int:
@@ -299,6 +331,20 @@ class HeadlessRuntime:
             self._turn_starting.pop(event.session_id, None)
         if isinstance(event, events.TaskFinishEvent) and not self.tracker.is_interrupted(event.session_id):
             self._schedule_follow_up_drain(event.session_id)
+            # A report that landed after the turn's last boundary still needs a turn.
+            if not events.is_cancelled_task_result(event.task_result):
+                self._schedule_task_result_wake(event.session_id)
+        if isinstance(event, events.InterruptEvent) and not event.resume_follow_ups:
+            self._wake_paused.add(event.session_id)
+        if isinstance(event, events.TaskStartEvent):
+            # Whatever admitted a new turn ended the interrupt episode.
+            self._wake_paused.discard(event.session_id)
+        if isinstance(event, events.UserMessageEvent) and _is_operator_input(event):
+            self._wake_paused.discard(event.session_id)
+            self._peer_turns.pop(event.session_id, None)
+            self._peer_cap_noticed.discard(event.session_id)
+        if isinstance(event, events.BackgroundTasksUpdatedEvent):
+            self._on_background_tasks_updated(event)
         if isinstance(event, events.TaskFinishEvent):
             self._schedule_tape_reset(event.session_id)
         # TUI Esc mid-queue: the interrupted turn ends without a
@@ -317,6 +363,99 @@ class HeadlessRuntime:
         # latches in _schedule_follow_up_drain keep error loops out.
         if isinstance(event, events.OperationFinishedEvent) and event.status in ("completed", "failed"):
             self._schedule_follow_up_drain(event.session_id)
+            # TaskFinish can precede the actor going idle; by now it is, so retry the wake.
+            self._schedule_task_result_wake(event.session_id)
+
+    def _on_background_tasks_updated(self, event: events.BackgroundTasksUpdatedEvent) -> None:
+        """React to owned tasks that just finished and still await delivery.
+
+        A finish is input for the owner: it ends any wait in a running turn
+        (whose next boundary injects the report) and wakes an awaiting owner.
+        """
+        owner = event.session_id
+        fresh = [
+            task.delivery_id
+            for task in event.tasks
+            if task.ref.owner_session_id == owner
+            and task.ref.kind == "agent"
+            and task.status not in ACTIVE_TASK_STATUSES
+            and not task.delivered
+            and not task.expected_stop
+            and not task.output_unavailable
+            and task.delivery_id not in self._signalled_deliveries
+        ]
+        if not fresh:
+            return
+        self._signalled_deliveries.update(fresh)
+        actor = self._runtime.session_registry.get_session_actor(owner)
+        agent = actor.get_agent() if actor is not None else None
+        if agent is not None:
+            agent.signal_task_result()
+        self._schedule_task_result_wake(owner)
+
+    def _schedule_task_result_wake(self, session_id: str) -> None:
+        task = asyncio.create_task(self._wake_for_task_results_logged(session_id), context=detached_context())
+        self._watch_tasks.add(task)
+        task.add_done_callback(self._watch_tasks.discard)
+
+    async def _wake_for_task_results_logged(self, session_id: str) -> None:
+        try:
+            await self._wake_for_task_results(session_id)
+        except Exception as exc:
+            log_info(
+                f"[headless] task-result wake aborted session={session_id[:8]}: {exc}",
+                debug_type=DebugType.EXECUTION,
+            )
+
+    async def _wake_for_task_results(self, session_id: str) -> None:
+        """Start a turn that delivers finished task reports to an awaiting owner.
+
+        Each delivery wakes at most once, so a report that cannot be injected
+        never loops. A user stop, failure, or Esc pauses the owner: reports
+        then wait for the user's next message.
+        """
+        lock = self._drain_locks.setdefault(session_id, asyncio.Lock())
+        async with lock:
+            actor = self._runtime.session_registry.get_session_actor(session_id)
+            agent = actor.get_agent() if actor is not None else None
+            if actor is None or agent is None or not actor.snapshot().is_idle:
+                # A running turn picks the reports up at its next boundary.
+                return
+            if (
+                session_id in self._stopped_sessions
+                or session_id in self._wake_paused
+                or self.tracker.is_failed(session_id)
+                or self.tracker.is_interrupted(session_id)
+                # A turn that is starting, launching, or queued for a slot delivers the reports itself.
+                or self.turn_start_pending(session_id)
+                or session_id in self._queued_by_id
+                or session_id in self._running
+                # Queued follow-ups the drain will run carry the reports too; capped peer ones will not.
+                or (agent.peek_next_follow_up() is not None and not self._peer_turn_capped(agent))
+            ):
+                return
+            manager = self._runtime.task_manager
+            pending = await manager.pending_results(session_id, agent.session.work_dir)
+            # Child agents wake their owner; a finished shell waits for the next turn as before.
+            unwoken = [
+                task.delivery_id
+                for task in pending
+                if task.ref.kind == "agent" and task.delivery_id not in self._woken_deliveries
+            ]
+            if not unwoken:
+                return
+            self._woken_deliveries.update(unwoken)
+            operation = op.ContinueAgentOperation(session_id=session_id)
+            self.mark_turn_starting(session_id, operation.id)
+            log_info(
+                f"[headless] waking {session_id[:8]} for {len(unwoken)} task result(s)",
+                debug_type=DebugType.EXECUTION,
+            )
+            try:
+                await self._runtime.submit(operation)
+            except BaseException:
+                self.clear_turn_starting(session_id, operation.id)
+                raise
 
     def nudge_follow_up_drain(self, session_id: str) -> None:
         """Kick the drain for a session that may hold a persisted queue.
@@ -362,7 +501,8 @@ class HeadlessRuntime:
                 )
                 self._pump()
             return
-        task = asyncio.create_task(self._drain_follow_up_logged(session_id))
+        # The drain runs another session's turn; never under the trigger's event IDs.
+        task = asyncio.create_task(self._drain_follow_up_logged(session_id), context=detached_context())
         self._watch_tasks.add(task)
         task.add_done_callback(self._watch_tasks.discard)
 
@@ -401,14 +541,14 @@ class HeadlessRuntime:
             content=f"Queued messages are paused: {reason}. They resume on your next message.",
             is_error=True,
         )
-        task = asyncio.create_task(self._runtime.emit_event(notice))
+        task = asyncio.create_task(self._runtime.emit_event(notice), context=detached_context())
         self._watch_tasks.add(task)
         task.add_done_callback(self._watch_tasks.discard)
 
     def _schedule_tape_reset(self, session_id: str) -> None:
         if self._tapes is None:
             return
-        task = asyncio.create_task(self._reset_tape_after_flush(session_id))
+        task = asyncio.create_task(self._reset_tape_after_flush(session_id), context=detached_context())
         self._watch_tasks.add(task)
         task.add_done_callback(self._watch_tasks.discard)
 
@@ -505,6 +645,8 @@ class HeadlessRuntime:
         queued: QueuedUserInput | None = agent.peek_next_follow_up_record()
         if queued is None:
             return False
+        if not self._admit_peer_turn(agent):
+            return False
         if self._should_compact_before_run(agent):
             compact = op.CompactSessionOperation(session_id=session_id, reason="threshold", will_retry=False)
             await self._runtime.submit(compact)
@@ -522,6 +664,44 @@ class HeadlessRuntime:
             if completed != queued.id:
                 return False
             agent.session.headless_completed_turn_id = completed
+        return True
+
+    def _peer_turn_capped(self, agent: Any) -> bool:
+        """Whether the queue holds only agent messages and their turn budget is spent."""
+        records: tuple[QueuedUserInput, ...] = agent.follow_up_records()
+        return (
+            bool(records)
+            and all(_is_agent_peer_input(record.input) for record in records)
+            and self._peer_turns.get(agent.session.id, 0) >= PEER_TURNS_WITHOUT_USER_LIMIT
+        )
+
+    def _admit_peer_turn(self, agent: Any) -> bool:
+        """Cap turns that only other agents' messages start, between user inputs.
+
+        Two agents replying to each other would otherwise keep both busy with
+        no one watching. Over the cap the messages stay queued and run with the
+        user's next message.
+        """
+        session_id = agent.session.id
+        records: tuple[QueuedUserInput, ...] = agent.follow_up_records()
+        if not records or not all(_is_agent_peer_input(record.input) for record in records):
+            return True
+        turns = self._peer_turns.get(session_id, 0)
+        if self._peer_turn_capped(agent):
+            if session_id not in self._peer_cap_noticed:
+                self._peer_cap_noticed.add(session_id)
+                notice = events.NoticeEvent(
+                    session_id=session_id,
+                    content=(
+                        f"Agent messages paused after {PEER_TURNS_WITHOUT_USER_LIMIT} turns without your input. "
+                        "They run with your next message."
+                    ),
+                )
+                task = asyncio.create_task(self._runtime.emit_event(notice), context=detached_context())
+                self._watch_tasks.add(task)
+                task.add_done_callback(self._watch_tasks.discard)
+            return False
+        self._peer_turns[session_id] = turns + 1
         return True
 
     @staticmethod
@@ -612,6 +792,13 @@ class HeadlessRuntime:
         self, peer: PeerMessage, work_dir: Path, *, expected_operation_id: str | None = None
     ) -> PeerReceipt:
         validate_external_message_id(peer.id)
+        # Delivery runs inside the sender's turn; the recipient's events must not carry its IDs.
+        with detached_event_context():
+            return await self._deliver_peer_locked(peer, work_dir, expected_operation_id=expected_operation_id)
+
+    async def _deliver_peer_locked(
+        self, peer: PeerMessage, work_dir: Path, *, expected_operation_id: str | None
+    ) -> PeerReceipt:
         lock = self._scheduling_locks.setdefault(peer.recipient, asyncio.Lock())
         async with lock:
             handoff = self._launch_handoffs.get(peer.recipient)
@@ -637,7 +824,8 @@ class HeadlessRuntime:
                     if expected_operation_id is None and any(
                         item.peer_message == peer for item in agent.follow_up_snapshot()
                     ):
-                        self.mark_session_active(peer.recipient)
+                        if peer.sender_session_id is None:
+                            self.mark_session_active(peer.recipient)
                         self._schedule_follow_up_drain(peer.recipient)
                     return PeerReceipt(message_id=peer.id, target=peer.recipient)
 
@@ -676,7 +864,9 @@ class HeadlessRuntime:
                 ):
                     raise ValueError("Selected child operation is no longer running; message not sent")
             agent.follow_up(UserInputPayload(text=peer.input_text(), source="peer_message", peer_message=peer))
-            if expected_operation_id is None:
+            if expected_operation_id is None and peer.sender_session_id is None:
+                # An operator `send` is the documented retry; another agent's message
+                # never lifts the user's stop or a failure, so its queue waits for the user.
                 self.mark_session_active(peer.recipient)
             recent[key] = [*entries, (now, peer.body)]
             await asyncio.shield(agent.session.wait_for_flush())
@@ -976,7 +1166,7 @@ class HeadlessRuntime:
             handoff = asyncio.get_running_loop().create_future()
             handoff.add_done_callback(self._consume_handoff_exception)
             self._launch_handoffs[entry.session_id] = handoff
-            launch_task = asyncio.create_task(self._launch_logged(entry))
+            launch_task = asyncio.create_task(self._launch_logged(entry), context=detached_context())
             self._watch_tasks.add(launch_task)
             launch_task.add_done_callback(self._watch_tasks.discard)
 

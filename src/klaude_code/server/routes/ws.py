@@ -580,17 +580,11 @@ async def _forward_events(
     state = get_server_state_from_ws(websocket)
     if subscription is None:
         subscription = state.subscribe_events(None)
-    tracked_task_ids: set[str] = set()
     tracked_child_session_ids = set(descendant_session_ids or ())
 
-    snapshot = state.runtime.session_registry.snapshot(session_id)
-    if snapshot is not None and snapshot.active_root_task is not None:
-        tracked_task_ids.add(snapshot.active_root_task.task_id)
-
-    # When there is no active root task tracked (e.g. viewing a TUI-owned session
-    # or reconnecting after a server restart), scan the persisted history for
-    # sub-agent sessions so their real-time events are forwarded to this WebSocket.
-    if not tracked_task_ids and descendant_session_ids is None:
+    # Events are forwarded by session ownership only. Children spawned before
+    # this attach are found in persisted history; later ones by their TaskStart.
+    if descendant_session_ids is None:
         work_dir = resolve_session_work_dir_fast(
             state.session_live.index if state.session_live is not None else None, state.home_dir, session_id
         )
@@ -620,8 +614,7 @@ async def _forward_events(
                 ):
                     continue
                 if envelope.session_id == session_id or envelope.session_id in tracked_child_session_ids:
-                    if envelope.task_id is not None:
-                        tracked_task_ids.add(envelope.task_id)
+                    pass
                 elif isinstance(envelope.event, events.TaskStartEvent) and (
                     envelope.event.parent_session_id == session_id
                     or envelope.event.parent_session_id in tracked_child_session_ids
@@ -629,9 +622,9 @@ async def _forward_events(
                     # A sub-agent spawned under this session runs in its own
                     # actor with its own task id; follow its stream live.
                     tracked_child_session_ids.add(envelope.session_id)
-                    if envelope.task_id is not None:
-                        tracked_task_ids.add(envelope.task_id)
-                elif envelope.task_id not in tracked_task_ids:
+                else:
+                    # Only this session and its descendants: a task ID is not
+                    # ownership, since a peer's turn can be stamped with ours.
                     continue
 
                 # Attach replay dedup: events already delivered via the tape

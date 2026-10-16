@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from collections.abc import AsyncIterator, Awaitable, Callable
-from contextvars import ContextVar
+from contextvars import Context, ContextVar, copy_context
 from dataclasses import dataclass
 from uuid import uuid4
 
@@ -44,6 +44,40 @@ def event_publish_context(
         _CURRENT_CAUSATION_ID.reset(causation_token)
         _CURRENT_TASK_ID.reset(task_token)
         _CURRENT_OPERATION_ID.reset(operation_token)
+
+
+def _clear_event_attribution() -> None:
+    _CURRENT_OPERATION_ID.set(None)
+    _CURRENT_TASK_ID.set(None)
+    _CURRENT_CAUSATION_ID.set(None)
+
+
+@contextlib.contextmanager
+def detached_event_context():
+    """Publish without inheriting the caller's operation/task attribution.
+
+    Work done for another session (a peer delivery runs inside the sender's
+    turn) must not be stamped with the sender's IDs: clients follow task IDs,
+    so a borrowed one streams the sender's turn into the recipient's view.
+    """
+    tokens = (
+        _CURRENT_OPERATION_ID.set(None),
+        _CURRENT_TASK_ID.set(None),
+        _CURRENT_CAUSATION_ID.set(None),
+    )
+    try:
+        yield
+    finally:
+        _CURRENT_CAUSATION_ID.reset(tokens[2])
+        _CURRENT_TASK_ID.reset(tokens[1])
+        _CURRENT_OPERATION_ID.reset(tokens[0])
+
+
+def detached_context() -> Context:
+    """A copy of the current context without event attribution, for `create_task(context=...)`."""
+    context = copy_context()
+    context.run(_clear_event_attribution)
+    return context
 
 
 @dataclass(frozen=True)

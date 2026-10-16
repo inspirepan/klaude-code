@@ -113,10 +113,18 @@ class Agent:
         self.pending_input_activity.set()
         return self.follow_up_count()
 
+    def signal_task_result(self) -> None:
+        """A finished background task is pending input: end any wait now."""
+        self.pending_input_activity.set()
+
     async def inject_pending_inputs(self) -> AsyncGenerator[events.Event]:
         """Persist a FIFO snapshot before acknowledging its durable queue copy."""
         for queued in self._follow_up_queue:
             validate_external_message_id(queued.id)
+        if not self._follow_up_queue and not self._admitting_inputs:
+            # Lower before injecting: a task that finishes during the injection
+            # below raises it again, so a later wait still ends at once.
+            self.pending_input_activity.clear()
         async for event in self._inject_task_results():
             yield event
         pending = tuple(self._follow_up_queue)

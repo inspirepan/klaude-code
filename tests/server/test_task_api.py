@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from klaude_code.protocol import llm_param, message
+from klaude_code.protocol import llm_param, message, op
 from klaude_code.protocol.background_task import TaskReference
 from klaude_code.protocol.sub_agent import SubAgentResult
 
@@ -31,6 +31,8 @@ def test_task_api_owner_pagination_wait_and_stop_do_not_ack_model_delivery(app_e
         return SubAgentResult(task_result="report body", session_id="child")
 
     task = _call(env, env.runtime.task_manager.start_agent, owner, env.work_dir, "test task", run)
+    # A paused owner is not woken to deliver the report, so only these queries could ack it.
+    _call(env, env.runtime.submit_and_wait, op.InterruptOperation(session_id=owner))
     url = f"/api/headless/sessions/{owner}/tasks"
     response = env.client.post(url, json={"action": "list"})
     assert response.status_code == 200

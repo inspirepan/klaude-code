@@ -107,7 +107,12 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   live tail (thinking preview / bash output), then compact child groups (type,
   description, model, tool count, up to the latest tool rows; attention first,
   under the height budget), then one ` ◈  N agents · N shells … /tasks …` footer
-  (`MainTaskStatus`) shown only while background tasks are active.
+  (`MainTaskStatus`) shown only while background tasks are active. With no main
+  turn but agents running, the footer leads with `Awaiting` (a finished agent
+  starts the next turn) or `Paused` (the user interrupted; reports wait for them).
+- The primary session changes only on `WelcomeEvent`. A TaskStart or user
+  message from another top-level session (a peer's turn) is dropped, never
+  promoted to the main transcript.
   `PromptBottomBar` splits status lines at the first row without the plain
   spinner so the live tail sits under the main row.
 - Each background fact reaches the compact transcript once. Agent launches are

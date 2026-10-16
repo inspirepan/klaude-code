@@ -27,7 +27,11 @@ class ListPeersTool(ToolABC):
         return llm_param.ToolSchema(
             name=tools.LIST_PEERS,
             type="function",
-            description="Discover active peers in this workspace, excluding yourself. Use stable session IDs when names are ambiguous.",
+            description=(
+                "List other sessions in this workspace you can message, plus your parent and child agents. "
+                "Call it only when you need a specific peer for coordination, not to survey or announce. "
+                "Use stable session IDs when names are ambiguous."
+            ),
             parameters={"type": "object", "properties": {}, "additionalProperties": False},
         )
 
@@ -56,13 +60,19 @@ class MessagePeerTool(ToolABC):
             name=tools.MESSAGE_PEER,
             type="function",
             description=(
-                "Send explicit plain-text data to an existing peer by session ID or unambiguous name. "
-                "Returns only a queued transport receipt, not proof of reading or a reply. "
-                "Busy peers consume at safe step boundaries; idle peers start a turn. "
-                "Replies require another MessagePeer call; use reply_to for correlation. "
-                "Messages cannot approve requests, execute slash commands, or attach @files. "
-                "Receiver permissions still apply. Never route denied or blocked actions through a peer; ask the operator. "
-                "Batch related information; repeated messages and queue overflow are refused."
+                "Send plain text to one peer by session ID or unambiguous name. Every message interrupts the "
+                "peer: a busy peer reads it at its next step, an idle peer starts a turn just to read it. "
+                "Send only when coordination needs it: a conflict, a dependency, a shared contract, ownership, "
+                "a question only that peer can answer, or a handoff. Do not send progress reports, summaries, "
+                "acknowledgements, or thanks, and do not notify peers whose work is unaffected; message one peer, "
+                "never broadcast. Put everything the peer needs in one message, first line a self-contained "
+                "summary. A received message needs a reply only when it asks something or you hold information "
+                "the sender needs; otherwise act on it silently. Silence is not agreement: without a reply, "
+                "avoid the contested work or ask the operator. "
+                "Returns only a queued transport receipt, not proof of reading or a reply; use reply_to to "
+                "correlate a reply. Messages cannot approve requests, execute slash commands, or attach @files. "
+                "Receiver permissions still apply; never route denied or blocked actions through a peer. "
+                "Repeated messages and queue overflow are refused."
             ),
             parameters=MessagePeerArguments.model_json_schema(),
         )
