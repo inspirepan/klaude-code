@@ -24,6 +24,9 @@ MARK_WRITE = "+"
 MARK_WEB_FETCH = "\u2192"
 MARK_WEB_SEARCH = "\u2731"
 MARK_QUESTION = "\u25c9"
+# Input the system fills back in (a background result, a peer message), as opposed
+# to a call the agent made: `$ Shell` is a call, `› Shell` is its later report.
+MARK_CALLBACK = "\u203a"
 
 BASH_TOOL_CALL_DIVIDER_THRESHOLD = 10
 BASH_TOOL_CALL_DIVIDER_WIDTH = 12

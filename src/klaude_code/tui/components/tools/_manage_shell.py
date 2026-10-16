@@ -2,6 +2,7 @@ import json
 from typing import cast
 
 from pydantic import TypeAdapter
+from rich.cells import cell_len, set_cell_size
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.measure import Measurement
 from rich.text import Text
@@ -13,6 +14,7 @@ from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import (
     FULL_TOOL_RESULT_MAX_LINES,
     MARK_BASH,
+    MARK_CALLBACK,
     MIN_INDENTED_CONTENT_WIDTH,
     TOOL_RESULT_INDENT,
     TOOL_SUBJECT_INDENT,
@@ -58,13 +60,14 @@ def render_manage_shell_tool_call(arguments: str, *, shell_task: ShellTaskSnapsh
 
 
 class ManageShellRow:
-    def __init__(self, subject: RenderableType) -> None:
+    def __init__(self, subject: RenderableType, *, mark: str = MARK_BASH) -> None:
         self.subject = subject
+        self.mark = mark
 
     def _renderable(self, width: int) -> RenderableType:
         narrow = width < TOOL_SUBJECT_INDENT + MIN_INDENTED_CONTENT_WIDTH
         row = render_tool_call_tree(
-            mark=MARK_BASH, tool_name="Shell", details=None if narrow else self.subject, overflow="fold"
+            mark=self.mark, tool_name="Shell", details=None if narrow else self.subject, overflow="fold"
         )
         return Group(row, AdaptiveIndent(self.subject, TOOL_RESULT_INDENT)) if narrow else row
 
@@ -73,6 +76,44 @@ class ManageShellRow:
 
     def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
         return Measurement.get(console, options, self._renderable(options.max_width))
+
+
+_CALLBACK_SUBJECT_MAX_LINES = 2
+
+
+class _ClippedSubject:
+    """`what` then `status` on at most a few lines: a long command is cut, the status never is."""
+
+    def __init__(self, what: Text, status: Text, max_lines: int = _CALLBACK_SUBJECT_MAX_LINES) -> None:
+        self.what = what
+        self.status = status
+        self.max_lines = max_lines
+
+    def _line(self, width: int) -> Text:
+        what = self.what.copy()
+        # Word wrapping wastes some of each row, so leave slack beyond the status.
+        budget = max(8, width * self.max_lines - cell_len(self.status.plain) - width // 4)
+        if cell_len(what.plain) > budget:
+            what = Text(set_cell_size(what.plain, budget - 1) + "…", style=what.style)
+        line = Text(overflow="fold")
+        line.append_text(what)
+        line.append_text(self.status)
+        return line
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        yield from console.render(self._line(options.max_width), options)
+
+    def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
+        return Measurement.get(console, options, self._line(options.max_width))
+
+
+def render_shell_callback(task: ShellTaskSnapshot) -> RenderableType:
+    """A finished background shell reported back by the system: `› Shell  <what it did>  <status>`."""
+    description = one_line(task.description)
+    what = Text(description or one_line(task.command), style=ThemeKey.BASH_TOOL_DESCRIPTION)
+    status = Text(" · ", style=_task_status_style(task))
+    status.append_text(_render_task(task, show_identity=False))
+    return ManageShellRow(_ClippedSubject(what, status), mark=MARK_CALLBACK)
 
 
 def extract_shell_task_ui_extra(ui_extra: ToolResultUIExtra | None, result: str) -> ShellTaskUIExtra | None:
@@ -205,13 +246,13 @@ def render_shell_completion(
     detail: Detail = Detail.COMPACT,
 ) -> RenderableType:
     if detail.is_compact and tasks:
-        # One `$ Shell` row per finished task, the same shape as its call line.
+        # One `› Shell` row per finished task: the call's shape, marked as a report.
         selected, more = _select_tasks(tasks, _COMPACT_MAX_LINES)
-        rows: list[RenderableType] = [ManageShellRow(_render_task(task)) for task in selected]
+        rows: list[RenderableType] = [render_shell_callback(task) for task in selected]
         if more is not None:
             rows.append(AdaptiveIndent(more, TOOL_SUBJECT_INDENT))
         return Group(*rows)
-    header = ManageShellRow(Text("Background results", style=ThemeKey.METADATA_DIM))
+    header = ManageShellRow(Text("Background results", style=ThemeKey.METADATA_DIM), mark=MARK_CALLBACK)
     if not tasks:
         result: RenderableType = Text("Task details unavailable.", style=ThemeKey.METADATA_DIM)
     else:

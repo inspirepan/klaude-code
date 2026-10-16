@@ -92,6 +92,10 @@ class TUIDisplay(DisplayABC):
             self._detail.toggle()
             await self._render_events_to_scrollback(apply_retractions(self._tape.snapshot()), clear_screen=True)
             return
+        if isinstance(event, events.ToggleDiffDetailEvent):
+            self._detail.toggle_diffs()
+            await self._render_events_to_scrollback(apply_retractions(self._tape.snapshot()), clear_screen=True)
+            return
         if isinstance(event, events.RefreshDisplayEvent):
             await self._render_events_to_scrollback(apply_retractions(self._tape.snapshot()), clear_screen=True)
             return

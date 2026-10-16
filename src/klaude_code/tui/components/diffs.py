@@ -6,49 +6,72 @@ from rich.text import Text
 from klaude_code.const import DIFF_MAX_RENDER_WIDTH, DIFF_PREFIX_WIDTH, TAB_EXPAND_WIDTH
 from klaude_code.protocol.models import DiffFileDiff, DiffLine, DiffUIExtra
 from klaude_code.tui.components.rich.theme import ThemeKey
-from klaude_code.tui.transcript_detail import Detail
 
-_COMPACT_FILE_LIFECYCLE_PREVIEW_LINES = 5
+# Folded diffs (until Ctrl+T) show a small change whole and preview a large one.
+# Prose reads in bigger pieces than code, so Markdown gets a larger budget.
+_FOLD_FULL_MAX_CHANGED = 10
+_FOLD_PREVIEW_LINES = 5
+_FOLD_DOC_FULL_MAX_CHANGED = 30
+FOLD_DOC_PREVIEW_LINES = 15
+_DOC_SUFFIXES = (".md", ".markdown", ".mdx")
+EXPAND_DIFFS_HINT = "Ctrl+T"
+
+
+def is_doc_path(path: str) -> bool:
+    return path.lower().endswith(_DOC_SUFFIXES)
+
+
+def fold_limit(file_diff: DiffFileDiff) -> int | None:
+    """Lines a folded diff shows for this file, or None to show it whole.
+
+    A new non-doc file shows only its header: rewritten or generated code is
+    rarely read line by line, while a few edited lines usually are.
+    """
+    doc = is_doc_path(file_diff.file_path)
+    if file_diff.change_type == "delete":
+        return 0
+    if file_diff.change_type == "add":
+        return FOLD_DOC_PREVIEW_LINES if doc else 0
+    changed = file_diff.stats_add + file_diff.stats_remove
+    if changed <= (_FOLD_DOC_FULL_MAX_CHANGED if doc else _FOLD_FULL_MAX_CHANGED):
+        return None
+    return FOLD_DOC_PREVIEW_LINES if doc else _FOLD_PREVIEW_LINES
 
 
 def render_structured_diff(
     ui_extra: DiffUIExtra,
     show_file_name: bool = False,
     *,
-    detail: Detail = Detail.FULL,
+    fold: bool = False,
 ) -> RenderableType:
     files = ui_extra.files
     if not files:
         return Text("")
 
-    return _StructuredDiff(files, show_file_name=show_file_name, detail=detail)
+    return _StructuredDiff(files, show_file_name=show_file_name, fold=fold)
 
 
 class _StructuredDiff:
-    def __init__(self, files: list[DiffFileDiff], *, show_file_name: bool = False, detail: Detail = Detail.FULL):
+    def __init__(
+        self,
+        files: list[DiffFileDiff],
+        *,
+        show_file_name: bool = False,
+        fold: bool = False,
+    ):
         self.files = files
         self.show_headers = show_file_name or len(files) > 1
-        self.detail = detail
+        self.fold = fold
         self.prefix_width = _prefix_width(files)
 
     def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
         max_width = min(DIFF_MAX_RENDER_WIDTH, options.max_width)
-        grid = _render_structured_diff_grid(
-            self.files,
-            self.prefix_width,
-            self.show_headers,
-            self.detail,
-        )
+        grid = _render_structured_diff_grid(self.files, self.prefix_width, self.show_headers, fold=self.fold)
         return console.measure(grid, options=options.update_width(max_width))
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
         max_width = min(DIFF_MAX_RENDER_WIDTH, options.max_width)
-        grid = _render_structured_diff_grid(
-            self.files,
-            self.prefix_width,
-            self.show_headers,
-            self.detail,
-        )
+        grid = _render_structured_diff_grid(self.files, self.prefix_width, self.show_headers, fold=self.fold)
         grid.width = console.measure(grid, options=options.update_width(max_width)).maximum
         yield grid
 
@@ -57,7 +80,8 @@ def _render_structured_diff_grid(
     files: list[DiffFileDiff],
     prefix_width: int,
     show_headers: bool,
-    detail: Detail,
+    *,
+    fold: bool,
 ) -> Table:
     grid = _create_diff_grid(prefix_width)
 
@@ -65,18 +89,15 @@ def _render_structured_diff_grid(
         if idx > 0:
             grid.add_row("", "")
 
-        if show_headers or file_diff.change_type in ("add", "delete"):
+        limit = fold_limit(file_diff) if fold else None
+        if show_headers or file_diff.change_type in ("add", "delete") or limit is not None:
             grid.add_row(*_render_file_header(file_diff, prefix_width))
 
         lines = file_diff.lines
         hidden_lines = 0
-        if (
-            detail.is_compact
-            and file_diff.change_type in ("add", "delete")
-            and len(lines) > _COMPACT_FILE_LIFECYCLE_PREVIEW_LINES
-        ):
-            hidden_lines = len(lines) - _COMPACT_FILE_LIFECYCLE_PREVIEW_LINES
-            lines = lines[:_COMPACT_FILE_LIFECYCLE_PREVIEW_LINES]
+        if limit is not None and len(lines) > limit:
+            hidden_lines = len(lines) - limit
+            lines = lines[:limit]
 
         for line in lines:
             prefix = _make_structured_prefix(line, prefix_width)
@@ -85,10 +106,9 @@ def _render_structured_diff_grid(
             grid.add_row(Text(prefix, row_style or ThemeKey.TOOL_RESULT), text, style=row_style)
 
         if hidden_lines:
-            action = "added" if file_diff.change_type == "add" else "removed"
             grid.add_row(
                 Text(f"{'…':>{prefix_width}}  ", style=ThemeKey.TOOL_RESULT_TRUNCATED),
-                Text(f"({hidden_lines} {action} lines hidden)", style=ThemeKey.TOOL_RESULT_TRUNCATED),
+                Text(f"{hidden_lines} more lines · {EXPAND_DIFFS_HINT}", style=ThemeKey.TOOL_RESULT_TRUNCATED),
             )
 
     return grid

@@ -139,10 +139,10 @@ def render_compact_file_change(
     *,
     sub_agent_state: SubAgentState,
     action: Text,
-    change: RenderableType,
+    change: RenderableType | None,
     color: Style,
 ) -> RenderableType:
-    """Render a compact sub-agent identity header followed by a file diff."""
+    """Render a compact sub-agent identity header, followed by its file diff when shown."""
 
     title = format_pascal_case(sub_agent_state.sub_agent_type)
     header = Text(no_wrap=True, overflow="ellipsis")
@@ -152,7 +152,7 @@ def render_compact_file_change(
         header.append(sub_agent_state.sub_agent_desc, style=Style(color=color.color, italic=True))
     header.append(" · ", style=ThemeKey.METADATA_DIM)
     header.append_text(action)
-    return Group(header, change)
+    return header if change is None else Group(header, change)
 
 
 def render_sub_agent_call(

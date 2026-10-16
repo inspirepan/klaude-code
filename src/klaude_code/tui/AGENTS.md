@@ -110,6 +110,15 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   (`MainTaskStatus`) shown only while background tasks are active. With no main
   turn but agents running, the footer leads with `Awaiting` (a finished agent
   starts the next turn) or `Paused` (the user interrupted; reports wait for them).
+- Compact file diffs fold by size (`diffs.fold_limit`): up to 10 changed lines
+  (30 for Markdown) show whole, larger edits preview 5 lines (15), a new or
+  deleted code file shows only its header, and a sub-agent's change is its
+  action line alone. Ctrl+T (`ToggleDiffDetailEvent`, `TranscriptDetail.diffs_expanded`)
+  expands every diff without leaving compact mode; expanded mode never folds.
+- A call the agent made keeps its tool mark (`$ Shell`, `◈ Tasks`); input the
+  system fills back in later uses `MARK_CALLBACK` (`› Shell`, `› Task`, `› Message`).
+  Compact shell/task reports join the open tool block: no blank line before or
+  after them (`_CALLBACK_SOURCES`), and a report subject is clipped to two lines.
 - The primary session changes only on `WelcomeEvent`. A TaskStart or user
   message from another top-level session (a peer's turn) is dropped, never
   promoted to the main transcript.

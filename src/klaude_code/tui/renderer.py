@@ -255,6 +255,10 @@ class _SessionStatus:
     sub_agent_state: SubAgentState | None = None
 
 
+# Inputs the system fills back in after a background call; they render as report rows.
+_CALLBACK_SOURCES = frozenset({"shell_completion", "task_completion"})
+
+
 class TUICommandRenderer:
     """Execute RenderCommand sequences and render them to the terminal.
 
@@ -594,6 +598,9 @@ class TUICommandRenderer:
             ):
                 return
             case RenderDeveloperMessage():
+                return
+            case RenderUserMessage(event=event) if self._compact and event.source in _CALLBACK_SOURCES:
+                # A background report is not a new turn: it joins the tool block it answers.
                 return
             case StartThinkingStream() | AppendThinking() | EndThinkingStream() if self._compact:
                 # Compact mode previews reasoning in the prompt's live area;
@@ -1091,8 +1098,9 @@ class TUICommandRenderer:
             session = self._sessions.get(e.session_id)
             if action is None or session is None or session.sub_agent_state is None:
                 return False
-            change = c_tools.render_compact_file_change(e, code_theme=self.themes.code_theme)
-            if change is None:
+            fold = self._detail.folds_diffs
+            change = c_tools.render_compact_file_change(e, code_theme=self.themes.code_theme, fold=fold)
+            if change is None and not fold:
                 return False
             self.print(
                 c_sub_agent.render_compact_file_change(
@@ -1158,6 +1166,7 @@ class TUICommandRenderer:
             show_shell_task_identity=show_shell_task_identity,
             task_action=task_action,
             task_directory=self._task_directory,
+            fold_diffs=self._detail.folds_diffs,
         )
         if renderable is not None:
             self.print(renderable)
@@ -1450,28 +1459,35 @@ class TUICommandRenderer:
             )
         shells = [render_task_outcome(task) for task in finished if task.ref.kind == "shell"]
         if shells:
+            # Report rows join the open tool block, like the calls they answer.
             self.print(Group(*shells))
-            self.print()
         if summaries:
+            self._flush_open_blocks(scoped=False)
+            if shells:
+                self.print()
             self._render_sub_agent_summaries(tuple(summaries))
-        return bool(shells or summaries)
+            return False
+        return bool(shells)
 
-    def display_user_message(self, event: events.UserMessageEvent) -> None:
+    def display_user_message(self, event: events.UserMessageEvent) -> bool:
+        """Print a user turn or a sourced input; True when it continues the open tool block."""
         if event.source == "task_completion" and self._compact:
             response = parse_task_response(event.content)
             if response is not None:
-                self.display_task_outcomes(response)
-                return
+                return self.display_task_outcomes(response)
         if event.source in {"peer_message", "task_completion"}:
             sourced = render_sourced_message(event, detail=self._detail.current, directory=self._task_directory)
             if sourced is None:
-                return
+                return False
             self.print(sourced)
         elif event.source == "shell_completion":
             self.print(render_shell_completion(event.shell_tasks, detail=self._detail.current))
+            if self._compact:
+                return True
         else:
             self.print(c_user_input.render_user_input(event.content))
         self.print()
+        return False
 
     def display_time_marker(self, label: str) -> None:
         self.print(Text(f" ⏱ {label} ", style=ThemeKey.TIME_MARKER))
@@ -1882,7 +1898,8 @@ class TUICommandRenderer:
                 case RenderWelcomeContext(event=event):
                     self.display_welcome_context(event)
                 case RenderUserMessage(event=event):
-                    self.display_user_message(event)
+                    if self.display_user_message(event):
+                        self._open_continuous_block(event.session_id)
                 case RenderTimeMarker(label=label):
                     self.display_time_marker(label)
                 case RenderTaskStart(event=event):

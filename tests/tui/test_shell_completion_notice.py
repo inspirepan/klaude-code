@@ -64,8 +64,8 @@ def _assert_notice(text: str) -> None:
     assert "RAW OUTPUT BLOB" not in text
     assert '"output"' not in text
     assert "output_path" not in text
-    # Compact mode prints one `$ Shell` row per task; full mode keeps a headed block.
-    start = text.index("Background results") if "Background results" in text else text.index("$ Shell")
+    # Compact mode prints one `› Shell` row per task; full mode keeps a headed block.
+    start = text.index("Background results") if "Background results" in text else text.index("› Shell")
     notice = text[start:].split("\n\n", 1)[0]
     assert "✓" not in notice
 
@@ -121,7 +121,7 @@ def test_unsuccessful_completion_keeps_status_exit_reason_and_never_claims_succe
         segment
         for line in console.render_lines(render_shell_completion([task]))
         for segment in line
-        if f"· {status}" in segment.text
+        if segment.text.strip() == status
     ]
     assert status_segments
     assert all(segment.style == console.get_style(style) for segment in status_segments)
@@ -135,7 +135,8 @@ def test_completion_without_metadata_has_short_safe_fallback(
     rendered = _render(_event(tasks), detail=detail)
     _assert_notice(rendered)
     assert "Task details unavailable." in rendered
-    assert len(rendered.splitlines()) == 3
+    # Compact reports join the open tool block, so no blank line closes them.
+    assert len(rendered.splitlines()) == (2 if detail.is_compact else 3)
 
 
 @pytest.mark.parametrize("source", [None, "user", "bash_mode"])
@@ -159,7 +160,7 @@ def test_batch_is_bounded_in_compact_mode_and_keeps_late_failure_visible() -> No
     assert "Important failure · failed · exit 9" in compact
     assert compact.count("Run suite") == 4
     assert "more 11 tasks" in compact
-    assert len(compact.splitlines()) == 7
+    assert len(compact.splitlines()) == 6
     full = _render(_event(tasks), detail=Detail.FULL)
     assert full.count("Run suite") == 9
     assert "more 6 tasks" in full
@@ -174,7 +175,9 @@ def test_narrow_unicode_and_markup_are_literal_and_fit_terminal(width: int, deta
     lines = console.render_lines(render_shell_completion([task], detail=detail), pad=False)
     assert all(Segment.get_line_length(line) <= width for line in lines)
     text = "".join(segment.text.strip() for line in lines for segment in line)
-    assert "[red]测试[/red]" in text
+    # Compact report rows clip a long subject to two lines; the markup stays literal either way.
+    clipped = detail.is_compact and width < 120
+    assert ("[red]测" if clipped else "[red]测试[/red]") in text
     assert "[bold]原因[/bold]" in text
     assert ("12345678" in text) == (detail == Detail.FULL)
     if width == 120:
@@ -221,7 +224,7 @@ def test_display_tape_toggle_refresh_and_following_stream_preserve_notice_and_sp
             _assert_notice(live)
             lines = [line.rstrip() for line in live.splitlines()]
             before = next(idx for idx, line in enumerate(lines) if "Before notification." in line)
-            header = next(idx for idx, line in enumerate(lines) if "$ Shell" in line)
+            header = next(idx for idx, line in enumerate(lines) if "› Shell" in line)
             after = next(idx for idx, line in enumerate(lines) if "After notification." in line)
             assert lines[before + 1 : header] == [""]
             assert lines[after - 1] == ""

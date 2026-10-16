@@ -490,6 +490,15 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         with contextlib.suppress(Exception):
             loop.call_soon_threadsafe(lambda: _spawn(_toggle_transcript()))
 
+    async def _toggle_diffs() -> None:
+        await client.emit_local_event(events.ToggleDiffDetailEvent(session_id=client.session_id))
+        await _display_idle_bounded()
+        await settle_flicker_safe_stdout()
+
+    def _request_toggle_diffs() -> None:
+        with contextlib.suppress(Exception):
+            loop.call_soon_threadsafe(lambda: _spawn(_toggle_diffs()))
+
     async def _refresh_transcript() -> None:
         await client.emit_local_event(events.RefreshDisplayEvent(session_id=client.session_id))
 
@@ -561,6 +570,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         on_change_model=_change_model_from_prompt,
         command_info_provider=get_command_info_list,
         request_toggle_transcript=_request_toggle_transcript,
+        request_toggle_diffs=_request_toggle_diffs,
         request_refresh_transcript=_request_refresh_transcript,
         on_color_scheme_change=_on_terminal_color_scheme_change if cfg.theme is None else None,
     )

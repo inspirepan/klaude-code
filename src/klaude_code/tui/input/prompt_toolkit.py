@@ -228,6 +228,7 @@ class PromptToolkitInput(InputProviderABC):
         request_interrupt: Callable[[], None] | None = None,
         refresh_status: Callable[[], None] | None = None,
         request_toggle_transcript: Callable[[], None] | None = None,
+        request_toggle_diffs: Callable[[], None] | None = None,
         request_refresh_transcript: Callable[[], None] | None = None,
         on_color_scheme_change: Callable[[str], None] | None = None,
     ):
@@ -246,6 +247,7 @@ class PromptToolkitInput(InputProviderABC):
         self._request_interrupt = request_interrupt
         self._refresh_status = refresh_status
         self._request_toggle_transcript = request_toggle_transcript
+        self._request_toggle_diffs = request_toggle_diffs
         self._request_refresh_transcript = request_refresh_transcript
         self._on_color_scheme_change = on_color_scheme_change
         self._resize_watcher: ResizeWatcher | None = None
@@ -500,6 +502,7 @@ class PromptToolkitInput(InputProviderABC):
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
             request_toggle_transcript=self._request_toggle_transcript,
+            request_toggle_diffs=self._request_toggle_diffs,
             on_color_scheme_change=self._handle_color_scheme_change if self._on_color_scheme_change else None,
         )
 

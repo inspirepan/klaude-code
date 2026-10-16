@@ -35,6 +35,7 @@ from klaude_code.tui.components.background_tasks import (
     render_sourced_message,
     render_task_response,
 )
+from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.tools._dispatch import render_tool_result
 from klaude_code.tui.components.tools._presentation import get_tool_call_presentation
 from klaude_code.tui.display import TUIDisplay
@@ -63,7 +64,7 @@ def task_snapshot(status: str = "running", **changes: object) -> BackgroundTaskS
 
 
 def plain(renderable: object) -> str:
-    console = Console(width=160, color_system=None)
+    console = Console(width=160, color_system=None, theme=get_theme().app_theme)
     with console.capture() as capture:
         console.print(renderable)
     return capture.get()

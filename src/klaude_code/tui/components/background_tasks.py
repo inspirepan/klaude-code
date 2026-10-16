@@ -12,7 +12,7 @@ from klaude_code.tui.components.common import format_pascal_case, truncate_middl
 from klaude_code.tui.components.rich.clip import MaxLines
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import (
-    MARK_BASH,
+    MARK_CALLBACK,
     MARK_PLAN,
     TOOL_GROUP_INDENT,
     TOOL_SUBJECT_INDENT,
@@ -20,6 +20,7 @@ from klaude_code.tui.components.tools._common import (
     ToolResultStatus,
     render_tool_call_tree,
 )
+from klaude_code.tui.components.tools._manage_shell import render_shell_callback
 from klaude_code.tui.components.tools._presentation import get_tool_call_presentation, one_line, parse_tool_arguments
 from klaude_code.tui.transcript_detail import Detail
 
@@ -207,11 +208,13 @@ def render_task_response(
 
 
 def render_task_outcome(task: BackgroundTaskSnapshot) -> RenderableType:
-    """One tool-style row for a finished Bash task: `$ Shell  <what it did>  <status>`."""
+    """One report row for a finished Bash task: `› Shell  <what it did>  <status>`."""
+    if task.shell is not None:
+        return render_shell_callback(task.shell)
     details = Text(task_label(task), style=ThemeKey.BASH_TOOL_DESCRIPTION)
-    details.append("  ")
+    details.append(" · ")
     details.append_text(_status_text(task))
-    return render_tool_call_tree(mark=MARK_BASH, tool_name="Shell", details=details)
+    return render_tool_call_tree(mark=MARK_CALLBACK, tool_name="Shell", details=details)
 
 
 def unreported_finished_tasks(response: TaskResponse, directory: TaskDirectory) -> list[BackgroundTaskSnapshot]:
@@ -310,7 +313,7 @@ def render_peer_message(event: events.UserMessageEvent, *, detail: Detail, direc
     details.append(directory.session_label(peer.sender_session_id, peer.sender_label), style=ThemeKey.TOOL_PARAM)
     details.append(": ", style=ThemeKey.METADATA)
     details.append(_message_text(peer.body, detail=detail), style=ThemeKey.TOOL_RESULT)
-    row = _message_row("›", details, detail=detail)
+    row = _message_row(MARK_CALLBACK, details, detail=detail)
     if detail.is_compact:
         return row
     meta = Text(
@@ -332,17 +335,25 @@ def render_sourced_message(
     if detail.is_compact:
         # Compact task reports go through `TUICommandRenderer`, which owns the batch blocks.
         return render_task_outcomes(response, directory) if response is not None else None
-    heading = Text("Background task report", style=ThemeKey.METADATA_DIM)
+    # The body's task rows name each task and its status; the heading only marks the report.
+    heading = Text("Background report", style=ThemeKey.METADATA)
     if response is None:
-        return Group(heading, Text("Result: /tasks output TASK_ID", style=ThemeKey.METADATA_DIM))
+        return _report_row(heading, Text("Result: /tasks output TASK_ID", style=ThemeKey.METADATA_DIM))
     if response.truncated or len(response.output) > 8192:
         task_id = response.tasks[0].ref.task_id if response.tasks else "TASK_ID"
-        return Group(
-            heading,
+        body: RenderableType = Group(
             render_task_response(response, detail=detail, show_output=False),
             Text(f"Result: /tasks output {task_id}", style=ThemeKey.METADATA_DIM),
         )
-    return Group(heading, render_task_response(response, detail=detail))
+    else:
+        body = render_task_response(response, detail=detail)
+    return _report_row(heading, body)
+
+
+def _report_row(heading: Text, body: RenderableType) -> RenderableType:
+    """A background report as a callback row, its body aligned under the subject column."""
+    row = render_tool_call_tree(mark=MARK_CALLBACK, tool_name="Task", details=heading, overflow="fold")
+    return Group(row, AdaptiveIndent(body, TOOL_SUBJECT_INDENT))
 
 
 def render_collaboration_result(

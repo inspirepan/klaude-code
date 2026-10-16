@@ -139,14 +139,15 @@ def test_compact_mixed_patch_summarizes_delete_and_truncates_add() -> None:
             ),
         ),
         detail=Detail.COMPACT,
+        fold_diffs=True,
     )
 
     assert result is not None
     rendered = _render(result)
+    # A new Markdown file previews up to 15 lines; a deletion is its header alone.
     assert "docs/new.md (+7)" in rendered
-    assert "new line 5" in rendered
-    assert "new line 6" not in rendered
-    assert "(2 added lines hidden)" in rendered
+    assert "new line 7" in rendered
+    assert "more lines" not in rendered
     assert "docs/obsolete.md (-345)" in rendered
     assert "src/existing.py (+1)" in rendered
     assert "changed" in rendered

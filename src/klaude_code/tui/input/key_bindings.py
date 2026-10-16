@@ -74,6 +74,7 @@ def create_key_bindings(
     request_interrupt: Callable[[], None] | None = None,
     is_interrupt_available: Callable[[], bool] | None = None,
     request_toggle_transcript: Callable[[], None] | None = None,
+    request_toggle_diffs: Callable[[], None] | None = None,
     on_color_scheme_change: Callable[[str], None] | None = None,
     paste_dir: Path | None = None,
 ) -> KeyBindings:
@@ -870,6 +871,13 @@ def create_key_bindings(
         del event
         if request_toggle_transcript is not None:
             request_toggle_transcript()
+
+    @kb.add("c-t", filter=enabled, eager=True)
+    def _(event: KeyPressEvent) -> None:
+        """Fold or expand file diffs, independently of Ctrl+O."""
+        del event
+        if request_toggle_diffs is not None:
+            request_toggle_diffs()
 
     @kb.add("escape", "up", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:

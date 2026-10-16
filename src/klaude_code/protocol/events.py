@@ -81,6 +81,7 @@ __all__ = [
     "ThinkingEndEvent",
     "ThinkingStartEvent",
     "TodoChangeEvent",
+    "ToggleDiffDetailEvent",
     "ToggleTranscriptDetailEvent",
     "ToolCallEvent",
     "ToolCallStartEvent",
@@ -582,6 +583,13 @@ class ToggleTranscriptDetailEvent(Event):
 
     Consumed by the interactive TUI display only; other consumers (web, relay
     subscribers) ignore it. Never persisted and never recorded on the tape.
+    """
+
+
+class ToggleDiffDetailEvent(Event):
+    """Display-local control: fold/expand file diffs (Ctrl+T) and re-render from the display's event tape.
+
+    Independent of ToggleTranscriptDetailEvent. Never persisted and never recorded on the tape.
     """
 
 

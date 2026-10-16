@@ -19,7 +19,7 @@ from klaude_code.tui.components import sub_agent as c_sub_agent
 from klaude_code.tui.components import tools as c_tools
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.renderer import TUICommandRenderer
-from klaude_code.tui.transcript_detail import Detail
+from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
 
 
 def _diff() -> DiffUIExtra:
@@ -40,6 +40,13 @@ def _diff() -> DiffUIExtra:
     )
 
 
+def _diffs_expanded() -> TranscriptDetail:
+    # Ctrl+T in compact mode: sub-agent changes show their diffs again.
+    detail = TranscriptDetail(Detail.COMPACT)
+    detail.toggle_diffs()
+    return detail
+
+
 def _sub_agent_state() -> SubAgentState:
     return SubAgentState(
         sub_agent_type="general-purpose",
@@ -57,7 +64,7 @@ def _sub_agent_state() -> SubAgentState:
     ],
 )
 def test_compact_sub_agent_file_tools_render_identity_and_full_diff(tool_name: str, action: str) -> None:
-    renderer = TUICommandRenderer()
+    renderer = TUICommandRenderer(detail=_diffs_expanded())
     renderer.display_task_start(
         events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
     )
@@ -104,7 +111,7 @@ def test_compact_sub_agent_file_action_does_not_bold_path() -> None:
 
 
 def test_compact_sub_agent_replay_write_keeps_markdown_preview_and_diff() -> None:
-    renderer = TUICommandRenderer()
+    renderer = TUICommandRenderer(detail=_diffs_expanded())
     renderer.set_replay_mode(True)
     renderer.display_task_start(
         events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
@@ -135,7 +142,7 @@ def test_compact_sub_agent_replay_write_keeps_markdown_preview_and_diff() -> Non
 
 
 def test_compact_sub_agent_multi_file_patch_keeps_paths_with_each_change() -> None:
-    renderer = TUICommandRenderer()
+    renderer = TUICommandRenderer(detail=_diffs_expanded())
     renderer.display_task_start(
         events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
     )
@@ -173,7 +180,7 @@ def test_compact_sub_agent_multi_file_patch_keeps_paths_with_each_change() -> No
     ],
 )
 def test_compact_sub_agent_new_markdown_renders_document_without_diff(tool_name: str, action: str) -> None:
-    renderer = TUICommandRenderer()
+    renderer = TUICommandRenderer(detail=_diffs_expanded())
     renderer.display_task_start(
         events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
     )
@@ -199,10 +206,32 @@ def test_compact_sub_agent_new_markdown_renders_document_without_diff(tool_name:
     assert "Markdown body" in plain
 
 
-@pytest.mark.parametrize("tool_name", [tools.WRITE, tools.APPLY_PATCH])
-def test_compact_markdown_preview_shows_five_source_lines_and_remaining_count(tool_name: str) -> None:
+def test_folded_sub_agent_file_change_is_its_action_line_alone() -> None:
     renderer = TUICommandRenderer()
-    content = "\n".join(f"Line {line}" for line in range(1, 8))
+    renderer.display_task_start(
+        events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
+    )
+    event = events.ToolResultEvent(
+        session_id="child",
+        tool_call_id="change-1",
+        tool_name=tools.EDIT,
+        result="updated",
+        status="success",
+        ui_extra=_diff(),
+    )
+
+    with renderer.bulk_render_capture() as output, renderer.session_print_context("child"):
+        assert renderer.display_tool_call_result(event, is_sub_agent=True) is True
+
+    plain = output.getvalue()
+    assert "GeneralPurpose: update generated files · Edit ./src/demo.py (+1)" in plain
+    assert "new_value = 1" not in plain and "╭" not in plain
+
+
+@pytest.mark.parametrize("tool_name", [tools.WRITE, tools.APPLY_PATCH])
+def test_compact_markdown_preview_shows_fifteen_source_lines_and_remaining_count(tool_name: str) -> None:
+    renderer = TUICommandRenderer()
+    content = "\n".join(f"Line {line}" for line in range(1, 18))
     markdown = MarkdownDocUIExtra(file_path="docs/new.md", content=content)
     event = events.ToolResultEvent(
         session_id="main",
@@ -219,11 +248,11 @@ def test_compact_markdown_preview_shows_five_source_lines_and_remaining_count(to
     assert rendered is True
     plain = output.getvalue()
     assert not plain.startswith("\n")
-    assert "Line 5" in plain
-    assert "Line 6" not in plain
-    assert "Line 7" not in plain
+    assert "Line 15" in plain
+    assert "Line 16" not in plain
+    assert "Line 17" not in plain
     assert "docs/new.md" not in plain
-    assert "… (more 2 lines)" in plain
+    assert "… 2 more lines · Ctrl+T" in plain
 
 
 def test_compact_markdown_preview_preserves_source_lines_and_uses_ellipsis() -> None:

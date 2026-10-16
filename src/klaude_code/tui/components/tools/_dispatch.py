@@ -64,7 +64,6 @@ from klaude_code.tui.transcript_detail import Detail
 if TYPE_CHECKING:
     from klaude_code.tui.components.background_tasks import TaskDirectory
 
-_COMPACT_MARKDOWN_PREVIEW_LINES = 5
 # Upper bound on result panels, so they read as one consistent column instead
 # of each box sizing itself to its longest line.
 # Include the panel's borders and horizontal padding around diff content.
@@ -168,7 +167,7 @@ def render_markdown_doc(
     md_ui: MarkdownDocUIExtra,
     *,
     code_theme: str,
-    detail: Detail = Detail.FULL,
+    fold: bool = False,
     show_file_path: bool = False,
     indent: int = TOOL_RESULT_INDENT,
 ) -> RenderableType:
@@ -178,15 +177,20 @@ def render_markdown_doc(
         title.no_wrap = True
         title.overflow = "ellipsis"
 
-    if detail.is_compact:
+    if fold:
         lines = md_ui.content.splitlines()
-        hidden_lines = max(0, len(lines) - _COMPACT_MARKDOWN_PREVIEW_LINES)
+        hidden_lines = max(0, len(lines) - r_diffs.FOLD_DOC_PREVIEW_LINES)
         preview: list[RenderableType] = [
             Text(line, style=ThemeKey.TOOL_RESULT, no_wrap=True, overflow="ellipsis")
-            for line in lines[:_COMPACT_MARKDOWN_PREVIEW_LINES]
+            for line in lines[: r_diffs.FOLD_DOC_PREVIEW_LINES]
         ]
         if hidden_lines:
-            preview.append(Text(f"\u2026 (more {hidden_lines} lines)", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+            preview.append(
+                Text(
+                    f"\u2026 {hidden_lines} more lines · {r_diffs.EXPAND_DIFFS_HINT}",
+                    style=ThemeKey.TOOL_RESULT_TRUNCATED,
+                )
+            )
         return _render_result_panel(Group(*preview), title=title, indent=indent)
 
     return _render_result_panel(
@@ -241,6 +245,7 @@ def render_tool_result(
     show_shell_task_identity: bool = False,
     task_action: str = "",
     task_directory: "TaskDirectory | None" = None,
+    fold_diffs: bool = False,
 ) -> RenderableType | None:
     """Unified entry point for rendering tool results.
 
@@ -294,7 +299,7 @@ def render_tool_result(
                     render_markdown_doc(
                         item,
                         code_theme=code_theme,
-                        detail=detail,
+                        fold=fold_diffs,
                         show_file_path=show_patch_file_names,
                     )
                 )
@@ -304,7 +309,7 @@ def render_tool_result(
                         r_diffs.render_structured_diff(
                             item,
                             show_file_name=show_patch_file_names,
-                            detail=detail,
+                            fold=fold_diffs,
                         )
                     )
                 )
@@ -334,22 +339,26 @@ def render_tool_result(
                 return pad_result(render_read_preview(e.ui_extra))
             return None
         case tools.EDIT:
-            return _render_result_panel(r_diffs.render_structured_diff(diff_ui, detail=detail) if diff_ui else Text(""))
+            return _render_result_panel(
+                r_diffs.render_structured_diff(diff_ui, fold=fold_diffs) if diff_ui else Text("")
+            )
         case tools.WRITE:
             if md_ui:
                 # Markdown docs already include their own 2-character indent.
-                return render_markdown_doc(md_ui, code_theme=code_theme, detail=detail)
-            return _render_result_panel(r_diffs.render_structured_diff(diff_ui, detail=detail) if diff_ui else Text(""))
+                return render_markdown_doc(md_ui, code_theme=code_theme, fold=fold_diffs)
+            return _render_result_panel(
+                r_diffs.render_structured_diff(diff_ui, fold=fold_diffs) if diff_ui else Text("")
+            )
         case tools.APPLY_PATCH:
             if md_ui:
                 # Markdown docs already include their own 2-character indent.
-                return render_markdown_doc(md_ui, code_theme=code_theme, detail=detail)
+                return render_markdown_doc(md_ui, code_theme=code_theme, fold=fold_diffs)
             if diff_ui:
                 return _render_result_panel(
                     r_diffs.render_structured_diff(
                         diff_ui,
                         show_file_name=len(diff_ui.files) > 1,
-                        detail=detail,
+                        fold=fold_diffs,
                     )
                 )
             return _render_fallback()
@@ -432,9 +441,15 @@ def render_compact_file_change(
     e: events.ToolResultEvent,
     *,
     code_theme: str = "monokai",
+    fold: bool = True,
 ) -> RenderableType | None:
-    """Render diffs and new Markdown documents from a compact sub-agent result."""
+    """Render diffs and new Markdown documents from a compact sub-agent result.
 
+    Folded, a sub-agent's change is reported by its action line alone: its own
+    block summarizes the work, and every file's diff would bury that summary.
+    """
+    if fold:
+        return None
     items = e.ui_extra.items if isinstance(e.ui_extra, MultiUIExtra) else [e.ui_extra]
     show_file_names = _file_change_count(e.ui_extra) > 1
     rendered: list[RenderableType] = []
@@ -444,24 +459,12 @@ def render_compact_file_change(
         if isinstance(item, DiffUIExtra):
             rendered.append(
                 _render_result_panel(
-                    r_diffs.render_structured_diff(
-                        item,
-                        show_file_name=show_file_names,
-                        detail=Detail.COMPACT,
-                    ),
+                    r_diffs.render_structured_diff(item, show_file_name=show_file_names),
                     indent=0,
                 )
             )
         elif e.tool_name in (tools.WRITE, tools.APPLY_PATCH) and isinstance(item, MarkdownDocUIExtra):
-            rendered.append(
-                render_markdown_doc(
-                    item,
-                    code_theme=code_theme,
-                    detail=Detail.COMPACT,
-                    show_file_path=show_file_names,
-                    indent=0,
-                )
-            )
+            rendered.append(render_markdown_doc(item, code_theme=code_theme, show_file_path=show_file_names, indent=0))
     if not rendered:
         return None
     return Group(*rendered)
