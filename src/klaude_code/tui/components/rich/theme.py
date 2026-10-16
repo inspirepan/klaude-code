@@ -138,6 +138,9 @@ DARK_PALETTE = Palette(
 
 class ThemeKey(str, Enum):
     LINES = "lines"
+    # Messages between agents: direction is the color of the mark and the panel border.
+    PEER_MESSAGE_SENT = "peer_message.sent"
+    PEER_MESSAGE_RECEIVED = "peer_message.received"
     LINES_DIM = "lines.dim"
 
     # CODE
@@ -310,6 +313,8 @@ def get_theme(theme: str | None = None) -> Themes:
         app_theme=Theme(
             styles={
                 ThemeKey.LINES.value: palette.grey3,
+                ThemeKey.PEER_MESSAGE_SENT.value: palette.blue,
+                ThemeKey.PEER_MESSAGE_RECEIVED.value: palette.purple,
                 ThemeKey.LINES_DIM.value: palette.dim_grey3,
                 # CODE
                 ThemeKey.CODE_BACKGROUND.value: f"on {palette.code_background}",

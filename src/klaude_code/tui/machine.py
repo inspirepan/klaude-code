@@ -1095,12 +1095,11 @@ class DisplayStateMachine:
         terminal_lines = _terminal_lines()
         max_lines = max(2, int(terminal_lines * SUB_AGENT_STATUS_MAX_HEIGHT_RATIO))
         terminal_summary_lines = {
-            session.session_id: (
-                c_sub_agent.format_compact_result_summary(session.result_summary).splitlines()[
-                    : c_sub_agent.COMPACT_RESULT_MAX_LINES
-                ]
-                or [""]
-            )
+            # An empty result adds no row: a blank status row would be dropped later
+            # and shift the per-row styling of everything below it.
+            session.session_id: c_sub_agent.format_compact_result_summary(session.result_summary).splitlines()[
+                : c_sub_agent.COMPACT_RESULT_MAX_LINES
+            ]
             for session in sessions
             if session.terminal_status is not None
         }

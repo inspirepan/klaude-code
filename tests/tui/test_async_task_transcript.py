@@ -174,8 +174,8 @@ def test_compact_transcript_reports_each_background_fact_once(
     assert out.count("Waiting for Find the panel") == 1
     assert "· running" not in out and "interrupted" not in out
     # Messages name the peer by its task, show one line, and hide the receipt.
-    assert "✉ Message to Find the panel: first line second line" in out
-    assert "› Message from Find the panel: hello more" in out and "queued" not in out
+    assert "✉ Message to Find the panel" in out and "│ first line" in out and "│ second line" in out
+    assert "› Message from Find the panel" in out and "│ hello" in out and "queued" not in out
     # One block per finished agent, with the type, the report head, and no IDs or cost tree.
     assert out.count("Finder: Find the panel ✓") == 1
     assert "render_collaboration_result 已解析" in out and "第二点" in out and "第三点" not in out
@@ -244,3 +244,46 @@ def test_snapshot_summary_is_display_only() -> None:
     model_text = response.model_dump_json(exclude_none=True, exclude=MODEL_FACING_EXCLUDE)
     assert "summary" not in model_text and '"agent_type":"finder"' in model_text
     assert "render_collaboration_result" in response.model_dump_json()
+
+
+def test_long_peer_message_shows_six_lines_in_compact_and_all_when_expanded() -> None:
+    from rich.console import Console
+
+    from klaude_code.tui.components.background_tasks import render_message
+    from klaude_code.tui.components.rich.theme import get_theme
+    from klaude_code.tui.transcript_detail import Detail
+
+    body = "\n".join(f"line {index}" for index in range(1, 10))
+
+    def plain(detail: Detail) -> str:
+        console = Console(width=80, record=True, force_terminal=False, theme=get_theme().app_theme)
+        console.print(render_message("›", "from", "peer", body, detail=detail))
+        return console.export_text()
+
+    compact = plain(Detail.COMPACT)
+    assert "line 6" in compact and "line 7" not in compact and "… 3 more lines · ctrl-o" in compact
+    assert "line 9" in plain(Detail.FULL)
+
+
+def test_peer_message_direction_colors_mark_border_and_body() -> None:
+    from rich.console import Console
+    from rich.style import Style
+
+    from klaude_code.tui.components.background_tasks import MARK_MESSAGE, render_message
+    from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
+    from klaude_code.tui.components.tools._common import MARK_CALLBACK
+    from klaude_code.tui.transcript_detail import Detail
+
+    console = Console(width=80, force_terminal=False, theme=get_theme().app_theme)
+
+    def styles(mark: str) -> tuple[set[Style | None], set[Style | None]]:
+        lines = console.render_lines(render_message(mark, "to", "peer", "hello there", detail=Detail.COMPACT))
+        segments = [segment for line in lines for segment in line]
+        border = {segment.style for segment in segments if segment.text.strip() in {"╭", "╰", "│"}}
+        body = {segment.style for segment in segments if "hello there" in segment.text}
+        return border, body
+
+    sent, received = console.get_style(ThemeKey.PEER_MESSAGE_SENT), console.get_style(ThemeKey.PEER_MESSAGE_RECEIVED)
+    assert sent != received
+    assert styles(MARK_MESSAGE) == ({sent}, {sent})
+    assert styles(MARK_CALLBACK) == ({received}, {received})

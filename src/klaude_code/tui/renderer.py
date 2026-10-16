@@ -146,11 +146,7 @@ from klaude_code.tui.transcript_detail import Detail, TranscriptDetail, is_visib
 
 BASH_LIVE_TAIL_MAX_LINES = 5
 TASK_NOTIFICATION_DELAY_S = 0.3
-_COMPACT_SUB_AGENT_FILE_CHANGE_ACTIONS = {
-    tools.EDIT: "Edit",
-    tools.WRITE: "Write",
-    tools.APPLY_PATCH: "Patch",
-}
+_SUB_AGENT_FILE_TOOLS = frozenset({tools.EDIT, tools.WRITE, tools.APPLY_PATCH})
 
 # A fast-spewing command can deliver hundreds of output deltas per second;
 # rendering the tail through Rich for each one wastes event-loop time. Cap
@@ -327,6 +323,8 @@ class TUICommandRenderer:
         self._shell_calls_with_identity: set[tuple[str, str]] = set()
         self._task_directory = TaskDirectory()
         self._task_call_actions: dict[tuple[str, str], str] = {}
+        # Compact mode reports a sub-agent's file changes once, in the block of the run that made them.
+        self._sub_agent_changes: dict[str, list[events.ToolResultEvent]] = {}
         # What the last scrollback write was, when it can absorb a repeat:
         # consecutive Agent launches share a header, identical waits print once.
         self._last_print_key: tuple[str, ...] | None = None
@@ -386,6 +384,7 @@ class TUICommandRenderer:
         self._shell_calls_with_identity.clear()
         self._task_directory.reset()
         self._task_call_actions.clear()
+        self._sub_agent_changes.clear()
         self._last_print_key = None
         self._sub_agent_color_index = 0
         self._sub_agent_batch_color_starts = {}
@@ -1077,6 +1076,12 @@ class TUICommandRenderer:
                     return True
                 self._print_keyed(render_collaboration_call(e.tool_name, e.arguments, self._task_directory), key)
                 return True
+        if e.tool_name == tools.MESSAGE_PEER:
+            # The body is the message itself, so its length follows the detail level.
+            self.print(
+                render_collaboration_call(e.tool_name, e.arguments, self._task_directory, detail=self._detail.current)
+            )
+            return True
         renderable = c_tools.render_tool_call(e, shell_task=shell_task, task_directory=self._task_directory)
         if renderable is not None:
             self.print(renderable)
@@ -1094,23 +1099,11 @@ class TUICommandRenderer:
         show_shell_task_identity = shell_call_key not in self._shell_calls_with_identity
         self._shell_calls_with_identity.discard(shell_call_key)
         if self._compact and is_sub_agent:
-            action = _COMPACT_SUB_AGENT_FILE_CHANGE_ACTIONS.get(e.tool_name)
-            session = self._sessions.get(e.session_id)
-            if action is None or session is None or session.sub_agent_state is None:
-                return False
-            fold = self._detail.folds_diffs
-            change = c_tools.render_compact_file_change(e, code_theme=self.themes.code_theme, fold=fold)
-            if change is None and not fold:
-                return False
-            self.print(
-                c_sub_agent.render_compact_file_change(
-                    sub_agent_state=session.sub_agent_state,
-                    action=c_tools.render_compact_file_change_action(e, action),
-                    change=change,
-                    color=self._get_session_sub_agent_color(e.session_id),
-                )
-            )
-            return True
+            if e.tool_name in _SUB_AGENT_FILE_TOOLS and not e.is_error:
+                # Interleaved with the main agent's rows these read as noise; the
+                # run's block summarizes them (and shows the diffs under ctrl-t).
+                self._sub_agent_changes.setdefault(e.session_id, []).append(e)
+            return False
         task_action = self._task_call_actions.pop((e.session_id, e.tool_call_id), "")
         if e.tool_name == tools.MANAGE_TASKS and self._compact and task_action != "list" and e.status == "success":
             response = parse_task_response(e.result)
@@ -1434,6 +1427,7 @@ class TUICommandRenderer:
         self._task_directory.update(response.tasks)
         finished = unreported_finished_tasks(response, self._task_directory)
         summaries: list[SubAgentSummary] = []
+        fallback_changes: dict[str, list[c_tools.FileChangeStat]] = {}
         for task in finished:
             if task.ref.kind != "agent":
                 continue
@@ -1441,6 +1435,11 @@ class TUICommandRenderer:
             text = (task.result.text or task.result.summary or "") if task.result is not None else ""
             text = text or (response.output if len(response.tasks) == 1 else "")
             session_id = task.ref.session_id or f"task:{task.ref.task_id}"
+            if task.result is not None and task.result.file_changes:
+                fallback_changes[session_id] = [
+                    c_tools.FileChangeStat(path=change.path, added=change.added, removed=change.removed)
+                    for change in task.result.file_changes
+                ]
             known = self._sessions.get(session_id)
             agent_type = task.agent_type or (
                 known.sub_agent_state.sub_agent_type
@@ -1472,7 +1471,7 @@ class TUICommandRenderer:
             self._flush_open_blocks(scoped=False)
             if shells:
                 self.print()
-            self._render_sub_agent_summaries(tuple(summaries))
+            self._render_sub_agent_summaries(tuple(summaries), fallback_changes)
             return False
         return bool(shells)
 
@@ -1582,7 +1581,39 @@ class TUICommandRenderer:
         summaries = tuple(summary for summary in summaries if self._task_directory.claim_summary(summary.session_id))
         self._render_sub_agent_summaries(summaries)
 
-    def _render_sub_agent_summaries(self, summaries: tuple[SubAgentSummary, ...]) -> None:
+    def _sub_agent_change_view(
+        self, session_id: str, fallback: list[c_tools.FileChangeStat] | None = None
+    ) -> RenderableType | None:
+        """The files a finished run changed: one summary line, plus each diff under ctrl-t."""
+        results = self._sub_agent_changes.pop(session_id, [])
+        stats = [stat for result in results for stat in c_tools.file_change_stats(result)] or (fallback or [])
+        if not stats:
+            return None
+        totals: dict[str, list[int]] = {}
+        for stat in stats:
+            counts = totals.setdefault(stat.path, [0, 0])
+            counts[0] += stat.added
+            counts[1] += stat.removed
+        line = c_sub_agent.render_sub_agent_changes(
+            list(totals),
+            sum(counts[0] for counts in totals.values()),
+            sum(counts[1] for counts in totals.values()),
+        )
+        if self._detail.folds_diffs:
+            return line
+        diffs = [
+            # Under the `± files` line, not under the block's gutter.
+            Padding(diff, (0, 0, 0, len(c_sub_agent.COMPACT_CONTINUATION_INDENT)))
+            for result in results
+            if (diff := c_tools.render_compact_file_change(result, code_theme=self.themes.code_theme, fold=False))
+        ]
+        return Group(line, *diffs)
+
+    def _render_sub_agent_summaries(
+        self,
+        summaries: tuple[SubAgentSummary, ...],
+        fallback_changes: dict[str, list[c_tools.FileChangeStat]] | None = None,
+    ) -> None:
         rendered: list[RenderableType] = []
         for summary in summaries:
             session_id = summary.session_id
@@ -1598,6 +1629,7 @@ class TUICommandRenderer:
                 token_count=summary.token_count,
                 result_summary=summary.result_summary,
                 color=color,
+                changes=self._sub_agent_change_view(session_id, (fallback_changes or {}).get(session_id)),
             )
             rendered.append(
                 Quote(

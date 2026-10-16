@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from rich.console import Group
-from rich.style import Style
-from rich.text import Text
 
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import (
@@ -15,9 +12,7 @@ from klaude_code.protocol.models import (
     MultiUIExtra,
     SubAgentState,
 )
-from klaude_code.tui.components import sub_agent as c_sub_agent
-from klaude_code.tui.components import tools as c_tools
-from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.commands import SubAgentSummary
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
 
@@ -55,177 +50,81 @@ def _sub_agent_state() -> SubAgentState:
     )
 
 
-@pytest.mark.parametrize(
-    ("tool_name", "action"),
-    [
-        (tools.EDIT, "Edit"),
-        (tools.WRITE, "Write"),
-        (tools.APPLY_PATCH, "Patch"),
-    ],
-)
-def test_compact_sub_agent_file_tools_render_identity_and_full_diff(tool_name: str, action: str) -> None:
-    renderer = TUICommandRenderer(detail=_diffs_expanded())
+def _renderer_with_child(detail: TranscriptDetail | None = None) -> TUICommandRenderer:
+    renderer = TUICommandRenderer(detail=detail)
     renderer.display_task_start(
         events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
     )
-    event = events.ToolResultEvent(
-        session_id="child",
-        tool_call_id="change-1",
-        tool_name=tool_name,
-        result="updated",
-        status="success",
-        ui_extra=_diff(),
+    return renderer
+
+
+def _change(tool_name: str, call_id: str, ui_extra: DiffUIExtra | MultiUIExtra) -> events.ToolResultEvent:
+    return events.ToolResultEvent(
+        session_id="child", tool_call_id=call_id, tool_name=tool_name, result="ok", status="success", ui_extra=ui_extra
     )
 
+
+def _finish(renderer: TUICommandRenderer, result_summary: str = "updated the files") -> str:
+    with renderer.bulk_render_capture() as output:
+        renderer.display_sub_agent_batch_summary(
+            (
+                SubAgentSummary(
+                    session_id="child",
+                    title="GeneralPurpose",
+                    description="update generated files",
+                    status="success",
+                    model_id="test-model",
+                    duration_s=3.0,
+                    tool_count=2,
+                    token_count=None,
+                    result_summary=result_summary,
+                ),
+            )
+        )
+    return output.getvalue()
+
+
+def _record(renderer: TUICommandRenderer, *changes: events.ToolResultEvent) -> str:
     with renderer.bulk_render_capture() as output, renderer.session_print_context("child"):
-        rendered = renderer.display_tool_call_result(event, is_sub_agent=True)
-
-    assert rendered is True
-    plain = output.getvalue()
-    assert f"GeneralPurpose: update generated files · {action}" in plain
-    assert "src/demo.py (+1)" in plain
-    assert plain.count("src/demo.py") == 1
-    assert "new_value = 1" in plain
-    assert "╭" in plain
-    assert "╰" in plain
+        for change in changes:
+            assert renderer.display_tool_call_result(change, is_sub_agent=True) is False
+    return output.getvalue()
 
 
-def test_compact_sub_agent_file_action_does_not_bold_path() -> None:
-    renderer = TUICommandRenderer()
-    event = events.ToolResultEvent(
-        session_id="child",
-        tool_call_id="edit-1",
-        tool_name=tools.EDIT,
-        result="updated",
-        status="success",
-        ui_extra=_diff(),
+def test_compact_sub_agent_edits_print_nothing_and_sum_up_in_the_run_block() -> None:
+    renderer = _renderer_with_child()
+    doc = MarkdownDocUIExtra(file_path="docs/new.md", content="# Title\nbody")
+    printed = _record(
+        renderer,
+        _change(tools.EDIT, "edit-1", _diff()),
+        _change(tools.APPLY_PATCH, "patch-1", MultiUIExtra(items=[_diff(), doc])),
     )
+    assert printed == ""
 
-    action = c_tools.render_compact_file_change_action(event, "Edit")
-    segments = [segment for segment in renderer.console.render(action) if segment.text]
-    tool_segment = next(segment for segment in segments if "Edit" in segment.text)
-    path_segment = next(segment for segment in segments if "src/demo.py" in segment.text)
-
-    assert tool_segment.style is not None and tool_segment.style.bold is True
-    assert path_segment.style is None or path_segment.style.bold is not True
-
-
-def test_compact_sub_agent_replay_write_keeps_markdown_preview_and_diff() -> None:
-    renderer = TUICommandRenderer(detail=_diffs_expanded())
-    renderer.set_replay_mode(True)
-    renderer.display_task_start(
-        events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
-    )
-    event = events.ToolResultEvent(
-        session_id="child",
-        tool_call_id="write-1",
-        tool_name=tools.WRITE,
-        result="updated",
-        status="success",
-        ui_extra=MultiUIExtra(
-            items=[
-                MarkdownDocUIExtra(file_path="src/demo.md", content="markdown preview should stay hidden"),
-                _diff(),
-            ]
-        ),
-    )
-
-    with renderer.bulk_render_capture() as output, renderer.session_print_context("child"):
-        rendered = renderer.display_tool_call_result(event, is_sub_agent=True)
-
-    assert rendered is True
-    plain = output.getvalue()
-    assert "new_value = 1" in plain
-    assert "markdown preview should stay hidden" in plain
-    assert plain.count("╭") == 2
-    assert plain.count("╰") == 2
+    block = _finish(renderer)
+    assert "GeneralPurpose: update generated files ✓" in block
+    assert "↳ updated the files" in block
+    assert "± 2 files  +4  ./src/demo.py, ./docs/new.md" in block
+    assert "new_value = 1" not in block and "╭" not in block
+    # The next run of the same agent reports only its own changes.
+    assert "± " not in _finish(renderer)
 
 
-def test_compact_sub_agent_multi_file_patch_keeps_paths_with_each_change() -> None:
-    renderer = TUICommandRenderer(detail=_diffs_expanded())
-    renderer.display_task_start(
-        events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
-    )
-    event = events.ToolResultEvent(
-        session_id="child",
-        tool_call_id="patch-1",
-        tool_name=tools.APPLY_PATCH,
-        result="updated",
-        status="success",
-        ui_extra=MultiUIExtra(
-            items=[
-                MarkdownDocUIExtra(file_path="docs/first.md", content="first"),
-                MarkdownDocUIExtra(file_path="docs/second.md", content="second"),
-                _diff(),
-            ]
-        ),
-    )
+def test_ctrl_t_shows_each_sub_agent_diff_under_its_run_block() -> None:
+    detail = TranscriptDetail(Detail.COMPACT)
+    detail.toggle_diffs()
+    renderer = _renderer_with_child(detail)
+    _record(renderer, _change(tools.EDIT, "edit-1", _diff()))
 
-    with renderer.bulk_render_capture() as output, renderer.session_print_context("child"):
-        rendered = renderer.display_tool_call_result(event, is_sub_agent=True)
-
-    assert rendered is True
-    plain = output.getvalue()
-    assert "GeneralPurpose: update generated files · Patch · 3 files" in plain
-    assert plain.count("docs/first.md") == 1
-    assert plain.count("docs/second.md") == 1
-    assert plain.count("src/demo.py") == 1
+    block = _finish(renderer)
+    assert "± 1 file  +1  ./src/demo.py" in block
+    assert "new_value = 1" in block and "╭" in block
 
 
-@pytest.mark.parametrize(
-    ("tool_name", "action"),
-    [
-        (tools.WRITE, "Write"),
-        (tools.APPLY_PATCH, "Patch"),
-    ],
-)
-def test_compact_sub_agent_new_markdown_renders_document_without_diff(tool_name: str, action: str) -> None:
-    renderer = TUICommandRenderer(detail=_diffs_expanded())
-    renderer.display_task_start(
-        events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
-    )
-    markdown = MarkdownDocUIExtra(file_path="docs/new.md", content="# New document\n\nMarkdown body")
-    event = events.ToolResultEvent(
-        session_id="child",
-        tool_call_id="markdown-1",
-        tool_name=tool_name,
-        result="created",
-        status="success",
-        ui_extra=MultiUIExtra(items=[markdown]) if tool_name == tools.APPLY_PATCH else markdown,
-    )
-
-    with renderer.bulk_render_capture() as output, renderer.session_print_context("child"):
-        rendered = renderer.display_tool_call_result(event, is_sub_agent=True)
-
-    assert rendered is True
-    plain = output.getvalue()
-    assert f"GeneralPurpose: update generated files · {action}" in plain
-    assert "docs/new.md" in plain
-    assert plain.count("docs/new.md") == 1
-    assert "New document" in plain
-    assert "Markdown body" in plain
-
-
-def test_folded_sub_agent_file_change_is_its_action_line_alone() -> None:
-    renderer = TUICommandRenderer()
-    renderer.display_task_start(
-        events.TaskStartEvent(session_id="child", model_id="test-model", sub_agent_state=_sub_agent_state())
-    )
-    event = events.ToolResultEvent(
-        session_id="child",
-        tool_call_id="change-1",
-        tool_name=tools.EDIT,
-        result="updated",
-        status="success",
-        ui_extra=_diff(),
-    )
-
-    with renderer.bulk_render_capture() as output, renderer.session_print_context("child"):
-        assert renderer.display_tool_call_result(event, is_sub_agent=True) is True
-
-    plain = output.getvalue()
-    assert "GeneralPurpose: update generated files · Edit ./src/demo.py (+1)" in plain
-    assert "new_value = 1" not in plain and "╭" not in plain
+def test_run_block_without_a_result_has_no_placeholder_line() -> None:
+    block = _finish(_renderer_with_child(), result_summary="")
+    assert "GeneralPurpose: update generated files ✓" in block
+    assert "↳" not in block and "no summary" not in block
 
 
 @pytest.mark.parametrize("tool_name", [tools.WRITE, tools.APPLY_PATCH])
@@ -303,24 +202,3 @@ def test_expanded_markdown_preview_keeps_all_lines(tool_name: str) -> None:
     plain = output.getvalue()
     assert "Line 7" in plain
     assert "more 2 lines" not in plain
-
-
-def test_compact_sub_agent_file_change_description_is_italic() -> None:
-    rendered = c_sub_agent.render_compact_file_change(
-        sub_agent_state=_sub_agent_state(),
-        action=Text("Edit", style=ThemeKey.TOOL_NAME),
-        change=Text("diff"),
-        color=Style(color="green"),
-    )
-
-    assert isinstance(rendered, Group)
-    header = rendered.renderables[0]
-    assert isinstance(header, Text)
-    assert any(
-        span.style == Style(color="green", italic=True)
-        and header.plain[span.start : span.end] == "update generated files"
-        for span in header.spans
-    )
-    assert any(
-        span.style == ThemeKey.TOOL_NAME and header.plain[span.start : span.end] == "Edit" for span in header.spans
-    )

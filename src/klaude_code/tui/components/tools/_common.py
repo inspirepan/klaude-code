@@ -1,12 +1,15 @@
 import json
 from typing import Any, Literal, cast
 
+from rich import box
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
+from rich.constrain import Constrain
 from rich.measure import Measurement
 from rich.padding import Padding
+from rich.panel import Panel
 from rich.text import Text
 
-from klaude_code.const import INVALID_TOOL_CALL_MAX_LENGTH
+from klaude_code.const import DIFF_MAX_RENDER_WIDTH, INVALID_TOOL_CALL_MAX_LENGTH
 from klaude_code.protocol.sub_agent import is_sub_agent_tool as _is_sub_agent_tool
 from klaude_code.tui.components.common import create_grid, shorten_path, truncate_middle, truncate_middle_lines
 from klaude_code.tui.components.rich.quote import TreeQuote
@@ -122,6 +125,7 @@ def render_tool_call_tree(
     tool_name: str,
     details: RenderableType | None,
     overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "ellipsis",
+    mark_style: str = ThemeKey.TOOL_MARK,
 ) -> RenderableType:
     grid = create_grid(overflow=overflow, label_min_width=TOOL_NAME_COLUMN_WIDTH)
     grid.add_row(
@@ -134,7 +138,7 @@ def render_tool_call_tree(
             grid,
             mark=mark,
             style=ThemeKey.TOOL_RESULT_TREE_PREFIX,
-            style_first=ThemeKey.TOOL_MARK,
+            style_first=mark_style,
         ),
         (0, 0, 0, TOOL_GROUP_INDENT),
         expand=False,
@@ -208,3 +212,37 @@ def render_fallback_tool_result(
 ) -> RenderableType:
     del tool_name
     return render_generic_tool_result(result, status=status, detail=detail, max_lines=max_lines)
+
+
+# Upper bound on result panels, so they read as one consistent column instead
+# of each box sizing itself to its longest line.
+# Include the panel's borders and horizontal padding around diff content.
+RESULT_PANEL_MAX_WIDTH = DIFF_MAX_RENDER_WIDTH + 4
+
+
+def render_result_panel(
+    content: RenderableType,
+    *,
+    title: Text | None = None,
+    indent: int = TOOL_RESULT_INDENT,
+    border_style: str = ThemeKey.LINES,
+) -> RenderableType:
+    """The one box used for every block-level tool result (diffs, docs, search, messages)."""
+    # Constrain, not fix: the panel still shrinks to short content, but one long
+    # line (a deep path, say) can no longer stretch it across the whole terminal
+    # and leave the rest of the box looking empty.
+    return Padding(
+        Constrain(
+            Panel(
+                content,
+                title=title,
+                title_align="left",
+                box=box.ROUNDED,
+                border_style=border_style,
+                expand=False,
+            ),
+            RESULT_PANEL_MAX_WIDTH,
+        ),
+        (0, 0, 0, indent),
+        expand=False,
+    )

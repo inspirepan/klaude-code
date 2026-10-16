@@ -1,13 +1,9 @@
 from typing import TYPE_CHECKING
 
-from rich import box
+from pydantic import BaseModel
 from rich.console import Group, RenderableType
-from rich.constrain import Constrain
-from rich.padding import Padding
-from rich.panel import Panel
 from rich.text import Text
 
-from klaude_code.const import DIFF_MAX_RENDER_WIDTH
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import (
     AskUserQuestionSummaryUIExtra,
@@ -32,6 +28,7 @@ from klaude_code.tui.components.tools._common import (
     render_fallback_tool_result,
     render_generic_tool_call,
     render_path,
+    render_result_panel,
 )
 from klaude_code.tui.components.tools._file import (
     render_apply_patch_tool_call,
@@ -63,11 +60,6 @@ from klaude_code.tui.transcript_detail import Detail
 
 if TYPE_CHECKING:
     from klaude_code.tui.components.background_tasks import TaskDirectory
-
-# Upper bound on result panels, so they read as one consistent column instead
-# of each box sizing itself to its longest line.
-# Include the panel's borders and horizontal padding around diff content.
-RESULT_PANEL_MAX_WIDTH = DIFF_MAX_RENDER_WIDTH + 4
 
 
 def render_tool_call(
@@ -136,33 +128,6 @@ def _extract_markdown_doc(ui_extra: ToolResultUIExtra | None) -> MarkdownDocUIEx
     return None
 
 
-def _render_result_panel(
-    content: RenderableType,
-    *,
-    title: Text | None = None,
-    indent: int = TOOL_RESULT_INDENT,
-) -> RenderableType:
-    """The one box used for every block-level tool result (diffs, docs, search)."""
-    # Constrain, not fix: the panel still shrinks to short content, but one long
-    # line (a deep path, say) can no longer stretch it across the whole terminal
-    # and leave the rest of the box looking empty.
-    return Padding(
-        Constrain(
-            Panel(
-                content,
-                title=title,
-                title_align="left",
-                box=box.ROUNDED,
-                border_style=ThemeKey.LINES,
-                expand=False,
-            ),
-            RESULT_PANEL_MAX_WIDTH,
-        ),
-        (0, 0, 0, indent),
-        expand=False,
-    )
-
-
 def render_markdown_doc(
     md_ui: MarkdownDocUIExtra,
     *,
@@ -191,9 +156,9 @@ def render_markdown_doc(
                     style=ThemeKey.TOOL_RESULT_TRUNCATED,
                 )
             )
-        return _render_result_panel(Group(*preview), title=title, indent=indent)
+        return render_result_panel(Group(*preview), title=title, indent=indent)
 
-    return _render_result_panel(
+    return render_result_panel(
         NoInsetMarkdown(md_ui.content, code_theme=code_theme, style=ThemeKey.TOOL_RESULT),
         title=title,
         indent=indent,
@@ -205,35 +170,25 @@ def _file_change_count(ui_extra: ToolResultUIExtra | None) -> int:
     return sum(len(item.files) if isinstance(item, DiffUIExtra) else 1 for item in items if item is not None)
 
 
-def render_compact_file_change_action(e: events.ToolResultEvent, action: str) -> Text:
-    """Render a sub-agent file action with a single target or multi-file count."""
-    rendered = Text()
-    rendered.append(action, style=ThemeKey.TOOL_NAME)
-    items = e.ui_extra.items if isinstance(e.ui_extra, MultiUIExtra) else [e.ui_extra]
-    markdown_docs = [item for item in items if isinstance(item, MarkdownDocUIExtra)]
-    diff_files = [file for item in items if isinstance(item, DiffUIExtra) for file in item.files]
-    file_count = len(markdown_docs) + len(diff_files)
+class FileChangeStat(BaseModel):
+    path: str
+    added: int = 0
+    removed: int = 0
 
-    if file_count == 1:
-        file_path = markdown_docs[0].file_path if markdown_docs else diff_files[0].file_path
-        rendered.append(" ")
-        rendered.append_text(render_path(file_path, ThemeKey.TOOL_PARAM_FILE_PATH))
-        if diff_files:
-            file_diff = diff_files[0]
-            stats = Text()
-            if file_diff.stats_add:
-                stats.append(f"+{file_diff.stats_add}", style=ThemeKey.DIFF_STATS_ADD)
-            if file_diff.stats_remove:
-                if stats:
-                    stats.append(" ")
-                stats.append(f"-{file_diff.stats_remove}", style=ThemeKey.DIFF_STATS_REMOVE)
-            if stats:
-                rendered.append(" (")
-                rendered.append_text(stats)
-                rendered.append(")")
-    elif file_count > 1:
-        rendered.append(f" · {file_count} files", style=ThemeKey.METADATA_DIM)
-    return rendered
+
+def file_change_stats(e: events.ToolResultEvent) -> list[FileChangeStat]:
+    """Per-file line counts of a file tool's result, for summarizing a run's changes."""
+    items = e.ui_extra.items if isinstance(e.ui_extra, MultiUIExtra) else [e.ui_extra]
+    stats: list[FileChangeStat] = []
+    for item in items:
+        if isinstance(item, DiffUIExtra):
+            stats.extend(
+                FileChangeStat(path=file.file_path, added=file.stats_add, removed=file.stats_remove)
+                for file in item.files
+            )
+        elif isinstance(item, MarkdownDocUIExtra):
+            stats.append(FileChangeStat(path=item.file_path, added=len(item.content.splitlines())))
+    return stats
 
 
 def render_tool_result(
@@ -305,7 +260,7 @@ def render_tool_result(
                 )
             elif isinstance(item, DiffUIExtra):
                 rendered.append(
-                    _render_result_panel(
+                    render_result_panel(
                         r_diffs.render_structured_diff(
                             item,
                             show_file_name=show_patch_file_names,
@@ -339,14 +294,14 @@ def render_tool_result(
                 return pad_result(render_read_preview(e.ui_extra))
             return None
         case tools.EDIT:
-            return _render_result_panel(
+            return render_result_panel(
                 r_diffs.render_structured_diff(diff_ui, fold=fold_diffs) if diff_ui else Text("")
             )
         case tools.WRITE:
             if md_ui:
                 # Markdown docs already include their own 2-character indent.
                 return render_markdown_doc(md_ui, code_theme=code_theme, fold=fold_diffs)
-            return _render_result_panel(
+            return render_result_panel(
                 r_diffs.render_structured_diff(diff_ui, fold=fold_diffs) if diff_ui else Text("")
             )
         case tools.APPLY_PATCH:
@@ -354,7 +309,7 @@ def render_tool_result(
                 # Markdown docs already include their own 2-character indent.
                 return render_markdown_doc(md_ui, code_theme=code_theme, fold=fold_diffs)
             if diff_ui:
-                return _render_result_panel(
+                return render_result_panel(
                     r_diffs.render_structured_diff(
                         diff_ui,
                         show_file_name=len(diff_ui.files) > 1,
@@ -395,7 +350,7 @@ def render_tool_result(
         case tools.WEB_SEARCH:
             search_results = parse_web_search_results(e.result)
             if search_results:
-                return _render_result_panel(render_web_search_results(search_results, detail=detail))
+                return render_result_panel(render_web_search_results(search_results, detail=detail))
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:
                 return pad_result(
@@ -458,7 +413,7 @@ def render_compact_file_change(
         # already mark the nesting, so an extra indent would be a third boundary.
         if isinstance(item, DiffUIExtra):
             rendered.append(
-                _render_result_panel(
+                render_result_panel(
                     r_diffs.render_structured_diff(item, show_file_name=show_file_names),
                     indent=0,
                 )

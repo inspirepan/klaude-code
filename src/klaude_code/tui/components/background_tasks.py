@@ -15,9 +15,11 @@ from klaude_code.tui.components.tools._common import (
     MARK_CALLBACK,
     MARK_PLAN,
     TOOL_GROUP_INDENT,
+    TOOL_RESULT_INDENT,
     TOOL_SUBJECT_INDENT,
     AdaptiveIndent,
     ToolResultStatus,
+    render_result_panel,
     render_tool_call_tree,
 )
 from klaude_code.tui.components.tools._manage_shell import render_shell_callback
@@ -286,34 +288,41 @@ def render_task_control(event: events.TaskControlResultEvent, *, detail: Detail)
     return render_task_response(event.response, detail=detail)
 
 
-_COMPACT_MESSAGE_MAX_LINES = 3
+_COMPACT_MESSAGE_MAX_LINES = 6
 
 
-def _message_row(mark: str, details: Text, *, detail: Detail) -> RenderableType:
-    """A peer message as a tool row: wrapped lines hang under the text, not the mark."""
-    clipped: RenderableType = (
-        MaxLines(details, _COMPACT_MESSAGE_MAX_LINES, ellipsis_style=ThemeKey.TOOL_RESULT_TRUNCATED)
-        if detail.is_compact
-        else details
+def render_message(mark: str, verb: str, peer: str, body: str, *, detail: Detail) -> RenderableType:
+    """A message between agents: a tool-style header naming the peer, the body in a panel.
+
+    Direction shows twice: the mark (`✉` sent, `›` filled back in) and one
+    color for mark, border, and body (blue sent, purple received). Compact
+    mode shows the first lines; ctrl-o shows it all.
+    """
+    color = ThemeKey.PEER_MESSAGE_SENT if mark == MARK_MESSAGE else ThemeKey.PEER_MESSAGE_RECEIVED
+    header = Text(overflow="ellipsis", no_wrap=True)
+    header.append(f"{verb} ", style=ThemeKey.METADATA)
+    header.append(peer, style=ThemeKey.TOOL_PARAM)
+    lines = body.strip().splitlines() or [""]
+    shown = lines[:_COMPACT_MESSAGE_MAX_LINES] if detail.is_compact else lines
+    text: RenderableType = Text("\n".join(shown), style=color, overflow="fold")
+    if detail.is_compact:
+        # Long lines wrap too; the cap counts rows on screen, not source lines.
+        text = MaxLines(text, _COMPACT_MESSAGE_MAX_LINES, ellipsis_style=ThemeKey.TOOL_RESULT_TRUNCATED)
+    content: list[RenderableType] = [text]
+    if len(shown) < len(lines):
+        content.append(Text(f"… {len(lines) - len(shown)} more lines · ctrl-o", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+    return Group(
+        render_tool_call_tree(mark=mark, tool_name="Message", details=header, mark_style=color),
+        render_result_panel(Group(*content), border_style=color),
     )
-    return render_tool_call_tree(mark=mark, tool_name="Message", details=clipped, overflow="fold")
-
-
-def _message_text(body: str, *, detail: Detail) -> str:
-    # Compact mode keeps the first paragraph; expanded mode the whole body.
-    return one_line(body.strip().split("\n\n", 1)[0]) if detail.is_compact else body.strip()
 
 
 def render_peer_message(event: events.UserMessageEvent, *, detail: Detail, directory: TaskDirectory) -> RenderableType:
     peer = event.peer_message
     if peer is None:
         return Text("Peer message metadata unavailable.", style=ThemeKey.METADATA_DIM)
-    details = Text(overflow="fold")
-    details.append("from ", style=ThemeKey.METADATA)
-    details.append(directory.session_label(peer.sender_session_id, peer.sender_label), style=ThemeKey.TOOL_PARAM)
-    details.append(": ", style=ThemeKey.METADATA)
-    details.append(_message_text(peer.body, detail=detail), style=ThemeKey.TOOL_RESULT)
-    row = _message_row(MARK_CALLBACK, details, detail=detail)
+    sender = directory.session_label(peer.sender_session_id, peer.sender_label)
+    row = render_message(MARK_CALLBACK, "from", sender, peer.body, detail=detail)
     if detail.is_compact:
         return row
     meta = Text(
@@ -322,7 +331,7 @@ def render_peer_message(event: events.UserMessageEvent, *, detail: Detail, direc
         style=ThemeKey.METADATA_DIM,
         overflow="fold",
     )
-    return Group(row, AdaptiveIndent(meta, TOOL_SUBJECT_INDENT))
+    return Group(row, AdaptiveIndent(meta, TOOL_RESULT_INDENT))
 
 
 def render_sourced_message(
@@ -400,20 +409,16 @@ def is_accepted_peer_receipt(result: str) -> bool:
         return False
 
 
-def render_collaboration_call(tool_name: str, arguments: str, directory: TaskDirectory | None = None) -> RenderableType:
+def render_collaboration_call(
+    tool_name: str, arguments: str, directory: TaskDirectory | None = None, *, detail: Detail = Detail.COMPACT
+) -> RenderableType:
     directory = directory or TaskDirectory()
     if tool_name == tools.MANAGE_TASKS:
         return render_manage_tasks_call(arguments, directory)
     if tool_name == tools.MESSAGE_PEER:
         args = parse_tool_arguments(arguments)
         target = directory.session_label(str(args.get("target", "")), str(args.get("target", "")))
-        details = Text(overflow="fold")
-        details.append("to ", style=ThemeKey.METADATA)
-        details.append(target, style=ThemeKey.TOOL_PARAM)
-        details.append(": ", style=ThemeKey.METADATA)
-        # A call row has no detail level; it always shows the compact preview.
-        details.append(_message_text(str(args.get("body", "")), detail=Detail.COMPACT), style=ThemeKey.TOOL_RESULT)
-        return _message_row(MARK_MESSAGE, details, detail=Detail.COMPACT)
+        return render_message(MARK_MESSAGE, "to", target, str(args.get("body", "")), detail=detail)
     presentation = get_tool_call_presentation(tool_name, arguments)
     return render_tool_call_tree(
         mark=MARK_PLAN,

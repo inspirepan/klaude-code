@@ -17,6 +17,7 @@ from klaude_code.tui.components.rich.clip import MaxLines
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.components.tools._presentation import display_path
 
 _MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
 _MARKDOWN_PREFIX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+[.)]\s+|>\s*)")
@@ -61,9 +62,9 @@ def extract_result_summary(result: str) -> str:
 
 
 def format_compact_result_summary(result_summary: str) -> str:
-    """Return a normalized result or an explicit empty-result placeholder."""
+    """Return a normalized result; an empty one renders no body line at all."""
 
-    return result_summary or "(no summary)"
+    return result_summary.strip()
 
 
 def render_compact_sub_agent_summary(
@@ -78,8 +79,9 @@ def render_compact_sub_agent_summary(
     token_count: int | None,
     result_summary: str,
     color: Style,
+    changes: RenderableType | None = None,
 ) -> RenderableType:
-    """Render a stable two-line compact sub-agent summary."""
+    """Render a compact sub-agent summary: identity and metrics, the result head, the files it changed."""
 
     identity_style = Style(color=color.color, bold=True)
     first = Text(no_wrap=True, overflow="ellipsis")
@@ -107,7 +109,27 @@ def render_compact_sub_agent_summary(
     if metrics:
         first.append(f" · {' · '.join(metrics)}", style=ThemeKey.METADATA_DIM)
 
-    return Group(first, render_compact_result_body(result_summary, color=color))
+    parts: list[RenderableType] = [first]
+    if format_compact_result_summary(result_summary):
+        parts.append(render_compact_result_body(result_summary, color=color))
+    if changes is not None:
+        parts.append(changes)
+    return Group(*parts)
+
+
+def render_sub_agent_changes(paths: list[str], added: int, removed: int) -> Text:
+    """`± 8 files  +212 −30  a.py, b.py, …`: what a sub-agent run changed, in one line."""
+    line = Text(COMPACT_CONTINUATION_INDENT, no_wrap=True, overflow="ellipsis")
+    line.append("± ", style=ThemeKey.TOOL_MARK)
+    line.append(f"{len(paths)} {'file' if len(paths) == 1 else 'files'}", style=ThemeKey.TOOL_NAME)
+    if added:
+        line.append(f"  +{added}", style=ThemeKey.DIFF_STATS_ADD)
+    if removed:
+        line.append(f"  -{removed}", style=ThemeKey.DIFF_STATS_REMOVE)
+    line.append("  ")
+    shown = [display_path(path) for path in paths[:3]]
+    line.append(", ".join(shown) + (", …" if len(paths) > len(shown) else ""), style=ThemeKey.TOOL_PARAM_FILE_PATH)
+    return line
 
 
 def render_compact_result_body(result_summary: str, *, color: Style) -> RenderableType:
@@ -133,26 +155,6 @@ def render_compact_result_body(result_summary: str, *, color: Style) -> Renderab
         COMPACT_RESULT_MAX_LINES,
         ellipsis_style=ThemeKey.TOOL_RESULT_TRUNCATED,
     )
-
-
-def render_compact_file_change(
-    *,
-    sub_agent_state: SubAgentState,
-    action: Text,
-    change: RenderableType | None,
-    color: Style,
-) -> RenderableType:
-    """Render a compact sub-agent identity header, followed by its file diff when shown."""
-
-    title = format_pascal_case(sub_agent_state.sub_agent_type)
-    header = Text(no_wrap=True, overflow="ellipsis")
-    header.append(title, style=Style(color=color.color, bold=True))
-    if sub_agent_state.sub_agent_desc:
-        header.append(": ", style=Style(color=color.color))
-        header.append(sub_agent_state.sub_agent_desc, style=Style(color=color.color, italic=True))
-    header.append(" · ", style=ThemeKey.METADATA_DIM)
-    header.append_text(action)
-    return header if change is None else Group(header, change)
 
 
 def render_sub_agent_call(

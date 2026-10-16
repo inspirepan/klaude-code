@@ -117,8 +117,9 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   starts the next turn) or `Paused` (the user interrupted; reports wait for them).
 - Compact file diffs fold by size (`diffs.fold_limit`): up to 10 changed lines
   (30 for Markdown) show whole, larger edits preview 5 lines (15), a new or
-  deleted code file shows only its header, and a sub-agent's change is its
-  action line alone. ctrl-t (`ToggleDiffDetailEvent`, `TranscriptDetail.diffs_expanded`)
+  deleted code file shows only its header. A compact sub-agent's file changes
+  print nothing as they happen; the run's `▌` block sums them up in one
+  `± N files +a -r paths` line (each diff below it under ctrl-t). ctrl-t (`ToggleDiffDetailEvent`, `TranscriptDetail.diffs_expanded`)
   expands every diff without leaving compact mode; expanded mode never folds.
 - A call the agent made keeps its tool mark (`$ Shell`, `◈ Tasks`); input the
   system fills back in later uses `MARK_CALLBACK` (`› Shell`, `› Task`, `› Message`).
@@ -162,9 +163,11 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   Root completion/interruption does not end child rows or block the editor.
 - Peer and task reports are sourced messages, not operator input cards. Render
   `peer_message` fields directly; never parse `<agent-message>` body text.
-  Peer messages are tool-style rows (`› Message from …`, `✉ Message to …`) whose
-  wrapped lines hang under the text; compact shows the first paragraph in at
-  most three lines, expanded mode adds metadata and the full body.
+  Peer messages render as a `Message` tool row naming the peer, with the body
+  in a result panel (`render_message`): `✉ … to X` in `PEER_MESSAGE_SENT` (blue)
+  and `› … from X` in `PEER_MESSAGE_RECEIVED` (purple), one color for mark,
+  border, and body. Compact shows six lines, expanded adds the whole body and
+  incoming metadata.
 - `TaskMetadataItem.background_task_id` identifies independent background costs.
   Replay it without synthesizing a parent turn finish, and deduplicate against
   typed task snapshots. Background completion never starts an assistant turn.
