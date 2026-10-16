@@ -59,7 +59,7 @@ def register_attach_command(app: typer.Typer) -> None:
         """Open the TUI on a session: replay the conversation so far, then
         follow live. Multiple clients may attach to the same session and all
         may type; execution is serialized by the server. Detaching (exit,
-        Ctrl+D, closing the terminal) never stops the agent.
+        ctrl-d, closing the terminal) never stops the agent.
 
         With no TARGET, opens the interactive session picker (same as -r).
         TARGET is a session id (unique prefix is enough) or a `run --name`.

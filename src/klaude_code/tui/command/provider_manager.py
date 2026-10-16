@@ -156,7 +156,7 @@ def manage_providers_interactive(
             ("class:question", "Manage providers\n"),
             (
                 "class:meta",
-                "Up/Down move  Space toggle  Tab jump section  j/k or Alt+Up/Down reorder search  Enter on Save  s save  Esc cancel\n",
+                "Up/Down move  Space toggle  Tab jump section  j/k or alt-up/down reorder search  Enter on Save  s save  Esc cancel\n",
             ),
         ]
 
@@ -332,8 +332,8 @@ def manage_providers_interactive(
         save_result(event.app)
 
     # NOT eager: an eager lone-Escape binding fires as soon as the ESC byte
-    # arrives and shadows the ("escape", "up"/"down") Alt-arrow sequences
-    # (Alt+Up would instantly cancel the dialog). Without eager, the key
+    # arrives and shadows the ("escape", "up"/"down") alt-arrow sequences
+    # (alt-up would instantly cancel the dialog). Without eager, the key
     # processor waits up to `timeoutlen` for a sequence continuation; a lone
     # Esc still cancels after that short delay.
     @kb.add(Keys.Escape)

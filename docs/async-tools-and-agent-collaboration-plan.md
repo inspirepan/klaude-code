@@ -65,7 +65,7 @@
 - TUI 消费 authoritative `BackgroundTasksUpdatedEvent`，校准已有 sub-agent rows 与 Agent/Bash 分项计数；root finish/Esc 不清掉后台 child。
   - 没有 child session ID 的 queued 引用先显示 task-ID 行，拿到 session ID 后替换；已有 coloring/model/progress/status sink 继续复用。
   - typed 快照到达后旧 shell 快照不重复计算；socket 的后台计数不改变 root `is_running`。
-  - Ctrl+O、resize、refresh 仍只重放 display tape；attach/resume 沿用 Phase3A 全量快照，不增加第二套恢复路径。
+  - ctrl-o、resize、refresh 仍只重放 display tape；attach/resume 沿用 Phase3A 全量快照，不增加第二套恢复路径。
 - `source=peer_message` compact 是独立 dim 一行，expanded 展示原始 body 与 sender/recipient/id/reply_to；不解析包裹文本，不当用户输入卡片。
   - `MessagePeer` 调用有目标与正文首行摘要，receipt 明确仅表示传输入队；`ListPeers`、`ManageTasks` 结果用可读行和分页提示，不直接塞 JSON。
 - `source=task_completion` 独立显示后台报告；长输出只提示 `/tasks output` 或 shell log 位置，不生成额外助手收尾。
@@ -514,7 +514,7 @@
   - `badlogic-pi-mono/packages/durable/test/examples/23-subagent-background.ts:56`、`:73`。
 - Claude Code 官方文档区分中断当前操作与停止所有后台子 agent 的独立操作。
   - https://code.claude.com/docs/en/interactive-mode#general-controls
-  - 当前文档列出 Esc 中断当前响应/工具调用，Ctrl+X Ctrl+K 专门停止所有后台 subagent。
+  - 当前文档列出 Esc 中断当前响应/工具调用，ctrl-x ctrl-k 专门停止所有后台 subagent。
   - https://code.claude.com/docs/en/sub-agents#run-subagents-in-foreground-or-background
   - 其当前默认模式也支持后台启动，再通过完成通知报告结果；具体行为受 fork mode/运行环境影响。
 - Codex V2 有独立 interrupt-agent/shutdown-tree 操作，但本轮未直接验证所有父 Esc 路径，不能硬说其保证 child 存活。

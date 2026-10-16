@@ -1440,10 +1440,17 @@ class TUICommandRenderer:
             metadata = task.result.metadata if task.result is not None else None
             text = (task.result.text or task.result.summary or "") if task.result is not None else ""
             text = text or (response.output if len(response.tasks) == 1 else "")
+            session_id = task.ref.session_id or f"task:{task.ref.task_id}"
+            known = self._sessions.get(session_id)
+            agent_type = task.agent_type or (
+                known.sub_agent_state.sub_agent_type
+                if known is not None and known.sub_agent_state is not None
+                else "agent"
+            )
             summaries.append(
                 SubAgentSummary(
-                    session_id=task.ref.session_id or f"task:{task.ref.task_id}",
-                    title=format_pascal_case(task.agent_type or "agent"),
+                    session_id=session_id,
+                    title=format_pascal_case(agent_type),
                     description=task.description,
                     status="success"
                     if task.status == "completed"

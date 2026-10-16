@@ -200,7 +200,7 @@ def render_task_response(
         output.overflow = "ellipsis" if detail.is_compact else "fold"
         rows.append(output)
         if len(visible) < len(lines) or (detail.is_compact and len(response.output) > 2000):
-            rows.append(Text("… full page: Ctrl+O", style=ThemeKey.TOOL_RESULT_TRUNCATED))
+            rows.append(Text("… full page: ctrl-o", style=ThemeKey.TOOL_RESULT_TRUNCATED))
     if response.truncated:
         task_id = response.tasks[0].ref.task_id if response.tasks else "TASK_ID"
         rows.append(Text(f"More output: /tasks output {task_id} {response.next_offset}", style=ThemeKey.METADATA_DIM))
@@ -378,7 +378,7 @@ def render_collaboration_result(
                 for peer in selected
             ]
             if len(selected) < len(peers):
-                lines.append(f"… {len(peers) - len(selected)} more peers · Ctrl+O")
+                lines.append(f"… {len(peers) - len(selected)} more peers · ctrl-o")
             return Text("\n".join(lines) or "No active peers.", style=ThemeKey.TOOL_RESULT, overflow="fold")
         if tool_name == tools.MESSAGE_PEER:
             receipt = PeerReceipt.model_validate_json(result)

@@ -17,7 +17,7 @@ def _parse(data: str) -> list[KeyPress]:
 
 
 def test_ctrl_w_csi_u_maps_to_control_w() -> None:
-    """Regression: a leaked kitty keyboard mode encodes Ctrl+W as CSI 119;5u.
+    """Regression: a leaked kitty keyboard mode encodes ctrl-w as CSI 119;5u.
 
     Without the mapping this parsed as Escape (interrupting the running task)
     plus the literal text ``[119;5u``.

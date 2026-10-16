@@ -4,7 +4,7 @@ A retracted turn leaves only its InterruptEntry in loaded history (the
 UserMessage is projected out at load time). The stale interrupt flag used to
 leak across the turn boundary and suppress the next completed turn's
 TaskFinishEvent — a dangling TaskStart that revived the spinner ("Loading…")
-on every tape rebuild (resize / Ctrl+O) of an idle session.
+on every tape rebuild (resize / ctrl-o) of an idle session.
 """
 
 from __future__ import annotations

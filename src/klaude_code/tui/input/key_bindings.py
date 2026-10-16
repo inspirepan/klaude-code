@@ -201,7 +201,7 @@ def create_key_bindings(
         """Return True when incoming key data should insert a newline.
 
         Different terminals and editor-integrated terminals can emit different
-        sequences for Shift+Enter/Alt+Enter. We treat these as "insert newline"
+        sequences for shift-enter/alt-enter. We treat these as "insert newline"
         instead of "submit".
         """
 
@@ -214,9 +214,9 @@ def create_key_bindings(
 
         # Known escape sequences observed in some terminals.
         if data in {
-            "\x1b\r",  # Alt+Enter (ESC + CR)
-            "\x1b[13;2~",  # Shift+Enter (some terminals)
-            "\x1b[27;2;13~",  # Shift+Enter (xterm "CSI 27" modified keys)
+            "\x1b\r",  # alt-enter (ESC + CR)
+            "\x1b[13;2~",  # shift-enter (some terminals)
+            "\x1b[27;2;13~",  # shift-enter (xterm "CSI 27" modified keys)
             "\\\r",  # Backslash+Enter sentinel (some editor terminals)
         }:
             return True
@@ -520,13 +520,13 @@ def create_key_bindings(
 
     @kb.add("escape", "enter", filter=enabled)
     def _(event: KeyPressEvent) -> None:
-        """Alt+Enter inserts a newline."""
+        """alt-enter inserts a newline."""
 
         _insert_newline(event)
 
     @kb.add("escape", "[", "1", "3", ";", "2", "~", filter=enabled)
     def _(event: KeyPressEvent) -> None:
-        """Shift+Enter sequence used by some terminals inserts a newline."""
+        """shift-enter sequence used by some terminals inserts a newline."""
 
         _insert_newline(event)
 
@@ -619,7 +619,7 @@ def create_key_bindings(
             _insert_newline(event)
             return
 
-        # VS Code-family terminals often implement Shift+Enter via a "\\" sentinel
+        # VS Code-family terminals often implement shift-enter via a "\\" sentinel
         # before Enter. Only enable this heuristic under TERM_PROGRAM=vscode.
         if term_program == "vscode":
             try:
@@ -763,8 +763,8 @@ def create_key_bindings(
         event.current_buffer.reset()
 
     # Some IME/terminal combinations occasionally emit spurious forward-delete
-    # keypresses (e.g. Ctrl-D) while composing/switching input methods.
-    # In our REPL, Ctrl-D is primarily useful for EOF on an empty buffer;
+    # keypresses (e.g. ctrl-d) while composing/switching input methods.
+    # In our REPL, ctrl-d is primarily useful for EOF on an empty buffer;
     # forward-delete is not essential, and accidental deletes are very disruptive.
     @kb.add("c-d", filter=enabled & has_text, eager=True)
     def _(event: KeyPressEvent) -> None:
@@ -874,21 +874,21 @@ def create_key_bindings(
 
     @kb.add("c-t", filter=enabled, eager=True)
     def _(event: KeyPressEvent) -> None:
-        """Fold or expand file diffs, independently of Ctrl+O."""
+        """Fold or expand file diffs, independently of ctrl-o."""
         del event
         if request_toggle_diffs is not None:
             request_toggle_diffs()
 
     @kb.add("escape", "up", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:
-        """Option+Up restores all queued messages for editing, or falls back to history."""
+        """option-up restores all queued messages for editing, or falls back to history."""
         if _dequeue_pending_to_buffer(event):
             return
         _history_backward_cursor_to_start(event.current_buffer)
 
     @kb.add("escape", "down", filter=enabled & ~has_completions)
     def _(event: KeyPressEvent) -> None:
-        """Option+Down switches to next history entry."""
+        """option-down switches to next history entry."""
         _history_forward_cursor_to_end(event.current_buffer)
 
     @kb.add(
@@ -899,7 +899,7 @@ def create_key_bindings(
         eager=True,
     )
     def _(event: KeyPressEvent) -> None:
-        """Ctrl+C interrupts the currently running agent task while prompt_toolkit owns stdin."""
+        """ctrl-c interrupts the currently running agent task while prompt_toolkit owns stdin."""
         del event
         if request_interrupt is not None:
             request_interrupt()

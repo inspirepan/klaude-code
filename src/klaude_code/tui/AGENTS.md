@@ -19,16 +19,21 @@ dynamic UI in both busy and idle states:
   reasoning plus its char count, and the last few lines of the reasoning scroll
   through a transient preview window below it — see the renderer's thinking live
   tail) and sub-agent internals are represented
-  by a batched status/summary view. `Ctrl+O` toggles the process-local expanded
+  by a batched status/summary view. `ctrl-o` toggles the process-local expanded
   view at any time — idle or mid-run — by clearing the screen and replaying the
   display's event tape; expanded mode preserves the full transcript rendering —
   a live markdown stream for the main agent and a complete thinking block per
   sub-agent once that block finishes.
-- Transcript rebuilds (Ctrl+O toggle, `/refresh`) replay `TUIDisplay._tape`
+- Transcript rebuilds (ctrl-o toggle, `/refresh`) replay `TUIDisplay._tape`
   (`control/event_tape.py`), NOT `runtime.replay_session_history`. The tape
   records everything the display consumed — including the in-flight turn that
   persisted history does not cover — so a mid-run rebuild reproduces the screen
   and the machine state exactly. Rules:
+  - One attach replay is one `ReplayHistoryEvent`: the server sends long
+    history in `replay_history` chunks, and `SocketRuntimeClient` merges them
+    until the next frame. Each `ReplayHistoryEvent` is a rebuild that resets
+    machine and renderer state, so splitting it strands sub-agents whose turns
+    cross a chunk and the task snapshot then prints them at the end.
   - The tape is the single re-render source. Do not add a second replay path
     from persisted history for anything the live display already consumed.
   - `DisplayStateMachine` handlers always run with live semantics; a rebuild
@@ -113,7 +118,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 - Compact file diffs fold by size (`diffs.fold_limit`): up to 10 changed lines
   (30 for Markdown) show whole, larger edits preview 5 lines (15), a new or
   deleted code file shows only its header, and a sub-agent's change is its
-  action line alone. Ctrl+T (`ToggleDiffDetailEvent`, `TranscriptDetail.diffs_expanded`)
+  action line alone. ctrl-t (`ToggleDiffDetailEvent`, `TranscriptDetail.diffs_expanded`)
   expands every diff without leaving compact mode; expanded mode never folds.
 - A call the agent made keeps its tool mark (`$ Shell`, `◈ Tasks`); input the
   system fills back in later uses `MARK_CALLBACK` (`› Shell`, `› Task`, `› Message`).
@@ -179,7 +184,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 - Plain `Up` on an empty editor with queued messages dequeues all queued
   messages at once, clears the queue, and writes them back into the editor
   separated by standalone `--- split ---` lines. Queue-edit parsing also
-  accepts standalone `---` lines. `Alt+Up` / `Esc Up` keeps the same dequeue
+  accepts standalone `---` lines. `alt-up` / `Esc Up` keeps the same dequeue
   behavior as a fallback. Plain `Up` remains history navigation when the queue
   is empty.
 

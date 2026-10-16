@@ -645,7 +645,7 @@ def ps_command(
     Sub-agent sessions spawned by an Agent tool call are hidden by default;
     --tree lists them under their parent (the limit counts top-level rows).
 
-    --watch refreshes the human table until Ctrl-C and cannot be combined with
+    --watch refreshes the human table until ctrl-c and cannot be combined with
     --json.
     """
     if watch and json_:

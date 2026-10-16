@@ -92,7 +92,7 @@ class _QuietServer(uvicorn.Server):
 
     Upstream ``capture_signals`` restores the original signal handlers and then
     calls ``signal.raise_signal()`` for every signal it captured during the
-    run.  When the server was interrupted with Ctrl-C twice, this re-raise
+    run.  When the server was interrupted with ctrl-c twice, this re-raise
     triggers asyncio's ``_on_sigint`` which raises ``KeyboardInterrupt`` and
     produces a noisy traceback.  This subclass keeps the graceful-shutdown
     behaviour (via ``handle_exit``) but skips the post-shutdown re-raise.

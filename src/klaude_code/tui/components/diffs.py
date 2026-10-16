@@ -7,14 +7,14 @@ from klaude_code.const import DIFF_MAX_RENDER_WIDTH, DIFF_PREFIX_WIDTH, TAB_EXPA
 from klaude_code.protocol.models import DiffFileDiff, DiffLine, DiffUIExtra
 from klaude_code.tui.components.rich.theme import ThemeKey
 
-# Folded diffs (until Ctrl+T) show a small change whole and preview a large one.
+# Folded diffs (until ctrl-t) show a small change whole and preview a large one.
 # Prose reads in bigger pieces than code, so Markdown gets a larger budget.
 _FOLD_FULL_MAX_CHANGED = 10
 _FOLD_PREVIEW_LINES = 5
 _FOLD_DOC_FULL_MAX_CHANGED = 30
 FOLD_DOC_PREVIEW_LINES = 15
 _DOC_SUFFIXES = (".md", ".markdown", ".mdx")
-EXPAND_DIFFS_HINT = "Ctrl+T"
+EXPAND_DIFFS_HINT = "ctrl-t"
 
 
 def is_doc_path(path: str) -> bool:

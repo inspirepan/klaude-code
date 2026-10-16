@@ -41,7 +41,7 @@ def _diff() -> DiffUIExtra:
 
 
 def _diffs_expanded() -> TranscriptDetail:
-    # Ctrl+T in compact mode: sub-agent changes show their diffs again.
+    # ctrl-t in compact mode: sub-agent changes show their diffs again.
     detail = TranscriptDetail(Detail.COMPACT)
     detail.toggle_diffs()
     return detail
@@ -252,7 +252,7 @@ def test_compact_markdown_preview_shows_fifteen_source_lines_and_remaining_count
     assert "Line 16" not in plain
     assert "Line 17" not in plain
     assert "docs/new.md" not in plain
-    assert "… 2 more lines · Ctrl+T" in plain
+    assert "… 2 more lines · ctrl-t" in plain
 
 
 def test_compact_markdown_preview_preserves_source_lines_and_uses_ellipsis() -> None:

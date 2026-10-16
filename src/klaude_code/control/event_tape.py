@@ -1,6 +1,6 @@
 """Process-local recording of the events a display has consumed.
 
-The interactive TUI re-renders its transcript (Ctrl+O detail toggle, /refresh)
+The interactive TUI re-renders its transcript (ctrl-o detail toggle, /refresh)
 by replaying this tape through the display state machine. The tape holds
 exactly what the display consumed, in order, so a rebuild reproduces the
 screen — including the in-flight turn that persisted history does not cover

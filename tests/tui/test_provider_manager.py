@@ -133,8 +133,8 @@ class TestInteractiveKeyBindings:
             )
 
     def test_alt_down_reorders_instead_of_exiting(self) -> None:
-        """Regression: an eager lone-Escape binding used to cancel the dialog on Alt+arrows."""
-        # Pointer starts on the first search row (exa): Alt+Down swaps exa/brave, "s" saves.
+        """Regression: an eager lone-Escape binding used to cancel the dialog on alt-arrows."""
+        # Pointer starts on the first search row (exa): alt-down swaps exa/brave, "s" saves.
         result = self._run_with_keys("\x1b[1;3Bs")
         assert result is not None
         assert result.search_provider_names == ["brave", "exa", "deepseek"]

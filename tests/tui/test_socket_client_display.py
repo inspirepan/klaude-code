@@ -51,6 +51,7 @@ def test_welcome_context_spliced_before_history_replay() -> None:
                 "events": [],
             }
         )
+        await client._handle_frame({"type": "replay_complete", "session_id": "session-id"})
         received: list[events.Event] = []
         while not client._display_queue.empty():
             received.append(client._display_queue.get_nowait().event)
@@ -178,3 +179,35 @@ def test_waiting_user_input_counts_as_busy() -> None:
 
     client._apply_session_info({"state": "idle"})
     assert client.is_running() is False
+
+
+def test_chunked_history_replay_reaches_the_display_as_one_replay() -> None:
+    """Each replay is a rebuild that resets display state; chunks must not be split
+    into several, or a child turn crossing a chunk boundary loses its block."""
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+
+    def chunk(text: str) -> dict[str, object]:
+        event = events.UserMessageEvent(session_id="session-id", content=text)
+        return {
+            "type": "replay_history",
+            "session_id": "session-id",
+            "updated_at": 1.0,
+            "events": [{"event_type": events.event_type_name(event), "event": event.model_dump(mode="json")}],
+        }
+
+    async def scenario() -> list[events.Event]:
+        await client._handle_frame(chunk("first"))
+        await client._handle_frame(chunk("second"))
+        assert client._display_queue.empty()
+        await client._handle_frame({"type": "replay_complete", "session_id": "session-id"})
+        received: list[events.Event] = []
+        while not client._display_queue.empty():
+            received.append(client._display_queue.get_nowait().event)
+        return received
+
+    received = asyncio.run(scenario())
+    assert len(received) == 1 and isinstance(received[0], events.ReplayHistoryEvent)
+    assert [event.content for event in received[0].events if isinstance(event, events.UserMessageEvent)] == [
+        "first",
+        "second",
+    ]

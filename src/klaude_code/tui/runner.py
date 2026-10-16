@@ -579,7 +579,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
 
     task_panel = TaskPanel(client, input_provider, tui_display.task_attention)
 
-    # -- interrupt handling (Esc / Ctrl+C while the agent runs) --
+    # -- interrupt handling (Esc / ctrl-c while the agent runs) --
 
     interrupt_pending = False
     interrupt_target_operation_id: str | None = None

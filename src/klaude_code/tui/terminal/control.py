@@ -9,7 +9,7 @@ def install_sigint_interrupt(
 ) -> Callable[[], None]:
     """Install a SIGINT handler that triggers task interrupt and keeps app running.
 
-    Used while waiting for an in-flight task so a single Ctrl+C cancels the
+    Used while waiting for an in-flight task so a single ctrl-c cancels the
     running task and returns control to the input prompt.
     """
 

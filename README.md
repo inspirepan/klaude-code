@@ -53,7 +53,7 @@ klaude agents --prime    # paste into your agent's CLAUDE.md / AGENTS.md
 - **Sub-agents**: General Purpose, Finder, Code Reviewer, Code Maintenance Reviewer (+ fork-context variant)
 - **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
 - **External file sync**: Monitoring for external edits (linter, manual)
-- **Interrupt handling**: Ctrl+C preserves partial responses and synthesizes tool cancellation results
+- **Interrupt handling**: ctrl-c preserves partial responses and synthesizes tool cancellation results
 - **Output truncation**: Large outputs saved to file system with snapshot links
 - **Agent Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `//skill` or `/skill`)
 - **Prompt caching**: Append-only persisted history and stable request prefixes maximize cache hits
@@ -370,10 +370,10 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 | Key                  | Action                                      |
 | -------------------- | ------------------------------------------- |
 | `Enter`              | Submit input                                |
-| `Shift+Enter`        | Insert newline (terminal-dependent)         |
-| `Ctrl+J`             | Insert newline                              |
-| `Ctrl+L`             | Open model picker overlay                   |
-| `Ctrl+V`             | Paste image from clipboard                  |
+| `shift-enter`        | Insert newline (terminal-dependent)         |
+| `ctrl-j`             | Insert newline                              |
+| `ctrl-l`             | Open model picker overlay                   |
+| `ctrl-v`             | Paste image from clipboard                  |
 | `Left/Right`         | Move cursor (wraps across lines)            |
 | `Backspace`          | Delete character or selected text           |
 | `c` (with selection) | Copy selected text to clipboard             |

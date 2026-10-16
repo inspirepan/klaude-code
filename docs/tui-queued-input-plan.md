@@ -12,10 +12,10 @@
 - 消费先完成当前 step 的工具结果配对，再确认历史落盘、清除持久队列并显示消息；不取消流式输出或强杀普通工具。
 - Busy 提示为 `Steer the agent`，待处理区显示 `Steering (...) · next safe step · ↑ to edit.`。
 - 队列非空且编辑器为空时，按 Up 会一次取回全部消息，使用独立的
-  `--- split ---` 行分隔，供用户统一修改。`Alt+Up` / `Esc Up` 保留相同的回退行为。
+  `--- split ---` 行分隔，供用户统一修改。`alt-up` / `Esc Up` 保留相同的回退行为。
 - 编辑后重新提交时，生成的 `--- split ---` 行会把内容拆回多条 follow-up。解析器在
   队列编辑模式下也兼容独立的 `---` 行；普通提交只把显式 `--- split ---` 识别为分隔符。
-- Ctrl+C / Escape 通过 prompt-toolkit 的按键绑定中断当前 operation。prompt-toolkit 是
+- ctrl-c / Escape 通过 prompt-toolkit 的按键绑定中断当前 operation。prompt-toolkit 是
   运行期唯一的 stdin reader。
 - Esc 只中断 root 当前推理或等待，后台 child 继续；`/stop` 单独停止 owned 子 agent，`/tasks` 管理 owned Agent/Bash 的 list/output/wait/stop。
 

@@ -5,7 +5,7 @@ but scrollback is hard-wrapped at the width it was printed with, so a resized
 window leaves the transcript ragged. This watcher chains onto the
 application's resize callback and, once the width settles, asks the runner to
 repaint the transcript from the display's event tape at the new width — the
-same rebuild `/refresh` and the Ctrl+O detail toggle use.
+same rebuild `/refresh` and the ctrl-o detail toggle use.
 
 The repaint erases scrollback and moves the terminal viewport to the bottom.
 The repaint runs after the resize burst settles, regardless of recent user

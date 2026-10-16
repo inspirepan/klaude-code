@@ -342,7 +342,7 @@ async def cleanup_app_components(components: AppComponents) -> None:
 
 
 async def handle_keyboard_interrupt(runtime: RuntimeFacade) -> None:
-    """Handle Ctrl+C by logging and interrupting only if a task is running."""
+    """Handle ctrl-c by logging and interrupting only if a task is running."""
     log("Bye!")
     session_id = runtime.current_session_id()
     if (

@@ -804,7 +804,7 @@ class Session(BaseModel):
                 # cannot consume the interrupt flag. Leaked across this turn
                 # boundary it would suppress the TaskFinishEvent of a COMPLETED
                 # turn — a dangling TaskStart that revives the spinner
-                # ("Loading…") on every tape rebuild (resize/Ctrl+O) of an
+                # ("Loading…") on every tape rebuild (resize/ctrl-o) of an
                 # idle session.
                 prev_step_interrupted = False
 

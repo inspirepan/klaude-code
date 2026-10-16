@@ -1,6 +1,6 @@
 """Mid-run transcript rebuilds from the display event tape.
 
-Covers the three pillars of the running Ctrl+O toggle:
+Covers the three pillars of the running ctrl-o toggle:
 - the tape records (and coalesces) exactly what the display consumed;
 - a rebuild reconstructs machine state identical to the live pass, so live
   events continue seamlessly afterwards;

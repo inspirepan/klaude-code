@@ -102,6 +102,8 @@ class SocketRuntimeClient:
         self._active_operation_id: str | None = None
         self._state_changed = asyncio.Event()
         self._replay_complete = asyncio.Event()
+        # Chunks of one history replay, delivered to the display as a single event.
+        self._replay_chunks: list[dict[str, Any]] = []
         self._connection_lost = asyncio.Event()
         self._interrupt_prefill: str | None = None
         self._interaction_queue: asyncio.Queue[events.UserInteractionRequestEvent] = asyncio.Queue()
@@ -190,6 +192,8 @@ class SocketRuntimeClient:
             max_size=64 * 1024 * 1024,
             ping_interval=None,
         )
+        # A replay cut short by the old socket is resent whole on this one.
+        self._replay_chunks = []
         self._replay_complete = asyncio.Event()
         self._handshake_settled = asyncio.Event()
         self._handshake_ok = False
@@ -647,7 +651,39 @@ class SocketRuntimeClient:
         with contextlib.suppress(Exception):
             await self._display_queue.put(_local_envelope(event))
 
+    async def _flush_replay_chunks(self) -> None:
+        if not self._replay_chunks:
+            return
+        chunks, self._replay_chunks = self._replay_chunks, []
+        parsed: list[events.Event] = []
+        for chunk in chunks:
+            for raw in chunk.get("events") or []:
+                if not isinstance(raw, dict):
+                    continue
+                try:
+                    parsed.append(events.parse_event(str(raw.get("event_type")), raw.get("event") or {}))
+                except ValueError:
+                    continue
+        last = chunks[-1]
+        # Instances are already concrete event classes; validate through
+        # the model so the replay union accepts them.
+        replay_event = events.ReplayHistoryEvent.model_validate(
+            {
+                "session_id": str(last.get("session_id") or self._session_id),
+                "events": parsed,
+                "updated_at": float(last.get("updated_at") or 0.0),
+            }
+        )
+        await self._display_queue.put(_local_envelope(replay_event))
+
     async def _handle_frame(self, item: dict[str, Any]) -> None:
+        if item.get("type") == "replay_history":
+            self._replay_chunks.append(item)
+            return
+        # The server splits long history into chunks; replaying each chunk as
+        # its own rebuild resets the display between them and strands children
+        # whose turns cross a boundary. Any following frame ends the replay.
+        await self._flush_replay_chunks()
         if "event_type" in item:
             try:
                 envelope = parse_event_envelope(item)
@@ -661,26 +697,6 @@ class SocketRuntimeClient:
         frame_type = item.get("type")
         if frame_type == "session_info":
             self._apply_session_info(item)
-            return
-        if frame_type == "replay_history":
-            parsed: list[events.Event] = []
-            for raw in item.get("events") or []:
-                if not isinstance(raw, dict):
-                    continue
-                try:
-                    parsed.append(events.parse_event(str(raw.get("event_type")), raw.get("event") or {}))
-                except ValueError:
-                    continue
-            # Instances are already concrete event classes; validate through
-            # the model so the replay union accepts them.
-            replay_event = events.ReplayHistoryEvent.model_validate(
-                {
-                    "session_id": str(item.get("session_id") or self._session_id),
-                    "events": parsed,
-                    "updated_at": float(item.get("updated_at") or 0.0),
-                }
-            )
-            await self._display_queue.put(_local_envelope(replay_event))
             return
         if frame_type == "replay_complete":
             self._transcript_loaded = True

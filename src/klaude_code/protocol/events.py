@@ -587,7 +587,7 @@ class ToggleTranscriptDetailEvent(Event):
 
 
 class ToggleDiffDetailEvent(Event):
-    """Display-local control: fold/expand file diffs (Ctrl+T) and re-render from the display's event tape.
+    """Display-local control: fold/expand file diffs (ctrl-t) and re-render from the display's event tape.
 
     Independent of ToggleTranscriptDetailEvent. Never persisted and never recorded on the tape.
     """

@@ -1,6 +1,6 @@
 """Transcript detail level: the single source of truth for compact vs full rendering.
 
-Ctrl+O toggles between two renderings of the same event stream, and that choice
+ctrl-o toggles between two renderings of the same event stream, and that choice
 reaches three layers -- which commands `DisplayStateMachine` emits, whether
 `TUICommandRenderer` prints an event, and which form a component builds. All three
 read it from here rather than deciding for themselves:
@@ -121,7 +121,7 @@ class TranscriptDetail:
 
     def __init__(self, detail: Detail = Detail.COMPACT) -> None:
         self._detail = detail
-        # Ctrl+T: show every diff whole without leaving compact mode.
+        # ctrl-t: show every diff whole without leaving compact mode.
         self.diffs_expanded = False
 
     @property

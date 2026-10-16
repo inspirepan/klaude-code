@@ -3,12 +3,12 @@
 Some programs push kitty keyboard-protocol flags onto the terminal and fail
 to pop them (crashed TUI apps, fish 4 line editor, another leaked CLI). The
 terminal then encodes modified keys as ``CSI <codepoint>;<modifiers> u``
-instead of legacy C0 bytes: Ctrl+W arrives as ``\\x1b[119;5u``.
+instead of legacy C0 bytes: ctrl-w arrives as ``\\x1b[119;5u``.
 
 prompt_toolkit's vt100 parser does not know these sequences. Its fallback
 emits a bare Escape key press — which the REPL binds to "interrupt the
 running task" — followed by the sequence body as literal text. One stray
-Ctrl+W then aborts the running task and leaves ``[119;5u`` in the input
+ctrl-w then aborts the running task and leaves ``[119;5u`` in the input
 buffer.
 
 Two defenses, both installed by :class:`PromptToolkitInput`:
@@ -72,7 +72,7 @@ def _build_sequences() -> dict[str, _KeyValue]:
 
             base: Keys | str | None = _base_key(code, shift=shift, ctrl=ctrl)
             if base is None and alt:
-                # Alt-only chords have no dedicated Keys member; emit the
+                # alt-only chords have no dedicated Keys member; emit the
                 # escape-prefixed form the key processor already understands.
                 # The character element carries no data payload, so unbound
                 # combos are a no-op instead of inserting garbage.

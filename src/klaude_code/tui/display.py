@@ -48,7 +48,7 @@ class TUIDisplay(DisplayABC):
 
         self._sigint_toast_clear_handle: asyncio.Handle | None = None
         self._bg_tasks: set[asyncio.Task[None]] = set()
-        # Everything the display has consumed, so a transcript rebuild (Ctrl+O
+        # Everything the display has consumed, so a transcript rebuild (ctrl-o
         # detail toggle, /refresh) can repaint the screen without asking the
         # runtime — including in-flight turns that are not persisted yet.
         self._tape = EventTape()
@@ -260,7 +260,7 @@ class TUIDisplay(DisplayABC):
         await self._renderer.stop()
 
     def show_sigint_exit_toast(self, *, window_seconds: float = 2.0) -> None:
-        """Show a transient Ctrl+C hint in the TUI status line."""
+        """Show a transient ctrl-c hint in the TUI status line."""
 
         async def _apply_show() -> None:
             await self._renderer.execute(self._machine.show_sigint_exit_toast())

@@ -268,7 +268,7 @@ Options:
 
 子会话（Agent 工具派生，`spawn_kind: subagent`）默认隐藏；`--tree` 展开时 NAME 列显示 `└─ <agent_type>`。TARGET 解析对子会话始终可用——`brief` / `output` / `kill` / `respond` / `attach` 都能用子会话 id 前缀直达。
 
-`--watch` 持续刷新直到 Ctrl-C，仅用于人类表格，不能与 `--json` 组合。
+`--watch` 持续刷新直到 ctrl-c，仅用于人类表格，不能与 `--json` 组合。
 
 作用域的三层设计（回答「已完成的会话会不会淹没列表 / 多个调用方会不会互相干扰」）：
 
@@ -417,7 +417,7 @@ Usage: klaude attach [OPTIONS] [TARGET]
 Open the TUI on a session: replay the conversation so far, then
 follow live. Multiple clients may attach to the same session and all
 may type; execution is serialized by the server. Detach by exiting
-(type `exit`, Ctrl+D, or close the terminal) — the agent keeps
+(type `exit`, ctrl-d, or close the terminal) — the agent keeps
 running.
 
 With no TARGET, opens the interactive session picker (same as -r).

@@ -22,7 +22,7 @@ class RefreshTerminalCommand(CommandABC):
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
         # The display clears the terminal and repaints the transcript from its
-        # event tape — the same rebuild path Ctrl+O uses — so the banner and
+        # event tape — the same rebuild path ctrl-o uses — so the banner and
         # any in-flight turn survive the refresh.
         return CommandResult(
             events=[events.RefreshDisplayEvent(session_id=agent.session.id)],

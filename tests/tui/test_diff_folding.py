@@ -29,7 +29,7 @@ def _plain(diff: DiffFileDiff, *, fold: bool) -> str:
 def test_folding_shows_small_edits_whole_and_previews_large_ones() -> None:
     assert "line 10" in _plain(_file("src/app.py", 10), fold=True)
     large = _plain(_file("src/app.py", 11), fold=True)
-    assert "line 5" in large and "line 6" not in large and "6 more lines · Ctrl+T" in large
+    assert "line 5" in large and "line 6" not in large and "6 more lines · ctrl-t" in large
     assert "line 11" in _plain(_file("src/app.py", 11), fold=False)
 
 
