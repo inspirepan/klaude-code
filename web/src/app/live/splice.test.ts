@@ -118,6 +118,65 @@ describe('splice', () => {
     expect(spliced.requests).toBe(snapshot.requests)
     expect(spliced.annotations).toBe(snapshot.annotations)
   })
+
+  it('does not replay a response already in the initial history snapshot', () => {
+    const snapshot = snapshotOf(TURN_1)
+    const spliced = spliceLiveSnapshot(snapshot, live(
+      envelope('assistant.text.delta', { response_id: 'r1', content: 'done' }),
+      envelope('assistant.text.end', { response_id: 'r1', stop_reason: 'end_turn' }),
+    ))
+    expect(spliced).toBe(snapshot)
+  })
+
+  it.each([true, false])('deduplicates replayed tools with response ids: %s', (withResponseId) => {
+    const rows = [
+      ...TURN_1.slice(0, 1),
+      row(1, 'AssistantMessage', {
+        created_at: stamp(20),
+        ...(withResponseId ? { response_id: 'r1' } : {}),
+        parts: [
+          { type: 'text', text: 'reading' },
+          { type: 'tool_call', call_id: 'c1', tool_name: 'Read', arguments_json: '{}' },
+          { type: 'tool_call', call_id: 'c2', tool_name: 'Bash', arguments_json: '{}' },
+        ],
+      }),
+      row(2, 'ToolResultMessage', {
+        call_id: 'c1', tool_name: 'Read', status: 'success', output_text: 'ok',
+      }),
+    ]
+    const replayed = live(
+      envelope('assistant.text.delta', { response_id: 'r1', content: 'reading' }),
+      envelope('tool.call', { response_id: 'r1', tool_call_id: 'c1', tool_name: 'Read', arguments: '{}' }),
+      envelope('tool.call', { response_id: 'r1', tool_call_id: 'c2', tool_name: 'Bash', arguments: '{}' }),
+    )
+    const beforeResult = spliceLiveSnapshot(snapshotOf(rows.slice(0, 2)), replayed)
+    expect(beforeResult.partial).toBeNull()
+    expect(beforeResult.runningCalls.map(call => call.callId)).toEqual(['c1', 'c2'])
+
+    const snapshot = snapshotOf(rows)
+    const spliced = spliceLiveSnapshot(snapshot, replayed)
+    expect(spliced.partial).toBeNull()
+    expect(spliced.runningCalls.map(call => call.callId)).toEqual(['c2'])
+    expect(spliced.runningCalls[0]?.step).toBe(1)
+    expect(spliced.eventNodes).toBe(snapshot.eventNodes)
+
+    const next = reduceLiveFrames(replayed, parseLiveFrames([
+      envelope('step.start', {}),
+      envelope('assistant.text.delta', { response_id: 'r2', content: 'next response' }),
+    ]))
+    expect(spliceLiveSnapshot(snapshot, next).partial?.blocks).toEqual([
+      { kind: 'text', text: 'next response' },
+    ])
+  })
+
+  it('preserves a new anonymous response even when old assistants lack response ids', () => {
+    const snapshot = snapshotOf([
+      row(0, 'AssistantMessage', { parts: [{ type: 'text', text: 'old' }] }),
+    ])
+    expect(spliceLiveSnapshot(snapshot, live(
+      envelope('assistant.text.delta', { content: 'new' }),
+    )).partial?.blocks).toEqual([{ kind: 'text', text: 'new' }])
+  })
 })
 
 describe('streaming stop reason', () => {

@@ -152,6 +152,29 @@ describe('running tool calls', () => {
     expect(state.runningCalls.map(call => call.callId)).toEqual(['c2'])
   })
 
+  it('updates a repeated tool.call in place without duplicating partial blocks', () => {
+    const call = envelope('tool.call', {
+      response_id: 'r1', tool_call_id: 'c1', tool_name: 'Read', arguments: '{}',
+    })
+    const state = feed(
+      OPEN,
+      envelope('assistant.text.delta', { response_id: 'r1', content: 'reading' }),
+      ...Array.from({ length: 30 }, () => call),
+      envelope('tool.call', {
+        response_id: 'r1', tool_call_id: 'c2', tool_name: 'Bash', arguments: '{}',
+      }),
+      envelope('tool.call', {
+        response_id: 'r1', tool_call_id: 'c1', tool_name: 'Read', arguments: '{"path":"a.ts"}',
+      }),
+    )
+    expect(state.partial?.blocks).toEqual([
+      { kind: 'text', text: 'reading' },
+      { kind: 'tool-call', callId: 'c1', name: 'Read', argsRaw: '{"path":"a.ts"}' },
+      { kind: 'tool-call', callId: 'c2', name: 'Bash', argsRaw: '{}' },
+    ])
+    expect(state.runningCalls.map(call => call.callId)).toEqual(['c1', 'c2'])
+  })
+
   it('drops everything in flight on task.finish and on interrupt', () => {
     const busy = feed(
       OPEN,

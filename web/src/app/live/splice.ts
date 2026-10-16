@@ -96,15 +96,41 @@ export function spliceLiveSnapshot(
   live: LiveState,
 ): TrajectorySnapshot {
   if (live.partial === null && live.runningCalls.length === 0) return snapshot
+
+  // The attach tape can replay rows REST already served. Reconcile on every
+  // projection so neither replay order nor a missing tail increment matters.
+  const landedResponses = new Set<string>()
+  const landedCalls = new Set<string>()
+  const landedResults = new Set<string>()
+  for (const node of snapshot.eventNodes) {
+    if (node.kind === 'assistant') {
+      if (node.messageId !== undefined) landedResponses.add(node.messageId)
+      for (const block of node.blocks) {
+        if (block.kind === 'tool-call') landedCalls.add(block.callId)
+      }
+    } else if (node.kind === 'tool-result') {
+      landedCalls.add(node.callId)
+      landedResults.add(node.callId)
+    }
+  }
+  const response = live.partial
+  const alreadyLanded = response !== null && (
+    (response.responseId !== null && landedResponses.has(response.responseId))
+    || response.blocks.some(block => block.kind === 'tool-call' && landedCalls.has(block.callId))
+  )
+  const livePartial = alreadyLanded ? null : response
+  const liveCalls = live.runningCalls.filter(call => !landedResults.has(call.callId))
+  if (livePartial === null && liveCalls.length === 0) return snapshot
+
   const anchor = trajectoryAnchor(snapshot)
   const partialStep = anchor.step + 1
-  const partial: PartialAssistant | null = live.partial === null
+  const partial: PartialAssistant | null = livePartial === null
     ? null
-    : { turn: anchor.turn, step: partialStep, blocks: live.partial.blocks }
+    : { turn: anchor.turn, step: partialStep, blocks: livePartial.blocks }
   // A call streams inside the response that emitted it. When that response has
   // already landed, the call belongs to the landed step, not the next one.
-  const callStep = Math.max(1, live.partial === null ? anchor.step : partialStep)
-  const runningCalls: readonly RunningToolCall[] = live.runningCalls.map(call => ({
+  const callStep = Math.max(1, livePartial === null ? anchor.step : partialStep)
+  const runningCalls: readonly RunningToolCall[] = liveCalls.map(call => ({
     callId: call.callId,
     name: call.name,
     argsRaw: call.argsRaw,
@@ -113,9 +139,9 @@ export function spliceLiveSnapshot(
     time: call.time,
     subCalls: [],
   }))
-  const streaming = live.partial === null
+  const streaming = livePartial === null
     ? undefined
-    : streamingRequest(live.partial, anchor.turn, partialStep)
+    : streamingRequest(livePartial, anchor.turn, partialStep)
   const requests = streaming === undefined
     ? snapshot.requests
     : [...snapshot.requests, streaming]

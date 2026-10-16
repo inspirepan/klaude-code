@@ -319,11 +319,16 @@ function reduceEnvelope(state: LiveState, envelope: LiveEnvelope): LiveState {
       // `openResponse` still runs, so a call that opens a new step lands in a
       // fresh partial instead of extending the previous one.
       const base = state.partial === null ? null : opened(state.partial, responseId, envelope)
+      // Replayed calls update their original block instead of adding another row.
+      const blockIndex = base?.blocks.findIndex(block => block.kind === 'tool-call' && block.callId === callId) ?? -1
+      const block: AssistantBlock = { kind: 'tool-call', callId, name, argsRaw }
       const partial: LivePartial | null = base === null
         ? null
         : {
             ...base,
-            blocks: [...base.blocks, { kind: 'tool-call' as const, callId, name, argsRaw }],
+            blocks: blockIndex === -1
+              ? [...base.blocks, block]
+              : base.blocks.map((existing, index) => index === blockIndex ? block : existing),
             openBlock: null,
             stale: false,
           }
