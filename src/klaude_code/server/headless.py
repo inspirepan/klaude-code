@@ -623,6 +623,11 @@ class HeadlessRuntime:
                 if self.tracker.is_interrupted(session_id):
                     log_info(f"[headless] drain skip (interrupted): {session_id[:8]}", debug_type=DebugType.EXECUTION)
                     return
+                if session_id in self._stopped_sessions or self.tracker.is_failed(session_id):
+                    # A drain scheduled before a stop or failure can wake after it;
+                    # the latch decided at scheduling time must hold here too.
+                    self._notify_drain_latched(session_id)
+                    return
                 if self.turn_start_pending(session_id):
                     log_debug(
                         f"[headless] drain skip (turn starting): {session_id[:8]}", debug_type=DebugType.EXECUTION

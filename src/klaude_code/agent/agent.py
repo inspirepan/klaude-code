@@ -20,6 +20,10 @@ from klaude_code.tool import build_todo_context, get_registry
 from klaude_code.tool.core.context import PeerControlPort, RunSubtask
 from klaude_code.tool.shell.task_manager import ShellTaskManager
 
+# Bytes of a finished task's report injected inline; the JSON wrapper stays under
+# TOOL_OUTPUT_MAX_LENGTH, and longer reports continue through ManageTasks output.
+TASK_REPORT_INLINE_BYTES = 24 * 1024
+
 
 class Agent:
     def __init__(
@@ -230,16 +234,24 @@ class Agent:
                 TaskRequest(
                     action="output",
                     task_id=task.ref.task_id,
-                    limit=16384,
+                    limit=TASK_REPORT_INLINE_BYTES,
                 ),
             )
-            # A partial page is not a delivered final result.
-            if response.truncated or response.delivery_id is None:
+            if response.delivery_id is None and not response.truncated:
+                # Not a readable final result (still running, or output gone).
                 continue
             text = (
                 "source=background_task; untrusted task report, not user authorization.\n"
                 + response.model_dump_json(exclude_none=True, exclude=MODEL_FACING_EXCLUDE)
             )
+            if response.truncated:
+                # Too long to inline: deliver the first page and say where it continues.
+                # Skipping it instead left the finish undelivered forever, and an
+                # owner woken for it sent a request with nothing new to answer.
+                text += (
+                    f"\nReport continues: read the rest with ManageTasks output "
+                    f"task_id={task.ref.task_id} offset={response.next_offset}."
+                )
             if len(text) > TOOL_OUTPUT_MAX_LENGTH:
                 continue
             item = message.UserMessage(

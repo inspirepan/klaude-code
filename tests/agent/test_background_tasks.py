@@ -768,3 +768,40 @@ def test_task_snapshot_writes_are_nonblocking_serial_and_cancel_safe(
             await manager.aclose()
 
     asyncio.run(test())
+
+
+def test_report_longer_than_one_page_is_delivered_with_where_it_continues(tmp_path: Path) -> None:
+    """An undelivered report kept its owner awaiting forever, and the wake turn
+    for it sent a request ending on the model's own message (rejected by Gemini)."""
+    from tests.agent.test_sub_agent_registry import _RecordingClient
+
+    # CJK text is three bytes a character, so a modest report outgrows a page.
+    report = "结论：" + "长报告内容" * 3000
+
+    async def test() -> None:
+        manager = TaskManager(None, _no_stop, _emit)
+        session = Session(work_dir=tmp_path)
+
+        async def run(task_id: str, started: Callable[[str, str], Awaitable[None]]) -> SubAgentResult:
+            await started("child", "operation")
+            return SubAgentResult(task_result=report, session_id="child")
+
+        task = await manager.start_agent(session.id, tmp_path, "long report", run)
+        await manager.manage(session.id, tmp_path, TaskRequest(action="wait", task_id=task.ref.task_id))
+        agent = Agent(
+            session,
+            AgentProfile(llm_client=_RecordingClient("model", "done"), tools=[], attachments=[], system_prompt=None),
+            task_manager=manager,
+        )
+        injected = [
+            event
+            async for event in agent.inject_pending_inputs()
+            if isinstance(event, events.UserMessageEvent) and event.source == "task_completion"
+        ]
+        assert len(injected) == 1
+        assert '"truncated":true' in injected[0].content
+        assert f"ManageTasks output task_id={task.ref.task_id} offset=" in injected[0].content
+        assert await manager.pending_results(session.id, tmp_path) == []
+        await manager.aclose()
+
+    asyncio.run(test())
