@@ -21,6 +21,10 @@ def supports_kitty_graphics() -> bool:
     if "wezterm" in term_program:
         return True
 
+    # herdr multiplexer re-renders pane Kitty graphics on the outer terminal
+    if "herdr" in term_program or os.environ.get("HERDR_ENV") == "1":
+        return True
+
     # Warp supports Kitty graphics protocol since v0.2025.03.26
     if "warp" in term_program:
         return True
