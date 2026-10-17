@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.2] - 2026-10-17
+
+### Changed
+
+- remove unused Python and web code (`7a62ef1b`)
+
+### Fixed
+
+- 在 herdr 中启用 Kitty 图片显示 (`b7a0fba8`)
+
 ## [2.38.1] - 2026-10-17
 
 ### Fixed
@@ -2842,7 +2852,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.38.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.38.2...HEAD
+[2.38.2]: https://github.com/inspirepan/klaude-code/compare/v2.38.1...v2.38.2
 [2.38.1]: https://github.com/inspirepan/klaude-code/compare/v2.38.0...v2.38.1
 [2.38.0]: https://github.com/inspirepan/klaude-code/compare/v2.37.0...v2.38.0
 [2.37.0]: https://github.com/inspirepan/klaude-code/compare/v2.36.0...v2.37.0
