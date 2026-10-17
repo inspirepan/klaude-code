@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.38.1] - 2026-10-17
+
+### Fixed
+
+- 超长任务报告分页投递，修复唤醒 turn 发出无新输入的请求 (`80dfd964`)
+
 ## [2.38.0] - 2026-10-16
 
 ### Added
@@ -2836,7 +2842,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.38.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.38.1...HEAD
+[2.38.1]: https://github.com/inspirepan/klaude-code/compare/v2.38.0...v2.38.1
 [2.38.0]: https://github.com/inspirepan/klaude-code/compare/v2.37.0...v2.38.0
 [2.37.0]: https://github.com/inspirepan/klaude-code/compare/v2.36.0...v2.37.0
 [2.36.0]: https://github.com/inspirepan/klaude-code/compare/v2.35.0...v2.36.0
