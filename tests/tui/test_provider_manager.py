@@ -1,3 +1,4 @@
+import pytest
 from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 
@@ -41,6 +42,25 @@ def test_build_provider_states_hides_unconfigured_builtins(monkeypatch) -> None:
 
 
 class TestBuildSearchProviderStates:
+    @pytest.mark.parametrize("enabled", [True, False])
+    def test_only_openai_has_display_model(self, monkeypatch, enabled: bool) -> None:
+        search_config = WebSearchConfig(
+            providers=[
+                WebSearchProviderConfig(provider="deepseek", model="legacy-deepseek-model"),
+                WebSearchProviderConfig(provider="openai", model="custom-openai-model"),
+            ]
+        )
+        builtin = Config(web_search=search_config)
+        monkeypatch.setattr(provider_manager, "get_builtin_config", lambda: builtin)
+        config = Config(web_search=search_config if enabled else WebSearchConfig(providers=[]))
+
+        states = provider_manager.build_search_provider_states(config)
+
+        assert [(state.name, state.enabled, state.model) for state in states] == [
+            ("deepseek", enabled, None),
+            ("openai", enabled, "custom-openai-model"),
+        ]
+
     def test_enabled_first_in_chain_order_then_disabled(self, monkeypatch) -> None:
         monkeypatch.setattr("klaude_code.config.config.get_auth_env", lambda _name: None)
         config = Config(
@@ -121,7 +141,7 @@ class TestInteractiveKeyBindings:
         return [
             SearchProviderState(name="exa", enabled=True, has_api_key=True, model=None),
             SearchProviderState(name="brave", enabled=True, has_api_key=True, model=None),
-            SearchProviderState(name="deepseek", enabled=True, has_api_key=True, model="deepseek-v4-flash"),
+            SearchProviderState(name="deepseek", enabled=True, has_api_key=True, model=None),
             SearchProviderState(name="openai", enabled=False, has_api_key=False, model="gpt-5.6-luna"),
         ]
 

@@ -52,15 +52,15 @@ class TestWebSearchMerge:
         user = UserConfig(
             web_search=WebSearchConfig(
                 providers=[
-                    WebSearchProviderConfig(provider="deepseek", model="deepseek-v4-pro"),
+                    WebSearchProviderConfig(provider="deepseek", api_key="${CUSTOM_DEEPSEEK_KEY}"),
                 ]
             )
         )
         merged = merge_configs(user, get_builtin_config())
         entry = merged.web_search.providers[0]
-        assert entry.model == "deepseek-v4-pro"
-        assert entry.api_key == "${DEEPSEEK_API_KEY}"
-        assert entry.base_url == "https://api.deepseek.com/anthropic"
+        assert entry.model is None
+        assert entry.api_key == "${CUSTOM_DEEPSEEK_KEY}"
+        assert entry.base_url == "https://api.deepseek.com"
 
     def test_empty_web_search_section_inherits_builtin(self) -> None:
         """A bare `web_search: {}` in the YAML is not an override; builtin chain applies."""

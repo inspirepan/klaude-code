@@ -1314,12 +1314,10 @@ web_search:
     api_key: ${EXA_API_KEY}
   - provider: brave
     api_key: ${BRAVE_API_KEY}
-  # LLM-backed search: one Anthropic Messages call ({base_url}/v1/messages)
-  # with the native web_search server tool.
+  # Dedicated Search API ({base_url}/v1/tools/search); no model call.
   - provider: deepseek
     api_key: ${DEEPSEEK_API_KEY}
-    base_url: https://api.deepseek.com/anthropic
-    model: deepseek-flash
+    base_url: https://api.deepseek.com
   # LLM-backed search: one Responses API call ({base_url}/responses) with the
   # hosted web_search tool.
   - provider: openai

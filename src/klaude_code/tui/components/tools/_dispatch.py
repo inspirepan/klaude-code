@@ -13,6 +13,7 @@ from klaude_code.protocol.models import (
     ReadPreviewUIExtra,
     TodoListUIExtra,
     ToolResultUIExtra,
+    WebSearchUIExtra,
 )
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.components import diffs as r_diffs
@@ -350,21 +351,31 @@ def render_tool_result(
         case tools.WEB_SEARCH:
             search_results = parse_web_search_results(e.result)
             if search_results:
-                return render_result_panel(render_web_search_results(search_results, detail=detail))
-            display_result = extract_web_result_for_display(e.result)
-            if len(display_result.strip()) == 0:
-                return pad_result(
-                    render_fallback_tool_result(e.tool_name, "(no content)", detail=detail, max_lines=max_lines)
+                rendered = render_result_panel(render_web_search_results(search_results, detail=detail))
+            else:
+                display_result = extract_web_result_for_display(e.result)
+                rendered = pad_result(
+                    render_fallback_tool_result(
+                        e.tool_name,
+                        display_result if display_result.strip() else "(no content)",
+                        status=e.status,
+                        detail=detail,
+                        max_lines=max_lines,
+                    )
                 )
-            return pad_result(
-                render_fallback_tool_result(
-                    e.tool_name,
-                    display_result,
-                    status=e.status,
-                    detail=detail,
-                    max_lines=max_lines,
+            if isinstance(e.ui_extra, WebSearchUIExtra):
+                provider_label = {
+                    "parallel": "Parallel Search",
+                    "exa": "Exa Search",
+                    "brave": "Brave Search",
+                    "deepseek": "DeepSeek Search",
+                    "openai": "OpenAI Search",
+                }.get(e.ui_extra.provider, e.ui_extra.provider)
+                return Group(
+                    AdaptiveIndent(Text(f"via {provider_label}", ThemeKey.METADATA_DIM), TOOL_RESULT_INDENT),
+                    rendered,
                 )
-            )
+            return rendered
         case tools.WEB_FETCH:
             display_result = extract_web_result_for_display(e.result)
             if len(display_result.strip()) == 0:

@@ -4,10 +4,11 @@
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from klaude_code.protocol.models import TaskMetadataItem
+from klaude_code.protocol.models import MultiUIExtra, TaskMetadataItem, WebSearchUIExtra
 
 if TYPE_CHECKING:
     from klaude_code.protocol import message
@@ -118,6 +119,30 @@ def test_codec_jsonl_roundtrip(item: "message.HistoryEvent") -> None:
     assert decoded is not None
     assert type(decoded) is type(item)
     assert decoded.model_dump(exclude={"created_at"}) == item.model_dump(exclude={"created_at"})
+
+
+@pytest.mark.parametrize("provider", ["deepseek", "exa", "future_provider"])
+@pytest.mark.parametrize("use_multi", [False, True])
+def test_web_search_ui_extra_jsonl_roundtrip(provider: str, use_multi: bool) -> None:
+    from klaude_code.protocol import message, tools
+    from klaude_code.session.codec import decode_jsonl_line, encode_jsonl_line
+
+    extra = WebSearchUIExtra(provider=provider)
+    item = message.ToolResultMessage(
+        call_id="search_123",
+        tool_name=tools.WEB_SEARCH,
+        status="success",
+        output_text="search results",
+        ui_extra=MultiUIExtra(items=[extra]) if use_multi else extra,
+    )
+
+    decoded = decode_jsonl_line(encode_jsonl_line(item))
+
+    assert isinstance(decoded, message.ToolResultMessage)
+    assert decoded == item
+    restored_extra = decoded.ui_extra.items[0] if isinstance(decoded.ui_extra, MultiUIExtra) else decoded.ui_extra
+    assert isinstance(restored_extra, WebSearchUIExtra)
+    assert restored_extra.provider == provider
 
 
 def test_decode_conversation_item_unknown_tool_ui_extra_falls_back_to_none() -> None:

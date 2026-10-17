@@ -10,6 +10,7 @@ import pytest
 
 from klaude_code.config.config import Config, WebSearchConfig, WebSearchProviderConfig
 from klaude_code.protocol import message
+from klaude_code.protocol.models import WebSearchUIExtra
 from klaude_code.tool import WebSearchTool
 from klaude_code.tool.core.context import TodoContext, ToolContext
 from klaude_code.tool.web.external_content import (
@@ -123,6 +124,8 @@ class TestWebSearchCaching:
             r2 = _run(_exa_brave_config(), "cached search")
         assert r1.status == "success"
         assert r2.status == "success"
+        assert r1.ui_extra == r2.ui_extra == WebSearchUIExtra(provider="exa")
+        assert r1.output_text == r2.output_text
         assert call_count == 1
 
     def test_different_queries_not_cached(self) -> None:
@@ -146,6 +149,7 @@ class TestProviderChainResolution:
     def test_returns_error_when_no_provider_has_a_key(self) -> None:
         result = _run(_exa_brave_config(), "missing key")
         assert result.status == "error"
+        assert result.ui_extra is None
         assert result.output_text is not None
         assert "PARALLEL_API_KEY" in result.output_text
         assert "EXA_API_KEY" in result.output_text
@@ -212,24 +216,20 @@ class TestProviderChainResolution:
         mock_brave.assert_called_once()
         mock_exa.assert_not_called()
 
-    def test_llm_provider_used_when_only_its_key_exists(self) -> None:
+    def test_deepseek_search_needs_no_model_when_only_its_key_exists(self) -> None:
         config = _config_with(
             WebSearchProviderConfig(provider="exa", api_key="${EXA_API_KEY}"),
             WebSearchProviderConfig(
                 provider="deepseek",
                 api_key="${DEEPSEEK_API_KEY}",
-                base_url="https://api.deepseek.com/anthropic",
-                model="deepseek-v4-flash",
             ),
         )
 
-        def _fake_deepseek(query: str, max_results: int, api_key: str, base_url: str, model: str) -> SearchOutcome:
+        def _fake_deepseek(query: str, max_results: int, api_key: str, base_url: str | None) -> SearchOutcome:
             assert api_key == "ds-key"
-            assert base_url == "https://api.deepseek.com/anthropic"
-            assert model == "deepseek-v4-flash"
+            assert base_url is None
             return SearchOutcome(
                 results=[SearchResult(title="DS", url="https://example.com/ds", snippet="s", position=1)],
-                answer="deepseek answer",
             )
 
         with (
@@ -240,11 +240,47 @@ class TestProviderChainResolution:
 
         assert result.status == "success"
         assert result.output_text is not None
-        assert "<answer>" in result.output_text
-        assert "deepseek answer" in result.output_text
+        assert "<answer>" not in result.output_text
+        assert "https://example.com/ds" in result.output_text
+        assert result.ui_extra == WebSearchUIExtra(provider="deepseek")
 
 
 class TestProviderFailureFallback:
+    def test_deepseek_empty_results_do_not_trigger_fallback(self) -> None:
+        config = _config_with(
+            WebSearchProviderConfig(provider="deepseek", api_key="ds-key"),
+            WebSearchProviderConfig(provider="brave", api_key="brave-key"),
+        )
+        with (
+            patch("klaude_code.tool.web.web_search_tool._fetch_json", return_value={"results": []}) as fetch,
+            patch("klaude_code.tool.web.web_search_tool._search_brave") as brave,
+        ):
+            result = _run(config)
+            cached_result = _run(config)
+        assert result.status == "success"
+        assert cached_result.status == "success"
+        assert result.ui_extra == cached_result.ui_extra == WebSearchUIExtra(provider="deepseek")
+        assert result.output_text == cached_result.output_text
+        assert result.output_text is not None
+        assert "No results were found" in result.output_text
+        fetch.assert_called_once()
+        brave.assert_not_called()
+
+    def test_deepseek_long_query_falls_back_without_truncation(self) -> None:
+        config = _config_with(
+            WebSearchProviderConfig(provider="deepseek", api_key="ds-key"),
+            WebSearchProviderConfig(provider="brave", api_key="brave-key"),
+        )
+        query = "x" * 129
+        with (
+            patch("klaude_code.tool.web.web_search_tool._fetch_json") as fetch,
+            patch("klaude_code.tool.web.web_search_tool._search_brave", side_effect=_fake_search) as brave,
+        ):
+            result = _run(config, query)
+        assert result.status == "success"
+        fetch.assert_not_called()
+        brave.assert_called_once_with(query, 10, "brave-key")
+
     def test_falls_back_to_next_provider_when_request_fails(self) -> None:
         def _failing_exa(_query: str, _max_results: int, _api_key: str) -> SearchOutcome:
             raise ConnectionError("exa unreachable")
@@ -255,34 +291,34 @@ class TestProviderFailureFallback:
             patch("klaude_code.tool.web.web_search_tool._search_brave", side_effect=_fake_search) as mock_brave,
         ):
             result = _run(_exa_brave_config(), "exa down, brave up")
+            cached_result = _run(_exa_brave_config(), "exa down, brave up")
 
         assert result.status == "success"
-        mock_exa.assert_called_once()
+        assert cached_result.status == "success"
+        assert result.ui_extra == cached_result.ui_extra == WebSearchUIExtra(provider="brave")
+        assert result.output_text == cached_result.output_text
+        assert mock_exa.call_count == 2
         mock_brave.assert_called_once()
         assert result.output_text is not None
         assert "Result 1" in result.output_text
 
-    def test_no_sources_is_a_provider_failure(self) -> None:
-        """LLM providers returning no structured sources fall back like any other failure."""
-
-        def _empty_deepseek(_q: str, _m: int, _k: str, _b: str, _mo: str) -> SearchOutcome:
-            raise SearchProviderError("native web search returned no result blocks")
+    def test_deepseek_api_error_falls_back(self) -> None:
+        def _failing_deepseek(_q: str, _m: int, _k: str, _b: str | None) -> SearchOutcome:
+            raise SearchProviderError("HTTP 429: rate limit exceeded")
 
         config = _config_with(
             WebSearchProviderConfig(
                 provider="deepseek",
                 api_key="${DEEPSEEK_API_KEY}",
-                base_url="https://api.deepseek.com/anthropic",
-                model="deepseek-v4-flash",
             ),
             WebSearchProviderConfig(provider="brave", api_key="${BRAVE_API_KEY}"),
         )
         with (
             patch.dict(os.environ, {"DEEPSEEK_API_KEY": "ds-key", "BRAVE_API_KEY": "brave-key"}),
-            patch("klaude_code.tool.web.web_search_tool._search_deepseek", side_effect=_empty_deepseek),
+            patch("klaude_code.tool.web.web_search_tool._search_deepseek", side_effect=_failing_deepseek),
             patch("klaude_code.tool.web.web_search_tool._search_brave", side_effect=_fake_search) as mock_brave,
         ):
-            result = _run(config, "deepseek empty, brave up")
+            result = _run(config, "deepseek rate limited, brave up")
 
         assert result.status == "success"
         mock_brave.assert_called_once()
@@ -302,6 +338,7 @@ class TestProviderFailureFallback:
             result = _run(_exa_brave_config(), "both providers down")
 
         assert result.status == "error"
+        assert result.ui_extra is None
         assert result.output_text is not None
         assert "exa: exa unreachable" in result.output_text
         assert "brave: brave timed out" in result.output_text

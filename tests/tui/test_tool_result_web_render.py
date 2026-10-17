@@ -1,6 +1,8 @@
+import pytest
 from rich.console import Console
 
 from klaude_code.protocol import events, tools
+from klaude_code.protocol.models import WebSearchUIExtra
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.tools import render_tool_result
 from klaude_code.tui.renderer import TUICommandRenderer
@@ -139,6 +141,26 @@ def test_render_web_search_tool_result_falls_back_when_unparsable() -> None:
 
     assert "No results were found for your search query." in output
     assert "EXTERNAL_UNTRUSTED_CONTENT" not in output
+
+
+@pytest.mark.parametrize("compact", [True, False])
+@pytest.mark.parametrize("has_results", [True, False])
+def test_web_search_provider_is_displayed_with_results_and_empty_outcomes(compact: bool, has_results: bool) -> None:
+    result = (
+        _wrap_search_results(("First result", "https://example.com/1"))
+        if has_results
+        else "No results were found for your search query."
+    )
+    event = _web_search_event(result).model_copy(update={"ui_extra": WebSearchUIExtra(provider="deepseek")})
+    # Exercise the wire representation used by live events and history replay.
+    event = events.ToolResultEvent.model_validate_json(event.model_dump_json())
+
+    output = _render_event_to_text(event, compact=compact)
+
+    assert output.count("via DeepSeek Search") == 1
+    assert "    via DeepSeek Search" in output.splitlines()
+    assert ("First result" if has_results else "No results were found") in output
+    assert "via " not in _render_event_to_text(_web_search_event(result), compact=compact)
 
 
 def test_compact_transcript_hides_web_fetch_body_but_keeps_errors() -> None:

@@ -1,4 +1,4 @@
-"""Parsing and chain-resolution tests for the LLM-backed web search providers."""
+"""Parsing and request tests for web search providers."""
 
 from __future__ import annotations
 
@@ -21,48 +21,40 @@ from klaude_code.tool.web.web_search_tool import (
     _parse_deepseek_response,  # pyright: ignore[reportPrivateUsage]
     _parse_openai_response,  # pyright: ignore[reportPrivateUsage]
     _parse_parallel_response,  # pyright: ignore[reportPrivateUsage]
+    _search_deepseek,  # pyright: ignore[reportPrivateUsage]
     _search_parallel,  # pyright: ignore[reportPrivateUsage]
 )
 
 
 def _deepseek_payload() -> dict[str, Any]:
     return {
-        "content": [
+        "results": [
             {
-                "type": "text",
-                "text": "Here is what I found. Foo is a bar [1].",
-                "citations": [
-                    {"type": "web_search_result_location", "url": "https://a.com/1", "cited_text": "Foo is a bar"},
-                    {"type": "web_search_result_location", "url": "https://b.com/2", "cited_text": "Second source"},
-                    # First occurrence wins for duplicate URLs
-                    {"type": "web_search_result_location", "url": "https://a.com/1", "cited_text": "IGNORED"},
-                ],
+                "url": "https://a.com/1",
+                "title": "A",
+                "summary": "Foo is a bar",
+                "snippet": "Short snippet",
+                "date": "2026-08-01T00:00:00+00:00",
             },
-            {
-                "type": "web_search_tool_result",
-                "content": [
-                    {"type": "web_search_result", "url": "https://a.com/1", "title": "A", "page_age": "2026-08-01"},
-                    {"type": "web_search_result", "url": "https://b.com/2", "title": None, "page_age": None},
-                    {"type": "web_search_result", "url": "https://a.com/1", "title": "A dup"},
-                    {"type": "web_search_result", "url": "", "title": "no url, skipped"},
-                ],
-            },
+            {"url": "https://b.com/2", "title": None, "summary": "", "snippet": "Second source", "date": None},
+            {"url": "https://a.com/1", "title": "A dup", "summary": "IGNORED"},
+            {"url": "", "title": "no url, skipped"},
         ]
     }
 
 
 class TestDeepSeekParsing:
-    def test_joins_citations_and_dedupes_by_url(self) -> None:
+    def test_prefers_summary_and_dedupes_by_url(self) -> None:
         outcome = _parse_deepseek_response(_deepseek_payload(), 10)
 
-        assert outcome.answer == "Here is what I found. Foo is a bar [1]."
+        assert outcome.answer is None
         assert len(outcome.results) == 2
 
         first, second = outcome.results
         assert first.url == "https://a.com/1"
         assert first.title == "A"
         assert first.snippet == "Foo is a bar"
-        assert first.published == "2026-08-01"
+        assert first.published == "2026-08-01T00:00:00+00:00"
         assert first.position == 1
 
         assert second.url == "https://b.com/2"
@@ -76,27 +68,51 @@ class TestDeepSeekParsing:
         assert len(outcome.results) == 1
         assert outcome.results[0].position == 1
 
-    def test_no_result_blocks_is_an_error(self) -> None:
-        payload = {"content": [{"type": "text", "text": "I made this up without searching."}]}
-        with pytest.raises(SearchProviderError):
-            _parse_deepseek_response(payload, 10)
+    def test_empty_results_are_a_normal_search_outcome(self) -> None:
+        assert _parse_deepseek_response({"results": []}, 10).results == []
 
     def test_snippet_length_capped(self) -> None:
         payload = {
-            "content": [
+            "results": [
                 {
-                    "type": "text",
-                    "text": "answer",
-                    "citations": [{"url": "https://a.com", "cited_text": "x" * (WEB_SEARCH_SNIPPET_MAX_CHARS + 100)}],
-                },
-                {
-                    "type": "web_search_tool_result",
-                    "content": [{"type": "web_search_result", "url": "https://a.com", "title": "A"}],
+                    "url": "https://a.com",
+                    "summary": "x" * (WEB_SEARCH_SNIPPET_MAX_CHARS + 100),
                 },
             ]
         }
         outcome = _parse_deepseek_response(payload, 10)
         assert len(outcome.results[0].snippet) == WEB_SEARCH_SNIPPET_MAX_CHARS
+
+
+class TestDeepSeekRequest:
+    @pytest.mark.parametrize(
+        "base_url",
+        [None, "https://api.deepseek.com", "https://api.deepseek.com/v1/", "https://api.deepseek.com/anthropic"],
+    )
+    def test_uses_standalone_api_and_bearer_auth(self, base_url: str | None) -> None:
+        with patch.object(web_search_tool, "_fetch_json", return_value=_deepseek_payload()) as fetch:
+            _search_deepseek("DeepSeek site:github.com", 5, "ds-key", base_url)
+
+        req, timeout = fetch.call_args.args
+        assert req.full_url == "https://api.deepseek.com/v1/tools/search"
+        assert req.get_method() == "POST"
+        assert req.get_header("Authorization") == "Bearer ds-key"
+        assert req.get_header("Anthropic-version") is None
+        assert json.loads(req.data) == {"query": "DeepSeek site:github.com", "count": 5, "need_content": False}
+        assert timeout == 30
+
+    def test_custom_base_url_is_preserved(self) -> None:
+        with patch.object(web_search_tool, "_fetch_json", return_value=_deepseek_payload()) as fetch:
+            _search_deepseek("test", 5, "ds-key", "https://proxy.example/deepseek")
+        assert fetch.call_args.args[0].full_url == "https://proxy.example/deepseek/v1/tools/search"
+
+    def test_query_length_limit_uses_unicode_characters(self) -> None:
+        with patch.object(web_search_tool, "_fetch_json", return_value=_deepseek_payload()) as fetch:
+            _search_deepseek("\u641c" * 128, 5, "ds-key", None)
+            fetch.assert_called_once()
+            with pytest.raises(SearchProviderError, match="128"):
+                _search_deepseek("\u641c" * 129, 5, "ds-key", None)
+            fetch.assert_called_once()
 
 
 def _openai_payload() -> dict[str, Any]:

@@ -61,6 +61,7 @@ from klaude_code.protocol.models.tool_ui import (
     TodoUIExtra,
     ToolResultUIExtra,
     ToolSideEffect,
+    WebSearchUIExtra,
 )
 from klaude_code.protocol.models.usage import Usage
 
@@ -119,6 +120,7 @@ __all__ = [
     "ToolStatus",
     "Usage",
     "UserImagesUIItem",
+    "WebSearchUIExtra",
     "build_file_changes_since",
     "merge_file_changes",
     "todo_list_str",

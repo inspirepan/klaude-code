@@ -82,7 +82,7 @@ def build_search_provider_states(config: Config) -> list[SearchProviderState]:
             name=entry.provider,
             enabled=True,
             has_api_key=resolve_api_key(entry.api_key) is not None,
-            model=entry.model,
+            model=entry.model if entry.provider == "openai" else None,
         )
         for entry in config.web_search.providers
     ]
@@ -95,7 +95,7 @@ def build_search_provider_states(config: Config) -> list[SearchProviderState]:
                 name=entry.provider,
                 enabled=False,
                 has_api_key=resolve_api_key(entry.api_key) is not None,
-                model=entry.model,
+                model=entry.model if entry.provider == "openai" else None,
             )
         )
     return states

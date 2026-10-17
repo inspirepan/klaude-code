@@ -66,6 +66,11 @@ class BashUIExtra(BaseModel):
     exit_code: int
 
 
+class WebSearchUIExtra(BaseModel):
+    type: Literal["web_search"] = "web_search"
+    provider: str
+
+
 class ShellTaskUIExtra(BaseModel):
     type: Literal["shell_task"] = "shell_task"
     action: Literal["list", "output", "wait", "stop"]
@@ -123,6 +128,7 @@ class SessionStatsUIExtra(BaseModel):
 
 MultiUIExtraItem = (
     BashUIExtra
+    | WebSearchUIExtra
     | ShellTaskUIExtra
     | DiffUIExtra
     | TodoListUIExtra
@@ -144,6 +150,7 @@ class MultiUIExtra(BaseModel):
 
 ToolResultUIExtra = Annotated[
     BashUIExtra
+    | WebSearchUIExtra
     | ShellTaskUIExtra
     | DiffUIExtra
     | TodoListUIExtra
@@ -178,4 +185,5 @@ __all__ = [
     "TodoUIExtra",
     "ToolResultUIExtra",
     "ToolSideEffect",
+    "WebSearchUIExtra",
 ]

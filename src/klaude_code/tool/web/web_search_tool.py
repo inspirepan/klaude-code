@@ -14,15 +14,13 @@ from pydantic import BaseModel
 from klaude_code.config.config import WebSearchProviderName, resolve_api_key
 from klaude_code.config.loader import load_config
 from klaude_code.const import (
-    WEB_SEARCH_DEEPSEEK_API_VERSION,
-    WEB_SEARCH_DEEPSEEK_MAX_TOKENS,
-    WEB_SEARCH_DEEPSEEK_MAX_USES,
     WEB_SEARCH_DEFAULT_MAX_RESULTS,
     WEB_SEARCH_LLM_TIMEOUT_SEC,
     WEB_SEARCH_MAX_RESULTS_LIMIT,
     WEB_SEARCH_SNIPPET_MAX_CHARS,
 )
 from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models import WebSearchUIExtra
 from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata, load_desc
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
@@ -254,89 +252,56 @@ def _search_parallel(query: str, max_results: int, api_key: str) -> SearchOutcom
 
 
 # ---------------------------------------------------------------------------
-# DeepSeek / OpenAI: LLM-backed search (one search = one model turn)
+# DeepSeek: dedicated search API
 # ---------------------------------------------------------------------------
 
 
 def _parse_deepseek_response(data: dict[str, Any], max_results: int) -> SearchOutcome:
-    """Map a DeepSeek Anthropic Messages response to a SearchOutcome.
-
-    Citeable items arrive in ``web_search_tool_result`` blocks (url/title/page_age);
-    the excerpt lives in separate ``text`` blocks' ``citations[]``, joined by URL.
-    Absence of structured sources is an error, never a prose-scraping fallback.
-    """
-    blocks: list[dict[str, Any]] = data.get("content") or []
-
-    answer_parts: list[str] = []
-    snippets: dict[str, str] = {}
-    for block in blocks:
-        if block.get("type") != "text":
-            continue
-        text: str = block.get("text") or ""
-        if text:
-            answer_parts.append(text)
-        for cite in block.get("citations") or []:
-            cite_url: str = cite.get("url") or ""
-            cited_text: str = cite.get("cited_text") or ""
-            if cite_url and cited_text and cite_url not in snippets:
-                snippets[cite_url] = cited_text
-
+    """Parse ranked search results; summary is the model-facing excerpt."""
+    items: list[dict[str, Any]] = data["results"]
     results: list[SearchResult] = []
     seen: set[str] = set()
-    for block in blocks:
-        if block.get("type") != "web_search_tool_result":
+    for item in items:
+        item_url: str = item.get("url") or ""
+        if not item_url or item_url in seen:
             continue
-        for item in block.get("content") or []:
-            if item.get("type") != "web_search_result":
-                continue
-            item_url: str = item.get("url") or ""
-            if not item_url or item_url in seen:
-                continue
-            seen.add(item_url)
-            results.append(
-                SearchResult(
-                    title=item.get("title") or "",
-                    url=item_url,
-                    snippet=_cap_snippet(snippets.get(item_url, "")),
-                    published=item.get("page_age") or None,
-                    position=len(results) + 1,
-                )
+        seen.add(item_url)
+        results.append(
+            SearchResult(
+                title=item.get("title") or "",
+                url=item_url,
+                snippet=_cap_snippet(item.get("summary") or item.get("snippet") or ""),
+                published=item.get("date") or None,
+                position=len(results) + 1,
             )
-
-    results = results[:max_results]
-    for i, result in enumerate(results):
-        result.position = i + 1
-    if not results:
-        raise SearchProviderError("native web search returned no result blocks")
-    return SearchOutcome(results=results, answer="\n\n".join(answer_parts) or None)
+        )
+    return SearchOutcome(results=results[:max_results])
 
 
-def _search_deepseek(query: str, max_results: int, api_key: str, base_url: str, model: str) -> SearchOutcome:
-    """Search via DeepSeek's Anthropic-compatible Messages API with native web_search."""
-    endpoint = f"{base_url.rstrip('/')}/v1/messages"
-    body = {
-        "model": model,
-        "max_tokens": WEB_SEARCH_DEEPSEEK_MAX_TOKENS,
-        "messages": [
-            {"role": "user", "content": [{"type": "text", "text": f"Perform a web search for the query: {query}"}]}
-        ],
-        "tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": WEB_SEARCH_DEEPSEEK_MAX_USES}],
-    }
+def _search_deepseek(query: str, max_results: int, api_key: str, base_url: str | None) -> SearchOutcome:
+    """Search via DeepSeek's standalone Search API, without a model turn."""
+    if len(query) > 128:
+        raise SearchProviderError("DeepSeek search query must contain at most 128 characters")
+    # Older saved configs used the Anthropic-compatible base URL.
+    base = (base_url or "https://api.deepseek.com").rstrip("/").removesuffix("/anthropic").removesuffix("/v1")
+    endpoint = f"{base}/v1/tools/search"
+    body = {"query": query, "count": max_results, "need_content": False}
     req = urllib.request.Request(
         endpoint,
         data=json.dumps(body).encode("utf-8"),
         headers={
-            # Official DeepSeek expects x-api-key; an Anthropic-compatible proxy
-            # may expect Authorization: Bearer — send both so either resolves.
-            "x-api-key": api_key,
             "authorization": f"Bearer {api_key}",
-            "anthropic-version": WEB_SEARCH_DEEPSEEK_API_VERSION,
             "content-type": "application/json",
             "accept": "application/json",
         },
     )
-    data = _fetch_json(req, WEB_SEARCH_LLM_TIMEOUT_SEC)
+    data = _fetch_json(req, _SEARCH_API_TIMEOUT_SEC)
     return _parse_deepseek_response(data, max_results)
+
+
+# ---------------------------------------------------------------------------
+# OpenAI: LLM-backed search (one search = one model turn)
+# ---------------------------------------------------------------------------
 
 
 def _parse_openai_response(data: dict[str, Any], max_results: int) -> SearchOutcome:
@@ -435,10 +400,10 @@ def _run_provider(provider: _ResolvedProvider, query: str, max_results: int) -> 
         return _search_brave(query, max_results, provider.api_key)
     if provider.name == "parallel":
         return _search_parallel(query, max_results, provider.api_key)
+    if provider.name == "deepseek":
+        return _search_deepseek(query, max_results, provider.api_key, provider.base_url)
     if provider.base_url is None or provider.model is None:
         raise SearchProviderError(f"{provider.name} provider requires base_url and model in web_search config")
-    if provider.name == "deepseek":
-        return _search_deepseek(query, max_results, provider.api_key, provider.base_url, provider.model)
     return _search_openai(query, max_results, provider.api_key, provider.base_url, provider.model)
 
 
@@ -545,7 +510,9 @@ class WebSearchTool(ToolABC):
             cache_key = make_cache_key("search", provider.name, query, str(max_results))
             cached = get_cached(cache_key)
             if cached is not None:
-                return message.ToolResultMessage(status="success", output_text=cached)
+                return message.ToolResultMessage(
+                    status="success", output_text=cached, ui_extra=WebSearchUIExtra(provider=provider.name)
+                )
 
             try:
                 outcome = await asyncio.to_thread(_run_provider, provider, query, max_results)
@@ -560,6 +527,7 @@ class WebSearchTool(ToolABC):
             return message.ToolResultMessage(
                 status="success",
                 output_text=wrapped,
+                ui_extra=WebSearchUIExtra(provider=provider.name),
             )
 
         return message.ToolResultMessage(

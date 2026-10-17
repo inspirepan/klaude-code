@@ -323,9 +323,9 @@ class WebSearchProviderConfig(BaseModel):
     provider: WebSearchProviderName
     # API key value; supports ${ENV_VAR} syntax (resolved via os.environ > klaude-auth.json).
     api_key: str | None = None
-    # Endpoint base; only used by the LLM-backed providers (deepseek/openai).
+    # Endpoint base; used by DeepSeek Search and OpenAI Responses.
     base_url: str | None = None
-    # Model ID; only used by the LLM-backed providers (deepseek/openai).
+    # Model ID; only used by OpenAI's LLM-backed search.
     model: str | None = None
 
 
@@ -345,8 +345,7 @@ def default_web_search_config() -> WebSearchConfig:
             WebSearchProviderConfig(
                 provider="deepseek",
                 api_key="${DEEPSEEK_API_KEY}",
-                base_url="https://api.deepseek.com/anthropic",
-                model="deepseek-flash",
+                base_url="https://api.deepseek.com",
             ),
             WebSearchProviderConfig(
                 provider="openai",

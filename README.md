@@ -135,7 +135,7 @@ export ANTHROPIC_API_KEY=sk-ant-xxx      # Claude models
 export OPENAI_API_KEY=sk-xxx             # GPT models
 export OPENROUTER_API_KEY=sk-or-xxx      # OpenRouter (multi-provider)
 export YOUTU_API_KEY=xxx                  # Youtu gateway (multi-provider)
-export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models
+export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models and standalone WebSearch API
 export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
 export MINIMAX_API_KEY=xxx               # MiniMax models
 export GOOGLE_API_KEY=xxx                # Google Gemini models (or GEMINI_API_KEY)
@@ -148,6 +148,12 @@ klaude
 ```
 
 On first run, you'll be prompted to select a model. Your choice is saved as `main_model`.
+
+Use `/manage-providers` to enable, disable, or reorder WebSearch providers. The default
+chain is Parallel, Exa, Brave, DeepSeek, then OpenAI; entries without an API key are
+skipped, and request failures fall back to the next provider. DeepSeek uses its
+[standalone Search API](https://api-docs.deepseek.com/guides/search/) without a model
+call; only OpenAI search uses a model.
 
 You can also configure fallback lists for the main model and helper models:
 
