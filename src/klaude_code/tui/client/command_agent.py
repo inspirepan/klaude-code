@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from klaude_code.llm import LLMClientABC
 from klaude_code.session.session import Session
 
 
@@ -30,6 +29,3 @@ class ClientCommandAgent:
     @property
     def profile(self) -> None:
         return None
-
-    def get_llm_client(self) -> LLMClientABC:
-        raise RuntimeError("LLM clients live on the server; this command is not supported while attached")

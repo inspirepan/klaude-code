@@ -1517,9 +1517,6 @@ class TUICommandRenderer:
             )
         self._print_blank_line(event.session_id)
 
-    def display_step_start(self, event: events.StepStartEvent) -> None:
-        del event
-
     def display_image(self, file_path: str, caption: str | None = None) -> None:
         self._set_scrollback_boundary(False)
         if caption:

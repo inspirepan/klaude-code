@@ -153,11 +153,6 @@ export async function fetchSessionChildren(
  */
 const systemContextCache = new Map<string, Promise<SystemContext>>()
 
-/** Drop the client-side system-context cache (tests). */
-export function clearSystemContextCache(): void {
-  systemContextCache.clear()
-}
-
 /**
  * Fetch one session's system context.
  * @param sessionId - Session id.

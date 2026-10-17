@@ -18,9 +18,6 @@ class _DummyAgent:
     session = SimpleNamespace(id="session-1")
     profile = None
 
-    def get_llm_client(self) -> object:
-        raise NotImplementedError
-
 
 def test_model_command_changes_model_and_saves_default() -> None:
     command = ModelCommand()

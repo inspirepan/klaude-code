@@ -1,14 +1,11 @@
 import asyncio
 import contextlib
 import sys
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
-from pathlib import Path
-from uuid import uuid4
 
 import typer
 
-from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import (
     DefaultModelProfileProvider,
     VanillaModelProfileProvider,
@@ -17,12 +14,10 @@ from klaude_code.agent.runtime.llm import ModelResolutionError, build_llm_client
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import Config, load_config
-from klaude_code.config.config import ModelPreference
 from klaude_code.control.event_bus import EventBus, EventSubscription
 from klaude_code.llm.proxy_support import configured_socks_proxy_var, is_missing_socks_proxy_support_error
 from klaude_code.log import DebugType, log, log_debug, set_debug_logging
 from klaude_code.protocol import events, op, user_interaction
-from klaude_code.session.session import Session
 from klaude_code.session.store_registry import close_default_store
 
 SESSION_IDLE_TTL_SECONDS = 30 * 60
@@ -254,51 +249,6 @@ async def initialize_app_components(
     )
 
 
-async def initialize_session(
-    runtime: RuntimeFacade,
-    wait_for_display_idle: Callable[[], Awaitable[None]],
-    session_id: str | None = None,
-    *,
-    defer_welcome_context: bool = False,
-    defer_replay: bool = False,
-) -> str | None:
-    """Initialize a session and return the active session id."""
-    resolved_session_id = session_id or uuid4().hex
-    await runtime.submit_and_wait(
-        op.InitAgentOperation(
-            session_id=resolved_session_id,
-            work_dir=Path.cwd(),
-            defer_welcome_context=defer_welcome_context,
-            defer_replay=defer_replay,
-        )
-    )
-    await wait_for_display_idle()
-
-    return runtime.current_session_id() or resolved_session_id
-
-
-def backfill_session_model_config(
-    agent: Agent | None,
-    model_override: str | None,
-    default_model: ModelPreference,
-    *,
-    is_new_session: bool,
-) -> None:
-    """Backfill model_config_name and model_thinking on newly created sessions."""
-    if agent is None or agent.session.model_config_name is not None:
-        return
-
-    if model_override is not None:
-        agent.session.model_config_name = model_override
-    elif is_new_session and isinstance(default_model, str):
-        agent.session.model_config_name = default_model
-    else:
-        return
-
-    if agent.session.model_thinking is None and agent.profile:
-        agent.session.model_thinking = agent.profile.llm_client.get_llm_config().thinking
-
-
 async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all runtime components."""
     try:
@@ -339,22 +289,3 @@ async def cleanup_app_components(components: AppComponents) -> None:
             stream = getattr(sys, "__stdout__", None) or sys.stdout
             stream.write("\033[?25h")
             stream.flush()
-
-
-async def handle_keyboard_interrupt(runtime: RuntimeFacade) -> None:
-    """Handle ctrl-c by logging and interrupting only if a task is running."""
-    log("Bye!")
-    session_id = runtime.current_session_id()
-    if (
-        session_id
-        and Session.exists(session_id, work_dir=Path.cwd())
-        and Session.has_user_messages(session_id, work_dir=Path.cwd())
-    ):
-        short_id = Session.shortest_unique_prefix(session_id, work_dir=Path.cwd())
-        log(("Resume with:", "dim"), (f"klaude -r {short_id}", "green"))
-    if not runtime.has_running_tasks():
-        return
-    if session_id is None:
-        return
-    with contextlib.suppress(Exception):
-        await runtime.submit(op.InterruptOperation(session_id=session_id))

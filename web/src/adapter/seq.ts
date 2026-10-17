@@ -29,9 +29,6 @@ export const SEQ_OFFSET_REQUEST = 0
 /** Offset of the conversation node built from a line. */
 export const SEQ_OFFSET_NODE = 1
 
-/** Offset reserved for a step-end marker. */
-export const SEQ_OFFSET_STEP_END = 2
-
 /**
  * First seq owned by one ledger line.
  * @param lineIndex - Zero-based `events.jsonl` line.

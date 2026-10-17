@@ -1005,9 +1005,6 @@ class DisplayStateMachine:
     def set_model_name(self, model_name: str | None) -> None:
         self._model_name = model_name
 
-    def set_session_title(self, title: str | None) -> None:
-        self._session_title = title
-
     @property
     def terminal_title_prefix(self) -> str | None:
         return self._terminal_title_prefix
@@ -1041,28 +1038,6 @@ class DisplayStateMachine:
 
     def _is_primary(self, session_id: str) -> bool:
         return self._primary_session_id == session_id
-
-    def _abort_active_sub_agent_sessions(
-        self,
-        *,
-        timestamp: float,
-        result: str,
-    ) -> list[RenderCommand]:
-        active = [session for session in self._sessions.values() if session.is_sub_agent and session.task_active]
-        commands: list[RenderCommand] = []
-        for session in active:
-            session.task_active = False
-            session.task_finished_at = timestamp
-            session.terminal_status = "aborted"
-            session.task_result = result
-            session.result_summary = c_sub_agent.extract_result_summary(result)
-            session.clear_status_activity()
-            content = session.finish_thinking()
-            if content.strip():
-                commands.append(RenderSubAgentThinking(session.session_id, content))
-        for session in active:
-            commands.extend(self._maybe_finish_sub_agent_batch(session))
-        return commands
 
     def _sub_agent_status_lines(self) -> tuple[SpinnerStatusLine, ...]:
         # Agents waiting on the user surface first; the rest keep spawn order.

@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, cast
+from typing import cast
 
 import pytest
 
@@ -13,9 +13,6 @@ from klaude_code.tui.command.types import CommandName
 class _DummyAgent:
     session = type("Session", (), {"id": "session-1"})()
     profile = None
-
-    def get_llm_client(self) -> Any:
-        raise NotImplementedError
 
 
 def test_grill_me_command_starts_interview_for_current_context(monkeypatch: pytest.MonkeyPatch) -> None:

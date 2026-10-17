@@ -69,7 +69,6 @@ Commands return `CommandResult` with optional fields:
 Commands receive an `Agent` protocol object with:
 - `agent.session` - The current Session (history, config, file tracker)
 - `agent.profile` - The active model profile (LLM client, system prompt, tools)
-- `agent.get_llm_client()` - Get the current LLM client
 
 ### String-based vs enum command names
 

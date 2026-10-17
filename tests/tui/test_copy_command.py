@@ -18,9 +18,6 @@ class _DummyAgent:
         self.session = session
         self.profile = None
 
-    def get_llm_client(self) -> Any:  # pragma: no cover
-        raise NotImplementedError
-
 
 def arun(coro: Any) -> Any:
     return asyncio.run(coro)

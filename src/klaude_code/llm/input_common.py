@@ -379,38 +379,6 @@ def build_chat_content_parts(
     return parts
 
 
-def build_tool_message(
-    msg: message.ToolResultMessage,
-    attachment: DeveloperAttachment,
-) -> dict[str, object]:
-    """Build a tool message. Note: image_url in tool message is not supported by
-    OpenAI Chat Completions API. Use build_tool_message_for_chat_completions instead.
-    """
-    merged_text = merge_attachment_text(
-        msg.output_text or EMPTY_TOOL_OUTPUT_MESSAGE,
-        attachment.text,
-        prefix_text=attachment.prefix_text,
-    )
-    content: list[dict[str, object]] = [{"type": "text", "text": merged_text}]
-    for part in msg.parts:
-        if isinstance(part, message.ImageFilePart):
-            if (url := image_file_to_data_url(part)) is not None:
-                content.append({"type": "image_url", "image_url": {"url": url}})
-        elif isinstance(part, message.ImageURLPart):
-            content.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(part)}})
-    for image in attachment.images:
-        if isinstance(image, message.ImageFilePart):
-            if (url := image_file_to_data_url(image)) is not None:
-                content.append({"type": "image_url", "image_url": {"url": url}})
-        else:
-            content.append({"type": "image_url", "image_url": {"url": image_url_to_request_url(image)}})
-    return {
-        "role": "tool",
-        "content": content,
-        "tool_call_id": msg.call_id,
-    }
-
-
 def build_tool_message_for_chat_completions(
     msg: message.ToolResultMessage,
     attachment: DeveloperAttachment,

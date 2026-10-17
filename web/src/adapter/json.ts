@@ -10,11 +10,6 @@ export function readNumber(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
 }
 
-/** The boolean at `value`, or undefined. */
-export function readBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined
-}
-
 /** The array at `value`, or an empty array. */
 export function readArray(value: unknown): readonly unknown[] {
   return Array.isArray(value) ? (value as readonly unknown[]) : []

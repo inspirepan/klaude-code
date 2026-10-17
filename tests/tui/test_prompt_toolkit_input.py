@@ -465,19 +465,6 @@ def test_bottom_line_updates_skip_unchanged_invalidations() -> None:
     assert invalidations.count == 3
 
 
-def test_running_separator_uses_prompt_width_fallback() -> None:
-    prompt_input = _build_input("")
-
-    assert prompt_input._bottom_bar._get_running_separator_fragments() == [("class:lines", "─" * 80)]
-
-
-def test_running_separator_stays_plain_when_interrupt_hint_is_present() -> None:
-    prompt_input = _build_input("")
-    prompt_input._bottom_bar._running_separator_label = "1m51s · esc to interrupt"
-
-    assert prompt_input._bottom_bar._get_running_separator_fragments() == [("class:lines", "─" * 80)]
-
-
 def test_input_footer_renders_interrupt_hint_after_context() -> None:
     prompt_input: Any = _build_input("")
     prompt_input._bottom_bar._running_separator_label = "1m51s · esc to interrupt"

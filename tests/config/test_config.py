@@ -344,7 +344,6 @@ class TestConfig:
 
         assert llm_config.model_id == "gemini-3.1-pro-preview"
         assert not hasattr(llm_config, "model_alias")
-        assert config.has_model_config_name("gemini-3-pro") is True
         assert config.resolve_model_location("gemini-3-pro") == ("gemini-pro", "google")
         assert [candidate.selector for candidate in candidates] == ["gemini-pro@google"]
         assert diagnosis.availability == ModelAvailability.AVAILABLE

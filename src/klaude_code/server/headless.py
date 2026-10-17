@@ -739,9 +739,6 @@ class HeadlessRuntime:
     def is_running(self, session_id: str) -> bool:
         return session_id in self._running
 
-    def running_session_ids(self) -> set[str]:
-        return set(self._running)
-
     def has_pending(self, session_id: str) -> bool:
         if session_id in self._queued_by_id or self.turn_start_pending(session_id):
             return True
@@ -963,11 +960,6 @@ class HeadlessRuntime:
             return
         self._queue.append(entry)
         self._queued_by_id[entry.session_id] = entry
-
-    async def cancel_queued(self, session_id: str) -> bool:
-        lock = self._scheduling_locks.setdefault(session_id, asyncio.Lock())
-        async with lock:
-            return await self._cancel_queued_locked(session_id)
 
     async def prepare_interrupt(self, session_id: str, work_dir: Path) -> bool:
         """Cancel pending work and prevent a running launch from pumping it again."""

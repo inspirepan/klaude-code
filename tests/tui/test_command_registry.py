@@ -58,9 +58,6 @@ class _DummyAgent:
     session = type("Sess", (), {"id": "dummy"})()  # type: ignore[assignment]
     profile = None
 
-    def get_llm_client(self) -> Any:
-        raise NotImplementedError
-
 
 @pytest.fixture
 def _isolated_registry(monkeypatch: pytest.MonkeyPatch) -> dict[CommandName | str, CommandABC]:

@@ -125,9 +125,6 @@ class ToolContext:
     ) -> ToolContext:
         return replace(self, register_tool_interrupt_result_getter=callback)
 
-    def with_handoff_manager(self, manager: HandoffManagerABC | None) -> ToolContext:
-        return replace(self, handoff_manager=manager)
-
     def with_request_user_interaction(self, callback: RequestUserInteraction | None) -> ToolContext:
         return replace(self, request_user_interaction=callback)
 

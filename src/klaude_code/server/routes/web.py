@@ -32,10 +32,6 @@ def web_index_file() -> Path:
     return web_dist_dir() / "index.html"
 
 
-def is_web_bundle_available() -> bool:
-    return web_index_file().is_file()
-
-
 def missing_bundle_html() -> str:
     return f"""<!doctype html>
 <html lang="en">

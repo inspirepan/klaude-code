@@ -6,7 +6,6 @@ from openai.types import chat
 
 from klaude_code.llm.input_common import (
     DeveloperAttachment,
-    build_tool_message,
     build_tool_message_for_chat_completions,
 )
 from klaude_code.llm.openai_compatible.input import (
@@ -56,14 +55,6 @@ def test_chat_completions_tool_message_empty_output_still_string() -> None:
     tool_msg, _ = build_tool_message_for_chat_completions(msg, _empty_attachment())
 
     assert tool_msg["content"] == "   "
-
-
-def test_build_tool_message_content_is_list() -> None:
-    msg = _make_tool_result("some output")
-    tool_msg = build_tool_message(msg, _empty_attachment())
-    parts = _content_parts(tool_msg)
-
-    assert parts[0] == {"type": "text", "text": "some output"}
 
 
 def test_rewrite_tool_message_for_claude_converts_string_to_list() -> None:

@@ -228,20 +228,6 @@ class SessionIndex:
             return self._sessions_by_id.pop(session_id, None)
 
 
-def list_main_sessions(home: Path) -> list[SessionSummary]:
-    summaries: list[SessionSummary] = []
-    for meta_path in _iter_meta_files(home):
-        data = _read_json_dict(meta_path)
-        if data is None:
-            continue
-        summary = load_session_summary_from_meta(data, fallback_session_id=meta_path.parent.name)
-        if summary is not None and summary.parent_session_id is None:
-            summaries.append(summary)
-
-    summaries.sort(key=lambda item: item.updated_at, reverse=True)
-    return summaries
-
-
 def resolve_session_work_dir_fast(index: SessionIndex | None, home: Path, session_id: str) -> Path | None:
     """Index-first work_dir lookup.
 

@@ -275,12 +275,6 @@ def _load_auto_memory_file(memory_path: Path) -> Memory | None:
     return Memory(path=str(memory_path), instruction=instruction, content=text)
 
 
-def load_auto_memory(work_dir: Path) -> Memory | None:
-    """Load the per-project MEMORY.md from the auto-memory directory."""
-
-    return _load_auto_memory_file(get_auto_memory_path(work_dir))
-
-
 def load_auto_memories(work_dir: Path) -> list[Memory]:
     """Load klaude and Claude Code auto-memory files for a project."""
 

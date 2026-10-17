@@ -14,7 +14,9 @@ def test_load_auto_memory_without_truncation(monkeypatch: pytest.MonkeyPatch, tm
 
     monkeypatch.setattr(memory, "get_auto_memory_path", _auto_memory_path)
 
-    loaded = memory.load_auto_memory(work_dir=tmp_path)
+    loaded_memories = memory.load_auto_memories(work_dir=tmp_path)
+    assert len(loaded_memories) == 1
+    loaded = loaded_memories[0]
 
     assert loaded is not None
     assert loaded.path == str(file_path)
@@ -32,7 +34,9 @@ def test_load_auto_memory_with_truncation_notice(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(memory, "get_auto_memory_path", _auto_memory_path)
 
-    loaded = memory.load_auto_memory(work_dir=tmp_path)
+    loaded_memories = memory.load_auto_memories(work_dir=tmp_path)
+    assert len(loaded_memories) == 1
+    loaded = loaded_memories[0]
 
     assert loaded is not None
     assert loaded.instruction == (

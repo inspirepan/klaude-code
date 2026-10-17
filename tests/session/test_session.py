@@ -4,7 +4,7 @@ import json
 import time
 from collections.abc import Coroutine
 from pathlib import Path
-from typing import Any, NoReturn
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -29,9 +29,6 @@ class _ForkSessionDummyAgent:
     def __init__(self, session: Session):
         self.session = session
         self.profile = None
-
-    def get_llm_client(self) -> NoReturn:  # pragma: no cover
-        raise NotImplementedError
 
 
 def arun[T](coro: Coroutine[Any, Any, T]) -> T:

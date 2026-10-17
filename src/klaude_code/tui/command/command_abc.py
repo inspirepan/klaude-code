@@ -32,8 +32,6 @@ class Agent(Protocol):
     @property
     def profile(self) -> AgentProfile | None: ...
 
-    def get_llm_client(self) -> LLMClientABC: ...
-
 
 class CommandResult(BaseModel):
     """Result of a command execution."""

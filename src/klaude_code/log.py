@@ -201,14 +201,6 @@ def is_debug_enabled() -> bool:
     return _debug_enabled
 
 
-def prepare_debug_log_file(log_file: str | os.PathLike[str] | None = None) -> Path:
-    """Prepare and remember the log file path for this session."""
-
-    global _current_log_file
-    _current_log_file = _resolve_log_file(log_file)
-    return _current_log_file
-
-
 def get_current_log_file() -> Path | None:
     """Return the currently active log file path, if any."""
 

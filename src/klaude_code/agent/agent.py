@@ -401,9 +401,6 @@ class Agent:
         self.set_model_profile(profile)
         return profile
 
-    def get_llm_client(self) -> LLMClientABC:
-        return self.profile.llm_client
-
     def get_partial_metadata(self) -> TaskMetadata | None:
         """Get partial metadata from the currently running task.
 

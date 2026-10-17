@@ -557,14 +557,6 @@ class JsonlSessionStore:
             self._history_cache[session_id] = _HistoryCacheEntry(mtime_ns=mtime_ns, size=size, rows=rows)
         return rows
 
-    def iter_history(self, session_id: str) -> Iterable[message.HistoryEvent]:
-        events_path = self._paths.events_file(session_id)
-        if not events_path.exists():
-            return
-        for _, item in self._decode_history_lines(events_path):
-            if item is not None:
-                yield item
-
     def _decode_history_lines(self, events_path: Path) -> Iterable[tuple[int, message.HistoryEvent | None]]:
         try:
             with events_path.open("r", encoding="utf-8") as f:

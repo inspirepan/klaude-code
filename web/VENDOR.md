@@ -86,7 +86,7 @@ Every deviation carries a trailing or leading `// klaude:` comment so
 |---|---|
 | `layout.ts` | Import block: `@deepseek-ai/dsh-client-ui-conversation/client` + `@deepseek-ai/dsh-attachment` → `../contract/index.ts`. |
 | `trajectory-record.ts` | Same two imports → `../contract/index.ts`. |
-| `trajectory-contract.ts` | Imports → `../contract/index.ts`; trimmed to `TrajectoryRequestHeaderState` + `TrajectorySnapshot`; dropped `TrajectoryContribution`, `TrajectoryConversationViewNode`, `UseTrajectory` and the two `declare module` augmentations. |
+| `trajectory-contract.ts` | Imports → `../contract/index.ts`; trimmed to `TrajectorySnapshot`; dropped the unused `TrajectoryRequestHeaderState`, `TrajectoryContribution`, `TrajectoryConversationViewNode`, `UseTrajectory` and the two `declare module` augmentations. |
 | `trajectory-preview.ts` | `@deepseek-ai/dsh-client-ui-primitives` → `../ui-primitives/index.ts`. |
 | `locales.ts` | Dropped the `declare module '@deepseek-ai/dsh-client-ui-slots'` `LocaleNamespaceMap` augmentation; `TrajectoryTranslate` is now re-exported from `../locale.ts` instead of aliasing `TranslateNS<'trajectory'>`. Both dictionaries carry 175 keys each (M2 swapped two row-kind keys for three; see below). |
 | `TrajectoryTable.tsx` | Import block: primitives → `../ui-primitives/index.ts`; conversation + attachment types → `../contract/index.ts`. Plus the M2 and M4 deviations, below. |
@@ -439,9 +439,10 @@ The tsconfig keeps upstream's `allowImportingTsExtensions`,
   geometry only exists in the DOM.
 - Two vendored `ui-primitives` files still name upstream packages in JSDoc
   (`useAnchoredPosition.ts:10`, `relative-time.ts:6` `@module @deepseek-ai/…`),
-  and several carry the phrase "cordis-free" in prose plus one
-  `IconCordisPluginOutline14` icon export. They are comments and an identifier,
+  and several carry the phrase "cordis-free" in prose. These are comments,
   never imports; they are left alone so the vendored diff stays clean.
+- Unused icon exports were removed from `ui-primitives/icons/index.tsx`, including
+  `IconCordisPluginOutline14`; the 14 retained icon implementations are unchanged.
 
 - 2026-08-30: copied `ui-theme/src/styles/gradient-shadow-text.css` (light block only) — it defines the `--dsw-font-*` composite font tokens the trajectory CSS consumes; without it every `font: var(--dsw-font-…)` declaration was dropped.
 

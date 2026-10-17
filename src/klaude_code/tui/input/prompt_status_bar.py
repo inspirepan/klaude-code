@@ -31,7 +31,7 @@ from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.const import STATUS_WAITING_TEXT
 from klaude_code.tui.commands import PromptStatusLine
-from klaude_code.tui.input.pt_theme import CLASS_LINES, CLASS_META, CLASS_TOOL_RESULT, CLASS_USER_INPUT
+from klaude_code.tui.input.pt_theme import CLASS_META, CLASS_TOOL_RESULT, CLASS_USER_INPUT
 from klaude_code.tui.terminal.tty_state import stdout_writable
 
 _STATUS_SPINNER_FRAMES = ("·  ", "·· ", "···", " ··", "  ·", "   ")
@@ -387,13 +387,6 @@ class PromptBottomBar:
             else:
                 fragments.append((CLASS_META, line.text))
         return fragments
-
-    def _get_running_separator_fragments(self) -> StyleAndTextTuples:
-        try:
-            columns = get_app().output.get_size().columns
-        except Exception:
-            columns = 80
-        return [(CLASS_LINES, "─" * max(1, columns))]
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
         count = len(self._pending_messages)

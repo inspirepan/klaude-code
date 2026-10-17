@@ -11,10 +11,9 @@ from klaude_code.protocol.sub_agent import (
     get_sub_agent_profile,
     iter_sub_agent_profiles,
 )
-from klaude_code.protocol.tools import SubAgentType
 
 if TYPE_CHECKING:
-    from klaude_code.config.config import Config, ModelConfigCandidate, ModelEntry
+    from klaude_code.config.config import Config, ModelEntry
 
 
 @dataclass
@@ -99,37 +98,3 @@ class SubAgentModelResolver:
         _ = get_sub_agent_profile(sub_agent_type)
         all_models = self._config.iter_model_entries(only_available=True, include_disabled=False)
         return all_models
-
-    def build_sub_agent_client_configs(self) -> dict[SubAgentType, str]:
-        """Return single model names for sub-agents that need dedicated clients."""
-        result: dict[SubAgentType, str] = {}
-        for profile in iter_sub_agent_profiles():
-            role_key = profile.name
-            model_pref = self._config.sub_agent_models.get(role_key)
-            if model_pref is None:
-                continue
-            if isinstance(model_pref, str):
-                result[profile.name] = model_pref
-            else:
-                # list[str]: resolve to first available model
-                try:
-                    resolved = self._config.get_first_available_model(model_pref)
-                except ValueError:
-                    continue
-                if resolved is not None:
-                    result[profile.name] = resolved
-        return result
-
-    def build_sub_agent_client_candidates(self) -> dict[SubAgentType, list[ModelConfigCandidate]]:
-        """Return fallback candidate chains for sub-agents that need dedicated clients."""
-
-        result: dict[SubAgentType, list[ModelConfigCandidate]] = {}
-        for profile in iter_sub_agent_profiles():
-            role_key = profile.name
-            model_pref = self._config.sub_agent_models.get(role_key)
-            if model_pref is None:
-                continue
-            candidates = self._config.iter_model_config_candidates(model_pref)
-            if candidates:
-                result[profile.name] = candidates
-        return result

@@ -1,17 +1,8 @@
 // klaude: upstream cross-package imports -> the local flattened contract
 import type {
   ConversationLocation, ConversationNode, ConversationPromptSnapshot, PartialAssistant,
-  RequestPromptChange, RequestView, RunningToolCall, TrajectoryAnnotations,
+  RequestView, RunningToolCall, TrajectoryAnnotations,
 } from '../contract/index.ts'
-
-/** Request-header facts retained by the Trajectory target. */
-export interface TrajectoryRequestHeaderState {
-  readonly seq: number
-  readonly time: number
-  readonly prompt: ConversationPromptSnapshot
-  readonly change?: RequestPromptChange
-  readonly location: ConversationLocation
-}
 
 // klaude: TrajectoryContribution / TrajectoryConversationViewNode / UseTrajectory and
 // the two `declare module` augmentations dropped — they belong to the upstream

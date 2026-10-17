@@ -5,7 +5,6 @@ from klaude_code.llm.stream_parts import (
     append_thinking_text_part,
     build_partial_message,
     build_partial_parts,
-    degrade_thinking_to_text,
 )
 from klaude_code.protocol import message
 
@@ -50,21 +49,6 @@ def test_append_thinking_text_part_force_new_creates_new_part() -> None:
     assert isinstance(parts[1], message.ThinkingTextPart)
     assert parts[0].text == "a"
     assert parts[1].text == "b"
-
-
-def test_degrade_thinking_to_text_drops_signatures_and_wraps_thinking() -> None:
-    parts: list[message.Part] = [
-        message.ThinkingTextPart(text="think", model_id="m"),
-        message.ThinkingSignaturePart(signature="sig", model_id="m", format="x"),
-        message.TextPart(text="answer"),
-    ]
-
-    degraded = degrade_thinking_to_text(parts)
-    assert len(degraded) == 2
-    assert isinstance(degraded[0], message.TextPart)
-    assert degraded[0].text.startswith("<thinking>\nthink\n</thinking>")
-    assert degraded[0].text.endswith("\n\n")
-    assert degraded[1] == message.TextPart(text="answer")
 
 
 def test_build_partial_parts_filters_tool_calls_and_thinking() -> None:

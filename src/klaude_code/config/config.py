@@ -268,11 +268,6 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
         """Get the resolved API key, expanding ${ENV_VAR} syntax if present."""
         return resolve_api_key(self.api_key)
 
-    def get_api_key_env_var(self) -> str | None:
-        """Get the environment variable name if ${ENV_VAR} syntax is used."""
-        env_var, _ = parse_env_var_syntax(self.api_key)
-        return env_var
-
     def is_api_key_missing(self) -> bool:
         """Check if the API key is missing (either not set or env var not found).
 
@@ -633,12 +628,6 @@ class Config(BaseModel):
             return self.provider_list
         return self._get_provider_index().get(requested_provider.casefold(), [])
 
-    def get_user_sub_agent_models(self) -> dict[str, ModelPreference]:
-        """Return sub_agent_models from user config only (excludes builtin defaults)."""
-        if self._user_config is None:
-            return {}
-        return self._user_config.sub_agent_models
-
     def get_first_available_model(self, model_preference: ModelPreference) -> str | None:
         """Resolve a string-or-list model preference to the first available selector."""
         last_error: ValueError | None = None
@@ -675,21 +664,6 @@ class Config(BaseModel):
         if not base or not provider:
             raise ValueError(f"Invalid model selector: {model_selector!r}")
         return base, provider
-
-    def has_model_config_name(self, model_selector: str) -> bool:
-        """Return True if the selector points to a configured model.
-
-        This check is configuration-only: it does not require a valid API key or
-        OAuth login.
-        """
-
-        model_name, provider_name = self._split_model_selector(model_selector)
-        if provider_name is not None:
-            for provider in self._providers_for(provider_name):
-                return _find_model(provider, model_name) is not None
-            return False
-
-        return any(_find_model(provider, model_name) is not None for provider in self.provider_list)
 
     def referenced_env_vars(self) -> frozenset[str]:
         """Names of env vars referenced by ${VAR} syntax in the merged config.

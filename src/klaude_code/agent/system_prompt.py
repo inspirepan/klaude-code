@@ -6,7 +6,7 @@ from functools import cache
 from importlib.resources import files
 from pathlib import Path
 
-from klaude_code.const import ProjectPaths, find_git_repo_root, find_jj_workspace_root, project_key_from_path
+from klaude_code.const import find_git_repo_root, find_jj_workspace_root
 from klaude_code.protocol import llm_param, model_id, tools
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.protocol.system_prompt import (
@@ -222,16 +222,6 @@ def _build_env_info(model_name: str, work_dir: Path) -> str:
     return "\n".join(env_lines)
 
 
-def _build_auto_memory_prompt(work_dir: Path) -> str:
-    """Build auto-memory prompt with the project-specific memory directory path."""
-    paths = ProjectPaths(project_key=project_key_from_path(work_dir))
-    memory_dir = str(paths.memory_dir)
-    template = load_prompt_by_path("prompts/system/auto-memory-prompt.md")
-    # Plain replacement, not str.format(): the body carries literal braces in its
-    # frontmatter example, so a single '{' or '}' added later would raise here.
-    return "\n\n" + template.replace("{memory_dir}", memory_dir)
-
-
 def load_system_prompt(
     model_name: str,
     sub_agent_type: tools.SubAgentType | None = None,
@@ -253,7 +243,6 @@ def load_system_prompt(
     git_hygiene_prompt = "\n\n" + load_prompt_by_path("prompts/system/git-workspace-hygiene-prompt.md")
     conventions_prompt = "\n\n" + load_prompt_by_path("prompts/system/following-conventions-prompt.md")
     visual_prompt = "\n\n" + load_prompt_by_path("prompts/system/visual-explanation-prompt.md")
-    # auto_memory_prompt = _build_auto_memory_prompt(work_dir)
     dynamic_prompt = _build_env_info(model_name, work_dir)
 
     return (

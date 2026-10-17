@@ -1,5 +1,5 @@
 import asyncio
-from typing import Any, cast
+from typing import cast
 
 from klaude_code.protocol import message, op
 from klaude_code.tui.command import has_background_command
@@ -11,9 +11,6 @@ from klaude_code.tui.command.types import CommandName
 class _DummyAgent:
     session = type("Session", (), {"id": "session-1"})()
     profile = None
-
-    def get_llm_client(self) -> Any:
-        raise NotImplementedError
 
 
 def test_btw_command_submits_side_question_operation() -> None:
