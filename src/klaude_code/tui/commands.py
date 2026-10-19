@@ -180,7 +180,7 @@ class RenderSubAgentBatchSummary(RenderCommand):
 
 @dataclass(frozen=True, slots=True)
 class RenderInterrupt(RenderCommand):
-    pass
+    session_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,6 +284,7 @@ class TaskClockClear(RenderCommand):
 class RenderCompactionSummary(RenderCommand):
     summary: str
     kept_items_brief: tuple[tuple[str, int, str], ...] = ()  # (item_type, count, preview)
+    session_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +310,7 @@ class RenderForkCacheHitRate(RenderCommand):
 @dataclass(frozen=True, slots=True)
 class RenderHandoff(RenderCommand):
     summary: str
+    session_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

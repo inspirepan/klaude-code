@@ -145,6 +145,10 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   its call. Expanded mode always keeps the wait call and result. Background
   `TaskMetadataEvent` cost trees are full-mode only. Name tasks and peers by description through
   `TaskDirectory`, never by ID; IDs belong to `/tasks` and expanded mode.
+- Every sub-agent line that does reach the transcript keeps the `▌` gutter:
+  batch summaries, sourced peer messages, retry errors, interrupts, and
+  compaction/handoff notices. Child tool calls/results, assistant text,
+  thinking, and shell completions never print in compact.
 - Interaction request/resolved/cancelled events join by child session and
   request ID. The existing approval dialog remains the only approval surface.
   It cancels the task panel before `pause_for_external_input()` yields stdin;

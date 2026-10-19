@@ -284,6 +284,65 @@ def test_expanded_transcript_does_not_report_a_sub_agent_shell_finish(
     assert "Report continues" not in out
 
 
+@pytest.mark.parametrize("full", [False, True])
+def test_child_sourced_and_notice_content_keeps_the_quote_gutter(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], full: bool
+) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        running = _agent("task-a", "child-a", "清理 worker")
+        script: list[events.Event] = [_welcome()]
+        if full:
+            script.append(events.ToggleTranscriptDetailEvent(session_id="main"))
+        script += [
+            events.TaskStartEvent(session_id="main", model_id="test-model"),
+            events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[running]),
+            events.TaskStartEvent(
+                session_id="child-a",
+                parent_session_id="main",
+                sub_agent_state=SubAgentState(
+                    sub_agent_type="general-purpose",
+                    sub_agent_desc="清理 worker",
+                    sub_agent_prompt="",
+                ),
+            ),
+            events.UserMessageEvent(
+                session_id="child-a",
+                source="peer_message",
+                peer_message=PeerMessage(
+                    sender_session_id="main",
+                    sender_label="main",
+                    recipient="child-a",
+                    body="coordination\nline2",
+                ),
+                content="x",
+            ),
+            events.InterruptEvent(session_id="child-a"),
+            events.CompactionEndEvent(session_id="child-a", reason="threshold", summary="## compacted\n- kept things"),
+            events.UserMessageEvent(session_id="main", content="next"),
+        ]
+        try:
+            for event in script:
+                await display.consume_envelope(make_envelope(event))
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    assert any(line.startswith("▌") and "› Message from main" in line for line in lines)
+    assert not any(not line.startswith("▌") and "› Message from main" in line for line in lines)
+    if full:
+        assert any(line.startswith("▌") and "Interrupted by user" in line for line in lines)
+        assert not any(not line.startswith("▌") and "Interrupted by user" in line for line in lines)
+        assert any(line.startswith("▌") and "Context Compacted" in line for line in lines)
+        assert not any(not line.startswith("▌") and "Context Compacted" in line for line in lines)
+    else:
+        # Compact keeps child lifecycle notices out of the transcript entirely.
+        assert "Interrupted by user" not in out and "Context Compacted" not in out
+
+
 def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatch: pytest.MonkeyPatch) -> None:
     async def run() -> None:
         patch_scrollback_writes(monkeypatch)

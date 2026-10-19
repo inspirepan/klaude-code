@@ -1496,7 +1496,13 @@ class TUICommandRenderer:
             )
             if sourced is None:
                 return False
-            self.print(sourced)
+            if self.is_sub_agent_session(event.session_id):
+                # A sourced message addressed to a child is child content: it
+                # must keep the child's gutter, never read as a parent-level row.
+                with self.session_print_context(event.session_id):
+                    self.print(sourced)
+            else:
+                self.print(sourced)
         elif event.source == "shell_completion":
             tasks = event.shell_tasks
             if tasks:
@@ -1654,9 +1660,10 @@ class TUICommandRenderer:
             self.print(Group(*rendered))
             self.print()
 
-    def display_interrupt(self) -> None:
-        self.print(c_user_input.render_interrupt())
-        self.print()
+    def display_interrupt(self, session_id: str | None = None) -> None:
+        with self.session_print_context(session_id or ""):
+            self.print(c_user_input.render_interrupt())
+            self.print()
 
     def display_error(self, event: events.ErrorEvent) -> None:
         if not self._visible(event):
@@ -1681,7 +1688,19 @@ class TUICommandRenderer:
             .replace("</modified-files>", "")
         )
 
-    def display_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...] = ()) -> None:
+    def display_compaction_summary(
+        self,
+        summary: str,
+        kept_items_brief: tuple[tuple[str, int, str], ...] = (),
+        *,
+        session_id: str | None = None,
+    ) -> None:
+        # A child's compaction is child content; the gutter keeps it from
+        # reading as a parent-level block.
+        with self.session_print_context(session_id or ""):
+            self._print_compaction_summary(summary, kept_items_brief)
+
+    def _print_compaction_summary(self, summary: str, kept_items_brief: tuple[tuple[str, int, str], ...]) -> None:
         stripped = summary.strip()
         if not stripped:
             return
@@ -1801,7 +1820,11 @@ class TUICommandRenderer:
             self.print(Text(f"  cache hit {round(cache_hit_rate * 100)}%", style=ThemeKey.METADATA_DIM))
             self.print()
 
-    def display_handoff(self, summary: str) -> None:
+    def display_handoff(self, summary: str, *, session_id: str | None = None) -> None:
+        with self.session_print_context(session_id or ""):
+            self._print_handoff(summary)
+
+    def _print_handoff(self, summary: str) -> None:
         self.print(
             Rule(
                 Text("Context Handed Off", style=ThemeKey.HANDOFF),
@@ -2056,12 +2079,12 @@ class TUICommandRenderer:
                         and self._notifier.enabled
                     ):
                         finished_tasks_to_notify.append(cmd_finish)
-                case RenderInterrupt():
-                    self.display_interrupt()
+                case RenderInterrupt(session_id=session_id):
+                    self.display_interrupt(session_id)
                 case RenderError(event=event):
                     self.display_error(event)
-                case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief):
-                    self.display_compaction_summary(summary, kept_items_brief)
+                case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief, session_id=session_id):
+                    self.display_compaction_summary(summary, kept_items_brief, session_id=session_id)
                 case RenderForkCacheHitRate(
                     fork_label=fork_label,
                     cache_read_tokens=cache_read_tokens,
@@ -2090,8 +2113,8 @@ class TUICommandRenderer:
                         tokens_before=tokens_before,
                         cache_hit_rate=cache_hit_rate,
                     )
-                case RenderHandoff(summary=summary):
-                    self.display_handoff(summary)
+                case RenderHandoff(summary=summary, session_id=session_id):
+                    self.display_handoff(summary, session_id=session_id)
                 case RenderRewind(
                     checkpoint_id=checkpoint_id,
                     note=note,

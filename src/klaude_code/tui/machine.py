@@ -1807,10 +1807,12 @@ class DisplayStateMachine:
         cmds.extend(self._spinner_update_commands())
         if e.summary and not e.aborted and self._visible(e, s):
             if e.reason == "handoff":
-                cmds.append(RenderHandoff(summary=e.summary))
+                cmds.append(RenderHandoff(summary=e.summary, session_id=e.session_id))
             else:
                 kept_brief = tuple((item.item_type, item.count, item.preview) for item in e.kept_items_brief)
-                cmds.append(RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief))
+                cmds.append(
+                    RenderCompactionSummary(summary=e.summary, kept_items_brief=kept_brief, session_id=e.session_id)
+                )
         return cmds
 
     def _handle_ForkSummaryEvent(self, e: events.ForkSummaryEvent, *, s: _SessionState) -> list[RenderCommand]:
@@ -2543,7 +2545,7 @@ class DisplayStateMachine:
                 )
             )
         if e.show_notice and self._visible(e, s):
-            cmds.append(RenderInterrupt())
+            cmds.append(RenderInterrupt(session_id=e.session_id))
         return cmds
 
     def _handle_ErrorEvent(self, e: events.ErrorEvent, *, s: _SessionState) -> list[RenderCommand]:
