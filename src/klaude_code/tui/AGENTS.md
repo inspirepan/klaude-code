@@ -136,8 +136,12 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   results print nothing; a finished agent prints only its `▌` batch block
   (`TaskDirectory.claim_summary` / `claim_report` dedupe the block against task
   reports and wait results, and a report builds the block when none printed);
-  a finished Bash task prints one `$ Shell` row. Background `TaskMetadataEvent`
-  cost trees are full-mode only. Name tasks and peers by description through
+  a finished Bash task prints one `› Shell` row. A compact `ManageShell wait`
+  hides its call row: a finite result prints one `› Shell` row through the same
+  `TaskDirectory.claim_task` claim as the automatic report, so whichever arrives
+  first prints it; a still-running result prints nothing; a failed wait restores
+  its call. Expanded mode always keeps the wait call and result. Background
+  `TaskMetadataEvent` cost trees are full-mode only. Name tasks and peers by description through
   `TaskDirectory`, never by ID; IDs belong to `/tasks` and expanded mode.
 - Interaction request/resolved/cancelled events join by child session and
   request ID. The existing approval dialog remains the only approval surface.

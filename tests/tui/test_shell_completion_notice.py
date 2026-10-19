@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 from typing import Any
 
 import pytest
@@ -7,6 +8,7 @@ from rich.console import Console
 from rich.segment import Segment
 
 from klaude_code.protocol import events, message, tools
+from klaude_code.protocol.models import ShellTaskUIExtra
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.commands import RenderUserMessage
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
@@ -137,6 +139,174 @@ def test_completion_without_metadata_has_short_safe_fallback(
     assert "Task details unavailable." in rendered
     # Compact reports join the open tool block, so no blank line closes them.
     assert len(rendered.splitlines()) == (2 if detail.is_compact else 3)
+
+
+@pytest.mark.parametrize("order", ["wait-first", "report-first"])
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+def test_compact_wait_prints_only_the_completion_report(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], detail: Detail, order: str
+) -> None:
+    async def run() -> None:
+        writes = patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        display._detail.set(detail)  # pyright: ignore[reportPrivateUsage]
+        running = _task(status="running", exit_code=None)
+        completed = _task()
+        finish = events.ToolResultEvent(
+            session_id="main",
+            tool_call_id="wait-done",
+            tool_name=tools.MANAGE_SHELL,
+            result="completed",
+            status="success",
+            ui_extra=ShellTaskUIExtra(action="wait", tasks=[completed]),
+        )
+        report = _event([completed])
+        events_to_send: list[events.Event] = [
+            _welcome("main"),
+            events.TaskStartEvent(session_id="main", model_id="test-model"),
+            events.ToolCallEvent(
+                session_id="main",
+                tool_call_id="wait-running",
+                tool_name=tools.MANAGE_SHELL,
+                arguments=json.dumps({"action": "wait", "task_id": _TASK_ID, "wait_ms": 1000}),
+                shell_task=running,
+            ),
+            events.ToolResultEvent(
+                session_id="main",
+                tool_call_id="wait-running",
+                tool_name=tools.MANAGE_SHELL,
+                result="still running",
+                status="success",
+                ui_extra=ShellTaskUIExtra(action="wait", tasks=[running]),
+            ),
+            events.ToolCallEvent(
+                session_id="main",
+                tool_call_id="wait-done",
+                tool_name=tools.MANAGE_SHELL,
+                arguments=json.dumps({"action": "wait", "task_id": _TASK_ID, "wait_ms": 1000}),
+                shell_task=completed,
+            ),
+        ]
+        if order == "report-first":
+            events_to_send.append(report)
+        events_to_send.append(finish)
+        if order == "wait-first":
+            events_to_send.append(report)
+        try:
+            for event in events_to_send:
+                await display.consume_envelope(make_envelope(event))
+            live = capsys.readouterr().out
+            if detail.is_compact:
+                # The status bar carries the wait; the automatic report carries the result once.
+                assert "Waiting for" not in live
+                assert live.count("Run targeted tests") == 1
+                assert live.count("completed") == 1
+                assert "› Shell" in live
+                await display.consume_envelope(make_envelope(events.RefreshDisplayEvent(session_id="main")))
+                rebuilt = writes[-1][0]
+                assert "Waiting for" not in rebuilt
+                assert rebuilt.count("Run targeted tests") == 1
+                assert rebuilt.count("completed") == 1
+            else:
+                assert "Waiting for Run targeted tests" in live
+                assert "› Shell" in live
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+
+
+def test_compact_legacy_wait_result_also_hides_the_call(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        completed = _task()
+        try:
+            for event in [
+                _welcome("main"),
+                events.TaskStartEvent(session_id="main", model_id="test-model"),
+                events.ToolCallEvent(
+                    session_id="main",
+                    tool_call_id="wait-1",
+                    tool_name=tools.MANAGE_SHELL,
+                    arguments=json.dumps({"action": "wait", "task_id": _TASK_ID, "wait_ms": 1000}),
+                    shell_task=completed,
+                ),
+                events.ToolResultEvent(
+                    session_id="main",
+                    tool_call_id="wait-1",
+                    tool_name=tools.MANAGE_SHELL,
+                    result=completed.model_dump_json(),
+                    status="success",
+                ),
+            ]:
+                await display.consume_envelope(make_envelope(event))
+            live = capsys.readouterr().out
+            # Persisted legacy bodies must take the same compact path.
+            assert "Waiting for" not in live
+            assert live.count("Run targeted tests") == 1
+            assert "completed" in live
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("case", ["stopped", "error"])
+def test_compact_wait_restores_its_call_when_no_completion_report_follows(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], case: str
+) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        stopped = _task(status="stopped", exit_code=-15)
+        result = (
+            events.ToolResultEvent(
+                session_id="main",
+                tool_call_id="wait-1",
+                tool_name=tools.MANAGE_SHELL,
+                result="stopped",
+                status="success",
+                ui_extra=ShellTaskUIExtra(action="wait", tasks=[stopped]),
+            )
+            if case == "stopped"
+            else events.ToolResultEvent(
+                session_id="main",
+                tool_call_id="wait-1",
+                tool_name=tools.MANAGE_SHELL,
+                result="ManageShell error: task not found",
+                status="error",
+            )
+        )
+        try:
+            for event in [
+                _welcome("main"),
+                events.TaskStartEvent(session_id="main", model_id="test-model"),
+                events.ShellTasksUpdatedEvent(session_id="main", tasks=[stopped]),
+                events.ToolCallEvent(
+                    session_id="main",
+                    tool_call_id="wait-1",
+                    tool_name=tools.MANAGE_SHELL,
+                    arguments=json.dumps({"action": "wait", "task_id": _TASK_ID, "wait_ms": 1000}),
+                ),
+                result,
+            ]:
+                await display.consume_envelope(make_envelope(event))
+            live = capsys.readouterr().out
+            if case == "stopped":
+                # A finished wait prints the one completion row itself.
+                assert "› Shell" in live and "stopped · exit -15" in live
+                assert "Waiting for" not in live
+            else:
+                # An error has no completion row, so the call keeps its mark.
+                assert "Waiting for Run targeted tests" in live
+                assert "task not found" in live
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
 
 
 @pytest.mark.parametrize("source", [None, "user", "bash_mode"])

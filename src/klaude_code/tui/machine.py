@@ -106,6 +106,7 @@ from klaude_code.tui.components.common import (
 from klaude_code.tui.components.rich import status as r_status
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools import get_agent_active_form, get_tool_active_form, is_sub_agent_tool
+from klaude_code.tui.components.tools._manage_shell import extract_shell_task_ui_extra
 from klaude_code.tui.components.tools._presentation import parse_tool_arguments
 from klaude_code.tui.status_runtime import current_elapsed_text
 from klaude_code.tui.transcript_detail import Detail, TranscriptDetail, is_visible
@@ -979,6 +980,9 @@ class DisplayStateMachine:
         self._background_shell_count = 0
         self._live_bash_tool_call_ids: set[str] = set()
         self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
+        # Compact waits are status-bar-only; the automatic shell completion
+        # report prints the single transcript row for the task.
+        self._hidden_shell_wait_calls: dict[tuple[str, str], events.ToolCallEvent] = {}
         self._bash_mode_output_chunks_by_session: dict[str, list[str]] = {}
         self._detail = detail if detail is not None else TranscriptDetail()
         self._pending_sub_agent_results: dict[str, events.ToolResultEvent] = {}
@@ -1023,6 +1027,7 @@ class DisplayStateMachine:
         self._terminal_title_prefix = None
         self._live_bash_tool_call_ids = set()
         self._pending_bash_tool_outputs = {}
+        self._hidden_shell_wait_calls = {}
         self._bash_mode_output_chunks_by_session = {}
         self._pending_sub_agent_results = {}
         self._unspawned_sub_agents_by_batch = {}
@@ -2172,10 +2177,14 @@ class DisplayStateMachine:
 
     def _handle_ToolCallEvent(self, e: events.ToolCallEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
-        if (
-            e.tool_name in {tools.MANAGE_TASKS, tools.MANAGE_SHELL}
-            and parse_tool_arguments(e.arguments).get("action") == "wait"
-        ):
+        arguments = parse_tool_arguments(e.arguments)
+        is_wait = e.tool_name in {tools.MANAGE_TASKS, tools.MANAGE_SHELL} and arguments.get("action") == "wait"
+        # A compact shell wait is transient: the status bar names the task while
+        # it waits, and the automatic completion report prints the one row.
+        hidden_shell_wait = e.tool_name == tools.MANAGE_SHELL and is_wait and self._compact and not s.is_sub_agent
+        if hidden_shell_wait:
+            self._hidden_shell_wait_calls[(e.session_id, e.tool_call_id)] = e
+        if is_wait:
             s.waiting_task_tools.add(e.tool_call_id)
             if not s.is_sub_agent:
                 # Name what the main agent waits on, matching its transcript row.
@@ -2229,10 +2238,10 @@ class DisplayStateMachine:
                 arguments=e.arguments,
             )
 
-        if not (self._compact and not s.is_sub_agent and e.tool_name == tools.BASH):
+        if not (self._compact and not s.is_sub_agent and (e.tool_name == tools.BASH or hidden_shell_wait)):
             shell_task = None
             if e.tool_name == tools.MANAGE_SHELL:
-                task_id = parse_tool_arguments(e.arguments).get("task_id")
+                task_id = arguments.get("task_id")
                 if isinstance(task_id, str):
                     hint = e.shell_task
                     shell_task = (
@@ -2286,6 +2295,8 @@ class DisplayStateMachine:
 
     def _handle_ToolResultEvent(self, e: events.ToolResultEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        call_key = (e.session_id, e.tool_call_id)
+        hidden_wait_call = self._hidden_shell_wait_calls.pop(call_key, None)
         s.waiting_task_tools.discard(e.tool_call_id)
         if isinstance(e.ui_extra, ShellTaskUIExtra):
             s.shell_tasks.update((task.task_id, task) for task in e.ui_extra.tasks if task.session_id == e.session_id)
@@ -2347,6 +2358,21 @@ class DisplayStateMachine:
 
         if not self._visible(e, s):
             return cmds
+
+        # Use the renderer's helper so persisted legacy results agree on whether
+        # this result will render its own completion row.
+        shell_ui = extract_shell_task_ui_extra(e.ui_extra, e.result)
+        if hidden_wait_call is not None and (
+            not self._compact or e.status != "success" or shell_ui is None or shell_ui.action != "wait"
+        ):
+            # The result carries no identity of its own, and only a successful
+            # compact wait result renders a marked row. Restore the call otherwise.
+            wait_tasks = shell_ui.tasks if shell_ui is not None and shell_ui.action == "wait" else []
+            task_id = parse_tool_arguments(hidden_wait_call.arguments).get("task_id")
+            shell_task = next((task for task in wait_tasks if task.session_id == e.session_id), None)
+            if shell_task is None and isinstance(task_id, str):
+                shell_task = s.shell_tasks.get(task_id)
+            cmds.append(RenderToolCall(hidden_wait_call, shell_task=shell_task))
 
         if self._compact and not s.is_sub_agent and e.tool_name == tools.BASH:
             cmds.append(RenderCompactToolResult(event=e, arguments=pending.arguments if pending is not None else ""))

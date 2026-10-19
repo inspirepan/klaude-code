@@ -161,7 +161,12 @@ def test_renderer_only_omits_identity_already_shown_in_call(has_snapshot: bool, 
     result = _event(result=task.model_dump_json()) if legacy else _event(ShellTaskUIExtra(action="wait", tasks=[task]))
     assert renderer.display_tool_call_result(result)
     rendered = renderer.console.export_text()
-    assert rendered.count("Run targeted tests") == 1
+    if detail.is_compact:
+        # The wait result is itself the `› Shell` completion row.
+        assert "› Shell" in rendered
+        assert "Run targeted tests" in rendered
+    else:
+        assert rendered.count("Run targeted tests") == 1
     assert "completed · exit 0" in rendered
     assert ("uv run pytest tests/tui -q" in rendered) == (not has_snapshot and detail == Detail.FULL)
 
@@ -303,7 +308,8 @@ def test_old_persisted_json_uses_structured_rendering(legacy_kind: str, detail: 
     else:
         result = ShellTaskOutput(task=task, output="  old output", next_offset=22, truncated=True).model_dump_json()
     rendered = _render(render_tool_result(_event(result=result), detail=detail))
-    assert ("Run targeted tests" in rendered) == (legacy_kind == "list")
+    expected_identity = legacy_kind == "list" or (legacy_kind == "snapshot" and detail.is_compact)
+    assert ("Run targeted tests" in rendered) == expected_identity
     assert "failed · exit 7" in rendered
     assert "output_path" not in rendered
     if legacy_kind == "output":
@@ -345,7 +351,7 @@ def test_narrow_cjk_calls_and_results_remain_readable(width: int) -> None:
     result = _render(render_tool_result(_event(ShellTaskUIExtra(action="wait", tasks=[task]))), width=width)
     assert "Shell" in call
     assert "Wait" in call
-    assert "运行测试" not in result
+    assert "运行测试" in result
     assert "failed" in result
     assert "1" in result
 

@@ -9,6 +9,7 @@ from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.commands import RenderToolCall
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.machine import DisplayStateMachine
+from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
 
 from .test_transcript_rebuild import _welcome
 from .test_transcript_toggle import make_envelope, patch_scrollback_writes
@@ -39,7 +40,8 @@ def _call() -> events.ToolCallEvent:
 
 @pytest.mark.parametrize("source", ["snapshot", "result"])
 def test_manage_shell_call_resolves_session_task_without_changing_arguments(source: str) -> None:
-    machine = DisplayStateMachine()
+    # Expanded mode still prints the wait call; compact mode keeps it in the status bar.
+    machine = DisplayStateMachine(detail=TranscriptDetail(Detail.FULL))
     machine.transition(_welcome("main"))
     task = _task()
     if source == "snapshot":
@@ -65,7 +67,7 @@ def test_manage_shell_call_resolves_session_task_without_changing_arguments(sour
 
 
 def test_manage_shell_replay_hint_is_used_without_a_snapshot_and_rejects_foreign_tasks() -> None:
-    machine = DisplayStateMachine()
+    machine = DisplayStateMachine(detail=TranscriptDetail(Detail.FULL))
     machine.transition(_welcome("main"))
     call = _call().model_copy(update={"shell_task": _task()})
     rendered = next(command for command in machine.transition(call) if isinstance(command, RenderToolCall))
@@ -78,7 +80,7 @@ def test_manage_shell_replay_hint_is_used_without_a_snapshot_and_rejects_foreign
 
 @pytest.mark.parametrize("rebuild", ["toggle", "refresh"])
 @pytest.mark.parametrize("source", ["live", "attach"])
-def test_waiting_shell_description_is_visible_before_result_and_after_rebuild(
+def test_waiting_shell_description_stays_out_of_compact_transcript(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], rebuild: str, source: str
 ) -> None:
     async def run() -> None:
@@ -97,14 +99,20 @@ def test_waiting_shell_description_is_visible_before_result_and_after_rebuild(
             for event in setup:
                 await display.consume_envelope(make_envelope(event))
             transcript = capsys.readouterr().out
-            assert "Wait for draft" in transcript
-            assert "0262c6ae" not in transcript
-            assert "120s" in transcript or "2m" in transcript
-            assert "wait_ms:" not in transcript
+            assert "Wait for draft" not in transcript
             control = events.ToggleTranscriptDetailEvent if rebuild == "toggle" else events.RefreshDisplayEvent
             await display.consume_envelope(make_envelope(control(session_id="main")))
             assert writes[-1][1]
-            assert "Wait for draft" in writes[-1][0]
+            if rebuild == "toggle":
+                # Expanded mode keeps the call detail, including its wait duration.
+                assert "Wait for draft" in writes[-1][0]
+                assert "120s" in writes[-1][0] or "2m" in writes[-1][0]
+                assert "wait_ms:" not in writes[-1][0]
+                assert "0262c6ae" not in writes[-1][0]
+                await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
+                assert "Wait for draft" not in writes[-1][0]
+            else:
+                assert "Wait for draft" not in writes[-1][0]
         finally:
             await display.stop()
 

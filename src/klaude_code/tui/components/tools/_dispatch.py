@@ -5,6 +5,7 @@ from rich.console import Group, RenderableType
 from rich.text import Text
 
 from klaude_code.protocol import events, tools
+from klaude_code.protocol.background_task import ACTIVE_TASK_STATUSES
 from klaude_code.protocol.models import (
     AskUserQuestionSummaryUIExtra,
     DiffUIExtra,
@@ -39,9 +40,9 @@ from klaude_code.tui.components.tools._file import (
 from klaude_code.tui.components.tools._look_at import render_look_at_tool_call
 from klaude_code.tui.components.tools._manage_shell import (
     extract_shell_task_ui_extra,
-    is_pending_shell_wait,
     render_manage_shell_result,
     render_manage_shell_tool_call,
+    render_shell_completion,
 )
 from klaude_code.tui.components.tools._question import (
     render_ask_user_question_summary,
@@ -327,8 +328,17 @@ def render_tool_result(
             return _render_fallback()
         case tools.MANAGE_SHELL:
             shell_ui = extract_shell_task_ui_extra(e.ui_extra, e.result)
-            if shell_ui is not None and detail.is_compact and is_pending_shell_wait(shell_ui):
-                return None
+            if shell_ui is not None and detail.is_compact and shell_ui.action == "wait":
+                finished = [task for task in shell_ui.tasks if task.status not in ACTIVE_TASK_STATUSES]
+                if not finished:
+                    return None
+                if task_directory is not None:
+                    finished = [task for task in finished if task_directory.claim_task(task.task_id)]
+                if not finished:
+                    return None
+                # The automatic report and the wait share one claim, so whichever
+                # observes the finish first prints the single completion row.
+                return render_shell_completion(finished, detail=detail)
             if shell_ui is not None:
                 return pad_result(
                     render_manage_shell_result(

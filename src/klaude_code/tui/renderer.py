@@ -1487,7 +1487,13 @@ class TUICommandRenderer:
                 return False
             self.print(sourced)
         elif event.source == "shell_completion":
-            self.print(render_shell_completion(event.shell_tasks, detail=self._detail.current))
+            tasks = event.shell_tasks
+            if tasks:
+                tasks = [task for task in tasks if self._task_directory.claim_task(task.task_id)]
+                if not tasks:
+                    # A wait or an earlier report already printed this finish.
+                    return self._compact
+            self.print(render_shell_completion(tasks, detail=self._detail.current))
             if self._compact:
                 return True
         else:

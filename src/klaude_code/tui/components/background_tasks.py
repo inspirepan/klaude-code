@@ -100,11 +100,17 @@ class TaskDirectory:
         self._summarized_sessions.add(session_id)
         return True
 
+    def claim_task(self, task_id: str) -> bool:
+        """Whether this finished task still needs its one transcript row."""
+        if task_id in self._reported:
+            return False
+        self._reported.add(task_id)
+        return True
+
     def claim_report(self, task: BackgroundTaskSnapshot) -> bool:
         """Whether this finished task still needs its one transcript report."""
-        if task.ref.task_id in self._reported or task.ref.session_id in self._summarized_sessions:
+        if task.ref.session_id in self._summarized_sessions or not self.claim_task(task.ref.task_id):
             return False
-        self._reported.add(task.ref.task_id)
         if task.ref.session_id:
             self._reported_sessions.add(task.ref.session_id)
         return True
