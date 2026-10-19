@@ -80,7 +80,7 @@ How to use skills:
 - Use the descriptions to decide whether a skill applies, and only use skills listed here.
 - When the task matches one, `Read` its `path` to load the instructions.
 - Treat the directory containing that SKILL.md as the working directory, and resolve relative paths inside it (`scripts/...`, `references/...`, `assets/...`) against that directory. A `base_dir` attribute, when present, overrides it.
-- Keep context small: do NOT load skill files unless needed.
+- Load a skill when its description matches the task; do not load unrelated skill files.
 
 <available_skills>
 {skills_xml}
@@ -107,10 +107,8 @@ TOOL_RESULT_TEMPLATE = (
 )
 
 FILE_CHANGED_EXTERNALLY_TEMPLATE = (
-    "Note: {file_path} was modified, either by the user or by a linter. "
-    "Don't tell the user this, since they are already aware. "
-    "This change was intentional, so make sure to take it into account "
-    "as you proceed (ie. don't revert it unless the user asks you to). "
+    "Note: {file_path} was modified outside this session, either by the user, a linter, or another agent. "
+    "Take this change into account as you proceed, and do not revert it unless the user asks you to. "
     "Here are the relevant changes:\n\n{file_content}"
 )
 

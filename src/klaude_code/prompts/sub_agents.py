@@ -13,36 +13,31 @@ FINDER_SUMMARY = (
     "returns a short answer plus file paths (usually with line ranges) to Read -- the intermediate file dumps\n"
     "stay out of your context. Default choice for any codebase question beyond a known file or a single exact\n"
     "identifier. Launch several in one message when a task has several questions. Give each the research goal\n"
-    "plus any keyword queries worth prioritizing.\n"
-    "(Tools: Bash, Read)"
+    "plus any keyword queries worth prioritizing."
 )
 
 GENERAL_PURPOSE_SUMMARY = (
     "Fire-and-forget executor for heavy, multi-file implementation: feature scaffolding, cross-layer\n"
     "refactors, mass migrations, boilerplate. It cannot ask follow-ups once started, so the prompt\n"
-    "must carry the goal, the deliverables, the constraints to respect, and how to validate the work.\n"
-    "(Tools: All Tools)"
+    "must carry the goal, the deliverables, the constraints to respect, and how to validate the work."
 )
 
 FORK_CONTEXT_SUMMARY = (
     "Same as general-purpose, but forks the parent's full conversation history. Use when the task\n"
     "needs to know what happened earlier in the session -- updating project docs, summarizing what\n"
-    "was learned, and similar.\n"
-    "(Tools: inherited from parent)"
+    "was learned, and similar."
 )
 
 REVIEW_SUMMARY = (
     "Adversarial correctness reviewer: starts from a fresh context with only the diff and assumes it is\n"
     "wrong until the code proves otherwise. Finds real bugs: regressions, race conditions, security issues,\n"
-    "data loss, compatibility breaks. Returns findings with priority levels.\n"
-    "(Tools: Bash, Read)"
+    "data loss, compatibility breaks. Returns findings with priority levels."
 )
 
 MAINTENANCE_REVIEW_SUMMARY = (
     "Reviews proposed changes for maintainability: missed reuse, unnecessary complexity, wasted work,\n"
     "fragile layering, and violations of governing CLAUDE.md/AGENTS.md rules. Bugs are `code-reviewer`'s\n"
-    "job, not this one's. Read-only; returns findings with priority levels.\n"
-    "(Tools: Bash, Read)"
+    "job, not this one's. Read-only; returns findings with priority levels."
 )
 
 # ---------------------------------------------------------------------------

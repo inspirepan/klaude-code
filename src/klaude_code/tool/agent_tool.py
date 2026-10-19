@@ -103,12 +103,18 @@ def _agent_description() -> str:
     type_lines: list[str] = []
     for profile in iter_sub_agent_profiles():
         summary = profile.invoker_summary.strip()
+        # Profile tool set; model-specific substitution (Edit/Write -> apply_patch) still applies.
+        tools_line = f"(Tools: {', '.join(profile.tool_set)})" if profile.tool_set else "(Tools: inherited from parent)"
         if summary:
             lines = summary.split("\n")
-            indented = [f"- type:{profile.name}: {lines[0]}"] + ["  " + line for line in lines[1:]]
+            indented = [
+                f"- type:{profile.name}: {lines[0]}",
+                *["  " + line for line in lines[1:]],
+                f"  {tools_line}",
+            ]
             type_lines.append("\n".join(indented))
         else:
-            type_lines.append(f"- {profile.name}")
+            type_lines.append(f"- {profile.name} {tools_line}")
 
     types_section = "\n".join(type_lines) if type_lines else "- general-purpose"
 

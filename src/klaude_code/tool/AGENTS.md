@@ -35,7 +35,7 @@ class MyTool(ToolABC):
     @classmethod
     async def call(cls, arguments: str, context: ToolContext) -> message.ToolResultMessage:
         # Parse arguments (JSON string), do work, return result
-        return message.ToolResultMessage(status="ok", output_text="done")
+        return message.ToolResultMessage(status="success", output_text="done")
 ```
 
 ### 3. Tool descriptions
@@ -75,7 +75,7 @@ Tools receive a `ToolContext` with:
 - `handoff_manager` - Session-control interface
 - `emit_tool_output_delta` - Optional callback for streaming tool output
 
-Tools should NOT import from `agent`, `app`, `tui`, or `web` layers (enforced by import-linter).
+Tools must not import from `agent`, `app`, `tui`, `server`, or `cli` (enforced by the layering contract in `pyproject.toml`).
 
 ### ToolMetadata
 
@@ -87,7 +87,7 @@ Override `metadata()` to change defaults:
 ### Result format
 
 Return `message.ToolResultMessage` with:
-- `status`: `"ok"` or `"error"`
+- `status`: `"success"`, `"error"`, or `"aborted"`
 - `output_text`: Text shown to the LLM
 - `ui_extra`: Optional structured data for richer TUI/web rendering
 - `side_effects`: Optional list of file operations for tracking
