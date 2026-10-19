@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.39.0] - 2026-10-19
+
+### Added
+
+- 接入 DeepSeek 独立搜索并展示实际 provider (`458bf95e`)
+
+### Fixed
+
+- 隐藏紧凑视图中的子代理中断提示 (`91d2e62f`)
+- 修正后台任务元数据显示并建议长等待 (`4e168c44`)
+
+### Other
+
+- 清理过时的提示词与工具描述 (`45522ebf`)
+
 ## [2.38.2] - 2026-10-17
 
 ### Changed
@@ -2852,7 +2867,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.38.2...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.39.0...HEAD
+[2.39.0]: https://github.com/inspirepan/klaude-code/compare/v2.38.2...v2.39.0
 [2.38.2]: https://github.com/inspirepan/klaude-code/compare/v2.38.1...v2.38.2
 [2.38.1]: https://github.com/inspirepan/klaude-code/compare/v2.38.0...v2.38.1
 [2.38.0]: https://github.com/inspirepan/klaude-code/compare/v2.37.0...v2.38.0
