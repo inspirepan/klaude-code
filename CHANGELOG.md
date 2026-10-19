@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.40.0] - 2026-10-19
+
+### Added
+
+- 迁移到 Sign in with ChatGPT 动态注册 (`0d4ad990`)
+
 ## [2.39.0] - 2026-10-19
 
 ### Added
@@ -2867,7 +2873,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.39.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.40.0...HEAD
+[2.40.0]: https://github.com/inspirepan/klaude-code/compare/v2.39.0...v2.40.0
 [2.39.0]: https://github.com/inspirepan/klaude-code/compare/v2.38.2...v2.39.0
 [2.38.2]: https://github.com/inspirepan/klaude-code/compare/v2.38.1...v2.38.2
 [2.38.1]: https://github.com/inspirepan/klaude-code/compare/v2.38.0...v2.38.1
