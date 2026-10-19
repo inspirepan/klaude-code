@@ -3,14 +3,14 @@
 Includes OAuth helpers for various providers.
 """
 
-from klaude_code.auth.codex import (
-    CodexAuthError,
-    CodexAuthState,
-    CodexNotLoggedInError,
-    CodexOAuth,
-    CodexOAuthError,
-    CodexTokenExpiredError,
-    CodexTokenManager,
+from klaude_code.auth.chatgpt import (
+    ChatGPTAuthError,
+    ChatGPTAuthState,
+    ChatGPTNotLoggedInError,
+    ChatGPTOAuth,
+    ChatGPTOAuthError,
+    ChatGPTTokenExpiredError,
+    ChatGPTTokenManager,
 )
 from klaude_code.auth.env import (
     delete_auth_env,
@@ -29,13 +29,13 @@ from klaude_code.auth.xai import (
 )
 
 __all__ = [
-    "CodexAuthError",
-    "CodexAuthState",
-    "CodexNotLoggedInError",
-    "CodexOAuth",
-    "CodexOAuthError",
-    "CodexTokenExpiredError",
-    "CodexTokenManager",
+    "ChatGPTAuthError",
+    "ChatGPTAuthState",
+    "ChatGPTNotLoggedInError",
+    "ChatGPTOAuth",
+    "ChatGPTOAuthError",
+    "ChatGPTTokenExpiredError",
+    "ChatGPTTokenManager",
     "XaiAuthState",
     "XaiDeviceCode",
     "XaiNotLoggedInError",

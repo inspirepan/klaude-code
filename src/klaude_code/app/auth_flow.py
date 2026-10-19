@@ -124,63 +124,33 @@ def _format_utc_timestamp(timestamp: int) -> str:
     return expires_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
-def _log_codex_accounts(token_manager: object) -> None:
-    from klaude_code.auth.codex.token_manager import CodexTokenManager
-
-    manager = token_manager
-    if not isinstance(manager, CodexTokenManager):
-        return
-
-    active = manager.get_active_account_name()
-    log("You already have Codex accounts:")
-    for state in manager.list_accounts():
-        active_label = " active" if state.name == active else ""
-        expired_label = " expired" if state.is_expired() else ""
-        log(f"  {state.name}  {state.account_id[:8]}…{active_label}{expired_label}")
-
-
-def execute_login(provider: str, account_name: str | None = None) -> bool:
+def execute_login(provider: str) -> bool:
     """Login to an OAuth provider or configure an API key provider.
 
     Returns True when credentials were written, False when the user declined
     at a confirmation prompt and nothing changed.
     """
     match provider.lower():
-        case "codex":
-            from klaude_code.auth.codex.oauth import CodexOAuth
-            from klaude_code.auth.codex.token_manager import CodexTokenManager
+        case "chatgpt":
+            from klaude_code.auth.chatgpt.oauth import ChatGPTOAuth
+            from klaude_code.auth.chatgpt.token_manager import ChatGPTTokenManager
 
-            token_manager = CodexTokenManager(account_name=account_name)
+            token_manager = ChatGPTTokenManager()
 
-            if account_name is None:
-                accounts = token_manager.list_accounts()
-                if accounts:
-                    _log_codex_accounts(token_manager)
-                    # Re-login the active account instead of forcing a new one:
-                    # an invalid session is the usual reason to run login again.
-                    account_name = token_manager.get_active_account_name() or accounts[0].name
-                    log(f"Re-login to Codex account '{account_name}'.")
-                    token_manager = CodexTokenManager(account_name=account_name)
             if token_manager.is_logged_in():
                 state = token_manager.get_state()
                 if state and not state.is_expired():
-                    log(("You are already logged in to Codex.", "green"))
-                    log(f"  Name: {state.name}")
-                    log(f"  Account ID: {state.account_id[:8]}…")
+                    log(("You are already signed in with ChatGPT.", "green"))
                     log(f"  Expires: {_format_utc_timestamp(state.expires_at)}")
-                    if not typer.confirm("Do you want to re-login?"):
+                    if not typer.confirm("Do you want to sign in again?"):
                         return False
 
-            log("Starting Codex OAuth login flow…")
+            log("Starting Sign in with ChatGPT…")
             log("A browser window will open for authentication.")
 
             try:
-                oauth = CodexOAuth(token_manager)
-                state = oauth.login(account_name=account_name)
+                state = ChatGPTOAuth(token_manager).login()
                 log(("Login successful!", "green"))
-                log(f"  Name: {state.name}")
-                log(f"  Account ID: {state.account_id[:8]}…")
-                log(f"  Active: {token_manager.get_active_account_name() == state.name}")
                 log(f"  Expires: {_format_utc_timestamp(state.expires_at)}")
             except Exception as e:
                 log((f"Login failed: {e}", "red"))
@@ -251,40 +221,21 @@ def _remove_auth_env(env_var: str, label: str) -> None:
         log((f"Removed configured {env_var}.", "green"))
 
 
-def execute_logout(provider: str, account_name: str | None = None, *, all_accounts: bool = False) -> None:
+def execute_logout(provider: str) -> None:
     """Logout from a provider."""
     match provider.lower():
-        case "codex":
-            from klaude_code.auth.codex.token_manager import CodexTokenManager
+        case "chatgpt":
+            from klaude_code.auth.chatgpt.token_manager import ChatGPTTokenManager
 
-            token_manager = CodexTokenManager()
+            token_manager = ChatGPTTokenManager()
 
             if not token_manager.is_logged_in():
-                log("You are not logged in to Codex.")
+                log("You are not signed in with ChatGPT.")
                 return
 
-            if all_accounts:
-                if typer.confirm("Are you sure you want to logout from all Codex accounts?"):
-                    for state in token_manager.list_accounts():
-                        token_manager.delete(state.name)
-                    log(("Logged out from all Codex accounts.", "green"))
-                return
-
-            target = account_name or token_manager.get_active_account_name()
-            if target is None:
-                log("You are not logged in to Codex.")
-                return
-            account_names = {state.name for state in token_manager.list_accounts()}
-            if target not in account_names:
-                log((f"Error: Codex account '{target}' is not logged in", "red"))
-                raise typer.Exit(1)
-
-            if typer.confirm(f"Are you sure you want to logout from Codex account '{target}'?"):
-                token_manager.delete(target)
-                active = token_manager.get_active_account_name()
-                log((f"Logged out from Codex account '{target}'.", "green"))
-                if active:
-                    log(f"  Active account: {active}")
+            if typer.confirm("Are you sure you want to sign out of ChatGPT?"):
+                token_manager.delete()
+                log(("Signed out of ChatGPT.", "green"))
         case "xai" | "grok" | "grok-build" | "grok_build":
             from klaude_code.auth.xai.token_manager import XaiTokenManager
 
@@ -359,65 +310,3 @@ def execute_logout(provider: str, account_name: str | None = None, *, all_accoun
             else:
                 log((f"Error: Unknown provider '{provider}'", "red"))
                 raise typer.Exit(1)
-
-
-def execute_list(provider: str | None = None) -> None:
-    """List configured auth accounts for a provider."""
-    provider_name = (provider or "codex").lower()
-    match provider_name:
-        case "codex":
-            from klaude_code.auth.codex.token_manager import CodexTokenManager
-
-            token_manager = CodexTokenManager()
-            accounts = token_manager.list_accounts()
-            if not accounts:
-                log("No Codex accounts are logged in.")
-                return
-
-            active = token_manager.get_active_account_name()
-            log("Codex accounts")
-            for state in accounts:
-                marker = "*" if state.name == active else " "
-                status = (
-                    "token expired (refresh on use)"
-                    if state.is_expired()
-                    else f"expires {_format_utc_timestamp(state.expires_at)}"
-                )
-                active_label = " active" if state.name == active else ""
-                log(f"{marker} {state.name}  {state.account_id[:8]}…{active_label}  {status}")
-        case _:
-            log((f"Error: Unsupported auth list provider '{provider_name}'", "red"))
-            raise typer.Exit(1)
-
-
-def execute_switch(provider: str, account_name: str | None = None) -> None:
-    """Switch active account for a provider."""
-    match provider.lower():
-        case "codex":
-            from klaude_code.auth.codex.token_manager import CodexTokenManager
-
-            token_manager = CodexTokenManager()
-            accounts = token_manager.list_accounts()
-            if not accounts:
-                log("No Codex accounts are logged in.")
-                raise typer.Exit(1)
-
-            target = account_name
-            if target is None:
-                log("Codex accounts")
-                for state in accounts:
-                    marker = "*" if state.name == token_manager.get_active_account_name() else " "
-                    log(f"{marker} {state.name}  {state.account_id[:8]}…")
-                target = typer.prompt("Account name")
-
-            try:
-                state = token_manager.set_active_account(target)
-            except ValueError as e:
-                log((f"Error: {e}", "red"))
-                raise typer.Exit(1) from None
-
-            log((f"Active Codex account: {state.name}", "green"))
-            log(f"  Account ID: {state.account_id[:8]}…")
-        case _:
-            log((f"Error: Unsupported auth switch provider '{provider}'", "red"))
-            raise typer.Exit(1)

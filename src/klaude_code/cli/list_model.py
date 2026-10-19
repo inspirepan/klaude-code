@@ -1,15 +1,9 @@
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from rich.console import Console
 from rich.text import Text
 
 from klaude_code.auth.env import get_auth_env
-from klaude_code.cli.oauth_usage import (
-    format_oauth_usage_summary,
-    load_oauth_usage_summary,
-    resolve_oauth_usage_protocol,
-)
 from klaude_code.config import Config
 from klaude_code.config.config import ModelConfig, ModelPreference, ProviderConfig, parse_env_var_syntax
 from klaude_code.config.formatters import format_model_params
@@ -87,11 +81,7 @@ def _format_google_vertex_credentials_display(provider: ProviderConfig) -> list[
     return parts
 
 
-def _build_provider_header(
-    provider: ProviderConfig,
-    *,
-    oauth_usage_by_protocol: dict[LLMClientProtocol, str],
-) -> Text:
+def _build_provider_header(provider: ProviderConfig) -> Text:
     """Build single-line provider summary shown above the model tree."""
     provider_available = (not provider.disabled) and (not provider.is_api_key_missing())
 
@@ -99,13 +89,8 @@ def _build_provider_header(
     header.append(provider.provider_name, style=ThemeKey.CONFIG_PROVIDER)
 
     details: list[Text] = []
-    usage_summary = oauth_usage_by_protocol.get(provider.protocol)
-    usage_protocol = resolve_oauth_usage_protocol(provider.protocol)
-
-    if usage_protocol is not None:
+    if provider.protocol == LLMClientProtocol.CHATGPT_OAUTH:
         details.append(Text("auth", style=ThemeKey.CONFIG_PARAM_LABEL))
-        if usage_summary:
-            details.append(Text(f"usage: {usage_summary}", style="blue"))
     elif provider.protocol == LLMClientProtocol.BEDROCK:
         details.extend(_format_aws_credentials_display(provider))
     elif provider.protocol == LLMClientProtocol.GOOGLE_VERTEX:
@@ -280,23 +265,19 @@ def display_models_and_providers(config: Config, *, show_all: bool = False) -> N
 
     # Cells are config-only, so rows for every provider are known upfront;
     # compute global column widths once so alias, model id, and annotations
-    # align across all provider sections (OAuth headers still load async).
+    # align across all provider sections.
     rows_by_provider = {provider.provider_name: _build_model_rows(provider, config) for provider in sorted_providers}
     all_rows = [row for rows in rows_by_provider.values() for row in rows]
     alias_width = max((alias.cell_len for alias, _, _ in all_rows), default=0)
     model_width = max((model_id.cell_len for _, model_id, _ in all_rows), default=0)
 
-    def _print_provider(provider: ProviderConfig, usage_map: dict[LLMClientProtocol, str]) -> None:
+    def _print_provider(provider: ProviderConfig) -> None:
         nonlocal printed_any_provider
         if printed_any_provider:
             console.print()
         printed_any_provider = True
 
-        provider_header = _build_provider_header(
-            provider,
-            oauth_usage_by_protocol=usage_map,
-        )
-        console.print(provider_header)
+        console.print(_build_provider_header(provider))
 
         for alias, model_id, trailing in rows_by_provider[provider.provider_name]:
             line = Text("  ")
@@ -312,51 +293,5 @@ def display_models_and_providers(config: Config, *, show_all: bool = False) -> N
                 line.append_text(trailing)
             console.print(line)
 
-    oauth_provider_groups: dict[LLMClientProtocol, list[ProviderConfig]] = {}
-    non_oauth_providers: list[ProviderConfig] = []
-
     for provider in sorted_providers:
-        usage_protocol = resolve_oauth_usage_protocol(provider.protocol)
-        if usage_protocol is None:
-            non_oauth_providers.append(provider)
-        else:
-            oauth_provider_groups.setdefault(usage_protocol, []).append(provider)
-
-    # Non-OAuth providers are printed immediately.
-    for provider in non_oauth_providers:
-        _print_provider(provider, usage_map={})
-
-    # OAuth providers are printed as soon as their usage snapshot is loaded.
-    if oauth_provider_groups:
-        total_groups = len(oauth_provider_groups)
-        with ThreadPoolExecutor(max_workers=min(len(oauth_provider_groups), 3)) as executor:
-            future_to_protocol = {
-                executor.submit(load_oauth_usage_summary, protocols={protocol}, timeout_seconds=3.5): protocol
-                for protocol in oauth_provider_groups
-            }
-
-            with console.status(
-                Text(f"Loading OAuth usage... (0/{total_groups})", style=ThemeKey.STATUS_TEXT),
-                spinner="dots",
-                spinner_style=ThemeKey.STATUS_SPINNER,
-            ) as status:
-                for completed_groups, future in enumerate(as_completed(future_to_protocol), start=1):
-                    protocol = future_to_protocol[future]
-                    usage_map: dict[LLMClientProtocol, str] = {}
-                    try:
-                        snapshots = future.result()
-                        snapshot = snapshots.get(protocol)
-                        if snapshot is not None:
-                            usage_summary = format_oauth_usage_summary(snapshot, max_windows=2)
-                            if usage_summary:
-                                usage_map[protocol] = usage_summary
-                    except Exception:
-                        # Usage display must never break `klaude agents`.
-                        usage_map = {}
-
-                    status.update(
-                        Text(f"Loading OAuth usage... ({completed_groups}/{total_groups})", style=ThemeKey.STATUS_TEXT)
-                    )
-
-                    for provider in oauth_provider_groups.get(protocol, []):
-                        _print_provider(provider, usage_map)
+        _print_provider(provider)

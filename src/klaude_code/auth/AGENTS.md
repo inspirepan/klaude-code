@@ -7,7 +7,7 @@ login/logout orchestration lives in `app/auth_flow.py`; the CLI and TUI commands
 
 - API keys are stored in the `env` section of `~/.klaude/klaude-auth.json` by `auth/env.py`.
   Real environment variables take precedence over stored values.
-- Codex OAuth state is managed by `auth/codex/` and supports multiple named accounts.
+- Sign in with ChatGPT state is managed by `auth/chatgpt/` and stores one account.
 - AWS Bedrock and Google Vertex use structured credential fields configured through the shared
   auth flow; they are not OAuth providers.
 - `auth/removed_provider.py` only supports cleanup of credentials left by removed providers.
@@ -41,14 +41,14 @@ endpoint. Those should normally be a provider configuration using an existing pr
 - Use a unique `BaseTokenManager.storage_key`; never store tokens in user config or session data.
 - Keep provider-specific locking and account semantics inside the token manager/OAuth classes.
 - Availability checks should only establish that credentials exist. Refresh expired tokens at the
-  provider boundary immediately before a request, as `CodexClient` does.
+  provider boundary immediately before a request, as `ChatGPTClient` does.
 - Never log raw access tokens, refresh tokens, authorization codes, or API keys.
 
 ## Validation
 
 Add focused coverage at each changed boundary. Existing examples are:
 
-- `tests/auth/test_codex_token_manager.py`
+- `tests/auth/test_chatgpt_token_manager.py`
 - `tests/app/test_auth_flow.py`
 - `tests/cli/test_cli_auth_cmd.py`
 - `tests/tui/test_auth_selector.py`

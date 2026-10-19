@@ -498,23 +498,24 @@ class TestConfig:
         with pytest.raises(ValueError, match=r"Provider 'p' is disabled"):
             _ = config.get_model_config(f"{sample_model_config.model_name}@p")
 
-    def test_get_model_config_codex_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Codex protocol should not require api_key to resolve model config."""
-        from klaude_code.auth.codex.token_manager import CodexAuthState, CodexTokenManager
+    def test_get_model_config_chatgpt_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ChatGPT OAuth should not require api_key to resolve model config."""
+        from klaude_code.auth.chatgpt.token_manager import ChatGPTAuthState, ChatGPTTokenManager
 
-        def _mock_get_state(_self: CodexTokenManager) -> CodexAuthState:
-            return CodexAuthState(
+        def _mock_get_state(_self: ChatGPTTokenManager) -> ChatGPTAuthState:
+            return ChatGPTAuthState(
                 access_token="access",
                 refresh_token="refresh",
                 expires_at=4102444800,
-                account_id="test-account",
+                client_id="oaiapp_test",
+                scopes=["chatgpt.tokens.use.direct"],
             )
 
-        monkeypatch.setattr(CodexTokenManager, "get_state", _mock_get_state)
+        monkeypatch.setattr(ChatGPTTokenManager, "get_state", _mock_get_state)
 
         provider = ProviderConfig(
-            provider_name="codex",
-            protocol=llm_param.LLMClientProtocol.CODEX_OAUTH,
+            provider_name="chatgpt",
+            protocol=llm_param.LLMClientProtocol.CHATGPT_OAUTH,
             api_key=None,
             model_list=[
                 ModelConfig(
@@ -526,7 +527,7 @@ class TestConfig:
         config = Config(provider_list=[provider], main_model="gpt-5.2-codex")
 
         llm_config = config.get_model_config("gpt-5.2-codex")
-        assert llm_config.protocol == llm_param.LLMClientProtocol.CODEX_OAUTH
+        assert llm_config.protocol == llm_param.LLMClientProtocol.CHATGPT_OAUTH
         assert llm_config.api_key is None
 
     def test_get_model_config_xai_without_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1550,7 +1551,7 @@ class TestMatchModelFromConfig:
         from klaude_code.config.model_matcher import match_model_from_config
 
         codex_provider = ProviderConfig(
-            provider_name="codex",
+            provider_name="chatgpt",
             protocol=llm_param.LLMClientProtocol.OPENAI,
             api_key="test-api-key",
             model_list=[ModelConfig(model_name="gpt-5-codex", model_id="gpt-5-codex")],
@@ -1570,7 +1571,7 @@ class TestMatchModelFromConfig:
         assert result.matched_model is None
         assert [entry.selector for entry in result.filtered_models] == [
             "gpt-5.4@openai",
-            "gpt-5-codex@codex",
+            "gpt-5-codex@chatgpt",
         ]
 
     def test_match_model_supports_case_insensitive_exact_match(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1762,7 +1763,7 @@ class TestMatchModelFromConfig:
             ],
         )
         codex_provider = ProviderConfig(
-            provider_name="codex",
+            provider_name="chatgpt",
             protocol=llm_param.LLMClientProtocol.OPENAI,
             api_key="test-api-key",
             model_list=[
@@ -1775,14 +1776,14 @@ class TestMatchModelFromConfig:
 
         monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
 
-        result = match_model_from_config(preferred="gpt@codex")
+        result = match_model_from_config(preferred="gpt@chatgpt")
 
         assert result.matched_model is None
-        assert result.filter_hint == "gpt@codex"
+        assert result.filter_hint == "gpt@chatgpt"
         assert [entry.selector for entry in result.filtered_models] == [
-            "gpt-5.3-codex@codex",
-            "gpt-5.4@codex",
-            "gpt-5.4-mini@codex",
+            "gpt-5.3-codex@chatgpt",
+            "gpt-5.4@chatgpt",
+            "gpt-5.4-mini@chatgpt",
         ]
 
     def test_match_model_filters_by_provider_partial_name(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1799,7 +1800,7 @@ class TestMatchModelFromConfig:
             ],
         )
         codex_provider = ProviderConfig(
-            provider_name="codex",
+            provider_name="chatgpt",
             protocol=llm_param.LLMClientProtocol.OPENAI,
             api_key="test-api-key",
             model_list=[
@@ -1812,14 +1813,14 @@ class TestMatchModelFromConfig:
 
         monkeypatch.setattr(model_matcher_module, "load_config", lambda: config)
 
-        result = match_model_from_config(preferred="gpt@cod")
+        result = match_model_from_config(preferred="gpt@chat")
 
         assert result.matched_model is None
-        assert result.filter_hint == "gpt@cod"
+        assert result.filter_hint == "gpt@chat"
         assert [entry.selector for entry in result.filtered_models] == [
-            "gpt-5.3-codex@codex",
-            "gpt-5.4@codex",
-            "gpt-5.4-mini@codex",
+            "gpt-5.3-codex@chatgpt",
+            "gpt-5.4@chatgpt",
+            "gpt-5.4-mini@chatgpt",
         ]
 
     def test_match_model_returns_no_match_instead_of_full_list(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1877,18 +1878,18 @@ class TestTerminalSelectorFilter:
             ),
             selector_module.SelectItem(
                 title=[("", "")],
-                value="gpt-5.4@codex",
-                search_text="gpt-5.4@codex gpt-5.4 gpt-5.4 codex",
+                value="gpt-5.4@chatgpt",
+                search_text="gpt-5.4@chatgpt gpt-5.4 gpt-5.4 chatgpt",
             ),
             selector_module.SelectItem(
                 title=[("", "")],
-                value="gpt-5.3-codex@codex",
-                search_text="gpt-5.3-codex@codex gpt-5.3-codex gpt-5.3-codex codex",
+                value="gpt-5.3-codex@chatgpt",
+                search_text="gpt-5.3-codex@chatgpt gpt-5.3-codex gpt-5.3-codex chatgpt",
             ),
         ]
 
         filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
-        visible_indices, matched = filter_items(items, "gpt@codex")
+        visible_indices, matched = filter_items(items, "gpt@chatgpt")
 
         assert visible_indices == [2, 3]
         assert matched is True
@@ -1909,18 +1910,18 @@ class TestTerminalSelectorFilter:
             ),
             selector_module.SelectItem(
                 title=[("", "")],
-                value="gpt-5.4@codex",
-                search_text="gpt-5.4@codex gpt-5.4 gpt-5.4 codex",
+                value="gpt-5.4@chatgpt",
+                search_text="gpt-5.4@chatgpt gpt-5.4 gpt-5.4 chatgpt",
             ),
             selector_module.SelectItem(
                 title=[("", "")],
-                value="gpt-5.3-codex@codex",
-                search_text="gpt-5.3-codex@codex gpt-5.3-codex gpt-5.3-codex codex",
+                value="gpt-5.3-codex@chatgpt",
+                search_text="gpt-5.3-codex@chatgpt gpt-5.3-codex gpt-5.3-codex chatgpt",
             ),
         ]
 
         filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
-        visible_indices, matched = filter_items(items, "gpt@cod")
+        visible_indices, matched = filter_items(items, "gpt@chat")
 
         assert visible_indices == [2, 3]
         assert matched is True
@@ -1941,20 +1942,20 @@ class TestTerminalSelectorFilter:
             ),
             selector_module.SelectItem(
                 title=[("", "")],
-                value="gpt-5.4@codex",
-                search_text="gpt-5.4@codex gpt-5.4 gpt-5.4 codex",
+                value="gpt-5.4@chatgpt",
+                search_text="gpt-5.4@chatgpt gpt-5.4 gpt-5.4 chatgpt",
             ),
             selector_module.SelectItem(
                 title=[("", "")],
-                value="haiku@codex",
-                search_text="haiku@codex haiku claude-haiku codex",
+                value="haiku@chatgpt",
+                search_text="haiku@chatgpt haiku claude-haiku chatgpt",
             ),
         ]
 
         filter_items = selector_module._filter_items  # pyright: ignore[reportPrivateUsage]
-        visible_indices, matched = filter_items(items, "gpt codex")
+        visible_indices, matched = filter_items(items, "gpt chatgpt")
 
-        assert visible_indices == [1, 2]
+        assert visible_indices == [2, 3]
         assert matched is True
 
     def test_type_to_search_reports_no_match(self) -> None:
@@ -2008,15 +2009,15 @@ class TestOutOfBoxExperience:
     @pytest.fixture(autouse=True)
     def _disable_local_oauth_state(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Keep out-of-box tests independent from developer-local OAuth login state."""
-        from klaude_code.auth.codex.token_manager import CodexTokenManager
+        from klaude_code.auth.chatgpt.token_manager import ChatGPTTokenManager
 
-        def _no_codex_state(_self: CodexTokenManager) -> None:
+        def _no_chatgpt_state(_self: ChatGPTTokenManager) -> None:
             return None
 
         def _no_auth_env(_key: str) -> None:
             return None
 
-        monkeypatch.setattr(CodexTokenManager, "get_state", _no_codex_state)
+        monkeypatch.setattr(ChatGPTTokenManager, "get_state", _no_chatgpt_state)
         monkeypatch.setattr(_config_module, "get_auth_env", _no_auth_env)
 
     def test_first_run_no_config_no_api_keys(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

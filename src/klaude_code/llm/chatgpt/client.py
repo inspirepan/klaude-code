@@ -1,4 +1,4 @@
-"""Codex LLM client using ChatGPT subscription via OAuth."""
+"""LLM client for the OpenAI Responses API with a ChatGPT subscription."""
 
 import asyncio
 from typing import Any, cast, override
@@ -8,13 +8,10 @@ import openai
 from openai import AsyncOpenAI
 from openai.types.responses.response_create_params import Reasoning, ResponseCreateParamsBase
 
-from klaude_code.auth.codex.exceptions import CodexNotLoggedInError
-from klaude_code.auth.codex.oauth import CodexOAuth
-from klaude_code.auth.codex.token_manager import CodexTokenManager
-from klaude_code.const import (
-    CODEX_BASE_URL,
-    CODEX_USER_AGENT,
-)
+from klaude_code.auth.chatgpt.exceptions import ChatGPTNotLoggedInError
+from klaude_code.auth.chatgpt.oauth import ChatGPTOAuth
+from klaude_code.auth.chatgpt.token_manager import ChatGPTTokenManager
+from klaude_code.const import CHATGPT_API_BASE_URL, CHATGPT_USAGE_LIMIT_CODES, CHATGPT_USAGE_SETTINGS_URL
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
@@ -26,17 +23,13 @@ from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.system_prompt import strip_system_prompt_boundary
 
+CHATGPT_USER_AGENT = "klaude-code/2"
 # OpenAI rejects prompt_cache_key values longer than 64 characters.
 PROMPT_CACHE_KEY_MAX_LENGTH = 64
 
 
 def cache_affinity_id(param: llm_param.LLMCallParameter) -> str | None:
-    """Single cache-affinity identity for the payload key and session headers.
-
-    Forked/cache-safe call paths inherit the parent's ``prompt_cache_key``
-    while getting a fresh session id; pi ties ``prompt_cache_key`` and the
-    session-affinity headers to one value, so do the same here.
-    """
+    """Single cache-affinity identity for the payload key and session headers."""
     key = param.prompt_cache_key or param.session_id
     if not key:
         return None
@@ -44,7 +37,7 @@ def cache_affinity_id(param: llm_param.LLMCallParameter) -> str | None:
 
 
 def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase:
-    """Build Codex API request parameters."""
+    """Build request parameters for ChatGPT plan usage."""
     inputs = convert_history_to_input(param.input, param.model_id)
     tools = convert_tool_schema(param.tools)
 
@@ -57,7 +50,7 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
         "include": [
             "reasoning.encrypted_content",
         ],
-        # max_output_token and temperature is not supported in Codex API
+        # max_output_tokens and temperature are not supported on this route.
     }
 
     instructions = strip_system_prompt_boundary(param.system)
@@ -105,67 +98,53 @@ def build_payload(param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase
     return payload
 
 
-CODEX_HEADERS = {
-    "originator": "pi",
-    "User-Agent": CODEX_USER_AGENT,
-    "OpenAI-Beta": "responses=experimental",
-    "Accept": "text/event-stream",
-}
+def _usage_limit_message(error: Exception) -> str:
+    text = str(error)
+    if any(code in text for code in CHATGPT_USAGE_LIMIT_CODES):
+        return f"{text}\nChatGPT plan usage limit reached. Manage usage at {CHATGPT_USAGE_SETTINGS_URL}"
+    return text
 
 
-async def strip_stainless_headers(request: httpx.Request) -> None:
-    """Drop the openai SDK's X-Stainless-* telemetry headers.
-
-    The reference Codex OAuth clients (pi, codex CLI) use raw HTTP against the
-    ChatGPT backend and do not send SDK telemetry headers.
-    """
-    for key in list(request.headers.keys()):
-        if key.lower().startswith("x-stainless-"):
-            del request.headers[key]
-
-
-@register(llm_param.LLMClientProtocol.CODEX_OAUTH)
-class CodexClient(LLMClientABC):
-    """LLM client for Codex API using ChatGPT subscription."""
+@register(llm_param.LLMClientProtocol.CHATGPT_OAUTH)
+class ChatGPTClient(LLMClientABC):
+    """LLM client for ChatGPT plan usage through the OpenAI Responses API."""
 
     def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
-        self._token_manager = CodexTokenManager()
-        self._oauth = CodexOAuth(self._token_manager)
+        self._token_manager = ChatGPTTokenManager()
+        self._oauth = ChatGPTOAuth(self._token_manager)
 
         if not self._token_manager.is_logged_in():
-            raise CodexNotLoggedInError("Codex authentication required. Run 'klaude auth login codex' first.")
+            raise ChatGPTNotLoggedInError("ChatGPT authentication required. Run 'klaude auth login chatgpt' first.")
 
         self.client = self._create_client()
 
     def _create_client(self) -> AsyncOpenAI:
-        """Create OpenAI client with Codex configuration."""
+        """Create the OpenAI client with the stored OAuth access token."""
         state = self._token_manager.get_state()
         if state is None:
-            raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude auth login codex' first.")
+            raise ChatGPTNotLoggedInError("Not signed in with ChatGPT. Run 'klaude auth login chatgpt' first.")
 
-        http_client = create_async_http_client()
-        http_client.event_hooks["request"].append(strip_stainless_headers)
         return AsyncOpenAI(
             api_key=state.access_token,
-            base_url=CODEX_BASE_URL,
+            base_url=CHATGPT_API_BASE_URL,
+            max_retries=0,
             timeout=create_http_timeout(),
-            http_client=http_client,
+            http_client=create_async_http_client(),
             default_headers={
-                **CODEX_HEADERS,
-                "chatgpt-account-id": state.account_id,
+                "User-Agent": CHATGPT_USER_AGENT,
+                "Accept": "text/event-stream",
             },
         )
 
     def _ensure_valid_token(self) -> None:
-        """Ensure token is valid, refresh if needed."""
+        """Ensure the token is valid, refreshing if needed."""
         state = self._token_manager.get_state()
         if state is None:
-            raise CodexNotLoggedInError("Not logged in to Codex. Run 'klaude auth login codex' first.")
+            raise ChatGPTNotLoggedInError("Not signed in with ChatGPT. Run 'klaude auth login chatgpt' first.")
 
         if state.is_expired():
             self._oauth.refresh()
-            # Recreate client with new token
             self.client = self._create_client()
 
     @classmethod
@@ -175,7 +154,6 @@ class CodexClient(LLMClientABC):
 
     @override
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
-        # Ensure token is valid before API call
         self._ensure_valid_token()
 
         param = apply_config_defaults(param, self.get_llm_config())
@@ -187,9 +165,7 @@ class CodexClient(LLMClientABC):
         extra_headers: dict[str, str] = {}
         affinity_id = cache_affinity_id(param)
         if affinity_id:
-            # Session-affinity headers matching the pi Codex client to improve
-            # ChatGPT backend prompt cache hit rate.
-            extra_headers["session-id"] = affinity_id
+            extra_headers["session_id"] = affinity_id
             extra_headers["x-client-request-id"] = affinity_id
 
         log_debug(
@@ -203,7 +179,6 @@ class CodexClient(LLMClientABC):
                 extra_headers=extra_headers,
             )
         except (openai.OpenAIError, httpx.HTTPError) as e:
-            error_message = f"{e.__class__.__name__} {e!s}"
-            return error_llm_stream(metadata_tracker, error=error_message)
+            return error_llm_stream(metadata_tracker, error=_usage_limit_message(e))
 
         return ResponsesLLMStream(stream, param=param, metadata_tracker=metadata_tracker)

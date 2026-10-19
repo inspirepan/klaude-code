@@ -1,6 +1,6 @@
 from typing import Any, cast
 
-from klaude_code.llm.openai_codex.client import build_payload as build_codex_payload
+from klaude_code.llm.chatgpt.client import build_payload as build_chatgpt_payload
 from klaude_code.protocol import llm_param
 
 
@@ -10,7 +10,7 @@ def _reasoning(model_id: str, effort: str) -> dict[str, Any]:
         model_id=model_id,
         thinking=llm_param.Thinking(reasoning_effort=cast(Any, effort)),
     )
-    return cast(dict[str, Any], build_codex_payload(param)["reasoning"])
+    return cast(dict[str, Any], build_chatgpt_payload(param)["reasoning"])
 
 
 def test_gpt6_lifts_efforts_it_no_longer_accepts() -> None:

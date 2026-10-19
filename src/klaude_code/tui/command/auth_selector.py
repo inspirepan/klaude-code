@@ -13,10 +13,10 @@ def _get_oauth_auth_state(provider_name: str) -> tuple[bool, bool]:
     """Return (has_auth_state, is_expired)."""
     try:
         match provider_name:
-            case "codex":
-                from klaude_code.auth.codex.token_manager import CodexTokenManager
+            case "chatgpt":
+                from klaude_code.auth.chatgpt.token_manager import ChatGPTTokenManager
 
-                state = CodexTokenManager().get_state()
+                state = ChatGPTTokenManager().get_state()
             case "xai":
                 from klaude_code.auth.xai.token_manager import XaiTokenManager
 
@@ -177,12 +177,12 @@ def select_provider(
     """
     items: list[SelectItem[str]] = []
 
-    if not configured_only or _get_oauth_auth_state("codex")[0]:
+    if not configured_only or _get_oauth_auth_state("chatgpt")[0]:
         items.append(
             SelectItem(
-                title=_oauth_title("ChatGPT Codex Subscription", "codex"),
-                value="codex",
-                search_text="codex",
+                title=_oauth_title("ChatGPT Subscription", "chatgpt"),
+                value="chatgpt",
+                search_text="chatgpt openai codex",
             )
         )
     if not configured_only or _get_oauth_auth_state("xai")[0]:

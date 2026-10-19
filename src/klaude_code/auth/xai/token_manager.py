@@ -2,9 +2,7 @@
 
 from typing import Any
 
-from filelock import FileLock
-
-from klaude_code.auth.base import LOCK_TIMEOUT_SECONDS, BaseAuthState, BaseTokenManager
+from klaude_code.auth.base import BaseAuthState, BaseTokenManager
 
 
 class XaiAuthState(BaseAuthState):
@@ -20,8 +18,3 @@ class XaiTokenManager(BaseTokenManager[XaiAuthState]):
 
     def _create_state(self, data: dict[str, Any]) -> XaiAuthState:
         return XaiAuthState.model_validate(data)
-
-    def delete(self) -> None:
-        """Delete xAI tokens after any in-flight refresh finishes."""
-        with FileLock(self._get_lock_file(), timeout=LOCK_TIMEOUT_SECONDS):
-            super().delete()

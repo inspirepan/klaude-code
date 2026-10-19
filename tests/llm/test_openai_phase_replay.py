@@ -7,7 +7,8 @@ from typing import Any, cast
 from openai._models import construct_type_unchecked
 from openai.types import responses
 
-from klaude_code.llm.openai_codex.client import build_payload as build_codex_payload
+from klaude_code.const import CHATGPT_USAGE_SETTINGS_URL
+from klaude_code.llm.chatgpt.client import build_payload as build_chatgpt_payload
 from klaude_code.llm.openai_responses.client import ResponsesLLMStream
 from klaude_code.llm.openai_responses.client import build_payload as build_responses_payload
 from klaude_code.llm.openai_responses.input import convert_history_to_input
@@ -169,7 +170,7 @@ def test_responses_and_codex_payload_replay_assistant_phase() -> None:
     )
 
     responses_payload = build_responses_payload(param)
-    codex_payload = build_codex_payload(param)
+    codex_payload = build_chatgpt_payload(param)
 
     assert _assistant_item_phase(responses_payload.get("input")) == "commentary"
     assert _assistant_item_phase(codex_payload.get("input")) == "commentary"
@@ -195,7 +196,7 @@ def test_responses_codex_and_openrouter_payload_include_reasoning_mode() -> None
     )
 
     responses_payload = build_responses_payload(param)
-    codex_payload = build_codex_payload(param)
+    codex_payload = build_chatgpt_payload(param)
     _, openrouter_extra_body, _ = build_openrouter_payload(param)
 
     expected = {"effort": "max", "mode": "pro", "context": "all_turns", "summary": "detailed"}
@@ -209,7 +210,7 @@ def test_responses_and_codex_payload_use_supported_prompt_cache_fields_for_gpt56
     param.model_id = "gpt-5.6-sol"
 
     responses_payload = build_responses_payload(param)
-    codex_payload = build_codex_payload(param)
+    codex_payload = build_chatgpt_payload(param)
 
     assert responses_payload.get("prompt_cache_options") == {"ttl": "30m"}
     assert "prompt_cache_retention" not in responses_payload
@@ -222,7 +223,7 @@ def test_responses_payload_keeps_prompt_cache_retention_for_older_gpt() -> None:
     param.model_id = "gpt-5.5"
 
     responses_payload = build_responses_payload(param)
-    codex_payload = build_codex_payload(param)
+    codex_payload = build_chatgpt_payload(param)
 
     assert responses_payload.get("prompt_cache_retention") == "24h"
     assert "prompt_cache_options" not in responses_payload
@@ -235,6 +236,37 @@ def test_codex_payload_sets_priority_service_tier_for_fast_mode() -> None:
     param = _basic_call_param([message.UserMessage(parts=[message.TextPart(text="hi")])])
     param.fast_mode = True
 
-    codex_payload = build_codex_payload(param)
+    codex_payload = build_chatgpt_payload(param)
 
     assert codex_payload.get("service_tier") == "priority"
+
+
+def test_failed_response_surfaces_code_and_usage_link() -> None:
+    event = _stream_event(
+        {
+            "type": "response.failed",
+            "sequence_number": 1,
+            "response": {
+                "id": "resp_1",
+                "created_at": 0,
+                "status": "failed",
+                "error": {
+                    "code": "subscription_sharing_usage_limit_exceeded",
+                    "message": "usage limit reached",
+                },
+                "output": [],
+            },
+        }
+    )
+    stream = ResponsesLLMStream(
+        cast(Any, _ListAsyncIterator([event])),
+        param=_basic_call_param([message.UserMessage(parts=[message.TextPart(text="hi")])]),
+        metadata_tracker=MetadataTracker(),
+    )
+
+    items = _collect_stream(stream)
+    errors = [item for item in items if isinstance(item, message.StreamErrorItem)]
+
+    assert len(errors) == 1
+    assert "subscription_sharing_usage_limit_exceeded" in errors[0].error
+    assert CHATGPT_USAGE_SETTINGS_URL in errors[0].error

@@ -277,11 +277,11 @@ class ProviderConfig(llm_param.LLMConfigProviderParameter):
         """
         from klaude_code.protocol.llm_param import LLMClientProtocol
 
-        if self.protocol == LLMClientProtocol.CODEX_OAUTH:
-            # Codex uses OAuth authentication, not API key
-            from klaude_code.auth.codex.token_manager import CodexTokenManager
+        if self.protocol == LLMClientProtocol.CHATGPT_OAUTH:
+            # ChatGPT uses OAuth authentication, not an API key
+            from klaude_code.auth.chatgpt.token_manager import ChatGPTTokenManager
 
-            token_manager = CodexTokenManager()
+            token_manager = ChatGPTTokenManager()
             state = token_manager.get_state()
             # Consider available if logged in. Token refresh happens on-demand.
             return state is None

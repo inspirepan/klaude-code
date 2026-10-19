@@ -12,9 +12,9 @@ from pydantic import BaseModel
 
 KLAUDE_AUTH_FILE = Path.home() / ".klaude" / "klaude-auth.json"
 # Maximum time to wait for lock acquisition. A holder can legitimately spend a
-# slow token request inside the lock (Codex allows 40s of connect wait plus a 30s
-# read), so a waiter must outlast that instead of failing while another process is
-# still refreshing.
+# slow token request inside the lock (ChatGPT allows 40s of connect wait plus a
+# 30s read), so a waiter must outlast that instead of failing while another
+# process is still refreshing.
 LOCK_TIMEOUT_SECONDS = 120
 
 
@@ -82,15 +82,16 @@ class BaseTokenManager[T: BaseAuthState](ABC):
         self._state = state
 
     def delete(self) -> None:
-        """Delete stored tokens."""
-        store = self._load_store()
-        store.pop(self.storage_key, None)
-        if not store:
-            if self.auth_file.exists():
-                self.auth_file.unlink()
-        else:
-            self._save_store(store)
-        self._state = None
+        """Delete stored tokens after any in-flight refresh finishes."""
+        with FileLock(self._get_lock_file(), timeout=LOCK_TIMEOUT_SECONDS):
+            store = self._load_store()
+            store.pop(self.storage_key, None)
+            if not store:
+                if self.auth_file.exists():
+                    self.auth_file.unlink()
+            else:
+                self._save_store(store)
+            self._state = None
 
     def is_logged_in(self) -> bool:
         """Check if user is logged in."""

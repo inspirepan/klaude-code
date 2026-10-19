@@ -15,7 +15,7 @@ def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPat
         *, include_api_keys: bool = True, configured_only: bool = False, prompt: str = ""
     ) -> str | None:
         selector_calls.append((include_api_keys, configured_only, prompt))
-        return "codex"
+        return "chatgpt"
 
     def _execute_logout(provider: str) -> None:
         logout_calls.append(provider)
@@ -29,7 +29,7 @@ def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPat
 
     assert result.exit_code == 0
     assert selector_calls == [(True, True, "Select provider to logout:")]
-    assert logout_calls == ["codex"]
+    assert logout_calls == ["chatgpt"]
 
 
 def test_cli_logout_cancelled_when_selector_returns_none(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -55,65 +55,33 @@ def test_cli_logout_cancelled_when_selector_returns_none(monkeypatch: pytest.Mon
     assert logout_calls == []
 
 
-def test_cli_login_codex_passes_account_name(monkeypatch: pytest.MonkeyPatch) -> None:
-    login_calls: list[tuple[str, str | None]] = []
+def test_cli_login_passes_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    login_calls: list[str] = []
 
-    def _execute_login(provider: str, account_name: str | None = None) -> None:
-        login_calls.append((provider, account_name))
+    def _execute_login(provider: str) -> None:
+        login_calls.append(provider)
 
     monkeypatch.setattr("klaude_code.app.auth_flow.execute_login", _execute_login)
 
     app = typer.Typer()
     auth_cmd.register_auth_commands(app)
-    result = CliRunner().invoke(app, ["auth", "login", "codex", "--name", "work"])
+    result = CliRunner().invoke(app, ["auth", "login", "chatgpt"])
 
     assert result.exit_code == 0
-    assert login_calls == [("codex", "work")]
+    assert login_calls == ["chatgpt"]
 
 
-def test_cli_logout_codex_passes_account_name(monkeypatch: pytest.MonkeyPatch) -> None:
-    logout_calls: list[tuple[str, str | None, bool]] = []
+def test_cli_logout_passes_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    logout_calls: list[str] = []
 
-    def _execute_logout(provider: str, account_name: str | None = None, *, all_accounts: bool = False) -> None:
-        logout_calls.append((provider, account_name, all_accounts))
+    def _execute_logout(provider: str) -> None:
+        logout_calls.append(provider)
 
     monkeypatch.setattr("klaude_code.app.auth_flow.execute_logout", _execute_logout)
 
     app = typer.Typer()
     auth_cmd.register_auth_commands(app)
-    result = CliRunner().invoke(app, ["auth", "logout", "codex", "work"])
+    result = CliRunner().invoke(app, ["auth", "logout", "chatgpt"])
 
     assert result.exit_code == 0
-    assert logout_calls == [("codex", "work", False)]
-
-
-def test_cli_auth_switch_command(monkeypatch: pytest.MonkeyPatch) -> None:
-    switch_calls: list[tuple[str, str | None]] = []
-
-    def _execute_switch(provider: str, account_name: str | None = None) -> None:
-        switch_calls.append((provider, account_name))
-
-    monkeypatch.setattr("klaude_code.app.auth_flow.execute_switch", _execute_switch)
-
-    app = typer.Typer()
-    auth_cmd.register_auth_commands(app)
-    result = CliRunner().invoke(app, ["auth", "switch", "codex", "work"])
-
-    assert result.exit_code == 0
-    assert switch_calls == [("codex", "work")]
-
-
-def test_cli_auth_switch_defaults_to_codex_for_single_account_arg(monkeypatch: pytest.MonkeyPatch) -> None:
-    switch_calls: list[tuple[str, str | None]] = []
-
-    def _execute_switch(provider: str, account_name: str | None = None) -> None:
-        switch_calls.append((provider, account_name))
-
-    monkeypatch.setattr("klaude_code.app.auth_flow.execute_switch", _execute_switch)
-
-    app = typer.Typer()
-    auth_cmd.register_auth_commands(app)
-    result = CliRunner().invoke(app, ["auth", "switch", "work"])
-
-    assert result.exit_code == 0
-    assert switch_calls == [("codex", "work")]
+    assert logout_calls == ["chatgpt"]

@@ -9,6 +9,7 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from openai.types import responses
 from openai.types.responses.response_create_params import Reasoning, ResponseCreateParamsBase
 
+from klaude_code.const import CHATGPT_USAGE_LIMIT_CODES, CHATGPT_USAGE_SETTINGS_URL
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
@@ -257,8 +258,14 @@ async def parse_responses_stream(
                     if not isinstance(nested_code, str):
                         nested_code = None
                     error_message = event.message or nested_message or "LLM response failed"
-                    if event.code or nested_code:
-                        error_message = f"{error_message} ({event.code or nested_code})"
+                    code = event.code or nested_code
+                    if code:
+                        error_message = f"{error_message} ({code})"
+                        if code in CHATGPT_USAGE_LIMIT_CODES:
+                            error_message = (
+                                f"{error_message}\nChatGPT plan usage limit reached."
+                                f" Manage usage at {CHATGPT_USAGE_SETTINGS_URL}"
+                            )
                     yield message.StreamErrorItem(error=error_message)
                     state.stop_reason = "error"
                 case responses.ResponseReasoningSummaryPartAddedEvent():
@@ -345,7 +352,15 @@ async def parse_responses_stream(
                         yield message.StreamErrorItem(error=error_message)
                 case responses.ResponseFailedEvent() as event:
                     record_response_done(event.response)
-                    error_message = event.response.error.message if event.response.error else "LLM response failed"
+                    error = event.response.error
+                    error_message = error.message if error else "LLM response failed"
+                    if error and error.code:
+                        error_message = f"{error_message} ({error.code})"
+                        if error.code in CHATGPT_USAGE_LIMIT_CODES:
+                            error_message = (
+                                f"{error_message}\nChatGPT plan usage limit reached."
+                                f" Manage usage at {CHATGPT_USAGE_SETTINGS_URL}"
+                            )
                     yield message.StreamErrorItem(error=error_message)
                 case responses.ResponseIncompleteEvent() as event:
                     error_reason = record_response_done(event.response)

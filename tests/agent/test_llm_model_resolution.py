@@ -15,7 +15,7 @@ from klaude_code.protocol import llm_param
 
 def _provider() -> ProviderConfig:
     return ProviderConfig(
-        provider_name="codex",
+        provider_name="chatgpt",
         protocol=llm_param.LLMClientProtocol.OPENAI,
         api_key="test-key",
         model_list=[
@@ -28,9 +28,9 @@ def _provider() -> ProviderConfig:
 @pytest.fixture
 def builtin(monkeypatch: pytest.MonkeyPatch) -> Config:
     defaults = Config(
-        main_model="gpt-6.1-sol@codex",
-        fast_model="gpt-6-luna@codex",
-        sub_agent_models={"finder": "gpt-6-luna@codex"},
+        main_model="gpt-6.1-sol@chatgpt",
+        fast_model="gpt-6-luna@chatgpt",
+        sub_agent_models={"finder": "gpt-6-luna@chatgpt"},
     )
     monkeypatch.setattr(llm, "get_builtin_config", lambda: defaults)
     return defaults
@@ -40,27 +40,27 @@ def builtin(monkeypatch: pytest.MonkeyPatch) -> Config:
 def test_removed_sub_agent_model_falls_back_to_builtin_with_warning() -> None:
     config = Config(
         provider_list=[_provider()],
-        main_model="gpt-6.1-sol@codex",
-        sub_agent_models={"finder": "gpt-5.6-luna@codex"},
+        main_model="gpt-6.1-sol@chatgpt",
+        sub_agent_models={"finder": "gpt-5.6-luna@chatgpt"},
     )
 
     clients = build_llm_clients(config)
 
     finder = clients.sub_clients["finder"]
     assert isinstance(finder, FallbackLLMClient)
-    assert finder.candidates[0].selector == "gpt-6-luna@codex"
+    assert finder.candidates[0].selector == "gpt-6-luna@chatgpt"
     assert len(clients.warnings) == 1
-    assert "sub_agent_models.finder 'gpt-5.6-luna@codex'" in clients.warnings[0]
-    assert "gpt-6-luna@codex" in clients.warnings[0]
+    assert "sub_agent_models.finder 'gpt-5.6-luna@chatgpt'" in clients.warnings[0]
+    assert "gpt-6-luna@chatgpt" in clients.warnings[0]
 
 
 @pytest.mark.usefixtures("builtin")
 def test_removed_fast_and_compact_models_do_not_fail() -> None:
     config = Config(
         provider_list=[_provider()],
-        main_model="gpt-6.1-sol@codex",
-        fast_model="gpt-5.6-luna@codex",
-        compact_model="gpt-5.6-luna@codex",
+        main_model="gpt-6.1-sol@chatgpt",
+        fast_model="gpt-5.6-luna@chatgpt",
+        compact_model="gpt-5.6-luna@chatgpt",
     )
 
     clients = build_llm_clients(config, skip_sub_agents=True)
@@ -74,21 +74,21 @@ def test_removed_fast_and_compact_models_do_not_fail() -> None:
 
 @pytest.mark.usefixtures("builtin")
 def test_removed_main_model_falls_back_but_explicit_override_fails() -> None:
-    config = Config(provider_list=[_provider()], main_model="gpt-5.6-luna@codex")
+    config = Config(provider_list=[_provider()], main_model="gpt-5.6-luna@chatgpt")
 
     clients = build_llm_clients(config, skip_sub_agents=True)
-    assert clients.main_model_alias == "gpt-6.1-sol@codex"
-    assert clients.warnings and clients.warnings[0].startswith("main_model 'gpt-5.6-luna@codex'")
+    assert clients.main_model_alias == "gpt-6.1-sol@chatgpt"
+    assert clients.warnings and clients.warnings[0].startswith("main_model 'gpt-5.6-luna@chatgpt'")
 
     with pytest.raises(ModelResolutionError):
-        build_llm_clients(config, model_override="gpt-5.6-luna@codex", skip_sub_agents=True)
+        build_llm_clients(config, model_override="gpt-5.6-luna@chatgpt", skip_sub_agents=True)
 
 
 def test_unavailable_builtin_default_stays_silent(builtin: Config) -> None:
     builtin.sub_agent_models = {"finder": "missing@nowhere"}
     config = Config(
         provider_list=[_provider()],
-        main_model="gpt-6.1-sol@codex",
+        main_model="gpt-6.1-sol@chatgpt",
         sub_agent_models={"finder": "missing@nowhere"},
     )
 

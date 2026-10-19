@@ -17,7 +17,7 @@ class LLMClientProtocol(Enum):
     OPENROUTER = "openrouter"
     ANTHROPIC = "anthropic"
     BEDROCK = "bedrock"
-    CODEX_OAUTH = "codex_oauth"
+    CHATGPT_OAUTH = "chatgpt_oauth"
     XAI_OAUTH = "xai_oauth"
     GOOGLE = "google"
     GOOGLE_VERTEX = "google_vertex"

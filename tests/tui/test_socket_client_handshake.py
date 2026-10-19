@@ -69,7 +69,7 @@ def test_stale_server_errors_carry_reload_hint(monkeypatch: pytest.MonkeyPatch) 
     async def run() -> events.EventEnvelope:
         await client._check_server_code({"protocol_version": PROTOCOL_VERSION, "code_fingerprint": "git:old"})
         _ = client._display_queue.get_nowait()  # mismatch notice
-        await client._handle_envelope(_error_envelope("Operation failed: Unknown model: gpt-6-luna@codex"))
+        await client._handle_envelope(_error_envelope("Operation failed: Unknown model: gpt-6-luna@chatgpt"))
         return client._display_queue.get_nowait()
 
     event = asyncio.run(run()).event
@@ -94,7 +94,7 @@ def test_current_server_errors_are_unchanged(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_config_warnings_show_once(monkeypatch: pytest.MonkeyPatch) -> None:
     client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
-    frame = {"config_warnings": ["sub_agent_models.finder 'gpt-5.6-luna@codex' is unavailable"]}
+    frame = {"config_warnings": ["sub_agent_models.finder 'gpt-5.6-luna@chatgpt' is unavailable"]}
 
     async def run() -> None:
         await client._show_config_warnings(frame)
@@ -103,5 +103,5 @@ def test_config_warnings_show_once(monkeypatch: pytest.MonkeyPatch) -> None:
     asyncio.run(run())
     notice = client._display_queue.get_nowait().event
     assert isinstance(notice, events.NoticeEvent)
-    assert "gpt-5.6-luna@codex" in notice.content
+    assert "gpt-5.6-luna@chatgpt" in notice.content
     assert client._display_queue.empty()

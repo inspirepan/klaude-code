@@ -59,7 +59,7 @@ def test_autostart_reports_boot_failure_without_waiting(monkeypatch: pytest.Monk
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     log_path = server_startup_log_path()
     log_path.parent.mkdir(parents=True)
-    log_path.write_text("Error: failed to load config: Unknown model: gpt-5.6-luna@codex\n")
+    log_path.write_text("Error: failed to load config: Unknown model: gpt-5.6-luna@chatgpt\n")
 
     def _down(*_args: object, **_kwargs: object) -> tuple[int, object]:
         raise uds_client.ServerNotRunningError("socket")
@@ -73,7 +73,7 @@ def test_autostart_reports_boot_failure_without_waiting(monkeypatch: pytest.Monk
 
     message = str(exc_info.value)
     assert "exited during startup (code 2)" in message
-    assert "Unknown model: gpt-5.6-luna@codex" in message
+    assert "Unknown model: gpt-5.6-luna@chatgpt" in message
 
 
 def test_startup_log_redirect_is_noop_without_env(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -46,7 +46,7 @@ klaude agents --prime    # paste into your agent's CLAUDE.md / AGENTS.md
 ## Features
 - **Agent multiplexer**: single local server owns all execution; spawn background agents with `run`, track with `ps`/`brief`/`wait`, continue with `send`, interrupt with `kill`
 - **Agent-friendly CLI**: bounded `brief` reports, `--json` everywhere, exit-code contracts, plain-text `--help`, `klaude agents --prime` integration guide
-- **Multi-provider**: Anthropic Message API, OpenAI Responses API, OpenRouter, ChatGPT Codex OAuth etc.
+- **Multi-provider**: Anthropic Message API, OpenAI Responses API, OpenRouter, Sign in with ChatGPT etc.
 - **Keep reasoning item in context**: Interleaved thinking support
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
 - **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
@@ -192,7 +192,7 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 | `moonshot-cn`, `moonshot-ai` | `MOONSHOT_API_KEY` |
 | `minimax` | `MINIMAX_API_KEY` |
 | `opencode-go`, `opencode-go-responses` | `OPENCODE_API_KEY` |
-| `codex` | OAuth via `klaude auth login codex` |
+| `chatgpt` | OAuth via `klaude auth login chatgpt` |
 | `openrouter` | `OPENROUTER_API_KEY` |
 
 List all configured providers, models, and agent types:
@@ -225,7 +225,7 @@ klaude auth login aws-bedrock    # Configure AWS Bedrock credentials
 klaude auth login google-vertex  # Configure Google Vertex credentials
 
 # OAuth login for subscription-based providers
-klaude auth login codex       # ChatGPT Pro subscription
+klaude auth login chatgpt     # ChatGPT subscription
 ```
 
 API keys are stored in `~/.klaude/klaude-auth.json` and used as fallback when environment variables are not set.
@@ -233,7 +233,7 @@ API keys are stored in `~/.klaude/klaude-auth.json` and used as fallback when en
 To logout from OAuth providers:
 
 ```bash
-klaude auth logout codex
+klaude auth logout chatgpt
 ```
 
 #### Custom Configuration
@@ -324,7 +324,7 @@ sub_agent_models:
 - `anthropic` - Anthropic Messages API
 - `openai` - OpenAI Chat Completion API
 - `responses` - OpenAI Responses API (for o-series, GPT-5, Codex)
-- `codex_oauth` - OpenAI Codex CLI (OAuth-based, for ChatGPT Pro subscribers)
+- `chatgpt_oauth` - Sign in with ChatGPT (OAuth-based ChatGPT plan usage)
 - `openrouter` - OpenRouter API (handling `reasoning_details` for interleaved thinking)
 - `google` - Google Gemini API
 - `google_vertex` - Google Vertex AI (uses GCP credentials)

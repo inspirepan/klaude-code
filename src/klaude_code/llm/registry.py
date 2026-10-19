@@ -15,7 +15,7 @@ _REGISTRY: dict[llm_param.LLMClientProtocol, type["LLMClientABC"]] = {}
 _PROTOCOL_MODULES: dict[llm_param.LLMClientProtocol, str] = {
     llm_param.LLMClientProtocol.ANTHROPIC: "klaude_code.llm.anthropic",
     llm_param.LLMClientProtocol.BEDROCK: "klaude_code.llm.bedrock_anthropic",
-    llm_param.LLMClientProtocol.CODEX_OAUTH: "klaude_code.llm.openai_codex",
+    llm_param.LLMClientProtocol.CHATGPT_OAUTH: "klaude_code.llm.chatgpt",
     llm_param.LLMClientProtocol.XAI_OAUTH: "klaude_code.llm.xai_oauth",
     llm_param.LLMClientProtocol.OPENAI: "klaude_code.llm.openai_compatible",
     llm_param.LLMClientProtocol.OPENROUTER: "klaude_code.llm.openrouter",

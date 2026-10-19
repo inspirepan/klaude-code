@@ -1,4 +1,4 @@
-from klaude_code.llm.openai_codex.client import build_payload as build_codex_payload
+from klaude_code.llm.chatgpt.client import build_payload as build_chatgpt_payload
 from klaude_code.llm.openai_responses.client import build_payload as build_responses_payload
 from klaude_code.llm.openai_responses.prompt_cache import build_prompt_cache_payload
 from klaude_code.protocol import llm_param
@@ -34,4 +34,4 @@ def test_openai_payload_uses_inherited_cache_key_instead_of_fork_session_id() ->
     )
 
     assert build_responses_payload(param)["prompt_cache_key"] == "source-session"
-    assert build_codex_payload(param)["prompt_cache_key"] == "source-session"
+    assert build_chatgpt_payload(param)["prompt_cache_key"] == "source-session"

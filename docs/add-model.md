@@ -16,7 +16,7 @@
 | 新 provider，协议已支持   | 加 `provider_list` 条目 + `SUPPORTED_API_KEYS` + 排好优先级 |
 | 新协议（上游 wire 不同）  | 要写 `src/klaude_code/llm/<protocol>/client.py`，超出本文  |
 
-已支持的 `protocol`：`openai` / `responses` / `openrouter` / `anthropic` / `bedrock` / `codex_oauth` / `xai_oauth` / `google` / `google_vertex`。上游能被这几种之一直接说通，就是纯配置改动。
+已支持的 `protocol`：`openai` / `responses` / `openrouter` / `anthropic` / `bedrock` / `chatgpt_oauth` / `xai_oauth` / `google` / `google_vertex`。上游能被这几种之一直接说通，就是纯配置改动。
 
 ---
 

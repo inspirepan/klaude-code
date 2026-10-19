@@ -1003,9 +1003,9 @@ provider_list:
       reasoning_summary: concise
     cost: { input: 0.1, output: 0.6, cache_read: 0.01, cache_write: 0.125 }
 
-# ######################################## codex ########################################
-- provider_name: codex
-  protocol: codex_oauth
+# ######################################## chatgpt ########################################
+- provider_name: chatgpt
+  protocol: chatgpt_oauth
   model_list:
 
   - *gpt6astra

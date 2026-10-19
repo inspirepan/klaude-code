@@ -292,7 +292,7 @@ def test_build_llm_clients_uses_compact_model_fallback_candidates(monkeypatch: p
 def test_build_llm_clients_model_override_keeps_main_fallback_suffix(monkeypatch: pytest.MonkeyPatch) -> None:
     providers = [
         ProviderConfig(
-            provider_name="codex",
+            provider_name="chatgpt",
             protocol=llm_param.LLMClientProtocol.OPENAI,
             api_key="codex-key",
             model_list=[ModelConfig(model_name="gpt-5.5", model_id="gpt-5.5")],
@@ -312,7 +312,7 @@ def test_build_llm_clients_model_override_keeps_main_fallback_suffix(monkeypatch
     ]
     config = Config(
         provider_list=providers,
-        main_model=["gpt-5.5@codex", "gpt-5.5@openai", "opus@ant-gw"],
+        main_model=["gpt-5.5@chatgpt", "gpt-5.5@openai", "opus@ant-gw"],
     )
 
     def _create_client(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:
@@ -323,15 +323,15 @@ def test_build_llm_clients_model_override_keeps_main_fallback_suffix(monkeypatch
         _create_client,
     )
 
-    clients = build_llm_clients(config, model_override="gpt-5.5@codex", skip_sub_agents=True)
+    clients = build_llm_clients(config, model_override="gpt-5.5@chatgpt", skip_sub_agents=True)
 
     assert isinstance(clients.main, FallbackLLMClient)
     assert [candidate.selector for candidate in clients.main.candidates] == [
-        "gpt-5.5@codex",
+        "gpt-5.5@chatgpt",
         "gpt-5.5@openai",
         "opus@ant-gw",
     ]
-    assert clients.main_model_alias == "gpt-5.5@codex > gpt-5.5@openai > opus@ant-gw"
+    assert clients.main_model_alias == "gpt-5.5@chatgpt > gpt-5.5@openai > opus@ant-gw"
 
 
 def test_session_model_config_restore_keeps_main_fallback_suffix(
@@ -341,7 +341,7 @@ def test_session_model_config_restore_keeps_main_fallback_suffix(
 
     providers = [
         ProviderConfig(
-            provider_name="codex",
+            provider_name="chatgpt",
             protocol=llm_param.LLMClientProtocol.OPENAI,
             api_key="codex-key",
             model_list=[ModelConfig(model_name="gpt-5.5", model_id="gpt-5.5")],
@@ -361,11 +361,11 @@ def test_session_model_config_restore_keeps_main_fallback_suffix(
     ]
     config = Config(
         provider_list=providers,
-        main_model=["gpt-5.5@codex", "gpt-5.5@openai", "opus@ant-gw"],
+        main_model=["gpt-5.5@chatgpt", "gpt-5.5@openai", "opus@ant-gw"],
     )
     template_client = _FakeLLMClient([], config=config.get_model_config("opus@ant-gw"))
     session = Session.create(work_dir=tmp_path)
-    session.model_config_name = "gpt-5.5@codex"
+    session.model_config_name = "gpt-5.5@chatgpt"
 
     class _FakeSessionActor:
         def __init__(self) -> None:
@@ -398,11 +398,11 @@ def test_session_model_config_restore_keeps_main_fallback_suffix(
 
     assert isinstance(clients.main, FallbackLLMClient)
     assert [candidate.selector for candidate in clients.main.candidates] == [
-        "gpt-5.5@codex",
+        "gpt-5.5@chatgpt",
         "gpt-5.5@openai",
         "opus@ant-gw",
     ]
-    assert clients.main_model_alias == "gpt-5.5@codex > gpt-5.5@openai > opus@ant-gw"
+    assert clients.main_model_alias == "gpt-5.5@chatgpt > gpt-5.5@openai > opus@ant-gw"
 
 
 def test_model_switcher_keeps_main_fallback_suffix_after_selection(
@@ -412,7 +412,7 @@ def test_model_switcher_keeps_main_fallback_suffix_after_selection(
 
     providers = [
         ProviderConfig(
-            provider_name="codex",
+            provider_name="chatgpt",
             protocol=llm_param.LLMClientProtocol.OPENAI,
             api_key="codex-key",
             model_list=[ModelConfig(model_name="gpt-5.5", model_id="gpt-5.5")],
@@ -432,7 +432,7 @@ def test_model_switcher_keeps_main_fallback_suffix_after_selection(
     ]
     config = Config(
         provider_list=providers,
-        main_model=["gpt-5.5@codex", "gpt-5.5@openai", "opus@ant-gw"],
+        main_model=["gpt-5.5@chatgpt", "gpt-5.5@openai", "opus@ant-gw"],
     )
 
     def _create_client(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:
@@ -461,15 +461,15 @@ def test_model_switcher_keeps_main_fallback_suffix_after_selection(
 
     switcher = ModelSwitcher(_FakeProfileProvider())
     llm_config, selected_model = asyncio.run(
-        switcher.change_model(agent, model_name="gpt-5.5@codex", save_as_default=False)
+        switcher.change_model(agent, model_name="gpt-5.5@chatgpt", save_as_default=False)
     )
 
-    assert selected_model == "gpt-5.5@codex"
-    assert llm_config.provider_name == "codex"
-    assert agent.session.model_config_name == "gpt-5.5@codex"
+    assert selected_model == "gpt-5.5@chatgpt"
+    assert llm_config.provider_name == "chatgpt"
+    assert agent.session.model_config_name == "gpt-5.5@chatgpt"
     assert isinstance(agent.profile.llm_client, FallbackLLMClient)
     assert [candidate.selector for candidate in agent.profile.llm_client.candidates] == [
-        "gpt-5.5@codex",
+        "gpt-5.5@chatgpt",
         "gpt-5.5@openai",
         "opus@ant-gw",
     ]

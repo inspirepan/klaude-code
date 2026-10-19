@@ -51,7 +51,6 @@ def ensure_commands_loaded() -> None:
     from .status_cmd import StatusCommand
     from .stop_cmd import StopCommand
     from .sub_agent_model_cmd import SubAgentModelCommand
-    from .switch_cmd import SwitchCommand
     from .tasks_cmd import TasksCommand
 
     # Register in desired display order
@@ -69,7 +68,6 @@ def ensure_commands_loaded() -> None:
     register(ContextCommand())
     register(LoginCommand())
     register(LogoutCommand())
-    register(SwitchCommand())
     register(ContinueCommand())
     register(RecapCommand())
     register(GrillMeCommand())
@@ -98,7 +96,6 @@ def __getattr__(name: str) -> object:
         "RewindCommand": "rewind_cmd",
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
-        "SwitchCommand": "switch_cmd",
         "TasksCommand": "tasks_cmd",
         "StopCommand": "stop_cmd",
     }

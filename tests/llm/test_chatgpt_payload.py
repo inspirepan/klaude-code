@@ -1,16 +1,11 @@
-import asyncio
-import re
 from typing import Any, cast
 
-import httpx
-
-from klaude_code.const import CODEX_USER_AGENT
-from klaude_code.llm.openai_codex.client import (
-    CODEX_HEADERS,
+from klaude_code.const import CHATGPT_API_BASE_URL, CHATGPT_USAGE_SETTINGS_URL
+from klaude_code.llm.chatgpt.client import (
     PROMPT_CACHE_KEY_MAX_LENGTH,
+    _usage_limit_message,
     build_payload,
     cache_affinity_id,
-    strip_stainless_headers,
 )
 from klaude_code.protocol import llm_param
 
@@ -18,6 +13,10 @@ from klaude_code.protocol import llm_param
 def _build(**overrides: Any) -> dict[str, Any]:
     param = llm_param.LLMCallParameter(input=[], model_id="gpt-5.6-sol", **overrides)
     return cast(dict[str, Any], build_payload(param))
+
+
+def test_uses_public_responses_endpoint() -> None:
+    assert CHATGPT_API_BASE_URL == "https://api.openai.com/v1"
 
 
 def test_verbosity_defaults_to_low() -> None:
@@ -51,35 +50,15 @@ def test_cache_affinity_id_prefers_inherited_key() -> None:
 
 
 def test_payload_never_sends_cache_retention_fields() -> None:
-    # The Codex backend rejects prompt_cache_options with 400; pi sends neither
-    # retention field on this path.
     payload = _build(cache_retention="long", session_id="session")
     assert "prompt_cache_retention" not in payload
     assert "prompt_cache_options" not in payload
 
 
-def test_codex_headers_match_pi() -> None:
-    assert CODEX_HEADERS["Accept"] == "text/event-stream"
-    assert CODEX_HEADERS["originator"] == "pi"
-    assert CODEX_HEADERS["OpenAI-Beta"] == "responses=experimental"
-    # pi formats the UA as `pi (<platform> <release>; <arch>)`.
-    assert re.fullmatch(r"pi \(.+ .+; .+\)", CODEX_USER_AGENT)
+def test_usage_limit_message_links_to_chatgpt_settings() -> None:
+    message = _usage_limit_message(RuntimeError("subscription_sharing_usage_limit_exceeded"))
+    assert CHATGPT_USAGE_SETTINGS_URL in message
 
 
-def test_strip_stainless_headers() -> None:
-    async def _run() -> None:
-        request = httpx.Request(
-            "POST",
-            "https://chatgpt.com/backend-api/codex/responses",
-            headers={
-                "X-Stainless-Lang": "python",
-                "X-Stainless-OS": "MacOS",
-                "Accept": "text/event-stream",
-            },
-        )
-        await strip_stainless_headers(request)
-        assert "x-stainless-lang" not in request.headers
-        assert "x-stainless-os" not in request.headers
-        assert request.headers["accept"] == "text/event-stream"
-
-    asyncio.run(_run())
+def test_other_errors_are_unchanged() -> None:
+    assert _usage_limit_message(RuntimeError("boom")) == "boom"
