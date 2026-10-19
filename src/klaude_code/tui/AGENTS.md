@@ -136,7 +136,9 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   results print nothing; a finished agent prints only its `▌` batch block
   (`TaskDirectory.claim_summary` / `claim_report` dedupe the block against task
   reports and wait results, and a report builds the block when none printed);
-  a finished Bash task prints one `› Shell` row. A compact `ManageShell wait`
+  a finished Bash task owned by the main agent prints one `› Shell` row; a
+  sub-agent's own shells never surface in the parent transcript. A compact
+  `ManageShell wait`
   hides its call row: a finite result prints one `› Shell` row through the same
   `TaskDirectory.claim_task` claim as the automatic report, so whichever arrives
   first prints it; a still-running result prints nothing; a failed wait restores

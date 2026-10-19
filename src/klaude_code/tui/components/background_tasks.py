@@ -125,6 +125,9 @@ def parse_task_response(text: str) -> TaskResponse | None:
     lines = text.splitlines()
     while lines and (lines[0].startswith("source=") or lines[0].startswith("interrupted-wait")):
         lines.pop(0)
+    # A truncated inline report carries a trailing continuation hint after the JSON.
+    while lines and lines[-1].startswith("Report continues:"):
+        lines.pop()
     try:
         return TaskResponse.model_validate_json("\n".join(lines))
     except ValidationError:
@@ -341,12 +344,21 @@ def render_peer_message(event: events.UserMessageEvent, *, detail: Detail, direc
 
 
 def render_sourced_message(
-    event: events.UserMessageEvent, *, detail: Detail, directory: TaskDirectory | None = None
+    event: events.UserMessageEvent,
+    *,
+    detail: Detail,
+    directory: TaskDirectory | None = None,
+    drop_shell_tasks: bool = False,
 ) -> RenderableType | None:
     directory = directory or TaskDirectory()
     if event.source == "peer_message":
         return render_peer_message(event, detail=detail, directory=directory)
     response = parse_task_response(event.content)
+    if response is not None and drop_shell_tasks:
+        remaining = [task for task in response.tasks if task.ref.kind != "shell"]
+        if not remaining:
+            return None
+        response = response.model_copy(update={"tasks": remaining})
     if detail.is_compact:
         # Compact task reports go through `TUICommandRenderer`, which owns the batch blocks.
         return render_task_outcomes(response, directory) if response is not None else None

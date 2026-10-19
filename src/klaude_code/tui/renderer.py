@@ -1417,7 +1417,7 @@ class TUICommandRenderer:
         if context is not None:
             self.print(context)
 
-    def display_task_outcomes(self, response: TaskResponse) -> bool:
+    def display_task_outcomes(self, response: TaskResponse, *, include_shells: bool = True) -> bool:
         """Report newly finished tasks once, in their compact transcript shape.
 
         A finished agent normally prints through its `▌` batch block; when that
@@ -1426,6 +1426,10 @@ class TUICommandRenderer:
         """
         self._task_directory.update(response.tasks)
         finished = unreported_finished_tasks(response, self._task_directory)
+        if not include_shells:
+            # A child's finished bash tasks stay in the child's own transcript;
+            # the parent transcript reports the child run, not each shell it ran.
+            finished = [task for task in finished if task.ref.kind != "shell"]
         summaries: list[SubAgentSummary] = []
         fallback_changes: dict[str, list[c_tools.FileChangeStat]] = {}
         for task in finished:
@@ -1480,9 +1484,16 @@ class TUICommandRenderer:
         if event.source == "task_completion" and self._compact:
             response = parse_task_response(event.content)
             if response is not None:
-                return self.display_task_outcomes(response)
+                return self.display_task_outcomes(
+                    response, include_shells=not self.is_sub_agent_session(event.session_id)
+                )
         if event.source in {"peer_message", "task_completion"}:
-            sourced = render_sourced_message(event, detail=self._detail.current, directory=self._task_directory)
+            sourced = render_sourced_message(
+                event,
+                detail=self._detail.current,
+                directory=self._task_directory,
+                drop_shell_tasks=event.source == "task_completion" and self.is_sub_agent_session(event.session_id),
+            )
             if sourced is None:
                 return False
             self.print(sourced)

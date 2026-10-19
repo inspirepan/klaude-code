@@ -68,6 +68,17 @@ def _shell(status: str = "failed") -> BackgroundTaskSnapshot:
     )
 
 
+def _child_shell() -> BackgroundTaskSnapshot:
+    task = _shell()
+    assert task.shell is not None
+    return task.model_copy(
+        update={
+            "ref": task.ref.model_copy(update={"owner_session_id": "child-a"}),
+            "shell": task.shell.model_copy(update={"session_id": "child-a"}),
+        }
+    )
+
+
 def _welcome() -> events.WelcomeEvent:
     return events.WelcomeEvent(
         session_id="main",
@@ -183,6 +194,94 @@ def test_compact_transcript_reports_each_background_fact_once(
     assert "task-a" not in out and "child-a" not in out
     # A finished Bash task prints one tool-style row, once.
     assert out.count("› Shell") == 1 and "Run the suite · failed · exit 1" in out
+
+
+def test_compact_transcript_does_not_report_a_sub_agent_shell_finish(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        running = _agent("task-a", "child-a", "清理 worker")
+        try:
+            for event in [
+                _welcome(),
+                events.TaskStartEvent(session_id="main", model_id="test-model"),
+                events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[running]),
+                events.TaskStartEvent(
+                    session_id="child-a",
+                    parent_session_id="main",
+                    sub_agent_state=SubAgentState(
+                        sub_agent_type="general-purpose",
+                        sub_agent_desc="清理 worker",
+                        sub_agent_prompt="",
+                    ),
+                ),
+                events.UserMessageEvent(
+                    session_id="child-a",
+                    source="task_completion",
+                    content="source=background_task\n" + TaskResponse(tasks=[_child_shell()]).model_dump_json(),
+                ),
+                events.UserMessageEvent(session_id="main", content="next"),
+            ]:
+                await display.consume_envelope(make_envelope(event))
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+    out = capsys.readouterr().out
+    # The child's shell belongs to the child transcript; no callback row and no
+    # orphaned sub-agent quote line from closing a block that never printed.
+    assert "› Shell" not in out and "Run the suite" not in out
+    assert "▌ \n" not in out
+
+
+def test_expanded_transcript_does_not_report_a_sub_agent_shell_finish(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        running = _agent("task-a", "child-a", "清理 worker")
+        truncated_report = (
+            "source=background_task\n"
+            + TaskResponse(tasks=[_child_shell()], truncated=True, next_offset=24576).model_dump_json()
+            + "\nReport continues: read the rest with ManageTasks output task_id=shell-task-0000 offset=24576."
+        )
+        try:
+            for event in [
+                _welcome(),
+                events.ToggleTranscriptDetailEvent(session_id="main"),
+                events.TaskStartEvent(session_id="main", model_id="test-model"),
+                events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[running]),
+                events.TaskStartEvent(
+                    session_id="child-a",
+                    parent_session_id="main",
+                    sub_agent_state=SubAgentState(
+                        sub_agent_type="general-purpose",
+                        sub_agent_desc="清理 worker",
+                        sub_agent_prompt="",
+                    ),
+                ),
+                events.UserMessageEvent(
+                    session_id="child-a",
+                    source="task_completion",
+                    content=truncated_report,
+                ),
+                events.UserMessageEvent(session_id="main", content="next"),
+            ]:
+                await display.consume_envelope(make_envelope(event))
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+    out = capsys.readouterr().out
+    # The child block itself is expanded; its shell report is not a parent fact,
+    # even when truncation adds the continuation hint after the JSON payload.
+    assert "清理 worker" in out
+    assert "› Task" not in out and "› Shell" not in out
+    assert "Background report" not in out and "Run the suite" not in out
+    assert "Report continues" not in out
 
 
 def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -453,6 +453,41 @@ def test_long_task_report_only_points_to_result_and_plain_user_is_not_a_peer() -
     assert "plain input" in capture.getvalue() and "来自" not in capture.getvalue()
 
 
+def test_sub_agent_shell_report_is_dropped_from_sourced_message() -> None:
+    shell = BackgroundTaskSnapshot(
+        ref=TaskReference(kind="shell", owner_session_id="child", task_id="shell-1", run_id="shell-1"),
+        status="failed",
+        description="Run the suite",
+        started_at=1.0,
+        ended_at=2.0,
+        shell=_snapshot(status="failed", exit_code=1),
+        delivery_id="task-result:shell-1",
+    )
+
+    def report(tasks: list[BackgroundTaskSnapshot]) -> events.UserMessageEvent:
+        return events.UserMessageEvent(
+            session_id="child",
+            source="task_completion",
+            content="source=background_task\n" + TaskResponse(tasks=tasks).model_dump_json(),
+        )
+
+    shell_only = report([shell])
+    assert render_sourced_message(shell_only, detail=Detail.FULL, drop_shell_tasks=True) is None
+    assert render_sourced_message(shell_only, detail=Detail.FULL) is not None
+    truncated = events.UserMessageEvent(
+        session_id="child",
+        source="task_completion",
+        content="source=background_task\n"
+        + TaskResponse(tasks=[shell], truncated=True, next_offset=24576).model_dump_json()
+        + "\nReport continues: read the rest with ManageTasks output task_id=shell-1 offset=24576.",
+    )
+    assert render_sourced_message(truncated, detail=Detail.FULL, drop_shell_tasks=True) is None
+    mixed = plain(
+        render_sourced_message(report([shell, task_snapshot("completed")]), detail=Detail.FULL, drop_shell_tasks=True)
+    )
+    assert "inspect shared tasks" in mixed and "Run the suite" not in mixed
+
+
 @pytest.mark.parametrize("max_lines", [6, 50])
 def test_manage_tasks_expanded_tool_output_respects_line_budget_and_pagination(max_lines: int) -> None:
     response = TaskResponse(
