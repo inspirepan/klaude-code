@@ -641,6 +641,19 @@ class _TaskMetadataRenderable:
         max_width = max(1, getattr(options, "max_width", options.size.width))
         main = self.metadata.main_agent
         sub_agents = self.metadata.sub_agent_task_metadata
+        if self.metadata.background_task_id is not None:
+            grid = create_grid()
+            for meta in sub_agents:
+                grid.add_row(
+                    Text("•", style=ThemeKey.METADATA),
+                    _build_metadata_content_renderable(meta, interrupted=self.interrupted),
+                )
+            yield grid
+            costs = _total_costs(self.metadata) if len(sub_agents) > 1 else []
+            if costs:
+                yield _build_total_cost_text(costs)
+            return
+
         main_content = _build_metadata_content_renderable(main, interrupted=self.interrupted)
 
         grid = create_grid()

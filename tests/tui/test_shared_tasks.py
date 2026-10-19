@@ -395,8 +395,12 @@ def test_peer_and_task_reports_survive_history_and_tape_detail_toggle(
             expanded = writes[-1][0]
             for value in ("full body", "sender: sender", "recipient: main", "id: peer-id", "reply_to: earlier-id"):
                 assert value in expanded
+            assert expanded.count("• child-model") == 1
+            assert "Background task" not in expanded
+            assert "id: agent-1" in expanded
             await display.consume_envelope(make_envelope(events.RefreshDisplayEvent(session_id="main")))
             assert "full body" in writes[-1][0]
+            assert writes[-1][0].count("• child-model") == 1
         finally:
             await display.stop()
 

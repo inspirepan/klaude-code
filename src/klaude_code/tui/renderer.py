@@ -1543,8 +1543,6 @@ class TUICommandRenderer:
         renderable = c_metadata.render_task_metadata(event, detail=self._detail.current)
         if renderable is None:
             return
-        if event.metadata.background_task_id is not None:
-            self.print(Text(f"Background task {event.metadata.background_task_id}", style=ThemeKey.METADATA_DIM))
         self.print(renderable)
         self.print()
 

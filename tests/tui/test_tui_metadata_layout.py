@@ -1,3 +1,4 @@
+import pytest
 from rich.console import Console
 
 from klaude_code.protocol import events
@@ -366,6 +367,30 @@ def test_task_metadata_hides_zero_total_cost_in_both_modes() -> None:
         output = _render_metadata(event, width=120, compact=compact)
         assert "total cost" not in output
         assert "  ╰─ " in output
+
+
+@pytest.mark.parametrize("width", [60, 160])
+@pytest.mark.parametrize("interrupted", [False, True])
+def test_expanded_background_metadata_has_no_empty_parent_or_redundant_total(width: int, interrupted: bool) -> None:
+    event = events.TaskMetadataEvent(
+        session_id="test",
+        metadata=TaskMetadataItem(
+            background_task_id="background-id",
+            sub_agent_task_metadata=[_make_sub_agent("scan repo", input_tokens=10_000)],
+            is_partial=interrupted,
+        ),
+    )
+
+    output = _render_metadata(event, width=width, compact=False)
+    lines = output.splitlines()
+    assert lines[0].startswith("•  general-purpose  scan repo")
+    assert "in 10k out 2k" in output
+    assert "cost $0.5000" in output
+    assert "3m00s" in output and "5 steps" in output
+    assert ("interrupted" in output) == interrupted
+    assert "total cost" not in output
+    assert not any(mark in output for mark in ("├─", "╰─"))
+    assert all(not line.startswith("in ") for line in lines)
 
 
 def test_compact_task_metadata_hides_empty_block() -> None:
