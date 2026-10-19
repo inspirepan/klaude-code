@@ -2516,7 +2516,7 @@ class DisplayStateMachine:
                     session_title=self._session_title,
                 )
             )
-        if e.show_notice:
+        if e.show_notice and self._visible(e, s):
             cmds.append(RenderInterrupt())
         return cmds
 

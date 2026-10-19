@@ -64,6 +64,10 @@ def test_unlisted_event_is_visible_everywhere() -> None:
             {Quadrant.COMPACT_SUB_AGENT},
         ),
         (
+            events.InterruptEvent(session_id="s"),
+            {Quadrant.COMPACT_SUB_AGENT},
+        ),
+        (
             events.ToolCallEvent(session_id="s", tool_call_id="c", tool_name="Read", arguments="{}"),
             {Quadrant.COMPACT_SUB_AGENT},
         ),

@@ -68,6 +68,7 @@ _HIDDEN_IN: Mapping[type[events.Event], frozenset[Quadrant]] = {
     events.ToolCallEvent: COMPACT_SUB_AGENT,
     events.DeveloperMessageEvent: COMPACT_SUB_AGENT,
     events.NoticeEvent: COMPACT_SUB_AGENT,
+    events.InterruptEvent: COMPACT_SUB_AGENT,
     events.AwaySummaryEvent: COMPACT_SUB_AGENT,
     events.SessionStatsEvent: COMPACT_SUB_AGENT,
     events.ContextUsageEvent: COMPACT_SUB_AGENT,
