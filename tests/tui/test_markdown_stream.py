@@ -98,6 +98,33 @@ def test_stable_scrollback_write_invokes_sink() -> None:
     assert writes == [None]
 
 
+@pytest.mark.parametrize("url", ["https://example.com/page", "file:///tmp/example.py"])
+def test_markdown_stream_preserves_explicit_hyperlinks(url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TERM", "xterm-256color")
+    stream = _make_stream()
+
+    with stream.console.capture() as capture:
+        stream.update(f"[Linked target]({url})\n\nNext block", final=False)
+        stream.update(f"[Linked target]({url})\n\nNext block", final=True)
+
+    output = capture.get()
+    assert re.search(r"\x1b\]8;[^;]*;" + re.escape(url) + r"\x1b\\", output)
+    assert "Linked target" in output
+
+
+@pytest.mark.parametrize("url", ["javascript:alert(1)", "vbscript:msgbox(1)", "data:text/html,test"])
+def test_markdown_file_link_support_keeps_unsafe_links_disabled(url: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TERM", "xterm-256color")
+    stream = _make_stream()
+
+    with stream.console.capture() as capture:
+        stream.update(f"[File](file:///tmp/example.py) [Unsafe]({url})", final=True)
+
+    output = capture.get()
+    assert re.search(r"\x1b\]8;[^;]*;file:///tmp/example\.py\x1b\\", output)
+    assert not re.search(r"\x1b\]8;[^;]*;" + re.escape(url), output)
+
+
 def test_split_source_keeps_multiline_list_item_live_until_next_item() -> None:
     stream = _make_stream()
     unfinished_text = "- first\n  continuation"

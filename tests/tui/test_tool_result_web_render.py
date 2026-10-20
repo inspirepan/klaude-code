@@ -1,3 +1,5 @@
+import re
+
 import pytest
 from rich.console import Console
 
@@ -123,7 +125,46 @@ def test_render_web_search_tool_result_underlines_title_text_only() -> None:
     title_style = title_line[title_index].style
     padding_style = title_line[title_index + 1].style
     assert title_style is not None and title_style.underline
+    assert title_style.link == "https://example.com/x"
     assert padding_style is None or not padding_style.underline
+    assert padding_style is None or padding_style.link is None
+
+
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+@pytest.mark.parametrize("title", ["Search result", ""])
+def test_render_web_search_tool_result_emits_hyperlink(
+    detail: Detail, title: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TERM", "xterm-256color")
+    console = Console(width=100, force_terminal=True, theme=get_theme().app_theme)
+    url = "https://example.com/result"
+    renderable = render_tool_result(_web_search_event(_wrap_search_results((title, url))), detail=detail)
+
+    with console.capture() as capture:
+        console.print(renderable)
+
+    output = capture.get()
+    assert re.search(r"\x1b\]8;[^;]*;" + re.escape(url) + r"\x1b\\", output)
+
+
+@pytest.mark.parametrize("control", ["\x00", "\x07", "\x1b", "\x7f", "\x9c", "\x1b\\\x1b]52;c;UE9JU09O\x07"])
+def test_render_web_search_tool_result_rejects_control_characters_in_hyperlinks(
+    control: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TERM", "xterm-256color")
+    console = Console(width=100, force_terminal=True, theme=get_theme().app_theme)
+    url = f"https://example.com/{control}path"
+    renderable = render_tool_result(
+        _web_search_event(_wrap_search_results(("Search result", url))), detail=Detail.COMPACT
+    )
+
+    with console.capture() as capture:
+        console.print(renderable)
+
+    output = capture.get()
+    assert "Search result" in output
+    assert "\x1b]8;" not in output
+    assert "\x1b]52;" not in output
 
 
 def test_render_web_search_tool_result_falls_back_when_unparsable() -> None:

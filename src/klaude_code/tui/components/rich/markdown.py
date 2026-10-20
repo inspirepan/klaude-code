@@ -348,6 +348,11 @@ class LocalImageItem(ImageItem):
         yield from super().__rich_console__(console, options)
 
 
+class _TerminalMarkdownParser(MarkdownIt):
+    def validateLink(self, url: str) -> bool:
+        return url.lower().startswith("file://") or super().validateLink(url)
+
+
 class SectionIndentMarkdown(Markdown):
     """Markdown that hangs a bullet off every heading and indents its section.
 
@@ -363,6 +368,10 @@ class SectionIndentMarkdown(Markdown):
 
     def __init__(self, *args: Any, inside_section: bool = False, live_tail: bool = False, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        if "file:" in self.markup.lower():
+            # Rich's parser rejects file links by default; terminal links can use them.
+            parser = _TerminalMarkdownParser().enable("strikethrough").enable("table")
+            self.parsed = parser.parse(self.markup)
         self.collected_images: list[tuple[str, str]] = []
         self._inside_section = inside_section
         self.live_tail = live_tail

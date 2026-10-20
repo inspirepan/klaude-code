@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from rich.console import Group, RenderableType
+from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
@@ -124,6 +125,8 @@ def render_web_search_results(items: list[WebSearchResultItem], *, detail: Detai
         # full terminal width.
         title = Text(no_wrap=compact, overflow="ellipsis" if compact else "fold")
         title.append(item.title or item.url, style=ThemeKey.TOOL_RESULT_LINK)
+        if re.search(r"[\x00-\x1f\x7f-\x9f]", item.url) is None:
+            title.stylize(Style(link=item.url))
         grid.add_row(number, title)
         if not compact and item.title:
             url = Text(overflow="fold")
