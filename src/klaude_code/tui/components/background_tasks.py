@@ -2,6 +2,7 @@ from collections.abc import Iterable
 
 from pydantic import BaseModel, ValidationError
 from rich.console import Group, RenderableType
+from rich.style import Style
 from rich.table import Table
 from rich.text import Text
 
@@ -531,17 +532,24 @@ def render_collaboration_call(
     )
 
 
-def render_agent_launch(arguments: str, *, first: bool) -> RenderableType:
+def render_agent_launch(arguments: str, *, first: bool, color: Style | None = None) -> RenderableType:
     """Inline the first launch; consecutive launches continue with tree rows."""
     args = parse_tool_arguments(arguments)
     agent_type = format_pascal_case(one_line(args.get("type", "")) or "general-purpose")
     row = Text(no_wrap=True, overflow="ellipsis")
     if not first:
         row.append(" " * (TOOL_GROUP_INDENT + 2))
-        row.append("↳ ", style=ThemeKey.TOOL_RESULT_TREE_PREFIX)
-    row.append(agent_type, style=ThemeKey.TOOL_NAME)
+        row.append("↳ ", style=color if color is not None else ThemeKey.TOOL_RESULT_TREE_PREFIX)
+    row.append(agent_type, style=color + Style(bold=True) if color is not None else ThemeKey.TOOL_NAME)
     if description := one_line(args.get("description", "")):
-        row.append(f": {description}", style=ThemeKey.TOOL_PARAM)
+        row.append(" ", style=color if color is not None else ThemeKey.TOOL_PARAM)
+        row.append(description, style=color + Style(italic=True) if color is not None else ThemeKey.TOOL_PARAM)
     if not first:
         return row
-    return render_tool_call_tree(mark=MARK_PLAN, tool_name="Agents", details=row)
+    return render_tool_call_tree(
+        mark=MARK_PLAN,
+        tool_name="Agents",
+        details=row,
+        mark_style=color if color is not None else ThemeKey.TOOL_MARK,
+        name_style=color + Style(bold=True) if color is not None else ThemeKey.TOOL_NAME,
+    )

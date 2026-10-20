@@ -108,7 +108,7 @@ def test_sub_agent_status_lines_hide_main_reasoning() -> None:
     assert _agent_rows(update)[0].session_id == sub_session
     lines = [_line_plain(line) for line in _agent_rows(update)]
     assert lines == [
-        "Finder: searching xxxxx · test-model medium · Running… · 0s",
+        "Finder searching xxxxx · test-model medium · Running… · 0s",
         "Initializing…",
     ]
     first_line = _agent_rows(update)[0].text
@@ -153,7 +153,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in _agent_rows(update)]
     assert lines == [
-        "Finder: searching yyyyy · test-model · Running… · 0s",
+        "Finder searching yyyyy · test-model · Running… · 0s",
         "Bashing…",
     ]
 
@@ -167,7 +167,7 @@ def test_sub_agent_status_line_shows_tool_counts() -> None:
     update = _last_spinner_update(cmds)
     lines = [_line_plain(line) for line in _agent_rows(update)]
     assert lines == [
-        "Finder: searching yyyyy · test-model · Running… · 0s",
+        "Finder searching yyyyy · test-model · Running… · 0s",
         "Bashing…",
         "Bashing…",
     ]
@@ -277,7 +277,7 @@ def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> N
     machine.transition(events.ThinkingStartEvent(session_id="sub-1"))
     thinking = machine.transition(events.ThinkingDeltaEvent(session_id="sub-1", content="reviewing"))
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(thinking))] == [
-        "Finder: tracking usage stats · test-model · 2 tools · Thinking… · 0s",
+        "Finder tracking usage stats · test-model · 2 tools · Thinking… · 0s",
         "Read ./stats.py ✓",
         "Read ./stats.py ✓",
     ]
@@ -287,7 +287,7 @@ def test_sub_agent_status_line_shows_completed_tool_count_before_activity() -> N
     commands = machine.transition(events.AssistantTextDeltaEvent(session_id="sub-1", content="result"))
 
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(commands))] == [
-        "Finder: tracking usage stats · test-model · 2 tools · Typing… · 0s",
+        "Finder tracking usage stats · test-model · 2 tools · Typing… · 0s",
         "Read ./stats.py ✓",
         "Read ./stats.py ✓",
     ]
@@ -323,7 +323,7 @@ def test_sub_agent_shows_up_to_four_latest_tool_activity_lines() -> None:
 
     assert last_update is not None
     assert [_line_plain(line) for line in _agent_rows(last_update)] == [
-        "Finder: searching · test-model · 4 tools · Running… · 0s",
+        "Finder searching · test-model · 4 tools · Running… · 0s",
         "Reading… ./src/0.py",
         "Reading… ./src/1.py",
         "Reading… ./src/2.py",
@@ -361,7 +361,7 @@ def test_sub_agent_summarizes_earlier_tools_and_keeps_history_across_steps() -> 
 
     assert last_update is not None
     assert [_line_plain(line) for line in _agent_rows(last_update)] == [
-        "Finder: searching · test-model · 6 tools · Running… · 0s",
+        "Finder searching · test-model · 6 tools · Running… · 0s",
         "… (more 3 tools)",
         "Reading… ./src/3.py",
         "Reading… ./src/4.py",
@@ -370,7 +370,7 @@ def test_sub_agent_summarizes_earlier_tools_and_keeps_history_across_steps() -> 
 
     next_step = machine.transition(events.StepStartEvent(session_id="sub-1"))
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(next_step))] == [
-        "Finder: searching · test-model · 6 tools · Running… · 0s",
+        "Finder searching · test-model · 6 tools · Running… · 0s",
         "… (more 3 tools)",
         "Reading… ./src/3.py",
         "Reading… ./src/4.py",
@@ -386,7 +386,7 @@ def test_sub_agent_summarizes_earlier_tools_and_keeps_history_across_steps() -> 
         )
     )
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(next_tool))] == [
-        "Finder: searching · test-model · 7 tools · Running… · 0s",
+        "Finder searching · test-model · 7 tools · Running… · 0s",
         "… (more 4 tools)",
         "Reading… ./src/4.py",
         "Reading… ./src/5.py",
@@ -417,7 +417,7 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: py
 
     first_step = machine.transition(events.StepStartEvent(session_id=sub_session))
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(first_step))] == [
-        "GeneralPurpose: compressing context · test-model · Running… · 2s",
+        "GeneralPurpose compressing context · test-model · Running… · 2s",
         "Initializing…",
     ]
 
@@ -425,20 +425,20 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: py
     machine.transition(events.ThinkingDeltaEvent(session_id=sub_session, content="x" * 1234, timestamp=101.0))
     thinking = machine.transition(events.ThinkingDeltaEvent(session_id=sub_session, content=" second", timestamp=102.0))
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(thinking))] == [
-        "GeneralPurpose: compressing context · test-model · Thinking… · 2s",
+        "GeneralPurpose compressing context · test-model · Thinking… · 2s",
         "Initializing…",
     ]
 
     now = 125.0
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(thinking))] == [
-        "GeneralPurpose: compressing context · test-model · Thinking… · 25s",
+        "GeneralPurpose compressing context · test-model · Thinking… · 25s",
         "Initializing…",
     ]
 
     ended = machine.transition(events.ThinkingEndEvent(session_id=sub_session, timestamp=120.0))
     assert not any(isinstance(cmd, RenderSubAgentThinking) for cmd in ended)
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(ended))] == [
-        "GeneralPurpose: compressing context · test-model · Running… · 25s",
+        "GeneralPurpose compressing context · test-model · Running… · 25s",
         "Initializing…",
     ]
 
@@ -446,7 +446,7 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: py
     typing = machine.transition(events.AssistantTextDeltaEvent(session_id=sub_session, content="y" * 2345))
     typing_update = _last_spinner_update(typing)
     assert [_line_plain(line) for line in _agent_rows(typing_update)] == [
-        "GeneralPurpose: compressing context · test-model · Typing… · 25s",
+        "GeneralPurpose compressing context · test-model · Typing… · 25s",
         "Initializing…",
     ]
     typing_line = _agent_rows(typing_update)[0].text
@@ -460,13 +460,13 @@ def test_sub_agent_status_tracks_thinking_and_typing_char_counts(monkeypatch: py
 
     composed = machine.transition(events.AssistantTextEndEvent(session_id=sub_session))
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(composed))] == [
-        "GeneralPurpose: compressing context · test-model · Running… · 25s",
+        "GeneralPurpose compressing context · test-model · Running… · 25s",
         "Initializing…",
     ]
 
     second_step = machine.transition(events.StepStartEvent(session_id=sub_session))
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(second_step))] == [
-        "GeneralPurpose: compressing context · test-model · Running… · 25s",
+        "GeneralPurpose compressing context · test-model · Running… · 25s",
         "Initializing…",
     ]
 
@@ -494,7 +494,7 @@ def test_sub_agent_new_step_clears_interrupted_thinking() -> None:
     typing = machine.transition(events.AssistantTextDeltaEvent(session_id=sub_session, content="answer"))
 
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(typing))] == [
-        "Finder: retrying · test-model · Typing… · 0s",
+        "Finder retrying · test-model · Typing… · 0s",
         "Initializing…",
     ]
 
@@ -586,11 +586,11 @@ def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pyte
     assert not any(isinstance(command, RenderSubAgentBatchSummary) for command in first_finished)
     first_status = _last_spinner_update(first_finished)
     assert [_line_plain(line) for line in _agent_rows(first_status)] == [
-        "Finder: task 0 · test-model · 1 tool ✓ · 5s",
+        "Finder task 0 · test-model · 1 tool ✓ · 5s",
         "Result",
         "Found the replay path.",
         "Also checked the renderer tests.",
-        "Finder: task 1 · test-model · Running… · 4s",
+        "Finder task 1 · test-model · Running… · 4s",
         "Initializing…",
     ]
 
@@ -705,11 +705,11 @@ def test_finished_summary_uses_actual_status_budget(monkeypatch: pytest.MonkeyPa
     )
 
     assert [_line_plain(line) for line in _agent_rows(_last_spinner_update(finished))] == [
-        "Finder: task 0 · test-model ✓ · 0s",
+        "Finder task 0 · test-model ✓ · 0s",
         "One",
         "Two",
         "Three",
-        "Finder: task 1 · test-model · 4 tools · Running… · 0s",
+        "Finder task 1 · test-model · 4 tools · Running… · 0s",
         "… (more 2 tools)",
         "Reading… ./src/2.py",
         "Reading… ./src/3.py",
@@ -1049,11 +1049,11 @@ def test_sub_agent_status_lines_cap_with_more_indicator(monkeypatch: pytest.Monk
     assert last_update is not None
     lines = [_line_plain(line) for line in _agent_rows(last_update)]
     assert lines == [
-        "Finder: searching 0 · test-model · Running… · 0s",
+        "Finder searching 0 · test-model · Running… · 0s",
         "Initializing…",
-        "Finder: searching 1 · test-model · Running… · 0s",
+        "Finder searching 1 · test-model · Running… · 0s",
         "Initializing…",
-        "Finder: searching 2 · test-model · Running… · 0s",
+        "Finder searching 2 · test-model · Running… · 0s",
         "Initializing…",
         "… 4 more agents",
     ]
@@ -1063,7 +1063,7 @@ def test_sub_agent_status_lines_cap_with_more_indicator(monkeypatch: pytest.Monk
     short_terminal = machine.transition(events.ThinkingStartEvent(session_id="sub-0"))
     short_update = _last_spinner_update(short_terminal)
     assert [_line_plain(line) for line in _agent_rows(short_update)] == [
-        "Finder: searching 0 · test-model · Thinking… · 0s",
+        "Finder searching 0 · test-model · Thinking… · 0s",
         "Initializing…",
         "… 6 more agents",
     ]
@@ -1108,7 +1108,7 @@ def test_sub_agent_status_reduces_to_three_tool_lines_to_keep_nine_agents_visibl
     for agent_index in range(9):
         start = agent_index * 4
         assert lines[start : start + 4] == [
-            f"Finder: searching {agent_index} · test-model · 4 tools · Running… · 0s",
+            f"Finder searching {agent_index} · test-model · 4 tools · Running… · 0s",
             "… (more 2 tools)",
             f"Reading… ./src/{agent_index}-2.py",
             f"Reading… ./src/{agent_index}-3.py",

@@ -88,7 +88,7 @@ def render_compact_sub_agent_summary(
     first = Text(no_wrap=True, overflow="ellipsis")
     first.append(title, style=identity_style)
     if description:
-        first.append(f": {description}", style=Style(color=color.color, italic=True))
+        first.append(f" {description}", style=Style(color=color.color, italic=True))
     if status == "success":
         first.append(" ")
         first.append("✓", style=ThemeKey.METADATA_GREEN)

@@ -666,6 +666,9 @@ class ToolCallEvent(ResponseEvent):
     tool_call_id: str
     tool_name: str
     arguments: str
+    tool_batch_id: str | None = None
+    tool_batch_index: int | None = None
+    tool_batch_size: int | None = None
     shell_task: ShellTaskSnapshot | None = None
 
 

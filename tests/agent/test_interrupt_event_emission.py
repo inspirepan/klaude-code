@@ -2,7 +2,21 @@ import unittest
 
 from klaude_code.agent.step import ToolCallRequest, build_events_from_tool_executor_event
 from klaude_code.protocol import events, message
-from klaude_code.tool.core.runner import ToolExecutionResult
+from klaude_code.tool.core.runner import ToolExecutionCallStarted, ToolExecutionResult
+
+
+def test_tool_call_event_preserves_batch_metadata() -> None:
+    event = ToolExecutionCallStarted(
+        tool_call=ToolCallRequest(response_id="r1", call_id="c1", tool_name="Agent", arguments_json="{}"),
+        tool_batch_id="r1",
+        tool_batch_index=1,
+        tool_batch_size=3,
+    )
+    translated = build_events_from_tool_executor_event("s1", event)
+    assert len(translated) == 1
+    launch = translated[0]
+    assert isinstance(launch, events.ToolCallEvent)
+    assert (launch.tool_batch_id, launch.tool_batch_index, launch.tool_batch_size) == ("r1", 1, 3)
 
 
 class TestInterruptEventEmission(unittest.TestCase):

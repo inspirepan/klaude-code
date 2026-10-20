@@ -107,6 +107,9 @@ def build_events_from_tool_executor_event(session_id: str, event: ToolExecutorEv
                     tool_call_id=tool_call.call_id,
                     tool_name=tool_call.tool_name,
                     arguments=tool_call.arguments_json,
+                    tool_batch_id=event.tool_batch_id,
+                    tool_batch_index=event.tool_batch_index,
+                    tool_batch_size=event.tool_batch_size,
                 )
             )
         case ToolExecutionResult(tool_call=tool_call, tool_result=tool_result, is_last_in_step=is_last_in_step):

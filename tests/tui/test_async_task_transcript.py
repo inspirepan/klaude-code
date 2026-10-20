@@ -184,8 +184,8 @@ def test_compact_transcript_reports_each_background_fact_once(
     out = capsys.readouterr().out
     # The first launch shares the header row; consecutive launches use tree rows.
     assert out.count("◈ Agents") == 1
-    launch_lines = [line.strip() for line in out.splitlines() if "◈ Agents" in line or "↳ Finder:" in line]
-    assert launch_lines == ["◈ Agents  Finder: Find the panel", "↳ Finder: Review the style"]
+    launch_lines = [line.strip() for line in out.splitlines() if "◈ Agents" in line or "↳ Finder " in line]
+    assert launch_lines == ["◈ Agents  Finder Find the panel", "↳ Finder Review the style"]
     # Repeated waits on one task collapse; a still-running result prints nothing.
     assert out.count("Waiting for Find the panel") == 1
     assert "· running" not in out and "interrupted" not in out
@@ -193,7 +193,7 @@ def test_compact_transcript_reports_each_background_fact_once(
     assert "✉ Message to [finder] Find the panel" in out and "│ first line" in out and "│ second line" in out
     assert "› Message from [finder] Find the panel" in out and "│ hello" in out and "queued" not in out
     # One block per finished agent, with the type, the report head, and no IDs or cost tree.
-    assert out.count("Finder: Find the panel ✓") == 1
+    assert out.count("Finder Find the panel ✓") == 1
     assert "render_collaboration_result 已解析" in out and "第二点" in out and "第三点" not in out
     assert "Background task" not in out and "total cost" not in out
     assert "task-a" not in out and "child-a" not in out
@@ -214,7 +214,7 @@ def test_single_agent_launch_uses_one_line(monkeypatch: pytest.MonkeyPatch, caps
 
     asyncio.run(run())
     lines = [line.strip() for line in capsys.readouterr().out.splitlines() if line.strip()]
-    assert lines == ["◈ Agents  Finder: Find the panel"]
+    assert lines == ["◈ Agents  Finder Find the panel"]
 
 
 def test_compact_transcript_does_not_report_a_sub_agent_shell_finish(
@@ -421,7 +421,7 @@ def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatc
         finally:
             await display.stop()
         assert "Waiting for Find the panel" in texts[0]
-        assert "Finder: Find the panel · 1 tool" in texts[1]
+        assert "Finder Find the panel · 1 tool" in texts[1]
         assert any("Reading" in text and "src/app.py" in text for text in texts)
         assert texts[-1] == " ◈  1 agent running  /tasks"
         # The live tail (thinking preview) renders between the main row and the child rows.

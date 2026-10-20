@@ -85,7 +85,7 @@ class TreeQuote:
         return Measurement(minimum, maximum)
 
     @classmethod
-    def for_tool_call(cls, content: "RenderableType", *, mark: str, style: str, style_first: str) -> Self:
+    def for_tool_call(cls, content: "RenderableType", *, mark: str, style: str, style_first: str | Style) -> Self:
         """Create a tree quote for tool call display.
 
         The mark appears on the first line; continuation lines are blank, so a

@@ -71,6 +71,9 @@ class ToolExecutionCallStarted:
     """Represents the start of a tool call execution."""
 
     tool_call: ToolCallRequest
+    tool_batch_id: str | None = None
+    tool_batch_index: int | None = None
+    tool_batch_size: int | None = None
 
 
 @dataclass
@@ -260,7 +263,7 @@ class ToolExecutor:
                 cancel_result.ui_extra = SessionIdUIExtra(session_id=session_id)
 
             if call_id not in self._call_event_emitted:
-                events_to_yield.append(ToolExecutionCallStarted(tool_call=tool_call))
+                events_to_yield.append(self._build_tool_call_started(tool_call))
                 self._call_event_emitted.add(call_id)
 
             events_to_yield.append(
@@ -305,7 +308,13 @@ class ToolExecutor:
         return sequential_tool_calls, concurrent_tool_calls
 
     def _build_tool_call_started(self, tool_call: ToolCallRequest) -> ToolExecutionCallStarted:
-        return ToolExecutionCallStarted(tool_call=tool_call)
+        batch_info = self._tool_batch_info.get(tool_call.call_id)
+        return ToolExecutionCallStarted(
+            tool_call=tool_call,
+            tool_batch_id=batch_info[0] if batch_info is not None else None,
+            tool_batch_index=batch_info[1] if batch_info is not None else None,
+            tool_batch_size=batch_info[2] if batch_info is not None else None,
+        )
 
     async def _forward_tool_call_events(
         self,

@@ -450,21 +450,28 @@ class TUICommandRenderer:
             batch_id = sub_agent_state.parent_tool_batch_id
             batch_index = sub_agent_state.parent_tool_batch_index
             batch_size = sub_agent_state.parent_tool_batch_size
-            if self._compact and batch_id is not None and batch_index is not None and self.themes.sub_agent_styles:
-                palette_size = len(self.themes.sub_agent_styles)
-                batch_color_start = self._sub_agent_batch_color_starts.get(batch_id)
-                if batch_color_start is None:
-                    batch_color_start = self._sub_agent_color_index
-                    self._sub_agent_batch_color_starts[batch_id] = batch_color_start
-                    reserved_colors = max(batch_size or 0, batch_index + 1)
-                    self._sub_agent_color_index = (batch_color_start + reserved_colors) % palette_size
-                color_index = (batch_color_start + batch_index + 1) % palette_size
+            color_index = self._get_sub_agent_batch_color_index(batch_id, batch_index, batch_size)
+            if color_index is not None:
                 color = self.themes.sub_agent_styles[color_index]
             else:
                 color, color_index = self._pick_sub_agent_color()
             st.color = color
             st.color_index = color_index
         self._sessions[session_id] = st
+
+    def _get_sub_agent_batch_color_index(
+        self, batch_id: str | None, batch_index: int | None, batch_size: int | None
+    ) -> int | None:
+        palette_size = len(self.themes.sub_agent_styles)
+        if batch_id is None or batch_index is None or not palette_size:
+            return None
+        batch_color_start = self._sub_agent_batch_color_starts.get(batch_id)
+        if batch_color_start is None:
+            batch_color_start = self._sub_agent_color_index
+            self._sub_agent_batch_color_starts[batch_id] = batch_color_start
+            reserved_colors = max(batch_size or 0, batch_index + 1)
+            self._sub_agent_color_index = (batch_color_start + reserved_colors) % palette_size
+        return (batch_color_start + batch_index + 1) % palette_size
 
     def is_sub_agent_session(self, session_id: str) -> bool:
         return session_id in self._sessions and self._sessions[session_id].sub_agent_state is not None
@@ -1062,12 +1069,19 @@ class TUICommandRenderer:
         self._last_print_key = key
 
     def display_tool_call(self, e: events.ToolCallEvent, *, shell_task: ShellTaskSnapshot | None = None) -> bool:
+        is_agent_launch = c_tools.is_sub_agent_tool(e.tool_name)
+        color_index = (
+            self._get_sub_agent_batch_color_index(e.tool_batch_id, e.tool_batch_index, e.tool_batch_size)
+            if is_agent_launch
+            else None
+        )
         if not self._visible(e):
             return False
-        if c_tools.is_sub_agent_tool(e.tool_name):
+        if is_agent_launch:
             # The child's own block reports its work; the launch itself is one row.
             key = ("agent-launch", e.session_id)
-            self._print_keyed(render_agent_launch(e.arguments, first=self._last_print_key != key), key)
+            color = self.themes.sub_agent_styles[color_index] if color_index is not None else None
+            self._print_keyed(render_agent_launch(e.arguments, first=self._last_print_key != key, color=color), key)
             return True
         if e.tool_name == tools.MANAGE_TASKS:
             args = parse_tool_arguments(e.arguments)

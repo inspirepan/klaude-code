@@ -547,6 +547,10 @@ class TestSessionPersistence:
             main_session = Session.create(id="synth-main", work_dir=project_dir)
             main_session.append_history(
                 [
+                    message.AssistantMessage(
+                        response_id="different-response",
+                        parts=[message.ToolCallPart(call_id="launch", tool_name="Agent", arguments_json="{}")],
+                    ),
                     message.SpawnSubAgentEntry(
                         session_id=sub_session.id,
                         sub_agent_type="general-purpose-fork-context",
@@ -556,16 +560,22 @@ class TestSessionPersistence:
                         parent_tool_batch_index=2,
                         parent_tool_batch_size=3,
                     ),
+                    message.ToolResultMessage(
+                        call_id="launch",
+                        tool_name="Agent",
+                        output_text="done",
+                        status="success",
+                        ui_extra=SessionIdUIExtra(session_id=sub_session.id),
+                    ),
                 ]
             )
             await main_session.wait_for_flush()
 
             reloaded = Session.load(main_session.id, work_dir=project_dir)
-            sub_starts = [
-                e
-                for e in reloaded.get_history_item()
-                if isinstance(e, events.TaskStartEvent) and e.session_id == sub_session.id
-            ]
+            replay = list(reloaded.get_history_item())
+            launch = next(e for e in replay if isinstance(e, events.ToolCallEvent) and e.tool_call_id == "launch")
+            assert (launch.tool_batch_id, launch.tool_batch_index, launch.tool_batch_size) == ("batch-1", 2, 3)
+            sub_starts = [e for e in replay if isinstance(e, events.TaskStartEvent) and e.session_id == sub_session.id]
             assert sub_starts
             state = sub_starts[0].sub_agent_state
             assert state is not None
@@ -580,6 +590,42 @@ class TestSessionPersistence:
             await close_default_store()
 
         arun(_test())
+
+    @pytest.mark.parametrize("response_id", [None, "response-1"])
+    @pytest.mark.parametrize("has_batch", [False, True])
+    def test_replay_pending_agent_launch_uses_only_persisted_batch(
+        self, tmp_path: Path, response_id: str | None, has_batch: bool
+    ) -> None:
+        session = Session(work_dir=tmp_path)
+        batch_id = response_id or "tool-step:agent-a"
+        session.conversation_history = [
+            message.AssistantMessage(
+                response_id=response_id,
+                parts=[
+                    message.ToolCallPart(call_id="agent-a", tool_name="Agent", arguments_json="{}"),
+                    message.ToolCallPart(call_id="bash", tool_name="Bash", arguments_json="{}"),
+                    message.ToolCallPart(call_id="agent-b", tool_name="Agent", arguments_json="{}"),
+                ],
+            ),
+            message.SpawnSubAgentEntry(
+                session_id="missing-child",
+                sub_agent_type="Finder",
+                sub_agent_desc="search",
+                parent_tool_batch_id=batch_id if has_batch else None,
+                parent_tool_batch_index=1 if has_batch else None,
+                parent_tool_batch_size=2 if has_batch else None,
+            ),
+        ]
+        launches = {
+            event.tool_call_id: event for event in session.get_history_item() if isinstance(event, events.ToolCallEvent)
+        }
+        for call_id in ("agent-a", "bash"):
+            launch = launches[call_id]
+            assert (launch.tool_batch_id, launch.tool_batch_index, launch.tool_batch_size) == (None, None, None)
+        launch = launches["agent-b"]
+        assert (launch.tool_batch_id, launch.tool_batch_index, launch.tool_batch_size) == (
+            (batch_id, 1, 2) if has_batch else (None, None, None)
+        )
 
     def test_spawn_sub_agent_entry_no_task_finish_when_still_running(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

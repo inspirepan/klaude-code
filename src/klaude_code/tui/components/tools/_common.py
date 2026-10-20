@@ -7,6 +7,7 @@ from rich.constrain import Constrain
 from rich.measure import Measurement
 from rich.padding import Padding
 from rich.panel import Panel
+from rich.style import StyleType
 from rich.text import Text
 
 from klaude_code.const import DIFF_MAX_RENDER_WIDTH, INVALID_TOOL_CALL_MAX_LENGTH
@@ -125,11 +126,12 @@ def render_tool_call_tree(
     tool_name: str,
     details: RenderableType | None,
     overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "ellipsis",
-    mark_style: str = ThemeKey.TOOL_MARK,
+    mark_style: StyleType = ThemeKey.TOOL_MARK,
+    name_style: StyleType = ThemeKey.TOOL_NAME,
 ) -> RenderableType:
     grid = create_grid(overflow=overflow, label_min_width=TOOL_NAME_COLUMN_WIDTH)
     grid.add_row(
-        Text(tool_name, style=ThemeKey.TOOL_NAME),
+        Text(tool_name, style=name_style),
         details if details is not None else Text(""),
     )
 

@@ -240,7 +240,11 @@ def test_agent_calls_receive_stable_batch_context() -> None:
             ToolCallRequest(response_id="response-1", call_id="agent-a", tool_name=tools.AGENT, arguments_json="{}"),
             ToolCallRequest(response_id="response-1", call_id="agent-b", tool_name=tools.AGENT, arguments_json="{}"),
         ]
-        _ = [event async for event in executor.run_tools(calls)]
+        started = [event async for event in executor.run_tools(calls) if isinstance(event, ToolExecutionCallStarted)]
+        assert [(event.tool_batch_id, event.tool_batch_index, event.tool_batch_size) for event in started] == [
+            ("response-1", 0, 2),
+            ("response-1", 1, 2),
+        ]
 
     arun(_test())
     assert sorted(seen) == [

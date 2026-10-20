@@ -116,7 +116,7 @@ def test_compact_sub_agent_edits_print_nothing_and_sum_up_in_the_run_block() -> 
     assert printed == ""
 
     block = _finish(renderer)
-    assert "GeneralPurpose: update generated files ✓" in block
+    assert "GeneralPurpose update generated files ✓" in block
     assert "↳ updated the files" in block
     lines = block.splitlines()
     assert any(line.endswith("± 4 files  +6") for line in lines)
@@ -156,7 +156,7 @@ def test_sub_agent_changes_keep_per_file_counts_with_long_paths() -> None:
 
 def test_run_block_without_a_result_has_no_placeholder_line() -> None:
     block = _finish(_renderer_with_child(), result_summary="")
-    assert "GeneralPurpose: update generated files ✓" in block
+    assert "GeneralPurpose update generated files ✓" in block
     assert "↳" not in block and "no summary" not in block
 
 

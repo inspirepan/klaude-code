@@ -1,13 +1,16 @@
 # pyright: reportPrivateUsage=false
 
 import io
+import json
 from pathlib import Path
 from typing import cast
 
+import pytest
 from rich.console import Console, RenderableType
 from rich.text import Text
 
-from klaude_code.protocol import events
+from klaude_code.protocol import events, tools
+from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
 
 
 def _renderer_console(renderer: object) -> Console:
@@ -253,6 +256,99 @@ def test_compact_sub_agent_colors_continue_across_tool_batches() -> None:
     )
 
     assert renderer._sessions["batch-a-replay"].color_index == 1
+
+
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+def test_agent_launch_reuses_child_identity_color(monkeypatch: pytest.MonkeyPatch, detail: Detail) -> None:
+    from klaude_code.protocol.models import SubAgentState
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer(detail=TranscriptDetail(detail))
+    console = _renderer_console(renderer)
+    launches: list[RenderableType] = []
+    monkeypatch.setattr(renderer, "print", lambda row: launches.append(row))
+
+    for replay in range(2):
+        if replay:
+            renderer.reset_replay_state()
+        launches.clear()
+        for index in range(2):
+            renderer.display_tool_call(
+                events.ToolCallEvent(
+                    session_id="main",
+                    tool_call_id=f"call-{index}",
+                    tool_name=tools.AGENT,
+                    arguments=json.dumps({"type": "finder", "description": f"inspect-{index}"}),
+                    tool_batch_id="batch",
+                    tool_batch_index=index,
+                    tool_batch_size=2,
+                )
+            )
+        # Children can start in a different order from their launch rows.
+        for index in (1, 0):
+            renderer.register_session(
+                f"child-{index}",
+                SubAgentState(
+                    sub_agent_type="finder",
+                    sub_agent_desc=f"inspect-{index}",
+                    sub_agent_prompt="prompt",
+                    parent_tool_batch_id="batch",
+                    parent_tool_batch_index=index,
+                    parent_tool_batch_size=2,
+                ),
+            )
+        for index, row in enumerate(launches):
+            color = renderer._get_session_sub_agent_color(f"child-{index}").color
+            assert color == renderer.themes.sub_agent_styles[index + 1].color
+            segments = list(console.render(row))
+            for label in ("Finder", f"inspect-{index}", "◈" if index == 0 else "↳"):
+                segment = next(segment for segment in segments if label in segment.text)
+                assert segment.style is not None
+                assert segment.style.color == color
+            if index == 0:
+                name = next(segment for segment in segments if "Agents" in segment.text)
+                assert name.style is not None and name.style.color == color and name.style.bold
+
+
+def test_hidden_nested_agent_launches_reserve_same_colors_as_full_mode() -> None:
+    from klaude_code.protocol.models import SubAgentState
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    colors: dict[Detail, list[int | None]] = {}
+    for detail in (Detail.COMPACT, Detail.FULL):
+        renderer = TUICommandRenderer(detail=TranscriptDetail(detail))
+        _renderer_console(renderer)
+        renderer.register_session(
+            "parent",
+            SubAgentState(sub_agent_type="general-purpose-fork-context", sub_agent_desc="parent", sub_agent_prompt=""),
+        )
+        for batch_id in ("batch-a", "batch-b"):
+            displayed = renderer.display_tool_call(
+                events.ToolCallEvent(
+                    session_id="parent",
+                    tool_call_id=batch_id,
+                    tool_name=tools.AGENT,
+                    arguments='{"type": "finder", "description": "nested"}',
+                    tool_batch_id=batch_id,
+                    tool_batch_index=0,
+                    tool_batch_size=1,
+                )
+            )
+            assert displayed is (detail is Detail.FULL)
+        for batch_id in ("batch-b", "batch-a"):
+            renderer.register_session(
+                batch_id,
+                SubAgentState(
+                    sub_agent_type="finder",
+                    sub_agent_desc="nested",
+                    sub_agent_prompt="",
+                    parent_tool_batch_id=batch_id,
+                    parent_tool_batch_index=0,
+                    parent_tool_batch_size=1,
+                ),
+            )
+        colors[detail] = [renderer._sessions[batch_id].color_index for batch_id in ("batch-a", "batch-b")]
+    assert colors[Detail.COMPACT] == colors[Detail.FULL] == [2, 3]
 
 
 def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:

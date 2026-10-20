@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field, PrivateAttr, ValidationError
 from klaude_code.const import ProjectPaths
 from klaude_code.prompts.compaction import FORK_SUMMARY_USER_PREFIX
 from klaude_code.prompts.messages import REWIND_REMINDER_TEMPLATE, TOOL_INTERRUPTED_MESSAGE
-from klaude_code.protocol import events, llm_param, message
+from klaude_code.protocol import events, llm_param, message, tools
 from klaude_code.protocol.models import (
     FileChangeSummary,
     FileStatus,
@@ -797,6 +797,19 @@ class Session(BaseModel):
         # indexes conversation_history (the tape splice depends on that) —
         # items are skipped, never re-indexed.
         replay_start = min(max(self._replay_cut_index, 0), history_len)
+        spawn_entries = {item.session_id: item for item in history if isinstance(item, message.SpawnSubAgentEntry)}
+        spawn_by_call = {
+            item.call_id: spawn_entries[item.ui_extra.session_id]
+            for item in history
+            if isinstance(item, message.ToolResultMessage)
+            and isinstance(item.ui_extra, SessionIdUIExtra)
+            and item.ui_extra.session_id in spawn_entries
+        }
+        spawn_by_batch = {
+            (entry.parent_tool_batch_id, entry.parent_tool_batch_index): entry
+            for entry in spawn_entries.values()
+            if entry.parent_tool_batch_id is not None and entry.parent_tool_batch_index is not None
+        }
         if history_len - replay_start <= 0:
             # Nothing happened yet: an empty replay must not synthesize a
             # dangling TaskStartEvent — the display machine would keep the
@@ -941,9 +954,21 @@ class Session(BaseModel):
                             response_id=am.response_id, session_id=self.id, timestamp=msg_ts
                         )
 
+                    agent_parts = [
+                        part
+                        for part in am.parts
+                        if isinstance(part, message.ToolCallPart) and part.tool_name == tools.AGENT
+                    ]
+                    agent_indices = {part.call_id: index for index, part in enumerate(agent_parts)}
                     for part in am.parts:
                         if not isinstance(part, message.ToolCallPart):
                             continue
+                        spawn = None
+                        if part.tool_name == tools.AGENT:
+                            batch_id = am.response_id or f"tool-step:{agent_parts[0].call_id}"
+                            spawn = spawn_by_call.get(part.call_id) or spawn_by_batch.get(
+                                (batch_id, agent_indices[part.call_id])
+                            )
                         pending_tool_calls[part.call_id] = events.ToolCallEvent(
                             tool_call_id=part.call_id,
                             tool_name=part.tool_name,
@@ -951,6 +976,9 @@ class Session(BaseModel):
                             response_id=am.response_id,
                             session_id=self.id,
                             timestamp=msg_ts,
+                            tool_batch_id=spawn.parent_tool_batch_id if spawn is not None else None,
+                            tool_batch_index=spawn.parent_tool_batch_index if spawn is not None else None,
+                            tool_batch_size=spawn.parent_tool_batch_size if spawn is not None else None,
                         )
                     if am.stop_reason == "aborted":
                         prev_step_interrupted = True
