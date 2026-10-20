@@ -567,6 +567,20 @@ class TUICommandRenderer:
         if self._continuous_block_session_id is None:
             return
 
+        # Invisible lifecycle events must not split an otherwise continuous
+        # tool block. TaskStart has not registered its session yet.
+        event = getattr(cmd, "event", None)
+        if isinstance(event, events.Event) and not is_visible(
+            event,
+            detail=self._detail.current,
+            is_sub_agent=(
+                event.sub_agent_state is not None
+                if isinstance(event, events.TaskStartEvent)
+                else self.is_sub_agent_session(event.session_id)
+            ),
+        ):
+            return
+
         match cmd:
             case PrintBlankLine():
                 self._clear_open_blocks()
@@ -593,6 +607,10 @@ class TUICommandRenderer:
             ):
                 return
             case RenderDeveloperMessage():
+                return
+            case RenderError(event=event) if event.can_retry:
+                return
+            case RenderUserMessage(event=event) if event.source == "peer_message":
                 return
             case RenderUserMessage(event=event) if self._compact and event.source in _CALLBACK_SOURCES:
                 # A background report is not a new turn: it joins the tool block it answers.
@@ -1499,6 +1517,8 @@ class TUICommandRenderer:
                     self.print(sourced)
             else:
                 self.print(sourced)
+            if event.source == "peer_message":
+                return True
         elif event.source == "shell_completion":
             tasks = event.shell_tasks
             if tasks:
@@ -1668,7 +1688,8 @@ class TUICommandRenderer:
                 self.print(c_errors.render_error(Text(message), can_retry=event.can_retry))
         else:
             self.print(c_errors.render_error(Text(message), can_retry=event.can_retry))
-        self.print()
+        if not event.can_retry:
+            self.print()
 
     @staticmethod
     def _strip_summary_tags(text: str) -> str:
@@ -2133,9 +2154,6 @@ class TUICommandRenderer:
                         )
                     if rendered:
                         self._open_continuous_block(event.session_id)
-                        if event.tool_name == tools.MESSAGE_PEER:
-                            # The panel is self-contained; keep its separator outside the child gutter.
-                            self._flush_open_blocks(scoped=False)
                 case RenderToolResult(event=event, is_sub_agent_session=is_sub_agent_session):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call_result(event, is_sub_agent=is_sub_agent_session)
@@ -2167,6 +2185,8 @@ class TUICommandRenderer:
                     self.display_interrupt(session_id)
                 case RenderError(event=event):
                     self.display_error(event)
+                    if event.can_retry and self._visible(event):
+                        self._open_continuous_block(event.session_id)
                 case RenderCompactionSummary(summary=summary, kept_items_brief=kept_items_brief, session_id=session_id):
                     self.display_compaction_summary(summary, kept_items_brief, session_id=session_id)
                 case RenderForkCacheHitRate(

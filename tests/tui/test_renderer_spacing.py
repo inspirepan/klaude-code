@@ -4,10 +4,12 @@ import asyncio
 import io
 from itertools import pairwise
 
+import pytest
 from rich.console import Console
 
 from klaude_code.protocol import events, message, tools
 from klaude_code.protocol.models import DeveloperUIExtra, SkillActivatedUIItem, SubAgentState
+from klaude_code.protocol.peer import PeerMessage, PeerReceipt
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendThinking,
@@ -42,6 +44,95 @@ def _renderer_and_output() -> tuple[TUICommandRenderer, io.StringIO]:
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)
     return renderer, output
+
+
+@pytest.mark.parametrize(
+    ("kind", "child"),
+    [("launch", False)]
+    + [(kind, child) for kind in ["warning", "send", "receive", "receipt"] for child in [False, True]],
+)
+def test_collaboration_and_warnings_continue_tool_block(kind: str, child: bool) -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "child" if child else "main"
+    state = SubAgentState(sub_agent_type="finder", sub_agent_desc="review", sub_agent_prompt="")
+    if child:
+        renderer.set_transcript_detail(Detail.FULL)
+        renderer.register_session(session_id, state)
+
+    def read(call_id: str) -> RenderToolCall:
+        return RenderToolCall(
+            events.ToolCallEvent(
+                session_id=session_id,
+                tool_call_id=call_id,
+                tool_name=tools.READ,
+                arguments=f'{{"file_path":"{call_id}.py"}}',
+            )
+        )
+
+    if kind == "launch":
+        middle = [
+            RenderToolCall(
+                events.ToolCallEvent(
+                    session_id=session_id,
+                    tool_call_id="launch",
+                    tool_name=tools.AGENT,
+                    arguments='{"type":"finder","description":"review"}',
+                )
+            ),
+            # Compact TaskStart is invisible but used to flush the launch block.
+            RenderTaskStart(
+                events.TaskStartEvent(
+                    session_id="new-child",
+                    parent_session_id=session_id,
+                    sub_agent_state=state,
+                )
+            ),
+        ]
+    elif kind == "warning":
+        middle = [
+            RenderError(
+                events.ErrorEvent(
+                    session_id=session_id,
+                    error_message="Prompt cache break detected:\nlikely server-side",
+                    can_retry=True,
+                )
+            )
+        ]
+    elif kind == "send":
+        middle = [
+            RenderToolCall(
+                events.ToolCallEvent(
+                    session_id=session_id,
+                    tool_call_id="send",
+                    tool_name=tools.MESSAGE_PEER,
+                    arguments='{"target":"peer","body":"please review"}',
+                )
+            )
+        ]
+    else:
+        peer = PeerMessage(sender_session_id="peer", sender_label="peer", recipient=session_id, body="review ready")
+        if kind == "receipt":
+            renderer._task_directory.name_main(session_id)
+            renderer._task_directory.name_child("peer", "finder", "reviewer")
+            renderer._task_directory.record_displayed_message(
+                PeerReceipt(message_id=peer.id, target=session_id), "peer"
+            )
+        middle = [
+            RenderUserMessage(
+                events.UserMessageEvent(
+                    session_id=session_id,
+                    source="peer_message",
+                    content=peer.body,
+                    peer_message=peer,
+                )
+            )
+        ]
+
+    asyncio.run(renderer.execute([read("before"), *middle, read("after")]))
+    lines = output.getvalue().splitlines()
+    assert any("before.py" in line for line in lines)
+    assert any("after.py" in line for line in lines)
+    assert all(line.strip(" ▌") for line in lines), output.getvalue()
 
 
 def test_step_start_does_not_add_extra_blank_line_before_retry_error() -> None:
@@ -552,11 +643,9 @@ def test_sub_agent_message_panel_ends_without_gutter_only_line() -> None:
             ]
         )
     )
-    renderer.flush_open_blocks()
-
     rendered = output.getvalue()
     assert "▌" in rendered and "Message to" in rendered and "hello" in rendered
-    assert rendered.endswith("╯\n\n")
+    assert rendered.endswith("╯\n")
     assert "▌ \n" not in rendered
 
 

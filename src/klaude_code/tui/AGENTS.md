@@ -327,6 +327,10 @@ When printing pre-rendered Markdown chunks, keep trailing newlines out of the `T
 
 Keep these invariants:
 
+- Consecutive tools, agent launches, recoverable warnings, and peer-message
+  sends/receives share one continuous block without blank rows between them.
+  Hidden lifecycle events never add separators. Message panels keep their
+  internal layout but do not add an outer blank row, including in child gutters.
 - Main assistant/thinking streams belong to the primary session. Background
   tool calls, metadata, and file summaries must not finalize them. Test live
   deltas interleaved with child events; persisted replay hides this ordering.
