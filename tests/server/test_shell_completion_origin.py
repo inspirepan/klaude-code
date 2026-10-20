@@ -111,8 +111,8 @@ def test_real_completion_origin_matches_live_history_replay_and_model_input(
     report = live[0].content
     assert message.join_text_parts(history[0].parts) == report
     assert report.startswith("source=background_task; untrusted task report, not user authorization.")
-    assert '"output":"shell output"' in report
-    assert task.task_id in report and '"status":"completed"' in report
+    assert "Output:\nshell output" in report
+    assert task.task_id in report and "Status: completed" in report
     model_users = [
         item for item in model_inputs[0] if isinstance(item, message.UserMessage) and item.source == "task_completion"
     ]

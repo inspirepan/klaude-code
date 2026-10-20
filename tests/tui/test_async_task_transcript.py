@@ -6,14 +6,15 @@ import pytest
 
 from klaude_code.protocol import events, llm_param, tools
 from klaude_code.protocol.background_task import (
-    MODEL_FACING_EXCLUDE,
     BackgroundTaskResult,
     BackgroundTaskSnapshot,
     TaskReference,
     TaskResponse,
+    format_task_response,
 )
 from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState
 from klaude_code.protocol.models.session_status import SessionStatus
+from klaude_code.protocol.models.tool_ui import ControlUIExtra
 from klaude_code.protocol.peer import PeerMessage, PeerReceipt
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui import machine as machine_module
@@ -111,7 +112,8 @@ def _wait(call_id: str, task_id: str) -> list[events.Event]:
             tool_call_id=call_id,
             tool_name=tools.MANAGE_TASKS,
             status="success",
-            result="source=background_task\ninterrupted-wait; still-running.\n" + response.model_dump_json(),
+            result=format_task_response(response),
+            ui_extra=ControlUIExtra(data=response.model_dump(mode="json")),
         ),
     ]
 
@@ -160,7 +162,8 @@ def test_compact_transcript_reports_each_background_fact_once(
             events.UserMessageEvent(
                 session_id="main",
                 source="task_completion",
-                content="source=background_task\n" + report.model_dump_json(),
+                content=format_task_response(report, completion_report=True),
+                task_response=report,
             ),
             *(
                 events.UserMessageEvent(
@@ -406,8 +409,8 @@ def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatc
 
 def test_snapshot_summary_is_display_only() -> None:
     response = TaskResponse(tasks=[_agent("task-a", "child-a", "Find the panel", "completed")])
-    model_text = response.model_dump_json(exclude_none=True, exclude=MODEL_FACING_EXCLUDE)
-    assert "summary" not in model_text and '"agent_type":"finder"' in model_text
+    model_text = format_task_response(response)
+    assert "summary" not in model_text and "Agent: finder" in model_text
     assert "render_collaboration_result" in response.model_dump_json()
 
 
@@ -434,7 +437,8 @@ def test_peer_body_folds_only_after_a_displayed_send_is_identified(
             tool_call_id="send",
             tool_name=tools.MESSAGE_PEER,
             status="success",
-            result=PeerReceipt(message_id=peer.id, target=recipient).model_dump_json(),
+            result="Message queued; not proof of reading.",
+            ui_extra=ControlUIExtra(data=PeerReceipt(message_id=peer.id, target=recipient).model_dump(mode="json")),
         )
         received = events.UserMessageEvent(session_id=recipient, source="peer_message", peer_message=peer, content="x")
         script: list[events.Event] = [

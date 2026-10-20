@@ -32,7 +32,7 @@ def test_native_peer_tools_bind_sender_to_context_and_return_only_transport_rece
         )
         discovery = await ListPeersTool.call("{}", context)
         assert discovery.status == "success"
-        assert json.loads(discovery.output_text)["peers"][0]["session_id"] == "peer"
+        assert "Session: peer" in discovery.output_text and "Status: running" in discovery.output_text
         result = await MessagePeerTool.call(
             json.dumps(
                 {
@@ -46,11 +46,8 @@ def test_native_peer_tools_bind_sender_to_context_and_return_only_transport_rece
         )
         assert result.status == "success"
         assert calls == [("runtime-session", "peer", "body", "previous")]
-        assert json.loads(result.output_text) == {
-            "message_id": "message",
-            "target": "peer",
-            "accepted": True,
-            "mode": "queued",
-        }
+        assert "Message: message" in result.output_text and "Target: peer" in result.output_text
+        assert "Accepted: true" in result.output_text and "Delivery: queued" in result.output_text
+        assert "not proof of reading or a reply" in result.output_text
 
     asyncio.run(run())

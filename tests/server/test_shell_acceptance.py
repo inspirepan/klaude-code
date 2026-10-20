@@ -175,7 +175,7 @@ def test_real_bash_handoff_continues_same_process_and_delivers_on_next_input(
         assert len(completion_inputs) == 1
         report = message.join_text_parts(completion_inputs[0].parts)
         assert task.task_id in report
-        assert '"status":"completed"' in report
+        assert "Status: completed" in report
         assert f"DONE:{task.pid}" in report
 
         assert app_env.client.portal is not None

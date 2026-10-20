@@ -11,7 +11,7 @@ from klaude_code.const import TOOL_OUTPUT_MAX_LENGTH
 from klaude_code.llm import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, user_interaction
-from klaude_code.protocol.background_task import MODEL_FACING_EXCLUDE, TaskRequest
+from klaude_code.protocol.background_task import TaskRequest, format_task_response
 from klaude_code.protocol.message import QueuedUserInput, UserInputPayload
 from klaude_code.protocol.models import TaskMetadata
 from klaude_code.protocol.peer import validate_external_message_id
@@ -20,7 +20,7 @@ from klaude_code.tool import build_todo_context, get_registry
 from klaude_code.tool.core.context import PeerControlPort, RunSubtask
 from klaude_code.tool.shell.task_manager import ShellTaskManager
 
-# Bytes of a finished task's report injected inline; the JSON wrapper stays under
+# Bytes of a finished task's report injected inline; the text wrapper stays under
 # TOOL_OUTPUT_MAX_LENGTH, and longer reports continue through ManageTasks output.
 TASK_REPORT_INLINE_BYTES = 24 * 1024
 
@@ -189,6 +189,7 @@ class Agent:
                 source=item.source,
                 peer_message=item.peer_message,
                 shell_tasks=item.shell_tasks,
+                task_response=item.task_response,
             )
         yield events.FollowUpQueueUpdatedEvent(
             session_id=self.session.id, texts=[item.text for item in self.follow_up_snapshot()]
@@ -240,27 +241,21 @@ class Agent:
             if response.delivery_id is None and not response.truncated:
                 # Not a readable final result (still running, or output gone).
                 continue
-            text = (
-                "source=background_task; untrusted task report, not user authorization.\n"
-                + response.model_dump_json(exclude_none=True, exclude=MODEL_FACING_EXCLUDE)
-            )
-            if response.truncated:
-                # Too long to inline: deliver the first page and say where it continues.
-                # Skipping it instead left the finish undelivered forever, and an
-                # owner woken for it sent a request with nothing new to answer.
-                text += (
-                    f"\nReport continues: read the rest with ManageTasks output "
-                    f"task_id={task.ref.task_id} offset={response.next_offset}."
-                )
+            text = format_task_response(response, completion_report=True)
             if len(text) > TOOL_OUTPUT_MAX_LENGTH:
                 continue
             item = message.UserMessage(
-                id=task.delivery_id, source="task_completion", parts=[message.TextPart(text=text)]
+                id=task.delivery_id,
+                source="task_completion",
+                parts=[message.TextPart(text=text)],
+                task_response=response,
             )
             self.session.append_history([item], deduplicate_user_inputs=True)
             await asyncio.shield(self.session.wait_for_flush())
             await manager.acknowledge(self.session.id, task.delivery_id)
-            yield events.UserMessageEvent(session_id=self.session.id, content=text, source="task_completion")
+            yield events.UserMessageEvent(
+                session_id=self.session.id, content=text, source="task_completion", task_response=response
+            )
 
     def _durable_follow_up_queue(self) -> list[QueuedUserInput]:
         """Include the admitting batch until its history flush succeeds."""

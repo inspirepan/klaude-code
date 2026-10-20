@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from klaude_code.protocol.background_task import TaskResponse
 from klaude_code.protocol.models import (
     AssistantPhase,
     DeveloperUIExtra,
@@ -398,6 +399,7 @@ class UserMessage(MessageBase):
     source: UserMessageSource | None = None
     # UI-only metadata; provider adapters serialize parts, not these snapshots.
     shell_tasks: list[ShellTaskSnapshot] | None = None
+    task_response: TaskResponse | None = None
 
 
 class AssistantMessage(MessageBase):

@@ -1,10 +1,9 @@
 """Native discovery and explicit, non-RPC peer messaging."""
 
-import json
-
 from pydantic import BaseModel, Field
 
 from klaude_code.protocol import llm_param, message, tools
+from klaude_code.protocol.models.tool_ui import ControlUIExtra
 from klaude_code.tool.core.abc import ToolABC, ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.tool.core.context import ToolContext
 from klaude_code.tool.core.registry import register
@@ -41,8 +40,16 @@ class ListPeersTool(ToolABC):
             return message.ToolResultMessage(status="error", output_text="Peer discovery is unavailable.")
         try:
             peers = await context.peer_control.list(context.session_id, context.work_dir)
+            entries = [
+                f"Session: {peer.session_id} - {peer.name or peer.description or 'unnamed'}\n"
+                f"Status: {peer.state}\nWork directory: {peer.work_dir}"
+                + (f"\nDescription: {peer.description}" if peer.name and peer.description else "")
+                for peer in peers
+            ]
             return message.ToolResultMessage(
-                status="success", output_text=json.dumps({"peers": [peer.model_dump() for peer in peers]})
+                status="success",
+                output_text="\n\n".join(entries) or "No peers available.",
+                ui_extra=ControlUIExtra(data={"peers": [peer.model_dump(mode="json") for peer in peers]}),
             )
         except (ValueError, OSError) as exc:
             return message.ToolResultMessage(status="error", output_text=str(exc))
@@ -84,6 +91,14 @@ class MessagePeerTool(ToolABC):
         try:
             args = MessagePeerArguments.model_validate_json(arguments)
             receipt = await context.peer_control.send(context.session_id, args.target, args.body, args.reply_to)
-            return message.ToolResultMessage(status="success", output_text=receipt.model_dump_json())
+            return message.ToolResultMessage(
+                status="success",
+                output_text=(
+                    f"Message: {receipt.message_id}\nTarget: {receipt.target}\n"
+                    f"Accepted: {str(receipt.accepted).lower()}\nDelivery: {receipt.mode}\n"
+                    "Transport receipt only; not proof of reading or a reply."
+                ),
+                ui_extra=ControlUIExtra(data=receipt.model_dump(mode="json")),
+            )
         except (ValueError, OSError) as exc:
             return message.ToolResultMessage(status="error", output_text=str(exc))

@@ -16,6 +16,7 @@ from klaude_code.protocol.background_task import (
 )
 from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, TaskMetadata, TaskMetadataItem, Usage
 from klaude_code.protocol.models.session_status import SessionStatus
+from klaude_code.protocol.models.tool_ui import ControlUIExtra
 from klaude_code.protocol.peer import PeerMessage
 from klaude_code.protocol.user_interaction import AskUserQuestionRequestPayload
 from klaude_code.session.session import Session
@@ -452,6 +453,35 @@ def test_control_result_and_native_tools_are_readable_and_pageable() -> None:
     assert receipt is not None and "not read" in plain(receipt)
     outgoing = get_tool_call_presentation(tools.MESSAGE_PEER, '{"target":"Alice","body":"summary\\nprivate detail"}')
     assert "Alice" in outgoing.subject and "summary" in outgoing.subject and "private detail" not in outgoing.subject
+
+
+def test_control_tools_render_structured_ui_data_instead_of_parsing_model_text() -> None:
+    response = TaskResponse(tasks=[task_snapshot("completed")], output="report")
+    managed = render_collaboration_result(
+        tools.MANAGE_TASKS,
+        "Readable text, not JSON",
+        detail=Detail.COMPACT,
+        ui_extra=ControlUIExtra(data=response.model_dump(mode="json")),
+    )
+    assert managed is not None and "inspect shared tasks" in plain(managed) and "report" in plain(managed)
+    peers = render_collaboration_result(
+        tools.LIST_PEERS,
+        "Session: peer-id - Alice",
+        detail=Detail.COMPACT,
+        ui_extra=ControlUIExtra(
+            data={
+                "peers": [
+                    {
+                        "session_id": "peer-id",
+                        "name": "Alice",
+                        "state": "running",
+                        "work_dir": "/tmp",
+                    }
+                ]
+            }
+        ),
+    )
+    assert peers is not None and "Alice" in plain(peers)
 
 
 def test_long_task_report_only_points_to_result_and_plain_user_is_not_a_peer() -> None:

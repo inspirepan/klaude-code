@@ -9,6 +9,7 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from uuid import UUID, uuid4
 
+from klaude_code.agent.runtime.agent_activity import update_agent_activity
 from klaude_code.const import ProjectPaths, project_key_from_path
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
@@ -16,6 +17,7 @@ from klaude_code.protocol.background_task import (
     ACTIVE_TASK_STATUSES,
     TASK_DELIVERY_ID_PREFIX,
     TASK_RESULT_SUMMARY_MAX_CHARS,
+    AgentActivity,
     BackgroundTaskResult,
     BackgroundTaskSnapshot,
     TaskReference,
@@ -81,6 +83,16 @@ class TaskManager:
         self._settle_locks: dict[str, asyncio.Lock] = {}
         self._settled: set[tuple[str, str]] = set()
         self._restored_results: set[str] = set()
+        self._activity: dict[str, AgentActivity] = {}
+
+    def record_agent_event(self, task_id: str, event: events.Event) -> None:
+        """Update live facts only; streaming events never cause disk writes or publications."""
+        task = self._records.get(task_id)
+        if task is None or task.status not in ACTIVE_TASK_STATUSES:
+            return
+        activity = update_agent_activity(self._activity.get(task_id), event)
+        if activity is not None:
+            self._activity[task_id] = activity
 
     async def _persist(self, task: BackgroundTaskSnapshot) -> None:
         task_id = task.ref.task_id
@@ -237,6 +249,12 @@ class TaskManager:
                 launch_error = exc
             finally:
                 task.ended_at = time.time()
+                activity = self._activity.get(task_id)
+                if activity is not None:
+                    activity.active_tools.clear()
+                    if activity.phase != "finished":
+                        activity.phase = "finished"
+                        activity.phase_started_at = task.ended_at
                 try:
                     if task_id in self._directories:
                         await self._persist(task)
@@ -282,9 +300,10 @@ class TaskManager:
                 await self.record_shell(shell, work_dir)
         return [self._snapshot(task) for task in self._records.values() if task.ref.owner_session_id == owner]
 
-    @staticmethod
-    def _snapshot(task: BackgroundTaskSnapshot) -> BackgroundTaskSnapshot:
+    def _snapshot(self, task: BackgroundTaskSnapshot) -> BackgroundTaskSnapshot:
         snapshot = task.model_copy(deep=True)
+        if task.ref.task_id in self._activity:
+            snapshot.activity = self._activity[task.ref.task_id].model_copy(deep=True)
         # Text is paginated by output/wait, not duplicated in every list/event.
         if snapshot.result is not None:
             snapshot.result.summary = snapshot.result.text[:TASK_RESULT_SUMMARY_MAX_CHARS] or None

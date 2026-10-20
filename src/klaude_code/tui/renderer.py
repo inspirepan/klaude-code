@@ -12,7 +12,6 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal, cast
 
-from pydantic import ValidationError
 from rich import box
 from rich.console import Console, Group, RenderableType
 from rich.padding import Padding
@@ -40,7 +39,6 @@ from klaude_code.protocol.models import (
     SubAgentState,
     UserImagesUIItem,
 )
-from klaude_code.protocol.peer import PeerReceipt
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -113,6 +111,7 @@ from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.background_tasks import (
     TaskDirectory,
+    parse_peer_receipt,
     parse_task_response,
     render_agent_launch,
     render_collaboration_call,
@@ -1088,11 +1087,8 @@ class TUICommandRenderer:
             self._displayed_message_calls.discard(call_key)
             if displayed and not e.is_error:
                 # Until the receipt binds the send to an ID, keep incoming bodies.
-                try:
-                    receipt = PeerReceipt.model_validate_json(e.result)
-                except ValidationError:
-                    pass
-                else:
+                receipt = parse_peer_receipt(e.result, e.ui_extra)
+                if receipt is not None:
                     self._task_directory.record_displayed_message(receipt, e.session_id)
         shell_call_key = (e.session_id, e.tool_call_id)
         show_shell_task_identity = shell_call_key not in self._shell_calls_with_identity
@@ -1105,7 +1101,7 @@ class TUICommandRenderer:
             return False
         task_action = self._task_call_actions.pop((e.session_id, e.tool_call_id), "")
         if e.tool_name == tools.MANAGE_TASKS and self._compact and task_action != "list" and e.status == "success":
-            response = parse_task_response(e.result)
+            response = parse_task_response(e.result, e.ui_extra)
             if response is not None:
                 return self.display_task_outcomes(response)
         if c_tools.is_sub_agent_tool(e.tool_name):
@@ -1482,7 +1478,7 @@ class TUICommandRenderer:
     def display_user_message(self, event: events.UserMessageEvent) -> bool:
         """Print a user turn or a sourced input; True when it continues the open tool block."""
         if event.source == "task_completion" and self._compact:
-            response = parse_task_response(event.content)
+            response = event.task_response or parse_task_response(event.content)
             if response is not None:
                 return self.display_task_outcomes(
                     response, include_shells=not self.is_sub_agent_session(event.session_id)

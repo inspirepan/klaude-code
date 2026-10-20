@@ -166,7 +166,10 @@ def test_busy_batch_keeps_two_senders_plaintext_and_history_tape_replay(
             )
             result = _call(env, MessagePeerTool.call, json.dumps({"target": target, "body": body}), context)
             assert result.status == "success"
-            receipts.append(PeerReceipt.model_validate_json(result.output_text))
+            assert f"Target: {target}" in result.output_text and "Accepted: true" in result.output_text
+            assert "Delivery: queued" in result.output_text
+            message_id = result.output_text.splitlines()[0].removeprefix("Message: ")
+            receipts.append(PeerReceipt(message_id=message_id, target=target))
         else:
             receipts.append(_call(env, env.runtime.peer_control.send, sender, target, body))
     assert all(receipt.accepted and receipt.target == target for receipt in receipts)

@@ -7,6 +7,8 @@ from rich.text import Text
 
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.background_task import ACTIVE_TASK_STATUSES, BackgroundTaskSnapshot, TaskResponse
+from klaude_code.protocol.models import ToolResultUIExtra
+from klaude_code.protocol.models.tool_ui import ControlUIExtra
 from klaude_code.protocol.peer import PeerInfo, PeerReceipt
 from klaude_code.tui.components.common import format_pascal_case, truncate_middle_lines
 from klaude_code.tui.components.rich.clip import MaxLines
@@ -176,7 +178,12 @@ def _looks_like_id(value: str) -> bool:
     return len(compact) >= 8 and all(char in "0123456789abcdef" for char in compact.lower())
 
 
-def parse_task_response(text: str) -> TaskResponse | None:
+def parse_task_response(text: str, ui_extra: ToolResultUIExtra | None = None) -> TaskResponse | None:
+    if isinstance(ui_extra, ControlUIExtra):
+        try:
+            return TaskResponse.model_validate(ui_extra.data)
+        except ValidationError:
+            return None
     lines = text.splitlines()
     while lines and (lines[0].startswith("source=") or lines[0].startswith("interrupted-wait")):
         lines.pop(0)
@@ -325,8 +332,9 @@ def render_manage_tasks_result(
     directory: TaskDirectory | None = None,
     max_lines: int | None = None,
     status: ToolResultStatus = "success",
+    ui_extra: ToolResultUIExtra | None = None,
 ) -> RenderableType | None:
-    response = parse_task_response(result)
+    response = parse_task_response(result, ui_extra)
     if status == "success" and response is not None:
         if directory is not None:
             directory.update(response.tasks)
@@ -415,7 +423,7 @@ def render_sourced_message(
     directory = directory or TaskDirectory()
     if event.source == "peer_message":
         return render_peer_message(event, detail=detail, directory=directory)
-    response = parse_task_response(event.content)
+    response = event.task_response or parse_task_response(event.content)
     if response is not None and drop_shell_tasks:
         remaining = [task for task in response.tasks if task.ref.kind != "shell"]
         if not remaining:
@@ -452,12 +460,19 @@ def render_collaboration_result(
     detail: Detail,
     max_lines: int | None = None,
     directory: TaskDirectory | None = None,
+    ui_extra: ToolResultUIExtra | None = None,
 ) -> RenderableType | None:
     try:
         if tool_name == tools.MANAGE_TASKS:
-            return render_manage_tasks_result(result, detail=detail, action="list", max_lines=max_lines)
+            return render_manage_tasks_result(
+                result, detail=detail, action="list", max_lines=max_lines, ui_extra=ui_extra
+            )
         if tool_name == tools.LIST_PEERS:
-            peers = PeerList.model_validate_json(result).peers
+            peers = (
+                PeerList.model_validate(ui_extra.data)
+                if isinstance(ui_extra, ControlUIExtra)
+                else PeerList.model_validate_json(result)
+            ).peers
             if directory is not None:
                 for peer in peers:
                     directory.name_peer(peer)
@@ -470,7 +485,9 @@ def render_collaboration_result(
                 lines.append(f"… {len(peers) - len(selected)} more peers · ctrl-o")
             return Text("\n".join(lines) or "No active peers.", style=ThemeKey.TOOL_RESULT, overflow="fold")
         if tool_name == tools.MESSAGE_PEER:
-            receipt = PeerReceipt.model_validate_json(result)
+            receipt = parse_peer_receipt(result, ui_extra)
+            if receipt is None:
+                return None
             return Text(
                 f"{'queued' if receipt.accepted else 'not accepted'} · id: {receipt.message_id} "
                 "(transport receipt, not read)",
@@ -481,12 +498,19 @@ def render_collaboration_result(
     return None
 
 
-def is_accepted_peer_receipt(result: str) -> bool:
-    """Delivery is the expected outcome of MessagePeer; compact mode prints only refusals."""
+def parse_peer_receipt(result: str, ui_extra: ToolResultUIExtra | None = None) -> PeerReceipt | None:
     try:
-        return PeerReceipt.model_validate_json(result).accepted
+        if isinstance(ui_extra, ControlUIExtra):
+            return PeerReceipt.model_validate(ui_extra.data)
+        return PeerReceipt.model_validate_json(result)
     except ValidationError:
-        return False
+        return None
+
+
+def is_accepted_peer_receipt(result: str, ui_extra: ToolResultUIExtra | None = None) -> bool:
+    """Delivery is the expected outcome of MessagePeer; compact mode prints only refusals."""
+    receipt = parse_peer_receipt(result, ui_extra)
+    return receipt is not None and receipt.accepted
 
 
 def render_collaboration_call(

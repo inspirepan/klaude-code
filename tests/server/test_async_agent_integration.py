@@ -10,7 +10,6 @@ import pytest
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
 from klaude_code.config.config import Config
 from klaude_code.protocol import llm_param, message, op, tools
-from klaude_code.protocol.background_task import TaskResponse
 
 from .conftest import AppEnv, ScriptedLLMStream
 from .test_peer_messages import _wait
@@ -113,6 +112,7 @@ def test_real_agent_tools_steering_interrupt_and_stop_preserve_unowned_work(
         tasks = _call(env, env.runtime.task_manager.list_tasks, owner, env.work_dir)
         child = next(task for task in tasks if task.ref.kind == "agent")
         assert child.status == "running" and child.ref.owner_session_id == owner
+        assert child.activity is not None and child.activity.phase == "waiting_model"
         child_actor = env.runtime.session_registry.get_session_actor(child.ref.session_id or "")
         assert child_actor is not None
         child_root = child_actor.snapshot().active_root_task
@@ -137,10 +137,9 @@ def test_real_agent_tools_steering_interrupt_and_stop_preserve_unowned_work(
             for item in parent_inputs[-1]
             if isinstance(item, message.ToolResultMessage) and item.call_id == "wait-child"
         )
-        response = TaskResponse.model_validate_json(wait_result.output_text.splitlines()[-1])
-        assert wait_result.status == "success" and response.interrupted_wait
-        assert response.tasks[0].ref == child.ref and response.tasks[0].status == "running"
-        assert response.delivery_id is None
+        assert wait_result.status == "success" and "interrupted-wait; still-running" in wait_result.output_text
+        assert f"Task: {child.ref.task_id}" in wait_result.output_text and "Status: running" in wait_result.output_text
+        assert wait_result.task_delivery_id is None
         assert any(
             isinstance(item, message.UserMessage) and message.join_text_parts(item.parts) == "change direction"
             for item in parent_inputs[-1]

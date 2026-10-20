@@ -484,7 +484,7 @@ def test_session_switch_keeps_manage_tasks_available(
                 if isinstance(item, message.ToolResultMessage) and item.tool_name == tools.MANAGE_TASKS
             ]
             assert len(results) == 1 and results[0].status == "success"
-            assert json.loads(results[0].output_text.split("\n", 1)[1])["tasks"] == []
+            assert results[0].output_text.endswith("No background tasks.")
         finally:
             await facade.stop()
 

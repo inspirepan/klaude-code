@@ -61,7 +61,11 @@ class SubAgentLauncher:
     ) -> BackgroundTaskSnapshot:
         async def collect(task_id: str, started: Callable[[str, str], Awaitable[None]]) -> SubAgentResult:
             return await self._collect_sub_agent(
-                parent_agent, state, record_session_id=record_session_id, on_started=started
+                parent_agent,
+                state,
+                record_session_id=record_session_id,
+                on_started=started,
+                on_event=lambda event: self._task_manager.record_agent_event(task_id, event),
             )
 
         return await self._task_manager.start_agent(
@@ -80,6 +84,7 @@ class SubAgentLauncher:
         *,
         record_session_id: Callable[[str], None] | None = None,
         on_started: Callable[[str, str], Awaitable[None]] | None = None,
+        on_event: Callable[[events.Event], None] | None = None,
     ) -> SubAgentResult:
         parent_session = parent_agent.session
         child_session = self._prepare_child_session(parent_session, state)
@@ -138,6 +143,8 @@ class SubAgentLauncher:
             await self._submit_operation(run_op)
             async for envelope in envelopes:
                 event = envelope.event
+                if on_event is not None and envelope.operation_id in {None, run_op.id}:
+                    on_event(event)
                 if isinstance(event, events.InterruptEvent):
                     interrupted = True
                 if isinstance(

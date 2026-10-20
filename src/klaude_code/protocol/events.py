@@ -167,6 +167,7 @@ class UserMessageEvent(Event):
     images: Sequence[message.ImageURLPart | message.ImageFilePart] | None = None
     source: message.UserMessageSource | None = None
     shell_tasks: list[ShellTaskSnapshot] | None = None
+    task_response: TaskResponse | None = None
 
 
 class DeveloperMessageEvent(Event):

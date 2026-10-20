@@ -3,7 +3,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, JsonValue
 
 from klaude_code.protocol.models.task_metadata import TaskMetadata
 from klaude_code.protocol.models.todo import TodoItem
@@ -80,6 +80,13 @@ class ShellTaskUIExtra(BaseModel):
     truncated: bool = False
 
 
+class ControlUIExtra(BaseModel):
+    """Internal control payload, separate from the model-facing text."""
+
+    type: Literal["control"] = "control"
+    data: dict[str, JsonValue]
+
+
 class MarkdownDocUIExtra(BaseModel):
     type: Literal["markdown_doc"] = "markdown_doc"
     file_path: str
@@ -130,6 +137,7 @@ MultiUIExtraItem = (
     BashUIExtra
     | WebSearchUIExtra
     | ShellTaskUIExtra
+    | ControlUIExtra
     | DiffUIExtra
     | TodoListUIExtra
     | SessionIdUIExtra
@@ -152,6 +160,7 @@ ToolResultUIExtra = Annotated[
     BashUIExtra
     | WebSearchUIExtra
     | ShellTaskUIExtra
+    | ControlUIExtra
     | DiffUIExtra
     | TodoListUIExtra
     | SessionIdUIExtra
@@ -168,6 +177,7 @@ __all__ = [
     "AskUserQuestionSummaryItem",
     "AskUserQuestionSummaryUIExtra",
     "BashUIExtra",
+    "ControlUIExtra",
     "DiffFileDiff",
     "DiffLine",
     "DiffSpan",

@@ -15,12 +15,21 @@ from klaude_code.agent.attachments.files import at_file_reader_attachment, get_a
 from klaude_code.agent.attachments.skills import get_skills_from_user_input, skill_attachment
 from klaude_code.agent.runtime.task_manager import TaskManager
 from klaude_code.control.runtime.actor import SessionActor
-from klaude_code.protocol import events, message, op
-from klaude_code.protocol.background_task import BackgroundTaskSnapshot, TaskReference, TaskRequest
+from klaude_code.protocol import events, message, op, tools
+from klaude_code.protocol.background_task import (
+    BackgroundTaskSnapshot,
+    TaskReference,
+    TaskRequest,
+    TaskResponse,
+    format_task_response,
+)
 from klaude_code.protocol.peer import PeerMessage
+from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.protocol.sub_agent import SubAgentResult
 from klaude_code.session.session import Session
 from klaude_code.skill.loader import Skill
+from klaude_code.tool.core.context import TodoContext, ToolContext
+from klaude_code.tool.manage_tasks_tool import ManageTasksTool
 from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 
@@ -32,6 +41,121 @@ async def _emit(event: events.Event) -> None:
 
 async def _no_stop(ref: TaskReference) -> None:
     raise AssertionError(f"Unexpected stop: {ref}")
+
+
+def test_task_text_preserves_shell_failure_reason() -> None:
+    shell = ShellTaskSnapshot(
+        task_id="task",
+        session_id="owner",
+        command="echo done",
+        description="shell",
+        work_dir="/tmp",
+        status="failed",
+        background=True,
+        started_at=1,
+        ended_at=2,
+        exit_code=0,
+        output_path="/tmp/output",
+        reason="Output stream did not close; escaped descendants may still be running.",
+    )
+    response = TaskResponse(
+        tasks=[
+            BackgroundTaskSnapshot(
+                ref=TaskReference(kind="shell", owner_session_id="owner", task_id="task", run_id="task"),
+                status="failed",
+                started_at=1,
+                ended_at=2,
+                shell=shell,
+                delivery_id="task-result:task",
+            )
+        ]
+    )
+    assert f"Reason: {shell.reason}" in format_task_response(response)
+    assert f"Reason: {shell.reason}" in format_task_response(response, completion_report=True)
+
+
+def test_agent_activity_snapshot_tracks_parallel_tools_without_affecting_wait_or_delivery(tmp_path: Path) -> None:
+    async def test() -> None:
+        manager = TaskManager(None, _no_stop, _emit)
+        release = asyncio.Event()
+
+        async def run(task_id: str, started: Callable[[str, str], Awaitable[None]]) -> SubAgentResult:
+            await started("child", "operation")
+            await release.wait()
+            return SubAgentResult(task_result='{"actual_user_data": true}', session_id="child")
+
+        task = await manager.start_agent("owner", tmp_path, "find styles", run)
+        context = ToolContext(
+            file_tracker={},
+            todo_context=TodoContext(get_todos=lambda: [], set_todos=lambda _: None),
+            session_id="owner",
+            work_dir=tmp_path,
+            task_control=manager,
+        )
+        task_id = task.ref.task_id
+        persisted = manager._persisted[task_id]
+        waiter = asyncio.create_task(manager.manage("owner", tmp_path, TaskRequest(action="wait", task_id=task_id)))
+        try:
+            manager.record_agent_event(task_id, events.StepStartEvent(session_id="child"))
+            snapshot = (await manager.list_tasks("owner", tmp_path))[0]
+            assert snapshot.activity is not None and snapshot.activity.phase == "waiting_model"
+            manager.record_agent_event(
+                task_id, events.ThinkingDeltaEvent(session_id="child", response_id="r", content="private thinking")
+            )
+            assert manager._activity[task_id].phase == "thinking"
+            manager.record_agent_event(task_id, events.ThinkingEndEvent(session_id="child", response_id="r"))
+            assert manager._activity[task_id].phase == "waiting_model"
+            manager.record_agent_event(task_id, events.AssistantTextStartEvent(session_id="child", response_id="r"))
+            assert manager._activity[task_id].phase == "generating"
+            for call_id in ("a", "b"):
+                manager.record_agent_event(
+                    task_id,
+                    events.ToolCallEvent(
+                        session_id="child",
+                        response_id="r",
+                        tool_call_id=call_id,
+                        tool_name=tools.BASH,
+                        arguments='{"command":"rg styles src"}',
+                    ),
+                )
+            manager.record_agent_event(
+                task_id,
+                events.ToolResultEvent(
+                    session_id="child",
+                    response_id="r",
+                    tool_call_id="b",
+                    tool_name=tools.BASH,
+                    result="error details " + "x" * 1000,
+                    status="error",
+                    is_last_in_step=False,
+                ),
+            )
+            output = await ManageTasksTool.call('{"action":"output","task_id":"' + task_id + '"}', context)
+            assert "Activity: executing_tools" in output.output_text
+            assert "Running: Bash" in output.output_text and "Last tool: Bash - error" in output.output_text
+            assert "rg styles src" in output.output_text and "error details" in output.output_text
+            assert "private thinking" not in output.output_text and "owner_session_id" not in output.output_text
+            activity = (await manager.list_tasks("owner", tmp_path))[0].activity
+            assert activity is not None and [tool.call_id for tool in activity.active_tools] == ["a"]
+            assert activity.last_tool is not None and len(activity.last_tool.output_preview) <= 603
+            assert manager._persisted[task_id] == persisted
+            await asyncio.sleep(0)
+            assert not waiter.done()
+            assert output.task_delivery_id is None
+            release.set()
+            response = await waiter
+            assert response.tasks[0].status == "completed"
+            activity = response.tasks[0].activity
+            assert activity is not None and activity.phase == "finished" and not activity.active_tools
+            output = await ManageTasksTool.call('{"action":"output","task_id":"' + task_id + '"}', context)
+            assert '{"actual_user_data": true}' in output.output_text
+            assert output.task_delivery_id == task.delivery_id
+        finally:
+            release.set()
+            await asyncio.gather(waiter, return_exceptions=True)
+            await manager.aclose()
+
+    asyncio.run(test())
 
 
 @pytest.mark.parametrize("kind", ["shell", "agent"])
@@ -799,7 +923,7 @@ def test_report_longer_than_one_page_is_delivered_with_where_it_continues(tmp_pa
             if isinstance(event, events.UserMessageEvent) and event.source == "task_completion"
         ]
         assert len(injected) == 1
-        assert '"truncated":true' in injected[0].content
+        assert "Report continues:" in injected[0].content
         assert f"ManageTasks output task_id={task.ref.task_id} offset=" in injected[0].content
         assert await manager.pending_results(session.id, tmp_path) == []
         await manager.aclose()

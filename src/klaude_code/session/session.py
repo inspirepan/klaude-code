@@ -1010,6 +1010,7 @@ class Session(BaseModel):
                             source=um.source,
                             peer_message=um.peer_message,
                             shell_tasks=um.shell_tasks,
+                            task_response=um.task_response,
                             timestamp=msg_ts,
                         )
                 case TaskMetadataItem() as mt:

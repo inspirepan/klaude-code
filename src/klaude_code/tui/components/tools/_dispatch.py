@@ -227,6 +227,7 @@ def render_tool_result(
             directory=task_directory,
             max_lines=max_lines,
             status=e.status,
+            ui_extra=e.ui_extra,
         )
         return pad_result(result) if result is not None else None
 
@@ -352,10 +353,14 @@ def render_tool_result(
                 render_collaboration_result,
             )
 
-            if e.tool_name == tools.MESSAGE_PEER and detail.is_compact and is_accepted_peer_receipt(e.result):
+            if (
+                e.tool_name == tools.MESSAGE_PEER
+                and detail.is_compact
+                and is_accepted_peer_receipt(e.result, e.ui_extra)
+            ):
                 return None
             result = render_collaboration_result(
-                e.tool_name, e.result, detail=detail, max_lines=max_lines, directory=task_directory
+                e.tool_name, e.result, detail=detail, max_lines=max_lines, directory=task_directory, ui_extra=e.ui_extra
             )
             return pad_result(result) if result is not None else _render_fallback()
         case tools.WEB_SEARCH:

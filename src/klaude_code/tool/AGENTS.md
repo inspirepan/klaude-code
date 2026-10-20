@@ -92,6 +92,13 @@ Return `message.ToolResultMessage` with:
 - `ui_extra`: Optional structured data for richer TUI/web rendering
 - `side_effects`: Optional list of file operations for tracking
 
+Keep internal state separate from model-facing results:
+- Keep runtime state, persistence, and UI data structured; do not dump internal models as JSON into `output_text`.
+- Format `output_text` as concise, readable text with facts and identifiers needed for the next action.
+- UI consumers must use structured data such as `ui_extra`, not parse the model-facing text.
+- Preserve JSON when it is the requested content, such as a file, API response, or task report.
+- Apply the same separation to automatic notifications that deliver tool or task results to the model.
+
 ### Tool name constants
 
 All tool names live in `protocol/tools.py`. Never hardcode tool name strings elsewhere.
