@@ -532,23 +532,35 @@ def render_collaboration_call(
     )
 
 
-def render_agent_launch(arguments: str, *, first: bool, color: Style | None = None) -> RenderableType:
-    """Inline the first launch; consecutive launches continue with tree rows."""
+def render_agent_launch(
+    arguments: str, *, first: bool, multiple: bool = False, color: Style | None = None
+) -> RenderableType:
+    """Inline one launch; group a batch under a shared background heading."""
     args = parse_tool_arguments(arguments)
     agent_type = format_pascal_case(one_line(args.get("type", "")) or "general-purpose")
     row = Text(no_wrap=True, overflow="ellipsis")
-    if not first:
+    if multiple:
         row.append(" " * (TOOL_GROUP_INDENT + 2))
         row.append("↳ ", style=color if color is not None else ThemeKey.TOOL_RESULT_TREE_PREFIX)
     row.append(agent_type, style=color + Style(bold=True) if color is not None else ThemeKey.TOOL_NAME)
     if description := one_line(args.get("description", "")):
         row.append(" ", style=color if color is not None else ThemeKey.TOOL_PARAM)
         row.append(description, style=color + Style(italic=True) if color is not None else ThemeKey.TOOL_PARAM)
-    if not first:
-        return row
+    if multiple:
+        if not first:
+            return row
+        return Group(
+            render_tool_call_tree(
+                mark=MARK_PLAN,
+                tool_name="Launch",
+                details=Text("in background", style=ThemeKey.METADATA_DIM),
+            ),
+            row,
+        )
+    row.append(" · in background", style=ThemeKey.METADATA_DIM)
     return render_tool_call_tree(
         mark=MARK_PLAN,
-        tool_name="Agents",
+        tool_name="Launch",
         details=row,
         mark_style=color if color is not None else ThemeKey.TOOL_MARK,
         name_style=color + Style(bold=True) if color is not None else ThemeKey.TOOL_NAME,

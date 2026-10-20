@@ -322,7 +322,7 @@ class TUICommandRenderer:
         # Compact mode reports a sub-agent's file changes once, in the block of the run that made them.
         self._sub_agent_changes: dict[str, list[events.ToolResultEvent]] = {}
         # What the last scrollback write was, when it can absorb a repeat:
-        # consecutive Agent launches share a header, identical waits print once.
+        # Consecutive launches in one batch share a header; identical waits print once.
         self._last_print_key: tuple[str, ...] | None = None
         self._current_sub_agent_color: Style | None = None
         self._sub_agent_color_index = 0
@@ -1078,10 +1078,17 @@ class TUICommandRenderer:
         if not self._visible(e):
             return False
         if is_agent_launch:
-            # The child's own block reports its work; the launch itself is one row.
-            key = ("agent-launch", e.session_id)
+            key = ("agent-launch", e.session_id, e.tool_batch_id or e.tool_call_id)
             color = self.themes.sub_agent_styles[color_index] if color_index is not None else None
-            self._print_keyed(render_agent_launch(e.arguments, first=self._last_print_key != key, color=color), key)
+            self._print_keyed(
+                render_agent_launch(
+                    e.arguments,
+                    first=self._last_print_key != key,
+                    multiple=(e.tool_batch_size or 1) > 1,
+                    color=color,
+                ),
+                key,
+            )
             return True
         if e.tool_name == tools.MANAGE_TASKS:
             args = parse_tool_arguments(e.arguments)

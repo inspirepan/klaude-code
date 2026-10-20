@@ -156,7 +156,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   `PromptBottomBar` splits status lines at the first row without the plain
   spinner so the live tail sits under the main row.
 - Each background fact reaches the compact transcript once. Agent launches are
-  `◈ Agents` rows (consecutive launches share the header); waits are one
+  `◈ Launch` rows with `in background` (multi-agent batches share a standalone header); waits are one
   `◈ Tasks  Waiting for <description>` row (repeats collapse) and still-running
   results print nothing; a finished agent prints only its `▌` batch block
   (`TaskDirectory.claim_summary` / `claim_report` dedupe the block against task

@@ -89,12 +89,15 @@ def _welcome() -> events.WelcomeEvent:
     )
 
 
-def _agent_call(call_id: str, description: str) -> events.ToolCallEvent:
+def _agent_call(call_id: str, description: str, *, batch_index: int | None = None) -> events.ToolCallEvent:
     return events.ToolCallEvent(
         session_id="main",
         tool_call_id=call_id,
         tool_name=tools.AGENT,
         arguments=json.dumps({"type": "finder", "description": description, "prompt": "..."}),
+        tool_batch_id="batch" if batch_index is not None else call_id,
+        tool_batch_index=batch_index if batch_index is not None else 0,
+        tool_batch_size=2 if batch_index is not None else 1,
     )
 
 
@@ -131,8 +134,8 @@ def test_compact_transcript_reports_each_background_fact_once(
         script: list[events.Event] = [
             _welcome(),
             events.TaskStartEvent(session_id="main", model_id="test-model"),
-            _agent_call("c1", "Find the panel"),
-            _agent_call("c2", "Review the style"),
+            _agent_call("c1", "Find the panel", batch_index=0),
+            _agent_call("c2", "Review the style", batch_index=1),
             events.ToolResultEvent(
                 session_id="main",
                 tool_call_id="c1",
@@ -182,10 +185,10 @@ def test_compact_transcript_reports_each_background_fact_once(
 
     asyncio.run(run())
     out = capsys.readouterr().out
-    # The first launch shares the header row; consecutive launches use tree rows.
-    assert out.count("◈ Agents") == 1
-    launch_lines = [line.strip() for line in out.splitlines() if "◈ Agents" in line or "↳ Finder " in line]
-    assert launch_lines == ["◈ Agents  Finder Find the panel", "↳ Finder Review the style"]
+    # A multi-agent batch has a standalone header and one tree row per child.
+    assert out.count("◈ Launch") == 1
+    launch_lines = [line.strip() for line in out.splitlines() if "◈ Launch" in line or "↳ Finder " in line]
+    assert launch_lines == ["◈ Launch  in background", "↳ Finder Find the panel", "↳ Finder Review the style"]
     # Repeated waits on one task collapse; a still-running result prints nothing.
     assert out.count("Waiting for Find the panel") == 1
     assert "· running" not in out and "interrupted" not in out
@@ -214,7 +217,7 @@ def test_single_agent_launch_uses_one_line(monkeypatch: pytest.MonkeyPatch, caps
 
     asyncio.run(run())
     lines = [line.strip() for line in capsys.readouterr().out.splitlines() if line.strip()]
-    assert lines == ["◈ Agents  Finder Find the panel"]
+    assert lines == ["◈ Launch  Finder Find the panel · in background"]
 
 
 def test_compact_transcript_does_not_report_a_sub_agent_shell_finish(

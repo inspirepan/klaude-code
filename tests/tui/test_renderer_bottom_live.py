@@ -259,7 +259,10 @@ def test_compact_sub_agent_colors_continue_across_tool_batches() -> None:
 
 
 @pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
-def test_agent_launch_reuses_child_identity_color(monkeypatch: pytest.MonkeyPatch, detail: Detail) -> None:
+@pytest.mark.parametrize("multiple", [False, True])
+def test_agent_launch_reuses_child_identity_color(
+    monkeypatch: pytest.MonkeyPatch, detail: Detail, multiple: bool
+) -> None:
     from klaude_code.protocol.models import SubAgentState
     from klaude_code.tui.renderer import TUICommandRenderer
 
@@ -279,9 +282,9 @@ def test_agent_launch_reuses_child_identity_color(monkeypatch: pytest.MonkeyPatc
                     tool_call_id=f"call-{index}",
                     tool_name=tools.AGENT,
                     arguments=json.dumps({"type": "finder", "description": f"inspect-{index}"}),
-                    tool_batch_id="batch",
-                    tool_batch_index=index,
-                    tool_batch_size=2,
+                    tool_batch_id="batch" if multiple else f"batch-{index}",
+                    tool_batch_index=index if multiple else 0,
+                    tool_batch_size=2 if multiple else 1,
                 )
             )
         # Children can start in a different order from their launch rows.
@@ -292,22 +295,59 @@ def test_agent_launch_reuses_child_identity_color(monkeypatch: pytest.MonkeyPatc
                     sub_agent_type="finder",
                     sub_agent_desc=f"inspect-{index}",
                     sub_agent_prompt="prompt",
-                    parent_tool_batch_id="batch",
-                    parent_tool_batch_index=index,
-                    parent_tool_batch_size=2,
+                    parent_tool_batch_id="batch" if multiple else f"batch-{index}",
+                    parent_tool_batch_index=index if multiple else 0,
+                    parent_tool_batch_size=2 if multiple else 1,
                 ),
             )
         for index, row in enumerate(launches):
             color = renderer._get_session_sub_agent_color(f"child-{index}").color
             assert color == renderer.themes.sub_agent_styles[index + 1].color
             segments = list(console.render(row))
-            for label in ("Finder", f"inspect-{index}", "◈" if index == 0 else "↳"):
+            for label in ("Finder", f"inspect-{index}", "↳" if multiple else "◈"):
                 segment = next(segment for segment in segments if label in segment.text)
                 assert segment.style is not None
                 assert segment.style.color == color
-            if index == 0:
-                name = next(segment for segment in segments if "Agents" in segment.text)
-                assert name.style is not None and name.style.color == color and name.style.bold
+            if index == 0 or not multiple:
+                name = next(segment for segment in segments if "Launch" in segment.text)
+                assert name.style is not None and name.style.bold
+                if not multiple:
+                    assert name.style.color == color
+                hint = next(segment for segment in segments if "in background" in segment.text)
+                assert hint.style == console.get_style("metadata.dim")
+
+
+@pytest.mark.parametrize("boundary", ["same-batch", "different-batch", "other-output"])
+def test_multi_agent_launch_heading_respects_batch_and_output_boundaries(boundary: str) -> None:
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    console = _renderer_console(renderer)
+    first = events.ToolCallEvent(
+        session_id="main",
+        tool_call_id="call-a",
+        tool_name=tools.AGENT,
+        arguments='{"type": "finder", "description": "inspect-a"}',
+        tool_batch_id="batch-a",
+        tool_batch_index=0,
+        tool_batch_size=2,
+    )
+    renderer.display_tool_call(first)
+    if boundary == "other-output":
+        renderer.print(Text("other output"))
+    renderer.display_tool_call(
+        first.model_copy(
+            update={
+                "tool_call_id": "call-b",
+                "arguments": '{"type": "finder", "description": "inspect-b"}',
+                "tool_batch_id": "batch-b" if boundary == "different-batch" else "batch-a",
+                "tool_batch_index": 0 if boundary == "different-batch" else 1,
+            }
+        )
+    )
+    output = _console_output(console)
+    assert output.count("◈ Launch  in background") == (1 if boundary == "same-batch" else 2)
+    assert "↳ Finder inspect-a" in output and "↳ Finder inspect-b" in output
 
 
 def test_hidden_nested_agent_launches_reserve_same_colors_as_full_mode() -> None:
