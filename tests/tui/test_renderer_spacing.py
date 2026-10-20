@@ -530,6 +530,36 @@ def test_sub_agent_block_flush_can_force_top_level_blank_line() -> None:
     assert not output.getvalue().endswith("▌ + Activated skill commit\n▌ \n")
 
 
+def test_sub_agent_message_panel_ends_without_gutter_only_line() -> None:
+    renderer, output = _renderer_and_output()
+    session_id = "sub-1"
+    renderer.register_session(
+        session_id,
+        SubAgentState(sub_agent_type="finder", sub_agent_desc="searching", sub_agent_prompt="prompt"),
+    )
+
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderToolCall(
+                    event=events.ToolCallEvent(
+                        session_id=session_id,
+                        tool_call_id="message-1",
+                        tool_name=tools.MESSAGE_PEER,
+                        arguments='{"target":"main","body":"hello"}',
+                    )
+                ),
+            ]
+        )
+    )
+    renderer.flush_open_blocks()
+
+    rendered = output.getvalue()
+    assert "▌" in rendered and "Message to" in rendered and "hello" in rendered
+    assert rendered.endswith("╯\n\n")
+    assert "▌ \n" not in rendered
+
+
 def test_sub_agent_tool_group_flush_keeps_quote_prefix() -> None:
     renderer, output = _renderer_and_output()
     renderer.set_transcript_detail(Detail.FULL)

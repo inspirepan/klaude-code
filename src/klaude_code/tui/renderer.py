@@ -2070,6 +2070,9 @@ class TUICommandRenderer:
                         )
                     if rendered:
                         self._open_continuous_block(event.session_id)
+                        if event.tool_name == tools.MESSAGE_PEER:
+                            # The panel is self-contained; keep its separator outside the child gutter.
+                            self._flush_open_blocks(scoped=False)
                 case RenderToolResult(event=event, is_sub_agent_session=is_sub_agent_session):
                     with self.session_print_context(event.session_id):
                         rendered = self.display_tool_call_result(event, is_sub_agent=is_sub_agent_session)
