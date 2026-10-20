@@ -325,7 +325,7 @@ async def _run_panel(*, dir_: str | None, state: str, show_all: bool, peek: bool
     from klaude_code.cli.uds_client import _client_env_header
     from klaude_code.protocol.env_sync import ENV_SYNC_HEADER
     from klaude_code.server.paths import server_socket_path
-    from klaude_code.tui.agents_panel import AgentPanelSession, run_agents_panel
+    from klaude_code.tui.agents_panel import AgentPanelPreview, AgentPanelSession, run_agents_panel
 
     current_dir = Path.cwd().resolve()
     env_header = _client_env_header()
@@ -370,9 +370,9 @@ async def _run_panel(*, dir_: str | None, state: str, show_all: bool, peek: bool
             else:
                 await request("POST", f"/api/headless/sessions/{session_id}/control", json_body={"action": action})
 
-        async def load_output(session_id: str) -> str:
-            body = await request("GET", f"/api/headless/sessions/{session_id}/output")
-            return str(body.get("output") or "")[-12000:]
+        async def load_output(session_id: str) -> AgentPanelPreview:
+            body = await request("GET", f"/api/headless/sessions/{session_id}/output", params={"preview": True})
+            return AgentPanelPreview.model_validate(body)
 
         return await run_agents_panel(
             fetch_sessions=fetch_sessions,

@@ -19,7 +19,7 @@ from prompt_toolkit.output import Output
 from prompt_toolkit.output.color_depth import ColorDepth
 from prompt_toolkit.output.defaults import create_output
 from prompt_toolkit.utils import get_cwidth
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from rich import get_console
 from rich.text import Text
 
@@ -31,7 +31,13 @@ type PanelState = Literal["needs_you", "working", "idle", "all"]
 type ControlAction = Literal["resume", "dismiss", "interrupt"]
 type FetchSessions = Callable[[], Awaitable[list["AgentPanelSession"]]]
 type ControlSession = Callable[[str, ControlAction], Awaitable[None]]
-type LoadOutput = Callable[[str], Awaitable[str]]
+type LoadOutput = Callable[[str], Awaitable["AgentPanelPreview"]]
+
+
+class AgentPanelPreview(BaseModel):
+    output: str
+    user_messages: list[str] = Field(default_factory=list)
+    user_message_count: int | None = None
 
 
 class AgentPanelSession(BaseModel):
@@ -105,6 +111,8 @@ class AgentsPanel:
         self.notice = ""
         self.confirm_interrupt: str | None = None
         self.output_text = ""
+        self.user_messages: list[str] = []
+        self.user_message_count: int | None = None
         self.detail_line = 0
         self._generation = 0
         self._tasks: set[asyncio.Task[None]] = set()
@@ -197,15 +205,19 @@ class AgentsPanel:
         return [
             row
             for directory, rows in self.groups.items()
-            for row in (rows if directory in self._expanded_groups else rows[:5])
+            for row in (rows if directory in self._expanded_groups else rows[: self._group_limit(directory)])
         ]
+
+    def _group_limit(self, directory: str) -> int:
+        return 15 if directory == self.current_dir else 5
 
     @property
     def _navigation(self) -> list[AgentPanelSession | str]:
         items: list[AgentPanelSession | str] = []
         for directory, rows in self.groups.items():
-            items.extend(rows if directory in self._expanded_groups else rows[:5])
-            if len(rows) > 5:
+            limit = self._group_limit(directory)
+            items.extend(rows if directory in self._expanded_groups else rows[:limit])
+            if len(rows) > limit:
                 items.append(directory)
         return items
 
@@ -273,7 +285,8 @@ class AgentsPanel:
                 ]
             )
             expanded = directory in self._expanded_groups
-            for row in rows if expanded else rows[:5]:
+            limit = self._group_limit(directory)
+            for row in rows if expanded else rows[:limit]:
                 chosen = row.id == self.selected_id
                 label = " ".join(self._clean(row.label).split())
                 category = self.labels[self.states.index(row.status.category)]
@@ -307,9 +320,9 @@ class AgentsPanel:
                         ),
                     ]
                 )
-            if len(rows) > 5:
+            if len(rows) > limit:
                 chosen = directory == self._selected_group
-                label = "show less" if expanded else f"show more ({len(rows) - 5})"
+                label = "show less" if expanded else f"show more ({len(rows) - limit})"
                 lines.append(
                     (
                         "class:highlighted bold" if chosen else "class:meta",
@@ -335,11 +348,12 @@ class AgentsPanel:
             if index:
                 line += 1
             line += 1
-            for row in rows if directory in self._expanded_groups else rows[:5]:
+            limit = self._group_limit(directory)
+            for row in rows if directory in self._expanded_groups else rows[:limit]:
                 if row.id == self.selected_id:
                     return Point(0, line)
                 line += 1
-            if len(rows) > 5:
+            if len(rows) > limit:
                 if directory == self._selected_group:
                     return Point(0, line)
                 line += 1
@@ -351,13 +365,28 @@ class AgentsPanel:
             return [("class:meta", "select a session to see details.")]
         status = row.status
         text = Text()
+        key_width = 8
 
         def append(value: str, style: str = "") -> None:
             text.append(self._clean(value), style=style)
 
         def field(label: str, value: str, style: str = "") -> None:
-            append(f"{label}: ", "class:meta")
-            append(value + "\n", style)
+            column = min(key_width, max(0, (width - 2) // 2)) if width is not None else key_width
+            prefix = " " * (column + 1) if column else ""
+            value_width = max(1, width - get_cwidth(prefix)) if width is not None else None
+            value_text = Text(self._clean(value), style=style)
+            value_lines = (
+                value_text.wrap(get_console(), value_width, overflow="fold")
+                if value_width is not None
+                else value_text.split(allow_blank=True)
+            )
+            key_lines = Text(label + ":").wrap(get_console(), column, overflow="fold") if column else []
+            for index in range(max(len(key_lines), len(value_lines))):
+                key = key_lines[index].plain if index < len(key_lines) else ""
+                append(self._fit(key, column) + (" " if column else ""), "class:meta")
+                if index < len(value_lines):
+                    text.append_text(value_lines[index])
+                append("\n")
 
         append(row.label + "\n", "class:accent.cyan")
         category_style = {
@@ -372,6 +401,23 @@ class AgentsPanel:
         append("\n\n")
         field("model", row.model or "-")
         field("updated", datetime.fromtimestamp(row.updated_at).strftime("%Y-%m-%d %H:%M"), "class:meta")
+
+        append("\nuser messages\n", "bold class:accent.cyan")
+        for index, message in enumerate(self.user_messages):
+            if index == 3 and self.user_message_count is not None and self.user_message_count > 6:
+                append(f"… {self.user_message_count - 6} messages omitted …\n", "class:meta")
+            value = " ".join(self._clean(message).split())
+            append((self._fit(value, width, pad=False) if width is not None else value) + "\n")
+        if not self.user_messages:
+            pending_preview = self._output_task is not None and not self._output_task.done()
+            append(
+                "loading user messages...\n"
+                if pending_preview
+                else "user message preview unavailable\n"
+                if self.user_message_count is None
+                else "no user messages\n",
+                "class:meta",
+            )
 
         append("\nrecent reply\n", "bold class:accent.cyan")
         pending_output = self._output_task is not None and not self._output_task.done()
@@ -398,6 +444,7 @@ class AgentsPanel:
                 field("request", attention.request_id, "class:meta")
 
         append("\n\nruntime\n", "class:meta bold")
+        key_width = 23
         field("project", shorten_path(row.work_dir, relative_to_workspace=False), "class:accent.cyan")
         field("agent", row.agent_type or "main")
         field("session", row.id, "class:metadata.footer")
@@ -497,6 +544,8 @@ class AgentsPanel:
         self.detail_window.vertical_scroll = 0
         self.confirm_interrupt = None
         self.output_text = "loading recent reply..." if session_id else ""
+        self.user_messages = []
+        self.user_message_count = None
         self._output_version = None
         if self._output_task:
             self._output_task.cancel()
@@ -537,15 +586,18 @@ class AgentsPanel:
     async def _read_output(self, session_id: str, generation: int) -> None:
         assert self.load_output is not None
         failed = False
+        preview: AgentPanelPreview | None = None
         try:
-            # The transport should fetch only a recent reply, not full history.
-            text = await self.load_output(session_id)
-            text = "\n".join(text[-16000:].splitlines()[-120:]) or "no recent reply"
+            preview = await self.load_output(session_id)
+            text = "\n".join(preview.output[-16000:].splitlines()[-120:]) or "no recent reply"
         except Exception:
             text = "recent reply unavailable (load failed)"
             failed = True
         if not self._closed and session_id == self.selected_id and generation == self._generation:
             self.output_text = self._clean(text)
+            if preview is not None and not failed:
+                self.user_messages = preview.user_messages
+                self.user_message_count = preview.user_message_count
             if failed:
                 self._output_version = None
             self.app.invalidate()
@@ -581,7 +633,7 @@ class AgentsPanel:
             self.sessions = [row for row in snapshot if row.parent_session_id is None]
             self.fetch_error = False
             for directory, rows in self.groups.items():
-                if any(row.id == self.selected_id for row in rows[5:]):
+                if any(row.id == self.selected_id for row in rows[self._group_limit(directory) :]):
                     self._expanded_groups.add(directory)
             self._reconcile(index)
             self._start_output()
@@ -698,15 +750,16 @@ class AgentsPanel:
                     return
                 directory = self._selected_group
                 rows = self.groups.get(directory, [])
-                if len(rows) <= 5:
+                limit = self._group_limit(directory)
+                if len(rows) <= limit:
                     self._reconcile()
                     return
                 if directory in self._expanded_groups:
                     self._expanded_groups.remove(directory)
-                    self._select(rows[4].id)
+                    self._select(rows[limit - 1].id)
                 else:
                     self._expanded_groups.add(directory)
-                    self._select(rows[5].id)
+                    self._select(rows[limit].id)
                 self._start_output()
                 self.app.invalidate()
             elif self.selected_id:

@@ -202,7 +202,8 @@ def test_panel_callbacks_use_async_status_output_and_explicit_controls(
         if request.url.path.endswith("/sessions"):
             return httpx.Response(200, json={"sessions": [snapshot]})
         if request.url.path.endswith("/output"):
-            return httpx.Response(200, json={"output": "a" * 20000})
+            assert request.url.params["preview"] == "true"
+            return httpx.Response(200, json={"output": "reply", "user_messages": ["input"], "user_message_count": 1})
         if request.url.path.endswith("/control") and json.loads(request.content) == {"action": "dismiss"}:
             return httpx.Response(409, json={"detail": "session unavailable"})
         return httpx.Response(200, json={"session_id": "session-1"})
@@ -212,7 +213,8 @@ def test_panel_callbacks_use_async_status_output_and_explicit_controls(
         assert kwargs["current_dir"] == str(Path.cwd().resolve())
         sessions = await kwargs["fetch_sessions"]()
         assert len(sessions) == 1 and sessions[0].status.category == "idle"
-        assert await kwargs["load_output"]("session-1") == "a" * 12000
+        preview = await kwargs["load_output"]("session-1")
+        assert preview == agents_panel.AgentPanelPreview(output="reply", user_messages=["input"], user_message_count=1)
         if peek:
             assert kwargs["control_session"] is None
             return

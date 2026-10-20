@@ -11,7 +11,13 @@ from prompt_toolkit.output import DummyOutput
 from prompt_toolkit.styles import Attrs
 
 from klaude_code.protocol.models.session_status import SessionAttention, SessionStatus
-from klaude_code.tui.agents_panel import AgentPanelSession, AgentsPanel, AgentsPanelResult, run_agents_panel
+from klaude_code.tui.agents_panel import (
+    AgentPanelPreview,
+    AgentPanelSession,
+    AgentsPanel,
+    AgentsPanelResult,
+    run_agents_panel,
+)
 
 
 def session(
@@ -31,6 +37,102 @@ async def until(predicate: Callable[[], bool]) -> None:
     async with asyncio.timeout(3):
         while not predicate():
             await asyncio.sleep(0.01)
+
+
+def test_preview_accepts_older_server_output() -> None:
+    preview = AgentPanelPreview.model_validate({"output": "recent reply", "id": "session"})
+    assert preview.output == "recent reply"
+    assert preview.user_messages == []
+    assert preview.user_message_count is None
+
+
+@pytest.mark.parametrize("current", [False, True])
+def test_group_limit_keyboard_expansion_cursor_and_refresh(current: bool) -> None:
+    limit = 15 if current else 5
+    snapshot = [session(f"a{index}", updated=100 - index) for index in range(18)]
+    snapshot.extend(session(f"b{index}", directory="/zother", updated=100 - index) for index in range(8))
+
+    async def fetch() -> list[AgentPanelSession]:
+        return snapshot
+
+    async def check() -> None:
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(
+                fetch, current_dir="/work/project" if current else None, input=pipe, output=DummyOutput()
+            )
+            task = asyncio.create_task(panel.run())
+            try:
+                await until(lambda: panel.selected_id == "a0" and panel.app.is_running)
+                assert len(panel.visible_sessions) == limit + 5
+                assert len(panel._navigation) == limit + 7
+                pipe.send_text("j" * limit)
+                await until(lambda: panel._selected_group == "/work/project")
+                lines = "".join(value for _, value in panel._list_text(80)).splitlines()
+                assert f"show more ({18 - limit})" in lines[panel._list_cursor().y]
+                await panel.refresh()
+                assert panel._selected_group == "/work/project"
+                pipe.send_text("\r")
+                await until(lambda: panel.selected_id == f"a{limit}")
+                await panel.refresh()
+                assert panel.selected_id == f"a{limit}"
+                pipe.send_text("j" * (18 - limit))
+                await until(lambda: panel._selected_group == "/work/project")
+                pipe.send_text("\r")
+                await until(lambda: panel.selected_id == f"a{limit - 1}")
+                assert not panel._expanded_groups
+                snapshot.insert(0, session("new", updated=200))
+                await panel.refresh()
+                assert panel.selected_id == f"a{limit - 1}"
+                assert "/work/project" in panel._expanded_groups
+            finally:
+                pipe.send_text("q")
+                await asyncio.wait_for(task, 3)
+
+    asyncio.run(check())
+
+
+def test_user_messages_single_line_cell_truncation_and_runtime_alignment() -> None:
+    from prompt_toolkit.utils import get_cwidth
+
+    async def fetch() -> list[AgentPanelSession]:
+        return [session("session-value-" * 8, model="model-value-" * 8, activity="activity-value-" * 8)]
+
+    async def load(id: str) -> AgentPanelPreview:
+        return AgentPanelPreview(
+            output="reply",
+            user_messages=[f"{index} 中文\n\t  " + "界" * 60 for index in (0, 1, 2, 7, 8, 9)],
+            user_message_count=10,
+        )
+
+    async def check() -> None:
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(fetch, load_output=load, input=pipe, output=DummyOutput())
+            await panel.refresh()
+            await until(lambda: panel.output_text == "reply")
+            for width in (1, 2, 12, 31, 80):
+                fragments = panel._detail_text(width)
+                lines = "".join(value for _, value in fragments).splitlines()
+                assert all(get_cwidth(line) <= width for line in lines)
+                if width < 31:
+                    continue
+                messages = lines[lines.index("user messages") + 1 : lines.index("recent reply")]
+                assert messages[:3] == [
+                    f"{index} 中文 " + panel._fit("界" * 60, width - 7, pad=False) for index in (0, 1, 2)
+                ]
+                assert messages[3] == "… 4 messages omitted …"
+                assert [line[0] for line in messages[4:7]] == ["7", "8", "9"]
+                runtime = lines[lines.index("runtime") + 1 :]
+                column = min(23, (width - 2) // 2) + 1
+                for label, value in (("session:", "session-value-" * 8), ("activity:", "activity-value-" * 8)):
+                    start = next(index for index, line in enumerate(runtime) if line.startswith(label))
+                    collected = runtime[start][column:]
+                    for line in runtime[start + 1 :]:
+                        if not line.startswith(" " * column):
+                            break
+                        collected += line[column:]
+                    assert collected == value
+
+    asyncio.run(check())
 
 
 def test_project_paths_shorten_home_without_changing_search_or_grouping(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -53,7 +155,7 @@ def test_project_paths_shorten_home_without_changing_search_or_grouping(monkeypa
             text = "".join(text for _, text in panel._list_text(100))
             assert "~/code/project" in text
             assert "/Users/developer/project" in text
-            assert "project: ~/code/project" in "".join(text for _, text in panel._detail_text())
+            assert "project:                ~/code/project" in "".join(text for _, text in panel._detail_text())
             assert next(iter(panel.groups)) == directory
             panel.query = directory
             assert [row.id for row in panel.visible_sessions] == ["a"]
@@ -172,9 +274,11 @@ def test_split_width_does_not_change_when_recent_reply_loads(columns: int) -> No
     async def check() -> None:
         release = asyncio.Event()
 
-        async def load(id: str) -> str:
+        async def load(id: str) -> AgentPanelPreview:
             await release.wait()
-            return "REPLY-LOADED " + "long reply " * 1000
+            return AgentPanelPreview(
+                output="REPLY-LOADED " + "long reply " * 1000, user_messages=[], user_message_count=0
+            )
 
         with create_pipe_input() as pipe:
             panel = AgentsPanel(fetch, load_output=load, input=pipe, output=TerminalOutput())
@@ -256,7 +360,7 @@ def test_refresh_preserves_selection_search_and_detail_position_and_marks_stale(
 @pytest.mark.parametrize("outcome", ["success", "failure", "cancel"])
 def test_staged_loading_is_interactive_preserves_state_and_cancels_on_exit(outcome: str) -> None:
     async def check() -> None:
-        local = [session(f"local{i}", updated=10 - i) for i in range(7)]
+        local = [session(f"local{i}", updated=100 - i) for i in range(17)]
         full = [session("other", directory="/another"), *local]
         release = asyncio.Event()
         entered = asyncio.Event()
@@ -301,15 +405,15 @@ def test_staged_loading_is_interactive_preserves_state_and_cancels_on_exit(outco
                 assert "loading other projects..." in str(panel._tabs())
                 await panel.refresh()
                 assert calls == 1
-                pipe.send_text("jjjjj\r")
-                await until(lambda: panel.selected_id == "local5")
+                pipe.send_text("j" * 15 + "\r")
+                await until(lambda: panel.selected_id == "local15")
                 pipe.send_text("/local\r")
                 await until(lambda: panel.query == "local" and not panel.searching)
                 assert "/work/project" in panel._expanded_groups
                 if outcome != "cancel":
                     release.set()
                     await until(lambda: not panel.loading_other_projects)
-                    assert panel.selected_id == "local5"
+                    assert panel.selected_id == "local15"
                     assert panel.query == "local" and "/work/project" in panel._expanded_groups
                     assert panel.fetch_error == (outcome == "failure")
                     if outcome == "failure":
@@ -452,7 +556,7 @@ def test_late_cancel_suppressing_output_cannot_replace_new_selection(switch_back
         finished = asyncio.Event()
         a_calls = 0
 
-        async def load(id: str) -> str:
+        async def load(id: str) -> AgentPanelPreview:
             nonlocal a_calls
             if id == "a":
                 a_calls += 1
@@ -463,8 +567,8 @@ def test_late_cancel_suppressing_output_cannot_replace_new_selection(switch_back
                 except asyncio.CancelledError:
                     await release.wait()
                 finished.set()
-                return "OLD output"
-            return "NEW output"
+                return AgentPanelPreview(output="OLD output", user_messages=["OLD input"], user_message_count=1)
+            return AgentPanelPreview(output="NEW output", user_messages=["NEW input"], user_message_count=1)
 
         with create_pipe_input() as pipe:
             panel = AgentsPanel(fetch, load_output=load, input=pipe, output=DummyOutput())
@@ -480,6 +584,7 @@ def test_late_cancel_suppressing_output_cannot_replace_new_selection(switch_back
             await asyncio.sleep(0)
             assert panel.selected_id == ("a" if switch_back else "b")
             assert panel.output_text == "NEW output"
+            assert panel.user_messages == ["NEW input"]
             pipe.send_text("q")
             await asyncio.wait_for(task, 3)
             assert not panel._tasks
@@ -495,13 +600,13 @@ def test_close_cancels_output_and_search_backspace_keeps_list_usable() -> None:
         async def fetch() -> list[AgentPanelSession]:
             return [session("a"), session("b")]
 
-        async def load(id: str) -> str:
+        async def load(id: str) -> AgentPanelPreview:
             output_started.set()
             try:
                 await asyncio.Future[None]()
             finally:
                 output_cancelled.set()
-            return ""
+            return AgentPanelPreview(output="", user_messages=[], user_message_count=0)
 
         with create_pipe_input() as pipe:
             panel = AgentsPanel(fetch, load_output=load, input=pipe, output=DummyOutput())
@@ -558,12 +663,12 @@ def test_output_loads_only_on_selection_or_snapshot_change_and_retries_failure()
         async def fetch() -> list[AgentPanelSession]:
             return [row]
 
-        async def load(id: str) -> str:
+        async def load(id: str) -> AgentPanelPreview:
             nonlocal calls
             calls += 1
             if calls == 2:
                 raise OSError("offline")
-            return f"reply {calls}"
+            return AgentPanelPreview(output=f"reply {calls}", user_messages=[], user_message_count=0)
 
         with create_pipe_input() as pipe:
             panel = AgentsPanel(fetch, load_output=load, input=pipe, output=DummyOutput())
@@ -644,8 +749,10 @@ def test_narrow_unicode_long_directory_detail_scrolling_and_output_bound() -> No
         )
         return [row]
 
-    async def load(id: str) -> str:
-        return "ignore\x1b[31m\n" * 1000 + "latest reply"
+    async def load(id: str) -> AgentPanelPreview:
+        return AgentPanelPreview(
+            output="ignore\x1b[31m\n" * 1000 + "latest reply", user_messages=[], user_message_count=0
+        )
 
     async def check() -> None:
         output = ResizableOutput()
@@ -653,7 +760,7 @@ def test_narrow_unicode_long_directory_detail_scrolling_and_output_bound() -> No
             panel = AgentsPanel(fetch, load_output=load, input=pipe, output=output)
             task = asyncio.create_task(panel.run())
             await until(lambda: "latest reply" in panel.output_text)
-            detail = "".join(text for _, text in panel._detail_text())
+            detail = " ".join("".join(text for _, text in panel._detail_text()).split())
             assert "project: /项目/" in detail
             assert "source: child" in detail and "approve?" in detail
             assert "execution: running" in detail and "control reason: operator" in detail
@@ -708,8 +815,10 @@ def test_paging_reveals_the_end_of_one_wrapped_paragraph(columns: int, paragraph
     async def fetch() -> list[AgentPanelSession]:
         return [session("a")]
 
-    async def load(id: str) -> str:
-        return "BEGIN-PARAGRAPH " + paragraph + " END-PARAGRAPH"
+    async def load(id: str) -> AgentPanelPreview:
+        return AgentPanelPreview(
+            output="BEGIN-PARAGRAPH " + paragraph + " END-PARAGRAPH", user_messages=[], user_message_count=0
+        )
 
     async def check() -> None:
         with create_pipe_input() as pipe:
@@ -757,8 +866,8 @@ def test_detail_hierarchy_preserves_theme_styles_after_wrapping(theme: str, monk
     async def fetch() -> list[AgentPanelSession]:
         return []
 
-    async def load(id: str) -> str:
-        return "Latest reply"
+    async def load(id: str) -> AgentPanelPreview:
+        return AgentPanelPreview(output="Latest reply", user_messages=[], user_message_count=0)
 
     with create_pipe_input() as pipe:
         panel = AgentsPanel(fetch, load_output=load, input=pipe, output=DummyOutput())

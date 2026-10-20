@@ -952,6 +952,49 @@ def test_ps_group_filter_and_target_resolution(app_env: AppEnv) -> None:
     assert missing.status_code == 404
 
 
+@pytest.mark.parametrize("count", [0, 1, 3, 4, 6, 7, 10])
+def test_output_preview_bounds_and_filters_user_messages(
+    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch, count: int
+) -> None:
+    session_id = app_env.create_session()
+    session = Session.load(session_id, work_dir=app_env.work_dir)
+    inputs = [f"input-{index} <file> & " + "界" * 3000 for index in range(count)]
+    for index, value in enumerate(inputs):
+        if index % 3 == 2:
+            escaped = value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            value = (
+                "<local-command-caveat>System instructions</local-command-caveat>"
+                f"<bash-input>{escaped}</bash-input><bash-stdout>command output</bash-stdout>"
+            )
+        session.conversation_history.append(
+            message.UserMessage(
+                source=(None, "user", "bash_mode")[index % 3],
+                parts=[message.TextPart(text=value[:8]), message.TextPart(text=value[8:])],
+            )
+        )
+    for source in ("shell_completion", "task_completion", "peer_message"):
+        session.conversation_history.append(
+            message.UserMessage(
+                source=cast(message.UserMessageSource, source), parts=[message.TextPart(text="callback")]
+            )
+        )
+    session.conversation_history.append(message.AssistantMessage(parts=[message.TextPart(text="r" * 20000)]))
+    monkeypatch.setattr(headless_routes, "_load_session_for_read", lambda *_args: session)
+    path = f"/api/headless/sessions/{session_id}/output"
+    default = app_env.client.get(path).json()
+    assert default["output"] == "r" * 20000
+    assert "user_messages" not in default and "user_message_count" not in default
+    response = app_env.client.get(path, params={"preview": True})
+    assert response.status_code == 200
+    preview = response.json()
+    expected = inputs if count <= 6 else inputs[:3] + inputs[-3:]
+    assert preview["user_message_count"] == count
+    assert len(preview["user_messages"]) == min(count, 6)
+    assert all(len(value) <= 2000 for value in preview["user_messages"])
+    assert preview["user_messages"] == [value[:2000] for value in expected]
+    assert preview["output"] == "r" * 12000
+
+
 def test_output_turns_and_transcript(app_env: AppEnv) -> None:
     _enqueue_text_reply(app_env, "first answer")
     body = _run(app_env, "first question")

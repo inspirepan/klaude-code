@@ -6,6 +6,8 @@ and bounded serialization all live here so every CLI client stays thin.
 
 from __future__ import annotations
 
+from collections import deque
+from html import unescape
 from pathlib import Path
 from typing import Any, Final, Literal
 from uuid import uuid4
@@ -25,6 +27,7 @@ from klaude_code.server.session_index import SessionSummary
 from klaude_code.server.session_state import live_descendant_session_ids
 from klaude_code.server.session_tape import TapeCut
 from klaude_code.server.state import ServerAppState, get_server_state
+from klaude_code.session.history import extract_xml_tag
 from klaude_code.session.ledger import is_auto_user_message
 from klaude_code.session.session import Session
 
@@ -610,6 +613,7 @@ async def get_headless_output(
     target: str,
     turns: int | None = None,
     transcript: bool = False,
+    preview: bool = False,
     state: ServerAppState = STATE_DEP,
 ) -> dict[str, Any]:
     headless = _require_headless(state)
@@ -632,6 +636,27 @@ async def get_headless_output(
         "pending": headless.has_pending(summary.id),
         "status": headless.session_status(summary.id, summary.runtime).model_dump(mode="json"),
     }
+    if preview:
+        first: list[message.UserMessage] = []
+        recent: deque[message.UserMessage] = deque(maxlen=3)
+        count = 0
+        for item in session.conversation_history:
+            if not isinstance(item, message.UserMessage) or item.source not in (None, "user", "bash_mode"):
+                continue
+            count += 1
+            if len(first) < 3:
+                first.append(item)
+            else:
+                recent.append(item)
+        result["output"] = output[-12000:]
+        user_messages: list[str] = []
+        for item in [*first, *recent]:
+            value = message.join_text_parts(item.parts)
+            if item.source == "bash_mode":
+                value = unescape(extract_xml_tag(value, "bash-input")) or value
+            user_messages.append(value[:2000])
+        result["user_messages"] = user_messages
+        result["user_message_count"] = count
     pending = _pending_requests(state, summary.id)
     if pending:
         result["pending_request"] = serialize_pending_request(pending[0])
