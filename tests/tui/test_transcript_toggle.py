@@ -37,7 +37,9 @@ def patch_scrollback_writes(monkeypatch: Any) -> list[tuple[str, bool]]:
     """Capture (payload, clear_screen) pairs instead of writing the terminal."""
     writes: list[tuple[str, bool]] = []
 
-    async def _fake_write(payload: str, clear_screen: bool = False) -> None:
+    async def _fake_write(payload: str, clear_screen: bool = False, before_write: Any = None) -> None:
+        if before_write is not None:
+            before_write()
         writes.append((payload, clear_screen))
 
     monkeypatch.setattr(display_module, "write_scrollback_bulk", _fake_write)

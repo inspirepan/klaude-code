@@ -46,9 +46,16 @@ dynamic UI in both busy and idle states:
     reintroduce per-handler `is_replay` branches — put state bookkeeping in the
     handler and let the filter drop the UI commands.
   - Toggle/refresh are bus events (`ToggleTranscriptDetailEvent`,
-    `RefreshDisplayEvent`) handled inside `consume_envelope`, so a rebuild is
-    serialized with live events by construction. Do not call rebuild methods on
-    the display from outside that consumer.
+    `RefreshDisplayEvent`) handled inside `consume_envelope`. All display state
+    changes, including Ctrl-C toast show/clear and synchronous prompt callbacks,
+    reserve a FIFO display operation before they can change the machine or
+    renderer. Keep machine transition and terminal commit in the same operation;
+    do not call rebuild methods from outside the consumer.
+  - A rebuild captures transcript output and bottom-layout updates while the
+    old bottom view remains visible. Publish the final prompt snapshot through
+    `write_scrollback_bulk(before_write=...)` in the same synchronized terminal
+    cycle as the new transcript. Do not clear the live tail or publish replay
+    status rows before that commit.
   - Mid-run rebuilds end with `renderer.flush_rebuild_tails()`: open
     assistant/thinking streams render their stabilized prefix and stay open so
     live deltas continue them; an active bash or compact-thinking tail is

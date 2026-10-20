@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import Callable, Coroutine, Sequence
+from collections.abc import Awaitable, Callable, Coroutine, Sequence
 from typing import Any, override
 
 from klaude_code.app.ports import DisplayABC
@@ -47,6 +47,12 @@ class TUIDisplay(DisplayABC):
         self._interrupt_prompt_suggestion_session_id: str | None = None
 
         self._sigint_toast_clear_handle: asyncio.Handle | None = None
+        # Toast callbacks and event consumption both change the machine and
+        # renderer. Keep that whole transition/commit pair in arrival order.
+        self._display_lock = asyncio.Lock()
+        self._display_tail: asyncio.Future[None] | None = None
+        self._stopped = False
+        self._sigint_toast_generation = 0
         self._bg_tasks: set[asyncio.Task[None]] = set()
         # Everything the display has consumed, so a transcript rebuild (ctrl-o
         # detail toggle, /refresh) can repaint the screen without asking the
@@ -64,13 +70,59 @@ class TUIDisplay(DisplayABC):
     def task_attention(self) -> dict[str, str]:
         return self._machine.task_attention()
 
-    def _create_bg_task(self, coro: Coroutine[Any, Any, None]) -> None:
+    def _create_bg_task(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
         task = asyncio.create_task(coro)
         self._bg_tasks.add(task)
         task.add_done_callback(self._bg_tasks.discard)
+        return task
+
+    def _reserve_display_operation(self) -> tuple[asyncio.Future[None] | None, Callable[[], None]]:
+        """Reserve FIFO position before an async task gets CPU time."""
+        previous = self._display_tail
+        complete: asyncio.Future[None] = asyncio.get_running_loop().create_future()
+        self._display_tail = complete
+
+        def release() -> None:
+            if complete.done():
+                return
+            if previous is not None and not previous.done():
+                previous.add_done_callback(lambda _future: release())
+            else:
+                complete.set_result(None)
+
+        return previous, release
+
+    def _queue_display_change(self, change: Callable[[], Awaitable[None]]) -> None:
+        previous, release = self._reserve_display_operation()
+
+        async def apply() -> None:
+            try:
+                if previous is not None:
+                    await asyncio.shield(previous)
+                async with self._display_lock:
+                    if not self._stopped:
+                        await change()
+            finally:
+                release()
+
+        task = self._create_bg_task(apply())
+        # A task cancelled before its first step never reaches its finally.
+        task.add_done_callback(lambda _task: release())
 
     @override
     async def consume_envelope(self, envelope: events.EventEnvelope) -> None:
+        previous, release = self._reserve_display_operation()
+        try:
+            if previous is not None:
+                await asyncio.shield(previous)
+            async with self._display_lock:
+                if self._stopped:
+                    return
+                await self._consume_envelope_locked(envelope)
+        finally:
+            release()
+
+    async def _consume_envelope_locked(self, envelope: events.EventEnvelope) -> None:
         event = envelope.event
         if isinstance(event, events.ReplayHistoryEvent):
             self._tape.record(event)
@@ -127,39 +179,42 @@ class TUIDisplay(DisplayABC):
         streams and running sub-agents included — and subsequent live events
         continue seamlessly.
         """
-        # A rebuild does not need streaming UI; disable prompt live rendering
-        # while reconstructing stable scrollback history.
-        self._renderer.set_stream_renderable(None)
-        self._renderer.set_replay_mode(True)
-        self._renderer.reset_replay_state()
-        try:
-            # Render the whole transcript into memory first (yielding per
-            # event so the pure-CPU render loop doesn't starve the event
-            # loop), then flush it in a single scrollback write. Routing
-            # per-event output through the stdout proxy instead paints the
-            # history as dozens of frame-sized chunks, each paying a CPR
-            # round trip and a bottom-UI redraw.
-            with self._renderer.bulk_render_capture() as buffer:
-                await self._renderer.execute(self._machine.begin_rebuild())
-                for item in items:
-                    log_debug(
-                        f"[Rebuild] [{item.__class__.__name__}]",
-                        lambda item=item: item.model_dump_json(exclude_none=True),
-                        debug_type=DebugType.UI_EVENT,
-                    )
+        # Keep the old prompt frame visible while the transcript is rebuilt.
+        # Publish the final bottom snapshot in the same terminal cycle as the
+        # new scrollback; intermediate replay states never reach the prompt.
+        with self._renderer.defer_prompt_updates() as publish_prompt:
+            self._renderer.set_stream_renderable(None)
+            self._renderer.set_replay_mode(True)
+            self._renderer.reset_replay_state()
+            try:
+                # Render the whole transcript into memory first (yielding per
+                # event so the pure-CPU render loop doesn't starve the event
+                # loop), then flush it in a single scrollback write. Routing
+                # per-event output through the stdout proxy instead paints the
+                # history as dozens of frame-sized chunks, each paying a CPR
+                # round trip and a bottom-UI redraw.
+                with self._renderer.bulk_render_capture() as buffer:
+                    await self._renderer.execute(self._machine.begin_rebuild())
+                    for item in items:
+                        log_debug(
+                            f"[Rebuild] [{item.__class__.__name__}]",
+                            lambda item=item: item.model_dump_json(exclude_none=True),
+                            debug_type=DebugType.UI_EVENT,
+                        )
 
-                    commands = self._machine.transition_rebuild(item)
-                    if commands:
-                        await self._renderer.execute(commands)
-                    await asyncio.sleep(0)
-                await self._renderer.execute(self._machine.end_rebuild(drop_dangling_tasks=drop_dangling_tasks))
-                self._renderer.flush_rebuild_tails()
-            await write_scrollback_bulk(
-                buffer.getvalue(),
-                clear_screen=clear_screen,
-            )
-        finally:
-            self._renderer.set_replay_mode(False)
+                        commands = self._machine.transition_rebuild(item)
+                        if commands:
+                            await self._renderer.execute(commands)
+                        await asyncio.sleep(0)
+                    await self._renderer.execute(self._machine.end_rebuild(drop_dangling_tasks=drop_dangling_tasks))
+                    self._renderer.flush_rebuild_tails()
+                await write_scrollback_bulk(
+                    buffer.getvalue(),
+                    clear_screen=clear_screen,
+                    before_write=publish_prompt,
+                )
+            finally:
+                self._renderer.set_replay_mode(False)
 
     def _set_prompt_suggestion(self, text: str | None) -> None:
         if self._on_prompt_suggestion is None:
@@ -247,29 +302,43 @@ class TUIDisplay(DisplayABC):
 
     @override
     async def stop(self) -> None:
+        self._stopped = True
+        self._sigint_toast_generation += 1
         if self._sigint_toast_clear_handle is not None:
             with contextlib.suppress(Exception):
                 self._sigint_toast_clear_handle.cancel()
             self._sigint_toast_clear_handle = None
 
-        for task in list(self._bg_tasks):
+        tasks = list(self._bg_tasks)
+        for task in tasks:
             with contextlib.suppress(Exception):
                 task.cancel()
-        self._bg_tasks.clear()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
 
-        await self._renderer.stop()
+        if self._display_tail is not None:
+            await asyncio.shield(self._display_tail)
+        async with self._display_lock:
+            await self._renderer.stop()
 
     def show_sigint_exit_toast(self, *, window_seconds: float = 2.0) -> None:
         """Show a transient ctrl-c hint in the TUI status line."""
 
+        if self._stopped:
+            return
+        self._sigint_toast_generation += 1
+        generation = self._sigint_toast_generation
+
         async def _apply_show() -> None:
-            await self._renderer.execute(self._machine.show_sigint_exit_toast())
+            if generation == self._sigint_toast_generation:
+                await self._renderer.execute(self._machine.show_sigint_exit_toast())
 
         async def _apply_clear() -> None:
-            await self._renderer.execute(self._machine.clear_sigint_exit_toast())
+            if generation == self._sigint_toast_generation:
+                await self._renderer.execute(self._machine.clear_sigint_exit_toast())
 
         loop = asyncio.get_running_loop()
-        self._create_bg_task(_apply_show())
+        self._queue_display_change(_apply_show)
 
         if self._sigint_toast_clear_handle is not None:
             with contextlib.suppress(Exception):
@@ -277,50 +346,79 @@ class TUIDisplay(DisplayABC):
             self._sigint_toast_clear_handle = None
 
         def _schedule_clear() -> None:
-            self._create_bg_task(_apply_clear())
+            self._queue_display_change(_apply_clear)
 
         self._sigint_toast_clear_handle = loop.call_later(window_seconds, _schedule_clear)
+
+    def _apply_sync_display_change(self, change: Callable[[], None]) -> None:
+        """Keep synchronous prompt callbacks out of an in-flight frame."""
+        if self._stopped:
+            return
+        if (self._display_tail is None or self._display_tail.done()) and not self._display_lock.locked():
+            change()
+            return
+
+        async def apply_later() -> None:
+            change()
+
+        self._queue_display_change(apply_later)
 
     def hide_progress_ui(self, *, flush_open_blocks: bool = True) -> None:
         """Stop transient Rich UI elements before prompt-toolkit takes control."""
 
-        with contextlib.suppress(Exception):
-            self._renderer.spinner_stop()
-        if flush_open_blocks:
+        def hide() -> None:
             with contextlib.suppress(Exception):
-                self._renderer.flush_open_blocks(scoped=False)
+                self._renderer.spinner_stop()
+            if flush_open_blocks:
+                with contextlib.suppress(Exception):
+                    self._renderer.flush_open_blocks(scoped=False)
+
+        self._apply_sync_display_change(hide)
 
     def show_progress_ui(self) -> None:
         """Restore bottom status line after temporary interactive prompts."""
 
-        with contextlib.suppress(Exception):
-            self._renderer.spinner_start()
+        def show() -> None:
+            with contextlib.suppress(Exception):
+                self._renderer.spinner_start()
+
+        self._apply_sync_display_change(show)
 
     def set_progress_ui_suspended(self, suspended: bool) -> None:
         """Prevent Rich Live progress UI from repainting while prompt-toolkit owns input."""
 
-        with contextlib.suppress(Exception):
-            self._renderer.set_progress_ui_suspended(suspended)
+        def set_suspended() -> None:
+            with contextlib.suppress(Exception):
+                self._renderer.set_progress_ui_suspended(suspended)
+
+        self._apply_sync_display_change(set_suspended)
 
     def refresh_prompt_status(self) -> None:
         """Refresh the prompt-toolkit status snapshot from the current Rich status state."""
 
-        with contextlib.suppress(Exception):
-            self._renderer.refresh_prompt_status()
+        def refresh() -> None:
+            with contextlib.suppress(Exception):
+                self._renderer.refresh_prompt_status()
+
+        self._apply_sync_display_change(refresh)
 
     def set_theme(self, theme: str | None) -> None:
         """Swap the rich palette at runtime; pair with a RefreshDisplayEvent
         so the already-printed transcript repaints in the new colors."""
-        self._renderer.set_theme(theme)
+        self._apply_sync_display_change(lambda: self._renderer.set_theme(theme))
 
     def set_model_name(self, model_name: str | None) -> None:
         """Set model name for terminal title updates."""
-        self._machine.set_model_name(model_name)
-        update_terminal_title(
-            model_name,
-            prefix=self._machine.terminal_title_prefix,
-            session_title=self._machine.session_title,
-        )
+
+        def set_model() -> None:
+            self._machine.set_model_name(model_name)
+            update_terminal_title(
+                model_name,
+                prefix=self._machine.terminal_title_prefix,
+                session_title=self._machine.session_title,
+            )
+
+        self._apply_sync_display_change(set_model)
 
     def notify_ask_user_question(self, *, question_count: int, headers: list[str] | None = None) -> None:
         if question_count <= 0:
