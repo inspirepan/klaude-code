@@ -131,6 +131,7 @@ from klaude_code.tui.components.tools._presentation import parse_tool_arguments
 from klaude_code.tui.input.flicker_safe_stdout import FlickerSafeStdoutProxy, write_scrollback_bulk
 from klaude_code.tui.input.pt_theme import CLASS_THINKING, CLASS_TOOL_RESULT
 from klaude_code.tui.status_runtime import clear_task_start, set_task_start
+from klaude_code.tui.terminal import tty_state
 from klaude_code.tui.terminal.image import print_kitty_image
 from klaude_code.tui.terminal.notifier import (
     Notification,
@@ -148,6 +149,7 @@ from klaude_code.tui.transcript_detail import Detail, TranscriptDetail, is_visib
 
 BASH_LIVE_TAIL_MAX_LINES = 5
 TASK_NOTIFICATION_DELAY_S = 0.3
+TASK_NOTIFICATION_TTY_POLL_S = 0.05
 _SUB_AGENT_FILE_TOOLS = frozenset({tools.EDIT, tools.WRITE, tools.APPLY_PATCH})
 
 # A fast-spewing command can deliver hundreds of output deltas per second;
@@ -288,6 +290,7 @@ class TUICommandRenderer:
         )
         self._status_line_specs: tuple[SpinnerStatusLine, ...] = ()
         self._notifier = notifier
+        self._notification_tasks: set[asyncio.Task[None]] = set()
         self._scrollback_boundary_printed = False
         self._status_sink = status_sink
         self._stream_sink = stream_sink
@@ -1938,6 +1941,27 @@ class TUICommandRenderer:
         )
         self._notifier.notify(notification)
 
+    def _schedule_task_notifications(self, finished_tasks: list[RenderTaskFinish]) -> None:
+        """Notify after the rendered frame is committed, without delaying its consumer."""
+        if not finished_tasks:
+            return
+
+        async def notify_after_title_settles() -> None:
+            # Ghostty coalesces title changes for 75ms; a retry can take 80ms.
+            await asyncio.sleep(TASK_NOTIFICATION_DELAY_S)
+            # Notification OSC bytes go to the raw tty. A scrollback cycle or
+            # partial renderer flush may be between chunks of an ANSI escape.
+            # Wait here, outside the display consumer, until a complete OSC
+            # write can follow the current terminal frame.
+            while not tty_state.stdout_writable() or tty_state.scrollback_write_in_flight():
+                await asyncio.sleep(TASK_NOTIFICATION_TTY_POLL_S)
+            for task_finish in finished_tasks:
+                self._maybe_notify_task_finish(task_finish)
+
+        task = asyncio.create_task(notify_after_title_settles())
+        self._notification_tasks.add(task)
+        task.add_done_callback(self._notification_tasks.discard)
+
     def _compact_result_text(self, text: str) -> str | None:
         stripped = text.strip()
         if not stripped:
@@ -1961,7 +1985,8 @@ class TUICommandRenderer:
         # Interactive output and layout changes share a terminal commit. Rich's
         # stdout proxy otherwise queues text while status sinks repaint immediately.
         if self._replay_mode or not isinstance(self.console.file, FlickerSafeStdoutProxy):
-            await self._execute_commands(commands)
+            pending = await self._execute_commands(commands)
+            self._schedule_task_notifications(pending)
             return
         updates: list[Callable[[], None]] = []
         self._prompt_frame_updates = updates
@@ -1974,16 +1999,17 @@ class TUICommandRenderer:
 
         try:
             with self.bulk_render_capture() as buffer:
-                await self._execute_commands(commands)
+                pending = await self._execute_commands(commands)
                 if buffer.getvalue():
                     self._flush_pending_spinner_update()
             await write_scrollback_bulk(buffer.getvalue(), before_write=publish)
+            self._schedule_task_notifications(pending)
         finally:
             # Cancellation must not leave future status refreshes buffered.
             if self._prompt_frame_updates is not None:
                 publish()
 
-    async def _execute_commands(self, commands: list[RenderCommand]) -> None:
+    async def _execute_commands(self, commands: list[RenderCommand]) -> list[RenderTaskFinish]:
         finished_tasks_to_notify: list[RenderTaskFinish] = []
         for cmd in commands:
             self._flush_open_blocks_before(cmd)
@@ -2217,15 +2243,15 @@ class TUICommandRenderer:
                 case _:
                     continue
 
-        if finished_tasks_to_notify:
-            # Ghostty applies title changes through a 75ms coalescing timer.
-            # Leave room for one 80ms title retry plus that timer before it
-            # snapshots the title into the desktop notification.
-            await asyncio.sleep(TASK_NOTIFICATION_DELAY_S)
-        for cmd_finish in finished_tasks_to_notify:
-            self._maybe_notify_task_finish(cmd_finish)
+        return finished_tasks_to_notify
 
     async def stop(self) -> None:
+        notification_tasks = tuple(self._notification_tasks)
+        for task in notification_tasks:
+            task.cancel()
+        if notification_tasks:
+            await asyncio.gather(*notification_tasks, return_exceptions=True)
+        self._notification_tasks.clear()
         self._cancel_bash_live_flush()
         self._end_thinking_live_tail()
         self._cancel_spinner_flush()

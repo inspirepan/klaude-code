@@ -123,15 +123,18 @@ def test_task_notification_follows_final_terminal_title(monkeypatch: pytest.Monk
         lambda *_args, **kwargs: calls.append(f"title:{kwargs['prefix']}"),
     )
 
-    asyncio.run(
-        display._renderer.execute(
+    async def _run() -> None:
+        await display._renderer.execute(
             [
                 RenderTaskFinish(event=events.TaskFinishEvent(session_id="main", task_result="done")),
                 StopTitleBlink(),
                 UpdateTerminalTitlePrefix(prefix="✅", model_name="gpt-5", session_title="Task"),
             ]
         )
-    )
+        assert calls == ["stop", "title:✅"]
+        await asyncio.gather(*display._renderer._notification_tasks)
+
+    asyncio.run(_run())
 
     assert calls == ["stop", "title:✅", "wait", "notify"]
 
