@@ -158,7 +158,8 @@ def test_cli_resume_keeps_the_loaded_actor(app_env: AppEnv, monkeypatch: pytest.
         response = app_env.client.request(method, path, json=kwargs.get("json_body"))
         return response.status_code, response.json()
 
-    async def _run_attach(target: str, *, upgrade_notice: object = None) -> None:
+    async def _run_attach(target: str, *, peek: bool = False, upgrade_notice: object = None) -> None:
+        assert peek is False
         attached.append(target)
 
     def _load_config() -> None:

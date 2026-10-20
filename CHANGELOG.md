@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.42.0] - 2026-10-20
+
+### Added
+
+- 统一会话入口并优化 agents 面板 (`e681a4f1`)
+- 向上发现所有祖先目录的共享技能 (`9cb77ea2`)
+- 新增 /detach 命令保留后台任务 (`9e5954e5`)
+- 让 /stop 停止当前会话全部任务 (`4e7afd53`)
+- 显示折叠 diff 的隐藏增删行数 (`73a61096`)
+- 简化模型结果并展示 Agent 最近状态 (`0ee1a785`)
+
+### Changed
+
+- 精简状态栏并突出后台运行任务 (`7e96f7e0`)
+
+### Fixed
+
+- 移除连续工具与协作消息间的多余空行 (`07587687`)
+- 加粗 agents 面板当前选中行 (`70ebeaf5`)
+- 将首个后台 Agent 启动记录合并为单行 (`174bcbd0`)
+- 统一快捷键提示风格 (`d8583f53`)
+- 修复网页搜索与 Markdown 文件超链接 (`8a6b2d5a`)
+- 会话选择器只展示真实用户输入 (`0f987f2f`)
+- 将子 Agent 费用计入状态栏总额 (`787f4cb2`)
+- 防止后台任务截断主会话流式输出 (`34ad1174`)
+- 串行提交显示操作并同步重建画面 (`6bc24024`)
+- 统一底部高度预算并区分后台等待状态 (`28f53979`)
+- 异步发送任务完成通知 (`59df14f1`)
+- 按文件分行展示子代理变更摘要 (`16ce3227`)
+- 移除每轮自动文件变更摘要 (`822a76cd`)
+- 加粗子代理状态区工具名 (`db488593`)
+- 隐藏无模型变化的配置重载提示 (`0ba204e2`)
+- stabilize bottom layout during stream updates (`da92a0be`)
+
 ## [2.41.0] - 2026-10-20
 
 ### Added
@@ -2893,7 +2927,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.41.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.42.0...HEAD
+[2.42.0]: https://github.com/inspirepan/klaude-code/compare/v2.41.0...v2.42.0
 [2.41.0]: https://github.com/inspirepan/klaude-code/compare/v2.40.0...v2.41.0
 [2.40.0]: https://github.com/inspirepan/klaude-code/compare/v2.39.0...v2.40.0
 [2.39.0]: https://github.com/inspirepan/klaude-code/compare/v2.38.2...v2.39.0
