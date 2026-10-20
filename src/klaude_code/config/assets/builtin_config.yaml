@@ -5,6 +5,7 @@ provider_list:
 
 # ######################################## youtu-anthropic ########################################
 - provider_name: youtu-anthropic
+  disabled: true
   protocol: anthropic
   api_key: ${YOUTU_API_KEY}
   base_url: https://api.youtu.uk/anthropic
@@ -133,6 +134,7 @@ provider_list:
 
 # ######################################## youtu-openai ########################################
 - provider_name: youtu-openai
+  disabled: true
   protocol: responses
   api_key: ${YOUTU_API_KEY}
   base_url: https://api.youtu.uk/v1
@@ -274,6 +276,7 @@ provider_list:
 
 # ######################################## youtu-gemini ########################################
 - provider_name: youtu-gemini
+  disabled: true
   protocol: google
   api_key: ${YOUTU_API_KEY}
   base_url: https://api.youtu.uk/gemini

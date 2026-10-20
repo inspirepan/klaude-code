@@ -7,6 +7,7 @@ def test_argon_resolves_all_tiers_without_replacing_flash_or_pro() -> None:
     expected_providers = ["youtu-gemini", "google", "google-vertex", "openrouter"]
     config.provider_list = [p for p in config.provider_list if p.provider_name in expected_providers]
     for provider in config.provider_list:
+        provider.disabled = False
         provider.api_key = "test-key"
         provider.google_application_credentials = "fake.json"
         provider.google_cloud_project = "test-project"

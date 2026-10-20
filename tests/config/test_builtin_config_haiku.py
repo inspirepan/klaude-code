@@ -22,6 +22,7 @@ def test_haiku_resolves_to_55_on_every_existing_provider(isolated_home: Path) ->
     ]
     assert {provider.provider_name for provider in config.provider_list} == set(expected_ids)
     for provider in config.provider_list:
+        provider.disabled = False
         provider.api_key = "test-key"
         provider.aws_access_key = "test-access-key"
         provider.aws_secret_key = "test-secret-key"
