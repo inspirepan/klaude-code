@@ -699,16 +699,25 @@ def test_esc_latch_clears_when_queue_starts_before_idle_is_observed(monkeypatch:
     assert [item.expected_operation_id for item in interrupts] == ["turn-1", "queued-turn"]
 
 
-def test_exit_while_running_detaches_without_interrupt(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("exit_input", ["exit", "quit", ":q", "/detach", "/det", " /detach "])
+@pytest.mark.parametrize("running", [True, False])
+def test_exit_detaches_without_interrupt_or_queue(
+    monkeypatch: pytest.MonkeyPatch, exit_input: str, running: bool
+) -> None:
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
-        client.set_running(True)
+        client.set_running(running)
         await _settle()
-        yield UserInputPayload(text="exit")
+        yield UserInputPayload(text=exit_input)
+        pytest.fail("The runner must stop reading input immediately after detach")
 
     client = run_scenario(monkeypatch, script)
 
     assert client.closed is True
-    assert client.ops_of(op.InterruptOperation) == []
+    assert client.is_running() is running
+    assert client.submitted == []
+    assert client.follow_up_texts() == ()
+    assert client.emitted_user_messages == []
+    assert client.local_events == []
 
 
 def test_idle_queue_edit_splits_first_runs_rest_queue(monkeypatch: pytest.MonkeyPatch) -> None:

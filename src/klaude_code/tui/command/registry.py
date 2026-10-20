@@ -202,6 +202,11 @@ def has_background_command(raw: str) -> bool:
     return command is not None and command.runs_in_background
 
 
+def is_detach_command(raw: str) -> bool:
+    command = _resolve_command(raw)
+    return command is not None and command.name == CommandName.DETACH
+
+
 def command_needs_history(raw: str) -> bool:
     """Whether `raw` resolves to a command that reads conversation history."""
     command = _resolve_command(raw)

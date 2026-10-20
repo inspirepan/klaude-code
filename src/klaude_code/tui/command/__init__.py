@@ -7,6 +7,7 @@ from .registry import (
     get_commands,
     has_background_command,
     has_interactive_command,
+    is_detach_command,
     is_registered_command,
     is_slash_command_name,
     register,
@@ -37,6 +38,7 @@ def ensure_commands_loaded() -> None:
     from .context_cmd import ContextCommand
     from .continue_cmd import ContinueCommand
     from .copy_cmd import CopyCommand
+    from .detach_cmd import DetachCommand
     from .fork_session_cmd import ForkSessionCommand
     from .grill_me_cmd import GrillMeCommand
     from .login_cmd import LoginCommand
@@ -74,6 +76,7 @@ def ensure_commands_loaded() -> None:
     register(BtwCommand())
     register(TasksCommand())
     register(StopCommand())
+    register(DetachCommand())
 
 
 # Lazy accessors for command classes
@@ -84,6 +87,7 @@ def __getattr__(name: str) -> object:
         "CompactCommand": "compact_cmd",
         "ContinueCommand": "continue_cmd",
         "CopyCommand": "copy_cmd",
+        "DetachCommand": "detach_cmd",
         "ForkSessionCommand": "fork_session_cmd",
         "GrillMeCommand": "grill_me_cmd",
         "LoginCommand": "login_cmd",
@@ -124,6 +128,7 @@ __all__ = [
     "get_commands",
     "has_background_command",
     "has_interactive_command",
+    "is_detach_command",
     "is_registered_command",
     "is_slash_command_name",
 ]

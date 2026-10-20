@@ -5,6 +5,7 @@ from typing import Any, cast
 import pytest
 from prompt_toolkit.document import Document
 
+from klaude_code.tui.command import get_command_info_list
 from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.input.completers import (
     _ComboCompleter,  # pyright: ignore[reportPrivateUsage]
@@ -52,6 +53,13 @@ def test_double_slash_completion_shows_only_skills() -> None:
     assert "//skill:publish " in texts
     assert "/copy " not in texts
     assert "/model " not in texts
+
+
+def test_detach_completion_uses_registered_command() -> None:
+    completer = _ComboCompleter(command_info_provider=get_command_info_list)
+    completions = list(completer.get_completions(Document(text="/det"), cast(Any, None)))
+
+    assert any(completion.text == "/detach " for completion in completions)
 
 
 def test_inline_slash_skill_completion_works() -> None:

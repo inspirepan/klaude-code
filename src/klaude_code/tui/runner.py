@@ -42,6 +42,7 @@ from klaude_code.tui.command import (
     get_command_info_list,
     has_background_command,
     has_interactive_command,
+    is_detach_command,
     is_registered_command,
 )
 from klaude_code.tui.command.command_abc import CommandResult
@@ -79,7 +80,8 @@ def _split_queue_edit_payload(user_input: UserInputPayload) -> tuple[UserInputPa
 
 
 def _is_exit_input(text: str) -> bool:
-    return text.strip().lower() in {"exit", ":q", "quit"}
+    stripped = text.strip()
+    return stripped.lower() in {"exit", ":q", "quit"} or is_detach_command(stripped)
 
 
 def _requires_client_dispatch(text: str) -> bool:

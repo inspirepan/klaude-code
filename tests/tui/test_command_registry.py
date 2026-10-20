@@ -132,3 +132,19 @@ def test_dispatch_ambiguous_prefix_falls_back_to_agent(
     assert result.operations is not None
     assert isinstance(result.operations[0], op.RunAgentOperation)
     assert result.operations[0].input.text == "/ex something"
+
+
+def test_detach_uses_registered_prefix_resolution(
+    _isolated_registry: dict[CommandName | str, CommandABC],
+) -> None:
+    from klaude_code.tui.command.detach_cmd import DetachCommand
+
+    registry.register(DetachCommand())
+    assert registry.is_detach_command("/detach")
+    assert registry.is_detach_command("/det")
+    assert not registry.is_detach_command("/detached")
+    assert not registry.is_detach_command("detach")
+
+    registry.register(_DummyCommand("details", "details"))
+    assert not registry.is_detach_command("/det")
+    assert registry.is_detach_command("/detach")

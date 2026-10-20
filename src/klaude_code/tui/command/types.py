@@ -34,6 +34,7 @@ class CommandName(str, Enum):
     BTW = "btw"
     TASKS = "tasks"
     STOP = "stop"
+    DETACH = "detach"
 
     def __str__(self) -> str:
         return self.value
