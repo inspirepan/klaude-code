@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import type { SessionListRow, SpawnedChild } from '../adapter/index.ts'
+import { sessionStatus } from '../adapter/fixtures.ts'
 import {
   buildSessionTree, filterSessionRows, flattenSessionTree, isLiveState, messagesCount,
-  relativeUpdated, rowLabel, rowState, rowTitle, workDirName,
+  relativeUpdated, rowLabel, rowState, rowTitle, statusLabel, workDirName,
 } from './session-list-model.ts'
 
 /** `updated_at` is epoch **seconds** on this endpoint. */
 const T0 = 1_800_000_000
 
 function listRow(id: string, fields: Partial<SessionListRow> = {}): SessionListRow {
-  return { id, updated_at: T0, ...fields }
+  return { id, updated_at: T0, state: 'idle', status: sessionStatus(), ...fields }
 }
 
 function spawn(childId: string, fields: Partial<SpawnedChild> = {}): SpawnedChild {
@@ -40,15 +41,25 @@ describe('row fields', () => {
     expect(workDirName(null)).toBeNull()
   })
 
-  it('normalizes the six-state vocabulary and marks the two live ones', () => {
-    expect(rowState(listRow('a', { state: 'waiting_input' }))).toBe('waiting_input')
-    // A cold session reports `completed`; anything unknown reads the same way.
-    expect(rowState(listRow('a', { state: 'no_such_state' }))).toBe('completed')
-    expect(rowState(listRow('a'))).toBe('completed')
-    expect(isLiveState('running')).toBe(true)
-    expect(isLiveState('waiting_input')).toBe(true)
-    expect(isLiveState('queued')).toBe(false)
+  it('uses the snapshot category rather than a turn result or execution', () => {
+    const row = listRow('a', { status: sessionStatus({ category: 'needs_you', execution: 'running' }) })
+    expect(rowState(row)).toBe('needs_you')
+    expect(filterSessionRows([row], 'needs_you running')).toEqual([row])
+    expect(rowState(listRow('a'))).toBe('idle')
+    expect(isLiveState('working')).toBe(true)
+    expect(isLiveState('needs_you')).toBe(false)
     expect(isLiveState('idle')).toBe(false)
+  })
+
+  it('keeps attention reasons and parallel execution visible', () => {
+    expect(statusLabel(sessionStatus({
+      category: 'needs_you', execution: 'running',
+      attention: [
+        { kind: 'needs_input', code: 'tool', source_session_id: 'child' },
+        { kind: 'needs_input', code: 'tool', source_session_id: 'other-child' },
+        { kind: 'paused', code: 'user_interrupt', source_session_id: 'main' },
+      ],
+    }))).toBe('needs_you · running · needs_input · paused')
   })
 
   it('renders updated_at as a compact bucket, converting seconds to ms', () => {

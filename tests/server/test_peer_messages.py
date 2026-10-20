@@ -391,7 +391,9 @@ def test_metadata_write_failure_returns_500_without_false_acceptance_and_retry_r
     restored = Agent(Session.load(target, env.work_dir), agent.profile)
     actor.set_agent(restored)
     assert len(restored.follow_up_records()) == 1
-    assert env.client.post(f"/api/headless/sessions/{target}/send", json=payload).json() == response.json()
+    retried = env.client.post(f"/api/headless/sessions/{target}/send", json=payload).json()
+    for key in ("session_id", "message_id", "target", "accepted", "mode"):
+        assert retried[key] == response.json()[key]
 
     async def admit() -> None:
         async for _ in restored.inject_pending_inputs():
@@ -499,7 +501,10 @@ def test_external_task_prefix_id_survives_api_disk_restore_and_admission(
     assert peers[0].peer_message is not None and peers[0].peer_message.body == payload["text"]
     assert sum(isinstance(item, TaskMetadataItem) for item in loaded.conversation_history) == 1
     assert not loaded.follow_up_queue
-    assert env.client.post(f"/api/headless/sessions/{target}/send", json=payload).json() == response.json()
+    retried = env.client.post(f"/api/headless/sessions/{target}/send", json=payload).json()
+    for key in ("session_id", "message_id", "target", "accepted", "mode"):
+        assert retried[key] == response.json()[key]
+    assert retried["state"] == "idle" and retried["pending"] is False
 
 
 @pytest.mark.parametrize("complete_first", [False, True], ids=["peer-before-completion", "completion-before-peer"])
@@ -558,7 +563,9 @@ def test_internal_delivery_ids_rejected_before_acceptance_in_both_orders(
     _call(env, complete_and_inject)
     restored = Agent(Session.load(target, env.work_dir), agent.profile, task_manager=env.runtime.task_manager)
     actor.set_agent(restored)
-    assert env.client.post(f"/api/headless/sessions/{target}/send", json=payload).json() == accepted.json()
+    retried = env.client.post(f"/api/headless/sessions/{target}/send", json=payload).json()
+    for key in ("session_id", "message_id", "target", "accepted", "mode"):
+        assert retried[key] == accepted.json()[key]
     users = [item for item in _history(env, target) if isinstance(item, message.UserMessage)]
     assert [(item.id, item.source) for item in users] == [
         (delivery_id, "task_completion"),

@@ -25,6 +25,7 @@ import { mergeHistoryTail, spliceLiveSnapshot, useLiveSession } from './live/ind
 import { renderImages } from './render-images.tsx'
 import { SearchBar } from './SearchBar.tsx'
 import { walkToLine, type SearchJumpOutcome } from './search.ts'
+import { statusLabel } from './session-list-model.ts'
 import css from './session-page.module.css'
 
 const EMPTY_PAGE: LoadedWindow = { rows: [], hasMore: false, nextBeforeLine: null }
@@ -41,13 +42,12 @@ function baseName(path: string | null): string | null {
 /**
  * Whether this session is worth a socket.
  *
- * `loaded` is the honest signal (an agent is in memory); the two live states
- * cover the window where the list already knows work is happening but the meta
- * read raced the actor's creation.
+ * Attention and background work can outlive a root turn.
  */
 function isOnline(meta: SessionMeta | null): boolean {
   if (meta === null) return false
-  return meta.loaded || meta.state === 'running' || meta.state === 'waiting_input'
+  return meta.loaded || meta.status.category !== 'idle'
+    || meta.status.owned.active_agents > 0 || meta.status.owned.active_shells > 0
 }
 
 /** Trajectory page for one session. */
@@ -251,7 +251,7 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
     hasMore: page.hasMore,
   }
   const directory = baseName(meta?.work_dir ?? null)
-  const state = (live.connected ? live.sessionState : null) ?? meta?.state ?? null
+  const status = (live.connected ? live.status : null) ?? meta?.status ?? null
   const parent = meta?.parent_session_id ?? null
 
   return (
@@ -263,8 +263,8 @@ export function SessionPage({ sessionId }: { sessionId: string }) {
         {meta?.model != null && meta.model !== '' && (
           <span className={css.meta}>{meta.model}</span>
         )}
-        {state !== null && state !== '' && (
-          <span className={css.state} data-state={state}>{state}</span>
+        {status !== null && (
+          <span className={css.state} data-state={status.category}>{statusLabel(status)}</span>
         )}
         {live.connected && (
           <span

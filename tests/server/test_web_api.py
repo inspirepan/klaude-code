@@ -23,6 +23,7 @@ from klaude_code.prompts.messages import (
 from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT, FORK_CONTEXT_WITH_ROLE_PROMPT
 from klaude_code.protocol import message
 from klaude_code.protocol.models import TaskMetadataItem
+from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.server.routes import web_api
 from klaude_code.session.codec import encode_jsonl_line
 
@@ -100,7 +101,8 @@ def test_meta_reports_disk_fields_for_a_cold_session(app_env: AppEnv) -> None:
         "parent_session_id": None,
         "created_at": 1000.0,
         "updated_at": 2000.0,
-        "state": "completed",
+        "state": "idle",
+        "status": SessionStatus().model_dump(mode="json"),
         "loaded": False,
         "line_count": 2,
     }
@@ -131,7 +133,7 @@ def test_meta_reports_loaded_for_a_session_with_an_actor(app_env: AppEnv) -> Non
 
     assert payload["loaded"] is True
     assert payload["work_dir"] == str(app_env.work_dir)
-    assert payload["state"] in {"idle", "completed", "running"}
+    assert payload["state"] == "idle"
 
 
 def test_meta_of_an_unknown_session_is_404(app_env: AppEnv) -> None:
@@ -998,7 +1000,7 @@ def test_history_follows_a_live_session_append(app_env: AppEnv) -> None:
 
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
-        if app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()["state"] == "completed":
+        if app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()["state"] == "idle":
             break
         time.sleep(0.05)
 

@@ -13,7 +13,7 @@
  */
 
 import type { AssistantBlock } from '../../contract/index.ts'
-import type { HistoryRow } from '../../adapter/index.ts'
+import type { HistoryRow, SessionStatus } from '../../adapter/index.ts'
 import type { LiveEnvelope, LiveFrame } from './frames.ts'
 
 /** A tool call seen on the wire whose `tool.result` has not arrived. */
@@ -67,12 +67,8 @@ export interface LiveState {
   readonly running: boolean
   readonly partial: LivePartial | null
   readonly runningCalls: readonly LiveToolCall[]
-  /**
-   * The session's state as the socket reports it: seeded by the attach
-   * `session_info` frame, then kept current by `task.start` / `task.finish`.
-   * Null until the first of those arrives, when `meta.state` is the fallback.
-   */
-  readonly sessionState: string | null
+  /** Latest authoritative snapshot; transcript events never change it. */
+  readonly status: SessionStatus | null
   /** `line_count` from the newest `history.appended`, or null. */
   readonly appendedLineCount: number | null
   /** Bumped by every `history.appended`, so an effect can depend on it. */
@@ -96,7 +92,7 @@ export function initialLiveState(sessionId: string): LiveState {
     running: false,
     partial: null,
     runningCalls: [],
-    sessionState: null,
+    status: null,
     appendedLineCount: null,
     appendedSeq: 0,
     connectionEpoch: 0,
@@ -231,12 +227,11 @@ function withoutCall(
 
 /** Drop everything in flight; used by task boundaries and interrupts. */
 function cleared(state: LiveState, running: boolean): LiveState {
-  const sessionState = running ? 'running' : 'idle'
   if (
     state.partial === null && state.runningCalls.length === 0
-    && state.running === running && state.sessionState === sessionState
+    && state.running === running
   ) return state
-  return { ...state, partial: null, runningCalls: [], running, sessionState }
+  return { ...state, partial: null, runningCalls: [], running }
 }
 
 function reduceEnvelope(state: LiveState, envelope: LiveEnvelope): LiveState {
@@ -247,6 +242,11 @@ function reduceEnvelope(state: LiveState, envelope: LiveEnvelope): LiveState {
   const responseId = readString(event.response_id)
 
   switch (envelope.event_type) {
+    case 'session.status':
+      return !state.replayed || envelope.durability === 'durable' ? state : {
+        ...state, status: event.status as unknown as SessionStatus,
+      }
+
     case 'thinking.start':
       return { ...state, partial: { ...opened(state.partial, responseId, envelope), openBlock: 'reasoning', stale: false } }
     case 'assistant.text.start':
@@ -348,7 +348,6 @@ function reduceEnvelope(state: LiveState, envelope: LiveEnvelope): LiveState {
       return {
         ...state,
         running: true,
-        sessionState: 'running',
         ...(state.partial === null ? {} : { partial: { ...state.partial, stale: true, openBlock: null } }),
       }
     case 'task.start':
@@ -378,11 +377,9 @@ function reduceControl(state: LiveState, frame: Record<string, unknown>): LiveSt
     case 'replay_complete':
       return state.replayed ? state : { ...state, replayed: true }
     case 'session_info': {
-      const value = readString(frame.state)
-      if (value === null || (value === state.sessionState && state.running === (value === 'running'))) {
-        return state
-      }
-      return { ...state, sessionState: value, running: value === 'running' }
+      const status = frame.status as SessionStatus | undefined
+      if (status === undefined) return state
+      return { ...state, status, running: status.execution === 'running' }
     }
     case 'error': {
       const message = readString(frame.message) ?? readString(frame.code) ?? 'socket error'

@@ -15,6 +15,7 @@ from klaude_code.protocol.background_task import (
     TaskResponse,
 )
 from klaude_code.protocol.models import SessionIdUIExtra, SubAgentState, TaskMetadata, TaskMetadataItem, Usage
+from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.protocol.peer import PeerMessage
 from klaude_code.protocol.user_interaction import AskUserQuestionRequestPayload
 from klaude_code.session.session import Session
@@ -130,6 +131,22 @@ def test_background_rows_and_counts_survive_root_end_toggle_refresh_and_authorit
                 await emit(events.TaskFinishEvent(session_id="main", task_result="done"))
             else:
                 await emit(events.InterruptEvent(session_id="main"))
+            await emit(
+                events.SessionStatusEvent(
+                    session_id="main",
+                    status=SessionStatus.model_validate(
+                        {
+                            "category": "needs_you" if finish == "interrupt" else "working",
+                            "execution": "none" if finish == "interrupt" else "waiting_agents",
+                            "owned": {"active_agents": 1, "active_shells": 1},
+                            "attention": [{"kind": "paused", "code": "user_interrupt", "source_session_id": "main"}]
+                            if finish == "interrupt"
+                            else [],
+                            "control": {"paused": finish == "interrupt"},
+                        }
+                    ),
+                )
+            )
             for control in (None, events.ToggleTranscriptDetailEvent, events.RefreshDisplayEvent):
                 if control is not None:
                     await emit(control(session_id="main"))
@@ -137,7 +154,7 @@ def test_background_rows_and_counts_survive_root_end_toggle_refresh_and_authorit
                 rows = updates[-1]
                 assert any("inspect shared tasks" in line.text for line in rows)
                 footer = rows[-1].text
-                state = "Paused" if finish == "interrupt" else "Awaiting"
+                state = "Needs you · Paused" if finish == "interrupt" else "Working · waiting agents"
                 assert footer.startswith(f" ◈  {state} · 1 agent · 1 shell")
                 assert "/stop agents" in footer and "Esc main" not in footer
                 assert (
@@ -151,6 +168,7 @@ def test_background_rows_and_counts_survive_root_end_toggle_refresh_and_authorit
                     == 1
                 )
             await emit(events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[]))
+            await emit(events.SessionStatusEvent(session_id="main", status=SessionStatus()))
             assert not display._machine._sessions["child"].task_active
             assert not any("Background tasks" in line.text for line in updates[-1])
         finally:
@@ -602,11 +620,29 @@ def test_attention_priority_bounded_rows_and_finished_access_survive_replay(
                 await emit(request)
                 await emit(snapshot)
             await emit(events.InterruptEvent(session_id="main"))
+            await emit(
+                events.SessionStatusEvent(
+                    session_id="main",
+                    status=SessionStatus.model_validate(
+                        {
+                            "category": "needs_you",
+                            "owned": {"active_agents": 8},
+                            "control": {"paused": True},
+                            "attention": [
+                                {"kind": "needs_input", "code": "approval", "source_session_id": "child-7"},
+                                {"kind": "paused", "code": "user_interrupt", "source_session_id": "main"},
+                            ],
+                        }
+                    ),
+                )
+            )
             before = tuple(line.text for line in updates[-1])
             assert "Investigate component 7" in before[0] and "Waiting for approval" in before[0]
             assert sum("Investigate component" in line for line in before) == 8
             assert not any("unread" in line.lower() or "Completed failure" in line for line in before)
-            assert before[-1].startswith(" ◈  Paused · 8 agents · 1 needs attention · 1 failed  /tasks")
+            assert before[-1].startswith(
+                " ◈  Needs you · Needs input · Paused · 8 agents · 2 needs attention · 1 failed  /tasks"
+            )
             assert "Esc main" not in before[-1]
             for control in (
                 events.RefreshDisplayEvent,

@@ -13,7 +13,7 @@ from klaude_code.cli import headless_cmd
 from klaude_code.cli.headless_cmd import (
     EXIT_FAILED,
     EXIT_WAITING_INPUT,
-    _exit_code_for_states,  # pyright: ignore[reportPrivateUsage]
+    _exit_code_for_rows,  # pyright: ignore[reportPrivateUsage]
     _pending_request_lines,  # pyright: ignore[reportPrivateUsage]
     _poll_until_settled,  # pyright: ignore[reportPrivateUsage]
     _short_id,  # pyright: ignore[reportPrivateUsage]
@@ -43,20 +43,48 @@ def test_split_targets_mixes_spaces_and_commas() -> None:
 
 
 def test_exit_code_severity_order() -> None:
-    assert _exit_code_for_states(["completed", "idle"]) == 0
-    assert _exit_code_for_states(["completed", "waiting_input"]) == EXIT_WAITING_INPUT
-    assert _exit_code_for_states(["waiting_input", "failed"]) == EXIT_FAILED
+    idle = {"state": "idle", "status": {"last_turn": {"result": "failed"}}}
+    question = {"state": "needs_you", "status": {"attention": [{"kind": "needs_input"}]}}
+    paused = {"state": "needs_you", "status": {"attention": [{"kind": "paused"}]}}
+    error = {"state": "needs_you", "status": {"attention": [{"kind": "error"}]}}
+    assert _exit_code_for_rows([idle]) == 0
+    assert _exit_code_for_rows([idle, question, paused]) == EXIT_WAITING_INPUT
+    assert _exit_code_for_rows([question, error]) == EXIT_FAILED
 
 
-def test_waiting_input_is_settled_even_with_pending(monkeypatch: pytest.MonkeyPatch) -> None:
-    row = {"state": "waiting_input", "pending": True}
+def test_attention_is_settled_even_with_parallel_execution(monkeypatch: pytest.MonkeyPatch) -> None:
+    row = {
+        "state": "needs_you",
+        "pending": True,
+        "status": {"execution": "running", "attention": [{"kind": "needs_input"}]},
+    }
     monkeypatch.setattr(headless_cmd, "_fetch_rows", lambda _targets, _group: [row])
 
     rows, timed_out = _poll_until_settled(["session"], None, timeout=0)
 
     assert rows == [row]
     assert timed_out is False
-    assert _exit_code_for_states([rows[0]["state"]]) == EXIT_WAITING_INPUT
+    assert _exit_code_for_rows(rows) == EXIT_WAITING_INPUT
+
+
+def test_idle_does_not_wait_for_blocked_backlog(monkeypatch: pytest.MonkeyPatch) -> None:
+    row = {"state": "idle", "pending": True, "status": {"continuation": {"automatic": False}}}
+    monkeypatch.setattr(headless_cmd, "_fetch_rows", lambda _targets, _group: [row])
+
+    rows, timed_out = _poll_until_settled(["session"], None, timeout=0)
+
+    assert rows == [row]
+    assert timed_out is False
+
+
+def test_wait_keeps_waiting_for_admitted_agent_results(monkeypatch: pytest.MonkeyPatch) -> None:
+    row = {"state": "working", "status": {"execution": "waiting_agents"}}
+    monkeypatch.setattr(headless_cmd, "_fetch_rows", lambda _targets, _group: [row])
+
+    rows, timed_out = _poll_until_settled(["session"], None, timeout=0)
+
+    assert rows == [row]
+    assert timed_out is True
 
 
 def test_shorten_and_short_id() -> None:
@@ -96,7 +124,7 @@ def test_brief_shows_request_and_recent_tools(
 
     body = {
         "id": "session-id",
-        "state": "completed",
+        "state": "idle",
         "work_dir": str(isolated_home),
         "last_user_message": "fix the tests",
         "current_tool_call": None,
@@ -137,7 +165,7 @@ def test_brief_preserves_latest_text_and_both_ends_of_earlier_text(
     earlier = "earlier start " + "x" * 1000 + " earlier end"
     body = {
         "id": "session-id",
-        "state": "running" if streaming else "completed",
+        "state": "working" if streaming else "idle",
         "work_dir": str(isolated_home),
         "recent_assistant_messages": [earlier, latest],
         "last_assistant_message": latest,
@@ -166,7 +194,7 @@ def test_brief_long_latest_text_preserves_tail_or_full_text(
     latest = "latest start " + "x" * 5000 + " latest end"
     body = {
         "id": "session-id",
-        "state": "completed",
+        "state": "idle",
         "work_dir": str(isolated_home),
         "recent_assistant_messages": ["earlier", latest],
         "last_assistant_message": latest,
@@ -210,8 +238,8 @@ def test_ps_table_rows_show_last_active_and_plain_activity() -> None:
 
     now = time.time()
     rows = [
-        {"id": "a" * 32, "state": "completed", "updated_at": now - 300, "title": "t", "work_dir": "/w"},
-        {"id": "b" * 32, "state": "running", "updated_at": now, "activity": "Bash: ls"},
+        {"id": "a" * 32, "state": "idle", "updated_at": now - 300, "title": "t", "work_dir": "/w"},
+        {"id": "b" * 32, "state": "working", "updated_at": now, "activity": "Bash: ls"},
     ]
     table = _ps_table_rows(rows)
     last_index = _PS_COLUMNS.index("LAST")
@@ -264,17 +292,17 @@ def test_output_follow_rejects_incompatible_options(args: list[str], message: st
     assert message in result.output
 
 
-def test_output_follow_completed_returns_without_connecting(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_output_follow_idle_returns_without_connecting(monkeypatch: pytest.MonkeyPatch) -> None:
     from klaude_code.cli.main import app
 
     monkeypatch.setattr(
         headless_cmd,
         "_fetch_output",
-        lambda *_args, **_kwargs: {"id": "session-id", "state": "completed", "pending": False, "output": "old"},
+        lambda *_args, **_kwargs: {"id": "session-id", "state": "idle", "pending": False, "output": "old"},
     )
 
     async def fail_if_connected(*_args: object, **_kwargs: object) -> int:
-        raise AssertionError("completed follow must not connect")
+        raise AssertionError("idle follow must not connect")
 
     monkeypatch.setattr(headless_cmd, "_follow_output_stream", fail_if_connected)
 
@@ -318,14 +346,14 @@ def test_follow_stream_prints_each_delta_once_and_exits_on_finish(
         return FakeWebSocket()
 
     def fetch_rows(*_args: object, **_kwargs: object) -> list[dict[str, Any]]:
-        return [{"id": "session-id", "state": "completed" if finished else "running", "pending": False}]
+        return [{"id": "session-id", "state": "idle" if finished else "working", "pending": False}]
 
     monkeypatch.setattr(websocket_client, "unix_connect", fake_connect)
     monkeypatch.setattr(headless_cmd, "_fetch_rows", fetch_rows)
     monkeypatch.setattr(
         headless_cmd,
         "_fetch_output",
-        lambda *_args, **_kwargs: {"id": "session-id", "state": "completed", "output": "hello world"},
+        lambda *_args, **_kwargs: {"id": "session-id", "state": "idle", "output": "hello world"},
     )
 
     exit_code = asyncio.run(headless_cmd._follow_output_stream("session-id", initial_output=""))  # pyright: ignore[reportPrivateUsage]
@@ -353,14 +381,14 @@ def test_follow_stream_fills_connection_race_from_final_output(
     monkeypatch.setattr(
         headless_cmd,
         "_fetch_rows",
-        lambda *_args, **_kwargs: [{"id": "session-id", "state": "completed", "pending": False}],
+        lambda *_args, **_kwargs: [{"id": "session-id", "state": "idle", "pending": False}],
     )
     monkeypatch.setattr(
         headless_cmd,
         "_fetch_output",
         lambda *_args, **_kwargs: {
             "id": "session-id",
-            "state": "completed",
+            "state": "idle",
             "pending": False,
             "output": "completed before connect",
         },
@@ -386,7 +414,7 @@ def test_headless_help_lists_watch_follow_and_approval_warning() -> None:
     assert "--follow" in output_help.output
     assert run_help.exit_code == 0
     run_help_text = " ".join(run_help.output.split())
-    assert "questions still park as waiting_input" in run_help_text
+    assert "questions still need input" in run_help_text
     assert "use only in trusted dirs" in run_help_text
 
 
@@ -402,3 +430,23 @@ def test_order_rows_as_tree_places_children_under_parent() -> None:
     ]
     ordered = [row["id"] for row in _order_rows_as_tree(rows)]
     assert ordered == ["p1", "c1", "p2", "c2", "orphan"]
+
+
+@pytest.mark.parametrize("action", ["resume", "dismiss"])
+def test_session_control_is_explicit(monkeypatch: pytest.MonkeyPatch, action: str) -> None:
+    from klaude_code.cli.main import app
+
+    calls: list[tuple[str, str, dict[str, Any] | None]] = []
+    body = {"session_id": "session-id", "state": "idle", "status": {"category": "idle"}}
+
+    def api(method: str, path: str, *, json_body: dict[str, Any] | None = None) -> dict[str, Any]:
+        calls.append((method, path, json_body))
+        return body
+
+    monkeypatch.setattr(headless_cmd, "_api", api)
+
+    result = CliRunner().invoke(app, [action, "session-id", "--json"])
+
+    assert result.exit_code == 0
+    assert json.loads(result.output) == body
+    assert calls == [("POST", "/api/headless/sessions/session-id/control", {"action": action})]

@@ -10,17 +10,27 @@
   tasks (drains, launches, actor workers) use `create_task(context=detached_context())`;
   otherwise the recipient's events carry the sender's task ID.
 
-## Root agent states
+## Session status and continuation
 
-`HeadlessRuntime` treats a root agent as Working (turn running), Waiting (in a
-wait tool; any new input ends the wait), Awaiting (no turn, owned agents
-running), Idle, or Paused (user interrupted or stopped).
+`HeadlessRuntime.session_status()` derives the shared `SessionStatus`: Needs
+you takes precedence over Working, then Idle. Execution and attention remain
+independent, so a child question never hides other running work. Connections
+and loading do not determine the category; turn results are separate facts.
+
+- `continuation()` is shared by status and scheduler admission. A queue alone
+  is not a promise to run: paused/error/capped/recovered work needs operator input.
+- Root turns can block in a wait tool; no turn with owned agents still running
+  is `waiting_agents` only when their results may automatically continue it.
 
 - A finished owned agent signals `Agent.signal_task_result()` and, when the
-  owner is Awaiting, starts a `ContinueAgentOperation` that delivers its report.
+  owner permits automatic continuation, starts a `ContinueAgentOperation` that delivers its report.
   Each delivery wakes at most once. Finished shells do not wake an idle owner.
 - Paused (`_wake_paused`, stop and failure latches) lifts only on operator
-  input: typed, bash mode, or an operator `send` (`sender_session_id is None`).
-  Attach revives the drain latches but not Paused.
+  input (typed or bash mode) or explicit `control resume`. Structured peer
+  messages never confer operator identity, even without a sender session ID.
+  Attach only re-arms permitted drains and never lifts control latches.
 - Another agent's message never lifts a stop or failure, and peer-only queues
   start at most `PEER_TURNS_WITHOUT_USER_LIMIT` turns between operator inputs.
+- Restart resumes only inputs proven not to have started. Interrupted/unknown
+  inputs and recovered Agent reports need explicit resume; shell results do not
+  wake an idle owner. Loading or viewing a result does not authorize continuation.

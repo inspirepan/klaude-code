@@ -19,6 +19,7 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op
 from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.events import EventEnvelope, parse_event_envelope
+from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.protocol.peer import PeerReceipt
 from klaude_code.protocol.version import PROTOCOL_VERSION, is_protocol_compatible
 from klaude_code.server.paths import server_socket_path
@@ -810,7 +811,8 @@ class SocketRuntimeClient:
     def _apply_session_info(self, item: dict[str, Any]) -> None:
         info = self._info
         info.session_id = str(item.get("session_id") or self._session_id)
-        info.state = str(item.get("state") or "idle")
+        info.status = SessionStatus.model_validate(item["status"])
+        info.state = info.status.category
         info.model_config_name = item.get("model_config_name")
         info.active_model_name = item.get("active_model_name")
         info.provider_name = item.get("provider_name")
@@ -818,10 +820,10 @@ class SocketRuntimeClient:
         info.work_dir = item.get("work_dir")
         info.title = item.get("title")
         info.follow_ups = tuple(str(t) for t in item.get("follow_ups") or [])
-        # waiting_user_input is busy too: typing then must queue as a
-        # follow-up. Treating it as idle started a duplicate turn — the local
-        # echo plus the drain's replay rendered the same message twice.
-        self._running = info.state in ("running", "waiting_user_input")
+        self._running = info.status.execution in {"queued", "running"}
+        self._display_queue.put_nowait(
+            _local_envelope(events.SessionStatusEvent(session_id=info.session_id, status=info.status))
+        )
         self._notify_state_changed()
         if self._on_session_info is not None:
             with contextlib.suppress(Exception):
@@ -829,6 +831,9 @@ class SocketRuntimeClient:
 
     async def _handle_envelope(self, envelope: EventEnvelope) -> None:
         event = envelope.event
+        if isinstance(event, events.SessionStatusEvent) and not self._replay_complete.is_set():
+            # session_info owns the attach snapshot; taped statuses may be stale.
+            return
         if (
             isinstance(event, events.TaskStartEvent)
             and envelope.session_id == self._session_id
@@ -858,34 +863,32 @@ class SocketRuntimeClient:
         if envelope.session_id in self._child_session_ids and isinstance(event, events.UserInteractionRequestEvent):
             self._interaction_queue.put_nowait(event)
         if envelope.session_id == self._session_id:
-            if isinstance(event, events.BackgroundTasksUpdatedEvent):
+            if isinstance(event, events.SessionStatusEvent):
+                self._info.status = event.status
+                self._info.state = event.status.category
+                self._running = event.status.execution in {"queued", "running"}
+                self._notify_state_changed()
+            elif isinstance(event, events.BackgroundTasksUpdatedEvent):
                 owned = [task for task in event.tasks if task.ref.owner_session_id == self._session_id]
                 self._child_session_ids.update(
                     task.ref.session_id for task in owned if task.ref.kind == "agent" and task.ref.session_id
                 )
             elif isinstance(event, events.TaskStartEvent):
-                self._running = True
                 self._active_operation_id = envelope.operation_id
                 self._notify_state_changed()
             elif isinstance(event, events.TaskFinishEvent):
                 if self._active_operation_id is None or envelope.operation_id == self._active_operation_id:
                     self._active_operation_id = None
-                    self._running = False
                     self._notify_state_changed()
             elif isinstance(event, events.InterruptEvent):
                 self._active_operation_id = None
-                self._running = False
                 self._notify_state_changed()
             elif isinstance(event, events.OperationFinishedEvent) and event.operation_type == "run_agent":
-                # A turn that dies on a fatal error ends without a
-                # TaskFinishEvent; the server finishes the run_agent operation
-                # only after its task has wound down, so treat that as the
-                # terminal signal and release the busy state.
+                # Fatal turns may finish without TaskFinishEvent. Clear the
+                # operation identity; SessionStatusEvent owns the busy state.
                 if self._active_operation_id is None or event.operation_id == self._active_operation_id:
                     self._active_operation_id = None
-                    if self._running:
-                        self._running = False
-                        self._notify_state_changed()
+                    self._notify_state_changed()
             elif isinstance(event, events.FollowUpQueueUpdatedEvent):
                 self._info.follow_ups = tuple(event.texts)
                 self._notify_state_changed()

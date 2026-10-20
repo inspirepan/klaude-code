@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from functools import partial
-from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.config.config import ModelConfigCandidate
@@ -21,8 +20,7 @@ from .conftest import AppEnv, receive_events
 
 
 def _state(app_env: AppEnv) -> Any:
-    """`_build_session_info` reads nothing off the app state but the runtime."""
-    return SimpleNamespace(runtime=app_env.runtime)
+    return cast(Any, app_env.client.app).state.server_state
 
 
 def _agent(app_env: AppEnv, session_id: str) -> Any:

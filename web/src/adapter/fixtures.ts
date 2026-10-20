@@ -1,6 +1,16 @@
 /** Row builders shared by the adapter tests. */
 
-import type { HistoryRow, HistoryRowStatus } from './wire.ts'
+import type { HistoryRow, HistoryRowStatus, SessionStatus } from './wire.ts'
+
+export function sessionStatus(fields: Partial<SessionStatus> = {}): SessionStatus {
+  return {
+    category: 'idle', execution: 'none', attention: [],
+    control: { paused: false, reason: null },
+    continuation: { automatic: false, triggers: [], blocked_by: [] },
+    last_turn: null, owned: { active_agents: 0, active_shells: 0 },
+    ...fields,
+  }
+}
 
 /**
  * One ledger row.

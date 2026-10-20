@@ -22,6 +22,6 @@ export {
 } from './system-context.ts'
 export type {
   HistoryPage, HistoryRow, HistoryRowStatus, RawEntry, SessionChildren, SessionListRow,
-  SessionMeta, SessionSearchMatch, SessionSearchResult, SessionState, SpawnedChild,
+  SessionMeta, SessionSearchMatch, SessionSearchResult, SessionState, SessionStatus, SpawnedChild,
   SystemContext, SystemContextModel, SystemContextTool,
 } from './wire.ts'

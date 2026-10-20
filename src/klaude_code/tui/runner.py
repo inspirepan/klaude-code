@@ -33,7 +33,6 @@ from klaude_code.config import load_config
 from klaude_code.log import DebugType, log, log_console, log_debug
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
-from klaude_code.protocol.models import SessionRuntimeState
 from klaude_code.session.session import Session
 from klaude_code.tui.client import ClientConnectionError, RuntimeClient, SessionInfoSnapshot, SocketRuntimeClient
 from klaude_code.tui.client.command_agent import ClientCommandAgent
@@ -372,6 +371,8 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
     # -- client wiring --
 
     def _on_session_info(info: SessionInfoSnapshot) -> None:
+        if herdr is not None:
+            herdr.report_session_state(info.session_id, info.status.category)
         if info.work_dir:
             # Completers, drag-drop conversion, and path shortening key off
             # the session's directory, which differs from the process CWD
@@ -406,14 +407,8 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             herdr.consume_event(event)
             if event.session_id != client.session_id:
                 return
-            if isinstance(event, events.TaskStartEvent):
-                herdr.report_session_state(event.session_id, SessionRuntimeState.RUNNING)
-            elif isinstance(event, events.TaskFinishEvent | events.InterruptEvent):
-                herdr.report_session_state(event.session_id, SessionRuntimeState.IDLE)
-            elif isinstance(event, events.UserInteractionRequestEvent):
-                herdr.report_session_state(event.session_id, SessionRuntimeState.WAITING_USER_INPUT)
-            elif isinstance(event, events.UserInteractionResolvedEvent):
-                herdr.report_session_state(event.session_id, SessionRuntimeState.RUNNING)
+            if isinstance(event, events.SessionStatusEvent):
+                herdr.report_session_state(event.session_id, event.status.category)
 
     async def _on_envelope(envelope: events.EventEnvelope) -> None:
         event = envelope.event

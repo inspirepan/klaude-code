@@ -19,7 +19,7 @@ import { SESSION_LIST_LIMIT, fetchSessionChildren, fetchSessions } from './api.t
 import type { SessionTreeNode } from './session-list-model.ts'
 import {
   buildSessionTree, filterSessionRows, flattenSessionTree, isLiveState, messagesCount,
-  relativeUpdated, rowLabel, rowState, workDirName,
+  relativeUpdated, rowLabel, rowState, statusLabel, workDirName,
 } from './session-list-model.ts'
 import css from './SessionList.module.css'
 
@@ -87,7 +87,7 @@ function SessionRow({
         {directory !== null && <span className={css.dir}>{directory}</span>}
         <span className={css.state} data-state={state}>
           {isLiveState(state) && <span className={css.dot} />}
-          {state}
+          {statusLabel(row.status)}
         </span>
         {hasChildren && !expanded && (
           <span className={css.count}>+{node.descendants}</span>
@@ -120,7 +120,7 @@ function SessionRow({
  * reload of the tab starts warm; opened parents and their spawn info stay in
  * memory for the page's lifetime.
  */
-const LIST_STORAGE_KEY = 'klaude.sessionList.rows'
+const LIST_STORAGE_KEY = 'klaude.sessionList.rows.v2'
 interface ListCache {
   rows: readonly SessionListRow[] | null
   opened: ReadonlySet<string>

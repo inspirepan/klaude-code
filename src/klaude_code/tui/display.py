@@ -109,7 +109,7 @@ class TUIDisplay(DisplayABC):
             return
 
         self._handle_prompt_suggestion_event(event)
-        if self._machine.handles(type(event)):
+        if self._machine.handles(type(event)) and not isinstance(event, events.SessionStatusEvent):
             self._tape.record(event)
         commands = self._machine.transition(event)
         if commands:

@@ -21,6 +21,7 @@ from klaude_code.protocol.models import (
     TaskMetadataItem,
     TodoItem,
 )
+from klaude_code.protocol.models.session_status import SessionRuntimeFacts
 from klaude_code.session.codec import decode_jsonl_line, encode_conversation_item, encode_jsonl_line
 from klaude_code.session.history import ScanResult, scan_history
 from klaude_code.session.ledger import TurnOrdinals, scan_turn_ordinals
@@ -29,14 +30,13 @@ from klaude_code.session.search import SearchScan, scan_search
 # Meta keys owned by direct update_meta writes: a queued history batch carries
 # an older snapshot, so the on-disk value wins when the batch lands.
 _RUNTIME_META_KEYS = (
+    "runtime",
     "follow_up_queue",
     "headless_queued_turn",
     # Read-only compatibility keys for the unshipped WIP format.
     "headless_queued_prompt",
     "headless_queued_turn_id",
     "headless_queued_at",
-    "headless_completed_turn_id",
-    "headless_failed",
 )
 _DELETE_WINS_META_KEYS = (
     "follow_up_queue",
@@ -44,8 +44,6 @@ _DELETE_WINS_META_KEYS = (
     "headless_queued_prompt",
     "headless_queued_turn_id",
     "headless_queued_at",
-    "headless_completed_turn_id",
-    "headless_failed",
 )
 
 type SessionMetaObserver = Callable[[str, dict[str, Any]], None]
@@ -640,8 +638,7 @@ def build_meta_snapshot(
     prompt_cache_key: str | None = None,
     follow_up_queue: Sequence[message.QueuedUserInput] = (),
     headless_queued_turn: message.QueuedUserInput | None = None,
-    headless_completed_turn_id: str | None = None,
-    headless_failed: bool = False,
+    runtime: SessionRuntimeFacts | None = None,
     model_effort: str | None = None,
     name: str | None = None,
     group: str | None = None,
@@ -682,8 +679,7 @@ def build_meta_snapshot(
         "headless_queued_turn": headless_queued_turn.model_dump(mode="json", exclude_none=True)
         if headless_queued_turn is not None
         else None,
-        "headless_completed_turn_id": headless_completed_turn_id,
-        "headless_failed": headless_failed or None,
+        "runtime": (runtime or SessionRuntimeFacts()).model_dump(mode="json"),
         # Headless/multiplexer metadata (set by `klaude run`).
         "name": name,
         "group": group,

@@ -262,11 +262,9 @@ def _print_ps_table(rows: list[dict[str, Any]]) -> None:
 
 
 _PS_STATE_STYLES = {
-    "running": "green",
-    "waiting_input": "yellow",
-    "queued": "cyan",
-    "failed": "red",
-    "completed": "dim",
+    "working": "green",
+    "needs_you": "yellow",
+    "idle": "dim",
 }
 _PS_COLUMN_STYLES = {"ID": "cyan", "LAST": "dim", "MODEL": "dim", "DIR": "dim"}
 
@@ -286,7 +284,7 @@ def _build_ps_rich_table(rows: list[dict[str, Any]]) -> Any:
             if column == "STATE":
                 style = _PS_STATE_STYLES.get(state, "")
             elif column == "ACTIVITY":
-                style = "dim" if state in ("idle", "completed", "failed") else ""
+                style = "dim" if state == "idle" else ""
             else:
                 style = _PS_COLUMN_STYLES.get(column, "")
             rich_cells.append(Text(cell, style=style))
@@ -351,7 +349,7 @@ async def _follow_output_stream(
     uri = f"ws://klaude/api/sessions/{session_id}/ws?replay=1&peek=1"
     streamed_parts: list[str] = []
     seen_sequences: set[int] = set()
-    terminal_state: str | None = None
+    terminal_row: dict[str, Any] | None = None
     disconnected = False
     websocket: Any = None
 
@@ -367,7 +365,7 @@ async def _follow_output_stream(
         return EXIT_FAILED
 
     try:
-        while terminal_state is None:
+        while terminal_row is None:
             try:
                 raw = await asyncio.wait_for(websocket.recv(), timeout=FOLLOW_STATE_POLL_INTERVAL_SECONDS)
             except TimeoutError:
@@ -404,26 +402,17 @@ async def _follow_output_stream(
                         streamed_parts.append(content)
                         _write_follow_text(content)
                     elif isinstance(event, events.ErrorEvent):
-                        terminal_state = "failed"
                         typer.echo(
                             f"error: {event.compact_message or event.error_message or 'agent failed'}",
                             err=True,
                         )
-                    elif isinstance(event, events.UserInteractionRequestEvent):
-                        terminal_state = "waiting_input"
-
-            if terminal_state is not None:
-                break
             rows = await asyncio.to_thread(_fetch_rows, [session_id], None)
             if not rows:
                 typer.echo("error: session disappeared while following output", err=True)
                 return EXIT_USAGE
             row = rows[0]
-            state = str(row.get("state") or "idle")
-            if state in ("waiting_input", "failed") or (
-                state not in ("queued", "running") and not bool(row.get("pending"))
-            ):
-                terminal_state = state
+            if row.get("state") != "working":
+                terminal_row = row
     finally:
         if websocket is not None:
             with contextlib.suppress(Exception):
@@ -438,20 +427,12 @@ async def _follow_output_stream(
     if streamed and not streamed.endswith("\n"):
         _write_follow_text("\n")
 
-    pending = result.get("pending_request")
-    if isinstance(pending, dict):
-        for line in _pending_request_lines(pending, target=_short_id(session_id)):
-            typer.echo(line)
+    _print_attention(result)
 
-    final_state = str(result.get("state") or "idle")
-    if (
-        disconnected
-        and terminal_state is None
-        and (final_state in ("queued", "running") or bool(result.get("pending")))
-    ):
+    if disconnected and terminal_row is None and result.get("state") == "working":
         typer.echo("error: connection to klaude server lost while session was active", err=True)
         return EXIT_FAILED
-    return _exit_code_for_states([terminal_state or final_state])
+    return _exit_code_for_rows([terminal_row or result])
 
 
 def _print_output_block(result: dict[str, Any], *, with_header: bool) -> None:
@@ -461,11 +442,24 @@ def _print_output_block(result: dict[str, Any], *, with_header: bool) -> None:
     output = str(result.get("output") or "")
     if output:
         typer.echo(output)
+    _print_attention(result)
+
+
+def _print_attention(result: dict[str, Any]) -> None:
     pending = result.get("pending_request")
     if isinstance(pending, dict):
         target = str(result.get("id", ""))[:8]
         for line in _pending_request_lines(pending, target=target):
             typer.echo(line)
+    status = result.get("status") or {}
+    for reason in status.get("attention", []):
+        if reason.get("kind") == "needs_input":
+            continue
+        kind = str(reason.get("kind", ""))
+        typer.echo(f"{kind}: {reason.get('message') or reason.get('code') or kind}")
+    if result.get("state") == "needs_you" and not isinstance(pending, dict):
+        target = _short_id(str(result.get("id", "")))
+        typer.echo(f"inspect with: klaude brief {target}")
 
 
 def _poll_until_settled(
@@ -475,19 +469,14 @@ def _poll_until_settled(
     timeout: float | None,
     any_mode: bool = False,
 ) -> tuple[list[dict[str, Any]], bool]:
-    """Poll until targets leave queued/running. Returns (rows, timed_out)."""
+    """Poll until targets need attention or become idle. Returns (rows, timed_out)."""
     deadline = time.monotonic() + timeout if timeout is not None else None
     while True:
         rows = _fetch_rows(targets, group)
         if not rows:
             typer.echo("error: no matching sessions", err=True)
             raise typer.Exit(EXIT_USAGE)
-        settled = [
-            row
-            for row in rows
-            if row.get("state") == "waiting_input"
-            or (row.get("state") not in ("queued", "running") and not bool(row.get("pending")))
-        ]
+        settled = [row for row in rows if row.get("state") != "working"]
         if any_mode and settled:
             return rows, False
         if len(settled) == len(rows):
@@ -497,10 +486,14 @@ def _poll_until_settled(
         time.sleep(WAIT_POLL_INTERVAL_SECONDS)
 
 
-def _exit_code_for_states(states: list[str]) -> int:
-    if any(state == "failed" for state in states):
+def _exit_code_for_rows(rows: list[dict[str, Any]]) -> int:
+    if any(
+        row.get("state") == "needs_you"
+        and any(reason.get("kind") == "error" for reason in (row.get("status") or {}).get("attention", []))
+        for row in rows
+    ):
         return EXIT_FAILED
-    if any(state == "waiting_input" for state in states):
+    if any(row.get("state") == "needs_you" for row in rows):
         return EXIT_WAITING_INPUT
     return 0
 
@@ -536,8 +529,8 @@ def run_command(
         "--approval",
         show_default=False,
         help="What to do on permission requests when no human is attached: "
-        "hold = park request, state=waiting_input (default); "
-        "auto = approve permission requests (questions still park as waiting_input); use only in trusted dirs; "
+        "hold = park request, state=needs_you (default); "
+        "auto = approve permission requests (questions still need input); use only in trusted dirs; "
         "deny = reject; agent must work around",
     ),
     wait: bool = typer.Option(False, "--wait", help="Block until finished, print final output"),
@@ -590,14 +583,13 @@ def run_command(
         },
     )
     session_id = str(body.get("session_id", ""))
-    run_state = str(body.get("state", ""))
 
     if not wait:
         if json_:
-            _print_json({"session_id": session_id, "name": body.get("name"), "state": run_state})
+            _print_json(body)
         else:
             typer.echo(session_id)
-            if run_state == "queued":
+            if (body.get("status") or {}).get("execution") == "queued":
                 typer.echo("queued: waiting for a free slot (see `klaude ps`)", err=True)
         return
 
@@ -610,7 +602,7 @@ def run_command(
         _print_json({"session_id": session_id, "name": body.get("name"), "state": rows[0].get("state"), **result})
     else:
         _print_output_block(result, with_header=False)
-    raise typer.Exit(_exit_code_for_states([str(row.get("state")) for row in rows]))
+    raise typer.Exit(_exit_code_for_rows(rows))
 
 
 # -- ps --
@@ -629,18 +621,17 @@ def ps_command(
 ) -> None:
     """List sessions known to the server.
 
-    Active sessions (queued, running, waiting_input) always sort first, then
-    idle (attached) ones, then history — each group by most recently updated. With TARGETs — ids, unique prefixes, or names;
+    Sessions needing attention sort first, then working sessions, then idle
+    sessions — each group by most recently updated. With TARGETs — ids, unique prefixes, or names;
     space- or comma-separated — show only those sessions. This is the usual
     form for a calling agent: check exactly the agents it spawned, nothing else.
 
     \b
       klaude ps a3f2c1,9b01d4,fix-tests --json
 
-    STATE is completed once a session's last turn is over and no client is
-    attached; idle means a TUI is attached and waiting at the prompt. LAST is
-    the relative time of the session's most recent activity. ACTIVITY is the
-    current tool call when running and the pending request when waiting_input.
+    STATE is needs_you, working, or idle, independent of client connections.
+    JSON includes the status snapshot: execution, attention, continuation,
+    and last_turn. LAST is the time since the most recent activity.
 
     Sub-agent sessions spawned by an Agent tool call are hidden by default;
     --tree lists them under their parent (the limit counts top-level rows).
@@ -718,7 +709,7 @@ def brief_command(
     \b
     Sections: state, title, model, dir, latest user request, todos, current tool call,
     recent tool calls from the latest user turn (up to 5, with result status),
-    pending request (when waiting_input), recent assistant messages (up to 5,
+    pending request (when input is needed), recent assistant messages (up to 5,
     older messages middle-truncated), token usage, changed-files summary.
     The latest message gets the text budget first; --full-last keeps it whole.
     In-progress assistant text is included and marked as streaming.
@@ -736,6 +727,13 @@ def brief_command(
         header += f" ({name})"
     lines.append(f"session: {header}")
     lines.append(f"state: {body.get('state')}")
+    status = body.get("status") or {}
+    if status.get("execution") and status["execution"] != "none":
+        lines.append(f"execution: {status['execution']}")
+    for reason in status.get("attention", []):
+        lines.append(f"attention: {reason.get('kind')} — {reason.get('message') or reason.get('code')}")
+    if status.get("last_turn"):
+        lines.append(f"last turn: {status['last_turn']['result']}")
     if body.get("background_agent_count"):
         lines.append(f"background agents: {body['background_agent_count']} running")
     if body.get("title"):
@@ -826,13 +824,13 @@ def wait_command(
     quiet: bool = typer.Option(False, "--quiet", help="Exit code only, print nothing"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
-    """Block until the given agents leave the queued/running states, then print each one's final output.
+    """Block until the given sessions need attention or become idle, then print their output.
 
-    When a session stopped at waiting_input, its pending question is printed
+    When a session needs input, its pending question is printed
     instead. Give TARGETs, --group, or both.
 
     \b
-    Exit codes: 0 all completed · 2 some waiting_input · 3 some failed · 124 timeout.
+    Exit codes: 0 idle · 2 needs you (input or paused) · 3 current error · 124 timeout.
 
     \b
     Examples:
@@ -848,13 +846,13 @@ def wait_command(
     rows, timed_out = _poll_until_settled(target_list, group, timeout=timeout, any_mode=any_)
     if timed_out:
         if not quiet:
-            still = [row for row in rows if row.get("state") in ("queued", "running")]
+            still = [row for row in rows if row.get("state") == "working"]
             for row in still:
                 typer.echo(f"timeout: {_short_id(str(row.get('id', '')))} is still {row.get('state')}", err=True)
         raise typer.Exit(EXIT_TIMEOUT)
 
-    settled = [row for row in rows if row.get("state") not in ("queued", "running")]
-    exit_code = _exit_code_for_states([str(row.get("state")) for row in settled])
+    settled = [row for row in rows if row.get("state") != "working"]
+    exit_code = _exit_code_for_rows(settled)
 
     if quiet:
         raise typer.Exit(exit_code)
@@ -863,6 +861,7 @@ def wait_command(
     for row in settled:
         result = _fetch_output(str(row.get("id")))
         result["state"] = row.get("state")
+        result["status"] = row.get("status")
         results.append(result)
     if json_:
         _print_json({"sessions": results})
@@ -891,7 +890,7 @@ def output_command(
     \b
       klaude output --group review | klaude run --wait "dedupe and rank"
 
-    When a session is waiting_input, its pending request (type, prompt,
+    When a session needs input, its pending request (type, prompt,
     options) is appended after the output.
 
     --follow accepts exactly one TARGET. It cannot be combined with --group,
@@ -915,13 +914,10 @@ def output_command(
 
         initial = _fetch_output(target_list[0])
         state = str(initial.get("state") or "idle")
-        if state in ("waiting_input", "failed"):
-            pending = initial.get("pending_request")
-            if isinstance(pending, dict):
-                for line in _pending_request_lines(pending, target=_short_id(str(initial.get("id") or ""))):
-                    typer.echo(line)
-            raise typer.Exit(_exit_code_for_states([state]))
-        if state not in ("queued", "running") and not bool(initial.get("pending")):
+        if state == "needs_you":
+            _print_attention(initial)
+            raise typer.Exit(_exit_code_for_rows([initial]))
+        if state != "working":
             return
         session_id = str(initial.get("id") or "")
         initial_output = str(initial.get("output") or "")
@@ -997,7 +993,7 @@ def _send_message(
         _print_json({**body, "state": rows[0].get("state"), **result})
     else:
         _print_output_block(result, with_header=False)
-    raise typer.Exit(_exit_code_for_states([str(row.get("state")) for row in rows]))
+    raise typer.Exit(_exit_code_for_rows(rows))
 
 
 def send_command(
@@ -1045,7 +1041,8 @@ def send_command(
     --wait reads settled session output, not a correlated peer reply.
 
     Note: send does NOT answer a pending interaction — a session parked
-    at waiting_input needs `klaude respond`.
+    waiting for input needs `klaude respond`. Peer messages never resume a
+    paused session; use `klaude resume` explicitly.
     """
     message = " ".join(text).strip()
     if not message:
@@ -1101,7 +1098,7 @@ def respond_command(
     if json_:
         _print_json(body)
     else:
-        typer.echo(f"answered {body.get('request_id')} ({body.get('status')})")
+        typer.echo(f"answered {body.get('request_id')} ({body.get('response_status')})")
 
 
 # -- kill --
@@ -1116,7 +1113,8 @@ def kill_command(
 
     Stops only the current root inference/wait, not children or Bash tasks.
     --all explicitly selects all active sessions. Use stop TARGET for children.
-    The session is kept and stays resumable via `send` or `attach`.
+    The session is kept. Use `resume` to allow pending work to continue;
+    attaching or sending peer messages does not lift the pause.
     """
     target_list = _split_targets(targets or [])
     if not target_list and not group and not all_:
@@ -1125,8 +1123,13 @@ def kill_command(
 
     ids: list[str]
     if all_ or group:
-        rows = _fetch_rows(target_list, group, states=["queued", "running", "waiting_input"], include_children=all_)
-        ids = [str(row.get("id")) for row in rows]
+        rows = _fetch_rows(target_list, group, states=["working", "needs_you"], include_children=all_)
+        ids = [
+            str(row.get("id"))
+            for row in rows
+            if (row.get("status") or {}).get("execution", "none") != "none"
+            or any(reason.get("kind") == "needs_input" for reason in (row.get("status") or {}).get("attention", []))
+        ]
     else:
         ids = target_list
     if not ids:
@@ -1149,6 +1152,30 @@ def stop_command(
         _print_json(body)
     else:
         typer.echo(f"stopped child agents of {_short_id(str(body.get('session_id', target)))}")
+
+
+def resume_command(
+    target: str = typer.Argument(..., metavar="TARGET"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+) -> None:
+    """Explicitly clear a pause/error and allow pending work to continue."""
+    body = _api("POST", f"/api/headless/sessions/{target}/control", json_body={"action": "resume"})
+    if json_:
+        _print_json(body)
+    else:
+        typer.echo(f"resumed {target}: {body.get('state')}")
+
+
+def dismiss_command(
+    target: str = typer.Argument(..., metavar="TARGET"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+) -> None:
+    """Acknowledge a current error without resuming paused work."""
+    body = _api("POST", f"/api/headless/sessions/{target}/control", json_body={"action": "dismiss"})
+    if json_:
+        _print_json(body)
+    else:
+        typer.echo(f"dismissed error for {target}: {body.get('state')}")
 
 
 tasks_app = typer.Typer(
@@ -1262,4 +1289,6 @@ def register_headless_commands(app: typer.Typer) -> None:
     app.command("respond")(respond_command)
     app.command("kill")(kill_command)
     app.command("stop")(stop_command)
+    app.command("resume")(resume_command)
+    app.command("dismiss")(dismiss_command)
     app.add_typer(tasks_app, name="tasks")

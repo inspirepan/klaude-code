@@ -77,12 +77,12 @@
   text-transform: uppercase;
 }
 
-.state[data-state='running'] {
+.state[data-state='working'] {
   color: var(--dsw-alias-state-business-primary);
   background: var(--dsw-alias-state-business-tertiary);
 }
 
-.state[data-state='waiting_input'] {
+.state[data-state='needs_you'] {
   color: var(--dsw-alias-state-warn-label);
   background: var(--dsw-alias-state-warn-tertiary);
 }
@@ -90,11 +90,6 @@
 .state[data-state='idle'] {
   color: var(--dsw-alias-state-success-primary);
   background: var(--dsw-alias-state-success-tertiary);
-}
-
-.state[data-state='failed'] {
-  color: var(--dsw-alias-state-error-primary);
-  background: var(--dsw-static-red-50);
 }
 
 /* Live channel is open. Solid once the attach replay finished; hollow while

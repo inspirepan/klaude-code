@@ -110,7 +110,8 @@ def test_stop_operation_stops_only_owned_agents_not_shell_root_or_peers(
         brief = env.client.get(f"/api/headless/sessions/{owner}/brief").json()
         assert brief["background_agent_count"] == 1
         assert brief["background_state"] == "running"
-        assert brief["state"] == "completed"
+        assert brief["state"] == "working"
+        assert brief["status"]["execution"] == "waiting_agents"
         assert env.client.post(f"/api/headless/sessions/{owner}/send", json={"text": "root work"}).status_code == 200
         _call(env, asyncio.wait_for, root_entered.wait(), 5)
         actor = env.runtime.session_registry.get_session_actor(owner)
@@ -127,7 +128,8 @@ def test_stop_operation_stops_only_owned_agents_not_shell_root_or_peers(
         assert next(task for task in tasks if task["ref"]["task_id"] == shell.task_id)["status"] == "running"
         brief = env.client.get(f"/api/headless/sessions/{owner}/brief").json()
         assert brief["background_agent_count"] == 0
-        assert brief["state"] == "running"
+        assert brief["state"] == "working"
+        assert brief["status"]["execution"] == "running"
     finally:
         _call(env, root_release.set)
         _call(env, releases[peer].set)

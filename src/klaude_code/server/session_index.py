@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from klaude_code.protocol.models.session_status import SessionRuntimeFacts
+from klaude_code.session.meta import parse_runtime_facts
+
 type TodoSummary = dict[str, str]
 type FileChangeSummary = dict[str, list[str] | int | dict[str, dict[str, int]]]
 
@@ -49,6 +52,7 @@ class SessionSummary:
     approval_policy: str | None = None
     model_config_name: str | None = None
     parent_session_id: str | None = None
+    runtime: SessionRuntimeFacts | None = None
 
 
 def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id: str) -> SessionSummary | None:
@@ -178,6 +182,7 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
         approval_policy=_optional_str("approval_policy"),
         model_config_name=_optional_str("model_config_name"),
         parent_session_id=_optional_str("parent_session_id"),
+        runtime=parse_runtime_facts(data),
     )
 
 

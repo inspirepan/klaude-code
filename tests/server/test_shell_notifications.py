@@ -141,6 +141,10 @@ def test_interrupt_retains_pending_result_until_real_input(app_env: AppEnv) -> N
     _reply(app_env)
     response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "fresh user turn"})
     assert response.status_code == 200
+    assert (
+        app_env.client.post(f"/api/headless/sessions/{session_id}/control", json={"action": "resume"}).status_code
+        == 200
+    )
     _wait(app_env, lambda: app_env.fake_llm.call_count == 2 and _idle(app_env, session_id))
     _call(app_env, asyncio.sleep, 0.1)
     assert app_env.fake_llm.call_count == 2

@@ -24,6 +24,13 @@ from klaude_code.protocol.models import (
     TodoItem,
     Usage,
 )
+from klaude_code.protocol.models.session_status import (
+    SessionActiveTurn,
+    SessionControl,
+    SessionError,
+    SessionRuntimeFacts,
+    SessionTurnResult,
+)
 from klaude_code.session.history import (
     extract_xml_tag,
     last_request_usage,
@@ -63,8 +70,7 @@ class Session(BaseModel):
     todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     follow_up_queue: list[message.QueuedUserInput] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     headless_queued_turn: message.QueuedUserInput | None = None
-    headless_completed_turn_id: str | None = None
-    headless_failed: bool = False
+    runtime: SessionRuntimeFacts = Field(default_factory=SessionRuntimeFacts)
     model_name: str | None = None
     archived: bool = False
 
@@ -223,8 +229,7 @@ class Session(BaseModel):
             prompt_cache_key=meta.prompt_cache_key,
             follow_up_queue=meta.follow_up_queue,
             headless_queued_turn=meta.headless_queued_turn,
-            headless_completed_turn_id=meta.headless_completed_turn_id,
-            headless_failed=meta.headless_failed,
+            runtime=meta.runtime,
             name=meta.name,
             group=meta.group,
             agent_type=meta.agent_type,
@@ -265,6 +270,10 @@ class Session(BaseModel):
             "headless_queued_turn_id": None,
             "headless_queued_at": None,
         }
+        if queued_turn is not None:
+            session = cls.load_meta(session_id, work_dir)
+            session.runtime.active_turn = SessionActiveTurn(id=queued_turn.id, started=False)
+            updates["runtime"] = session.runtime.model_dump(mode="json")
         store = get_store_for_path(work_dir)
         if expected_turn_id is not None:
             return store.update_meta_if_queued_id(
@@ -276,14 +285,46 @@ class Session(BaseModel):
 
     @classmethod
     def persist_headless_completed_turn(cls, session_id: str, work_dir: Path, *, turn_id: str) -> bool:
-        return get_store_for_path(work_dir).update_meta(
-            session_id,
-            {"headless_completed_turn_id": turn_id},
-        )
+        session = cls.load_meta(session_id, work_dir)
+        session.runtime.completed_input_id = turn_id
+        return session.persist_runtime()
 
     @classmethod
     def persist_headless_failed(cls, session_id: str, work_dir: Path, *, failed: bool) -> None:
-        get_store_for_path(work_dir).update_meta(session_id, {"headless_failed": failed or None})
+        session = cls.load_meta(session_id, work_dir)
+        session.runtime.error = SessionError(message="Execution failed.") if failed else None
+        session.persist_runtime()
+
+    def persist_runtime(self) -> bool:
+        self.ensure_meta_exists()
+        return self._store.update_meta(
+            self.id,
+            {
+                "runtime": self.runtime.model_dump(mode="json"),
+                "headless_failed": None,
+                "headless_completed_turn_id": None,
+            },
+            raise_on_error=True,
+        )
+
+    def begin_turn(self, turn_id: str) -> None:
+        self.runtime.active_turn = SessionActiveTurn(id=turn_id, started=True)
+        self.runtime.error = None
+        self.persist_runtime()
+
+    def finish_turn(self, result: str, *, reason: str | None = None) -> None:
+        active = self.runtime.active_turn
+        if active is None:
+            return
+        self.runtime.last_turn = SessionTurnResult.model_validate({"id": active.id, "result": result, "reason": reason})
+        self.runtime.active_turn = None
+        self.persist_runtime()
+
+    def resume(self) -> None:
+        self.runtime.control = SessionControl()
+        self.runtime.error = None
+        self.runtime.peer_turns = 0
+        self.persist_runtime()
 
     def append_history(
         self,
@@ -363,8 +404,7 @@ class Session(BaseModel):
             prompt_cache_key=self.prompt_cache_key,
             follow_up_queue=self.follow_up_queue,
             headless_queued_turn=self.headless_queued_turn,
-            headless_completed_turn_id=self.headless_completed_turn_id,
-            headless_failed=self.headless_failed,
+            runtime=self.runtime,
             name=self.name,
             group=self.group,
             agent_type=self.agent_type,
@@ -442,8 +482,7 @@ class Session(BaseModel):
             prompt_cache_key=self.prompt_cache_key,
             follow_up_queue=self.follow_up_queue,
             headless_queued_turn=self.headless_queued_turn,
-            headless_completed_turn_id=self.headless_completed_turn_id,
-            headless_failed=self.headless_failed,
+            runtime=self.runtime,
             name=self.name,
             group=self.group,
             agent_type=self.agent_type,

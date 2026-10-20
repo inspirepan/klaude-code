@@ -49,7 +49,7 @@ def test_history_appended_is_not_replayed_on_attach(app_env: AppEnv) -> None:
     assert response.status_code == 200
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
-        if app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()["state"] == "completed":
+        if app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()["state"] == "idle":
             break
         time.sleep(0.05)
 

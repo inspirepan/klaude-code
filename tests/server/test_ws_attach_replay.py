@@ -15,11 +15,13 @@ import pytest
 
 from klaude_code.protocol import events as protocol_events
 from klaude_code.protocol import message, op
+from klaude_code.protocol.models.session_status import SessionError, SessionStatus
 from klaude_code.protocol.version import PROTOCOL_VERSION
+from klaude_code.server.routes import ws
 from klaude_code.session.session import Session
 from klaude_code.session.store import JsonlSessionStore
 
-from .conftest import AppEnv, op_frame, receive_events, usage
+from .conftest import AppEnv, op_frame, receive_events, usage, wait_for_event
 
 
 @pytest.mark.parametrize("has_child", [False, True])
@@ -137,7 +139,7 @@ def _run_one_turn(app_env: AppEnv, session_id: str, text: str, reply: str) -> No
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
         brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
-        if brief["state"] == "completed":
+        if brief["state"] == "idle":
             return
         time.sleep(0.05)
     raise AssertionError("turn did not finish in time")
@@ -160,6 +162,38 @@ def test_attach_idle_session_replays_history(app_env: AppEnv) -> None:
     history_types = [event["event_type"] for event in _replay_history_events(handshake)]
     assert "user.message" in history_types
     assert "task.finish" in history_types
+
+
+def test_attach_refreshes_status_after_replay_and_does_not_forward_stale_status(
+    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    session_id = app_env.create_session()
+    actor = app_env.runtime.session_registry.get_session_actor(session_id)
+    assert actor is not None
+    agent = actor.get_agent()
+    assert agent is not None
+    original = ws._send_attach_replay  # pyright: ignore[reportPrivateUsage]
+
+    async def replay(*args: Any, **kwargs: Any) -> int:
+        cutoff = await original(*args, **kwargs)
+        await app_env.runtime.emit_event(
+            protocol_events.SessionStatusEvent(
+                session_id=session_id, status=SessionStatus(category="working", execution="running")
+            )
+        )
+        agent.session.runtime.error = SessionError(message="changed during replay")
+        agent.session.persist_runtime()
+        return cutoff
+
+    monkeypatch.setattr(ws, "_send_attach_replay", replay)
+    with _attach(app_env, session_id) as websocket:
+        handshake = _consume_attach_handshake(websocket)
+        assert handshake["session_info"]["state"] == "idle"
+        final = [frame for frame in handshake["replay"] if frame.get("type") == "session_info"][-1]
+        assert final["state"] == "needs_you"
+        queued = wait_for_event(websocket, "session.status")
+        assert queued["event"]["status"]["category"] == "needs_you"
+        assert queued["event"]["status"]["attention"][0]["message"] == "changed during replay"
 
 
 def test_attach_mid_turn_has_no_gap_and_no_duplicates(app_env: AppEnv) -> None:
@@ -425,7 +459,7 @@ def test_send_steer_queues_and_preserves_stream(app_env: AppEnv) -> None:
     deadline = time.monotonic() + 10.0
     while time.monotonic() < deadline:
         brief = app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()
-        if brief["state"] == "completed":
+        if brief["state"] == "idle":
             break
         time.sleep(0.05)
 

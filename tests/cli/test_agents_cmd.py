@@ -107,7 +107,7 @@ def test_prime_guide_mentions_core_loop_and_inventory() -> None:
         "--group",
         "Exit codes",
         "finder",
-        "waiting_input",
+        "needs_you",
         "--any",
         "without checking the directory",
         "trusted directories",

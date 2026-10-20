@@ -9,7 +9,7 @@ from pathlib import Path
 
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
-from klaude_code.protocol.models import SessionRuntimeState
+from klaude_code.protocol.models.session_status import SessionStatusCategory
 
 _SOURCE = "klaude-code"
 _METADATA_SOURCE = "klaude-code:metadata"
@@ -26,7 +26,7 @@ class HerdrReporter:
         self._socket_path = socket_path
         self._pane_id = pane_id
         self._seq = time.time_ns()
-        self._session_states: dict[str, SessionRuntimeState] = {}
+        self._session_states: dict[str, SessionStatusCategory] = {}
         self._desired_state = "idle"
         self._sent_state: str | None = None
         self._title_session_id: str | None = None
@@ -48,7 +48,7 @@ class HerdrReporter:
             return None
         return cls(Path(socket_path), pane_id)
 
-    def report_session_state(self, session_id: str, state: SessionRuntimeState) -> None:
+    def report_session_state(self, session_id: str, state: SessionStatusCategory) -> None:
         """Update one session and report the aggregate process state."""
         if self._closed:
             return
@@ -87,9 +87,9 @@ class HerdrReporter:
 
     def _aggregate_state(self) -> str:
         states = self._session_states.values()
-        if SessionRuntimeState.WAITING_USER_INPUT in states:
+        if "needs_you" in states:
             return "blocked"
-        if SessionRuntimeState.RUNNING in states:
+        if "working" in states:
             return "working"
         return "idle"
 

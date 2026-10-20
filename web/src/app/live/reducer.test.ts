@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { row } from '../../adapter/fixtures.ts'
+import { row, sessionStatus } from '../../adapter/fixtures.ts'
 import { parseLiveFrames } from './frames.ts'
 import type { LiveState } from './reducer.ts'
 import {
@@ -186,7 +186,7 @@ describe('running tool calls', () => {
       expect(closed.partial).toBeNull()
       expect(closed.runningCalls).toEqual([])
       expect(closed.running).toBe(false)
-      expect(closed.sessionState).toBe('idle')
+      expect(closed.status).toBe(busy.status)
     }
   })
 })
@@ -216,16 +216,37 @@ describe('frame handling', () => {
     const state = feed(
       OPEN,
       { type: 'connection_info', can_input: false, session_id: SESSION, code_fingerprint: 'abc' },
-      { type: 'session_info', session_id: SESSION, state: 'running' },
+      { type: 'session_info', session_id: SESSION, state: 'working', status: sessionStatus({ category: 'working', execution: 'running' }) },
       { type: 'usage.snapshot', session_id: SESSION, event_type: 'usage.snapshot' },
       { type: 'replay_history', session_id: SESSION, events: [{ event_type: 'user.message', event: {} }] },
       { type: 'replay_complete', session_id: SESSION },
     )
     expect(state.replayed).toBe(true)
-    expect(state.sessionState).toBe('running')
+    expect(state.status?.category).toBe('working')
     expect(state.running).toBe(true)
     // replay_history is deliberately dropped: REST owns landed rows.
     expect(state.partial).toBeNull()
+  })
+
+  it('keeps the attach snapshot through replay and preserves attention alongside execution', () => {
+    const current = sessionStatus({ category: 'working', execution: 'waiting_agents' })
+    const paused = sessionStatus({ category: 'needs_you', control: { paused: true, reason: 'user_interrupt' } })
+    const attached = feed(OPEN,
+      { type: 'session_info', session_id: SESSION, status: current },
+      envelope('session.status', { status: paused }),
+      envelope('interrupt'),
+      { type: 'replay_complete', session_id: SESSION },
+    )
+    expect(attached.status).toBe(current)
+    const needsYou = sessionStatus({
+      category: 'needs_you', execution: 'running', owned: { active_agents: 2, active_shells: 1 },
+      attention: [{ kind: 'needs_input', code: 'approval', source_session_id: 'child' }],
+    })
+    const updated = feed(attached, envelope('session.status', { status: needsYou }))
+    expect(updated.status).toBe(needsYou)
+    expect(feed(updated, envelope('task.finish')).status).toBe(needsYou)
+    expect(feed(updated, envelope('session.status', { status: paused }, { session_id: 'child' }))).toBe(updated)
+    expect(liveSocketOpened(updated).status).toBeNull()
   })
 
   it('survives malformed and unknown payloads', () => {

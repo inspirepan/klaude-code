@@ -112,9 +112,11 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   live tail (thinking preview / bash output), then compact child groups (type,
   description, model, tool count, up to the latest tool rows; attention first,
   under the height budget), then one ` ◈  N agents · N shells … /tasks …` footer
-  (`MainTaskStatus`) shown only while background tasks are active. With no main
-  turn but agents running, the footer leads with `Awaiting` (a finished agent
-  starts the next turn) or `Paused` (the user interrupted; reports wait for them).
+  (`MainTaskStatus`). Its category, execution, attention and active owned-task
+  counts come from `SessionStatusEvent` / `session_info.status`, not local task
+  boundaries. Transcript rebuilds retain the live snapshot; persisted history
+  must not restore stale attention or pause state. Completed-task accounting
+  still comes from the existing task snapshots.
 - Compact file diffs fold by size (`diffs.fold_limit`): up to 10 changed lines
   (30 for Markdown) show whole, larger edits preview 5 lines (15), a new or
   deleted code file shows only its header. A compact sub-agent's file changes

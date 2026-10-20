@@ -13,6 +13,7 @@ EXPECTED_HANDLED_EVENT_NAMES = {
     "UserInteractionResolvedEvent",
     "UserInteractionCancelledEvent",
     "BackgroundTasksUpdatedEvent",
+    "SessionStatusEvent",
     "TaskControlResultEvent",
     "OperationFinishedEvent",
     "WelcomeEvent",

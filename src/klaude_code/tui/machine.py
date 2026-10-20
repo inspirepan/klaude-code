@@ -37,6 +37,7 @@ from klaude_code.protocol.models import (
     TaskMetadataItem,
     Usage,
 )
+from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -728,7 +729,6 @@ class _SessionState:
     background_tasks: dict[str, BackgroundTaskSnapshot] | None = None
     background_status: str | None = None
     pending_interactions: dict[str, str] = field(default_factory=dict)
-    paused: bool = False
     waiting_task_tools: set[str] = field(default_factory=set)
     rendered_background_metadata: set[str] = field(default_factory=set)
     task_metadata: TaskMetadata | None = None
@@ -982,7 +982,6 @@ class DisplayStateMachine:
         self._terminal_title_prefix: str | None = None
         self._had_sub_agent_status_lines: bool = False
         self._side_question_pending: dict[str, str] = {}
-        self._background_shell_count = 0
         self._live_bash_tool_call_ids: set[str] = set()
         self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
         # Compact waits are status-bar-only; the automatic shell completion
@@ -994,6 +993,8 @@ class DisplayStateMachine:
         self._unspawned_sub_agents_by_batch: dict[str, int] = {}
         self._last_time_marker_ts: float | None = None
         self._rebuilding: bool = False
+        # Live snapshots survive transcript rebuilds; persisted events cannot restore them.
+        self._session_statuses: dict[str, SessionStatus] = {}
 
     @property
     def _compact(self) -> bool:
@@ -1028,7 +1029,6 @@ class DisplayStateMachine:
         self._spinner.reset()
         self._had_sub_agent_status_lines = False
         self._side_question_pending = {}
-        self._background_shell_count = 0
         self._terminal_title_prefix = None
         self._live_bash_tool_call_ids = set()
         self._pending_bash_tool_outputs = {}
@@ -1348,13 +1348,15 @@ class DisplayStateMachine:
     def _main_task_status(self) -> str | None:
         """Bottom footer: background task counts plus the keys that act on them."""
         primary = self._sessions.get(self._primary_session_id or "")
-        tasks = list((primary.background_tasks or {}).values()) if primary else []
-        agents = sum(task.ref.kind == "agent" and task.status in ACTIVE_TASK_STATUSES for task in tasks)
-        shells = self._background_shell_count
-        if not agents and not shells:
+        status = self._session_statuses.get(self._primary_session_id or "")
+        if status is None:
             return None
-        children = [s for s in self._sessions.values() if s.is_sub_agent and s.task_active]
-        attention = sum(bool(s.pending_interactions) for s in children)
+        tasks = list((primary.background_tasks or {}).values()) if primary else []
+        agents = status.owned.active_agents
+        shells = status.owned.active_shells
+        if not agents and not shells and status.category == "idle":
+            return None
+        attention = len(status.attention)
         done = sum(task.status in {"completed", "stopped"} for task in tasks)
         failed = sum(task.status in {"failed", "lost", "timed_out"} for task in tasks)
         counts = [
@@ -1368,17 +1370,25 @@ class DisplayStateMachine:
             counts.append(f"{done} done")
         if failed:
             counts.append(f"{failed} failed")
-        if agents and not self._main_task_active():
-            # No turn but children running: they wake the main agent when they finish,
-            # unless the user interrupted it, which holds their reports for the next message.
-            counts.insert(0, "Paused" if primary is not None and primary.paused else "Awaiting")
+        counts.insert(0, {"needs_you": "Needs you", "working": "Working", "idle": "Idle"}[status.category])
+        reasons = dict.fromkeys(reason.kind for reason in status.attention)
+        labels = {"needs_input": "Needs input", "error": "Error", "paused": "Paused"}
+        counts[1:1] = [labels[reason] for reason in reasons]
+        if status.execution != "none":
+            counts.insert(1, status.execution.replace("_", " "))
         keys = ["/tasks"]
-        if self._main_task_active():
+        if status.execution in {"queued", "running"}:
             keys.append("Esc main")
         if agents:
             keys.append("/stop agents")
         # The mark sits where sub-agent rows put theirs, so all row text shares column 4.
         return f" ◈  {' · '.join(counts)}  {' · '.join(keys)}"
+
+    def _handle_SessionStatusEvent(self, e: events.SessionStatusEvent, *, s: _SessionState) -> list[RenderCommand]:
+        self._session_statuses[e.session_id] = e.status
+        if self._any_task_active() or self._side_question_pending:
+            return self._spinner_update_commands()
+        return [MainTaskStatus(self._main_task_status())]
 
     def _handle_UserInteractionRequestEvent(
         self, e: events.UserInteractionRequestEvent, *, s: _SessionState
@@ -1418,7 +1428,9 @@ class DisplayStateMachine:
     def begin_rebuild(self) -> list[RenderCommand]:
         # A rebuild repaints the terminal view from the display's event tape; clear
         # session state so it is reconstructed from the taped events.
+        primary_session_id = self._primary_session_id
         self._reset_sessions()
+        self._primary_session_id = primary_session_id
         self._rebuilding = True
         return [MainTaskStatus(None), SpinnerStop(), PrintBlankLine()]
 
@@ -1473,6 +1485,8 @@ class DisplayStateMachine:
         bookkeeping is reconstructed exactly as the live pass built it; only
         transient-UI commands are dropped (see ``_REBUILD_SUPPRESSED_COMMANDS``).
         """
+        if isinstance(event, events.SessionStatusEvent):
+            return []
         cmds = self._transition(event)
         return [cmd for cmd in cmds if not isinstance(cmd, _REBUILD_SUPPRESSED_COMMANDS)]
 
@@ -1515,6 +1529,8 @@ class DisplayStateMachine:
         # If the session id changes (e.g., /new creates a new session), clear
         # routing state so subsequent streamed events are not dropped.
         if self._primary_session_id is not None and self._primary_session_id != e.session_id:
+            status = self._session_statuses.get(e.session_id)
+            self._session_statuses = {e.session_id: status} if status is not None else {}
             self._reset_sessions()
             self._session(e.session_id)
         self._primary_session_id = e.session_id
@@ -1542,10 +1558,6 @@ class DisplayStateMachine:
             return []
         if s.background_tasks is not None:
             return []
-        self._background_shell_count = sum(
-            task.background and task.session_id == e.session_id and task.status in {"running", "stopping"}
-            for task in e.tasks
-        )
         return [MainTaskStatus(self._main_task_status())]
 
     def _handle_BackgroundTasksUpdatedEvent(
@@ -1624,13 +1636,6 @@ class DisplayStateMachine:
                     )
                 child.clear_status_activity()
                 cmds.extend(self._maybe_finish_sub_agent_batch(child))
-        if self._is_primary(e.session_id):
-            self._background_shell_count = sum(
-                task.ref.kind == "shell"
-                and task.status in ACTIVE_TASK_STATUSES
-                and (task.shell is None or task.shell.background)
-                for task in tasks.values()
-            )
         if self._any_task_active() or self._side_question_pending:
             cmds.append(SpinnerStart())
             cmds.extend(self._spinner_update_commands())
@@ -1750,7 +1755,6 @@ class DisplayStateMachine:
         s.model_id = e.model_id
         s.effort = e.effort
         s.task_active = True
-        s.paused = False
         s.pending_interactions.clear()
         s.waiting_task_tools.clear()
         s.task_started_at = e.timestamp
@@ -2524,8 +2528,6 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
         self._spinner.clear_task_state()
         s.task_active = False
-        # An Esc that resumes queued messages is not a pause; the server keeps waking.
-        s.paused = not e.resume_follow_ups
         s.pending_interactions.clear()
         s.clear_status_activity()
         cmds.extend(self._spinner_stop_commands())

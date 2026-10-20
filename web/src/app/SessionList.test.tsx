@@ -8,6 +8,7 @@ import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react-dom/test-utils'
 import { SessionList, resetSessionListCache } from './SessionList.tsx'
+import { sessionStatus } from '../adapter/fixtures.ts'
 
 const PARENT = 'parent01abcdef'
 const CHILD = 'child001abcdef'
@@ -21,7 +22,8 @@ const SESSIONS = [
     agent_type: 'main',
     work_dir: '/w/klaude-code',
     model: 'opus',
-    state: 'completed',
+    state: 'idle',
+    status: sessionStatus(),
     updated_at: T0,
     messages_count: 198,
   },
@@ -30,7 +32,8 @@ const SESSIONS = [
     parent_session_id: PARENT,
     agent_type: 'code-reviewer',
     spawn_kind: 'subagent',
-    state: 'completed',
+    state: 'idle',
+    status: sessionStatus(),
     updated_at: T0 - 10,
     messages_count: 12,
   },

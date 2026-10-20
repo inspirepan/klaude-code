@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -10,7 +11,7 @@ from fastapi import HTTPException
 
 from klaude_code.agent.attachments.autonomy import autonomy_attachment
 from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
-from klaude_code.protocol import message, op
+from klaude_code.protocol import events, message, op
 from klaude_code.protocol.message import QueuedUserInput, UserInputPayload
 from klaude_code.server.headless import (
     HeadlessRuntime,
@@ -22,6 +23,10 @@ from klaude_code.server.routes.headless import _resolve_target  # pyright: ignor
 from klaude_code.server.session_index import SessionSummary
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import get_store_for_path
+
+
+def _empty_task_manager() -> SimpleNamespace:
+    return SimpleNamespace(session_tasks_snapshot=lambda _owner: [], has_restored_results=lambda _owner: False)
 
 
 def _summary(session_id: str, *, name: str | None = None, archived: bool = False) -> SessionSummary:
@@ -39,6 +44,103 @@ def _summary(session_id: str, *, name: str | None = None, archived: bool = False
         file_change_summary={},
         name=name,
     )
+
+
+@pytest.mark.parametrize("loaded", [False, True], ids=["cold", "live"])
+def test_interrupt_rejects_failed_durable_cancellation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, loaded: bool
+) -> None:
+    session = Session.create(work_dir=tmp_path)
+    session.runtime.control.paused = True
+    session.persist_runtime()
+    queued = QueuedUserInput(input=UserInputPayload(text="keep pending when cancellation fails"))
+    assert Session.persist_headless_queued_turn(session.id, tmp_path, queued_turn=queued)
+    session.headless_queued_turn = queued
+    actor = SimpleNamespace(get_agent=lambda: SimpleNamespace(session=session)) if loaded else None
+    runtime = HeadlessRuntime(
+        cast(Any, SimpleNamespace(session_registry=SimpleNamespace(get_session_actor=lambda _: actor)))
+    )
+    monkeypatch.setattr(Session, "persist_headless_queued_turn", lambda *_args, **_kwargs: False)
+
+    with pytest.raises(RuntimeError, match="Failed to cancel persisted input"):
+        asyncio.run(runtime.prepare_interrupt(session.id, tmp_path))
+
+    persisted = Session.load_meta(session.id, tmp_path)
+    assert persisted.headless_queued_turn is not None
+    assert persisted.headless_queued_turn.id == queued.id
+    assert persisted.runtime.control.paused
+    assert session.headless_queued_turn.id == queued.id
+
+
+def test_status_event_recomputes_only_session_and_ancestors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    actors: dict[str, Any] = {}
+    requests: list[Any] = []
+    emitted: list[events.SessionStatusEvent] = []
+    snapshots: list[str] = []
+    for session_id, parent_id in (("root", None), ("parent", "root"), ("child", "parent"), ("unrelated", None)):
+        session = Session(id=session_id, work_dir=tmp_path, parent_session_id=parent_id)
+        agent = SimpleNamespace(session=session, peek_next_follow_up=lambda: None)
+        actors[session_id] = SimpleNamespace(
+            session_id=session_id,
+            get_agent=lambda agent=agent: agent,
+            snapshot=lambda: SimpleNamespace(active_root_task=None, child_task_count=0),
+            pending_requests_snapshot=(lambda: requests) if session_id == "child" else (lambda: []),
+        )
+
+    def task_snapshot(owner: str) -> list[Any]:
+        snapshots.append(owner)
+        return []
+
+    async def emit(event: events.SessionStatusEvent) -> None:
+        emitted.append(event)
+
+    runtime = HeadlessRuntime(
+        cast(
+            Any,
+            SimpleNamespace(
+                session_registry=SimpleNamespace(
+                    get_session_actor=actors.get, list_session_actors=lambda: list(actors.values())
+                ),
+                task_manager=SimpleNamespace(
+                    session_tasks_snapshot=task_snapshot, has_restored_results=lambda _: False
+                ),
+                emit_event=emit,
+            ),
+        )
+    )
+    recomputed: list[str] = []
+    original = runtime.session_status
+
+    def status(session_id: str):
+        recomputed.append(session_id)
+        return original(session_id)
+
+    monkeypatch.setattr(runtime, "session_status", status)
+
+    async def check() -> None:
+        await runtime.publish_statuses("unrelated")
+        recomputed.clear()
+        snapshots.clear()
+        emitted.clear()
+        requests.append(SimpleNamespace(session_id="child", request_id="question", source="tool"))
+        await runtime._consume_one(
+            events.UserInteractionResolvedEvent(session_id="child", request_id="old-question", status="submitted")
+        )
+        assert recomputed == ["child", "parent", "root"]
+        assert snapshots == recomputed
+        assert [event.session_id for event in emitted] == recomputed
+        assert all(event.status.category == "needs_you" for event in emitted)
+        assert all(event.status.attention[0].source_session_id == "child" for event in emitted)
+
+        requests.clear()
+        emitted.clear()
+        await runtime._consume_one(
+            events.UserInteractionResolvedEvent(session_id="child", request_id="question", status="submitted")
+        )
+        assert [event.session_id for event in emitted] == ["child", "parent", "root"]
+        assert all(event.status.category == "idle" for event in emitted)
+
+    asyncio.run(check())
 
 
 class TestResolveTarget:
@@ -117,7 +219,7 @@ def test_runtime_rebuild_restores_queued_follow_up_and_failed(
     isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del isolated_home
-    runtime = cast(Any, SimpleNamespace(session_registry=SimpleNamespace()))
+    runtime = cast(Any, SimpleNamespace(task_manager=_empty_task_manager(), session_registry=SimpleNamespace()))
 
     queued = Session.create(work_dir=tmp_path)
     queued.spawn_kind = "headless"
@@ -195,7 +297,10 @@ def test_cancel_before_history_confirmation_keeps_durable_turn(
         runtime_facade = cast(
             Any,
             SimpleNamespace(
-                session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
+                task_manager=_empty_task_manager(),
+                session_registry=SimpleNamespace(
+                    list_session_actors=lambda: [], get_session_actor=lambda _session_id: actor
+                ),
                 emit_event=lambda _event: asyncio.sleep(0),
                 submit=_submit,
                 wait_for=lambda _operation_id: asyncio.sleep(0),
@@ -312,7 +417,9 @@ def test_restore_requeues_turn_when_only_user_message_is_persisted(
         return session
 
     session = asyncio.run(_seed())
-    runtime = HeadlessRuntime(cast(Any, SimpleNamespace(session_registry=SimpleNamespace())))
+    runtime = HeadlessRuntime(
+        cast(Any, SimpleNamespace(task_manager=_empty_task_manager(), session_registry=SimpleNamespace()))
+    )
     monkeypatch.setattr(runtime, "_pump", lambda: None)
     runtime.restore(
         [
@@ -348,7 +455,9 @@ def test_restore_acknowledges_completed_turn_before_queue_ack(
     )
     Session.persist_headless_completed_turn(session.id, tmp_path, turn_id="completed-turn")
 
-    runtime = HeadlessRuntime(cast(Any, SimpleNamespace(session_registry=SimpleNamespace())))
+    runtime = HeadlessRuntime(
+        cast(Any, SimpleNamespace(task_manager=_empty_task_manager(), session_registry=SimpleNamespace()))
+    )
     monkeypatch.setattr(runtime, "_pump", lambda: None)
     runtime.restore(
         [
@@ -366,6 +475,35 @@ def test_restore_acknowledges_completed_turn_before_queue_ack(
 
     assert runtime.queued_session_ids() == []
     assert Session.load_meta(session.id, tmp_path).headless_queued_turn is None
+
+
+@pytest.mark.parametrize("started", [True, False], ids=["started", "unknown"])
+def test_restore_started_or_unknown_turn_preserves_input_but_requires_explicit_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, started: bool
+) -> None:
+    session = Session.create(work_dir=tmp_path)
+    session.spawn_kind = "headless"
+    session.ensure_meta_exists()
+    queued = QueuedUserInput(id="started-input", input=UserInputPayload(text="side effects may have happened"))
+    Session.persist_headless_queued_turn(session.id, tmp_path, queued_turn=queued)
+    if started:
+        session.begin_turn(queued.id)
+    else:
+        session.persist_runtime()
+    runtime = HeadlessRuntime(cast(Any, SimpleNamespace()))
+    monkeypatch.setattr(runtime, "_pump", lambda: None)
+    runtime.restore([replace(_summary(session.id), spawn_kind="headless", work_dir=str(tmp_path))])
+
+    loaded = Session.load_meta(session.id, tmp_path)
+    assert runtime.queued_session_ids() == []
+    assert loaded.headless_queued_turn == queued
+    assert loaded.runtime.active_turn is None
+    if started:
+        assert loaded.runtime.last_turn is not None and loaded.runtime.last_turn.result == "interrupted"
+        assert loaded.runtime.control.reason == "server_restart"
+    else:
+        assert loaded.runtime.last_turn is None
+        assert loaded.runtime.control.reason == "execution_state_unknown"
 
 
 def test_cancelled_follow_up_stays_queued_until_turn_confirmation(
@@ -388,6 +526,9 @@ def test_cancelled_follow_up_stays_queued_until_turn_confirmation(
 
             def peek_next_follow_up_record(self) -> QueuedUserInput | None:
                 return self.queue[0] if self.queue else None
+
+            def peek_next_follow_up(self) -> UserInputPayload | None:
+                return self.queue[0].input if self.queue else None
 
             def follow_up_records(self) -> tuple[QueuedUserInput, ...]:
                 return tuple(self.queue)
@@ -430,7 +571,10 @@ def test_cancelled_follow_up_stays_queued_until_turn_confirmation(
         runtime_facade = cast(
             Any,
             SimpleNamespace(
-                session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
+                task_manager=_empty_task_manager(),
+                session_registry=SimpleNamespace(
+                    list_session_actors=lambda: [], get_session_actor=lambda _session_id: actor
+                ),
                 emit_event=lambda _event: asyncio.sleep(0),
                 submit=_submit,
                 wait_for=lambda _operation_id: turn_finished.wait(),
@@ -469,7 +613,9 @@ def test_restore_acknowledges_persisted_follow_up_and_keeps_next(
         return session
 
     session = asyncio.run(_seed())
-    runtime = HeadlessRuntime(cast(Any, SimpleNamespace(session_registry=SimpleNamespace())))
+    runtime = HeadlessRuntime(
+        cast(Any, SimpleNamespace(task_manager=_empty_task_manager(), session_registry=SimpleNamespace()))
+    )
     monkeypatch.setattr(runtime, "_pump", lambda: None)
     runtime.restore(
         [
@@ -502,17 +648,24 @@ def test_headless_follow_ups_are_fifo_and_fair(monkeypatch: pytest.MonkeyPatch, 
 
         class FakeAgent:
             def __init__(self, session_id: str) -> None:
-                self.session = SimpleNamespace(id=session_id, work_dir=tmp_path)
+                self.session = Session(id=session_id, work_dir=tmp_path)
 
             def peek_next_follow_up_record(self) -> QueuedUserInput | None:
                 queue = records[self.session.id]
                 return queue[0] if queue else None
 
+            def peek_next_follow_up(self) -> UserInputPayload | None:
+                queued = self.peek_next_follow_up_record()
+                return queued.input if queued is not None else None
+
         agents = {session_id: FakeAgent(session_id) for session_id in records}
         registry = SimpleNamespace(
-            get_session_actor=lambda session_id: SimpleNamespace(get_agent=lambda: agents[session_id])
+            list_session_actors=lambda: [],
+            get_session_actor=lambda session_id: SimpleNamespace(get_agent=lambda: agents[session_id]),
         )
-        runtime = HeadlessRuntime(cast(Any, SimpleNamespace(session_registry=registry)), max_running=1)
+        runtime = HeadlessRuntime(
+            cast(Any, SimpleNamespace(task_manager=_empty_task_manager(), session_registry=registry)), max_running=1
+        )
         execution_order: list[str] = []
 
         async def _run_one(entry: Any) -> None:
@@ -593,7 +746,10 @@ def test_send_waits_for_launch_initialization_handoff(
         facade = cast(
             Any,
             SimpleNamespace(
-                session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
+                task_manager=_empty_task_manager(),
+                session_registry=SimpleNamespace(
+                    list_session_actors=lambda: [], get_session_actor=lambda _session_id: actor
+                ),
                 submit_and_wait=_submit_and_wait,
                 submit=_submit,
                 wait_for=_wait_for,
@@ -657,7 +813,10 @@ def test_concurrent_idle_sends_preserve_both_turns(isolated_home: Path, tmp_path
         facade = cast(
             Any,
             SimpleNamespace(
-                session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
+                task_manager=_empty_task_manager(),
+                session_registry=SimpleNamespace(
+                    list_session_actors=lambda: [], get_session_actor=lambda _session_id: actor
+                ),
                 submit=_submit,
                 wait_for=lambda _operation_id: asyncio.sleep(0),
             ),
@@ -694,7 +853,10 @@ def test_send_propagates_launch_initialization_failure(tmp_path: Path) -> None:
         facade = cast(
             Any,
             SimpleNamespace(
-                session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
+                task_manager=_empty_task_manager(),
+                session_registry=SimpleNamespace(
+                    list_session_actors=lambda: [], get_session_actor=lambda _session_id: actor
+                ),
                 submit_and_wait=_submit_and_wait,
             ),
         )
@@ -737,7 +899,10 @@ def test_shutdown_cancels_send_waiting_for_launch_initialization(isolated_home: 
         facade = cast(
             Any,
             SimpleNamespace(
-                session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
+                task_manager=_empty_task_manager(),
+                session_registry=SimpleNamespace(
+                    list_session_actors=lambda: [], get_session_actor=lambda _session_id: actor
+                ),
                 submit_and_wait=_submit_and_wait,
             ),
         )
@@ -794,7 +959,10 @@ def test_steer_queues_without_interrupting_or_releasing_running_slot(
         facade = cast(
             Any,
             SimpleNamespace(
-                session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
+                task_manager=_empty_task_manager(),
+                session_registry=SimpleNamespace(
+                    list_session_actors=lambda: [], get_session_actor=lambda _session_id: actor
+                ),
                 submit=_submit,
                 wait_for=lambda _id: asyncio.sleep(0),
             ),
@@ -844,7 +1012,10 @@ def test_consecutive_steers_preserve_queued_turn_when_slots_are_full(
         facade = cast(
             Any,
             SimpleNamespace(
-                session_registry=SimpleNamespace(get_session_actor=lambda _session_id: actor),
+                task_manager=_empty_task_manager(),
+                session_registry=SimpleNamespace(
+                    list_session_actors=lambda: [], get_session_actor=lambda _session_id: actor
+                ),
                 submit=_submit,
                 wait_for=lambda _id: asyncio.sleep(0),
             ),
@@ -932,7 +1103,7 @@ def test_latched_queue_notifies_once_and_revives_on_activity(tmp_path: Path) -> 
 
     class FakeAgent:
         def __init__(self) -> None:
-            self.session = SimpleNamespace(id="s1", spawn_kind=None, work_dir=tmp_path)
+            self.session = Session(id="s1", work_dir=tmp_path)
 
         def peek_next_follow_up(self) -> UserInputPayload:
             return UserInputPayload(text="queued")
@@ -948,7 +1119,8 @@ def test_latched_queue_notifies_once_and_revives_on_activity(tmp_path: Path) -> 
     runtime = cast(
         Any,
         SimpleNamespace(
-            session_registry=SimpleNamespace(get_session_actor=lambda _sid: actor),
+            task_manager=_empty_task_manager(),
+            session_registry=SimpleNamespace(list_session_actors=lambda: [], get_session_actor=lambda _sid: actor),
             emit_event=_emit_event,
         ),
     )
@@ -982,7 +1154,13 @@ def test_mark_session_active_lifts_kill_latch(tmp_path: Path) -> None:
     """klaude kill latches the session; TUI attach/submit must lift it or
     follow-ups queued afterwards never drain."""
     del tmp_path
-    runtime = cast(Any, SimpleNamespace(session_registry=SimpleNamespace(get_session_actor=lambda _sid: None)))
+    runtime = cast(
+        Any,
+        SimpleNamespace(
+            task_manager=_empty_task_manager(),
+            session_registry=SimpleNamespace(list_session_actors=lambda: [], get_session_actor=lambda _sid: None),
+        ),
+    )
     hr = HeadlessRuntime(runtime, max_running=1)
     hr._stopped_sessions.add("s1")  # pyright: ignore[reportPrivateUsage]
     hr.tracker.restore_failed("s1")

@@ -22,10 +22,11 @@ from fastapi.responses import FileResponse, Response
 
 from klaude_code.const import get_system_temp
 from klaude_code.server import system_context
-from klaude_code.server.routes.headless import session_state_for
+from klaude_code.server.routes.headless import session_status_for
 from klaude_code.server.session_index import resolve_session_work_dir_fast
 from klaude_code.server.state import ServerAppState, get_server_state
 from klaude_code.session import search
+from klaude_code.session.meta import parse_runtime_facts
 from klaude_code.session.store import JsonlSessionStore
 from klaude_code.session.store_registry import get_store_for_path
 from klaude_code.workspace import resolve_workspace_path
@@ -95,6 +96,7 @@ def _optional_float(meta: dict[str, Any], key: str) -> float | None:
 async def get_session_meta(session_id: str, state: ServerAppState = _STATE_DEP) -> dict[str, Any]:
     ref = _resolve_session(state, session_id)
     line_count = await asyncio.to_thread(ref.store.history_line_count, session_id)
+    status = session_status_for(state, session_id, parse_runtime_facts(ref.meta))
     return {
         "session_id": session_id,
         "title": _optional_str(ref.meta, "title"),
@@ -103,7 +105,8 @@ async def get_session_meta(session_id: str, state: ServerAppState = _STATE_DEP) 
         "parent_session_id": _optional_str(ref.meta, "parent_session_id"),
         "created_at": _optional_float(ref.meta, "created_at"),
         "updated_at": _optional_float(ref.meta, "updated_at"),
-        "state": session_state_for(state, session_id),
+        "state": status.category,
+        "status": status.model_dump(mode="json"),
         # False means "no agent in memory": the ledger below still answers,
         # and asking for it never spins one up.
         "loaded": state.runtime.session_registry.has_session_actor(session_id),

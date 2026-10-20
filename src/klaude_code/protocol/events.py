@@ -20,6 +20,7 @@ from klaude_code.protocol.models import (
     ToolResultUIExtra,
     Usage,
 )
+from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.protocol.peer import PeerMessage
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 
@@ -64,6 +65,7 @@ __all__ = [
     "ResponseEvent",
     "RewindEvent",
     "SessionStatsEvent",
+    "SessionStatusEvent",
     "SessionTitleChangedEvent",
     "ShellTasksUpdatedEvent",
     "SideQuestionEvent",
@@ -185,6 +187,10 @@ class ShellTasksUpdatedEvent(Event):
 
 class BackgroundTasksUpdatedEvent(Event):
     tasks: list[BackgroundTaskSnapshot]
+
+
+class SessionStatusEvent(Event):
+    status: SessionStatus
 
 
 class TaskControlResultEvent(Event):

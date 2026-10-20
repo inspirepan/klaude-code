@@ -23,10 +23,11 @@ from klaude_code.llm.client import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, op, tools
 from klaude_code.protocol.models import TaskMetadataItem, Usage
+from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.protocol.version import PROTOCOL_VERSION
 from klaude_code.server.session_index import resolve_session_work_dir_fast
-from klaude_code.server.session_state import derive_session_state_from_snapshot, live_descendant_session_ids
+from klaude_code.server.session_state import live_descendant_session_ids
 from klaude_code.server.state import ServerAppState, get_server_state_from_ws
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import get_store_for_path
@@ -493,11 +494,12 @@ def _active_model_name(client: LLMClientABC) -> str | None:
 def _build_session_info(state: ServerAppState, session_id: str) -> dict[str, Any]:
     actor = state.runtime.session_registry.get_session_actor(session_id)
     agent = actor.get_agent() if actor is not None else None
-    snapshot = state.runtime.session_registry.snapshot(session_id)
+    status = state.headless.session_status(session_id) if state.headless is not None else SessionStatus()
     info: dict[str, Any] = {
         "type": "session_info",
         "session_id": session_id,
-        "state": derive_session_state_from_snapshot(snapshot) if snapshot is not None else "idle",
+        "state": status.category,
+        "status": status.model_dump(mode="json"),
         "model_config_name": None,
         "active_model_name": None,
         "provider_name": None,
@@ -617,7 +619,10 @@ async def _send_attach_replay(session_id: str, websocket: WebSocket, *, state: S
     if cut is not None and cut.envelopes:
         batch: list[dict[str, Any]] = []
         for envelope in cut.envelopes:
-            if isinstance(envelope.event, events.ShellTasksUpdatedEvent | events.BackgroundTasksUpdatedEvent):
+            if isinstance(
+                envelope.event,
+                events.ShellTasksUpdatedEvent | events.BackgroundTasksUpdatedEvent | events.SessionStatusEvent,
+            ):
                 continue
             replay_envelope = envelope.model_copy(update={"event": await _with_shell_task_hint(envelope.event)})
             batch.append(replay_envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True))
@@ -691,6 +696,16 @@ async def _forward_events(
                 ):
                     continue
 
+                if isinstance(envelope.event, events.SessionStatusEvent) and state.headless is not None:
+                    # A queued notification is an invalidation, not a historical
+                    # state: refresh it so attach backlog cannot regress a snapshot.
+                    envelope = envelope.model_copy(
+                        update={
+                            "event": envelope.event.model_copy(
+                                update={"status": state.headless.session_status(envelope.session_id)}
+                            )
+                        }
+                    )
                 serialized = envelope.model_dump(mode="json", exclude_none=True, serialize_as_any=True)
                 await send_queue.put(serialized)
                 if (
@@ -1009,6 +1024,9 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             background_cutoffs = await _send_background_task_snapshots(
                 session_id, work_dir, websocket, state=state, targets=targets
             )
+            # Status may change while loading replay/snapshots. Close that gap
+            # with an authoritative snapshot after the live subscription exists.
+            await websocket.send_json(_build_session_info(state, session_id))
             await websocket.send_json({"type": "replay_complete", "session_id": session_id})
             if can_input and state.headless is not None:
                 # A queue persisted before a restart/reclaim has no live

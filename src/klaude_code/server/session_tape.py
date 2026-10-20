@@ -43,6 +43,7 @@ _SKIPPED_EVENT_TYPES = (
     # A "disk grew" ping for REST readers: it carries no history, and a stale
     # line count replayed on attach would only cause a redundant fetch.
     events.HistoryAppendedEvent,
+    events.SessionStatusEvent,
 )
 
 

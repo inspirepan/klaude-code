@@ -15,6 +15,11 @@ from klaude_code.protocol.models import (
     SubAgentState,
     TodoItem,
 )
+from klaude_code.protocol.models.session_status import (
+    SessionControl,
+    SessionError,
+    SessionRuntimeFacts,
+)
 
 
 @dataclass(frozen=True)
@@ -37,8 +42,7 @@ class LoadedSessionMeta:
     prompt_cache_key: str | None
     follow_up_queue: list[message.QueuedUserInput]
     headless_queued_turn: message.QueuedUserInput | None
-    headless_completed_turn_id: str | None
-    headless_failed: bool
+    runtime: SessionRuntimeFacts
     name: str | None
     group: str | None
     agent_type: str | None
@@ -160,6 +164,26 @@ def _parse_optional_str(raw: object) -> str | None:
     return None
 
 
+def parse_runtime_facts(raw: dict[str, Any]) -> SessionRuntimeFacts:
+    payload = raw.get("runtime")
+    if isinstance(payload, dict):
+        try:
+            return SessionRuntimeFacts.model_validate(payload)
+        except ValidationError:
+            return SessionRuntimeFacts(
+                error=SessionError(code="invalid_runtime_metadata", message="Saved runtime metadata is invalid.")
+            )
+    facts = SessionRuntimeFacts()
+    if raw.get("headless_failed") is True:
+        facts.error = SessionError(message="The previous execution failed.")
+    completed = _parse_optional_str(raw.get("headless_completed_turn_id"))
+    facts.completed_input_id = completed
+    queued = _parse_headless_queued_turn(raw, fallback_enqueued_at=0)
+    if queued is not None and queued.id != completed:
+        facts.control = SessionControl(paused=True, reason="legacy_execution_unknown")
+    return facts
+
+
 def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionMeta:
     """Parse a meta.json dict; unknown keys (e.g. legacy runtime_owner) are ignored."""
 
@@ -182,6 +206,7 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
 
     created_at = float(raw.get("created_at", time.time()))
     updated_at = float(raw.get("updated_at", created_at))
+    runtime = parse_runtime_facts(raw)
     return LoadedSessionMeta(
         work_dir=Path(work_dir_str),
         sub_agent_state=SubAgentState.model_validate(raw["sub_agent_state"])
@@ -205,8 +230,7 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         prompt_cache_key=raw.get("prompt_cache_key") if isinstance(raw.get("prompt_cache_key"), str) else None,
         follow_up_queue=_parse_follow_up_queue(raw.get("follow_up_queue"), fallback_enqueued_at=updated_at),
         headless_queued_turn=_parse_headless_queued_turn(raw, fallback_enqueued_at=updated_at),
-        headless_completed_turn_id=_parse_optional_str(raw.get("headless_completed_turn_id")),
-        headless_failed=raw.get("headless_failed") is True,
+        runtime=runtime,
         name=_parse_optional_str(raw.get("name")),
         group=_parse_optional_str(raw.get("group")),
         agent_type=_parse_optional_str(raw.get("agent_type")),

@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 
 from klaude_code.protocol import events
+from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.display import TUIDisplay
@@ -64,13 +65,18 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
             _snapshot(task_id="child", session_id="child"),
         ]
         full_state = events.ShellTasksUpdatedEvent(session_id="main", tasks=tasks)
+        await emit(
+            events.SessionStatusEvent(
+                session_id="main", status=SessionStatus.model_validate({"owned": {"active_shells": 2}})
+            )
+        )
         await emit(full_state)
         await emit(full_state)
         line = background_line()
-        assert line is not None and "◈  2 shells" in line.text
+        assert line is not None and "◈  Idle · 2 shells" in line.text
         assert line.text.startswith(" ◈  ")
         assert "/tasks" in line.text and not line.show_spinner
-        assert "◈  2 shells" in "".join(
+        assert "◈  Idle · 2 shells" in "".join(
             fragment[1] for fragment in [*bar._get_status_fragments(), ("", "\n"), *bar._get_status_tail_fragments()]
         )
 
@@ -81,9 +87,9 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
         await emit(events.AssistantTextDeltaEvent(session_id="main", content="Working"))
         display.refresh_prompt_status()
         running_lines = updates[-1]
-        assert sum("◈  2 shells" in line.text for line in running_lines) == 1
+        assert sum("◈  Idle · 2 shells" in line.text for line in running_lines) == 1
         assert any(line.show_spinner for line in running_lines)
-        assert "◈  2 shells" in "".join(
+        assert "◈  Idle · 2 shells" in "".join(
             fragment[1] for fragment in [*bar._get_status_fragments(), ("", "\n"), *bar._get_status_tail_fragments()]
         )
         spinner_line = next(line for line in running_lines if line.show_spinner)
@@ -94,34 +100,35 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
                 for fragment in [*bar._get_status_fragments(), ("", "\n"), *bar._get_status_tail_fragments()]
             ).splitlines()
             main_line = next(text for text in visible if spinner_line.text in text)
-            background = next(text for text in visible if "◈  2 shells" in text)
-            assert main_line.index(spinner_line.text) == background.index("2 shells") == 4
+            background = next(text for text in visible if "◈  Idle · 2 shells" in text)
+            assert main_line.index(spinner_line.text) == background.index("Idle") == 4
 
         await emit(control(session_id="main"))
         display.refresh_prompt_status()
-        assert sum("◈  2 shells" in line.text for line in updates[-1]) == 1
+        assert sum("◈  Idle · 2 shells" in line.text for line in updates[-1]) == 1
         assert any(line.show_spinner for line in updates[-1])
         await emit(events.AssistantTextDeltaEvent(session_id="main", content=" more"))
         display.refresh_prompt_status()
-        assert sum("◈  2 shells" in line.text for line in updates[-1]) == 1
+        assert sum("◈  Idle · 2 shells" in line.text for line in updates[-1]) == 1
         await emit(events.AssistantTextEndEvent(session_id="main"))
         await emit(events.TaskFinishEvent(session_id="main", task_result="done"))
         bar.set_agent_running(False)
         line = background_line()
-        assert line is not None and "◈  2 shells" in line.text
-        assert "◈  2 shells" in "".join(
+        assert line is not None and "◈  Idle · 2 shells" in line.text
+        assert "◈  Idle · 2 shells" in "".join(
             fragment[1] for fragment in [*bar._get_status_fragments(), ("", "\n"), *bar._get_status_tail_fragments()]
         )
 
         await emit(control(session_id="main"))
         line = background_line()
-        assert line is not None and "◈  2 shells" in line.text
+        assert line is not None and "◈  Idle · 2 shells" in line.text
 
         await emit(events.ShellTasksUpdatedEvent(session_id="child", tasks=[_snapshot(session_id="child")]))
         line = background_line()
-        assert line is not None and "◈  2 shells" in line.text
+        assert line is not None and "◈  Idle · 2 shells" in line.text
 
         await emit(events.ShellTasksUpdatedEvent(session_id="main", tasks=[_snapshot(status="completed")]))
+        await emit(events.SessionStatusEvent(session_id="main", status=SessionStatus()))
         assert background_line() is None
         await emit(full_state)
         await emit(_welcome("new"))
@@ -150,9 +157,12 @@ def test_snapshot_after_empty_history_displays_idle_count(monkeypatch: pytest.Mo
             _welcome("main"),
             events.ReplayHistoryEvent(session_id="main", updated_at=0.0, events=[]),
             events.ShellTasksUpdatedEvent(session_id="main", tasks=[_snapshot()]),
+            events.SessionStatusEvent(
+                session_id="main", status=SessionStatus.model_validate({"owned": {"active_shells": 1}})
+            ),
         ]:
             await display.consume_envelope(make_envelope(event))
-        assert any("◈  1 shell" in line.text for line in updates[-1])
+        assert any("◈  Idle · 1 shell" in line.text for line in updates[-1])
         await display.stop()
 
     asyncio.run(_test())

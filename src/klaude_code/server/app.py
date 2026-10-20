@@ -101,18 +101,23 @@ def create_app(
             # Tap the origin bus: recording lands in the same event-loop step
             # as the fan-out, so attach replay snapshots are gap-free.
             state.event_bus.set_publish_listener(state.tapes.record)
+        session_live = state.session_live
+        if session_live is None:
+            raise RuntimeError("session live state is not initialized")
         if state.headless is None:
             state = replace(
                 state,
-                headless=HeadlessRuntime(state.runtime, max_running=_headless_max_running(), tapes=state.tapes),
+                headless=HeadlessRuntime(
+                    state.runtime,
+                    max_running=_headless_max_running(),
+                    tapes=state.tapes,
+                    index=session_live.index,
+                ),
             )
             app.state.server_state = state
         if state.upgrade is None and state.lifecycle is not None:
             state = replace(state, upgrade=_build_upgrade_coordinator(app, state.lifecycle))
             app.state.server_state = state
-        session_live = state.session_live
-        if session_live is None:
-            raise RuntimeError("session live state is not initialized")
         headless = state.headless
         if headless is None:
             raise RuntimeError("headless runtime is not initialized")
@@ -121,6 +126,7 @@ def create_app(
         if state.upgrade is not None:
             state.upgrade.start(state.event_bus)
         headless.restore(session_live.index.list_all())
+        session_live.index.reload()
         session_live.attach_loop(asyncio.get_running_loop())
         unregister_meta_observer = register_session_meta_observer(session_live.apply_meta_update)
         # Store flushes happen in the writer thread; the bridge republishes them

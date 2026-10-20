@@ -8,6 +8,7 @@ import time
 import pytest
 
 from klaude_code.protocol import events, llm_param
+from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.tui.client.base import ClientConnectionError
 from klaude_code.tui.client.socket_client import _ECHO_SWALLOW_TTL_SECONDS, SocketRuntimeClient, _local_envelope
 
@@ -119,9 +120,8 @@ def test_failed_emit_does_not_arm_echo_swallow() -> None:
     assert not client._pending_echo_swallows
 
 
-def test_fatal_turn_end_releases_busy_via_operation_finished() -> None:
-    """A turn dying on a fatal error emits no TaskFinishEvent; the run_agent
-    OperationFinishedEvent must release the busy state instead."""
+def test_fatal_turn_end_waits_for_authoritative_status() -> None:
+    """Operation completion clears identity, not the product status."""
     client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
 
     start = _local_envelope(events.TaskStartEvent(session_id="session-id")).model_copy(update={"operation_id": "op-1"})
@@ -135,6 +135,8 @@ def test_fatal_turn_end_releases_busy_via_operation_finished() -> None:
     )
 
     async def scenario() -> None:
+        client._replay_complete.set()
+        client._apply_session_info({"status": {"category": "working", "execution": "running"}})
         await client._handle_envelope(start)
         assert client.is_running() is True
         await client._handle_envelope(
@@ -142,6 +144,12 @@ def test_fatal_turn_end_releases_busy_via_operation_finished() -> None:
         )
         assert client.is_running() is True
         await client._handle_envelope(finish)
+        assert client.is_running() is True
+        await client._handle_envelope(
+            _local_envelope(
+                events.SessionStatusEvent(session_id="session-id", status=SessionStatus(category="needs_you"))
+            )
+        )
         assert client.is_running() is False
 
     asyncio.run(scenario())
@@ -161,6 +169,8 @@ def test_stale_operation_finished_does_not_release_new_turn() -> None:
     )
 
     async def scenario() -> None:
+        client._replay_complete.set()
+        client._apply_session_info({"status": {"category": "working", "execution": "running"}})
         await client._handle_envelope(start)
         await client._handle_envelope(stale_finish)
         assert client.is_running() is True
@@ -168,17 +178,52 @@ def test_stale_operation_finished_does_not_release_new_turn() -> None:
     asyncio.run(scenario())
 
 
-def test_waiting_user_input_counts_as_busy() -> None:
+def test_attention_and_execution_are_independent() -> None:
     client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
 
-    client._apply_session_info({"state": "waiting_user_input"})
+    client._apply_session_info({"status": {"category": "needs_you", "execution": "running"}})
     assert client.is_running() is True
 
-    client._apply_session_info({"state": "running"})
+    client._apply_session_info({"status": {"category": "working", "execution": "queued"}})
     assert client.is_running() is True
 
-    client._apply_session_info({"state": "idle"})
+    client._apply_session_info({"status": {"category": "working", "execution": "waiting_agents"}})
     assert client.is_running() is False
+
+
+def test_attach_status_ignores_taped_pause_and_tracks_live_parent_status() -> None:
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+    current = SessionStatus(category="working", execution="waiting_agents")
+    paused = SessionStatus.model_validate(
+        {
+            "category": "needs_you",
+            "control": {"paused": True},
+            "attention": [{"kind": "paused", "code": "user_interrupt", "source_session_id": "session-id"}],
+        }
+    )
+
+    async def scenario() -> None:
+        await client._handle_frame({"type": "session_info", "status": current.model_dump()})
+        initial = client._display_queue.get_nowait().event
+        assert isinstance(initial, events.SessionStatusEvent)
+        assert initial.status == current
+        await client._handle_envelope(
+            _local_envelope(events.SessionStatusEvent(session_id="session-id", status=paused))
+        )
+        assert client.session_info().status == current
+        assert client._display_queue.empty()
+        await client._handle_frame({"type": "replay_complete"})
+        needs_input = paused.model_copy(update={"execution": "running"})
+        await client._handle_envelope(
+            _local_envelope(events.SessionStatusEvent(session_id="session-id", status=needs_input))
+        )
+        assert client.session_info().status == needs_input
+        assert client.session_info().state == "needs_you"
+        assert client.is_running()
+        await client._handle_envelope(_local_envelope(events.InterruptEvent(session_id="session-id")))
+        assert client.is_running()
+
+    asyncio.run(scenario())
 
 
 def test_session_info_mirrors_the_active_model() -> None:
@@ -187,7 +232,7 @@ def test_session_info_mirrors_the_active_model() -> None:
 
     client._apply_session_info(
         {
-            "state": "idle",
+            "status": {},
             "model_config_name": "removed-model",
             "active_model_name": "sonnet",
             "provider_name": "anthropic",
@@ -203,7 +248,7 @@ def test_session_info_without_an_active_model_stays_none() -> None:
     """An older server sends no active model; the snapshot must not invent one."""
     client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
 
-    client._apply_session_info({"state": "idle", "model_config_name": "sonnet"})
+    client._apply_session_info({"status": {}, "model_config_name": "sonnet"})
 
     assert client.session_info().active_model_name is None
 

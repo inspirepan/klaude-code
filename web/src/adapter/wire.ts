@@ -67,20 +67,39 @@ export interface SessionMeta {
   readonly parent_session_id: string | null
   readonly created_at: number | null
   readonly updated_at: number | null
-  readonly state: string | null
+  readonly state: SessionState
+  readonly status: SessionStatus
   /** True when an agent is in memory, i.e. when the WS channel is worth opening. */
   readonly loaded: boolean
   readonly line_count: number
 }
 
-/** The six states `server/routes/headless.py` reports for a session. */
-export type SessionState =
-  | 'queued'
-  | 'running'
-  | 'waiting_input'
-  | 'idle'
-  | 'completed'
-  | 'failed'
+export type SessionState = 'needs_you' | 'working' | 'idle'
+
+/** Authoritative product status, independent of transcript task boundaries. */
+export interface SessionStatus {
+  readonly category: SessionState
+  readonly execution: 'none' | 'queued' | 'running' | 'waiting_agents'
+  readonly attention: readonly {
+    readonly kind: 'needs_input' | 'error' | 'paused'
+    readonly code: string
+    readonly source_session_id: string
+    readonly request_id?: string | null
+    readonly message?: string | null
+  }[]
+  readonly control: { readonly paused: boolean; readonly reason: string | null }
+  readonly continuation: {
+    readonly automatic: boolean
+    readonly triggers: readonly ('queue' | 'agent_result')[]
+    readonly blocked_by: readonly string[]
+  }
+  readonly last_turn: {
+    readonly id: string
+    readonly result: 'succeeded' | 'failed' | 'interrupted'
+    readonly reason?: string | null
+  } | null
+  readonly owned: { readonly active_agents: number; readonly active_shells: number }
+}
 
 /**
  * One row of `GET /api/headless/sessions` (`routes/headless.py: _serialize_row`).
@@ -94,7 +113,8 @@ export interface SessionListRow {
   readonly agent_type?: string | null
   readonly spawn_kind?: string | null
   readonly parent_session_id?: string | null
-  readonly state?: string | null
+  readonly state: SessionState
+  readonly status: SessionStatus
   readonly model?: string | null
   readonly work_dir?: string | null
   readonly title?: string | null

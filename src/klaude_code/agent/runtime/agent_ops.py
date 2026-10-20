@@ -52,6 +52,7 @@ from klaude_code.llm.client import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, op, user_interaction
 from klaude_code.protocol.models import SubAgentState
+from klaude_code.protocol.models.session_status import SessionControl, SessionError
 from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
 from klaude_code.session.session import Session
 from klaude_code.tool.shell.task_manager import ShellTaskManager
@@ -966,6 +967,9 @@ class AgentOperationHandler:
 
         async def _run_with_event_context() -> None:
             with event_publish_context(task_id=task_id):
+                if frozen_input.source in (None, "user", "bash_mode"):
+                    agent.session.resume()
+                agent.session.begin_turn(operation.id)
                 await self._run_agent_task(
                     agent,
                     frozen_input,
@@ -1007,6 +1011,8 @@ class AgentOperationHandler:
 
         async def _run_with_event_context() -> None:
             with event_publish_context(task_id=task_id):
+                agent.session.resume()
+                agent.session.begin_turn(operation.id)
                 await self._run_bash_task(
                     session=agent.session,
                     command=operation.command,
@@ -1070,6 +1076,7 @@ class AgentOperationHandler:
 
         async def _run_with_event_context() -> None:
             with event_publish_context(task_id=task_id):
+                agent.session.begin_turn(operation.id)
                 await self._run_agent_task(agent, empty_input, task_id, operation.session_id)
 
         task: asyncio.Task[None] = asyncio.create_task(_run_with_event_context())
@@ -1623,6 +1630,10 @@ class AgentOperationHandler:
         show_notice = True
         retracted_text: str | None = None
         if agent is not None:
+            agent.session.finish_turn("interrupted", reason="user_interrupt")
+            if not resume_follow_ups:
+                agent.session.runtime.control = SessionControl(paused=True, reason="user_interrupt")
+                agent.session.persist_runtime()
             for evt in agent.on_interrupt():
                 await self._emit_event(evt)
             show_notice = agent.last_interrupt_show_notice
@@ -1691,6 +1702,15 @@ class AgentOperationHandler:
                 )
 
             async for event in agent.run_task(user_input, run_subtask=_runner):
+                if isinstance(event, events.ErrorEvent) and not event.can_retry:
+                    agent.session.runtime.error = SessionError(message=event.error_message)
+                    agent.session.finish_turn("failed")
+                elif isinstance(event, events.TaskMetadataEvent) and event.is_partial:
+                    agent.session.finish_turn("interrupted", reason="input_cancelled")
+                elif isinstance(event, events.TaskFinishEvent):
+                    agent.session.finish_turn(
+                        "interrupted" if events.is_cancelled_task_result(event.task_result) else "succeeded"
+                    )
                 await self._emit_event(event)
                 if isinstance(event, events.TaskStartEvent):
                     actor = self._get_session_actor(session_id)
@@ -1704,6 +1724,7 @@ class AgentOperationHandler:
             self._schedule_prompt_suggestion(agent)
 
         except asyncio.CancelledError:
+            agent.session.finish_turn("interrupted", reason="user_interrupt")
             log_debug(
                 f"Agent task {task_id} was cancelled",
                 debug_type=DebugType.EXECUTION,
@@ -1711,6 +1732,8 @@ class AgentOperationHandler:
             await self._emit_event(events.TaskFinishEvent(session_id=session_id, task_result="task cancelled"))
 
         except Exception as e:
+            agent.session.runtime.error = SessionError(message=str(e))
+            agent.session.finish_turn("failed")
             log_debug(
                 f"Agent task {task_id} failed: {e!s}",
                 debug_type=DebugType.EXECUTION,
@@ -1740,6 +1763,14 @@ class AgentOperationHandler:
                 session_id=session_id,
                 command=command,
             )
+            session.finish_turn("succeeded")
+        except asyncio.CancelledError:
+            session.finish_turn("interrupted", reason="user_interrupt")
+            raise
+        except Exception as exc:
+            session.runtime.error = SessionError(message=str(exc))
+            session.finish_turn("failed")
+            raise
         finally:
             self._remove_task(session_id=session_id, task_id=task_id)
 

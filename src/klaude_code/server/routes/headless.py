@@ -17,12 +17,12 @@ from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.protocol import events, message, op, user_interaction
 from klaude_code.protocol.background_task import ACTIVE_TASK_STATUSES, TaskRequest, TaskResponse
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.models.session_status import SessionRuntimeFacts, SessionStatus
 from klaude_code.protocol.peer import PeerMessage, validate_external_message_id
 from klaude_code.protocol.sub_agent import get_all_names
 from klaude_code.server.headless import HeadlessRuntime, format_tool_call_activity
-from klaude_code.server.routes.ws import input_attached_session_ids
 from klaude_code.server.session_index import SessionSummary
-from klaude_code.server.session_state import derive_session_state_from_snapshot, live_descendant_session_ids
+from klaude_code.server.session_state import live_descendant_session_ids
 from klaude_code.server.session_tape import TapeCut
 from klaude_code.server.state import ServerAppState, get_server_state
 from klaude_code.session.ledger import is_auto_user_message
@@ -32,10 +32,10 @@ router = APIRouter(prefix="/api/headless", tags=["headless"])
 STATE_DEP: Final = Depends(get_server_state)
 STATES_QUERY: Final = Query(None, alias="state")
 
-type HeadlessState = Literal["queued", "running", "waiting_input", "idle", "completed", "failed"]
+type HeadlessState = Literal["needs_you", "working", "idle"]
 
-ACTIVE_STATES: Final = ("queued", "running", "waiting_input")
-VALID_STATES: Final = ("queued", "running", "waiting_input", "idle", "completed", "failed")
+ACTIVE_STATES: Final = ("needs_you", "working")
+VALID_STATES: Final = ("needs_you", "working", "idle")
 
 
 # -- shared helpers --
@@ -100,29 +100,16 @@ def _resolve_target(summaries: list[SessionSummary], target: str) -> SessionSumm
 
 
 def _headless_state(state: ServerAppState, headless: HeadlessRuntime, session_id: str) -> HeadlessState:
-    if headless.is_queued(session_id):
-        return "queued"
-    actor = state.runtime.session_registry.get_session_actor(session_id)
-    if actor is not None:
-        derived = derive_session_state_from_snapshot(actor.snapshot())
-        if derived == "waiting_user_input":
-            return "waiting_input"
-        if derived == "running":
-            # A sub-agent parked on an interaction stalls the whole tree; the
-            # caller polls the parent, so bubble the state up (§7 closed loop).
-            if _pending_requests(state, session_id):
-                return "waiting_input"
-            return "running"
-    if headless.is_running(session_id) or headless.turn_start_pending(session_id):
-        return "running"
-    if headless.tracker.is_failed(session_id):
-        return "failed"
-    # No work left: a live TUI attach means a human is at the prompt (idle);
-    # otherwise the session's last turn is over (completed). Headless sessions
-    # never attach, so they flip to completed the moment the turn finishes.
-    if session_id in input_attached_session_ids():
-        return "idle"
-    return "completed"
+    return session_status_for(state, session_id).category
+
+
+def session_status_for(
+    state: ServerAppState, session_id: str, fallback: SessionRuntimeFacts | None = None
+) -> SessionStatus:
+    summary = state.session_live.index.get(session_id) if state.session_live is not None else None
+    return _require_headless(state).session_status(
+        session_id, fallback if fallback is not None else summary.runtime if summary is not None else None
+    )
 
 
 def session_state_for(state: ServerAppState, session_id: str) -> HeadlessState:
@@ -147,6 +134,7 @@ def serialize_pending_request(request: PendingUserInteractionRequest) -> dict[st
         first = payload.questions[0] if payload.questions else None
         return {
             "request_id": request.request_id,
+            "source_session_id": request.session_id,
             "type": "question",
             "prompt": first.question if first is not None else "",
             "options": [
@@ -158,6 +146,7 @@ def serialize_pending_request(request: PendingUserInteractionRequest) -> dict[st
         }
     return {
         "request_id": request.request_id,
+        "source_session_id": request.session_id,
         "type": "choice",
         "prompt": payload.question,
         "options": [
@@ -175,14 +164,15 @@ def _activity_label(
     session_id: str,
     session_state: HeadlessState,
 ) -> str | None:
-    if session_state == "queued":
+    status = headless.session_status(session_id)
+    if status.execution == "queued":
         return "queued"
-    if session_state == "running":
+    if status.execution == "running" and session_state != "needs_you":
         current = headless.tracker.current_tool_call(session_id)
         if current is not None:
             return format_tool_call_activity(current[0], current[1])
         return "thinking"
-    if session_state == "waiting_input":
+    if any(reason.kind == "needs_input" for reason in status.attention):
         pending = _pending_requests(state, session_id)
         if pending:
             info = serialize_pending_request(pending[0])
@@ -192,6 +182,10 @@ def _activity_label(
                 prompt = prompt[:59] + "…"
             return f"{info['type']}: {prompt}"
         return "waiting for input"
+    if status.attention:
+        return status.attention[0].message or status.attention[0].code
+    if status.execution == "waiting_agents":
+        return "waiting for agents"
     return None
 
 
@@ -200,7 +194,8 @@ def _serialize_row(
     headless: HeadlessRuntime,
     summary: SessionSummary,
 ) -> dict[str, Any]:
-    session_state = _headless_state(state, headless, summary.id)
+    status = headless.session_status(summary.id, summary.runtime)
+    session_state = status.category
     row: dict[str, Any] = {
         "id": summary.id,
         "name": summary.name,
@@ -209,6 +204,7 @@ def _serialize_row(
         "spawn_kind": summary.spawn_kind,
         "parent_session_id": summary.parent_session_id,
         "state": session_state,
+        "status": status.model_dump(mode="json"),
         "model": summary.model_config_name or summary.model_name,
         "work_dir": summary.work_dir,
         "title": summary.title,
@@ -223,7 +219,7 @@ def _serialize_row(
         # follow-up turns. CLI wait uses it as the stable server contract.
         "pending": headless.has_pending(summary.id),
     }
-    if session_state == "waiting_input":
+    if any(reason.kind == "needs_input" for reason in status.attention):
         pending = _pending_requests(state, summary.id)
         if pending:
             row["pending_request"] = serialize_pending_request(pending[0])
@@ -454,7 +450,7 @@ async def run_headless(payload: HeadlessRunRequest, state: ServerAppState = STAT
     session.ensure_meta_exists()
 
     try:
-        run_state = await headless.spawn(
+        await headless.spawn(
             session_id=session.id,
             prompt=UserInputPayload(text=prompt),
             work_dir=work_dir,
@@ -462,7 +458,8 @@ async def run_headless(payload: HeadlessRunRequest, state: ServerAppState = STAT
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"failed to start agent: {exc}") from exc
 
-    return {"session_id": session.id, "name": name, "state": run_state}
+    status = headless.session_status(session.id)
+    return {"session_id": session.id, "name": name, "state": status.category, "status": status.model_dump(mode="json")}
 
 
 # -- ps --
@@ -521,10 +518,10 @@ async def list_headless_sessions(
     if states:
         rows = [row for row in rows if row["state"] in states]
 
-    # Active sessions first, then attached-but-quiet ones, then history.
+    # Attention first, then automatic work, then quiet sessions.
     rows.sort(
         key=lambda row: (
-            0 if row["state"] in ACTIVE_STATES else 1 if row["state"] == "idle" else 2,
+            {"needs_you": 0, "working": 1, "idle": 2}[row["state"]],
             -float(row["updated_at"]),
         )
     )
@@ -550,6 +547,10 @@ async def _add_background_activity(state: ServerAppState, row: dict[str, Any]) -
     count = sum(task.ref.kind == "agent" and task.status in ACTIVE_TASK_STATUSES for task in tasks.tasks)
     row["background_agent_count"] = count
     row["background_state"] = "running" if count else "idle"
+    status = session_status_for(state, row["id"])
+    row["status"] = status.model_dump(mode="json")
+    row["state"] = status.category
+    row["pending"] = status.continuation.automatic
     if count:
         row["activity"] = f"{row['activity'] or 'idle'}; {count} background agent(s)"
 
@@ -629,6 +630,7 @@ async def get_headless_output(
         "state": _headless_state(state, headless, summary.id),
         "output": output,
         "pending": headless.has_pending(summary.id),
+        "status": headless.session_status(summary.id, summary.runtime).model_dump(mode="json"),
     }
     pending = _pending_requests(state, summary.id)
     if pending:
@@ -704,7 +706,28 @@ async def send_headless_message(
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"failed to schedule message: {exc}") from exc
-    return {"session_id": summary.id, "pending": True, **receipt.model_dump()}
+    status = headless.session_status(summary.id)
+    return {
+        "session_id": summary.id,
+        "pending": status.continuation.automatic,
+        "state": status.category,
+        "status": status.model_dump(mode="json"),
+        **receipt.model_dump(),
+    }
+
+
+class SessionControlRequest(BaseModel):
+    action: Literal["resume", "dismiss"]
+
+
+@router.post("/sessions/{target}/control")
+async def control_headless_session(
+    target: str, payload: SessionControlRequest, state: ServerAppState = STATE_DEP
+) -> dict[str, Any]:
+    summary = _resolve_target(_load_summaries(state), target)
+    _require_admission(state)
+    status = await _require_headless(state).control_session(summary.id, Path(summary.work_dir), action=payload.action)
+    return {"session_id": summary.id, "state": status.category, "status": status.model_dump(mode="json")}
 
 
 @router.post("/sessions/{target}/tasks", response_model=TaskResponse)
@@ -814,7 +837,7 @@ async def respond_headless(
     request = pending[0]
     response = _build_interaction_response(request, payload)
 
-    await state.runtime.submit(
+    await state.runtime.submit_and_wait(
         op.UserInteractionRespondOperation(
             # The request may be parked on a sub-agent session under the
             # target; route the response to its owning actor.
@@ -823,7 +846,15 @@ async def respond_headless(
             response=response,
         )
     )
-    return {"ok": True, "session_id": summary.id, "request_id": request.request_id, "status": response.status}
+    status = session_status_for(state, summary.id)
+    return {
+        "ok": True,
+        "session_id": summary.id,
+        "request_id": request.request_id,
+        "response_status": response.status,
+        "state": status.category,
+        "status": status.model_dump(mode="json"),
+    }
 
 
 # -- kill --
@@ -837,13 +868,23 @@ async def interrupt_headless(target: str, state: ServerAppState = STATE_DEP) -> 
 
     cancelled_queued = await headless.prepare_interrupt(summary.id, Path(summary.work_dir))
 
+    def result(was: str) -> dict[str, Any]:
+        status = headless.session_status(summary.id)
+        return {
+            "ok": True,
+            "session_id": summary.id,
+            "was": was,
+            "state": status.category,
+            "status": status.model_dump(mode="json"),
+        }
+
     actor = state.runtime.session_registry.get_session_actor(summary.id)
     if actor is None or actor.snapshot().is_idle:
         if cancelled_queued:
-            return {"ok": True, "session_id": summary.id, "was": "queued"}
-        return {"ok": True, "session_id": summary.id, "was": "idle"}
+            return result("queued")
+        return result("idle")
 
     await state.runtime.submit_and_wait(op.InterruptOperation(session_id=summary.id))
     # Admission can restore an unacknowledged batch during cancellation.
     await headless.prepare_interrupt(summary.id, Path(summary.work_dir))
-    return {"ok": True, "session_id": summary.id, "was": "running"}
+    return result("running")

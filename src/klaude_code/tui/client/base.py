@@ -15,6 +15,7 @@ from typing import Protocol
 
 from klaude_code.protocol import events, op
 from klaude_code.protocol.background_task import TaskRequest, TaskResponse
+from klaude_code.protocol.models.session_status import SessionStatus, SessionStatusCategory
 from klaude_code.protocol.peer import PeerReceipt
 
 
@@ -32,7 +33,8 @@ class SessionInfoSnapshot:
     """Client-side mirror of the server's session_info frame."""
 
     session_id: str = ""
-    state: str = "idle"
+    state: SessionStatusCategory = "idle"
+    status: SessionStatus = field(default_factory=SessionStatus)
     model_config_name: str | None = None
     #: The model the next request will use, read from the live client. The
     #: prompt bar falls back to ``model_config_name`` when it is absent.

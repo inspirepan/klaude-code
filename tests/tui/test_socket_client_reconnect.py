@@ -60,6 +60,7 @@ def _serve_handshake_on_unix_socket(path: Path, uris: list[str], connections: li
                     "type": "session_info",
                     "session_id": "session-id",
                     "state": "idle",
+                    "status": {},
                     "follow_ups": [],
                 }
             )

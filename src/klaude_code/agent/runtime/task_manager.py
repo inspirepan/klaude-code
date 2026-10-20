@@ -31,6 +31,29 @@ from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 
 class TaskManager:
+    @staticmethod
+    def has_durable_agent_results(owner: str, work_dir: Path) -> bool:
+        """Detect interrupted/unread agents without loading or reviving tasks."""
+        directory = ProjectPaths(project_key_from_path(work_dir)).session_dir(owner) / "background_tasks"
+        for path in directory.glob("*.json"):
+            try:
+                if path.is_symlink():
+                    continue
+                task = BackgroundTaskSnapshot.model_validate_json(path.read_text())
+                if (
+                    task.ref.owner_session_id == owner
+                    and task.ref.task_id == path.stem
+                    and UUID(task.ref.task_id).hex == task.ref.task_id
+                    and task.ref.kind == "agent"
+                    and not task.delivered
+                    and not task.expected_stop
+                    and not task.output_unavailable
+                ):
+                    return True
+            except (OSError, ValueError):
+                continue
+        return False
+
     def __init__(
         self,
         shell: ShellTaskManager | None,
@@ -57,6 +80,7 @@ class TaskManager:
         self._load_lock = asyncio.Lock()
         self._settle_locks: dict[str, asyncio.Lock] = {}
         self._settled: set[tuple[str, str]] = set()
+        self._restored_results: set[str] = set()
 
     async def _persist(self, task: BackgroundTaskSnapshot) -> None:
         task_id = task.ref.task_id
@@ -100,6 +124,13 @@ class TaskManager:
                 self._directories[task.ref.task_id] = directory
                 self._records[task.ref.task_id] = task
                 self._persisted[task.ref.task_id] = task.model_dump_json()
+                if (
+                    task.ref.kind == "agent"
+                    and not task.delivered
+                    and not task.expected_stop
+                    and not task.output_unavailable
+                ):
+                    self._restored_results.add(task.ref.task_id)
                 if task.ref.kind == "agent" and task.status in ACTIVE_TASK_STATUSES:
                     task.status = "lost"
                     task.ended_at = time.time()
@@ -475,6 +506,22 @@ class TaskManager:
             for task in self._records.values()
             if task.status in ACTIVE_TASK_STATUSES or task.ref.task_id in self._collectors
         }
+
+    def session_tasks_snapshot(self, owner: str) -> list[BackgroundTaskSnapshot]:
+        """Read already loaded task facts without loading or changing execution."""
+        records = {**self._records, **self._launches}
+        return [self._snapshot(task) for task in records.values() if task.ref.owner_session_id == owner]
+
+    def has_restored_results(self, owner: str) -> bool:
+        """Recovered reports need an operator-established continuation path."""
+        return any(
+            task_id in self._restored_results
+            and task.ref.owner_session_id == owner
+            and not task.delivered
+            and not task.expected_stop
+            and not task.output_unavailable
+            for task_id, task in self._records.items()
+        )
 
     async def aclose(self) -> None:
         self._closed = True

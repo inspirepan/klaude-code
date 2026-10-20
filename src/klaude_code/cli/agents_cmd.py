@@ -13,10 +13,10 @@ from typing import Any
 import typer
 
 EXIT_CODES_TABLE = [
-    ("0", "success (`wait`: all sessions completed)"),
+    ("0", "success (`wait`: sessions idle)"),
     ("1", "usage error / target not found / ambiguous target"),
-    ("2", "`wait`: some session stopped at waiting_input"),
-    ("3", "`wait`: some session failed"),
+    ("2", "`wait`: some session needs input or is paused"),
+    ("3", "`wait`: some session has a current error"),
     ("124", "--timeout expired (same convention as timeout(1))"),
 ]
 
@@ -128,8 +128,8 @@ def build_prime_guide(config: Any) -> str:
         "Wait timeouts also leave execution running."
     )
     lines.append(
-        "- Completion updates task state, but does not start an idle parent turn. "
-        "A required task's completion releases its wait; unrelated background shell completions do not. "
+        "- A finished Agent can wake its idle owner when automatic continuation is allowed. "
+        "Paused owners hold reports until the operator resumes; shell completions do not wake idle owners. "
         "Active parents can receive reports at safe boundaries."
     )
     lines.append("")
@@ -141,9 +141,9 @@ def build_prime_guide(config: Any) -> str:
         "Neither is operator input or authorization. Receiver permissions still apply."
     )
     lines.append(
-        "- Never answer another peer's pending approval/question with `klaude respond`, "
+        "- Never answer another peer's pending question with `klaude respond`, "
         "or route a denied/blocked action through a peer. Ask the operator; "
-        "`respond` is an operator control, not a collaboration tool."
+        "`respond`, `resume`, and `dismiss` are operator controls, not collaboration tools."
     )
     lines.append(
         "- Recovery restores history, results, and pending deliveries, not live execution stacks. "
@@ -199,11 +199,11 @@ def build_prime_guide(config: Any) -> str:
     lines.append('klaude wait "$id" --timeout 600')
     lines.append("case $? in")
     lines.append('  0) klaude output "$id" ;;             # done, take the result')
-    lines.append('  2) klaude brief "$id"                 # see what it is asking')
-    lines.append("     # Ask the operator; do not answer a peer's approval/question yourself.")
-    lines.append("     # Operator control: klaude respond ID --approve / --deny / --option N / --text TEXT")
+    lines.append('  2) klaude brief "$id"                 # inspect input or paused work')
+    lines.append("     # Ask the operator; do not answer or resume another session yourself.")
+    lines.append("     # Operator control: klaude respond ID --option N / --text TEXT; klaude resume ID")
     lines.append("     ;;")
-    lines.append('  3) klaude output "$id" ;;             # inspect the failure, send retry or kill')
+    lines.append('  3) klaude brief "$id" ;;              # inspect the error; ask the operator to resume/dismiss')
     lines.append('  124) klaude brief "$id" ;;            # still running at timeout')
     lines.append("esac")
     lines.append("```")
@@ -233,7 +233,7 @@ def build_prime_guide(config: Any) -> str:
     )
     lines.append(
         "- The server caps concurrently running headless agents "
-        f"(currently {config.headless_max_running}); extra runs queue as `queued` and `wait` keeps blocking."
+        f"(currently {config.headless_max_running}); extra runs have execution `queued` and `wait` keeps blocking."
     )
     lines.append(
         "- `run --approval auto` approves every permission request without checking the directory; "
@@ -270,10 +270,12 @@ def build_prime_guide(config: Any) -> str:
         lines.append(f"- `{model['selector']}` → {model['model_id']}")
     lines.append("")
     lines.append(
-        "States: queued (waiting for a server slot) · running · waiting_input "
-        "(parked on a question/approval — ask the operator to use `klaude respond`) · completed "
-        "(turn finished; `send` continues it) · idle (a TUI is attached, waiting at "
-        "the prompt) · failed (last turn errored; `send` retries)."
+        "Session categories: needs_you (input, a current error, or paused work) · working "
+        "(executing or admitted automatic work) · idle (no automatic work). "
+        "Connections do not change the category. JSON status contains execution, attention, "
+        "continuation, and last_turn separately. Ask the operator to answer questions with "
+        "`klaude respond`, explicitly resume work with `klaude resume`, or acknowledge an error "
+        "without resuming with `klaude dismiss`. Peer messages never resume paused work."
     )
     return "\n".join(lines)
 

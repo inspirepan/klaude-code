@@ -95,7 +95,7 @@
   opacity: 0.55;
 }
 
-/* running / waiting_input: the two states with something happening behind them. */
+/* Working sessions carry the live emphasis. */
 .row[data-live='true'] .title {
   font-weight: 600;
 }
@@ -176,8 +176,7 @@
   font-size: 10px;
 }
 
-/* Six states, six roles. running/waiting_input are the two "live" ones and are
- * the only rows that carry a dot. */
+/* Category supplies the role; execution remains visible in the label. */
 .state {
   display: inline-flex;
   flex: none;
@@ -192,29 +191,19 @@
   letter-spacing: 0.03em;
 }
 
-.state[data-state='running'] {
+.state[data-state='working'] {
   color: var(--dsw-alias-state-business-primary);
   background: var(--dsw-alias-state-business-tertiary);
 }
 
-.state[data-state='waiting_input'] {
+.state[data-state='needs_you'] {
   color: var(--dsw-alias-state-warn-label);
   background: var(--dsw-alias-state-warn-tertiary);
-}
-
-.state[data-state='queued'] {
-  color: var(--dsw-alias-label-primary-bluish);
-  background: var(--dsw-alias-bg-overlay);
 }
 
 .state[data-state='idle'] {
   color: var(--dsw-alias-state-success-primary);
   background: var(--dsw-alias-state-success-tertiary);
-}
-
-.state[data-state='failed'] {
-  color: var(--dsw-alias-state-error-primary);
-  background: var(--dsw-static-red-50);
 }
 
 .dot {

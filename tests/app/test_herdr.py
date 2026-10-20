@@ -9,7 +9,6 @@ import pytest
 import klaude_code.app.herdr as herdr_module
 from klaude_code.app.herdr import HerdrReporter
 from klaude_code.protocol import events
-from klaude_code.protocol.models import SessionRuntimeState
 
 
 def test_reporter_sends_aggregate_lifecycle_and_release() -> None:
@@ -29,14 +28,14 @@ def test_reporter_sends_aggregate_lifecycle_and_release() -> None:
         try:
             reporter = HerdrReporter(socket_path, "w1:p1")
             await _wait_for_request_count(requests, 2)
-            reporter.report_session_state("s1", SessionRuntimeState.RUNNING)
+            reporter.report_session_state("s1", "working")
             await _wait_for_request_count(requests, 3)
-            reporter.report_session_state("s1", SessionRuntimeState.RUNNING)
-            reporter.report_session_state("s2", SessionRuntimeState.WAITING_USER_INPUT)
+            reporter.report_session_state("s1", "working")
+            reporter.report_session_state("s2", "needs_you")
             await _wait_for_request_count(requests, 4)
-            reporter.report_session_state("s2", SessionRuntimeState.IDLE)
+            reporter.report_session_state("s2", "idle")
             await _wait_for_request_count(requests, 5)
-            reporter.report_session_state("s1", SessionRuntimeState.IDLE)
+            reporter.report_session_state("s1", "idle")
             await _wait_for_request_count(requests, 6)
             await reporter.close()
         finally:
