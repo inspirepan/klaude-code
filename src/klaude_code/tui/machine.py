@@ -1410,6 +1410,8 @@ class DisplayStateMachine:
 
     def _render_config_notice(self, e: events.Event, *, s: _SessionState) -> list[RenderCommand]:
         """Handler shared by every event in `_NOTICE_EVENT_SPECS`."""
+        if isinstance(e, events.ConfigReloadedEvent) and e.summary == "no model changes":
+            return []
         spec = _NOTICE_EVENT_SPECS[type(e)]
         return [
             RenderNotice(

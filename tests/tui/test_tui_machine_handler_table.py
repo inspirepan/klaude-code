@@ -183,3 +183,10 @@ def test_config_reloaded_renders_a_notice() -> None:
     assert notice.content == "Config reloaded (revision 4): main model: a -> b"
     assert notice.style is None
     assert notice.session_id == ""
+
+
+def test_config_reloaded_without_model_changes_is_silent() -> None:
+    machine = DisplayStateMachine()
+    event = events.ConfigReloadedEvent(session_id="", revision=2, summary="no model changes")
+
+    assert machine.transition(event) == []
