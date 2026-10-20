@@ -304,17 +304,26 @@ def test_agent_launch_reuses_child_identity_color(
             color = renderer._get_session_sub_agent_color(f"child-{index}").color
             assert color == renderer.themes.sub_agent_styles[index + 1].color
             segments = list(console.render(row))
-            for label in ("Finder", f"inspect-{index}", "↳" if multiple else "◈"):
+            # The identity color marks the child's own text, as a foreground only.
+            for label in ("Finder", f"inspect-{index}"):
                 segment = next(segment for segment in segments if label in segment.text)
                 assert segment.style is not None
                 assert segment.style.color == color
+                assert segment.style.bgcolor is None
+            if multiple:
+                prefix = next(segment for segment in segments if "↳" in segment.text)
+                assert prefix.style is not None
+                assert prefix.style.color == color
+                assert prefix.style.bgcolor is None
+            # The `Launch` chrome stays neutral, and nothing paints a sub-agent background.
             if index == 0 or not multiple:
+                mark = next(segment for segment in segments if "◈" in segment.text)
+                assert mark.style == console.get_style("tool.mark")
                 name = next(segment for segment in segments if "Launch" in segment.text)
-                assert name.style is not None and name.style.bold
-                if not multiple:
-                    assert name.style.color == color
+                assert name.style == console.get_style("tool.name")
                 hint = next(segment for segment in segments if "in background" in segment.text)
                 assert hint.style == console.get_style("metadata.dim")
+            assert all(segment.style is None or segment.style.bgcolor is None for segment in segments)
 
 
 @pytest.mark.parametrize("boundary", ["same-batch", "different-batch", "other-output"])

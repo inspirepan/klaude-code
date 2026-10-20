@@ -538,14 +538,17 @@ def render_agent_launch(
     """Inline one launch; group a batch under a shared background heading."""
     args = parse_tool_arguments(arguments)
     agent_type = format_pascal_case(one_line(args.get("type", "")) or "general-purpose")
+    # The identity color marks the child only, as foreground: the `Launch` chrome stays
+    # neutral and no identity color paints a background.
+    identity = Style(color=color.color) if color is not None else None
     row = Text(no_wrap=True, overflow="ellipsis")
     if multiple:
         row.append(" " * (TOOL_GROUP_INDENT + 2))
-        row.append("↳ ", style=color if color is not None else ThemeKey.TOOL_RESULT_TREE_PREFIX)
-    row.append(agent_type, style=color + Style(bold=True) if color is not None else ThemeKey.TOOL_NAME)
+        row.append("↳ ", style=identity if identity is not None else ThemeKey.TOOL_RESULT_TREE_PREFIX)
+    row.append(agent_type, style=identity + Style(bold=True) if identity is not None else ThemeKey.TOOL_NAME)
     if description := one_line(args.get("description", "")):
-        row.append(" ", style=color if color is not None else ThemeKey.TOOL_PARAM)
-        row.append(description, style=color + Style(italic=True) if color is not None else ThemeKey.TOOL_PARAM)
+        row.append(" ", style=identity if identity is not None else ThemeKey.TOOL_PARAM)
+        row.append(description, style=identity + Style(italic=True) if identity is not None else ThemeKey.TOOL_PARAM)
     if multiple:
         if not first:
             return row
@@ -558,10 +561,4 @@ def render_agent_launch(
             row,
         )
     row.append(" · in background", style=ThemeKey.METADATA_DIM)
-    return render_tool_call_tree(
-        mark=MARK_PLAN,
-        tool_name="Launch",
-        details=row,
-        mark_style=color if color is not None else ThemeKey.TOOL_MARK,
-        name_style=color + Style(bold=True) if color is not None else ThemeKey.TOOL_NAME,
-    )
+    return render_tool_call_tree(mark=MARK_PLAN, tool_name="Launch", details=row)

@@ -127,11 +127,10 @@ def render_tool_call_tree(
     details: RenderableType | None,
     overflow: Literal["fold", "crop", "ellipsis", "ignore"] = "ellipsis",
     mark_style: StyleType = ThemeKey.TOOL_MARK,
-    name_style: StyleType = ThemeKey.TOOL_NAME,
 ) -> RenderableType:
     grid = create_grid(overflow=overflow, label_min_width=TOOL_NAME_COLUMN_WIDTH)
     grid.add_row(
-        Text(tool_name, style=name_style),
+        Text(tool_name, style=ThemeKey.TOOL_NAME),
         details if details is not None else Text(""),
     )
 
