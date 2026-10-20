@@ -20,7 +20,7 @@ class TestCliOptionalValues:
         assert "--resume-by-id" not in result.output
         assert "--model-select" not in result.output
         assert "Attach to the latest session in this directory" in result.output
-        assert "Pick a session and attach" in result.output
+        assert "Open the agents panel" in result.output
 
     def test_model_without_value_triggers_interactive_mode(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "test_project"
@@ -96,10 +96,9 @@ class TestCliOptionalValues:
         assert json_body["model"] == "picked-model"
         assert captured["attached_session_id"] == "created-session"
 
-    @pytest.mark.parametrize("resume_mode", ["picker", "id", "continue"])
     @pytest.mark.parametrize("session_state", ["idle", "running"])
-    def test_resume_attaches_without_configuring_model(
-        self, monkeypatch: pytest.MonkeyPatch, resume_mode: str, session_state: str
+    def test_continue_attaches_without_configuring_model(
+        self, monkeypatch: pytest.MonkeyPatch, session_state: str
     ) -> None:
         import klaude_code.config as config_module
         import klaude_code.log as log_module
@@ -149,7 +148,6 @@ class TestCliOptionalValues:
         monkeypatch.setattr(cli_main.sys, "stdout", SimpleNamespace(isatty=lambda: True, write=_stdout_write))
         monkeypatch.setattr(config_module, "load_config", _load_config)
         monkeypatch.setattr(session_module.Session, "exists", staticmethod(lambda *_args, **_kwargs: True))
-        monkeypatch.setattr("klaude_code.tui.terminal.session_selector.select_session_sync", lambda: "session-1")
         monkeypatch.setattr(
             session_module.Session, "most_recent_session_id", staticmethod(lambda **_kwargs: "session-1")
         )
@@ -157,9 +155,9 @@ class TestCliOptionalValues:
         cli_main.main_callback(
             ctx=cast(typer.Context, SimpleNamespace(invoked_subcommand=None)),
             model=None,
-            continue_=resume_mode == "continue",
-            resume=resume_mode == "picker",
-            resume_by_id="session-1" if resume_mode == "id" else None,
+            continue_=True,
+            resume=False,
+            resume_by_id=None,
             select_model=False,
             debug=False,
             vanilla=False,
@@ -171,7 +169,7 @@ class TestCliOptionalValues:
 
     @pytest.mark.parametrize("model_status", [200, 409])
     @pytest.mark.parametrize("select_model", [False, True])
-    def test_resume_with_explicit_model_configures_before_attach(
+    def test_continue_with_explicit_model_configures_before_attach(
         self, monkeypatch: pytest.MonkeyPatch, model_status: int, select_model: bool
     ) -> None:
         import klaude_code.log as log_module
@@ -216,14 +214,17 @@ class TestCliOptionalValues:
         monkeypatch.setattr(cli_main.sys, "stdin", SimpleNamespace(isatty=lambda: True))
         monkeypatch.setattr(cli_main.sys, "stdout", SimpleNamespace(isatty=lambda: True, write=_stdout_write))
         monkeypatch.setattr(session_module.Session, "exists", staticmethod(lambda *_args, **_kwargs: True))
+        monkeypatch.setattr(
+            session_module.Session, "most_recent_session_id", staticmethod(lambda **_kwargs: "session-1")
+        )
 
         def _resume() -> None:
             cli_main.main_callback(
                 ctx=cast(typer.Context, SimpleNamespace(invoked_subcommand=None)),
                 model=None if select_model else "sonnet",
-                continue_=False,
+                continue_=True,
                 resume=False,
-                resume_by_id="session-1",
+                resume_by_id=None,
                 select_model=select_model,
                 debug=False,
                 vanilla=False,
@@ -245,7 +246,7 @@ class TestCliOptionalValues:
 
     @pytest.mark.parametrize("model_source", ["selector", "model_id", "main_model"])
     @pytest.mark.parametrize("model_status", [200, 409])
-    def test_resume_resolves_cold_session_model_before_main_model(
+    def test_continue_resolves_cold_session_model_before_main_model(
         self, monkeypatch: pytest.MonkeyPatch, model_source: str, model_status: int
     ) -> None:
         import klaude_code.config as config_module
@@ -306,6 +307,9 @@ class TestCliOptionalValues:
         monkeypatch.setattr(config_module, "load_config", lambda: _FakeConfig())
         monkeypatch.setattr(session_module.Session, "exists", staticmethod(lambda *_args, **_kwargs: True))
         monkeypatch.setattr(
+            session_module.Session, "most_recent_session_id", staticmethod(lambda **_kwargs: "session-1")
+        )
+        monkeypatch.setattr(
             session_module.Session,
             "load_meta",
             staticmethod(
@@ -320,9 +324,9 @@ class TestCliOptionalValues:
             cli_main.main_callback(
                 ctx=cast(typer.Context, SimpleNamespace(invoked_subcommand=None)),
                 model=None,
-                continue_=False,
+                continue_=True,
                 resume=False,
-                resume_by_id="session-1",
+                resume_by_id=None,
                 select_model=False,
                 debug=False,
                 vanilla=False,
@@ -343,7 +347,7 @@ class TestCliOptionalValues:
         ]
 
     @pytest.mark.parametrize("server_running", [False, True])
-    def test_cold_resume_without_main_model_saves_picker_selection_before_attach(
+    def test_cold_continue_without_main_model_saves_picker_selection_before_attach(
         self, monkeypatch: pytest.MonkeyPatch, server_running: bool
     ) -> None:
         import klaude_code.config as config_module
@@ -398,6 +402,9 @@ class TestCliOptionalValues:
         monkeypatch.setattr(config_module, "load_config", lambda: cfg)
         monkeypatch.setattr(session_module.Session, "exists", staticmethod(lambda *_args, **_kwargs: True))
         monkeypatch.setattr(
+            session_module.Session, "most_recent_session_id", staticmethod(lambda **_kwargs: "session-1")
+        )
+        monkeypatch.setattr(
             session_module.Session,
             "load_meta",
             staticmethod(lambda *_args, **_kwargs: SimpleNamespace(model_config_name=None, model_name=None)),
@@ -406,9 +413,9 @@ class TestCliOptionalValues:
         cli_main.main_callback(
             ctx=cast(typer.Context, SimpleNamespace(invoked_subcommand=None)),
             model=None,
-            continue_=False,
+            continue_=True,
             resume=False,
-            resume_by_id="session-1",
+            resume_by_id=None,
             select_model=False,
             debug=False,
             vanilla=False,

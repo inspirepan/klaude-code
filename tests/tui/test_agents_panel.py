@@ -1,5 +1,7 @@
 import asyncio
 from collections.abc import Callable
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Literal
 
 import pytest
@@ -29,6 +31,90 @@ async def until(predicate: Callable[[], bool]) -> None:
     async with asyncio.timeout(3):
         while not predicate():
             await asyncio.sleep(0.01)
+
+
+def test_project_paths_shorten_home_without_changing_search_or_grouping(monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.tui.components import common
+
+    home = Path("/Users/dev")
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: home))
+    directory = str(home / "code/project")
+    monkeypatch.setattr(common, "active_work_dir", lambda: Path(directory))
+    assert common.shorten_path(directory) == "."
+    assert common.shorten_path(directory, relative_to_workspace=False) == "~/code/project"
+
+    async def fetch() -> list[AgentPanelSession]:
+        return [session("a", directory=directory), session("b", directory="/Users/developer/project")]
+
+    async def check() -> None:
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(fetch, current_dir=directory, input=pipe, output=DummyOutput())
+            await panel.refresh()
+            text = "".join(text for _, text in panel._list_text(100))
+            assert "~/code/project" in text
+            assert "/Users/developer/project" in text
+            assert "project: ~/code/project" in "".join(text for _, text in panel._detail_text())
+            assert next(iter(panel.groups)) == directory
+            panel.query = directory
+            assert [row.id for row in panel.visible_sessions] == ["a"]
+
+    asyncio.run(check())
+
+
+def test_updated_time_calendar_boundaries() -> None:
+    now = datetime(2026, 10, 20, 12, 30)
+    for updated, label in [
+        (now, "now"),
+        (now + timedelta(minutes=5), "now"),
+        (now - timedelta(minutes=5), "5m ago"),
+        (now - timedelta(hours=2), "2h ago"),
+        (datetime(2026, 10, 19, 23, 59), "yesterday"),
+        (datetime(2026, 10, 18), "oct 18"),
+        (datetime(2025, 10, 18), "oct 18 2025"),
+    ]:
+        assert AgentsPanel._updated_label(updated.timestamp(), now) == label
+    assert AgentsPanel._updated_label(datetime(2025, 12, 31, 23, 59).timestamp(), datetime(2026, 1, 1)) == "yesterday"
+
+
+@pytest.mark.parametrize("width", [1, 3, 4, 12, 24, 40, 80])
+def test_list_reserves_display_cells_for_time_and_recomputes_on_refresh(
+    width: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prompt_toolkit.utils import get_cwidth
+
+    from klaude_code.tui import agents_panel
+
+    class Clock(datetime):
+        current = datetime(2026, 10, 20, 12)
+
+        @classmethod
+        def now(cls, tz: object = None) -> datetime:
+            return cls.current
+
+    monkeypatch.setattr(agents_panel, "datetime", Clock)
+    updated = Clock.current.timestamp()
+
+    async def fetch() -> list[AgentPanelSession]:
+        return [session("a", title="中文标题与 English " * 20, updated=updated)]
+
+    async def check() -> None:
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(fetch, input=pipe, output=DummyOutput())
+            await panel.refresh()
+            fragments = panel._list_text(width)
+            lines = "".join(text for _, text in fragments).splitlines()
+            assert all(get_cwidth(line) <= width for line in lines)
+            assert get_cwidth(lines[1]) == width
+            if width >= 12:
+                assert lines[1].endswith("now")
+                assert any(style == "class:metadata.footer" and "now" in text for style, text in fragments)
+                Clock.current += timedelta(minutes=5)
+                await panel.refresh()
+                assert "".join(text for _, text in panel._list_text(width)).splitlines()[1].endswith("5m ago")
+                assert "updated: 2026-10-20 12:00" in "".join(text for _, text in panel._detail_text())
+            assert not any("reverse" in style for style, _ in fragments)
+
+    asyncio.run(check())
 
 
 def test_groups_priority_counts_and_search_exclude_children() -> None:
@@ -61,7 +147,7 @@ def test_groups_priority_counts_and_search_exclude_children() -> None:
             text = "".join(text for _, text in panel._list_text())
             assert "child" not in text and "Explore" not in text
             assert "Named agent" in text
-            assert "Needs you / running" in text
+            assert "! " in text
             panel.query = "NAMED"
             assert [row.id for row in panel.visible_sessions] == ["attention"]
             assert panel.counts["all"] == 5
@@ -74,7 +160,7 @@ def test_groups_priority_counts_and_search_exclude_children() -> None:
     asyncio.run(check())
 
 
-@pytest.mark.parametrize("columns", [100, 120, 180])
+@pytest.mark.parametrize("columns", [40, 80, 100, 120, 180])
 def test_split_width_does_not_change_when_recent_reply_loads(columns: int) -> None:
     class TerminalOutput(DummyOutput):
         def get_size(self) -> Size:
@@ -95,18 +181,24 @@ def test_split_width_does_not_change_when_recent_reply_loads(columns: int) -> No
             task = asyncio.create_task(panel.run())
             try:
                 await until(lambda: panel.selected_id == "a" and panel.detail_window.render_info is not None)
+                await until(
+                    lambda: panel.app.renderer.last_rendered_screen is not None
+                    and panel.app.renderer.last_rendered_screen.data_buffer[3][columns * 2 // 5 + 3].char == "a"
+                )
 
                 def widths() -> tuple[int, int]:
                     assert panel.list_window.render_info is not None and panel.detail_window.render_info is not None
                     return panel.list_window.render_info.window_width, panel.detail_window.render_info.window_width
 
                 before = widths()
-                assert before == (columns * 2 // 5, columns - columns * 2 // 5 - 2)
+                assert before == (columns * 2 // 5, columns - columns * 2 // 5 - 3)
                 screen = panel.app.renderer.last_rendered_screen
                 assert screen is not None
-                assert screen.data_buffer[2][before[0]].char == "│"
-                assert screen.data_buffer[2][before[0] + 1].char == " "
-                assert screen.data_buffer[2][before[0] + 2].char == "S"
+                assert all(screen.data_buffer[2][column].char == " " for column in range(columns))
+                assert screen.data_buffer[3][before[0]].char == " "
+                assert screen.data_buffer[3][before[0] + 1].char == "│"
+                assert screen.data_buffer[3][before[0] + 2].char == " "
+                assert screen.data_buffer[3][before[0] + 3].char == "a"
                 release.set()
                 await until(lambda: "REPLY-LOADED" in panel.output_text)
                 counter = panel.app.render_counter
@@ -146,7 +238,7 @@ def test_refresh_preserves_selection_search_and_detail_position_and_marks_stale(
             await panel.refresh()
             assert panel.selected_id == "a"
             assert panel.fetch_error
-            assert "STALE" in str(panel._footer())
+            assert "stale" in str(panel._footer())
             fail = False
             snapshot = [session("b")]
             await panel.refresh()
@@ -156,7 +248,107 @@ def test_refresh_preserves_selection_search_and_detail_position_and_marks_stale(
             await panel.refresh()
             assert panel.selected is None
             assert not panel.fetch_error
-            assert "No matching" in str(panel._list_text())
+            assert "no matching" in str(panel._list_text())
+
+    asyncio.run(check())
+
+
+@pytest.mark.parametrize("outcome", ["success", "failure", "cancel"])
+def test_staged_loading_is_interactive_preserves_state_and_cancels_on_exit(outcome: str) -> None:
+    async def check() -> None:
+        local = [session(f"local{i}", updated=10 - i) for i in range(7)]
+        full = [session("other", directory="/another"), *local]
+        release = asyncio.Event()
+        entered = asyncio.Event()
+        cancelled = asyncio.Event()
+        calls = 0
+        initial_calls = 0
+        hold = False
+
+        async def initial() -> list[AgentPanelSession]:
+            nonlocal initial_calls
+            initial_calls += 1
+            return local
+
+        async def fetch() -> list[AgentPanelSession]:
+            nonlocal calls
+            calls += 1
+            entered.set()
+            try:
+                if calls == 1:
+                    await release.wait()
+                    if outcome == "failure":
+                        raise OSError("offline")
+                elif hold:
+                    await asyncio.Future[None]()
+                return full
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(
+                fetch,
+                initial_fetch_sessions=initial,
+                current_dir="/work/project",
+                input=pipe,
+                output=DummyOutput(),
+            )
+            task = asyncio.create_task(panel.run())
+            try:
+                await asyncio.wait_for(entered.wait(), 3)
+                assert panel.sessions == local and not panel.loading
+                assert "loading other projects..." in str(panel._tabs())
+                await panel.refresh()
+                assert calls == 1
+                pipe.send_text("jjjjj\r")
+                await until(lambda: panel.selected_id == "local5")
+                pipe.send_text("/local\r")
+                await until(lambda: panel.query == "local" and not panel.searching)
+                assert "/work/project" in panel._expanded_groups
+                if outcome != "cancel":
+                    release.set()
+                    await until(lambda: not panel.loading_other_projects)
+                    assert panel.selected_id == "local5"
+                    assert panel.query == "local" and "/work/project" in panel._expanded_groups
+                    assert panel.fetch_error == (outcome == "failure")
+                    if outcome == "failure":
+                        assert panel.sessions == local
+                        await panel.refresh()
+                    assert panel.sessions == full and not panel.fetch_error
+                    assert initial_calls == 1
+                    assert "loading other projects..." not in str(panel._tabs())
+                    hold = True
+                    entered.clear()
+                    panel._spawn(panel.refresh())
+                    await asyncio.wait_for(entered.wait(), 3)
+                    assert panel.sessions == full
+                    assert not panel.loading_other_projects
+            finally:
+                pipe.send_text("q")
+                await asyncio.wait_for(task, 3)
+            assert cancelled.is_set()
+            assert not panel._tasks
+
+    asyncio.run(check())
+
+
+@pytest.mark.parametrize("initial_fails", [False, True])
+def test_empty_or_failed_initial_fetch_still_loads_full_snapshot(initial_fails: bool) -> None:
+    async def initial() -> list[AgentPanelSession]:
+        if initial_fails:
+            raise OSError("offline")
+        return []
+
+    async def fetch() -> list[AgentPanelSession]:
+        return [session("other", directory="/other")]
+
+    async def check() -> None:
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(fetch, initial_fetch_sessions=initial, input=pipe, output=DummyOutput())
+            await panel.refresh()
+            assert panel.selected_id == "other"
+            assert not panel.fetch_error and not panel.loading_other_projects
 
     asyncio.run(check())
 
@@ -175,6 +367,36 @@ def test_pipe_smoke_exit_attach_and_peek(key: str, action: Literal["attach", "pe
             result = await asyncio.wait_for(task, 3)
             assert result == (AgentsPanelResult(session_id="selected", action=action) if action else None)
             assert not panel._tasks
+
+    asyncio.run(check())
+
+
+@pytest.mark.parametrize("remove_selected", [False, True])
+def test_pipe_cancel_unmatched_search_restores_second_session(remove_selected: bool) -> None:
+    snapshot = [session("a", updated=2), session("b")]
+
+    async def fetch() -> list[AgentPanelSession]:
+        return snapshot
+
+    async def check() -> None:
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(fetch, input=pipe, output=DummyOutput())
+            task = asyncio.create_task(panel.run())
+            await until(lambda: panel.selected_id == "a" and panel.app.is_running)
+            pipe.send_text("j")
+            await until(lambda: panel.selected_id == "b")
+            pipe.send_text("/missing")
+            await until(lambda: panel.query == "missing")
+            assert panel.selected_id is None
+            if remove_selected:
+                snapshot.pop()
+                await panel.refresh()
+            pipe.send_text("\x1b")
+            await until(lambda: not panel.searching)
+            assert panel.query == ""
+            assert panel.selected_id == ("a" if remove_selected else "b")
+            pipe.send_text("q")
+            assert await asyncio.wait_for(task, 3) is None
 
     asyncio.run(check())
 
@@ -204,6 +426,12 @@ def test_pipe_tabs_search_navigation_and_refresh_preserve_selection() -> None:
             pipe.send_text("/b\r")
             await until(lambda: panel.query == "b" and not panel.searching)
             assert panel.selected_id == "b"
+            pipe.send_text("/missing")
+            await until(lambda: panel.query == "bmissing")
+            assert panel.selected_id is None
+            pipe.send_text("\x1b")
+            await until(lambda: panel.query == "b" and not panel.searching)
+            assert panel.selected_id == "b" and panel.app.is_running
             pipe.send_text("\x1b[D")
             await until(lambda: panel.state == "needs_you")
             assert panel.selected_id is None
@@ -311,7 +539,7 @@ def test_refresh_does_not_overlap_and_close_cancels_inflight_callbacks() -> None
             panel = AgentsPanel(fetch, input=pipe, output=DummyOutput())
             task = asyncio.create_task(panel.run())
             await entered.wait()
-            assert "Loading" in str(panel._list_text())
+            assert "loading" in str(panel._list_text())
             await panel.refresh()
             assert calls == 1
             pipe.send_text("q")
@@ -426,14 +654,18 @@ def test_narrow_unicode_long_directory_detail_scrolling_and_output_bound() -> No
             task = asyncio.create_task(panel.run())
             await until(lambda: "latest reply" in panel.output_text)
             detail = "".join(text for _, text in panel._detail_text())
-            assert "Project\n/项目/" in detail
-            assert "Source: child" in detail and "approve?" in detail
-            assert "Execution: running" in detail and "Control reason: operator" in detail
-            assert "Automatic continuation: not allowed" in detail
+            assert "project: /项目/" in detail
+            assert "source: child" in detail and "approve?" in detail
+            assert "execution: running" in detail and "control reason: operator" in detail
+            assert "automatic continuation: not allowed" in detail
             assert "interrupted" in detail and "2 agents / 3 shells" in detail
             assert len(panel.output_text) <= 16000
             assert len(panel.output_text.splitlines()) <= 120
             assert "\x1b" not in panel.output_text
+            await until(
+                lambda: panel.detail_window.render_info is not None
+                and panel.detail_window.render_info.content_height > 1
+            )
             pipe.send_text("\x1b[6~")
             await until(lambda: panel.detail_line > 0)
             output.columns = 120
@@ -502,9 +734,10 @@ def test_paging_reveals_the_end_of_one_wrapped_paragraph(columns: int, paragraph
                 for _ in range(120):
                     pipe.send_text("\x1b[5~")
                     await asyncio.sleep(0.025)
-                    if "Session details" in visible_text():
+                    if panel.detail_line == 0:
                         break
-                assert "Session details" in visible_text()
+                assert panel.detail_line == 0
+                await until(lambda: "model:" in visible_text())
             finally:
                 pipe.send_text("q")
                 await asyncio.wait_for(task, 3)
@@ -551,12 +784,38 @@ def test_detail_hierarchy_preserves_theme_styles_after_wrapping(theme: str, monk
             style = next(style for style, text in fragments if value in text)
             return pt_theme.get_base_style().get_attrs_for_style_str(style)
 
+        assert not attrs_for("Readable title").bold
         assert attrs_for("Readable title").color == palette.cyan.lstrip("#")
-        assert attrs_for("Readable title").bold
-        assert attrs_for("test-model").color == palette.blue.lstrip("#")
+        assert attrs_for("/work/project").color == palette.cyan.lstrip("#")
+        assert not attrs_for("/work/project").bold
+        assert not attrs_for("test-model").bold
         assert attrs_for("Operation failed").color == palette.red.lstrip("#")
-        assert attrs_for("Model:").color == palette.grey1.lstrip("#")
-        assert attrs_for("Recent reply").bold
+        assert attrs_for("model:").color == palette.grey1.lstrip("#")
+        assert attrs_for("recent reply").bold
         assert not attrs_for("Latest reply").bold
         rendered = "".join(text for _, text in fragments)
-        assert rendered.index("Recent reply") < rendered.index("Runtime")
+        assert rendered.index("recent reply") < rendered.index("needs your attention")
+        assert rendered.index("recent reply") < rendered.index("runtime")
+        panel.sessions.extend([session("b", title="Another title"), session("c", "working", title="Working title")])
+        fragments = panel._list_text(width=80)
+        assert attrs_for("/work/project").color == palette.cyan.lstrip("#")
+        assert not attrs_for("/work/project").bold
+        assert attrs_for("Readable title").color == palette.green.lstrip("#")
+        assert attrs_for("Another title").color == palette.cyan.lstrip("#")
+        assert not attrs_for("Another title").bold
+        assert not attrs_for("Readable title").bold
+        assert attrs_for("needs you").bold
+        assert attrs_for("needs you").color == palette.yellow.lstrip("#")
+        assert attrs_for("working ·").color == palette.green.lstrip("#")
+        assert not attrs_for("working ·").bold
+        assert attrs_for("idle ·").color == palette.grey2.lstrip("#")
+        assert not attrs_for("idle ·").bold
+        footer = panel._footer()
+        assert len(footer) == 1 and footer[0][0] == "class:meta"
+        assert "\n" not in footer[0][1]
+        assert not any(pt_theme.get_base_style().get_attrs_for_style_str(style).reverse for style, _ in fragments)
+        tabs = panel._tabs()
+        assert tabs[1] == ("class:text", " ")
+        active_style = next(style for style, text in tabs if "all" in text)
+        assert active_style == "class:question_tab_active"
+        assert pt_theme.get_base_style().get_attrs_for_style_str(active_style).reverse

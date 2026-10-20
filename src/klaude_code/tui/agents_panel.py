@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable, Coroutine
+from datetime import datetime, timedelta
 from typing import Literal
 
 from prompt_toolkit.application import Application
@@ -11,17 +12,19 @@ from prompt_toolkit.data_structures import Point
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.input import Input
 from prompt_toolkit.key_binding import KeyBindings, KeyPressEvent
-from prompt_toolkit.layout import DynamicContainer, HSplit, Layout, VSplit, Window
+from prompt_toolkit.layout import HSplit, Layout, VSplit, Window
 from prompt_toolkit.layout.controls import FormattedTextControl, UIContent
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.output import Output
 from prompt_toolkit.output.color_depth import ColorDepth
 from prompt_toolkit.output.defaults import create_output
+from prompt_toolkit.utils import get_cwidth
 from pydantic import BaseModel
 from rich import get_console
 from rich.text import Text
 
 from klaude_code.protocol.models.session_status import SessionStatus
+from klaude_code.tui.components.common import shorten_path
 from klaude_code.tui.input.pt_theme import get_base_style
 
 type PanelState = Literal["needs_you", "working", "idle", "all"]
@@ -53,11 +56,15 @@ class AgentsPanelResult(BaseModel):
     action: Literal["attach", "peek"]
 
 
-class _DetailControl(FormattedTextControl):
+class _WidthControl(FormattedTextControl):
     def __init__(
-        self, get_text: Callable[[int], list[tuple[str, str]]], get_cursor_position: Callable[[], Point]
+        self,
+        get_text: Callable[[int], list[tuple[str, str]]],
+        get_cursor_position: Callable[[], Point],
+        *,
+        focusable: bool = False,
     ) -> None:
-        super().__init__(get_cursor_position=get_cursor_position)
+        super().__init__(get_cursor_position=get_cursor_position, focusable=focusable)
         self._get_text = get_text
 
     def create_content(self, width: int, height: int | None) -> UIContent:
@@ -67,7 +74,7 @@ class _DetailControl(FormattedTextControl):
 
 class AgentsPanel:
     states: tuple[PanelState, ...] = ("needs_you", "working", "idle", "all")
-    labels = ("Needs you", "Working", "Idle", "All")
+    labels = ("needs you", "working", "idle", "all")
 
     def __init__(
         self,
@@ -76,10 +83,14 @@ class AgentsPanel:
         load_output: LoadOutput | None = None,
         *,
         initial_state: PanelState = "all",
+        current_dir: str | None = None,
+        initial_fetch_sessions: FetchSessions | None = None,
         input: Input | None = None,
         output: Output | None = None,
     ) -> None:
         self.fetch_sessions = fetch_sessions
+        self._initial_fetch_sessions = initial_fetch_sessions
+        self.loading_other_projects = initial_fetch_sessions is not None
         self.control_session = control_session
         self.load_output = load_output
         self.state = initial_state
@@ -103,39 +114,39 @@ class AgentsPanel:
         self._refresh_lock = asyncio.Lock()
         self._closed = False
         self._terminal_output = output or create_output()
+        self.current_dir = current_dir
+        self._search_before = ""
+        self._search_before_session: str | None = None
+        self._search_before_group: str | None = None
 
-        self.list_control = FormattedTextControl(self._list_text, get_cursor_position=self._list_cursor, focusable=True)
+        self.list_control = _WidthControl(self._list_text, get_cursor_position=self._list_cursor, focusable=True)
         self.list_window = Window(
             self.list_control,
             wrap_lines=False,
             always_hide_cursor=True,
-            height=lambda: Dimension(min=3, preferred=max(3, self.app.output.get_size().rows // 3))
-            if self._narrow()
-            else Dimension(),
         )
         self.detail_window = Window(
-            _DetailControl(self._detail_text, get_cursor_position=lambda: Point(0, self.detail_line)),
+            _WidthControl(self._detail_text, get_cursor_position=lambda: Point(0, self.detail_line)),
             wrap_lines=False,
             always_hide_cursor=True,
         )
-        self.list_window.width = lambda: (
-            Dimension() if self._narrow() else Dimension.exact(max(36, self.app.output.get_size().columns * 2 // 5))
-        )
+        self.list_window.width = lambda: (Dimension.exact(max(1, self.app.output.get_size().columns * 2 // 5)))
         wide = VSplit(
             [
                 self.list_window,
+                Window(width=1),
                 Window(width=1, char="│", style="class:lines"),
                 Window(width=1),
                 self.detail_window,
             ]
         )
-        narrow = HSplit([self.list_window, Window(height=1, char="-", style="class:lines"), self.detail_window])
         layout = HSplit(
             [
                 Window(FormattedTextControl(self._tabs), height=1),
                 Window(FormattedTextControl(self._search_text), height=1),
-                DynamicContainer(lambda: narrow if self._narrow() else wide),
-                Window(FormattedTextControl(self._footer), height=lambda: 5 if self._narrow() else 3, wrap_lines=True),
+                Window(height=1),
+                wide,
+                Window(FormattedTextControl(self._footer), height=self._footer_height, wrap_lines=True),
             ]
         )
         self.app: Application[AgentsPanelResult | None] = Application(
@@ -152,9 +163,6 @@ class AgentsPanel:
     def _clean(text: str) -> str:
         # Remote strings are plain text, never terminal escape sequences.
         return "".join(char for char in text if char in "\n\t" or (ord(char) >= 32 and ord(char) != 127))
-
-    def _narrow(self) -> bool:
-        return self._terminal_output.get_size().columns < 95
 
     @property
     def counts(self) -> dict[PanelState, int]:
@@ -181,7 +189,7 @@ class AgentsPanel:
         priority = {"needs_you": 0, "working": 1, "idle": 2}
         return {
             directory: sorted(rows, key=lambda row: (priority[row.status.category], -row.updated_at, row.id))
-            for directory, rows in sorted(groups.items())
+            for directory, rows in sorted(groups.items(), key=lambda item: (item[0] != self.current_dir, item[0]))
         }
 
     @property
@@ -207,50 +215,109 @@ class AgentsPanel:
 
     def _tabs(self) -> list[tuple[str, str]]:
         counts = self.counts
-        return [
-            ("class:question_tab_active" if self.state == state else "class:meta", f" {label} {counts[state]} ")
-            for state, label in zip(self.states, self.labels, strict=True)
-        ]
+        tokens: list[tuple[str, str]] = []
+        for state, label in zip(self.states, self.labels, strict=True):
+            style = "class:question_tab_active" if self.state == state else "class:question_tab_inactive"
+            tokens.append((style, f" {label} {counts[state]} "))
+            tokens.append(("class:text", " "))
+        if self.loading_other_projects:
+            tokens.append(("class:meta", "loading other projects..."))
+        return tokens
 
     def _search_text(self) -> list[tuple[str, str]]:
-        suffix = " [Enter to finish]" if self.searching else " [/ search]"
-        return [("class:search_input", f" / {self._clean(self.query)}{suffix}")]
+        if not self.searching and not self.query:
+            return [("class:search_placeholder", " / type to search")]
+        return [
+            ("class:search_prefix", " / "),
+            ("class:search_input", self._clean(self.query)),
+            ("class:meta", "  enter done · esc cancel" if self.searching else "  / edit"),
+        ]
 
-    def _list_text(self) -> list[tuple[str, str]]:
+    @staticmethod
+    def _fit(text: str, width: int, *, pad: bool = True) -> str:
+        if width <= 0:
+            return ""
+        value = Text(text)
+        value.truncate(width, overflow="ellipsis", pad=pad)
+        return value.plain
+
+    @staticmethod
+    def _updated_label(timestamp: float, now: datetime) -> str:
+        updated = datetime.fromtimestamp(timestamp)
+        if updated.date() == now.date():
+            seconds = max(0, int((now - updated).total_seconds()))
+            if seconds < 60:
+                return "now"
+            if seconds < 3600:
+                return f"{seconds // 60}m ago"
+            return f"{seconds // 3600}h ago"
+        if updated.date() == now.date() - timedelta(days=1):
+            return "yesterday"
+        return f"{updated:%b} {updated.day}".lower() + (f" {updated.year}" if updated.year != now.year else "")
+
+    def _list_text(self, width: int | None = None) -> list[tuple[str, str]]:
+        if width is None:
+            info = self.list_window.render_info
+            width = info.window_width if info else max(1, self.app.output.get_size().columns * 2 // 5)
+        now = datetime.now()
         lines: list[tuple[str, str]] = []
         for directory, rows in self.groups.items():
             if lines:
                 lines.append(("", "\n"))
-            lines.append(("class:meta", f" {self._clean(directory).replace(chr(10), ' ')} ({len(rows)})\n"))
+            suffix = f" ({len(rows)})" + (" · current" if directory == self.current_dir else "")
+            path = " ".join(self._clean(shorten_path(directory, relative_to_workspace=False)).split())
+            lines.extend(
+                [
+                    ("class:accent.cyan", self._fit(f" {path}", width - get_cwidth(suffix), pad=False)),
+                    ("class:meta", self._fit(suffix, min(width, get_cwidth(suffix))) + "\n"),
+                ]
+            )
             expanded = directory in self._expanded_groups
             for row in rows if expanded else rows[:5]:
                 chosen = row.id == self.selected_id
                 label = " ".join(self._clean(row.label).split())
                 category = self.labels[self.states.index(row.status.category)]
-                if row.status.category == "needs_you" and row.status.execution != "none":
-                    category += f" / {row.status.execution}"
-                style = " reverse" if chosen else ""
-                status_style = {"needs_you": "class:warning", "working": "class:highlighted", "idle": "class:meta"}
+                style = "class:highlighted" if chosen else "class:accent.cyan"
+                time = self._updated_label(row.updated_at, now)
+                time_width = min(get_cwidth(time), max(0, width - 4))
+                content_width = max(0, width - 3 - time_width - 1)
+                category = (
+                    category + " · "
+                    if content_width >= 30
+                    else {"needs_you": "! ", "working": "* ", "idle": ""}[row.status.category]
+                )
+                status_style = {
+                    "needs_you": "class:accent.yellow bold",
+                    "working": "class:accent.green",
+                    "idle": "class:metadata.footer",
+                }[row.status.category]
+                category = self._fit(category, min(get_cwidth(category), content_width))
                 lines.extend(
                     [
-                        (style, f" {'>' if chosen else ' '} "),
-                        (status_style[row.status.category] + style, f"{category:<9} "),
-                        (style, f"{label}\n"),
+                        ("class:pointer" if chosen else "", self._fit(f" {'>' if chosen else ' '} ", min(3, width))),
+                        (status_style, category),
+                        (style, self._fit(label, content_width - get_cwidth(category))),
+                        ("class:metadata.footer", (" " if width > 3 else "") + self._fit(time, time_width) + "\n"),
                     ]
                 )
             if len(rows) > 5:
                 chosen = directory == self._selected_group
-                label = "Show less" if expanded else f"Show more ({len(rows) - 5})"
-                lines.append(("class:meta" + (" reverse" if chosen else ""), f" {'>' if chosen else ' '} {label}\n"))
+                label = "show less" if expanded else f"show more ({len(rows) - 5})"
+                lines.append(
+                    (
+                        "class:highlighted" if chosen else "class:meta",
+                        self._fit(f" {'>' if chosen else ' '} {label}", width) + "\n",
+                    )
+                )
         if not lines:
             message = (
-                "Loading sessions..."
+                "loading sessions..."
                 if self.loading
-                else "Sessions unavailable"
+                else "sessions unavailable"
                 if self.fetch_error
-                else "No matching sessions"
+                else "no matching sessions"
                 if self.query
-                else "No sessions in this tab"
+                else "no sessions in this tab"
             )
             lines.append(("class:meta", f" {message}"))
         return lines
@@ -274,7 +341,7 @@ class AgentsPanel:
     def _detail_text(self, width: int | None = None) -> list[tuple[str, str]]:
         row = self.selected
         if row is None:
-            return [("class:meta", "Select a session to see details.")]
+            return [("class:meta", "select a session to see details.")]
         status = row.status
         text = Text()
 
@@ -285,66 +352,66 @@ class AgentsPanel:
             append(f"{label}: ", "class:meta")
             append(value + "\n", style)
 
-        append("Session details\n\n", "class:meta bold")
-        append(row.label + "\n", "class:accent.cyan bold")
+        append(row.label + "\n", "class:accent.cyan")
         category_style = {
             "needs_you": "class:accent.yellow bold",
-            "working": "class:accent.green bold",
-            "idle": "class:meta",
+            "working": "class:accent.green",
+            "idle": "class:metadata.footer",
         }[status.category]
         append(self.labels[self.states.index(status.category)], category_style)
         if status.execution != "none":
             append("  /  ", "class:metadata.footer")
             append(status.execution.replace("_", " "), "class:accent.green")
         append("\n\n")
-        field("Model", row.model or "-", "class:accent.blue")
-        field("Agent", row.agent_type or "main")
-        append("\nProject\n", "class:meta")
-        append(row.work_dir + "\n")
+        field("model", row.model or "-")
+        field("updated", datetime.fromtimestamp(row.updated_at).strftime("%Y-%m-%d %H:%M"), "class:meta")
 
+        append("\nrecent reply\n", "bold class:accent.cyan")
+        pending_output = self._output_task is not None and not self._output_task.done()
+        append(
+            self.output_text if self.load_output else "output preview unavailable",
+            "class:metadata.footer" if pending_output or not self.load_output else "",
+        )
+        append("\n")
         if status.attention:
-            append("\nNeeds your attention\n", "class:accent.yellow bold")
+            append("\nneeds your attention\n", "class:accent.yellow bold")
         for attention in status.attention:
             attention_style = {
                 "error": "class:accent.red",
                 "paused": "class:accent.yellow",
                 "needs_input": "class:accent.cyan",
             }[attention.kind]
-            append(attention.kind.replace("_", " ").capitalize(), attention_style + " bold")
+            append(attention.kind.replace("_", " "), attention_style + " bold")
             append(f"  {attention.code}\n", "class:meta")
             if attention.message:
                 append(attention.message + "\n", attention_style)
             if attention.source_session_id != row.id:
-                field("Source", attention.source_session_id, "class:meta")
+                field("source", attention.source_session_id, "class:meta")
             if attention.request_id:
-                field("Request", attention.request_id, "class:meta")
+                field("request", attention.request_id, "class:meta")
 
-        append("\nRecent reply\n", "bold")
-        pending_output = self._output_task is not None and not self._output_task.done()
-        append(
-            self.output_text if self.load_output else "Output preview unavailable",
-            "class:metadata.footer" if pending_output or not self.load_output else "",
-        )
-        append("\n\nRuntime\n", "class:meta bold")
-        field("Session", row.id, "class:metadata.footer")
+        append("\n\nruntime\n", "class:meta bold")
+        field("project", shorten_path(row.work_dir, relative_to_workspace=False), "class:accent.cyan")
+        field("agent", row.agent_type or "main")
+        field("session", row.id, "class:metadata.footer")
         if row.name:
-            field("Name", row.name)
-        field("Execution", status.execution)
+            field("name", row.name)
+        field("execution", status.execution)
         if row.activity:
-            field("Activity", row.activity)
-        field("Control", "paused" if status.control.paused else "not paused")
+            field("activity", row.activity)
+        field("control", "paused" if status.control.paused else "not paused")
         if status.control.reason:
-            field("Control reason", status.control.reason, "class:accent.yellow")
-        field("Automatic continuation", "allowed" if status.continuation.automatic else "not allowed")
+            field("control reason", status.control.reason, "class:accent.yellow")
+        field("automatic continuation", "allowed" if status.continuation.automatic else "not allowed")
         if status.continuation.triggers:
-            field("Triggers", ", ".join(status.continuation.triggers), "class:meta")
+            field("triggers", ", ".join(status.continuation.triggers), "class:meta")
         if status.continuation.blocked_by:
-            field("Blocked by", ", ".join(status.continuation.blocked_by), "class:accent.yellow")
+            field("blocked by", ", ".join(status.continuation.blocked_by), "class:accent.yellow")
         if status.last_turn:
-            field("Last turn", status.last_turn.result)
+            field("last turn", status.last_turn.result)
             if status.last_turn.reason:
-                field("Last turn reason", status.last_turn.reason, "class:meta")
-        field("Owned", f"{status.owned.active_agents} agents / {status.owned.active_shells} shells", "class:meta")
+                field("last turn reason", status.last_turn.reason, "class:meta")
+        field("owned", f"{status.owned.active_agents} agents / {status.owned.active_shells} shells", "class:meta")
 
         # Rich wraps display cells; non-overlapping spans keep PTK theme tokens intact.
         lines = text.wrap(get_console(), width, overflow="fold") if width is not None else text.split(allow_blank=True)
@@ -366,22 +433,33 @@ class AgentsPanel:
 
     def _footer(self) -> list[tuple[str, str]]:
         if self.confirm_interrupt:
-            return [("class:warning", f" Interrupt {self._clean(self.confirm_interrupt)}? y confirms; n/Esc cancels")]
-        status = "STALE: refresh failed; keeping last snapshot. " if self.fetch_error else ""
+            return [("class:warning", f" interrupt {self._clean(self.confirm_interrupt)}? y confirm · n/esc cancel")]
+        status = "stale: refresh failed; keeping last snapshot. " if self.fetch_error else ""
         if self._control_task and not self._control_task.done():
-            status += "Control pending. "
-        hints = (
-            " j/k rows | Tab tabs | / search\n"
-            " Enter attach | p peek | q/Esc quit\n"
-            " r resume | d dismiss | x interrupt\n"
-            " PgUp/PgDn details"
-            if self._narrow()
-            else " Up/Down j/k · Left/Right Tab tabs · / search · Enter attach · p peek · r resume · d dismiss error · x interrupt · PgUp/PgDn details · q/Esc quit"
-        )
-        return [
-            ("class:warning" if self.fetch_error else "class:meta", f" {status}{self._clean(self.notice)}\n"),
-            ("class:meta", hints),
-        ]
+            status += "control pending. "
+        if self.searching:
+            return [("class:meta", " enter done · esc cancel")]
+        row = self.selected
+        hints = ["p peek", "pgup/pgdn details"] if row else []
+        if self._selected_group is not None:
+            hints = ["enter show less" if self._selected_group in self._expanded_groups else "enter show more"]
+        elif row and self.control_session and not self.fetch_error:
+            if row.status.control.paused:
+                hints.insert(0, "r resume")
+            if any(item.kind == "error" and item.source_session_id == row.id for item in row.status.attention):
+                hints.insert(0, "d dismiss error")
+            if row.status.category == "working" or row.status.execution == "running":
+                hints.insert(0, "x interrupt")
+        hints = ["↑/↓ select", "←/→ tabs", "enter open", "/ search", *hints, "esc quit"]
+        fragments = [("class:meta", " " + " · ".join(hints))]
+        if status or self.notice:
+            fragments.append(("class:warning", f"\n {status}{self._clean(self.notice)}"))
+        return fragments
+
+    def _footer_height(self) -> int:
+        text = "".join(text for _, text in self._footer())
+        width = max(1, self.app.output.get_size().columns)
+        return sum(max(1, (get_cwidth(line) + width - 1) // width) for line in text.split("\n"))
 
     def _spawn(self, awaitable: Coroutine[object, object, None]) -> asyncio.Task[None]:
         task = asyncio.create_task(awaitable)
@@ -411,7 +489,7 @@ class AgentsPanel:
         self.detail_line = 0
         self.detail_window.vertical_scroll = 0
         self.confirm_interrupt = None
-        self.output_text = "Loading recent reply..." if session_id else ""
+        self.output_text = "loading recent reply..." if session_id else ""
         self._output_version = None
         if self._output_task:
             self._output_task.cancel()
@@ -455,9 +533,9 @@ class AgentsPanel:
         try:
             # The transport should fetch only a recent reply, not full history.
             text = await self.load_output(session_id)
-            text = "\n".join(text[-16000:].splitlines()[-120:]) or "No recent reply"
+            text = "\n".join(text[-16000:].splitlines()[-120:]) or "no recent reply"
         except Exception:
-            text = "Recent reply unavailable (load failed)"
+            text = "recent reply unavailable (load failed)"
             failed = True
         if not self._closed and session_id == self.selected_id and generation == self._generation:
             self.output_text = self._clean(text)
@@ -469,26 +547,40 @@ class AgentsPanel:
         if self._refresh_lock.locked():
             return
         async with self._refresh_lock:
+            initial_fetch = self._initial_fetch_sessions
+            self._initial_fetch_sessions = None
+            if initial_fetch is not None:
+                await self._refresh_snapshot(initial_fetch)
             try:
-                snapshot = await self.fetch_sessions()
-            except Exception:
-                self.fetch_error = True
-            else:
-                index = next(
-                    (
-                        i
-                        for i, item in enumerate(self._navigation)
-                        if (item == self._selected_group if isinstance(item, str) else item.id == self.selected_id)
-                    ),
-                    0,
-                )
-                self.sessions = [row for row in snapshot if row.parent_session_id is None]
-                self.fetch_error = False
-                self._reconcile(index)
-                self._start_output()
+                await self._refresh_snapshot(self.fetch_sessions)
             finally:
-                self.loading = False
+                self.loading_other_projects = False
                 self.app.invalidate()
+
+    async def _refresh_snapshot(self, fetch: FetchSessions) -> None:
+        try:
+            snapshot = await fetch()
+        except Exception:
+            self.fetch_error = True
+        else:
+            index = next(
+                (
+                    i
+                    for i, item in enumerate(self._navigation)
+                    if (item == self._selected_group if isinstance(item, str) else item.id == self.selected_id)
+                ),
+                0,
+            )
+            self.sessions = [row for row in snapshot if row.parent_session_id is None]
+            self.fetch_error = False
+            for directory, rows in self.groups.items():
+                if any(row.id == self.selected_id for row in rows[5:]):
+                    self._expanded_groups.add(directory)
+            self._reconcile(index)
+            self._start_output()
+        finally:
+            self.loading = False
+            self.app.invalidate()
 
     async def _poll(self) -> None:
         while not self._closed:
@@ -511,15 +603,15 @@ class AgentsPanel:
         if row is None:
             return
         if not self.control_session:
-            self.notice = "Session controls unavailable"
+            self.notice = "session controls unavailable"
         elif self.fetch_error:
-            self.notice = "Refresh required before controlling a stale session"
+            self.notice = "refresh required before controlling a stale session"
         elif self._control_task and not self._control_task.done():
-            self.notice = "Wait for the pending control"
+            self.notice = "wait for the pending control"
         elif action == "dismiss" and not any(
             item.kind == "error" and item.source_session_id == row.id for item in row.status.attention
         ):
-            self.notice = "Dismiss requires an error on this session (not a child)"
+            self.notice = "dismiss requires an error on this session (not a child)"
         elif action == "interrupt":
             self.confirm_interrupt = row.id
         else:
@@ -543,6 +635,10 @@ class AgentsPanel:
                 self.confirm_interrupt = None
             elif self.searching:
                 self.searching = False
+                self.query = self._search_before
+                self._select(self._search_before_session, group=self._search_before_group)
+                self._reconcile()
+                self._start_output()
             else:
                 event.app.exit(result=None)
 
@@ -568,6 +664,9 @@ class AgentsPanel:
 
         @keys.add("/", filter=browsing)
         def search(event: KeyPressEvent) -> None:
+            self._search_before = self.query
+            self._search_before_session = self.selected_id
+            self._search_before_group = self._selected_group
             self.searching = True
 
         @keys.add("<any>", filter=searching)
@@ -663,6 +762,8 @@ async def run_agents_panel(
     load_output: LoadOutput | None = None,
     initial_state: PanelState = "all",
     *,
+    current_dir: str | None = None,
+    initial_fetch_sessions: FetchSessions | None = None,
     input: Input | None = None,
     output: Output | None = None,
 ) -> AgentsPanelResult | None:
@@ -671,6 +772,8 @@ async def run_agents_panel(
         control_session,
         load_output,
         initial_state=initial_state,
+        current_dir=current_dir,
+        initial_fetch_sessions=initial_fetch_sessions,
         input=input,
         output=output,
     ).run()

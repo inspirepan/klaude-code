@@ -824,7 +824,6 @@ class TestSessionListAndClean:
     def test_list_sessions_only_includes_operator_inputs(self, tmp_path: Path, legacy_cache: bool) -> None:
         from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT, STREAM_ERROR_CONTINUATION_REMINDER
         from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT
-        from klaude_code.session.selector import build_session_select_options
 
         async def _test() -> None:
             session = Session(work_dir=tmp_path)
@@ -876,9 +875,9 @@ class TestSessionListAndClean:
                 )
                 expected.append("third input")
 
-            options = build_session_select_options(tmp_path)
-            assert len(options) == 1
-            assert options[0].user_messages == expected
+            sessions = Session.list_sessions(tmp_path)
+            assert len(sessions) == 1
+            assert sessions[0].user_messages == expected
             assert json.loads(meta_path.read_text(encoding="utf-8"))["user_messages"] == expected
             assert Session.list_sessions(work_dir=tmp_path)[0].user_messages == expected
             await close_default_store()
@@ -1439,6 +1438,11 @@ class TestCliResume:
         import klaude_code.cli.main as _cli_main
         from klaude_code.cli.main import app
 
+        monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda: None)
+        monkeypatch.setattr(
+            "klaude_code.cli.uds_client.request_with_autostart",
+            lambda *args, **kwargs: (404, {"detail": "session not found"}),
+        )
         _orig_run = _cli_main.asyncio.run
 
         def _should_not_run(*_args: object, **_kwargs: object) -> None:
@@ -1448,7 +1452,7 @@ class TestCliResume:
         try:
             runner = CliRunner()
             result = runner.invoke(app, ["--resume", "missing-session-id"])
-            assert result.exit_code == 2
+            assert result.exit_code == 1
             assert "not found" in result.output
         finally:
             _cli_main.asyncio.run = _orig_run  # type: ignore[assignment]

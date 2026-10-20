@@ -49,7 +49,7 @@ klaude server（唯一进程，Unix socket ~/.klaude/run/server.sock）
 │
 ├── klaude                  人类：自动拉起 server + attach 新会话（tmux 语义）
 ├── klaude attach <target>  人类：附着到已有会话（回放 + 实时；detach 不杀 agent）
-├── klaude --resume         变为「选择器 + attach」
+├── klaude --resume         agents 面板 + attach（与无参 attach 相同）
 │
 └── headless 命令面（Agent 通过 Bash 调用）
     run / ps / brief / wait / output / send / respond / kill
@@ -80,8 +80,7 @@ auto-started when needed).
 
 Options:
   -c, --continue       Attach to the latest session in this directory
-  -r, --resume [ID]    Pick a session and attach; if it is running,
-                       attach live instead of forking
+  -r, --resume [ID]    Open the agents panel, or attach by id/name
   -m, --model TEXT     Select model (see `klaude agents`)
       --vanilla        Minimal mode: basic tools, no system prompts
   -d, --debug          Enable debug logging
@@ -274,7 +273,7 @@ Options:
 
 1. **TARGET 列表**（Agent 主用）：调用方从 `run` 拿到 id，之后 `ps id1,id2,...` 只看自己那几个。`brief` 看单个细节，`ps` 看多个概览，对应关系类似 TaskGet 与 TaskList。
 2. **`--group`**（Agent 兜底）：TARGET 方案的弱点是 id 只存在于调用方的对话上下文里，上下文压缩后可能丢失。调用方给自己起一个稳定的组名（如自己的 session id 或「项目+目的」），每次 `run --group X`，随时 `ps --group X` 全量找回。一个 meta 字段 + 一个过滤器，成本极低。
-3. **默认视图**（人类主用）：不加参数时全局展示，但 active 永远排最前 + 默认只取最近 20 行——旧的 completed 会话天然沉底出屏。想翻全部历史用 `--all` 或 `--resume` 选择器。
+3. **默认视图**（人类主用）：不加参数时全局展示，但 active 永远排最前 + 默认只取最近 20 行——旧的 completed 会话天然沉底出屏。想翻全部历史用 `--all`；`--resume` 打开 agents 面板。
 
 `wait` / `kill` 的多 TARGET 参数同样接受逗号分隔。
 
@@ -420,7 +419,7 @@ may type; execution is serialized by the server. Detach by exiting
 (type `exit`, ctrl-d, or close the terminal) — the agent keeps
 running.
 
-With no TARGET, opens the interactive session picker (same as -r).
+With no TARGET, opens the agents panel (same as -r).
 
 Options:
       --peek          Read-only: follow without input

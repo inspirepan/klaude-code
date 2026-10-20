@@ -35,8 +35,7 @@ auto-started when needed).
 
 Options:
   -c, --continue       Attach to the latest session in this directory
-  -r, --resume [ID]    Pick a session and attach; if it is running,
-                       attach live instead of forking
+  -r, --resume [ID]    Open the agents panel, or attach by id/name
   -m, --model TEXT     Select model (see `klaude models`)
       --vanilla        Minimal mode: basic tools, no system prompts
   -d, --debug          Enable debug logging
@@ -275,12 +274,12 @@ def main_callback(
         False,
         "--resume",
         "-r",
-        help="Attach to a session; use --resume <id> directly, or --resume to pick interactively",
+        help="Open the agents panel, or use --resume <id/name> to attach directly",
     ),
     resume_by_id: str | None = typer.Option(
         None,
         "--resume-by-id",
-        help="Attach to session by ID",
+        help="Attach to session by ID, unique prefix, or name",
         hidden=True,
     ),
     select_model: bool = typer.Option(
@@ -316,7 +315,6 @@ def main_callback(
     if ctx.invoked_subcommand is None:
         from klaude_code.log import log
         from klaude_code.session import Session
-        from klaude_code.tui.terminal.session_selector import select_session_sync
         from klaude_code.tui.terminal.title import update_terminal_title
 
         resume_by_id_value = resume_by_id.strip() if resume_by_id is not None else None
@@ -328,21 +326,11 @@ def main_callback(
             log(("Error: --resume <id> cannot be combined with --continue or interactive --resume", "red"))
             raise typer.Exit(2)
 
-        # Resolve resume_by_id with prefix matching support
-        if resume_by_id_value is not None and not Session.exists(resume_by_id_value, work_dir=Path.cwd()):
-            matches = Session.find_sessions_by_prefix(resume_by_id_value, work_dir=Path.cwd())
-            if not matches:
-                log((f"Error: session id '{resume_by_id_value}' not found for this project", "red"))
-                log(("Hint: run `klaude --resume` to select an existing session", "yellow"))
-                raise typer.Exit(2)
-            if len(matches) == 1:
-                resume_by_id_value = matches[0]
-            else:
-                # Multiple matches: show interactive selection with filtered list
-                selected = select_session_sync(session_ids=matches)
-                if selected is None:
-                    raise typer.Exit(1)
-                resume_by_id_value = selected
+        if resume or resume_by_id_value is not None:
+            from klaude_code.cli.attach_cmd import attach_session
+
+            attach_session(resume_by_id_value, debug=debug)
+            return
 
         if not sys.stdin.isatty() or not sys.stdout.isatty():
             log(("Error: interactive mode requires a TTY", "red"))
@@ -368,16 +356,8 @@ def main_callback(
         # session_id=None means create a new session
         session_id: str | None = None
 
-        if resume:
-            session_id = select_session_sync()
-            if session_id is None:
-                return
-        # If user didn't pick, allow fallback to --continue
-        if session_id is None and continue_:
+        if continue_:
             session_id = Session.most_recent_session_id(work_dir=Path.cwd())
-
-        if resume_by_id_value is not None:
-            session_id = resume_by_id_value
         # If still no session_id, leave as None to create a new session
 
         from klaude_code.cli.uds_client import ServerNotRunningError, ensure_server_running, request

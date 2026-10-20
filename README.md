@@ -108,9 +108,9 @@ klaude [--model [<name>]] [--continue] [--resume [<id>]]
   - `--model` (no value): opens the interactive selector.
   - `--model <value>`: resolves `<value>` to a single model; if it can't, it opens the interactive selector filtered by `<value>`.
 - `--continue`/`-c`: Resume the most recent session.
-- `--resume`/`-r`: Resume a session.
-  - `--resume` (no value): select a session to resume for this project.
-  - `--resume <id>`: resume a session by its ID directly.
+- `--resume`/`-r`: Attach to a session without resuming paused work.
+  - `--resume` (no value): open the global agents panel, like `klaude agents` or `klaude attach`.
+  - `--resume <id>`: attach by ID, unique prefix, or name, like `klaude attach <id>`.
 - `--vanilla`: Minimal mode with only basic tools (Bash, Read, Edit, Write) and no system prompts.
 
 **Model selection behavior:**

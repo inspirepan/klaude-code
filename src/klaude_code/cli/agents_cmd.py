@@ -297,6 +297,13 @@ def agents_command(
         )
         typer.echo(json.dumps({"sessions": rows}, ensure_ascii=False, indent=2))
         return
+    run_agents_browser(dir_=dir_, state=state, show_all=show_all)
+
+
+def run_agents_browser(
+    *, dir_: str | None = None, state: str = "all", show_all: bool = False, peek: bool = False, debug: bool = False
+) -> None:
+    """Shared interactive panel loop for agents, attach, and --resume."""
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         typer.echo("error: the agents panel requires a TTY; use `klaude ps` or `klaude agents --json`", err=True)
         raise typer.Exit(2)
@@ -306,13 +313,13 @@ def agents_command(
 
     ensure_server_running()
     while True:
-        selected = asyncio.run(_run_panel(dir_=dir_, state=state, show_all=show_all))
+        selected = asyncio.run(_run_panel(dir_=dir_, state=state, show_all=show_all, peek=peek))
         if selected is None:
             return
-        run_attach_tui(selected.session_id, peek=selected.action == "peek")
+        run_attach_tui(selected.session_id, peek=peek or selected.action == "peek", debug=debug)
 
 
-async def _run_panel(*, dir_: str | None, state: str, show_all: bool) -> AgentsPanelResult | None:
+async def _run_panel(*, dir_: str | None, state: str, show_all: bool, peek: bool = False) -> AgentsPanelResult | None:
     import httpx
 
     from klaude_code.cli.uds_client import _client_env_header
@@ -320,6 +327,7 @@ async def _run_panel(*, dir_: str | None, state: str, show_all: bool) -> AgentsP
     from klaude_code.server.paths import server_socket_path
     from klaude_code.tui.agents_panel import AgentPanelSession, run_agents_panel
 
+    current_dir = Path.cwd().resolve()
     env_header = _client_env_header()
     transport = httpx.AsyncHTTPTransport(uds=str(server_socket_path()))
     async with httpx.AsyncClient(
@@ -342,12 +350,19 @@ async def _run_panel(*, dir_: str | None, state: str, show_all: bool) -> AgentsP
                 raise RuntimeError(str(body.get("detail", f"HTTP {response.status_code}")))
             return body
 
-        async def fetch_sessions() -> list[AgentPanelSession]:
+        async def fetch_directory(directory: str | None) -> list[AgentPanelSession]:
             params: dict[str, Any] = {"limit": 0, "include_archived": show_all, "include_children": False}
-            if dir_:
-                params["dir"] = dir_
+            if directory:
+                params["dir"] = directory
             body = await request("GET", "/api/headless/sessions", params=params)
             return [AgentPanelSession.model_validate(row) for row in body["sessions"]]
+
+        async def fetch_sessions() -> list[AgentPanelSession]:
+            return await fetch_directory(dir_)
+
+        async def initial_fetch_sessions() -> list[AgentPanelSession]:
+            rows = await fetch_directory(str(current_dir))
+            return [row for row in rows if row.work_dir == str(current_dir)]
 
         async def control_session(session_id: str, action: Literal["resume", "dismiss", "interrupt"]) -> None:
             if action == "interrupt":
@@ -361,9 +376,13 @@ async def _run_panel(*, dir_: str | None, state: str, show_all: bool) -> AgentsP
 
         return await run_agents_panel(
             fetch_sessions=fetch_sessions,
-            control_session=control_session,
+            control_session=None if peek else control_session,
             load_output=load_output,
             initial_state=cast(Literal["needs_you", "working", "idle", "all"], state),
+            current_dir=str(current_dir),
+            initial_fetch_sessions=(
+                initial_fetch_sessions if dir_ is None or current_dir.is_relative_to(Path(dir_)) else None
+            ),
         )
 
 

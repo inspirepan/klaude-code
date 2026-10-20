@@ -177,7 +177,10 @@ def test_agents_rejects_invalid_options_without_connecting(args: list[str], monk
     assert result.exit_code == 2
 
 
-def test_panel_callbacks_use_async_status_output_and_explicit_controls(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("peek", [False, True])
+def test_panel_callbacks_use_async_status_output_and_explicit_controls(
+    peek: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import asyncio
     import json
 
@@ -206,9 +209,13 @@ def test_panel_callbacks_use_async_status_output_and_explicit_controls(monkeypat
 
     async def panel(**kwargs: Any) -> None:
         assert kwargs["initial_state"] == "working"
+        assert kwargs["current_dir"] == str(Path.cwd().resolve())
         sessions = await kwargs["fetch_sessions"]()
         assert len(sessions) == 1 and sessions[0].status.category == "idle"
         assert await kwargs["load_output"]("session-1") == "a" * 12000
+        if peek:
+            assert kwargs["control_session"] is None
+            return
         await kwargs["control_session"]("session-1", "resume")
         await kwargs["control_session"]("session-1", "interrupt")
         with pytest.raises(RuntimeError, match="session unavailable"):
@@ -217,13 +224,132 @@ def test_panel_callbacks_use_async_status_output_and_explicit_controls(monkeypat
     monkeypatch.setattr("klaude_code.cli.uds_client._client_env_header", lambda: None)
     monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda **kwargs: httpx.MockTransport(handle))
     monkeypatch.setattr(agents_panel, "run_agents_panel", panel)
-    assert asyncio.run(_run_panel(dir_="/workspace", state="working", show_all=False)) is None
-    assert len(requests) == 5
+    assert asyncio.run(_run_panel(dir_="/workspace", state="working", show_all=False, peek=peek)) is None
+    assert len(requests) == (2 if peek else 5)
     assert requests[0].url.params["limit"] == "0"
     assert requests[0].url.params["dir"] == "/workspace"
     assert requests[0].url.params["include_children"] == "false"
     assert requests[0].url.params["include_archived"] == "false"
+    if peek:
+        assert all(request.method == "GET" for request in requests)
+        return
     assert requests[2].method == "POST"
     assert requests[2].url.path == "/api/headless/sessions/session-1/control"
     assert json.loads(requests[2].content) == {"action": "resume"}
     assert requests[3].url.path == "/api/headless/sessions/session-1/interrupt"
+
+
+@pytest.mark.parametrize("scope", ["all", "parent", "current", "other"])
+def test_panel_initial_fetch_is_exact_cwd_and_respects_directory_scope(
+    scope: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    import httpx
+
+    from klaude_code.cli.agents_cmd import _run_panel
+    from klaude_code.tui import agents_panel
+
+    cwd = tmp_path / "current"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    cwd = cwd.resolve()
+    other = cwd.parent / "other"
+    directory = {"all": None, "parent": str(cwd.parent), "current": str(cwd), "other": str(other)}[scope]
+    rows: list[dict[str, Any]] = [
+        {"id": name, "work_dir": str(path), "updated_at": 1, "status": {"category": "idle"}}
+        for name, path in [("local", cwd), ("child", cwd / "child"), ("other", other)]
+    ]
+    requested: list[str | None] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        prefix = request.url.params.get("dir")
+        requested.append(prefix)
+        assert request.url.params["include_archived"] == "true"
+        return httpx.Response(
+            200,
+            json={"sessions": [row for row in rows if prefix is None or Path(row["work_dir"]).is_relative_to(prefix)]},
+        )
+
+    async def panel(**kwargs: Any) -> None:
+        initial = kwargs["initial_fetch_sessions"]
+        if scope == "other":
+            assert initial is None
+        else:
+            assert initial is not None
+            assert [row.id for row in await initial()] == ["local"]
+        full = await kwargs["fetch_sessions"]()
+        expected = {
+            "all": ["local", "child", "other"],
+            "parent": ["local", "child", "other"],
+            "current": ["local", "child"],
+            "other": ["other"],
+        }[scope]
+        assert [row.id for row in full] == expected
+
+    monkeypatch.setattr("klaude_code.cli.uds_client._client_env_header", lambda: None)
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda **kwargs: httpx.MockTransport(handle))
+    monkeypatch.setattr(agents_panel, "run_agents_panel", panel)
+    asyncio.run(_run_panel(dir_=directory, state="all", show_all=True))
+    assert requested == ([directory] if scope == "other" else [str(cwd), directory])
+
+
+@pytest.mark.parametrize("args", [["-r"], ["--resume"], ["attach"], ["agents"], ["attach", "--peek", "--debug"]])
+def test_picker_entrypoints_share_the_panel_loop(args: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr("klaude_code.cli.agents_cmd.run_agents_browser", lambda **kwargs: calls.append(kwargs))
+    result = CliRunner().invoke(app, args)
+    assert result.exit_code == 0, result.output
+    assert len(calls) == 1
+    assert calls[0].get("dir_") is None
+    assert bool(calls[0].get("peek")) == ("--peek" in args)
+    assert bool(calls[0].get("debug")) == ("--debug" in args)
+
+
+@pytest.mark.parametrize("args", [["-r", "named"], ["--resume", "named"], ["--resume=named"], ["attach", "named"]])
+def test_attach_aliases_resolve_globally_without_local_config(args: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, str, dict[str, Any]]] = []
+    attached: list[tuple[str, dict[str, Any]]] = []
+
+    def request(method: str, path: str, **kwargs: Any) -> tuple[int, dict[str, Any]]:
+        calls.append((method, path, kwargs))
+        return 200, {"sessions": [{"id": "other-project-session", "work_dir": "/other"}]}
+
+    monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda: None)
+    monkeypatch.setattr("klaude_code.cli.uds_client.request_with_autostart", request)
+    monkeypatch.setattr("klaude_code.cli.attach_cmd.run_attach_tui", lambda id, **kwargs: attached.append((id, kwargs)))
+    monkeypatch.setattr(
+        "klaude_code.config.load_config", lambda: pytest.fail("attach must not load local model config")
+    )
+    result = CliRunner().invoke(app, [*args, "--debug"])
+    assert result.exit_code == 0, result.output
+    assert calls == [("GET", "/api/headless/sessions", {"params": {"targets": "named", "limit": 1}})]
+    assert attached == [("other-project-session", {"peek": False, "debug": True})]
+
+
+@pytest.mark.parametrize("peek", [False, True])
+def test_attach_panel_preserves_peek_debug_and_returns_after_detach(
+    peek: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+    from types import SimpleNamespace
+
+    from klaude_code.cli.attach_cmd import attach_session
+    from klaude_code.tui.agents_panel import AgentsPanelResult
+
+    selections = iter(
+        [AgentsPanelResult(session_id="a", action="attach"), AgentsPanelResult(session_id="b", action="peek"), None]
+    )
+    attached: list[tuple[str, dict[str, Any]]] = []
+
+    async def panel(**kwargs: Any) -> AgentsPanelResult | None:
+        assert kwargs == {"dir_": None, "state": "all", "show_all": False, "peek": peek}
+        return next(selections)
+
+    monkeypatch.setattr(sys, "stdin", SimpleNamespace(isatty=lambda: True))
+    monkeypatch.setattr(sys, "stdout", SimpleNamespace(isatty=lambda: True, write=lambda _: None, flush=lambda: None))
+    monkeypatch.setattr("klaude_code.cli.agents_cmd._run_panel", panel)
+    monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda: None)
+    monkeypatch.setattr("klaude_code.cli.attach_cmd.run_attach_tui", lambda id, **kwargs: attached.append((id, kwargs)))
+    attach_session(peek=peek, debug=True)
+    assert attached == [("a", {"peek": peek, "debug": True}), ("b", {"peek": True, "debug": True})]

@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Callable
 
+import pytest
 from prompt_toolkit.input.defaults import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 
@@ -17,10 +18,65 @@ def projects() -> list[AgentPanelSession]:
     return [session(f"{group}{index}", f"/{group}", 10 - index) for group in ("a", "b") for index in range(8)]
 
 
+def test_current_project_first_and_refresh_does_not_displace_hidden_selection() -> None:
+    snapshot = [*projects(), session("current", "/z", 0)]
+
+    async def fetch() -> list[AgentPanelSession]:
+        return snapshot
+
+    async def check() -> None:
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(fetch, current_dir="/z", input=pipe, output=DummyOutput())
+            await panel.refresh()
+            assert list(panel.groups) == ["/z", "/a", "/b"]
+            assert panel.selected_id == "current"
+            assert " /z (1) · current" in "".join(text for _, text in panel._list_text())
+            panel._select("a4")
+            snapshot.extend(session(f"new{i}", "/a", 100 + i) for i in range(6))
+            await panel.refresh()
+            assert panel.selected_id == "a4"
+            assert panel.selected is not None
+            assert "/a" in panel._expanded_groups
+
+    asyncio.run(check())
+
+
 async def until(predicate: Callable[[], bool]) -> None:
     async with asyncio.timeout(3):
         while not predicate():
             await asyncio.sleep(0.01)
+
+
+@pytest.mark.parametrize("remove_group", [False, True])
+def test_pipe_cancel_unmatched_search_restores_group_or_falls_back(remove_group: bool) -> None:
+    snapshot = projects()
+
+    async def fetch() -> list[AgentPanelSession]:
+        return snapshot
+
+    async def check() -> None:
+        nonlocal snapshot
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(fetch, input=pipe, output=DummyOutput())
+            task = asyncio.create_task(panel.run())
+            await until(lambda: panel.selected_id == "a0" and panel.app.is_running)
+            pipe.send_text("j" * 5)
+            await until(lambda: panel._selected_group == "/a")
+            pipe.send_text("/missing")
+            await until(lambda: panel.query == "missing")
+            assert panel.selected_id is None and panel._selected_group is None
+            if remove_group:
+                snapshot = [row for row in snapshot if row.work_dir != "/a"]
+                await panel.refresh()
+            pipe.send_text("\x1b")
+            await until(lambda: not panel.searching)
+            assert panel.query == ""
+            assert panel._selected_group == (None if remove_group else "/a")
+            assert panel.selected_id == ("b0" if remove_group else None)
+            pipe.send_text("q")
+            assert await asyncio.wait_for(task, 3) is None
+
+    asyncio.run(check())
 
 
 def test_groups_cap_counts_priority_spacing_and_cursor() -> None:
@@ -49,17 +105,17 @@ def test_groups_cap_counts_priority_spacing_and_cursor() -> None:
                 "b4",
             ]
             assert panel.counts == {"all": 18, "needs_you": 1, "working": 1, "idle": 16}
-            text = "".join(text for _, text in panel._list_text())
-            assert "Show more (5)\n\n /b (8)\n" in text
-            assert "Show more (3)" in text
+            text = "\n".join(line.rstrip() for line in "".join(text for _, text in panel._list_text()).split("\n"))
+            assert "show more (5)\n\n /b (8)\n" in text
+            assert "show more (3)" in text
             assert "child" not in text
-            assert "a3\n" not in text and "b5\n" not in text
+            assert "a3" not in text and "b5" not in text
             for index in range(len(panel._navigation)):
                 lines = "".join(text for _, text in panel._list_text()).splitlines()
                 cursor = panel._list_cursor()
                 assert lines[cursor.y].startswith(" > ")
                 if panel._selected_group:
-                    assert "Show more" in lines[cursor.y]
+                    assert "show more" in lines[cursor.y]
                     assert panel.selected_id is None and panel.selected is None
                 if index < len(panel._navigation) - 1:
                     panel.move(1)
@@ -115,7 +171,7 @@ def test_pipe_more_expand_first_hidden_refresh_and_less() -> None:
                 assert panel.selected_id == "a5" and len(panel.visible_sessions) == 13
                 pipe.send_text("jjj")
                 await until(lambda: panel._selected_group == "/a")
-                assert "Show less" in "".join(text for _, text in panel._list_text())
+                assert "show less" in "".join(text for _, text in panel._list_text())
                 await panel.refresh()
                 assert panel._selected_group == "/a"
                 pipe.send_text("\x1b[B")
@@ -166,7 +222,7 @@ def test_pipe_footer_ignores_session_actions_search_tabs_and_deleted_group() -> 
                 snapshot = [row for row in snapshot if row.work_dir == "/b"]
                 await panel.refresh()
                 assert panel.selected_id is None and panel._selected_group is None
-                assert "No matching sessions" in "".join(text for _, text in panel._list_text())
+                assert "no matching sessions" in "".join(text for _, text in panel._list_text())
                 assert panel.counts["all"] == 8
                 pipe.send_text("/\x7f\r")
                 await until(lambda: panel.query == "" and not panel.searching)

@@ -49,6 +49,19 @@ def run_attach_tui(session_id: str, *, peek: bool = False, debug: bool = False) 
     asyncio.run(run_attach(session_id, peek=peek))
 
 
+def attach_session(target: str | None = None, *, peek: bool = False, debug: bool = False) -> None:
+    if target is None:
+        from klaude_code.cli.agents_cmd import run_agents_browser
+
+        run_agents_browser(peek=peek, debug=debug)
+        return
+
+    from klaude_code.cli.uds_client import ensure_server_running
+
+    ensure_server_running()
+    run_attach_tui(_resolve_attach_target(target), peek=peek, debug=debug)
+
+
 def register_attach_command(app: typer.Typer) -> None:
     @app.command("attach")
     def attach_command(  # pyright: ignore[reportUnusedFunction]
@@ -61,19 +74,7 @@ def register_attach_command(app: typer.Typer) -> None:
         may type; execution is serialized by the server. Detaching (exit,
         ctrl-d, closing the terminal) never stops the agent.
 
-        With no TARGET, opens the interactive session picker (same as -r).
+        With no TARGET, opens the agents panel (same as -r).
         TARGET is a session id (unique prefix is enough) or a `run --name`.
         """
-        if target is None:
-            from klaude_code.tui.terminal.session_selector import select_session_sync
-
-            selected = select_session_sync()
-            if selected is None:
-                raise typer.Exit(1)
-            session_id = selected
-        else:
-            from klaude_code.cli.uds_client import ensure_server_running
-
-            ensure_server_running()
-            session_id = _resolve_attach_target(target)
-        run_attach_tui(session_id, peek=peek, debug=debug)
+        attach_session(target, peek=peek, debug=debug)
