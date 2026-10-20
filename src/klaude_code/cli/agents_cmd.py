@@ -1,16 +1,19 @@
-"""`klaude agents`: discovery command for agent types and model aliases.
-
-Three views over the same inventory: rich (humans), --json (programs),
---prime (a generated Markdown integration guide for AI agents).
-"""
+"""Session management panel and external-agent integration guide."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sys
-from typing import Any
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import typer
+
+from klaude_code.cli.models_cmd import build_model_inventory
+
+if TYPE_CHECKING:
+    from klaude_code.tui.agents_panel import AgentsPanelResult
 
 EXIT_CODES_TABLE = [
     ("0", "success (`wait`: sessions idle)"),
@@ -64,33 +67,6 @@ def build_agent_inventory(config: Any) -> list[dict[str, Any]]:
             }
         )
     return rows
-
-
-def build_model_inventory(config: Any) -> list[dict[str, Any]]:
-    return [
-        {
-            "selector": entry.selector,
-            "model_name": entry.model_name,
-            "provider": entry.provider,
-            "model_id": entry.model_id,
-        }
-        for entry in config.iter_model_entries(only_available=True, include_disabled=False)
-    ]
-
-
-def build_json_inventory(config: Any) -> dict[str, Any]:
-    from klaude_code.config.config import format_model_preference
-
-    return {
-        "agent_types": build_agent_inventory(config),
-        "models": build_model_inventory(config),
-        "defaults": {
-            "main_model": format_model_preference(config.main_model),
-            "fast_model": format_model_preference(config.fast_model),
-            "compact_model": format_model_preference(config.compact_model),
-            "headless_max_running": config.headless_max_running,
-        },
-    }
 
 
 def build_prime_guide(config: Any) -> str:
@@ -281,71 +257,114 @@ def build_prime_guide(config: Any) -> str:
 
 
 def agents_command(
-    json_: bool = typer.Option(False, "--json", help="Machine-readable inventory: agent types, models, defaults"),
+    json_: bool = typer.Option(False, "--json", help="Machine-readable session status snapshots"),
     prime: bool = typer.Option(
         False,
         "--prime",
         help="Markdown integration guide for AI agents that drive klaude through a shell tool. "
         "Paste into CLAUDE.md / AGENTS.md, or have the agent run `klaude agents --prime` once before using klaude",
     ),
+    dir_: str | None = typer.Option(None, "--dir", help="Only sessions under PATH"),
+    state: str = typer.Option("all", "--state", help="Initial tab: needs_you, working, idle, or all"),
+    show_all: bool = typer.Option(False, "--all", help="Include archived sessions"),
 ) -> None:
-    """Show what this klaude can run.
+    """Open the live session panel, grouped by working directory.
 
-    \b
-      agent types  values for `klaude run --agent`, with purpose, tool
-                   access, and bound model
-      models       configured model aliases grouped by provider, with
-                   upstream id and thinking/effort variants
-
-    The default output is a rich view for humans. Use --json or --prime
-    when the reader is a program or an AI agent.
+    Filter Needs you / Working / Idle / All, inspect a session, or attach.
+    Viewing never resumes work. Use `klaude ps` for a non-interactive table,
+    `klaude models` for model discovery, or --prime for the agent CLI guide.
     """
-    config = _load_config_or_exit()
+    if json_ and prime:
+        raise typer.BadParameter("--json and --prime are mutually exclusive")
+    if prime:
+        typer.echo(build_prime_guide(_load_config_or_exit()))
+        return
+    if state not in {"needs_you", "working", "idle", "all"}:
+        raise typer.BadParameter("must be needs_you, working, idle, or all", param_hint="--state")
+    if dir_ is not None:
+        dir_ = str(Path(dir_).expanduser().resolve())
+
+    from klaude_code.cli.headless_cmd import _fetch_rows
 
     if json_:
-        typer.echo(json.dumps(build_json_inventory(config), ensure_ascii=False, indent=2))
+        rows = _fetch_rows(
+            [],
+            None,
+            dir_=dir_,
+            states=None if state == "all" else [state],
+            include_archived=show_all,
+            include_children=False,
+        )
+        typer.echo(json.dumps({"sessions": rows}, ensure_ascii=False, indent=2))
         return
-    if prime:
-        typer.echo(build_prime_guide(config))
-        return
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        typer.echo("error: the agents panel requires a TTY; use `klaude ps` or `klaude agents --json`", err=True)
+        raise typer.Exit(2)
 
-    _render_rich_view(config)
+    from klaude_code.cli.attach_cmd import run_attach_tui
+    from klaude_code.cli.uds_client import ensure_server_running
+
+    ensure_server_running()
+    while True:
+        selected = asyncio.run(_run_panel(dir_=dir_, state=state, show_all=show_all))
+        if selected is None:
+            return
+        run_attach_tui(selected.session_id, peek=selected.action == "peek")
 
 
-def _render_rich_view(config: Any) -> None:
-    from rich.console import Console
-    from rich.text import Text
+async def _run_panel(*, dir_: str | None, state: str, show_all: bool) -> AgentsPanelResult | None:
+    import httpx
 
-    from klaude_code.cli.list_model import display_models_and_providers
-    from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
-    from klaude_code.tui.terminal.color import is_light_terminal_background
+    from klaude_code.cli.uds_client import _client_env_header
+    from klaude_code.protocol.env_sync import ENV_SYNC_HEADER
+    from klaude_code.server.paths import server_socket_path
+    from klaude_code.tui.agents_panel import AgentPanelSession, run_agents_panel
 
-    if config.theme is None and sys.stdout.isatty():
-        detected = is_light_terminal_background()
-        if detected is True:
-            config.theme = "light"
-        elif detected is False:
-            config.theme = "dark"
+    env_header = _client_env_header()
+    transport = httpx.AsyncHTTPTransport(uds=str(server_socket_path()))
+    async with httpx.AsyncClient(
+        transport=transport,
+        base_url="http://klaude",
+        timeout=30.0,
+        headers={ENV_SYNC_HEADER: env_header} if env_header is not None else None,
+    ) as client:
 
-    console = Console(theme=get_theme(config.theme).app_theme)
-    console.print(Text("Agent types (klaude run --agent TYPE)", style="bold"))
-    for agent in build_agent_inventory(config):
-        summary = agent["summary"]
-        if len(summary) > 240:
-            summary = summary[:239] + "…"
-        header = Text()
-        header.append(f"  {agent['name']}", style="bold cyan")
-        header.append("  ·  ", style="dim")
-        header.append(str(agent["model"]))
-        if agent["model_note"]:
-            header.append("  ·  ", style="dim")
-            header.append(agent["model_note"], style=ThemeKey.CONFIG_STATUS_ERROR)
-        console.print(header)
-        console.print(Text(f"    tools: {agent['tools']}", style="dim"))
-        if summary:
-            console.print(Text(f"    {summary}", style="dim"))
-    console.print()
-    display_models_and_providers(config, show_all=False)
+        async def request(
+            method: str,
+            path: str,
+            *,
+            params: dict[str, Any] | None = None,
+            json_body: dict[str, Any] | None = None,
+        ) -> dict[str, Any]:
+            response = await client.request(method, path, params=params, json=json_body)
+            body = response.json()
+            if response.is_error:
+                raise RuntimeError(str(body.get("detail", f"HTTP {response.status_code}")))
+            return body
+
+        async def fetch_sessions() -> list[AgentPanelSession]:
+            params: dict[str, Any] = {"limit": 0, "include_archived": show_all, "include_children": False}
+            if dir_:
+                params["dir"] = dir_
+            body = await request("GET", "/api/headless/sessions", params=params)
+            return [AgentPanelSession.model_validate(row) for row in body["sessions"]]
+
+        async def control_session(session_id: str, action: Literal["resume", "dismiss", "interrupt"]) -> None:
+            if action == "interrupt":
+                await request("POST", f"/api/headless/sessions/{session_id}/interrupt")
+            else:
+                await request("POST", f"/api/headless/sessions/{session_id}/control", json_body={"action": action})
+
+        async def load_output(session_id: str) -> str:
+            body = await request("GET", f"/api/headless/sessions/{session_id}/output")
+            return str(body.get("output") or "")[-12000:]
+
+        return await run_agents_panel(
+            fetch_sessions=fetch_sessions,
+            control_session=control_session,
+            load_output=load_output,
+            initial_state=cast(Literal["needs_you", "working", "idle", "all"], state),
+        )
 
 
 def register_agents_command(app: typer.Typer) -> None:

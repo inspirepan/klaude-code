@@ -199,7 +199,7 @@ async def initialize_app_components(
                         "red",
                     )
                 )
-                log(("Hint: run `klaude agents` to view available models", "yellow"))
+                log(("Hint: run `klaude models` to view available models", "yellow"))
             else:
                 log((f"Error: failed to load the default model configuration: {exc.original}", "red"))
                 log(("Hint: run `klaude conf` to edit the config file", "yellow"))
@@ -215,7 +215,7 @@ async def initialize_app_components(
                     "red",
                 )
             )
-            log(("Hint: run `klaude agents` to view available models", "yellow"))
+            log(("Hint: run `klaude models` to view available models", "yellow"))
         else:
             log((f"Error: failed to load the default model configuration: {exc}", "red"))
             log(("Hint: run `klaude conf` to edit the config file", "yellow"))

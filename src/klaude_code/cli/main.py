@@ -15,6 +15,7 @@ from klaude_code.cli.attach_cmd import register_attach_command
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.headless_cmd import register_headless_commands
+from klaude_code.cli.models_cmd import register_models_command
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
 from klaude_code.cli.server_cmd import register_server_commands
 from klaude_code.cli.trace_cmd import register_trace_command
@@ -36,7 +37,7 @@ Options:
   -c, --continue       Attach to the latest session in this directory
   -r, --resume [ID]    Pick a session and attach; if it is running,
                        attach live instead of forking
-  -m, --model TEXT     Select model (see `klaude agents`)
+  -m, --model TEXT     Select model (see `klaude models`)
       --vanilla        Minimal mode: basic tools, no system prompts
   -d, --debug          Enable debug logging
   -V, --version        Show version and exit
@@ -54,11 +55,11 @@ Background agents:
 
 Attach:
   attach     Open the TUI on a session: replay, then follow live
+  agents     Live session panel: directory groups, status tabs, details
   trace      Open the read-only browser trajectory viewer for all sessions
 
 Discovery:
-  agents     Show agent types and models; --json for machines,
-             --prime for an AI-agent integration guide
+  models     List configured models and role bindings; --json for machines
 
 Server:
   server     Manage the local server (status / stop / reload / logs / run)
@@ -237,6 +238,7 @@ register_headless_commands(app)
 register_attach_command(app)
 register_trace_command(app)
 register_agents_command(app)
+register_models_command(app)
 
 
 # cost command is registered via a lazy wrapper to avoid pulling in

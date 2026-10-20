@@ -82,7 +82,7 @@ def _format_google_vertex_credentials_display(provider: ProviderConfig) -> list[
     return parts
 
 
-def _build_provider_header(provider: ProviderConfig) -> Text:
+def _build_provider_header(provider: ProviderConfig, *, show_credentials: bool = True) -> Text:
     """Build single-line provider summary shown above the model tree."""
     provider_available = (not provider.disabled) and (not provider.is_api_key_missing())
 
@@ -90,7 +90,9 @@ def _build_provider_header(provider: ProviderConfig) -> Text:
     header.append(provider.provider_name, style=ThemeKey.CONFIG_PROVIDER)
 
     details: list[Text] = []
-    if provider.protocol == LLMClientProtocol.CHATGPT_OAUTH:
+    if not show_credentials:
+        details.append(Text(provider.protocol.value, style="dim"))
+    elif provider.protocol == LLMClientProtocol.CHATGPT_OAUTH:
         details.append(Text("auth", style=ThemeKey.CONFIG_PARAM_LABEL))
     elif provider.protocol == LLMClientProtocol.BEDROCK:
         details.extend(_format_aws_credentials_display(provider))
@@ -133,6 +135,8 @@ def _pad_text_right(text: Text, width: int) -> Text:
 def _build_model_rows(
     provider: ProviderConfig,
     config: Config,
+    *,
+    include_disabled: bool = True,
 ) -> list[tuple[Text, Text, Text]]:
     """Build (alias, model id, annotations) cells per model under a provider.
 
@@ -196,6 +200,8 @@ def _build_model_rows(
     model_rows: list[tuple[Text, Text, Text]] = []
 
     for model in provider.model_list:
+        if model.disabled and not include_disabled:
+            continue
         params: Text | None = None
         roles: list[str] = []
 
@@ -265,7 +271,12 @@ def _build_model_rows(
     return model_rows
 
 
-def display_models_and_providers(config: Config, *, show_all: bool = False) -> None:
+def display_models_and_providers(
+    config: Config,
+    *,
+    show_all: bool = False,
+    show_credentials: bool = True,
+) -> None:
     """Display providers and models using a compact tree style."""
     themes = get_theme(config.theme)
     console = Console(theme=themes.app_theme)
@@ -285,7 +296,10 @@ def display_models_and_providers(config: Config, *, show_all: bool = False) -> N
     # Cells are config-only, so rows for every provider are known upfront;
     # compute global column widths once so alias, model id, and annotations
     # align across all provider sections.
-    rows_by_provider = {provider.provider_name: _build_model_rows(provider, config) for provider in sorted_providers}
+    rows_by_provider = {
+        provider.provider_name: _build_model_rows(provider, config, include_disabled=show_all)
+        for provider in sorted_providers
+    }
     all_rows = [row for rows in rows_by_provider.values() for row in rows]
     alias_width = max((alias.cell_len for alias, _, _ in all_rows), default=0)
     model_width = max((model_id.cell_len for _, model_id, _ in all_rows), default=0)
@@ -296,7 +310,7 @@ def display_models_and_providers(config: Config, *, show_all: bool = False) -> N
             console.print()
         printed_any_provider = True
 
-        console.print(_build_provider_header(provider))
+        console.print(_build_provider_header(provider, show_credentials=show_credentials))
 
         for alias, model_id, trailing in rows_by_provider[provider.provider_name]:
             line = Text("  ")

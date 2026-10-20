@@ -223,42 +223,75 @@ def _fetch_output(
     return _api("GET", f"/api/headless/sessions/{target}/output", params=params)
 
 
-_PS_COLUMNS = ("ID", "NAME", "TITLE", "STATE", "LAST", "MODEL", "DIR", "ACTIVITY")
+_PS_COLUMNS = ("SESSION", "STATUS", "MODEL", "RECENT", "DIR")
+
+
+def _ps_text(value: Any, limit: int) -> str:
+    from rich.control import strip_control_codes
+    from rich.text import Text
+
+    text = Text(" ".join(strip_control_codes(Text.from_ansi(str(value)).plain).split()))
+    text.truncate(limit, overflow="ellipsis")
+    return text.plain
+
+
+def _ps_status_text(status: dict[str, Any]) -> str:
+    labels = {"needs_you": "Needs you", "working": "Working", "idle": "Idle"}
+    lines = [labels.get(status.get("category", ""), "Unknown")]
+    attention = status.get("attention") or []
+    for kind, label in (("needs_input", "Input"), ("error", "Error"), ("paused", "Paused")):
+        reasons = [reason for reason in attention if reason.get("kind") == kind]
+        if not reasons:
+            continue
+        codes = list(dict.fromkeys(str(reason["code"]).replace("_", " ") for reason in reasons))
+        count = f" ({len(reasons)})" if len(reasons) > 1 else ""
+        lines.append(_ps_text(f"{label}{count}: {', '.join(codes)}", 48))
+    execution = status.get("execution", "none")
+    if execution != "none":
+        lines.append({"running": "Running", "queued": "Queued", "waiting_agents": "Waiting agents"}[execution])
+    owned = status.get("owned") or {}
+    tasks = [
+        f"{owned[key]} {label}"
+        for key, label in (("active_agents", "agents"), ("active_shells", "shells"))
+        if owned.get(key)
+    ]
+    if tasks:
+        lines.append(" / ".join(tasks))
+    return "\n".join(lines)
 
 
 def _ps_table_rows(rows: list[dict[str, Any]]) -> list[tuple[str, ...]]:
     table_rows: list[tuple[str, ...]] = []
     for row in rows:
-        state = str(row.get("state", ""))
         updated_at = float(row.get("updated_at") or 0.0)
         last_active = _format_relative(updated_at) if updated_at else "-"
-        activity = row.get("activity") or "-"
+        session = _short_id(str(row.get("id", "")))
         if row.get("parent_session_id"):
-            name = f"└─ {row.get('agent_type') or 'sub-agent'}"
-        else:
-            name = str(row.get("name") or "-")
+            session = f"child {session}"
+        name = row.get("name") or row.get("agent_type")
+        if name:
+            session += "\n" + _ps_text(name, 40)
+        if row.get("title") and row["title"] != name:
+            session += "\n" + _ps_text(row["title"], 48)
+        recent = last_active
+        if row.get("activity"):
+            recent += "\n" + _ps_text(row["activity"], 48)
         table_rows.append(
             (
-                _short_id(str(row.get("id", ""))),
-                name,
-                _shorten(str(row.get("title") or "-"), 32),
-                state,
-                last_active,
-                _shorten(str(row.get("model") or "-"), 20),
-                _shorten(_abbrev_home(str(row.get("work_dir") or "-")), 28),
-                _shorten(str(activity), 60),
+                session,
+                _ps_status_text(row.get("status") or {}),
+                _ps_text(row.get("model") or "-", 28),
+                recent,
+                _ps_text(_abbrev_home(str(row.get("work_dir") or "-")), 40),
             )
         )
     return table_rows
 
 
 def _print_ps_table(rows: list[dict[str, Any]]) -> None:
-    table = [_PS_COLUMNS, *_ps_table_rows(rows)]
-    body_columns = len(_PS_COLUMNS) - 1
-    widths = [max(len(line[column]) for line in table) for column in range(body_columns)]
-    for line in table:
-        cells = [line[column].ljust(widths[column]) for column in range(body_columns)]
-        typer.echo("  ".join([*cells, line[body_columns]]).rstrip())
+    from rich.console import Console
+
+    Console(file=sys.stdout, width=120, color_system=None, force_terminal=False).print(_build_ps_rich_table(rows))
 
 
 _PS_STATE_STYLES = {
@@ -266,31 +299,30 @@ _PS_STATE_STYLES = {
     "needs_you": "yellow",
     "idle": "dim",
 }
-_PS_COLUMN_STYLES = {"ID": "cyan", "LAST": "dim", "MODEL": "dim", "DIR": "dim"}
+_PS_COLUMN_STYLES = {"SESSION": "cyan", "MODEL": "dim", "DIR": "dim"}
 
 
 def _build_ps_rich_table(rows: list[dict[str, Any]]) -> Any:
-    from rich import box
     from rich.table import Table
     from rich.text import Text
 
-    table = Table(box=box.SIMPLE, expand=True, header_style="bold")
-    for column in _PS_COLUMNS:
-        table.add_column(column, no_wrap=column != "ACTIVITY")
+    table = Table(box=None, expand=True, header_style="bold", pad_edge=False, leading=1)
+    for column, minimum, ratio in zip(_PS_COLUMNS, (18, 20, 8, 10, 8), (3, 4, 2, 3, 2), strict=True):
+        table.add_column(column, min_width=minimum, ratio=ratio, no_wrap=True, overflow="ellipsis")
     for raw, cells in zip(rows, _ps_table_rows(rows), strict=True):
-        state = str(raw.get("state", ""))
+        state = (raw.get("status") or {}).get("category", "")
         rich_cells: list[Any] = []
         for column, cell in zip(_PS_COLUMNS, cells, strict=True):
-            if column == "STATE":
+            if column == "STATUS":
                 style = _PS_STATE_STYLES.get(state, "")
-            elif column == "ACTIVITY":
+            elif column == "RECENT":
                 style = "dim" if state == "idle" else ""
             else:
                 style = _PS_COLUMN_STYLES.get(column, "")
             rich_cells.append(Text(cell, style=style))
         table.add_row(*rich_cells)
     if not rows:
-        table.add_row(*["-"] * (len(_PS_COLUMNS) - 1), "no sessions")
+        table.add_row("no sessions", *["-"] * (len(_PS_COLUMNS) - 1))
     return table
 
 
@@ -505,13 +537,13 @@ def run_command(
     prompt: str | None = typer.Argument(None, metavar="[PROMPT]"),
     dir_: str | None = typer.Option(None, "--dir", "-C", help="Working directory (default: cwd)"),
     model: str | None = typer.Option(
-        None, "--model", "-m", help="Model alias (see `klaude agents`); defaults to the agent type's bound model"
+        None, "--model", "-m", help="Model alias (see `klaude models`); defaults to the agent type's bound model"
     ),
     agent: str = typer.Option(
         "main",
         "--agent",
         show_default=False,
-        help="Agent type (see `klaude agents`). Default: main — the full agent with all tools. "
+        help="Agent type (see `klaude agents --prime`). Default: main — the full agent with all tools. "
         "Other types (finder, code-reviewer, ...) run with their own prompt, tool set, and bound model",
     ),
     name: str | None = typer.Option(None, "--name", help="Addressable name for ps/brief/wait/send"),
@@ -631,7 +663,7 @@ def ps_command(
 
     STATE is needs_you, working, or idle, independent of client connections.
     JSON includes the status snapshot: execution, attention, continuation,
-    and last_turn. LAST is the time since the most recent activity.
+    and last_turn. RECENT shows the time since the most recent activity.
 
     Sub-agent sessions spawned by an Agent tool call are hidden by default;
     --tree lists them under their parent (the limit counts top-level rows).
@@ -641,6 +673,10 @@ def ps_command(
     """
     if watch and json_:
         raise typer.BadParameter("--watch and --json are mutually exclusive")
+    if dir_ is not None:
+        from pathlib import Path
+
+        dir_ = str(Path(dir_).expanduser().resolve())
 
     target_list = _split_targets(targets or [])
 
@@ -671,8 +707,7 @@ def ps_command(
         typer.echo("no sessions")
         return
 
-    # Rich table for humans; pipes and calling agents keep the plain
-    # two-space-aligned table (or use --json).
+    # Pipes share the human layout without terminal control sequences.
     if sys.stdout.isatty():
         _print_ps_rich_table(rows)
     else:

@@ -195,15 +195,20 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 | `chatgpt` | OAuth via `klaude auth login chatgpt` |
 | `openrouter` | `OPENROUTER_API_KEY` |
 
-List all configured providers, models, and agent types:
+List available models, grouped by provider, with agent-role bindings:
 
 ```bash
-klaude agents
+klaude models
 ```
 
-Models from providers without valid credentials are shown as dimmed/unavailable. The built-in
-model catalog changes more frequently than this README; use `klaude agents` for the authoritative
-provider/model list (`--json` for machines, `--prime` for an AI-agent integration guide).
+Use `--all` to include disabled models and providers without credentials, or `--json` for machines.
+The built-in model catalog changes more frequently than this README; use `klaude models` for the
+authoritative provider/model list. `klaude agents --prime` prints the AI-agent integration guide.
+
+Browse live sessions with `klaude agents`: working-directory groups, status tabs, and session
+details. Enter attaches to the selected session; `p` opens a read-only view. `r` explicitly resumes
+work, `d` dismisses a current error, and `x` asks before interrupting. Viewing does not resume work.
+Use `klaude ps` for a non-interactive overview, `--watch` for live updates, or `--json` for scripts.
 
 #### Authentication
 
@@ -333,7 +338,7 @@ sub_agent_models:
 List configured providers and models:
 
 ```bash
-klaude agents
+klaude models
 ```
 
 ### Cost Tracking

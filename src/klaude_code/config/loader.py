@@ -125,7 +125,7 @@ def create_example_config() -> bool:
     header = (
         "# Example configuration for klaude-code\n"
         "# Copy this file to klaude-config.yaml and modify as needed.\n"
-        "# Run `klaude agents` to see available models.\n"
+        "# Run `klaude models` to see available models.\n"
         "# Tip: you can pick a provider explicitly with `model@provider` (e.g. `sonnet@openrouter`).\n"
         "# If you omit `@provider` (e.g. `sonnet`), klaude picks the first configured provider with credentials.\n"
         "#\n"

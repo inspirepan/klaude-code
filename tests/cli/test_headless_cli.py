@@ -238,15 +238,13 @@ def test_ps_table_rows_show_last_active_and_plain_activity() -> None:
 
     now = time.time()
     rows = [
-        {"id": "a" * 32, "state": "idle", "updated_at": now - 300, "title": "t", "work_dir": "/w"},
-        {"id": "b" * 32, "state": "working", "updated_at": now, "activity": "Bash: ls"},
+        {"id": "a" * 32, "status": {"category": "idle"}, "updated_at": now - 300, "title": "t", "work_dir": "/w"},
+        {"id": "b" * 32, "status": {"category": "working"}, "updated_at": now, "activity": "Bash: ls"},
     ]
     table = _ps_table_rows(rows)
-    last_index = _PS_COLUMNS.index("LAST")
-    activity_index = _PS_COLUMNS.index("ACTIVITY")
-    assert table[0][last_index] == "5m ago"
-    assert table[0][activity_index] == "-"
-    assert table[1][activity_index] == "Bash: ls"
+    recent_index = _PS_COLUMNS.index("RECENT")
+    assert table[0][recent_index] == "5m ago"
+    assert table[1][recent_index] == "0s ago\nBash: ls"
 
 
 def test_ps_watch_and_json_are_mutually_exclusive() -> None:

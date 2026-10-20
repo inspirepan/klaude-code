@@ -1,9 +1,14 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
-from klaude_code.cli.agents_cmd import build_agent_inventory, build_json_inventory, build_prime_guide
+import pytest
+from typer.testing import CliRunner
+
+from klaude_code.cli.agents_cmd import build_agent_inventory, build_prime_guide
 from klaude_code.cli.list_model import _build_model_rows
+from klaude_code.cli.main import app
 from klaude_code.config import Config
 from klaude_code.config.config import ModelConfig, ProviderConfig
 from klaude_code.protocol import llm_param
@@ -90,13 +95,6 @@ def test_model_table_attributes_roles_to_the_model_that_runs() -> None:
     assert trailing["opus"] == "main · code-reviewer (fallback)"
 
 
-def test_json_inventory_shape() -> None:
-    inventory = build_json_inventory(_config())
-    assert set(inventory) == {"agent_types", "models", "defaults"}
-    assert inventory["defaults"]["main_model"] == "sonnet"
-    assert isinstance(inventory["defaults"]["headless_max_running"], int)
-
-
 def test_prime_guide_mentions_core_loop_and_inventory() -> None:
     guide = build_prime_guide(_config())
     for needle in (
@@ -113,3 +111,119 @@ def test_prime_guide_mentions_core_loop_and_inventory() -> None:
         "trusted directories",
     ):
         assert needle in guide, f"prime guide is missing: {needle}"
+
+
+def test_agents_json_lists_sessions_without_loading_model_inventory(monkeypatch: pytest.MonkeyPatch) -> None:
+    import json
+
+    calls: list[dict[str, Any]] = []
+    row = {"id": "session-1", "state": "needs_you", "status": {"category": "needs_you"}}
+
+    def fetch(targets: list[str], group: str | None, **kwargs: Any) -> list[dict[str, Any]]:
+        assert targets == [] and group is None
+        calls.append(kwargs)
+        return [row]
+
+    def unexpected_config() -> None:
+        pytest.fail("session snapshots do not need the model inventory")
+
+    monkeypatch.setattr("klaude_code.cli.headless_cmd._fetch_rows", fetch)
+    monkeypatch.setattr("klaude_code.cli.agents_cmd._load_config_or_exit", unexpected_config)
+    result = CliRunner().invoke(app, ["agents", "--json", "--state", "needs_you", "--dir", "/workspace"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == {"sessions": [row]}
+    assert calls == [
+        {"dir_": "/workspace", "states": ["needs_you"], "include_archived": False, "include_children": False}
+    ]
+
+
+def test_agents_rejects_non_tty_without_starting_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    def unexpected_server() -> None:
+        pytest.fail("a non-interactive panel must not start the server")
+
+    monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", unexpected_server)
+    result = CliRunner().invoke(app, ["agents"])
+    assert result.exit_code == 2
+    assert "requires a TTY" in result.output
+    assert "klaude ps" in result.output
+
+
+@pytest.mark.parametrize("command", ["agents", "ps"])
+def test_session_directory_filter_is_resolved_in_the_client(
+    command: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    directories: list[str] = []
+
+    def fetch(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        directories.append(kwargs["dir_"])
+        return []
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("klaude_code.cli.headless_cmd._fetch_rows", fetch)
+    result = CliRunner().invoke(app, [command, "--json", "--dir", "."])
+    assert result.exit_code == 0, result.output
+    assert directories == [str(tmp_path.resolve())]
+
+
+@pytest.mark.parametrize("args", [["--state", "running"], ["--json", "--prime"]])
+def test_agents_rejects_invalid_options_without_connecting(args: list[str], monkeypatch: pytest.MonkeyPatch) -> None:
+    def unexpected_fetch(*args: Any, **kwargs: Any) -> None:
+        pytest.fail("invalid options must not connect")
+
+    monkeypatch.setattr("klaude_code.cli.headless_cmd._fetch_rows", unexpected_fetch)
+    result = CliRunner().invoke(app, ["agents", *args])
+    assert result.exit_code == 2
+
+
+def test_panel_callbacks_use_async_status_output_and_explicit_controls(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+    import json
+
+    import httpx
+
+    from klaude_code.cli.agents_cmd import _run_panel
+    from klaude_code.tui import agents_panel
+
+    requests: list[httpx.Request] = []
+    snapshot = {
+        "id": "session-1",
+        "status": {"category": "idle"},
+        "work_dir": "/workspace",
+        "updated_at": 10.0,
+    }
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        if request.url.path.endswith("/sessions"):
+            return httpx.Response(200, json={"sessions": [snapshot]})
+        if request.url.path.endswith("/output"):
+            return httpx.Response(200, json={"output": "a" * 20000})
+        if request.url.path.endswith("/control") and json.loads(request.content) == {"action": "dismiss"}:
+            return httpx.Response(409, json={"detail": "session unavailable"})
+        return httpx.Response(200, json={"session_id": "session-1"})
+
+    async def panel(**kwargs: Any) -> None:
+        assert kwargs["initial_state"] == "working"
+        sessions = await kwargs["fetch_sessions"]()
+        assert len(sessions) == 1 and sessions[0].status.category == "idle"
+        assert await kwargs["load_output"]("session-1") == "a" * 12000
+        await kwargs["control_session"]("session-1", "resume")
+        await kwargs["control_session"]("session-1", "interrupt")
+        with pytest.raises(RuntimeError, match="session unavailable"):
+            await kwargs["control_session"]("session-1", "dismiss")
+
+    monkeypatch.setattr("klaude_code.cli.uds_client._client_env_header", lambda: None)
+    monkeypatch.setattr(httpx, "AsyncHTTPTransport", lambda **kwargs: httpx.MockTransport(handle))
+    monkeypatch.setattr(agents_panel, "run_agents_panel", panel)
+    assert asyncio.run(_run_panel(dir_="/workspace", state="working", show_all=False)) is None
+    assert len(requests) == 5
+    assert requests[0].url.params["limit"] == "0"
+    assert requests[0].url.params["dir"] == "/workspace"
+    assert requests[0].url.params["include_children"] == "false"
+    assert requests[0].url.params["include_archived"] == "false"
+    assert requests[2].method == "POST"
+    assert requests[2].url.path == "/api/headless/sessions/session-1/control"
+    assert json.loads(requests[2].content) == {"action": "resume"}
+    assert requests[3].url.path == "/api/headless/sessions/session-1/interrupt"
