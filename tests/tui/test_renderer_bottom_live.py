@@ -331,7 +331,9 @@ def test_active_sub_agent_status_uses_colored_inline_spinner() -> None:
     assert tool_line.show_spinner is False
     assert tool_line.inline_spinner_style is None
     tool_name_style = next(style for style, text in tool_line.fragments if "Bash" in text)
-    assert "bold" not in tool_name_style
+    assert "bold" in tool_name_style
+    tool_description_style = next(style for style, text in tool_line.fragments if "inspect files" in text)
+    assert "bold" not in tool_description_style
 
 
 def test_interactive_status_snapshot_does_not_use_rich_shimmer(monkeypatch) -> None:

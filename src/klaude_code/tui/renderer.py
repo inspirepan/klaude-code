@@ -921,7 +921,7 @@ class TUICommandRenderer:
                 content = Text(str(text))
             if line.sub_agent_continuation:
                 for span in tuple(content.spans):
-                    if span.style == ThemeKey.TOOL_NAME:
+                    if span.style == ThemeKey.TOOL_NAME and span.start > 0:
                         content.stylize(Style(bold=False), span.start, span.end)
                 marker = (
                     c_sub_agent.COMPACT_CONTINUATION_PREFIX
