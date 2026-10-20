@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import threading
 import time
 from pathlib import Path
@@ -118,6 +119,113 @@ class TestConfigRevision:
 
         assert load_config().main_model == "external-model"
         assert config_revision() > before
+
+    @pytest.mark.parametrize("poll_first", [False, True])
+    def test_save_does_not_hide_merged_external_fields(self, config_file: Path, poll_first: bool) -> None:
+        _write(config_file, "first-model")
+        config = load_config()
+        before = config_revision()
+        _write(config_file, "external-model")
+        config.fast_model = "local-model"
+
+        asyncio.run(config.save())
+
+        assert yaml.safe_load(config_file.read_text()) == {
+            "main_model": "external-model",
+            "fast_model": "local-model",
+        }
+        notice = check_config_change() if poll_first else None
+        assert load_config().main_model == "external-model"
+        assert load_config().fast_model == "local-model"
+        if not poll_first:
+            notice = check_config_change()
+        assert config_revision() == before + 1
+        assert notice is not None
+        assert notice.revision == config_revision()
+        assert "main model: first-model -> external-model" in notice.summary
+        assert "local-model" in notice.summary
+        assert check_config_change() is None
+
+    def test_save_preserves_unsaved_provider_edits_without_a_notice(self, config_file: Path) -> None:
+        _write(config_file, "first-model")
+        config = load_config()
+        before = config_revision()
+        provider = config.provider_list[0]
+        provider.base_url = "https://unsaved.example.com"
+        config.fast_model = "local-model"
+
+        asyncio.run(config.save())
+
+        assert load_config() is config
+        assert load_config().provider_list[0].base_url == "https://unsaved.example.com"
+        assert "provider_list" not in yaml.safe_load(config_file.read_text())
+        assert config_revision() == before
+        assert check_config_change() is None
+
+        _write(config_file, "external-model")
+        notice = check_config_change()
+        assert notice is not None
+        assert "local-model ->" in notice.summary
+
+    def test_saving_a_different_instance_does_not_restamp_cached_config(self, config_file: Path) -> None:
+        _write(config_file, "first-model")
+        config = load_config()
+        other = config.model_copy(deep=True)
+        other.main_model = "other-model"
+
+        asyncio.run(other.save())
+
+        assert load_config().main_model == "other-model"
+        notice = check_config_change()
+        assert notice is not None
+        assert "first-model -> other-model" in notice.summary
+
+    def test_save_does_not_hide_auth_file_edits(self, config_file: Path, isolated_home: Path) -> None:
+        _write(config_file, "first-model")
+        config = load_config()
+        auth_file = isolated_home / ".klaude" / "klaude-auth.json"
+        auth_file.parent.mkdir(parents=True, exist_ok=True)
+        auth_file.write_text('{"env": {"ANTHROPIC_API_KEY": "fake-key"}}', encoding="utf-8")
+        config.fast_model = "local-model"
+
+        asyncio.run(config.save())
+
+        assert load_config() is not config
+        assert check_config_change() is not None
+
+    def test_save_updates_an_already_pending_notice(self, config_file: Path) -> None:
+        _write(config_file, "first-model")
+        load_config()
+        _write(config_file, "external-model")
+        config = load_config()
+        before = config_revision()
+        config.fast_model = "local-model"
+
+        asyncio.run(config.save())
+
+        notice = check_config_change()
+        assert notice is not None
+        assert notice.revision == before == config_revision()
+        assert "first-model -> external-model" in notice.summary
+        assert "local-model" in notice.summary
+        assert check_config_change() is None
+
+    def test_save_does_not_acknowledge_a_later_write(self, config_file: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        _write(config_file, "first-model")
+        config = load_config()
+        original_sync = load_config.sync_fingerprint
+
+        def write_then_sync(saved_config: _config_module.Config, *, saved_stat: os.stat_result) -> None:
+            _write(config_file, "external-model-after-save")
+            original_sync(saved_config, saved_stat=saved_stat)
+
+        monkeypatch.setattr(load_config, "sync_fingerprint", write_then_sync)
+        config.fast_model = "local-model"
+
+        asyncio.run(config.save())
+
+        assert load_config().main_model == "external-model-after-save"
+        assert check_config_change() is not None
 
 
 class TestCheckConfigChange:

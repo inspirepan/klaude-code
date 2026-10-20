@@ -252,8 +252,7 @@ def _refresh_cached_fingerprint(config: _schema.Config | None = None) -> None:
     """Record the files the cached config was just (re)built from.
 
     ``config`` also updates the snapshot that reload summaries compare against.
-    A caller that only re-stamps -- a process writing its own config -- passes
-    nothing and leaves the last loaded snapshot in place.
+    A failed reload passes nothing and leaves the last loaded snapshot in place.
     """
     global _cached_fingerprint, _cached_config_path, _last_snapshot
     _cached_fingerprint = _fingerprint_now()
@@ -363,15 +362,37 @@ class _LoadConfig:
         """Clear the config cache, forcing a fresh load on next call."""
         _load_config_cached.cache_clear()
 
-    def sync_fingerprint(self) -> None:
+    def sync_fingerprint(self, config: _schema.Config, *, saved_stat: os.stat_result) -> None:
         """Re-stamp the config files after this process wrote them.
 
         ``Config.save`` calls this so its own write is not mistaken for an
         external edit: without it the next ``load_config`` would rebuild the
         merged instance and drop in-memory changes that were not saved yet.
+        Only acknowledge the cached writer's exact write; other writers and auth
+        edits still need a reload. Merging external fields skips this method.
         """
+        global _cached_fingerprint, _last_snapshot, _reported_snapshot, _pending_reload
         with _reload_lock:
-            _refresh_cached_fingerprint(_cached_config_or_none())
+            fingerprint = _fingerprint_now()
+            if (
+                _cached_fingerprint is None
+                or _cached_config_path != _schema.config_path
+                or not _load_config_cached.cache_info().currsize
+                or _cached_config_or_none() is not config
+                or fingerprint[1] != (saved_stat.st_mtime_ns, saved_stat.st_size)
+                or fingerprint[2:] != _cached_fingerprint[2:]
+            ):
+                return
+            _cached_fingerprint = fingerprint
+            _last_snapshot = _snapshot_config(config)
+            if _pending_reload is None:
+                # Do not describe our own save again in the next external notice.
+                _reported_snapshot = _last_snapshot
+            elif _reported_snapshot is not None:
+                _pending_reload = ConfigReload(
+                    revision=_pending_reload.revision,
+                    summary=_summarize_reload(_reported_snapshot, _last_snapshot),
+                )
 
 
 load_config = _LoadConfig()

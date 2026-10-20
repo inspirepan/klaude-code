@@ -43,6 +43,7 @@ class ModelSwitcher:
         agent.set_model_profile(self._model_profile_provider.build_profile(llm_client, work_dir=agent.session.work_dir))
 
         agent.session.model_config_name = model_name
+        agent.session.model_from_role = False
         agent.session.model_thinking = llm_config.thinking
 
         if save_as_default:

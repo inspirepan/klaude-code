@@ -123,7 +123,9 @@ async def configure_session_model(
         if not await state.runtime.close_session(session_id):
             raise HTTPException(status_code=409, detail="session became active")
 
-    updated = get_store_for_path(work_dir).update_meta(session_id, {"model_config_name": payload.model_name})
+    updated = get_store_for_path(work_dir).update_meta(
+        session_id, {"model_config_name": payload.model_name, "model_from_role": False}
+    )
     if not updated:
         raise HTTPException(status_code=500, detail="failed to update session model")
     return {"ok": True}

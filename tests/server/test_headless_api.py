@@ -6,9 +6,11 @@ from typing import Any, cast
 
 import pytest
 
+from klaude_code.agent.runtime.agent_ops import _session_model_candidates
+from klaude_code.config.config import Config, ModelConfig, ProviderConfig
 from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT, build_stream_error_continuation_prompt
 from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT
-from klaude_code.protocol import events, message, op
+from klaude_code.protocol import events, llm_param, message, op
 from klaude_code.protocol.models import ToolStatus
 from klaude_code.server.headless import HeadlessRuntime
 from klaude_code.server.routes import headless as headless_routes
@@ -154,6 +156,50 @@ def test_run_creates_headless_session_and_finishes(app_env: AppEnv) -> None:
 
     # Name resolves as a target.
     assert _get_row(app_env, "worker")["id"] == session_id
+
+
+@pytest.mark.parametrize("explicit_model", [False, True])
+def test_headless_role_model_source_survives_restore_and_explicit_configuration(
+    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch, explicit_model: bool
+) -> None:
+    config = Config(
+        main_model="main",
+        sub_agent_models={"code-reviewer": ["review-primary", "review-backup"]},
+        provider_list=[
+            ProviderConfig(
+                provider_name="test",
+                protocol=llm_param.LLMClientProtocol.OPENAI,
+                api_key="test-key",
+                model_list=[ModelConfig(model_name=name) for name in ("main", "review-primary", "review-backup")],
+            )
+        ],
+    )
+    monkeypatch.setattr("klaude_code.config.load_config", lambda: config)
+
+    async def queued_spawn(**_kwargs: Any) -> str:
+        return "queued"
+
+    monkeypatch.setattr(_headless_runtime(app_env), "spawn", queued_spawn)
+    extra = {"model": "review-primary"} if explicit_model else {}
+    body = _run(app_env, agent="code-reviewer", **extra)
+    session_id = body["session_id"]
+    restored = Session.load(session_id, work_dir=app_env.work_dir)
+
+    assert restored.sub_agent_state is None
+    assert restored.model_config_name == "review-primary"
+    assert restored.model_from_role is not explicit_model
+    expected = ["review-primary@test"]
+    if not explicit_model:
+        expected += ["review-backup@test", "main@test"]
+    assert [candidate.selector for candidate in _session_model_candidates(restored, config).candidates] == expected
+
+    response = app_env.client.put(f"/api/sessions/{session_id}/model/config", json={"model_name": "review-primary"})
+    assert response.status_code == 200
+    configured = Session.load(session_id, work_dir=app_env.work_dir)
+    assert configured.model_from_role is False
+    assert [candidate.selector for candidate in _session_model_candidates(configured, config).candidates] == [
+        "review-primary@test"
+    ]
 
 
 def test_attached_session_reports_idle_until_detach(app_env: AppEnv) -> None:

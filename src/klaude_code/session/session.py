@@ -81,6 +81,7 @@ class Session(BaseModel):
     vanilla: bool = False
 
     model_config_name: str | None = None
+    model_from_role: bool = False
     model_thinking: llm_param.Thinking | None = None
     model_effort: str | None = None
     prompt_cache_key: str | None = None
@@ -216,6 +217,7 @@ class Session(BaseModel):
             model_name=meta.model_name,
             archived=meta.archived,
             model_config_name=meta.model_config_name,
+            model_from_role=meta.model_from_role,
             model_thinking=meta.model_thinking,
             model_effort=meta.model_effort,
             prompt_cache_key=meta.prompt_cache_key,
@@ -355,6 +357,7 @@ class Session(BaseModel):
             model_name=self.model_name,
             archived=self.archived,
             model_config_name=self.model_config_name,
+            model_from_role=self.model_from_role,
             model_thinking=self.model_thinking,
             model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
@@ -433,6 +436,7 @@ class Session(BaseModel):
             model_name=self.model_name,
             archived=self.archived,
             model_config_name=self.model_config_name,
+            model_from_role=self.model_from_role,
             model_thinking=self.model_thinking,
             model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
@@ -602,6 +606,7 @@ class Session(BaseModel):
 
         forked.sub_agent_state = None
         forked.model_name = self.model_name
+        # A fork pins the selected model, not the source role's fallback chain.
         forked.model_config_name = self.model_config_name
         forked.model_thinking = self.model_thinking.model_copy(deep=True) if self.model_thinking is not None else None
         forked.model_effort = self.model_effort

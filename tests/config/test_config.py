@@ -1,9 +1,10 @@
 """Tests for the config module."""
 
 import asyncio
+import os
 import stat
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import pytest
 import yaml
@@ -951,6 +952,41 @@ class TestConfigSave:
 
         assert link_path.is_symlink()
         assert yaml.safe_load(real_path.read_text())["main_model"] == "new-model"
+
+    @pytest.mark.parametrize("mode,symlink", [(None, False), (0o600, False), (0o640, False), (0o600, True)])
+    def test_save_creates_private_file_before_writing_content(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: int | None, symlink: bool
+    ) -> None:
+        target = tmp_path / "target.yaml"
+        if mode is not None:
+            target.write_text("main_model: old-model\n", encoding="utf-8")
+            target.chmod(mode)
+        path = tmp_path / "config.yaml" if symlink else target
+        if symlink:
+            path.symlink_to(target)
+        monkeypatch.setattr(_config_module, "config_path", path)
+        original_fdopen = os.fdopen
+        inspected: list[int] = []
+
+        def inspect_fdopen(fd: int, *args: Any, **kwargs: Any) -> IO[Any]:
+            file_stat = os.fstat(fd)
+            assert file_stat.st_size == 0
+            assert stat.S_IMODE(file_stat.st_mode) & 0o177 == 0
+            inspected.append(fd)
+            return original_fdopen(fd, *args, **kwargs)
+
+        monkeypatch.setattr(os, "fdopen", inspect_fdopen)
+        config = Config(main_model="new-model")
+        config.set_user_config(
+            UserConfig(provider_list=[UserProviderConfig(provider_name="openai", api_key="fake-key")])
+        )
+
+        asyncio.run(config.save())
+
+        assert len(inspected) == 1
+        assert stat.S_IMODE(target.stat().st_mode) == (mode if mode is not None else 0o600)
+        assert path.is_symlink() is symlink
+        assert yaml.safe_load(target.read_text())["provider_list"][0]["api_key"] == "fake-key"
 
     def test_save_config_preserves_model_preference_lists(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

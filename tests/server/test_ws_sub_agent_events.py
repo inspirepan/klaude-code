@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from functools import partial
 from pathlib import Path
 from typing import Any, cast
 
@@ -19,8 +20,10 @@ from fastapi.testclient import TestClient
 from klaude_code.agent.runtime import llm as agent_runtime
 from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.app.runtime_facade import RuntimeFacade
+from klaude_code.config.config import Config
 from klaude_code.control.event_bus import EventBus
 from klaude_code.protocol import events, message
+from klaude_code.protocol.models import SubAgentState
 from klaude_code.server.app import create_app
 from klaude_code.server.interaction import ServerInteractionHandler
 from klaude_code.server.routes.ws import _collect_descendant_session_ids  # pyright: ignore[reportPrivateUsage]
@@ -28,7 +31,7 @@ from klaude_code.server.state import ServerAppState
 from klaude_code.session.codec import encode_jsonl_line
 from klaude_code.session.store_registry import close_default_store, get_store_for_path
 
-from .conftest import FakeLLMClient
+from .conftest import AppEnv, FakeLLMClient, receive_events
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -345,3 +348,38 @@ def test_websocket_forwards_child_session_events_without_snapshot(
             assert child_event["event_type"] == "assistant.text.delta"
             assert child_event["session_id"] == child_id
             assert child_event["event"]["content"] == "child-agent-output"
+
+
+def test_parent_socket_receives_new_child_model_fallback_after_task_start(
+    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    parent_id = app_env.create_session()
+    actor = app_env.runtime.session_registry.get_session_actor(parent_id)
+    assert actor is not None
+    parent = actor.get_agent()
+    assert parent is not None
+    config = Config(provider_list=[], sub_agent_models={"finder": "removed-model"})
+    monkeypatch.setattr("klaude_code.agent.runtime.sub_agent.load_config", lambda: config)
+    monkeypatch.setattr("klaude_code.agent.runtime.agent_ops.load_config", lambda: config)
+    app_env.fake_llm.enqueue(message.AssistantMessage(parts=message.text_parts_from_str("done"), stop_reason="stop"))
+    launcher = app_env.runtime._operation_dispatcher._sub_agent_launcher  # pyright: ignore[reportPrivateUsage]
+    state = SubAgentState(sub_agent_type="finder", sub_agent_desc="find", sub_agent_prompt="find the code")
+
+    with app_env.client.websocket_connect(f"/api/sessions/{parent_id}/ws?replay=1") as websocket:
+        while not any(frame.get("type") == "replay_complete" for frame in receive_events(websocket)):
+            pass
+        task = websocket.portal.call(partial(launcher.start_sub_agent, parent, state))
+        child_id = task.ref.session_id
+        received: list[dict[str, Any]] = []
+        for _ in range(100):
+            received.extend(frame for frame in receive_events(websocket) if frame.get("session_id") == child_id)
+            if any(frame.get("event_type") == "task.finish" for frame in received):
+                break
+        else:
+            raise AssertionError("child did not finish")
+
+    notices = [frame for frame in received if frame.get("event_type") in {"task.start", "fallback.model.config.warn"}]
+    assert [frame["event_type"] for frame in notices] == ["task.start", "fallback.model.config.warn"]
+    assert notices[0]["event"]["parent_session_id"] == parent_id
+    assert notices[1]["event"]["from_model"] == "removed-model"
+    assert notices[1]["event"]["to_model"] == "fake-model"

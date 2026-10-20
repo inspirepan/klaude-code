@@ -31,6 +31,7 @@ class LoadedSessionMeta:
     model_name: str | None
     archived: bool
     model_config_name: str | None
+    model_from_role: bool
     model_thinking: llm_param.Thinking | None
     model_effort: str | None
     prompt_cache_key: str | None
@@ -198,6 +199,7 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         model_name=raw.get("model_name") if isinstance(raw.get("model_name"), str) else None,
         archived=archived,
         model_config_name=raw.get("model_config_name") if isinstance(raw.get("model_config_name"), str) else None,
+        model_from_role=raw.get("model_from_role") is True,
         model_thinking=model_thinking,
         model_effort=model_effort,
         prompt_cache_key=raw.get("prompt_cache_key") if isinstance(raw.get("prompt_cache_key"), str) else None,

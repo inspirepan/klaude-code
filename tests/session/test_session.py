@@ -213,7 +213,12 @@ class TestSessionPersistence:
         monkeypatch.chdir(project_dir)
 
         async def _test() -> None:
-            session = Session(work_dir=project_dir, model_name="test-model", model_config_name="test-config-model")
+            session = Session(
+                work_dir=project_dir,
+                model_name="test-model",
+                model_config_name="test-config-model",
+                model_from_role=True,
+            )
             session.append_history(
                 [
                     message.UserMessage(parts=message.text_parts_from_str("Hello")),
@@ -227,6 +232,7 @@ class TestSessionPersistence:
             assert meta.model_name == "test-model"
             assert meta.archived is False
             assert meta.model_config_name == "test-config-model"
+            assert meta.model_from_role is True
             assert len(meta.conversation_history) == 0
             await close_default_store()
 

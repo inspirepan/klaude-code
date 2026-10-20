@@ -237,13 +237,13 @@ class SubAgentLauncher:
         child_session.spawn_kind = "subagent"
         if state.fork_context:
             child_session.vanilla = parent_session.vanilla
-        model_config_name = self._resolve_child_model(parent_session, state)
+        model_config_name = self._resolve_child_model(parent_session, state, child_session)
         if model_config_name is not None:
             child_session.model_config_name = model_config_name
         return child_session
 
     @staticmethod
-    def _resolve_child_model(parent_session: Session, state: SubAgentState) -> str | None:
+    def _resolve_child_model(parent_session: Session, state: SubAgentState, child_session: Session) -> str | None:
         model_override = state.model.strip() if state.model is not None else None
         config = load_config()
         if model_override:
@@ -260,11 +260,15 @@ class SubAgentLauncher:
         preference = config.sub_agent_models.get(state.sub_agent_type)
         if preference is not None:
             if isinstance(preference, str):
+                child_session.model_from_role = True
                 return preference
             try:
-                return config.get_first_available_model(preference)
+                model = config.get_first_available_model(preference)
             except ValueError:
                 pass
+            else:
+                child_session.model_from_role = True
+                return model
         return parent_session.model_config_name
 
     @staticmethod

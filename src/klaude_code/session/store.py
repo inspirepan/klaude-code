@@ -636,6 +636,7 @@ def build_meta_snapshot(
     archived: bool,
     model_config_name: str | None,
     model_thinking: llm_param.Thinking | None,
+    model_from_role: bool = False,
     prompt_cache_key: str | None = None,
     follow_up_queue: Sequence[message.QueuedUserInput] = (),
     headless_queued_turn: message.QueuedUserInput | None = None,
@@ -670,6 +671,7 @@ def build_meta_snapshot(
         "model_name": model_name,
         "archived": archived,
         "model_config_name": model_config_name,
+        "model_from_role": model_from_role,
         "model_thinking": model_thinking.model_dump(mode="json", exclude_defaults=True, exclude_none=True)
         if model_thinking
         else None,

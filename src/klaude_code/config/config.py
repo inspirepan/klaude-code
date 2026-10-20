@@ -1058,7 +1058,7 @@ class Config(BaseModel):
         if provider_list:
             config_dict["provider_list"] = provider_list
 
-        def _save_config() -> None:
+        def _save_config() -> os.stat_result:
             # Write through a symlinked config instead of replacing the link, and
             # keep the target's mode: the config can hold plaintext api keys, and
             # dotfiles setups keep the real file somewhere else.
@@ -1069,23 +1069,29 @@ class Config(BaseModel):
             # klaude processes must never parse a half-written file.
             tmp_path = target.with_name(f"{target.name}.{uuid4().hex}.tmp")
             try:
-                tmp_path.write_text(yaml_content or "", encoding="utf-8")
+                fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                with os.fdopen(fd, "w", encoding="utf-8") as file:
+                    file.write(yaml_content or "")
                 if target.exists():
                     tmp_path.chmod(stat.S_IMODE(target.stat().st_mode))
+                saved_stat = tmp_path.stat()
                 tmp_path.replace(target)
+                return saved_stat
             except OSError:
                 with contextlib.suppress(OSError):
                     tmp_path.unlink()
                 raise
 
-        await asyncio.to_thread(_save_config)
+        saved_stat = await asyncio.to_thread(_save_config)
 
         # Re-stamp the config files: this write is ours, not an external edit.
         # Without it the next load_config would rebuild the merged instance and
         # drop in-memory changes that were not part of this save.
         from klaude_code.config.loader import load_config
 
-        load_config.sync_fingerprint()
+        # A merged external edit must go through the normal reload/notice path.
+        if target == user_config:
+            load_config.sync_fingerprint(self, saved_stat=saved_stat)
 
         # These edits are now on disk. Advance the baseline so a later save only
         # re-applies changes made from here on, instead of replaying this delta

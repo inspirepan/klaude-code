@@ -5,19 +5,22 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.runtime import agent_ops as agent_ops_module
 from klaude_code.agent.runtime import llm as llm_module
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
+from klaude_code.agent.runtime.config_ops import ModelSwitcher
 from klaude_code.agent.runtime.llm import FallbackLLMClient, LLMClients
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
 from klaude_code.llm.client import LLMClientABC
-from klaude_code.protocol import events, llm_param, user_interaction
+from klaude_code.protocol import events, llm_param, message, user_interaction
 from klaude_code.protocol.models import SubAgentState
 from klaude_code.session.session import Session
 
@@ -50,6 +53,7 @@ class _StubActor:
     def __init__(self) -> None:
         self.clients: LLMClients | None = None
         self.agent: Any = None
+        self.pending_model_fallback_warn: events.FallbackModelConfigWarnEvent | None = None
 
     def get_llm_clients(self) -> LLMClients | None:
         return self.clients
@@ -62,6 +66,14 @@ class _StubActor:
 
     def set_agent(self, agent: Any) -> None:
         self.agent = agent
+
+    def set_pending_model_fallback_warn(self, event: events.FallbackModelConfigWarnEvent) -> None:
+        self.pending_model_fallback_warn = event
+
+    def consume_pending_model_fallback_warn(self) -> events.FallbackModelConfigWarnEvent | None:
+        event = self.pending_model_fallback_warn
+        self.pending_model_fallback_warn = None
+        return event
 
 
 class _StubProfileProvider:
@@ -240,6 +252,7 @@ def _config_with_role_chain(chain: list[str] | None = None) -> Config:
 
 def _sub_agent_session(tmp_path: Path, *, model: str | None = None, fork_context: bool = False) -> Session:
     session = Session(work_dir=tmp_path)
+    session.model_from_role = not fork_context and not (model or "").strip()
     session.sub_agent_state = SubAgentState(
         sub_agent_type="code-reviewer",
         sub_agent_desc="review",
@@ -348,6 +361,7 @@ def test_headless_agent_session_runs_the_role_chain(tmp_path: Path, monkeypatch:
     session.spawn_kind = "headless"
     # What headless._resolve_run_model stores: the chain's first available match.
     session.model_config_name = "gpt-6.1-sol:max"
+    session.model_from_role = True
     clients = handler._ensure_session_llm_clients(session).clients
 
     assert isinstance(clients.main, FallbackLLMClient)
@@ -394,6 +408,60 @@ def _config_with_extra_model(model_name: str) -> Config:
     config = _config_with_main_model("switched-model")
     config.provider_list[0].model_list.append(ModelConfig(model_name=model_name, model_id=f"{model_name}-id"))
     return config
+
+
+def test_legacy_role_metadata_does_not_widen_an_identical_selector(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", _config_with_role_chain)
+    session = Session(work_dir=tmp_path, agent_type="code-reviewer", model_config_name="gpt-6.1-sol:max")
+    session.ensure_meta_exists()
+    session._store.update_meta(session.id, {"model_from_role": None})
+
+    restored = Session.load(session.id, work_dir=tmp_path)
+    clients = handler._ensure_session_llm_clients(restored).clients
+
+    assert restored.model_from_role is False
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == ["gpt-6.1-sol:max@openrouter"]
+
+
+def test_model_switch_clears_role_source_even_with_live_sub_agent_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = _config_with_role_chain()
+    monkeypatch.setattr("klaude_code.agent.runtime.config_ops.load_config", lambda: config)
+    monkeypatch.setattr(agent_ops_module, "load_config", lambda: config)
+    session = _sub_agent_session(tmp_path)
+    session.agent_type = "code-reviewer"
+    agent = Agent(
+        session=session,
+        profile=_StubProfileProvider().build_profile(_StubClient("initial"), work_dir=tmp_path),
+    )
+    switcher = ModelSwitcher(_StubProfileProvider())
+    asyncio.run(switcher.change_model(agent, model_name="gpt-6.1-sol:max", save_as_default=False))
+    session.ensure_meta_exists()
+
+    assert session.model_from_role is False
+    for selected in (session, Session.load(session.id, work_dir=tmp_path)):
+        candidates = agent_ops_module._session_model_candidates(selected, config).candidates
+        assert [candidate.selector for candidate in candidates] == ["gpt-6.1-sol:max@openrouter"]
+
+
+def test_fork_of_role_session_keeps_parent_selector_without_role_source(tmp_path: Path) -> None:
+    session = _sub_agent_session(tmp_path)
+    session.agent_type = "code-reviewer"
+    session.model_config_name = "gpt-6.1-sol:max"
+
+    forked = session.fork()
+    forked.ensure_meta_exists()
+    restored = Session.load(forked.id, work_dir=tmp_path)
+
+    assert restored.model_config_name == session.model_config_name
+    assert restored.model_from_role is False
+    candidates = agent_ops_module._session_model_candidates(restored, _config_with_role_chain()).candidates
+    assert [candidate.selector for candidate in candidates] == ["gpt-6.1-sol:max@openrouter"]
 
 
 def test_session_model_that_no_longer_resolves_reports_the_fallback(
@@ -491,7 +559,7 @@ def test_resolved_session_model_reports_no_fallback(tmp_path: Path, monkeypatch:
 
 
 def test_sub_agent_session_emits_the_fallback_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The actor that builds the clients warns; later calls reuse them silently."""
+    """Warn after TaskStart makes the child visible, and only on its first turn."""
 
     async def _test() -> None:
         emitted: list[Any] = []
@@ -499,14 +567,31 @@ def test_sub_agent_session_emits_the_fallback_once(tmp_path: Path, monkeypatch: 
         monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_main_model("switched-model"))
 
         session = _sub_agent_session(tmp_path)
+        session.parent_session_id = "parent-id"
         session.model_config_name = "gone-model"
-        await handler.init_sub_agent_session(session)
+        agent = await handler.init_sub_agent_session(session)
+
+        assert not emitted
+        monkeypatch.setattr(handler, "_get_session_actor", lambda _sid: actor)
+        monkeypatch.setattr(handler, "_schedule_prompt_suggestion", lambda _agent: None)
+
+        async def run_task(self: Agent, *_args: Any, **_kwargs: Any) -> AsyncGenerator[events.Event]:
+            yield events.TaskStartEvent(session_id=self.session.id, parent_session_id=self.session.parent_session_id)
+            yield events.TaskFinishEvent(session_id=self.session.id, task_result="done")
+
+        monkeypatch.setattr(Agent, "run_task", run_task)
+        for _ in range(2):
+            await handler._run_agent_task(agent, message.UserInputPayload(text="review"), "task-id", session.id)
 
         warns = [event for event in emitted if isinstance(event, events.FallbackModelConfigWarnEvent)]
         assert len(warns) == 1
         assert warns[0].session_id == session.id
         assert warns[0].sub_agent_type == "code-reviewer"
         assert (warns[0].from_model, warns[0].to_model) == ("gone-model", "switched-model")
+        assert isinstance(emitted[0], events.TaskStartEvent)
+        assert emitted[0].parent_session_id == "parent-id"
+        assert emitted[1] is warns[0]
+        assert not any(isinstance(event, events.ErrorEvent) for event in emitted)
 
         again = handler._ensure_session_llm_clients(session)
         assert again.clients is actor.clients

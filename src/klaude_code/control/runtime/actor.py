@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 from klaude_code.control.event_bus import detached_context
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
-from klaude_code.protocol import llm_param, op, user_interaction
+from klaude_code.protocol import events, llm_param, op, user_interaction
 
 if TYPE_CHECKING:
     from klaude_code.agent.agent import Agent
@@ -82,6 +82,7 @@ class SessionState:
     operation_task_ids: dict[str, str] = field(default_factory=_empty_operation_task_ids)
     agent: Agent | None = None
     llm_clients: LLMClients | None = None
+    pending_model_fallback_warn: events.FallbackModelConfigWarnEvent | None = None
     config: SessionConfig = field(default_factory=SessionConfig)
     idle_since_monotonic: float | None = None
     control_burst_count: int = 0
@@ -209,9 +210,18 @@ class SessionActor:
     def get_llm_clients(self) -> LLMClients | None:
         return self._state.llm_clients
 
+    def set_pending_model_fallback_warn(self, event: events.FallbackModelConfigWarnEvent) -> None:
+        self._state.pending_model_fallback_warn = event
+
+    def consume_pending_model_fallback_warn(self) -> events.FallbackModelConfigWarnEvent | None:
+        event = self._state.pending_model_fallback_warn
+        self._state.pending_model_fallback_warn = None
+        return event
+
     def clear_execution_state(self) -> None:
         self._state.agent = None
         self._state.llm_clients = None
+        self._state.pending_model_fallback_warn = None
         self._state.task_handles.clear()
         self._state.operation_task_ids.clear()
         self._refresh_idle_since()

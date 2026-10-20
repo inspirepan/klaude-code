@@ -111,6 +111,8 @@ def _sub_agent_role_chain(session: Session, config: Config) -> ModelPreference |
     A fork-context child and a per-invocation `model` override each name their own
     model, so both keep the plain selector path.
     """
+    if not session.model_from_role:
+        return None
     state = session.sub_agent_state
     if state is not None:
         if state.fork_context or (state.model or "").strip():
@@ -120,10 +122,10 @@ def _sub_agent_role_chain(session: Session, config: Config) -> ModelPreference |
 
     # No state: sub_agent_state is not persisted, so a session restored from disk or
     # started with `klaude run --agent TYPE` carries its role in agent_type instead.
-    # Widen only a model the role resolution itself chose, so an explicit `--model`
-    # keeps winning.
+    # Only an explicit source marker can distinguish role selection from an
+    # identical --model selector. Legacy metadata keeps the stored selector.
     agent_type = session.agent_type
-    if agent_type is None or agent_type == "main" or session.model_config_name is None:
+    if agent_type is None or agent_type == "main":
         return None
     try:
         # A fork-context profile owns the parent's model, whether or not its state
@@ -135,12 +137,7 @@ def _sub_agent_role_chain(session: Session, config: Config) -> ModelPreference |
     preference = config.sub_agent_models.get(agent_type)
     if not isinstance(preference, list):
         return None
-    try:
-        if session.model_config_name == config.get_first_available_model(preference):
-            return preference
-    except ValueError:
-        return None
-    return None
+    return preference
 
 
 def _session_model_candidates(session: Session, config: Config) -> SessionModelResolution:
@@ -675,7 +672,8 @@ class AgentOperationHandler:
         session_llm = self._ensure_session_llm_clients(session)
         session_clients = session_llm.clients
         if session_llm.model_fallback_warn is not None:
-            await self._emit_event(session_llm.model_fallback_warn)
+            # The parent socket discovers this child through its first TaskStart.
+            runtime.set_pending_model_fallback_warn(session_llm.model_fallback_warn)
 
         profile_agent_type: str | None = None
         if session.agent_type is not None and session.agent_type != "main":
@@ -1694,6 +1692,12 @@ class AgentOperationHandler:
 
             async for event in agent.run_task(user_input, run_subtask=_runner):
                 await self._emit_event(event)
+                if isinstance(event, events.TaskStartEvent):
+                    actor = self._get_session_actor(session_id)
+                    if actor is not None:
+                        warn = actor.consume_pending_model_fallback_warn()
+                        if warn is not None:
+                            await self._emit_event(warn)
 
             # Task completed normally — predict the user's next prompt in the
             # background. Cancelled implicitly when the next user turn starts.

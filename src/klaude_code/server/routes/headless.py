@@ -450,6 +450,7 @@ async def run_headless(payload: HeadlessRunRequest, state: ServerAppState = STAT
     session.spawn_kind = "headless"
     session.approval_policy = payload.approval
     session.model_config_name = resolved_model
+    session.model_from_role = payload.model is None and agent != "main" and resolved_model is not None
     session.ensure_meta_exists()
 
     try:
