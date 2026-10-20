@@ -29,7 +29,7 @@ def _plain(diff: DiffFileDiff, *, fold: bool) -> str:
 def test_folding_shows_small_edits_whole_and_previews_large_ones() -> None:
     assert "line 10" in _plain(_file("src/app.py", 10), fold=True)
     large = _plain(_file("src/app.py", 11), fold=True)
-    assert "line 5" in large and "line 6" not in large and "6 more lines · ctrl-t" in large
+    assert "line 5" in large and "line 6" not in large and "6 more lines (+6) · ctrl-t" in large
     assert "line 11" in _plain(_file("src/app.py", 11), fold=False)
 
 
@@ -41,6 +41,27 @@ def test_folding_hides_new_code_files_and_gives_docs_a_larger_budget() -> None:
     assert "line 15" in large_doc and "line 16" not in large_doc
     new_doc = _plain(_file("docs/new.md", 40, "add"), fold=True)
     assert "line 15" in new_doc and "line 16" not in new_doc
+
+
+def test_folding_counts_only_hidden_changes() -> None:
+    kinds: list[Literal["ctx", "remove", "add", "gap"]] = [
+        "ctx",
+        "remove",
+        "remove",
+        "add",
+        "add",
+        "ctx",
+        "gap",
+    ]
+    kinds.extend("add" for _ in range(6))
+    kinds.extend("remove" for _ in range(3))
+    diff = DiffFileDiff(
+        file_path="src/app.py",
+        lines=[DiffLine(kind=kind, spans=[]) for kind in kinds],
+        stats_add=8,
+        stats_remove=5,
+    )
+    assert "11 more lines (+6 -3) · ctrl-t" in _plain(diff, fold=True)
 
 
 def test_ctrl_t_rebuilds_transcript_with_diffs_expanded(monkeypatch: Any) -> None:

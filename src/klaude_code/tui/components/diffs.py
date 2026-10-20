@@ -94,9 +94,9 @@ def _render_structured_diff_grid(
             grid.add_row(*_render_file_header(file_diff, prefix_width))
 
         lines = file_diff.lines
-        hidden_lines = 0
+        hidden_lines: list[DiffLine] = []
         if limit is not None and len(lines) > limit:
-            hidden_lines = len(lines) - limit
+            hidden_lines = lines[limit:]
             lines = lines[:limit]
 
         for line in lines:
@@ -106,9 +106,22 @@ def _render_structured_diff_grid(
             grid.add_row(Text(prefix, row_style or ThemeKey.TOOL_RESULT), text, style=row_style)
 
         if hidden_lines:
+            hint = Text(f"{len(hidden_lines)} more lines", style=ThemeKey.TOOL_RESULT_TRUNCATED)
+            hidden_add = sum(line.kind == "add" for line in hidden_lines)
+            hidden_remove = sum(line.kind == "remove" for line in hidden_lines)
+            if hidden_add or hidden_remove:
+                hint.append(" (")
+                if hidden_add:
+                    hint.append(f"+{hidden_add}", style=ThemeKey.DIFF_STATS_ADD)
+                if hidden_add and hidden_remove:
+                    hint.append(" ")
+                if hidden_remove:
+                    hint.append(f"-{hidden_remove}", style=ThemeKey.DIFF_STATS_REMOVE)
+                hint.append(")")
+            hint.append(f" · {EXPAND_DIFFS_HINT}")
             grid.add_row(
                 Text(f"{'…':>{prefix_width}}  ", style=ThemeKey.TOOL_RESULT_TRUNCATED),
-                Text(f"{hidden_lines} more lines · {EXPAND_DIFFS_HINT}", style=ThemeKey.TOOL_RESULT_TRUNCATED),
+                hint,
             )
 
     return grid
