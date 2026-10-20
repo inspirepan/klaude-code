@@ -13,6 +13,7 @@ import json
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable, Sequence
+from threading import Event
 from typing import Any
 
 from klaude_code.log import DebugType, log_debug
@@ -108,6 +109,7 @@ class SocketRuntimeClient:
         self._connection_lost = asyncio.Event()
         self._interrupt_prefill: str | None = None
         self._interaction_queue: asyncio.Queue[events.UserInteractionRequestEvent] = asyncio.Queue()
+        self._interaction_closed: dict[tuple[str, str], Event] = {}
         self._dequeue_future: asyncio.Future[tuple[str, ...]] | None = None
         # Sub-agent sessions spawned under the attached session; their
         # interaction requests surface through this client too.
@@ -204,6 +206,7 @@ class SocketRuntimeClient:
 
     async def close(self) -> None:
         self._closed = True
+        self._reset_pending_interactions()
         await self._cancel_reconnect()
         if self._recv_task is not None and not self._recv_task.done():
             self._recv_task.cancel()
@@ -228,6 +231,7 @@ class SocketRuntimeClient:
         # A deliberate reconnect: keep the recv loop's cancellation from
         # taking the connection-lost path (spurious error + auto-detach).
         self._closed = True
+        self._reset_pending_interactions()
         await self._cancel_reconnect()
         if self._recv_task is not None and not self._recv_task.done():
             self._recv_task.cancel()
@@ -411,6 +415,18 @@ class SocketRuntimeClient:
     def connection_lost_event(self) -> asyncio.Event:
         return self._connection_lost
 
+    def interaction_closed_event(self, request: events.UserInteractionRequestEvent) -> Event:
+        return self._interaction_closed[(request.session_id, request.request_id)]
+
+    def _reset_pending_interactions(self) -> None:
+        # Close old modals before accepting the authoritative reconnect snapshot.
+        for key, closed in list(self._interaction_closed.items()):
+            if not closed.is_set():
+                closed.set()
+                del self._interaction_closed[key]
+        while not self._interaction_queue.empty():
+            self._interaction_queue.get_nowait()
+
     def interaction_requests(self) -> asyncio.Queue[events.UserInteractionRequestEvent]:
         return self._interaction_queue
 
@@ -506,6 +522,7 @@ class SocketRuntimeClient:
         invisible; when the window runs out we fall back to the connection-lost
         path, which the runner turns into a detach.
         """
+        self._reset_pending_interactions()
         self._refresh_reconnect_window()
         if self._running:
             # A turn was streaming when the socket died. Its TaskFinish is gone
@@ -860,8 +877,15 @@ class SocketRuntimeClient:
             and (event.parent_session_id == self._session_id or event.parent_session_id in self._child_session_ids)
         ):
             self._child_session_ids.add(envelope.session_id)
-        if envelope.session_id in self._child_session_ids and isinstance(event, events.UserInteractionRequestEvent):
-            self._interaction_queue.put_nowait(event)
+        if envelope.session_id == self._session_id or envelope.session_id in self._child_session_ids:
+            if isinstance(event, events.UserInteractionRequestEvent):
+                key = (event.session_id, event.request_id)
+                if key not in self._interaction_closed:
+                    self._interaction_closed[key] = Event()
+                    self._interaction_queue.put_nowait(event)
+            elif isinstance(event, events.UserInteractionResolvedEvent | events.UserInteractionCancelledEvent):
+                key = (event.session_id, event.request_id)
+                self._interaction_closed.setdefault(key, Event()).set()
         if envelope.session_id == self._session_id:
             if isinstance(event, events.SessionStatusEvent):
                 self._info.status = event.status
@@ -898,8 +922,6 @@ class SocketRuntimeClient:
                     # Wake the runner's watcher: a retraction that trails the
                     # idle transition must still reach the input box.
                     self._notify_state_changed()
-            elif isinstance(event, events.UserInteractionRequestEvent):
-                self._interaction_queue.put_nowait(event)
             if (
                 isinstance(event, events.UserMessageEvent)
                 and event.source not in {"peer_message", "task_completion", "shell_completion"}

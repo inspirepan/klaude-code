@@ -309,8 +309,8 @@ class SessionActor:
         response: user_interaction.UserInteractionResponse,
     ) -> None:
         pending = self._state.pending_requests.get(request_id)
-        if pending is None:
-            raise ValueError("No pending user interaction")
+        if pending is None or pending.future.done():
+            raise user_interaction.StaleUserInteractionError("No pending user interaction")
         if pending.request.session_id != session_id:
             raise ValueError("Session mismatch for pending user interaction")
         if response.status == "submitted" and response.payload is None:

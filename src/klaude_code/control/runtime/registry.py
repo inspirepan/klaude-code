@@ -85,7 +85,7 @@ class SessionRegistry:
     ) -> None:
         runtime = self._session_actors.get(session_id)
         if runtime is None:
-            raise ValueError("No pending user interaction")
+            raise user_interaction.StaleUserInteractionError("No pending user interaction")
         runtime.resolve_pending_interaction(request_id=request_id, session_id=session_id, response=response)
 
     def cancel_pending_interactions_with_requests(

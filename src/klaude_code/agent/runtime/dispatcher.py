@@ -494,7 +494,12 @@ class OperationDispatcher:
         await self._ports.close_session(operation.session_id, operation.force)
 
     async def handle_user_interaction_respond(self, operation: op.UserInteractionRespondOperation) -> None:
-        self._ports.respond_user_interaction(operation.request_id, operation.session_id, operation.response)
+        try:
+            self._ports.respond_user_interaction(operation.request_id, operation.session_id, operation.response)
+        except user_interaction.StaleUserInteractionError:
+            # Concurrent attached clients can answer the same request. The first
+            # answer wins; a late answer must not publish an error or resolution.
+            return
         await self.emit_event(
             events.UserInteractionResponseReceivedEvent(
                 session_id=operation.session_id,

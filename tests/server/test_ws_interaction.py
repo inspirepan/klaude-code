@@ -430,3 +430,94 @@ def test_websocket_disconnect_cleans_empty_session(monkeypatch: pytest.MonkeyPat
     asyncio.run(asyncio.wait_for(ws.session_websocket(cast(Any, FakeWebSocket()), "session-1"), timeout=0.2))
 
     assert len(cleaned_paths) == 1
+
+
+def test_two_clients_late_question_answer_does_not_fail_session(app_env: AppEnv) -> None:
+    ask_args = {
+        "questions": [
+            {
+                "question": "Which option?",
+                "header": "Pick",
+                "options": [
+                    {"label": "A", "description": "choose A"},
+                    {"label": "B", "description": "choose B"},
+                ],
+                "multiSelect": False,
+            }
+        ]
+    }
+    app_env.fake_llm.enqueue(
+        message.AssistantMessage(
+            parts=[
+                message.ToolCallPart(
+                    call_id="call-1",
+                    tool_name="AskUserQuestion",
+                    arguments_json=json.dumps(ask_args, ensure_ascii=False),
+                )
+            ],
+            stop_reason="tool_use",
+            usage=usage(input_tokens=11, output_tokens=2),
+        )
+    )
+    app_env.fake_llm.enqueue(
+        message.AssistantTextDelta(content="You chose A"),
+        message.AssistantMessage(
+            parts=[message.TextPart(text="You chose A")],
+            stop_reason="stop",
+            usage=usage(input_tokens=7, output_tokens=3),
+        ),
+    )
+
+    session_id = app_env.create_session()
+    with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as websocket:
+        consume_ws_handshake(websocket)
+        send_user_message(websocket, session_id, "ask me")
+
+        interaction_event = wait_for_event(websocket, "user.interaction.request")
+        request_id = interaction_event["event"]["request_id"]
+        with app_env.client.websocket_connect(f"/api/sessions/{session_id}/ws") as peer:
+            consume_ws_handshake(peer)
+            peer_request = wait_for_event(peer, "user.interaction.request")
+            assert peer_request["event"]["request_id"] == request_id
+            websocket.send_json(
+                op_frame(
+                    op.UserInteractionRespondOperation(
+                        session_id=session_id,
+                        request_id=request_id,
+                        response=user_interaction.UserInteractionResponse(
+                            status="submitted",
+                            payload=user_interaction.AskUserQuestionResponsePayload(
+                                answers=[
+                                    user_interaction.AskUserQuestionAnswer(
+                                        question_id="q1",
+                                        selected_option_ids=["q1_o1"],
+                                    )
+                                ]
+                            ),
+                        ),
+                    )
+                )
+            )
+            events = collect_events_until(websocket, "task.finish")
+            peer_events = collect_events_until(peer, "task.finish")
+            assert any(e.get("event_type") == "user.interaction.resolved" for e in peer_events)
+            late = op.UserInteractionRespondOperation(
+                session_id=session_id,
+                request_id=request_id,
+                response=user_interaction.UserInteractionResponse(status="cancelled", payload=None),
+            )
+            peer.send_json(op_frame(late))
+            received = collect_events_until(peer, "operation.finished")
+            while received[-1]["event"]["operation_id"] != late.id:
+                received.extend(collect_events_until(peer, "operation.finished"))
+            assert received[-1]["event"]["status"] == "completed"
+            assert not any(
+                e.get("event_type") in {"error", "user.interaction.resolved", "user.interaction.cancelled"}
+                for e in received
+            )
+
+    assert extract_text(events) == "You chose A"
+    rows = app_env.client.get("/api/headless/sessions").json()["sessions"]
+    row = next(row for row in rows if row["id"] == session_id)
+    assert row["status"]["attention"] == []
+    assert row["status"]["last_turn"]["result"] == "succeeded"

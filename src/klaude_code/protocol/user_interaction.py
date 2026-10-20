@@ -4,6 +4,11 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+
+class StaleUserInteractionError(ValueError):
+    """The interaction is no longer pending; another client may have answered."""
+
+
 type UserInteractionSource = Literal[
     "tool",
     "approval",

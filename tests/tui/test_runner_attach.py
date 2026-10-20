@@ -15,13 +15,14 @@ import contextlib
 from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from concurrent.futures import Future
 from pathlib import Path
+from threading import Event
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 import klaude_code.tui.runner as runner_module
-from klaude_code.protocol import events, op
+from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.tui.client import ClientConnectionError
@@ -48,6 +49,7 @@ class FakeRuntimeClient:
         self._follow_ups: list[str] = []
         self._state_changed = asyncio.Event()
         self._connection_lost = asyncio.Event()
+        self.interaction_closed = Event()
         self._interaction_queue: asyncio.Queue[events.UserInteractionRequestEvent] = asyncio.Queue()
         self._interrupt_prefill: str | None = None
         self._blocked_ops: dict[str, asyncio.Event] = {}
@@ -174,6 +176,9 @@ class FakeRuntimeClient:
 
     def connection_lost_event(self) -> asyncio.Event:
         return self._connection_lost
+
+    def interaction_closed_event(self, request: events.UserInteractionRequestEvent) -> Event:
+        return self.interaction_closed
 
     def interaction_requests(self) -> asyncio.Queue[events.UserInteractionRequestEvent]:
         return self._interaction_queue
@@ -978,3 +983,39 @@ def test_late_retract_prefill_still_lands(monkeypatch: pytest.MonkeyPatch) -> No
     provider = FakeInputProvider.instance
     assert provider is not None
     assert "late retract text" in provider.prefills
+
+
+@pytest.mark.parametrize("already_closed", [False, True])
+def test_remote_resolution_closes_question_without_submitting_again(
+    monkeypatch: pytest.MonkeyPatch, already_closed: bool
+) -> None:
+    opened, exited = Event(), Event()
+
+    def select_questions(*, closed: Event, **kwargs: Any) -> None:
+        opened.set()
+        assert closed.wait(3)
+        exited.set()
+
+    monkeypatch.setattr(runner_module, "select_questions", select_questions)
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        if already_closed:
+            client.interaction_closed.set()
+        client._interaction_queue.put_nowait(
+            events.UserInteractionRequestEvent(
+                session_id=client.session_id,
+                request_id="question",
+                source="tool",
+                payload=user_interaction.AskUserQuestionRequestPayload(questions=[]),
+            )
+        )
+        if not already_closed:
+            assert await asyncio.to_thread(opened.wait, 2)
+            client.interaction_closed.set()
+            assert await asyncio.to_thread(exited.wait, 2)
+        await _settle()
+        yield UserInputPayload(text="exit")
+
+    client = run_scenario(monkeypatch, script)
+    assert client.ops_of(op.UserInteractionRespondOperation) == []
+    assert opened.is_set() is not already_closed

@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from klaude_code.protocol import events, llm_param
+from klaude_code.protocol import events, llm_param, user_interaction
 from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.tui.client.base import ClientConnectionError
 from klaude_code.tui.client.socket_client import _ECHO_SWALLOW_TTL_SECONDS, SocketRuntimeClient, _local_envelope
@@ -283,3 +283,58 @@ def test_chunked_history_replay_reaches_the_display_as_one_replay() -> None:
         "first",
         "second",
     ]
+
+
+@pytest.mark.parametrize("child", [False, True])
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_interaction_snapshot_dedup_and_remote_close(child: bool, cancelled: bool) -> None:
+    async def scenario() -> None:
+        client = SocketRuntimeClient("root", on_envelope=_ignore_envelope)
+        session_id = "child" if child else "root"
+        if child:
+            client._child_session_ids.add(session_id)
+        request = events.UserInteractionRequestEvent(
+            session_id=session_id,
+            request_id="request",
+            source="tool",
+            payload=user_interaction.AskUserQuestionRequestPayload(questions=[]),
+        )
+        await client._handle_envelope(_local_envelope(request))
+        closed = client.interaction_closed_event(request)
+        await client._handle_envelope(_local_envelope(request))
+        assert client.interaction_requests().qsize() == 1
+        assert not closed.is_set()
+        terminal = (
+            events.UserInteractionCancelledEvent(session_id=session_id, request_id="request", reason="interrupt")
+            if cancelled
+            else events.UserInteractionResolvedEvent(session_id=session_id, request_id="request", status="submitted")
+        )
+        await client._handle_envelope(_local_envelope(terminal))
+        assert closed.is_set()
+        queued = client.interaction_requests().get_nowait()
+        assert client.interaction_closed_event(queued).is_set()
+        await client._handle_envelope(_local_envelope(request))
+        assert client.interaction_requests().empty()
+
+    asyncio.run(scenario())
+
+
+def test_interaction_reconnect_closes_old_modal_and_accepts_pending_snapshot() -> None:
+    async def scenario() -> None:
+        client = SocketRuntimeClient("root", on_envelope=_ignore_envelope)
+        request = events.UserInteractionRequestEvent(
+            session_id="root",
+            request_id="request",
+            source="tool",
+            payload=user_interaction.AskUserQuestionRequestPayload(questions=[]),
+        )
+        await client._handle_envelope(_local_envelope(request))
+        old_closed = client.interaction_closed_event(request)
+        client._reset_pending_interactions()
+        assert old_closed.is_set()
+        assert client.interaction_requests().empty()
+        await client._handle_envelope(_local_envelope(request))
+        assert not client.interaction_closed_event(request).is_set()
+        assert client.interaction_requests().qsize() == 1
+
+    asyncio.run(scenario())

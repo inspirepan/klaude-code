@@ -6,6 +6,7 @@ import sys
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
 from functools import partial
+from threading import Event
 from typing import Any, cast
 
 from prompt_toolkit.application import Application
@@ -26,6 +27,7 @@ from prompt_toolkit.styles.base import BaseStyle
 
 from klaude_code.config.formatters import format_model_params
 from klaude_code.tui.input.pt_theme import get_base_style
+from klaude_code.tui.terminal.modal import run_modal
 
 
 def _default_picker_style_factory() -> Style:
@@ -425,6 +427,7 @@ def _build_choices_tokens[T](
     *,
     empty_message: str = "(no items)",
     highlight_pointed_item: bool = True,
+    closed: Event | None = None,
     item_style_transform: (Callable[[list[tuple[str, str]], int, int], list[tuple[str, str]]] | None) = None,
 ) -> list[tuple[str, str]]:
     """Build formatted tokens for the choice list."""
@@ -562,6 +565,7 @@ def select_one[T](
     initial_search_text: str | None = None,
     search_placeholder: str = "type to search",
     highlight_pointed_item: bool = True,
+    closed: Event | None = None,
     item_style_transform: (Callable[[list[tuple[str, str]], int, int], list[tuple[str, str]]] | None) = None,
 ) -> T | None:
     """Terminal single-choice selector based on prompt_toolkit."""
@@ -752,18 +756,19 @@ def select_one[T](
         color_depth=ColorDepth.TRUE_COLOR,
     )
     app.renderer.cpr_not_supported_callback = lambda: None
-    return app.run()
+    return run_modal(app, closed)
 
 
 def select_questions[T](
     *,
     questions: list[QuestionPrompt[T]],
+    closed: Event | None = None,
     pointer: str = "→",
     style: BaseStyle | None = None,
 ) -> list[QuestionSelectResult[T]] | None:
     from klaude_code.tui.terminal.ask_user_question import select_questions as _select_questions
 
-    return _select_questions(questions=questions, pointer=pointer, style=style)
+    return _select_questions(questions=questions, pointer=pointer, style=style, closed=closed)
 
 
 def select_question[T](
@@ -825,6 +830,7 @@ class SelectOverlay[T]:
         search_placeholder: str = "type to search",
         list_height: int = 8,
         highlight_pointed_item: bool = True,
+        closed: Event | None = None,
         on_select: Callable[[T], Coroutine[Any, Any, None] | None] | None = None,
         on_cancel: Callable[[], Coroutine[Any, Any, None] | None] | None = None,
         get_reserved_rows: Callable[[], int] | None = None,

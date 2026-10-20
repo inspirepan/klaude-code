@@ -4,6 +4,7 @@ import contextlib
 import sys
 from functools import lru_cache
 from io import StringIO
+from threading import Event
 from typing import Any
 
 from prompt_toolkit.application import Application
@@ -26,6 +27,7 @@ from klaude_code.tui.components.common import format_more_lines_indicator
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.input.pt_theme import get_base_style
 from klaude_code.tui.terminal import title as terminal_title
+from klaude_code.tui.terminal.modal import run_modal
 from klaude_code.tui.terminal.selector import (
     QuestionPrompt,
     QuestionSelectResult,
@@ -207,6 +209,7 @@ def _has_unconfirmed_edits[T](
 def select_questions[T](
     *,
     questions: list[QuestionPrompt[T]],
+    closed: Event | None = None,
     pointer: str = "→",
     style: BaseStyle | None = None,
 ) -> list[QuestionSelectResult[T]] | None:
@@ -956,7 +959,7 @@ def select_questions[T](
     app.renderer.cpr_not_supported_callback = lambda: None
     terminal_title.set_terminal_title_override("❓")
     try:
-        return app.run()
+        return run_modal(app, closed)
     finally:
         terminal_title.clear_terminal_title_override()
 

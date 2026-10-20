@@ -23,6 +23,7 @@ import sys
 from collections.abc import AsyncGenerator, Callable, Coroutine
 from concurrent.futures import Future
 from pathlib import Path
+from threading import Event
 from typing import Any, cast
 from uuid import uuid4
 
@@ -55,6 +56,7 @@ from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
 from klaude_code.tui.input.pt_theme import CLASS_TOOL_RESULT, configure_pt_theme
 from klaude_code.tui.terminal.color import is_light_terminal_background
 from klaude_code.tui.terminal.control import install_sigint_interrupt
+from klaude_code.tui.terminal.modal import collect_modal
 from klaude_code.tui.terminal.selector import (
     DEFAULT_PICKER_STYLE,
     QuestionPrompt,
@@ -199,7 +201,9 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             )
         return items
 
-    def _pick_model_with_model_picker_style(payload: user_interaction.OperationSelectRequestPayload) -> str | None:
+    def _pick_model_with_model_picker_style(
+        payload: user_interaction.OperationSelectRequestPayload, closed: Event
+    ) -> str | None:
         if not payload.options:
             return None
 
@@ -235,10 +239,13 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             use_search_filter=True,
             initial_search_text=payload.initial_search_text,
             style=DEFAULT_PICKER_STYLE(),
+            closed=closed,
         )
         return selected if isinstance(selected, str) else None
 
-    def _pick_option_with_selector_style(payload: user_interaction.OperationSelectRequestPayload) -> str | None:
+    def _pick_option_with_selector_style(
+        payload: user_interaction.OperationSelectRequestPayload, closed: Event
+    ) -> str | None:
         selected = select_one(
             message=payload.question,
             items=_build_operation_select_items(payload),
@@ -246,6 +253,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             use_search_filter=True,
             initial_search_text=payload.initial_search_text,
             style=DEFAULT_PICKER_STYLE(),
+            closed=closed,
         )
         return selected if isinstance(selected, str) else None
 
@@ -267,6 +275,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
 
     async def _collect_interaction_response(
         request_event: events.UserInteractionRequestEvent,
+        closed: Event,
     ) -> user_interaction.UserInteractionResponse:
         payload = request_event.payload
         if isinstance(payload, user_interaction.OperationSelectRequestPayload):
@@ -276,16 +285,16 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
 
             try:
                 if request_event.source == "operation_model":
-                    selected = await asyncio.to_thread(_pick_model_with_model_picker_style, payload)
+                    selected = await collect_modal(lambda: _pick_model_with_model_picker_style(payload, closed), closed)
                 else:
-                    selected = await asyncio.to_thread(_pick_option_with_selector_style, payload)
+                    selected = await collect_modal(lambda: _pick_option_with_selector_style(payload, closed), closed)
             finally:
                 resume_repl()
+                if restore_progress_ui:
+                    tui_display.show_progress_ui()
 
             if selected is None:
                 return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
-            if restore_progress_ui:
-                tui_display.show_progress_ui()
             return _submitted_single_choice_response(selected_option_id=selected)
 
         if not isinstance(payload, user_interaction.AskUserQuestionRequestPayload):
@@ -314,15 +323,18 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             )
 
         try:
-            selections = await asyncio.to_thread(
+            selections = await collect_modal(
                 lambda: select_questions(
                     questions=prompts,
                     pointer="→",
                     style=DEFAULT_PICKER_STYLE(),
-                )
+                    closed=closed,
+                ),
+                closed,
             )
         finally:
             resume_repl()
+            tui_display.show_progress_ui()
 
         if selections is None:
             return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
@@ -362,7 +374,6 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                 )
             )
 
-        tui_display.show_progress_ui()
         return user_interaction.UserInteractionResponse(
             status="submitted",
             payload=user_interaction.AskUserQuestionResponsePayload(answers=answers),
@@ -707,15 +718,21 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         queue = client.interaction_requests()
         while True:
             request_event = await queue.get()
-            if peek:
+            closed = client.interaction_closed_event(request_event)
+            # Replay may contain both a request and its later resolution. Only
+            # open a modal after the attach snapshot has fully settled.
+            await startup_replay_finished.wait()
+            if peek or closed.is_set():
                 continue
             task_panel.close()
             try:
-                response = await _collect_interaction_response(request_event)
+                response = await _collect_interaction_response(request_event, closed)
             except asyncio.CancelledError:
                 raise
             except Exception:
                 response = user_interaction.UserInteractionResponse(status="cancelled", payload=None)
+            if closed.is_set():
+                continue
             with contextlib.suppress(Exception):
                 await client.submit(
                     op.UserInteractionRespondOperation(
