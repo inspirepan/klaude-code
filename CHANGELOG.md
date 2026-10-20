@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.41.0] - 2026-10-20
+
+### Added
+
+- 新增会话管理面板并独立模型列表 (`a06e514d`)
+- 精简内部消息回执并区分 Agent 身份 (`10f10bb1`)
+- 模型回退链路、配置热更新与会话模型可见性 (`f7114278`)
+
+### Changed
+
+- 统一会话状态、调度准入与持久化 (`97a1c700`)
+
+### Fixed
+
+- 去掉消息面板尾部多余的子 Agent 框线 (`2e288614`)
+- 修复配置保存与模型回退的边界问题 (`4ac80706`)
+- 子 agent 内容统一使用引用框线 (`8e65987c`)
+- 隐藏父 transcript 中子 agent 的 shell 完成回调 (`6925dc08`)
+- 去重后台 shell 等待与完成输出 (`d128f016`)
+
 ## [2.40.0] - 2026-10-19
 
 ### Added
@@ -2873,7 +2893,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.40.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.41.0...HEAD
+[2.41.0]: https://github.com/inspirepan/klaude-code/compare/v2.40.0...v2.41.0
 [2.40.0]: https://github.com/inspirepan/klaude-code/compare/v2.39.0...v2.40.0
 [2.39.0]: https://github.com/inspirepan/klaude-code/compare/v2.38.2...v2.39.0
 [2.38.2]: https://github.com/inspirepan/klaude-code/compare/v2.38.1...v2.38.2
