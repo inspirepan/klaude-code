@@ -277,6 +277,7 @@ class PromptToolkitInput(InputProviderABC):
         self._bottom_bar = PromptBottomBar(
             invalidate=self._invalidate_app,
             refresh_status=refresh_status,
+            available_rows=self._get_bottom_bar_budget,
         )
 
         # Teach the vt100 parser kitty CSI-u key encodings before any input is
@@ -377,12 +378,10 @@ class PromptToolkitInput(InputProviderABC):
         lines: tuple[PromptStatusLine, ...],
         *,
         separator_text: str | None = None,
-        reset_bottom_height: bool = False,
     ) -> None:
         self._bottom_bar.set_status_lines(
             lines,
             separator_text=separator_text,
-            reset_bottom_height=reset_bottom_height,
         )
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
@@ -778,44 +777,51 @@ class PromptToolkitInput(InputProviderABC):
         self._install_bottom_windows()
 
     def _install_bottom_windows(self) -> None:
-        with contextlib.suppress(Exception):
-            root = self._session.app.layout.container
-            input_window = _find_window_for_buffer(root, self._session.default_buffer)
-            if input_window is not None and isinstance(input_window.content, BufferControl):
-                processors = input_window.content.input_processors or []
-                input_window.content.input_processors = [*processors, _BtwPlaceholderProcessor()]
-            bar_containers = self._bottom_bar.build_containers()
-            input_top_rule = Window(
-                content=FormattedTextControl(self._get_input_top_rule_fragments),
-                height=1,
-                dont_extend_height=True,
-            )
-            input_bottom_rule = Window(
-                content=FormattedTextControl(self._get_input_bottom_rule_fragments),
-                height=1,
-                dont_extend_height=True,
-            )
-            completion_panel = Window(
-                content=FormattedTextControl(self._get_completion_panel_fragments),
-                height=self._get_completion_panel_height,
-                dont_extend_height=True,
-            )
-            input_footer = Window(
-                content=FormattedTextControl(self._get_input_footer_fragments),
-                height=self._get_input_footer_height,
-                dont_extend_height=True,
-            )
-            dynamic_panels: list[Container] = [
-                ConditionalContainer(completion_panel, filter=Condition(self._is_completion_panel_visible))
-            ]
-            if self._model_picker is not None:
-                dynamic_panels.append(self._model_picker.container)
-            if self._task_picker is not None:
-                dynamic_panels.append(self._task_picker.container)
-            self._session.app.layout.container = HSplit(
-                [*bar_containers, input_top_rule, root, input_bottom_rule, *dynamic_panels, input_footer],
-                align=VerticalAlign.BOTTOM,
-            )
+        root = self._session.app.layout.container
+        input_window = _find_window_for_buffer(root, self._session.default_buffer)
+        if input_window is None or not isinstance(input_window.content, BufferControl):
+            raise RuntimeError("Cannot install bottom layout: prompt input window was not found")
+        processors = input_window.content.input_processors or []
+        input_window.content.input_processors = [*processors, _BtwPlaceholderProcessor()]
+        bar_containers = self._bottom_bar.build_containers()
+        input_top_rule = Window(
+            content=FormattedTextControl(self._get_input_top_rule_fragments),
+            height=1,
+            dont_extend_height=True,
+        )
+        input_bottom_rule = Window(
+            content=FormattedTextControl(self._get_input_bottom_rule_fragments),
+            height=1,
+            dont_extend_height=True,
+        )
+        completion_panel = Window(
+            content=FormattedTextControl(self._get_completion_panel_fragments),
+            height=self._get_completion_panel_height,
+            dont_extend_height=True,
+        )
+        input_footer = Window(
+            content=FormattedTextControl(self._get_input_footer_fragments),
+            height=self._get_input_footer_height,
+            dont_extend_height=True,
+        )
+        dynamic_panels: list[Container] = [
+            ConditionalContainer(completion_panel, filter=Condition(self._is_completion_panel_visible))
+        ]
+        if self._model_picker is not None:
+            dynamic_panels.append(self._model_picker.container)
+        if self._task_picker is not None:
+            dynamic_panels.append(self._task_picker.container)
+        self._session.app.layout.container = HSplit(
+            [
+                *bar_containers,
+                ConditionalContainer(input_top_rule, filter=Condition(lambda: self._get_input_rule_height() > 0)),
+                root,
+                ConditionalContainer(input_bottom_rule, filter=Condition(lambda: self._get_input_rule_height() > 0)),
+                *dynamic_panels,
+                ConditionalContainer(input_footer, filter=Condition(lambda: self._get_input_footer_height() > 0)),
+            ],
+            align=VerticalAlign.BOTTOM,
+        )
 
     def _get_input_top_rule_fragments(self) -> StyleAndTextTuples:
         return self._get_input_bottom_rule_fragments()
@@ -841,9 +847,22 @@ class PromptToolkitInput(InputProviderABC):
         return fragments
 
     def _get_input_footer_height(self) -> int:
+        if self._compact_picker_layout():
+            return 0
         if self._is_completion_active() or self._is_completion_panel_visible() or self._is_picker_open():
             return 1
         return 1 + max(1, len(self._bottom_bar.metadata_footer_lines))
+
+    def _get_input_rule_height(self) -> int:
+        return 0 if self._compact_picker_layout() else 1
+
+    def _compact_picker_layout(self) -> bool:
+        if not self._is_picker_open():
+            return False
+        try:
+            return get_app().output.get_size().rows <= 10
+        except Exception:
+            return False
 
     def _is_picker_open(self) -> bool:
         return any(picker is not None and picker.is_open for picker in (self._model_picker, self._task_picker))
@@ -858,6 +877,8 @@ class PromptToolkitInput(InputProviderABC):
             return False
 
     def _is_completion_panel_visible(self) -> bool:
+        if self._is_picker_open():
+            return False
         completions, _selected_index = self._get_completion_panel_snapshot()
         return bool(completions)
 
@@ -961,10 +982,19 @@ class PromptToolkitInput(InputProviderABC):
         return preceding.strip() == ""
 
     def _get_completion_panel_height(self) -> int:
+        if self._is_picker_open():
+            return 0
         completions, _selected_index = self._get_completion_panel_snapshot()
         if not completions:
             return 0
-        return min(10, len(completions))
+        height = min(10, len(completions))
+        try:
+            rows = get_app().output.get_size().rows
+        except Exception:
+            return height
+        # A popup may shrink, but it must leave room for the prompt, rules,
+        # footer, and the bar's main status row.
+        return min(height, max(0, rows - 1 - 2 - self._get_input_footer_height() - 2 - _INPUT_HEIGHT_SAFETY_ROWS))
 
     def _get_completion_panel_fragments(self) -> StyleAndTextTuples:
         completions, selected_index = self._get_completion_panel_snapshot()
@@ -978,64 +1008,84 @@ class PromptToolkitInput(InputProviderABC):
             completions,
             selected_index=selected_index,
             width=columns,
-            max_height=10,
+            max_height=self._get_completion_panel_height(),
         )
 
     def _patch_prompt_height_for_overlays(self) -> None:
-        with contextlib.suppress(Exception):
-            root = self._session.app.layout.container
-            input_window = _find_window_for_buffer(root, self._session.default_buffer)
-            if input_window is None:
-                return
+        root = self._session.app.layout.container
+        input_window = _find_window_for_buffer(root, self._session.default_buffer)
+        if input_window is None:
+            raise RuntimeError("Cannot set prompt height: prompt input window was not found")
 
-            original_height = input_window.height
+        original_height = input_window.height
 
-            # Keep the idle prompt compact. Grow only with multiline input;
-            # completions and selectors render below the input frame.
-            base_rows = 1
+        # Keep the idle prompt compact. Grow only with multiline input;
+        # completions and selectors render below the input frame.
+        base_rows = 1
 
-            def _height():  # type: ignore[no-untyped-def]
-                try:
-                    original_height_value = original_height() if callable(original_height) else original_height  # ty: ignore[call-top-callable]
-                except Exception:
-                    original_height_value = None
-                original_min = 0
-                if isinstance(original_height_value, Dimension):
-                    original_min = int(original_height_value.min)
-                elif isinstance(original_height_value, int):
-                    original_min = int(original_height_value)
+        def _height():  # type: ignore[no-untyped-def]
+            try:
+                original_height_value = original_height() if callable(original_height) else original_height  # ty: ignore[call-top-callable]
+            except Exception:
+                original_height_value = None
+            original_min = 0
+            if isinstance(original_height_value, Dimension):
+                original_min = int(original_height_value.min)
+            elif isinstance(original_height_value, int):
+                original_min = int(original_height_value)
 
-                try:
-                    size = get_app().output.get_size()
-                    rows = size.rows
-                    columns = size.columns
-                except Exception:
-                    rows = 0
-                    columns = 80
+            try:
+                size = get_app().output.get_size()
+                rows = size.rows
+                columns = size.columns
+            except Exception:
+                rows = 0
+                columns = 80
 
-                # Grow with content, counting both explicit newlines and soft wraps.
-                content_rows = self._estimate_input_visual_rows(columns)
-                target_rows = max(base_rows, content_rows)
+            # Grow with content, counting both explicit newlines and soft wraps.
+            content_rows = self._estimate_input_visual_rows(columns)
+            target_rows = max(base_rows, content_rows)
 
-                # Cap to the space left after the bottom layout has reserved
-                # its dynamic rows. A recalled multi-line history entry can be
-                # much taller than the terminal; the input window should scroll
-                # instead of making the full HSplit impossible to fit.
-                desired = max(original_min, target_rows)
-                if rows > 0:
-                    desired = min(desired, self._get_max_input_window_rows(rows))
-                desired = max(1, desired)
+            # Cap to the space left after the bottom layout has reserved
+            # its dynamic rows. A recalled multi-line history entry can be
+            # much taller than the terminal; the input window should scroll
+            # instead of making the full HSplit impossible to fit.
+            desired = max(original_min, target_rows)
+            if rows > 0:
+                desired = min(desired, self._get_max_input_window_rows(rows))
+            desired = max(1, desired)
 
-                return Dimension(min=1, preferred=desired, max=desired)
+            return Dimension(min=1, preferred=desired, max=desired)
 
-            input_window.height = _height
+        input_window.height = _height
 
     def _get_max_input_window_rows(self, terminal_rows: int) -> int:
         reserved_rows = self._get_reserved_non_input_rows()
         return max(1, terminal_rows - reserved_rows - _INPUT_HEIGHT_SAFETY_ROWS)
 
+    def _get_bottom_bar_budget(self) -> int | None:
+        try:
+            rows = get_app().output.get_size().rows
+        except Exception:
+            return None
+        # Reserve the editor, its two rules, footer, completion panel, and
+        # selector chrome plus one choice. The selector's list can then grow
+        # only from genuinely free space.
+        picker_rows = 5 if self._is_picker_open() else 0
+        safety_rows = 0 if picker_rows else _INPUT_HEIGHT_SAFETY_ROWS
+        return max(
+            0,
+            rows
+            - 1
+            - 2 * self._get_input_rule_height()
+            - self._get_input_footer_height()
+            - self._get_completion_panel_height()
+            - picker_rows
+            - safety_rows,
+        )
+
     def _get_reserved_non_input_rows(self) -> int:
-        input_rule_rows = 2
+        input_rule_rows = 2 * self._get_input_rule_height()
         return (
             self._bottom_bar.reserved_layout_rows()
             + input_rule_rows

@@ -8,7 +8,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -174,9 +174,8 @@ THINKING_LIVE_TAIL_LEFT_PADDING = 3
 # fixed cadence and flush the trailing state once the interval elapses.
 SPINNER_UPDATE_MIN_INTERVAL_S = 1 / 10
 
-# Dedup key for spinner updates. `reset_bottom_height` only participates in
-# the key; it carries no rendering state of its own.
-_SpinnerUpdateKey = tuple[object, object, object, object]
+# Dedup key for the displayed spinner snapshot.
+_SpinnerUpdateKey = tuple[object, object, object]
 
 
 def _thinking_preview_text(buffer: str) -> str:
@@ -262,7 +261,7 @@ class TUICommandRenderer:
         self,
         theme: str | None = None,
         notifier: TerminalNotifier | None = None,
-        status_sink: Callable[[tuple[PromptStatusLine, ...], str | None, bool], None] | None = None,
+        status_sink: Callable[[tuple[PromptStatusLine, ...], str | None], None] | None = None,
         stream_sink: Callable[[tuple[str, ...], bool, str], None] | None = None,
         detail: TranscriptDetail | None = None,
     ) -> None:
@@ -272,6 +271,7 @@ class TUICommandRenderer:
 
         self._stream_renderable: RenderableType | None = None
         self._prompt_frame_updates: list[Callable[[], None]] | None = None
+        self._deferred_prompt_update_slots: dict[str, int] | None = None
         self._spinner_visible: bool = False
         self._progress_ui_suspended: bool = False
         self._main_task_status: str | None = None
@@ -627,20 +627,16 @@ class TUICommandRenderer:
         metadata_text: RenderableType | None = None,
         status_lines: tuple[SpinnerStatusLine, ...] = (),
         separator_text: SeparatorText | None = None,
-        reset_bottom_height: bool = False,
     ) -> None:
         update = SpinnerUpdate(
             right_text=metadata_text,
             status_lines=status_lines,
             separator_text=separator_text,
-            reset_bottom_height=reset_bottom_height,
         )
         # Inside the throttle window the payload is stashed as-is; the
         # (comparatively expensive) content key is only materialized when an
         # update is actually applied.
         if time.monotonic() - self._spinner_last_apply_at < SPINNER_UPDATE_MIN_INTERVAL_S:
-            if self._spinner_pending_update is not None and self._spinner_pending_update.reset_bottom_height:
-                update = replace(update, reset_bottom_height=True)
             self._spinner_pending_update = update
             self._schedule_spinner_flush()
             return
@@ -656,12 +652,12 @@ class TUICommandRenderer:
                     line.session_id,
                     line.sub_agent_continuation,
                     line.sub_agent_animated,
+                    line.waiting,
                     self._spinner_text_key(line.text),
                 )
                 for line in update.status_lines
             ),
             update.separator_text,
-            update.reset_bottom_height,
         )
 
     def _apply_spinner_update(self, update: SpinnerUpdate) -> bool:
@@ -686,7 +682,7 @@ class TUICommandRenderer:
             show_hint=False,
             shimmer=False,
         )
-        self._emit_prompt_status(reset_bottom_height=update.reset_bottom_height)
+        self._emit_prompt_status()
         return True
 
     def _schedule_spinner_flush(self) -> None:
@@ -741,7 +737,6 @@ class TUICommandRenderer:
         self,
         lines: tuple[PromptStatusLine, ...] | None = None,
         separator_text: SeparatorText | None = None,
-        reset_bottom_height: bool = False,
     ) -> None:
         if self._status_sink is None:
             return
@@ -754,7 +749,7 @@ class TUICommandRenderer:
             lines = (*lines, PromptStatusLine(self._main_task_status, show_spinner=False))
         resolved_separator_text = self._resolve_separator_text(separator_text)
         sink = self._status_sink
-        self._publish_prompt_update(lambda: sink(lines, resolved_separator_text, reset_bottom_height))
+        self._publish_prompt_update(lambda: sink(lines, resolved_separator_text), channel="status")
 
     @staticmethod
     def _resolve_separator_text(separator_text: SeparatorText | None) -> str | None:
@@ -801,6 +796,7 @@ class TUICommandRenderer:
                     fragments,
                     show_spinner,
                     inline_spinner_style,
+                    waiting=spec.waiting if spec is not None else False,
                 )
             )
         if self._status_metadata_text is not None:
@@ -810,6 +806,7 @@ class TUICommandRenderer:
                 result[-1].fragments,
                 result[-1].show_spinner,
                 result[-1].inline_spinner_style,
+                waiting=result[-1].waiting,
             )
         return tuple(result)
 
@@ -880,7 +877,7 @@ class TUICommandRenderer:
         if self._stream_sink is None:
             return
         sink = self._stream_sink
-        self._publish_prompt_update(lambda: sink(lines or (), end_of_stream, style_class))
+        self._publish_prompt_update(lambda: sink(lines or (), end_of_stream, style_class), channel="stream")
 
     def _prompt_stream_lines(self, renderable: RenderableType, *, no_wrap: bool = False) -> tuple[str, ...]:
         options = self.console.options
@@ -1975,11 +1972,41 @@ class TUICommandRenderer:
     # RenderCommand executor
     # ---------------------------------------------------------------------
 
-    def _publish_prompt_update(self, update: Callable[[], None]) -> None:
+    def _publish_prompt_update(self, update: Callable[[], None], *, channel: str | None = None) -> None:
         if self._prompt_frame_updates is None:
             update()
         else:
-            self._prompt_frame_updates.append(update)
+            slots = self._deferred_prompt_update_slots
+            if slots is not None and channel is not None and channel in slots:
+                self._prompt_frame_updates[slots[channel]] = update
+            else:
+                if slots is not None and channel is not None:
+                    slots[channel] = len(self._prompt_frame_updates)
+                self._prompt_frame_updates.append(update)
+
+    @contextmanager
+    def defer_prompt_updates(self) -> Iterator[Callable[[], None]]:
+        """Stage a replay's bottom UI until its scrollback commit begins."""
+        if self._prompt_frame_updates is not None:
+            raise RuntimeError("prompt frame already pending")
+        updates: list[Callable[[], None]] = []
+        self._prompt_frame_updates = updates
+        self._deferred_prompt_update_slots: dict[str, int] | None = {}
+
+        def publish() -> None:
+            # Once the frame enters its terminal cycle, later status timer
+            # updates belong to the live prompt, not this replay snapshot.
+            self._prompt_frame_updates = None
+            for update in updates:
+                update()
+            updates.clear()
+
+        try:
+            yield publish
+        finally:
+            self._prompt_frame_updates = None
+            self._deferred_prompt_update_slots = None
+            updates.clear()
 
     async def execute(self, commands: list[RenderCommand]) -> None:
         # Interactive output and layout changes share a terminal commit. Rich's
@@ -2005,9 +2032,11 @@ class TUICommandRenderer:
             await write_scrollback_bulk(buffer.getvalue(), before_write=publish)
             self._schedule_task_notifications(pending)
         finally:
-            # Cancellation must not leave future status refreshes buffered.
+            # An interrupted terminal cycle did not commit this frame. Keep
+            # the prior prompt view; the next completed frame will replace it.
             if self._prompt_frame_updates is not None:
-                publish()
+                self._prompt_frame_updates = None
+                updates.clear()
 
     async def _execute_commands(self, commands: list[RenderCommand]) -> list[RenderTaskFinish]:
         finished_tasks_to_notify: list[RenderTaskFinish] = []
@@ -2216,13 +2245,11 @@ class TUICommandRenderer:
                     right_text=metadata_text,
                     status_lines=status_lines,
                     separator_text=separator_text,
-                    reset_bottom_height=reset_bottom_height,
                 ):
                     self.spinner_update(
                         metadata_text,
                         status_lines,
                         separator_text,
-                        reset_bottom_height,
                     )
                 case PrintBlankLine(session_id=session_id):
                     self._clear_open_blocks()

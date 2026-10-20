@@ -40,9 +40,9 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
         updates: list[tuple[PromptStatusLine, ...]] = []
         bar = PromptBottomBar(invalidate=lambda: None)
 
-        def sink(lines: tuple[PromptStatusLine, ...], _separator: str | None, _reset: bool) -> None:
+        def sink(lines: tuple[PromptStatusLine, ...], _separator: str | None) -> None:
             updates.append(lines)
-            bar.set_status_lines(lines, separator_text=_separator, reset_bottom_height=_reset)
+            bar.set_status_lines(lines, separator_text=_separator)
 
         display = TUIDisplay(on_status_update=sink)
         display.set_progress_ui_suspended(True)
@@ -148,7 +148,7 @@ def test_snapshot_after_empty_history_displays_idle_count(monkeypatch: pytest.Mo
         patch_scrollback_writes(monkeypatch)
         updates: list[tuple[PromptStatusLine, ...]] = []
 
-        def sink(lines: tuple[PromptStatusLine, ...], _separator: str | None, _reset: bool) -> None:
+        def sink(lines: tuple[PromptStatusLine, ...], _separator: str | None) -> None:
             updates.append(lines)
 
         display = TUIDisplay(on_status_update=sink)

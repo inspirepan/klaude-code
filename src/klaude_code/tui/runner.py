@@ -121,13 +121,11 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
     def _set_status_lines(
         lines: tuple[PromptStatusLine, ...],
         separator_text: str | None = None,
-        reset_bottom_height: bool = False,
     ) -> None:
         if input_provider is not None:
             input_provider.set_status_lines(
                 lines,
                 separator_text=separator_text,
-                reset_bottom_height=reset_bottom_height,
             )
 
     def _set_stream_lines(

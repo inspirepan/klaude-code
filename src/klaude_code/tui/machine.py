@@ -499,6 +499,9 @@ class SpinnerStatusState:
         """Whether the only running tool calls are blocking Agent calls."""
         return self._activity.blocked_on_sub_agents()
 
+    def is_waiting_for_tasks(self, active_tool_ids: set[str], waiting_tool_ids: set[str]) -> bool:
+        return self._phase is SpinnerPhase.WAITING and bool(active_tool_ids) and active_tool_ids <= waiting_tool_ids
+
     def clear_for_new_step(self) -> None:
         self._activity.clear_for_new_step()
         if self._phase is SpinnerPhase.COMPOSING:
@@ -729,6 +732,7 @@ class _SessionState:
     background_status: str | None = None
     pending_interactions: dict[str, str] = field(default_factory=dict)
     waiting_task_tools: set[str] = field(default_factory=set)
+    active_tool_call_ids: set[str] = field(default_factory=set)
     rendered_background_metadata: set[str] = field(default_factory=set)
     task_metadata: TaskMetadata | None = None
     task_result: str = ""
@@ -749,6 +753,7 @@ class _SessionState:
         return is_gemini_model_any(self.model_id) or is_grok_model(self.model_id)
 
     def clear_status_activity(self) -> None:
+        self.active_tool_call_ids.clear()
         self.status_composing = False
         self.status_tool_calls = {}
         self.status_tool_calls_by_id = {}
@@ -979,7 +984,6 @@ class DisplayStateMachine:
         self._model_name: str | None = None
         self._session_title: str | None = None
         self._terminal_title_prefix: str | None = None
-        self._had_sub_agent_status_lines: bool = False
         self._side_question_pending: dict[str, str] = {}
         self._live_bash_tool_call_ids: set[str] = set()
         self._pending_bash_tool_outputs: dict[str, _PendingBashToolOutput] = {}
@@ -1026,7 +1030,6 @@ class DisplayStateMachine:
         self._sessions = {}
         self._primary_session_id = None
         self._spinner.reset()
-        self._had_sub_agent_status_lines = False
         self._side_question_pending = {}
         self._terminal_title_prefix = None
         self._live_bash_tool_call_ids = set()
@@ -1307,29 +1310,28 @@ class DisplayStateMachine:
             return []
         sub_agent_lines = self._sub_agent_status_lines()
         side_question_lines = self._side_question_status_lines()
+        primary = self._sessions.get(self._primary_session_id or "")
+        main_line = SpinnerStatusLine(
+            text=self._spinner.get_status(),
+            waiting=primary is not None
+            and self._spinner.is_waiting_for_tasks(primary.active_tool_call_ids, primary.waiting_task_tools),
+        )
         if sub_agent_lines:
             # Background children run beside the main agent, so its own status
             # stays on top; a blocking Agent call is already described by them.
-            main_lines = (
-                (SpinnerStatusLine(text=self._spinner.get_status()),)
-                if self._main_task_active() and not self._spinner.blocked_on_sub_agents()
-                else ()
-            )
+            main_lines = (main_line,) if self._main_task_active() and not self._spinner.blocked_on_sub_agents() else ()
             status_lines = (*main_lines, *sub_agent_lines, *side_question_lines)
         elif side_question_lines and not self._any_task_active():
             # Nothing else is running: the side question is the whole status.
             status_lines = side_question_lines
         else:
-            status_lines = (SpinnerStatusLine(text=self._spinner.get_status()), *side_question_lines)
-        reset_bottom_height = self._had_sub_agent_status_lines and not sub_agent_lines
-        self._had_sub_agent_status_lines = bool(sub_agent_lines)
+            status_lines = (main_line, *side_question_lines)
         return [
             MainTaskStatus(self._main_task_status()),
             SpinnerUpdate(
                 right_text=self._spinner.get_right_text(),
                 status_lines=status_lines,
                 separator_text=self._spinner.get_separator_text(),
-                reset_bottom_height=reset_bottom_height,
             ),
         ]
 
@@ -1993,6 +1995,8 @@ class DisplayStateMachine:
     def _handle_StepStartEvent(self, e: events.StepStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         del e
         cmds: list[RenderCommand] = []
+        s.active_tool_call_ids.clear()
+        s.waiting_task_tools.clear()
         if s.is_sub_agent:
             s.step_count += 1
             s.reset_thinking()
@@ -2143,6 +2147,7 @@ class DisplayStateMachine:
 
     def _handle_ToolCallStartEvent(self, e: events.ToolCallStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        s.active_tool_call_ids.add(e.tool_call_id)
         # Defensive: ensure any active main-session streams are finalized
         # before tools start producing output.
         if self._primary_session_id is not None:
@@ -2189,6 +2194,7 @@ class DisplayStateMachine:
 
     def _handle_ToolCallEvent(self, e: events.ToolCallEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        s.active_tool_call_ids.add(e.tool_call_id)
         arguments = parse_tool_arguments(e.arguments)
         is_wait = e.tool_name in {tools.MANAGE_TASKS, tools.MANAGE_SHELL} and arguments.get("action") == "wait"
         # A compact shell wait is transient: the status bar names the task while
@@ -2310,6 +2316,7 @@ class DisplayStateMachine:
         call_key = (e.session_id, e.tool_call_id)
         hidden_wait_call = self._hidden_shell_wait_calls.pop(call_key, None)
         s.waiting_task_tools.discard(e.tool_call_id)
+        s.active_tool_call_ids.discard(e.tool_call_id)
         if isinstance(e.ui_extra, ShellTaskUIExtra):
             s.shell_tasks.update((task.task_id, task) for task in e.ui_extra.tasks if task.session_id == e.session_id)
         linked_sub_agent: _SessionState | None = None

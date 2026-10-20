@@ -604,7 +604,7 @@ def test_sub_agent_batch_stays_fixed_until_all_children_finish(monkeypatch: pyte
     assert batch.summaries[0].model_id == "test-model"
     assert batch.summaries[0].tool_count == 1
     assert batch.summaries[0].token_count == 120
-    assert _last_spinner_update(second_finished).reset_bottom_height is True
+    assert all(line.session_id not in {"sub-a", "sub-b"} for line in _agent_rows(_last_spinner_update(second_finished)))
 
 
 @pytest.mark.parametrize("remaining_activity", ["none", "main", "subagent", "side_question"])
@@ -654,7 +654,6 @@ def test_finished_sub_agent_batch_wake_finishes_independently(remaining_activity
         if remaining_activity != "none":
             update = _last_spinner_update(finished)
             assert all(line.session_id != "sub-a" for line in _agent_rows(update))
-            assert update.reset_bottom_height is (remaining_activity != "subagent")
             if remaining_activity == "subagent":
                 assert any(line.session_id == "sub-b" for line in _agent_rows(update))
             elif remaining_activity == "side_question":
@@ -1169,7 +1168,7 @@ def test_sub_agent_status_dynamically_reduces_tool_line_budget(
     assert lines[1:group_size] == expected_activity_lines
 
 
-def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
+def test_sub_agent_finish_removes_its_status_rows() -> None:
     machine = DisplayStateMachine()
     main_session = "main"
     sub_session = "sub-1"
@@ -1187,7 +1186,7 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
         )
     )
     start_update = _last_spinner_update(start_cmds)
-    assert start_update.reset_bottom_height is False
+    assert any(line.session_id == sub_session for line in _agent_rows(start_update))
 
     finish_cmds = machine.transition(
         events.TaskFinishEvent(
@@ -1196,7 +1195,7 @@ def test_sub_agent_finish_triggers_bottom_height_reset() -> None:
         )
     )
     finish_update = _last_spinner_update(finish_cmds)
-    assert finish_update.reset_bottom_height is True
+    assert all(line.session_id != sub_session for line in _agent_rows(finish_update))
 
 
 def test_sub_agent_finish_emits_unscoped_blank_line_after_result() -> None:
@@ -1490,7 +1489,6 @@ def test_sub_agent_non_retry_error_clears_status_lines() -> None:
     )
     update = _last_spinner_update(cmds)
 
-    assert update.reset_bottom_height is True
     assert len(_agent_rows(update)) == 1
     assert _agent_rows(update)[0].session_id is None
     assert "Finder" not in _line_plain(_agent_rows(update)[0])
@@ -1554,7 +1552,6 @@ def test_failed_agent_tool_result_clears_sub_agent_status_line() -> None:
     )
     update = _last_spinner_update(cmds)
 
-    assert update.reset_bottom_height is True
     assert len(_agent_rows(update)) == 1
     assert _agent_rows(update)[0].session_id is None
     assert "Finder" not in _line_plain(_agent_rows(update)[0])

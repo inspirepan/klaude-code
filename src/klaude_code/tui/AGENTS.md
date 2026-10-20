@@ -14,6 +14,10 @@ dynamic UI in both busy and idle states:
 - Rich prints stable scrollback content above the prompt.
 - prompt-toolkit renders live output, running status, queued follow-up block,
   and input editor in one bottom layout.
+- Allocate bottom rows from one terminal-height budget, reserving the editor,
+  footer, completion panel and picker before fitting status and queue previews.
+  Show omission counts when previews are clipped. Keep spare space above the
+  whole layout; do not accumulate per-window height reservations.
 - Interactive sessions default to compact transcript rendering: thinking is kept
   out of the scrollback entirely (the status line reports that the model is
   reasoning plus its char count, and the last few lines of the reasoning scroll

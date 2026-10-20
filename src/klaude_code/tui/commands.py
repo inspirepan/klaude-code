@@ -30,6 +30,7 @@ class PromptStatusLine:
     fragments: PromptStatusFragments = ()
     show_spinner: bool = True
     inline_spinner_style: str | None = None
+    waiting: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -255,6 +256,7 @@ class SpinnerStatusLine:
     # False on the wrapped remainder of a continuation, which aligns under the
     # "↳ " marker rather than repeating it.
     continuation_leading: bool = True
+    waiting: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,7 +264,6 @@ class SpinnerUpdate(RenderCommand):
     right_text: RenderableType | None
     status_lines: tuple[SpinnerStatusLine, ...] = ()
     separator_text: SeparatorText | None = None
-    reset_bottom_height: bool = False
 
 
 @dataclass(frozen=True, slots=True)

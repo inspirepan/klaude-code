@@ -320,9 +320,9 @@ def test_status_window_height_resets_after_sub_agent_rows_disappear() -> None:
     )
     assert bar._status_window_height() == 4
 
-    prompt_input.set_status_lines((_status("Loading…"),), reset_bottom_height=True)
+    prompt_input.set_status_lines((_status("Loading…"),))
 
-    assert bar._status_reserved_line_count == 1
+    assert bar._status_window_height() == 1
     assert bar._status_window_height() == 1
 
 
@@ -361,7 +361,7 @@ def test_running_fallback_uses_only_its_visible_row() -> None:
         prompt_input.set_agent_running(True)
         prompt_input.set_status_lines((_metadata("in 1k"),))
 
-        assert bar._status_reserved_line_count == 0
+        assert bar._status_window_height() == 1
         assert bar._status_window_height() == 1
 
         prompt_input.set_agent_running(False)
@@ -399,7 +399,7 @@ def test_stream_end_collapses_height_immediately() -> None:
         assert bar.reserved_layout_rows() == 3
 
         prompt_input.set_stream_lines((), end_of_stream=True)
-        assert bar._stream_reserved_line_count == 0
+        assert len(bar._stream_lines) == 0
         assert bar._stream_lines == ()
         assert bar.reserved_layout_rows() == 2
 
@@ -413,15 +413,15 @@ def test_status_clear_releases_height_without_a_timer() -> None:
         bar = prompt_input._bottom_bar
 
         prompt_input.set_status_lines((_status("Typing…"),), separator_text="13s · esc to interrupt")
-        assert bar._status_reserved_line_count == 1
+        assert bar._status_window_height() == 1
 
-        prompt_input.set_status_lines((), separator_text=None, reset_bottom_height=True)
+        prompt_input.set_status_lines((), separator_text=None)
         assert bar._status_lines == ()
         assert bar._get_status_fragments() == []
-        assert bar._status_reserved_line_count == 0
+        assert bar._status_window_height() == 1
 
         prompt_input.set_status_lines((_status("Loading…"),), separator_text="14s · esc to interrupt")
-        assert bar._status_reserved_line_count == 1
+        assert bar._status_window_height() == 1
 
     asyncio.run(_scenario())
 
@@ -714,9 +714,7 @@ def test_input_footer_renders_metadata_below_context_line() -> None:
 
 def test_renderer_status_sink_separates_interrupt_hint() -> None:
     updates: list[tuple[tuple[PromptStatusLine, ...], str | None]] = []
-    renderer = TUICommandRenderer(
-        status_sink=lambda lines, separator_text, _reset: updates.append((lines, separator_text))
-    )
+    renderer = TUICommandRenderer(status_sink=lambda lines, separator_text: updates.append((lines, separator_text)))
     elapsed = SimpleNamespace(text="1m51s")
 
     renderer.set_progress_ui_suspended(True)
@@ -796,7 +794,7 @@ def test_bashing_status_does_not_reserve_stream_window() -> None:
     prompt_input.set_status_lines((_status("Bashing…"),))
 
     bar = prompt_input._bottom_bar
-    assert bar._stream_reserved_line_count == 0
+    assert len(bar._stream_lines) == 0
     assert bar.reserved_layout_rows() == 2
 
 
@@ -822,22 +820,22 @@ def test_stream_height_tracks_content_without_accumulating_blank_rows() -> None:
     bar = prompt_input._bottom_bar
 
     prompt_input.set_stream_lines(("a", "b", "c"))
-    assert bar._stream_reserved_line_count == 3
+    assert len(bar._stream_lines) == 3
     base_invalidations = invalidations.count
 
     # Shrinking content releases the unused rows immediately.
     prompt_input.set_stream_lines(("x",))
-    assert bar._stream_reserved_line_count == 1
+    assert len(bar._stream_lines) == 1
     assert bar._stream_lines == ("x",)
 
     # Empty content does not leave a reserved blank block.
     prompt_input.set_stream_lines(())
-    assert bar._stream_reserved_line_count == 0
+    assert len(bar._stream_lines) == 0
     assert bar._stream_lines == ()
 
     # Growth uses the new content height.
     prompt_input.set_stream_lines(("a", "b", "c", "d", "e"))
-    assert bar._stream_reserved_line_count == 5
+    assert len(bar._stream_lines) == 5
 
     # Each of the four state changes above invalidated once.
     assert invalidations.count - base_invalidations == 3
@@ -848,11 +846,11 @@ def test_stream_lines_end_of_stream_collapses_reserved() -> None:
     bar = prompt_input._bottom_bar
 
     prompt_input.set_stream_lines(("a", "b", "c"))
-    assert bar._stream_reserved_line_count == 3
+    assert len(bar._stream_lines) == 3
 
     # End-of-stream collapses immediately.
     prompt_input.set_stream_lines((), end_of_stream=True)
-    assert bar._stream_reserved_line_count == 0
+    assert len(bar._stream_lines) == 0
     assert bar._stream_lines == ()
 
 
@@ -862,14 +860,14 @@ def test_new_stream_after_ended_stream_resets_high_water() -> None:
         bar = prompt_input._bottom_bar
 
         prompt_input.set_stream_lines(("a", "b", "c"))
-        assert bar._stream_reserved_line_count == 3
+        assert len(bar._stream_lines) == 3
 
         prompt_input.set_stream_lines((), end_of_stream=True)
-        assert bar._stream_reserved_line_count == 0
+        assert len(bar._stream_lines) == 0
 
         # A fresh stream does not inherit the ended stream's reservation.
         prompt_input.set_stream_lines(("d",))
-        assert bar._stream_reserved_line_count == 1
+        assert len(bar._stream_lines) == 1
         assert bar._stream_lines == ("d",)
 
     asyncio.run(_scenario())
@@ -1115,5 +1113,130 @@ def test_real_prompt_renderer_keeps_footer_pinned_across_scrollback_and_resize(m
         app.renderer.reset()
         app.renderer.report_absolute_cursor_row(origin + 1)
         assert footer_row(origin) == 29
+    finally:
+        prompt._bottom_bar.stop()
+
+
+@pytest.mark.parametrize("draft", ["", "\n".join(f"draft {i}" for i in range(60))])
+def test_24_row_renderer_keeps_editor_with_large_status_and_queue(monkeypatch: pytest.MonkeyPatch, draft: str) -> None:
+    from prompt_toolkit.application.current import create_app_session, set_app
+    from prompt_toolkit.data_structures import Size
+    from prompt_toolkit.input import DummyInput
+    from prompt_toolkit.output import DummyOutput
+
+    import klaude_code.tui.input.prompt_toolkit as module
+
+    output = DummyOutput()
+    monkeypatch.setattr(output, "get_size", lambda: Size(rows=24, columns=80))
+    monkeypatch.setattr(module, "install_renderer_flush_guard", lambda _: None)
+    with create_app_session(input=DummyInput(), output=output):
+        prompt = PromptToolkitInput()
+    app = prompt._session.app
+    monkeypatch.setattr(prompt._session.default_buffer, "load_history_if_not_yet_loaded", lambda: None)
+    prompt._session.default_buffer._working_lines[prompt._session.default_buffer.working_index] = draft
+    prompt._session.default_buffer.cursor_position = len(draft)
+    prompt.set_status_lines(tuple(_status(f"agent {i}") for i in range(6)))
+    prompt.set_stream_lines(("live 1", "live 2", "live 3"))
+    prompt.set_pending_messages(tuple(f"queued {i}" for i in range(20)))
+
+    try:
+        with set_app(app):
+            budget = prompt._get_bottom_bar_budget()
+            assert budget is not None
+            assert prompt._bottom_bar.reserved_layout_rows() <= budget
+            app.renderer.render(app, app.layout)
+            screen = app.renderer._last_screen
+            assert screen is not None
+            rendered = ["".join(cells[column].char for column in range(80)) for cells in screen.data_buffer.values()]
+        text = "\n".join(rendered)
+        assert "Window too small" not in text
+        assert "agent 0" in text
+        assert "Steering (20 pending)" in text
+        assert "more" in text
+        assert "draft" in text if draft else USER_MESSAGE_MARK in text
+    finally:
+        prompt._bottom_bar.stop()
+
+
+@pytest.mark.parametrize("rows", [8, 12, 24])
+def test_picker_keeps_choice_visible_with_large_queue(monkeypatch: pytest.MonkeyPatch, rows: int) -> None:
+    from prompt_toolkit.application.current import create_app_session, set_app
+    from prompt_toolkit.data_structures import Size
+    from prompt_toolkit.input import DummyInput
+    from prompt_toolkit.output import DummyOutput
+
+    import klaude_code.tui.input.prompt_toolkit as module
+    from klaude_code.tui.terminal.selector import SelectItem
+
+    output = DummyOutput()
+    monkeypatch.setattr(output, "get_size", lambda: Size(rows=rows, columns=80))
+    monkeypatch.setattr(module, "install_renderer_flush_guard", lambda _: None)
+    with create_app_session(input=DummyInput(), output=output):
+        prompt = PromptToolkitInput()
+    app = prompt._session.app
+    monkeypatch.setattr(prompt._session.default_buffer, "load_history_if_not_yet_loaded", lambda: None)
+    prompt.set_status_lines(tuple(_status(f"agent {i}") for i in range(6)))
+    prompt.set_pending_messages(tuple(f"queued {i}" for i in range(20)))
+    picker = prompt._model_picker
+    assert picker is not None
+    picker.set_content(
+        message="Select a model:", items=[SelectItem(title=[("", "model one")], value="one", search_text="one")]
+    )
+    if picker._search_buffer is not None:
+        monkeypatch.setattr(picker._search_buffer, "load_history_if_not_yet_loaded", lambda: None)
+
+    try:
+        with set_app(app):
+            picker.open()
+            app.renderer.render(app, app.layout)
+            screen = app.renderer._last_screen
+            assert screen is not None
+            rendered = "\n".join(
+                "".join(cells[column].char for column in range(80)) for cells in screen.data_buffer.values()
+            )
+        assert "Window too small" not in rendered
+        assert "Select a model:" in rendered
+        assert "model one" in rendered
+        assert "agent 0" in rendered
+        assert "Steering (20 pending)" in rendered
+    finally:
+        picker.close()
+        prompt._bottom_bar.stop()
+
+
+def test_completion_panel_shrinks_before_editor_and_status(monkeypatch: pytest.MonkeyPatch) -> None:
+    from prompt_toolkit.application.current import create_app_session, set_app
+    from prompt_toolkit.data_structures import Size
+    from prompt_toolkit.input import DummyInput
+    from prompt_toolkit.output import DummyOutput
+
+    import klaude_code.tui.input.prompt_toolkit as module
+
+    output = DummyOutput()
+    monkeypatch.setattr(output, "get_size", lambda: Size(rows=8, columns=80))
+    monkeypatch.setattr(module, "install_renderer_flush_guard", lambda _: None)
+    with create_app_session(input=DummyInput(), output=output):
+        prompt = PromptToolkitInput()
+    app = prompt._session.app
+    monkeypatch.setattr(prompt._session.default_buffer, "load_history_if_not_yet_loaded", lambda: None)
+    completions = [Completion(text=f"model {i}", display=f"model {i}") for i in range(20)]
+    monkeypatch.setattr(prompt, "_get_completion_panel_snapshot", lambda: (completions, 0))
+    prompt.set_status_lines((_status("Loading…"),))
+    prompt.set_pending_messages(tuple(f"queued {i}" for i in range(20)))
+
+    try:
+        with set_app(app):
+            assert prompt._get_completion_panel_height() == 1
+            app.renderer.render(app, app.layout)
+            screen = app.renderer._last_screen
+            assert screen is not None
+            rendered = "\n".join(
+                "".join(cells[column].char for column in range(80)) for cells in screen.data_buffer.values()
+            )
+        assert "Window too small" not in rendered
+        assert "Loading…" in rendered
+        assert "Steering (20 pending)" in rendered
+        assert USER_MESSAGE_MARK in rendered
+        assert "model 0" in rendered
     finally:
         prompt._bottom_bar.stop()

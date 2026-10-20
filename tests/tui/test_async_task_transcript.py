@@ -355,9 +355,9 @@ def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatc
         bar = PromptBottomBar(invalidate=lambda: None)
         updates: list[tuple[PromptStatusLine, ...]] = []
 
-        def sink(lines: tuple[PromptStatusLine, ...], separator: str | None, reset: bool) -> None:
+        def sink(lines: tuple[PromptStatusLine, ...], separator: str | None) -> None:
             updates.append(lines)
-            bar.set_status_lines(lines, separator_text=separator, reset_bottom_height=reset)
+            bar.set_status_lines(lines, separator_text=separator)
 
         display = TUIDisplay(on_status_update=sink)
         display.set_progress_ui_suspended(True)
@@ -394,6 +394,13 @@ def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatc
             texts = [line.text for line in updates[-1]]
             head = [line.text for line in bar._status_head_lines()]
             tail = [line.text for line in bar._status_tail_lines()]
+            child_frames: set[str] = set()
+            for frame in range(6):
+                bar._status_spinner_frame = frame
+                main_text = "".join(fragment[1] for fragment in bar._get_status_fragments())
+                assert main_text == f" ↳  {texts[0]}"
+                child_frames.add("".join(fragment[1] for fragment in bar._get_status_tail_fragments()))
+            assert len(child_frames) == 6
         finally:
             await display.stop()
         assert "Waiting for Find the panel" in texts[0]
@@ -403,6 +410,77 @@ def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatc
         # The live tail (thinking preview) renders between the main row and the child rows.
         assert head == texts[:1]
         assert tail == texts[1:]
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("tool_name", [tools.MANAGE_TASKS, tools.MANAGE_SHELL])
+@pytest.mark.parametrize("model_id", ["test-model", "gemini-2.5-pro", "grok-4"])
+def test_wait_status_animates_only_when_other_work_is_running(
+    monkeypatch: pytest.MonkeyPatch, tool_name: str, model_id: str
+) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        bar = PromptBottomBar(invalidate=lambda: None)
+        display = TUIDisplay(on_status_update=lambda lines, _: bar.set_status_lines(lines))
+        display.set_progress_ui_suspended(True)
+
+        async def emit(event: events.Event) -> None:
+            await display.consume_envelope(make_envelope(event))
+            display.refresh_prompt_status()
+
+        def assert_waiting(waiting: bool) -> None:
+            assert bar._status_head_lines()[0].waiting is waiting
+            frames: set[str] = set()
+            for frame in range(6):
+                bar._status_spinner_frame = frame
+                frames.add("".join(fragment[1] for fragment in bar._get_status_fragments()))
+            assert len(frames) == (1 if waiting else 6)
+
+        try:
+            await emit(_welcome())
+            await emit(events.TaskStartEvent(session_id="main", model_id=model_id))
+            assert_waiting(False)
+            # A failed stream can leave a tool start without a result before retry.
+            await emit(events.ToolCallStartEvent(session_id="main", tool_call_id="abandoned", tool_name=tools.BASH))
+            await emit(events.StepStartEvent(session_id="main"))
+            await emit(events.ToolCallStartEvent(session_id="main", tool_call_id="wait", tool_name=tool_name))
+            await emit(
+                events.ToolCallEvent(
+                    session_id="main",
+                    tool_call_id="wait",
+                    tool_name=tool_name,
+                    arguments=json.dumps({"action": "wait", "task_id": "unknown"}),
+                )
+            )
+            assert_waiting(True)
+            await emit(events.RefreshDisplayEvent(session_id="main"))
+            assert_waiting(True)
+            await emit(events.ToolCallStartEvent(session_id="main", tool_call_id="bash", tool_name=tools.BASH))
+            assert_waiting(False)
+            await emit(
+                events.ToolResultEvent(
+                    session_id="main",
+                    tool_call_id="bash",
+                    tool_name=tools.BASH,
+                    result="done",
+                    status="success",
+                )
+            )
+            assert_waiting(True)
+            await emit(
+                events.ToolResultEvent(
+                    session_id="main",
+                    tool_call_id="wait",
+                    tool_name=tool_name,
+                    result="done",
+                    status="success",
+                )
+            )
+            assert_waiting(False)
+        finally:
+            await display.stop()
+            bar.stop()
 
     asyncio.run(run())
 

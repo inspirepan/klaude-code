@@ -23,6 +23,7 @@ from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.layout.containers import ConditionalContainer, Container, Window
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.utils import get_cwidth
+from pydantic import BaseModel
 
 from klaude_code.const import STATUS_WAITING_TEXT
 from klaude_code.tui.commands import PromptStatusLine
@@ -40,22 +41,35 @@ _STARTUP_LOADING_TEXT = "Preparing session…"
 _STATUS_REFRESH_EVERY_TICKS = 4
 
 
+class _BarLayout(BaseModel):
+    gap: int
+    head: int
+    stream: int
+    tail: int
+    queue_gap: int
+    queue: int
+
+    @property
+    def rows(self) -> int:
+        return self.gap + self.head + self.stream + self.tail + self.queue_gap + self.queue
+
+
 class PromptBottomBar:
     def __init__(
         self,
         *,
         invalidate: Callable[[], None],
         refresh_status: Callable[[], None] | None = None,
+        available_rows: Callable[[], int | None] | None = None,
     ) -> None:
         self._invalidate = invalidate
         self._refresh_status = refresh_status
+        self._available_rows = available_rows
 
         self._stream_lines: tuple[str, ...] = ()
         self._stream_style_class: str = CLASS_TOOL_RESULT
-        self._stream_reserved_line_count: int = 0
         self._status_lines: tuple[PromptStatusLine, ...] = ()
         self._metadata_footer_lines: tuple[str, ...] = ()
-        self._status_reserved_line_count: int = 0
         self._running_separator_label: str | None = None
         self._startup_loading = False
         self._startup_loading_title: str | None = None
@@ -78,16 +92,10 @@ class PromptBottomBar:
 
         if end_of_stream:
             stream_lines = ()
-        new_reserved = len(stream_lines)
-        if (
-            stream_lines == self._stream_lines
-            and new_reserved == self._stream_reserved_line_count
-            and style_class == self._stream_style_class
-        ):
+        if stream_lines == self._stream_lines and style_class == self._stream_style_class:
             return
         self._stream_lines = stream_lines
         self._stream_style_class = style_class
-        self._stream_reserved_line_count = new_reserved
         self._invalidate()
 
     def set_status_lines(
@@ -95,14 +103,10 @@ class PromptBottomBar:
         lines: tuple[PromptStatusLine, ...],
         *,
         separator_text: str | None = None,
-        reset_bottom_height: bool = False,
     ) -> None:
         status_lines = tuple(line for line in lines if line.text.strip())
-        visible_status_lines = tuple(line for line in status_lines if line.kind != "metadata")
         metadata_footer_lines = tuple(line.text for line in status_lines if line.kind == "metadata")
-        # Kept in the sink contract for callers; geometry no longer needs a reset.
-        del reset_bottom_height
-        self._status_reserved_line_count = len(visible_status_lines)
+        visible_status_lines = tuple(line for line in status_lines if line.kind != "metadata")
         if status_lines == self._status_lines and separator_text == self._running_separator_label:
             if metadata_footer_lines:
                 self._metadata_footer_lines = metadata_footer_lines
@@ -116,10 +120,7 @@ class PromptBottomBar:
         if metadata_footer_lines:
             self._metadata_footer_lines = metadata_footer_lines
         self._running_separator_label = separator_text
-        if visible_status_lines:
-            self._status_reserved_line_count = max(1, len(visible_status_lines))
-            self._ensure_status_spinner()
-        elif self._startup_loading or self._agent_running:
+        if visible_status_lines or self._startup_loading or self._agent_running:
             self._ensure_status_spinner()
         else:
             self._cancel_status_spinner()
@@ -176,18 +177,50 @@ class PromptBottomBar:
 
     def reserved_layout_rows(self) -> int:
         """Return the current number of rows reserved by build_containers()."""
+        return self._layout().rows
 
-        rows = max(0, self._stream_reserved_line_count) + 1
-        rows += self._status_window_height()
-        rows += self._pending_block_height()
-        return rows
+    def _layout(self) -> _BarLayout:
+        head_lines = self._status_head_lines()
+        tail_lines = self._status_tail_lines()
+        remaining = self._available_rows() if self._available_rows is not None else None
+        if remaining is None:
+            return _BarLayout(
+                gap=1,
+                head=max(1, len(head_lines)),
+                stream=len(self._stream_lines),
+                tail=len(tail_lines),
+                queue_gap=int(bool(self._pending_messages)),
+                queue=len(self._pending_messages) + 1 if self._pending_messages else 0,
+            )
+
+        remaining = max(0, remaining)
+        # The editor is budgeted by the parent. Keep its main status row first;
+        # on the smallest terminals the cosmetic scrollback gap yields.
+        queue_minimum = int(bool(self._pending_messages) and remaining > 1)
+        head = min(remaining - queue_minimum, max(1, min(len(head_lines), 3)))
+        remaining -= head
+        queue = int(bool(self._pending_messages) and remaining > 0)
+        remaining -= queue
+        gap = int(remaining > 0)
+        remaining -= gap
+        queue_gap = int(bool(self._pending_messages) and remaining > 0)
+        remaining -= queue_gap
+
+        # Queue entries are previews. Keep the live status and stream before
+        # spending the remaining rows on them; both previews report omissions.
+        tail = min(len(tail_lines), remaining)
+        remaining -= tail
+        stream = min(len(self._stream_lines), remaining)
+        remaining -= stream
+        queue += min(len(self._pending_messages), remaining)
+        return _BarLayout(gap=gap, head=head, stream=stream, tail=tail, queue_gap=queue_gap, queue=queue)
 
     # ---- layout integration ---------------------------------------------
 
     def build_containers(self) -> list[Container]:
         stream_window = Window(
             content=FormattedTextControl(self._get_stream_fragments),
-            height=lambda: self._stream_reserved_line_count,
+            height=lambda: self._layout().stream,
             dont_extend_height=True,
         )
         status_window = Window(
@@ -199,7 +232,7 @@ class PromptBottomBar:
         # main agent's thinking preview stays directly under its own status line.
         status_tail_window = Window(
             content=FormattedTextControl(self._get_status_tail_fragments),
-            height=lambda: len(self._status_tail_lines()),
+            height=lambda: self._layout().tail,
             dont_extend_height=True,
         )
         queue_window = Window(
@@ -208,14 +241,14 @@ class PromptBottomBar:
             dont_extend_height=True,
         )
 
-        stream_visible = Condition(lambda: self._stream_reserved_line_count > 0)
+        stream_visible = Condition(lambda: self._layout().stream > 0)
         return [
-            _spacer(),
-            status_window,
+            ConditionalContainer(_spacer(), filter=Condition(lambda: self._layout().gap > 0)),
+            ConditionalContainer(status_window, filter=Condition(lambda: self._layout().head > 0)),
             ConditionalContainer(stream_window, filter=stream_visible),
-            ConditionalContainer(status_tail_window, filter=Condition(lambda: bool(self._status_tail_lines()))),
-            ConditionalContainer(_spacer(), filter=Condition(lambda: bool(self._pending_messages))),
-            ConditionalContainer(queue_window, filter=Condition(lambda: bool(self._pending_messages))),
+            ConditionalContainer(status_tail_window, filter=Condition(lambda: self._layout().tail > 0)),
+            ConditionalContainer(_spacer(), filter=Condition(lambda: self._layout().queue_gap > 0)),
+            ConditionalContainer(queue_window, filter=Condition(lambda: self._layout().queue > 0)),
         ]
 
     # ---- lifecycle -------------------------------------------------------
@@ -231,14 +264,22 @@ class PromptBottomBar:
         except Exception:
             columns = 80
         fragments: StyleAndTextTuples = []
-        for index, line in enumerate(self._stream_lines):
-            if index:
+        limit = self._layout().stream
+        visible = self._stream_lines[-limit:] if limit else ()
+        omitted = len(self._stream_lines) - len(visible)
+        if omitted and limit == 1:
+            return [(CLASS_META, _truncate_line(f"… {omitted} earlier · {visible[-1]}", max(1, columns)))]
+        if omitted:
+            fragments.append((CLASS_META, f"… {omitted + 1} earlier live lines"))
+            visible = visible[1:]
+        for index, line in enumerate(visible):
+            if index or (omitted and fragments):
                 fragments.append(("", "\n"))
             fragments.append((self._stream_style_class, _truncate_line(line, max(1, columns))))
         return fragments
 
     def _status_window_height(self) -> int:
-        return max(1, len(self._visible_status_lines()), self._status_reserved_line_count)
+        return self._layout().head + self._layout().tail
 
     def _visible_status_lines(self) -> tuple[PromptStatusLine, ...]:
         return tuple(line for line in self._status_lines if line.kind != "metadata")
@@ -255,28 +296,21 @@ class PromptBottomBar:
         return self._visible_status_lines()[len(self._status_head_lines()) :]
 
     def _status_head_height(self) -> int:
-        # The reservation pads the head, so the tail and the input below never move.
-        tail = len(self._status_tail_lines())
-        return max(0 if tail else 1, self._status_window_height() - tail)
+        return self._layout().head
 
     def _pending_window_height(self) -> int:
-        return len(self._pending_messages) + 1
+        return self._layout().queue
 
     def _pending_block_height(self) -> int:
-        if not self._pending_messages:
-            return 0
-        # Leading spacer + queue window; no trailing blank before the input rule.
-        return self._pending_window_height() + 1
+        return self._layout().queue_gap + self._layout().queue
 
     def _get_status_fragments(self) -> StyleAndTextTuples:
         fragments: StyleAndTextTuples = []
         spinner = self._spinner_frame()
-        visible_lines = self._status_head_lines()
+        head_lines = self._status_head_lines()
+        limit = self._layout().head
+        visible_lines = head_lines[:limit]
         show_waiting = bool(not self._visible_status_lines() and not self._startup_loading and self._agent_running)
-        content_line_count = len(visible_lines) or int(self._startup_loading or show_waiting)
-        top_padding = self._status_head_height() - content_line_count
-        if content_line_count and top_padding > 0:
-            fragments.append(("", "\n" * top_padding))
         if not visible_lines:
             if self._startup_loading:
                 loading_text = _STARTUP_LOADING_TEXT
@@ -291,10 +325,28 @@ class PromptBottomBar:
             if show_waiting:
                 fragments.extend([(CLASS_META, f"{spinner} "), (CLASS_META, STATUS_WAITING_TEXT)])
             return fragments
+        if len(head_lines) > limit and limit > 1:
+            fragments = self._append_status_line_fragments(fragments, visible_lines[:-1])
+            fragments.append(("", "\n"))
+            fragments.append((CLASS_META, f"… {len(head_lines) - limit + 1} more active statuses"))
+            return fragments
         return self._append_status_line_fragments(fragments, visible_lines)
 
     def _get_status_tail_fragments(self) -> StyleAndTextTuples:
-        return self._append_status_line_fragments([], self._status_tail_lines())
+        lines = self._status_tail_lines()
+        limit = self._layout().tail
+        if len(lines) > limit and limit:
+            if limit == 1:
+                return [(CLASS_META, f"… {len(lines) - 1} more · {lines[-1].text}")]
+            kept = lines[: limit - 2]
+            fragments = self._append_status_line_fragments([], kept)
+            if fragments:
+                fragments.append(("", "\n"))
+            fragments.append((CLASS_META, f"… {len(lines) - len(kept) - 1} more status lines"))
+            fragments.append(("", "\n"))
+            fragments = self._append_status_line_fragments(fragments, (lines[-1],))
+            return fragments
+        return self._append_status_line_fragments([], lines[:limit])
 
     def _spinner_frame(self) -> str:
         return _STATUS_SPINNER_FRAMES[self._status_spinner_frame % len(_STATUS_SPINNER_FRAMES)]
@@ -306,7 +358,9 @@ class PromptBottomBar:
         for index, line in enumerate(lines):
             if index:
                 fragments.append(("", "\n"))
-            if line.inline_spinner_style is not None:
+            if line.waiting:
+                fragments.append((CLASS_META, " ↳  "))
+            elif line.inline_spinner_style is not None:
                 fragments.append((line.inline_spinner_style, f"{spinner} "))
             elif line.show_spinner:
                 fragments.append((CLASS_META, f"{spinner} "))
@@ -318,8 +372,12 @@ class PromptBottomBar:
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
         count = len(self._pending_messages)
-        fragments: StyleAndTextTuples = [(CLASS_META, f"Steering ({count} pending) · next safe step · ↑ to edit.")]
-        for index, message in enumerate(self._pending_messages, start=1):
+        visible_count = max(0, self._layout().queue - 1)
+        header = f"Steering ({count} pending) · next safe step · ↑ to edit."
+        if visible_count < count:
+            header += f" · {count - visible_count} more"
+        fragments: StyleAndTextTuples = [(CLASS_META, header)]
+        for index, message in enumerate(self._pending_messages[:visible_count], start=1):
             preview = " ".join(message.split())
             fragments.append(("", "\n"))
             fragments.append((CLASS_META, f"  {index}. "))
