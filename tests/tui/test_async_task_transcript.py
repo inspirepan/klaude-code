@@ -182,9 +182,10 @@ def test_compact_transcript_reports_each_background_fact_once(
 
     asyncio.run(run())
     out = capsys.readouterr().out
-    # Consecutive launches share one header; the agent type names each row.
+    # The first launch shares the header row; consecutive launches use tree rows.
     assert out.count("◈ Agents") == 1
-    assert "↳ Finder: Find the panel" in out and "↳ Finder: Review the style" in out
+    launch_lines = [line.strip() for line in out.splitlines() if "◈ Agents" in line or "↳ Finder:" in line]
+    assert launch_lines == ["◈ Agents  Finder: Find the panel", "↳ Finder: Review the style"]
     # Repeated waits on one task collapse; a still-running result prints nothing.
     assert out.count("Waiting for Find the panel") == 1
     assert "· running" not in out and "interrupted" not in out
@@ -198,6 +199,22 @@ def test_compact_transcript_reports_each_background_fact_once(
     assert "task-a" not in out and "child-a" not in out
     # A finished Bash task prints one tool-style row, once.
     assert out.count("› Shell") == 1 and "Run the suite · failed · exit 1" in out
+
+
+def test_single_agent_launch_uses_one_line(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        try:
+            await display.consume_envelope(make_envelope(_welcome()))
+            capsys.readouterr()
+            await display.consume_envelope(make_envelope(_agent_call("c1", "Find the panel")))
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+    lines = [line.strip() for line in capsys.readouterr().out.splitlines() if line.strip()]
+    assert lines == ["◈ Agents  Finder: Find the panel"]
 
 
 def test_compact_transcript_does_not_report_a_sub_agent_shell_finish(

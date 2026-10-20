@@ -532,18 +532,16 @@ def render_collaboration_call(
 
 
 def render_agent_launch(arguments: str, *, first: bool) -> RenderableType:
-    """Rows for background agent launches; consecutive launches share one header."""
+    """Inline the first launch; consecutive launches continue with tree rows."""
     args = parse_tool_arguments(arguments)
     agent_type = format_pascal_case(one_line(args.get("type", "")) or "general-purpose")
     row = Text(no_wrap=True, overflow="ellipsis")
-    row.append(" " * (TOOL_GROUP_INDENT + 2))
-    row.append("↳ ", style=ThemeKey.TOOL_RESULT_TREE_PREFIX)
+    if not first:
+        row.append(" " * (TOOL_GROUP_INDENT + 2))
+        row.append("↳ ", style=ThemeKey.TOOL_RESULT_TREE_PREFIX)
     row.append(agent_type, style=ThemeKey.TOOL_NAME)
     if description := one_line(args.get("description", "")):
         row.append(f": {description}", style=ThemeKey.TOOL_PARAM)
     if not first:
         return row
-    header = render_tool_call_tree(
-        mark=MARK_PLAN, tool_name="Agents", details=Text("running in background", style=ThemeKey.METADATA_DIM)
-    )
-    return Group(header, row)
+    return render_tool_call_tree(mark=MARK_PLAN, tool_name="Agents", details=row)
