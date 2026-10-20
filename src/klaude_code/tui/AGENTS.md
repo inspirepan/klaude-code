@@ -1,5 +1,15 @@
 # TUI Rendering Notes
 
+## Keyboard Hints
+
+- Use lowercase key names in user-visible hints: `enter`, `tab`, `esc`, `ctrl-c`, `pgup/pgdn`.
+- Use `key to action` phrases separated by ` · `, for example:
+  `↑/↓ to select · enter/tab to confirm · esc to quit`.
+- Use arrow symbols for direction keys. Describe the actual binding; do not imply that
+  `tab` confirms or `esc` quits where they perform another action.
+- Split long hints into short lines grouped by action; do not pack every shortcut onto one line.
+- Reuse shared selector hints instead of repeating them in panel titles.
+
 ## Current Interactive TUI Architecture
 
 The TUI is a WebSocket client of the local klaude server (`run_attach()` in

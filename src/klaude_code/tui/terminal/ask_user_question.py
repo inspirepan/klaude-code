@@ -445,9 +445,9 @@ def select_questions[T](
         if has_submit_tab:
             submit_style = "class:question_tab_active" if _is_submit_tab() else "class:question_tab_inactive"
             tokens.append((submit_style, " ✔ Submit "))
-            tokens.append(("class:meta", " → · Enter to confirm"))
+            tokens.append(("class:meta", " → · enter to confirm"))
         else:
-            tokens.append(("class:meta", "Enter to confirm"))
+            tokens.append(("class:meta", "enter to confirm"))
         return tokens
 
     def get_header_tokens() -> list[tuple[str, str]]:

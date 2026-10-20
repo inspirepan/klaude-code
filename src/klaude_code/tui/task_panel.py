@@ -44,7 +44,7 @@ class TaskPanel:
             self._task = None
 
     async def _list(self) -> None:
-        notice = "Tasks · ↑/↓ Enter · Esc closes"
+        notice = "Tasks"
         while True:
             try:
                 response = await self.client.manage_tasks(TaskRequest(action="list"))

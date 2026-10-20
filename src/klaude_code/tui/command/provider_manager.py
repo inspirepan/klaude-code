@@ -127,7 +127,7 @@ def build_web_search_config(config: Config, names: list[WebSearchProviderName]) 
 
 def _list_height() -> Dimension:
     rows = shutil.get_terminal_size((80, 24)).lines
-    return Dimension(max=max(6, rows - 8))
+    return Dimension(max=max(6, rows - 10))
 
 
 def manage_providers_interactive(
@@ -156,7 +156,9 @@ def manage_providers_interactive(
             ("class:question", "Manage providers\n"),
             (
                 "class:meta",
-                "Up/Down move  Space toggle  Tab jump section  j/k or alt-up/down reorder search  Enter on Save  s save  Esc cancel\n",
+                "↑/↓ to select · space to toggle · tab to switch sections\n"
+                "j/k or alt-↑/↓ to reorder search\n"
+                "s to save · enter on save changes · esc to cancel\n",
             ),
         ]
 
@@ -344,7 +346,7 @@ def manage_providers_interactive(
 
     header = Window(
         FormattedTextControl(get_header_tokens),
-        height=2,
+        height=4,
         dont_extend_height=Always(),
         always_hide_cursor=Always(),
     )

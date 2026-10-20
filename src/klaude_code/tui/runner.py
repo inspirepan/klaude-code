@@ -1009,7 +1009,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                     if _agent_busy():
                         if _requires_client_dispatch(user_input.text):
                             await _emit_local_notice(
-                                "This command runs in the client and cannot be queued; press Esc to interrupt first."
+                                "This command runs in the client and cannot be queued; press esc to interrupt first."
                             )
                             continue
                         _queue_follow_ups(list(_split_queue_edit_payload(user_input)))
