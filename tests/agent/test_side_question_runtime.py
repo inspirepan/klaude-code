@@ -213,10 +213,55 @@ def test_pending_side_question_is_cancelled_per_session(
         assert operation.id in handler._side_question_tasks
 
         handler.cancel_side_questions(session.id)
-        await asyncio.sleep(0)
+        await asyncio.gather(*(item.task for item in handler._side_question_tasks.values()), return_exceptions=True)
         assert not handler._side_question_tasks
         assert not any(isinstance(item, message.SideQuestionEntry) for item in session.conversation_history)
         assert not any(isinstance(event, events.SideQuestionFailedEvent) for event in emitted)
+
+    asyncio.run(_test())
+
+
+def test_concurrent_stops_wait_for_side_question_cancellation_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def _test() -> None:
+        entered, cleaning, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        emitted: list[Any] = []
+
+        async def emit(event: Any) -> None:
+            emitted.append(event)
+
+        handler = _handler(emit)
+        session = Session(work_dir=tmp_path)
+
+        async def ensure_agent(_session_id: str) -> Any:
+            return _fake_agent(session)
+
+        async def run(**_kwargs: Any) -> SideQuestionResult:
+            entered.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                cleaning.set()
+                await release.wait()
+            raise AssertionError("Side question must be cancelled")
+
+        monkeypatch.setattr(handler, "ensure_agent", ensure_agent)
+        monkeypatch.setattr("klaude_code.agent.runtime.agent_ops.run_side_question", run)
+        await handler.ask_side_question(op.AskSideQuestionOperation(session_id=session.id, question="why?"))
+        await entered.wait()
+        first = asyncio.create_task(handler.stop_side_questions(session.id))
+        await cleaning.wait()
+        second = asyncio.create_task(handler.stop_side_questions(session.id))
+        try:
+            await asyncio.sleep(0)
+            assert not first.done() and not second.done()
+            assert handler._side_question_tasks
+        finally:
+            release.set()
+            await asyncio.gather(first, second)
+        assert not handler._side_question_tasks
+        assert len([event for event in emitted if isinstance(event, events.SideQuestionFailedEvent)]) == 1
 
     asyncio.run(_test())
 

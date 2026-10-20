@@ -33,6 +33,7 @@ if TYPE_CHECKING:
         RewindWithSummaryOperation,
         RunAgentOperation,
         RunBashOperation,
+        StopAllTasksOperation,
         StopSubAgentsOperation,
         UserInteractionRespondOperation,
     )
@@ -42,6 +43,8 @@ class OperationHandler(Protocol):
     """Protocol defining the interface for handling operations."""
 
     async def handle_stop_sub_agents(self, operation: StopSubAgentsOperation) -> None: ...
+
+    async def handle_stop_all_tasks(self, operation: StopAllTasksOperation) -> None: ...
 
     async def handle_manage_tasks(self, operation: ManageTasksOperation) -> None: ...
 

@@ -506,7 +506,7 @@ class RuntimeFacade:
                 f"Failed to handle operation {operation.id}: {e!s}",
                 debug_type=DebugType.EXECUTION,
             )
-            if isinstance(operation, op.StopSubAgentsOperation):
+            if isinstance(operation, op.StopSubAgentsOperation | op.StopAllTasksOperation):
                 # Its failed lifecycle receipt must not end an unrelated root turn.
                 raise
             session_id = getattr(operation, "session_id", None)

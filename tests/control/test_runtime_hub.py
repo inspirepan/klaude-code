@@ -993,3 +993,52 @@ def test_actor_loop_survives_operation_failure() -> None:
         await hub.stop()
 
     arun(_test())
+
+
+def test_child_stop_preserves_queued_bash_and_side_questions_but_all_stop_rejects_them() -> None:
+    async def _test() -> None:
+        entered, release = asyncio.Event(), asyncio.Event()
+        handled: list[str] = []
+        rejected: list[str] = []
+        blocker = op.ChangeThinkingOperation(session_id="s1", thinking=Thinking(type="disabled"))
+
+        async def handle(operation: op.Operation) -> None:
+            handled.append(operation.id)
+            if operation.id == blocker.id:
+                entered.set()
+                await release.wait()
+            hub.mark_operation_completed(operation.id)
+
+        async def reject(operation: op.Operation, _active_task_id: str | None) -> None:
+            rejected.append(operation.id)
+
+        hub = SessionRegistry(handle_operation=handle, reject_operation=reject)
+        try:
+            await hub.submit(blocker)
+            await entered.wait()
+            actor = hub.get_session_actor("s1")
+            assert actor is not None
+            run = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="run"))
+            follow_up = op.FollowUpAgentOperation(session_id="s1", input=UserInputPayload(text="follow-up"))
+            bash = op.RunBashOperation(session_id="s1", command="true")
+            question = op.AskSideQuestionOperation(session_id="s1", question="why?")
+            for operation in (run, follow_up, bash, question):
+                await hub.submit(operation)
+            actor.cancel_queued_runs()
+            release.set()
+            await actor.control_mailbox.join()
+            await actor.normal_mailbox.join()
+            assert set(rejected) == {run.id, follow_up.id}
+            assert handled == [blocker.id, bash.id, question.id]
+
+            delayed = op.AskSideQuestionOperation(session_id="s1", question="late enqueue")
+            with actor.block_task_admission():
+                actor.prepare_operation(delayed)
+            await actor.enqueue(delayed)
+            await actor.normal_mailbox.join()
+            assert delayed.id in rejected and delayed.id not in handled
+        finally:
+            release.set()
+            await hub.stop()
+
+    arun(_test())

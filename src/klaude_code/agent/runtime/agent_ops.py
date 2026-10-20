@@ -215,7 +215,9 @@ class _PendingSideQuestion:
     """An in-flight `/btw` answer, tracked outside the session's task handles."""
 
     session_id: str
+    question: str
     task: asyncio.Task[None]
+    stop_reported: bool = False
 
 
 @dataclass
@@ -1227,7 +1229,9 @@ class AgentOperationHandler:
             )
         )
         task = asyncio.create_task(self._run_side_question(agent, question=question, request_id=request_id))
-        self._side_question_tasks[request_id] = _PendingSideQuestion(session_id=agent.session.id, task=task)
+        self._side_question_tasks[request_id] = _PendingSideQuestion(
+            session_id=agent.session.id, question=question, task=task
+        )
 
         def _cleanup(completed: asyncio.Task[None]) -> None:
             pending = self._side_question_tasks.get(request_id)
@@ -1293,12 +1297,30 @@ class AgentOperationHandler:
         """
         self._cancel_side_questions(session_id)
 
+    async def stop_side_questions(self, session_id: str) -> None:
+        pending = {
+            request_id: item for request_id, item in self._side_question_tasks.items() if item.session_id == session_id
+        }
+        self.cancel_side_questions(session_id)
+        tasks = [item.task for item in pending.values()]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        for (request_id, item), result in zip(pending.items(), results, strict=True):
+            if isinstance(result, asyncio.CancelledError) and not item.stop_reported:
+                item.stop_reported = True
+                await self._emit_event(
+                    events.SideQuestionFailedEvent(
+                        session_id=session_id, request_id=request_id, question=item.question, error="Cancelled by /stop"
+                    )
+                )
+        failures = [result for result in results if isinstance(result, Exception)]
+        if failures:
+            raise RuntimeError("Stopping side questions failed: " + "; ".join(str(exc) for exc in failures))
+
     def _cancel_side_questions(self, session_id: str | None) -> None:
-        for request_id, pending in list(self._side_question_tasks.items()):
+        for pending in list(self._side_question_tasks.values()):
             if session_id is not None and pending.session_id != session_id:
                 continue
-            self._side_question_tasks.pop(request_id, None)
-            if not pending.task.done():
+            if not pending.task.done() and not pending.task.cancelling():
                 log_debug(
                     f"[SideQuestion] cancel pending session={pending.session_id}",
                     debug_type=DebugType.EXECUTION,

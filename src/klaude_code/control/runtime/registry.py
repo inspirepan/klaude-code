@@ -51,6 +51,7 @@ class SessionRegistry:
         runtime_id = self._resolve_runtime_id(operation)
         runtime = self._ensure_session_actor(runtime_id)
         self._operation_runtime_ids[operation.id] = runtime_id
+        runtime.prepare_operation(operation)
         log_debug(
             f"[{runtime_id}] submit [{operation.type.value}] op={operation.id[:8]}",
             debug_type=DebugType.OPERATION,
@@ -373,4 +374,10 @@ class SessionRegistry:
 def _should_preempt_control(runtime: SessionActor, operation: op.Operation) -> bool:
     if not runtime.has_active_root_task():
         return False
-    return isinstance(operation, op.InterruptOperation | op.StopSubAgentsOperation | op.UserInteractionRespondOperation)
+    return isinstance(
+        operation,
+        op.InterruptOperation
+        | op.StopSubAgentsOperation
+        | op.StopAllTasksOperation
+        | op.UserInteractionRespondOperation,
+    )

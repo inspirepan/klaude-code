@@ -435,6 +435,61 @@ class OperationDispatcher:
                 await child_agent.session.wait_for_flush()
                 await self.emit_event(events.FollowUpQueueUpdatedEvent(session_id=child.session_id, texts=[]))
 
+    async def handle_stop_all_tasks(self, operation: op.StopAllTasksOperation) -> None:
+        actor = self._ports.get_session_actor(operation.session_id)
+        if actor is None or actor.get_agent() is None:
+            raise ValueError("Session is unavailable; tasks were not stopped.")
+        failures: list[Exception] = []
+
+        async def attempt(action: Awaitable[None]) -> None:
+            try:
+                await action
+            except Exception as exc:
+                failures.append(exc)
+
+        # Keep every discovered owner's admission closed until all cleanup ends.
+        # Stop parents before inspecting children so no producer can extend the tree.
+        with contextlib.ExitStack() as stack:
+            owners: dict[str, SessionActor] = {}
+
+            def discover(owner: SessionActor) -> None:
+                if owner.session_id in owners:
+                    return
+                owners[owner.session_id] = owner
+                stack.enter_context(owner.block_task_admission())
+                for child in self._ports.list_session_actors():
+                    child_agent = child.get_agent()
+                    if child_agent is not None and child_agent.session.parent_session_id == owner.session_id:
+                        discover(child)
+
+            discover(actor)
+            visited: set[str] = set()
+            while pending := [owner for session_id, owner in owners.items() if session_id not in visited]:
+                for owner in pending:
+                    session_id = owner.session_id
+                    visited.add(session_id)
+                    handles = owner.list_active_tasks()
+                    await attempt(self.handle_interrupt(op.InterruptOperation(session_id=session_id)))
+                    await attempt(self._agent_operation_handler.stop_side_questions(session_id))
+                    if any(not handle.task.done() for handle in handles):
+                        failures.append(RuntimeError(f"Session {session_id}: tasks did not stop after interrupt"))
+                    agent = owner.get_agent()
+                    if agent is not None:
+                        agent.pop_all_follow_up()
+                        await attempt(agent.session.wait_for_flush())
+                        await attempt(
+                            self.emit_event(events.FollowUpQueueUpdatedEvent(session_id=session_id, texts=[]))
+                        )
+                        await attempt(self.task_manager.stop_all_tasks(session_id, agent.session.work_dir))
+                    # Accepted launches can finish creating actors while the root unwinds.
+                    for child in self._ports.list_session_actors():
+                        child_agent = child.get_agent()
+                        if child_agent is not None and child_agent.session.parent_session_id == session_id:
+                            discover(child)
+
+        if failures:
+            raise RuntimeError("Stopping session tasks failed: " + "; ".join(str(exc) for exc in failures))
+
     async def handle_close_session(self, operation: op.CloseSessionOperation) -> None:
         await self._ports.close_session(operation.session_id, operation.force)
 

@@ -318,25 +318,27 @@ def test_terminal_snapshot_fills_missing_or_cancelled_child_result(placeholder: 
 
 
 @pytest.mark.parametrize("status", ["completed", "failed", "rejected"])
-def test_stop_receipt_reports_actual_operation_outcome(status: str) -> None:
+@pytest.mark.parametrize("operation_type", ["stop_sub_agents", "stop_all_tasks"])
+def test_stop_receipt_reports_actual_operation_outcome(status: str, operation_type: str) -> None:
     machine = DisplayStateMachine()
     event = events.OperationFinishedEvent.model_validate(
         {
             "session_id": "main",
             "operation_id": "stop",
-            "operation_type": "stop_sub_agents",
+            "operation_type": operation_type,
             "status": status,
             "error_message": "cannot stop" if status != "completed" else None,
         }
     )
     notice = next(cmd for cmd in machine.transition(event) if isinstance(cmd, RenderNotice)).event
     assert notice.is_error == (status != "completed")
-    assert ("Child agents stopped" in notice.content) == (status == "completed")
+    success_text = "Child agents stopped" if operation_type == "stop_sub_agents" else "Session tasks stopped"
+    assert (success_text in notice.content) == (status == "completed")
 
 
 def test_stop_is_registered_for_immediate_completion() -> None:
     assert has_background_command("/stop")
-    assert "child agents" in next(info.summary for info in get_command_info_list() if info.name == "stop")
+    assert "all tasks" in next(info.summary for info in get_command_info_list() if info.name == "stop")
 
 
 def test_child_peer_message_is_not_hidden_with_ordinary_child_prompts() -> None:

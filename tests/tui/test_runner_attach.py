@@ -501,7 +501,7 @@ def test_tasks_and_stop_immediately_while_busy_and_exit_only_detaches(
         "wait",
     ]
     assert [request.action for request in client.task_requests] == ["list"]
-    assert len(client.ops_of(op.StopSubAgentsOperation)) == 1
+    assert len(client.ops_of(op.StopAllTasksOperation)) == 1
     assert client.ops_of(op.FollowUpAgentOperation) == []
     assert client.ops_of(op.RunAgentOperation) == []
     assert client.ops_of(op.InterruptOperation) == []
@@ -522,7 +522,7 @@ def test_stop_while_idle_does_not_start_or_echo_a_turn(monkeypatch: pytest.Monke
         assert not client.is_running()
 
     client = run_scenario(monkeypatch, script)
-    assert len(client.ops_of(op.StopSubAgentsOperation)) == 1
+    assert len(client.ops_of(op.StopAllTasksOperation)) == 1
     assert not client.ops_of(op.RunAgentOperation) and not client.ops_of(op.FollowUpAgentOperation)
     assert not client.emitted_user_messages
 

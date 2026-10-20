@@ -461,13 +461,17 @@ class TaskManager:
         }
         await asyncio.gather(*(self._registered[task_id].wait() for task_id in collectors))
         tasks = await self.list_tasks(owner, work_dir)
-        await asyncio.gather(
+        results = await asyncio.gather(
             *(
                 self.stop_task(owner, task.ref.task_id)
                 for task in tasks
                 if task.ref.kind == "agent" and task.status in ACTIVE_TASK_STATUSES
-            )
+            ),
+            return_exceptions=True,
         )
+        failures = [result for result in results if isinstance(result, Exception)]
+        if failures:
+            raise RuntimeError("Stopping child tasks failed: " + "; ".join(str(exc) for exc in failures))
         await asyncio.gather(*collectors.values(), return_exceptions=True)
 
     async def pending_results(self, owner: str, work_dir: Path) -> list[BackgroundTaskSnapshot]:
@@ -479,6 +483,16 @@ class TaskManager:
             and not task.expected_stop
             and not task.output_unavailable
         ]
+
+    async def stop_all_tasks(self, owner: str, work_dir: Path) -> None:
+        actions = [self.stop_sub_agents(owner, work_dir)]
+        if self.shell is not None:
+            actions.append(self.shell.stop_session(owner))
+        results = await asyncio.gather(*actions, return_exceptions=True)
+        await self.list_tasks(owner, work_dir)
+        failures = [result for result in results if isinstance(result, Exception)]
+        if failures:
+            raise RuntimeError("Stopping owned tasks failed: " + "; ".join(str(exc) for exc in failures))
 
     async def settle_agent_results(self, session: Session) -> None:
         """Apply durable per-run accounting once, independently of any parent turn."""

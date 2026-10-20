@@ -45,6 +45,7 @@ class OperationType(Enum):
     FORK_AND_SWITCH_SESSION = "fork_and_switch_session"
     INTERRUPT = "interrupt"
     STOP_SUB_AGENTS = "stop_sub_agents"
+    STOP_ALL_TASKS = "stop_all_tasks"
     CLOSE_SESSION = "close_session"
     USER_INTERACTION_RESPOND = "user_interaction_respond"
     INIT_AGENT = "init_agent"
@@ -334,6 +335,16 @@ class StopSubAgentsOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_stop_sub_agents(self)
+
+
+class StopAllTasksOperation(Operation):
+    """Stop session work and owned descendants without closing durable sessions."""
+
+    type: OperationType = OperationType.STOP_ALL_TASKS
+    session_id: str
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_stop_all_tasks(self)
 
 
 class CloseSessionOperation(Operation):

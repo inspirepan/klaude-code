@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
 from klaude_code.protocol import events, llm_param, message, op
 from klaude_code.protocol.background_task import TaskRequest
 from klaude_code.protocol.sub_agent import SubAgentResult
@@ -161,13 +162,16 @@ def test_stop_failure_is_not_a_fatal_root_error(app_env: AppEnv, monkeypatch: py
         _call(env, release.set)
 
 
-def test_ws_stop_dispatch_returns_before_child_stop_finishes(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("stop_type", [op.StopSubAgentsOperation, op.StopAllTasksOperation])
+def test_ws_stop_dispatch_returns_before_child_stop_finishes(
+    monkeypatch: pytest.MonkeyPatch, stop_type: type[op.StopSubAgentsOperation | op.StopAllTasksOperation]
+) -> None:
     async def run() -> None:
         entered, release = asyncio.Event(), asyncio.Event()
         tasks: list[asyncio.Task[None]] = []
 
         async def submit(operation: op.Operation) -> None:
-            assert isinstance(operation, op.StopSubAgentsOperation)
+            assert isinstance(operation, stop_type)
             entered.set()
             await release.wait()
 
@@ -179,7 +183,7 @@ def test_ws_stop_dispatch_returns_before_child_stop_finishes(monkeypatch: pytest
             ws, "get_server_state_from_ws", lambda _socket: SimpleNamespace(runtime=SimpleNamespace(submit=submit))
         )
         socket = SimpleNamespace(send_json=AsyncMock())
-        operation = op.StopSubAgentsOperation(session_id="owner")
+        operation = stop_type(session_id="owner")
         try:
             await asyncio.wait_for(
                 ws._handle_operation_frame(
@@ -194,3 +198,152 @@ def test_ws_stop_dispatch_returns_before_child_stop_finishes(monkeypatch: pytest
             await asyncio.gather(*tasks)
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("fail_children", [False, True])
+def test_stop_all_quiesces_owned_tree_and_queue_without_touching_peers(
+    app_env: AppEnv, monkeypatch: pytest.MonkeyPatch, fail_children: bool
+) -> None:
+    env = app_env
+    owner, child, grandchild, peer = [env.create_session() for _ in range(4)]
+    calls = 0
+    release = asyncio.Event()
+    entered_stop, release_stop = asyncio.Event(), asyncio.Event()
+    entered_admission, release_admission = asyncio.Event(), asyncio.Event()
+    delayed_run = op.RunAgentOperation(session_id=owner, input=message.UserInputPayload(text="delayed admission"))
+    emitted: list[events.Event] = []
+    original_publish = env.event_bus.publish
+    original_stop = env.runtime.task_manager.stop_all_tasks
+    original_stop_children = env.runtime.task_manager.stop_sub_agents
+
+    async def blocked(param: llm_param.LLMCallParameter):
+        nonlocal calls
+        calls += 1
+        await release.wait()
+        raise AssertionError("Blocked model must be cancelled")
+
+    async def capture(event: events.Event, **kwargs: Any) -> None:
+        emitted.append(event)
+        await original_publish(event, **kwargs)
+        if isinstance(event, events.OperationAcceptedEvent) and event.operation_id == delayed_run.id:
+            entered_admission.set()
+            await release_admission.wait()
+
+    async def stop_tasks(session_id: str, work_dir):
+        if session_id == owner:
+            entered_stop.set()
+            await release_stop.wait()
+        await original_stop(session_id, work_dir)
+
+    monkeypatch.setattr(env.fake_llm, "call", blocked)
+    monkeypatch.setattr(AgentOperationHandler, "_schedule_session_title_refresh", lambda *_args: None)
+    monkeypatch.setattr(env.event_bus, "publish", capture)
+    monkeypatch.setattr(env.runtime.task_manager, "stop_all_tasks", stop_tasks)
+    if fail_children:
+        monkeypatch.setattr(
+            env.runtime.task_manager, "stop_sub_agents", AsyncMock(side_effect=ValueError("child stop failed"))
+        )
+
+    async def run() -> None:
+        async def wait_calls(expected: int) -> None:
+            async with asyncio.timeout(3):
+                while calls < expected:
+                    await asyncio.sleep(0.001)
+
+        roots: dict[str, op.RunAgentOperation] = {}
+        shells = {}
+        agents = {}
+        for session_id in (owner, child, grandchild, peer):
+            root = op.RunAgentOperation(session_id=session_id, input=message.UserInputPayload(text="work"))
+            roots[session_id] = root
+            await env.runtime.submit(root)
+        await wait_calls(4)
+        for session_id in roots:
+            actor = env.runtime.session_registry.get_session_actor(session_id)
+            assert actor is not None
+            agent = actor.get_agent()
+            assert agent is not None
+            agents[session_id] = agent
+            agent.follow_up(message.UserInputPayload(text="must not auto-restart"))
+            shells[session_id] = await env.runtime.shell_task_manager.start(
+                session_id=session_id,
+                work_dir=env.work_dir,
+                command="sleep 60",
+                description="background",
+                timeout_ms=None,
+                env={},
+                background=True,
+            )
+        agents[child].session.parent_session_id = owner
+        agents[grandchild].session.parent_session_id = child
+
+        async def track(parent: str, descendant: str) -> None:
+            async def collect(task_id: str, started: Callable[[str, str], Awaitable[None]]) -> SubAgentResult:
+                await started(descendant, roots[descendant].id)
+                await env.runtime.wait_for(roots[descendant].id)
+                return SubAgentResult(session_id=descendant, task_result="cancelled", error=True)
+
+            await env.runtime.task_manager.start_agent(parent, env.work_dir, "owned agent", collect)
+
+        await track(owner, child)
+        await track(child, grandchild)
+        for session_id in (owner, child, peer):
+            await env.runtime.submit_and_wait(op.AskSideQuestionOperation(session_id=session_id, question="why?"))
+        await wait_calls(7)
+        operation = op.parse_operation(op.StopAllTasksOperation(session_id=owner).model_dump(mode="json"))
+        stopping = asyncio.create_task(env.runtime.submit_and_wait(operation))
+        admitting: asyncio.Task[str] | None = None
+        try:
+            await asyncio.wait_for(entered_stop.wait(), 3)
+            admitting = asyncio.create_task(env.runtime.submit(delayed_run))
+            await asyncio.wait_for(entered_admission.wait(), 3)
+            # Work submitted during teardown must not survive its admission barrier.
+            for queued in (
+                op.RunAgentOperation(session_id=owner, input=message.UserInputPayload(text="racing run")),
+                op.FollowUpAgentOperation(session_id=owner, input=message.UserInputPayload(text="racing follow-up")),
+                op.RunBashOperation(session_id=owner, command="sleep 60"),
+                op.AskSideQuestionOperation(session_id=owner, question="racing question"),
+            ):
+                await env.runtime.submit(queued)
+            release_stop.set()
+            if fail_children:
+                with pytest.raises(RuntimeError, match="child stop failed"):
+                    await asyncio.wait_for(stopping, 5)
+            else:
+                await asyncio.wait_for(stopping, 5)
+            # Acceptance began during stop, but enqueue happens after it finishes.
+            release_admission.set()
+            await asyncio.wait_for(admitting, 3)
+            await asyncio.sleep(0.05)
+            receipt = next(
+                event
+                for event in emitted
+                if isinstance(event, events.OperationFinishedEvent) and event.operation_id == operation.id
+            )
+            assert receipt.status == ("failed" if fail_children else "completed")
+            assert not any(isinstance(event, events.ErrorEvent) for event in emitted)
+            for session_id in (owner, child, grandchild):
+                actor = env.runtime.session_registry.get_session_actor(session_id)
+                assert actor is not None and actor.snapshot().active_root_task is None
+                assert not agents[session_id].follow_up_count()
+                assert agents[session_id].session.runtime.control.paused
+                tasks = await env.runtime.task_manager.list_tasks(session_id, env.work_dir)
+                assert all(task.status not in {"queued", "running", "stopping"} for task in tasks)
+            peer_actor = env.runtime.session_registry.get_session_actor(peer)
+            assert peer_actor is not None and peer_actor.snapshot().active_root_task is not None
+            assert agents[peer].follow_up_count() == 1
+            assert not agents[peer].session.runtime.control.paused
+            assert {shell.session_id for shell in env.runtime.shell_task_manager.active_tasks()} == {peer}
+            side_ends = {event.session_id for event in emitted if isinstance(event, events.SideQuestionFailedEvent)}
+            assert owner in side_ends and child in side_ends and peer not in side_ends
+            assert calls == 7
+        finally:
+            release_stop.set()
+            release_admission.set()
+            if admitting is not None:
+                await asyncio.gather(admitting, return_exceptions=True)
+            await asyncio.gather(stopping, return_exceptions=True)
+            monkeypatch.setattr(env.runtime.task_manager, "stop_sub_agents", original_stop_children)
+            await env.runtime.submit_and_wait(op.StopAllTasksOperation(session_id=peer))
+
+    _call(env, run)

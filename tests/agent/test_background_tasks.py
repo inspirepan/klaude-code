@@ -377,12 +377,13 @@ def test_async_wait_steering_timeout_cancel_and_owner_scope(tmp_path: Path) -> N
     asyncio.run(test())
 
 
-@pytest.mark.parametrize("shutdown", [False, True])
+@pytest.mark.parametrize("mode", ["sub_agents", "all_tasks", "shutdown"])
 @pytest.mark.parametrize("failure", [None, "before_registration", "after_registration"])
 def test_stop_waits_for_accepted_launch_registration(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shutdown: bool, failure: str | None
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mode: str, failure: str | None
 ) -> None:
     async def test() -> None:
+        shutdown = mode == "shutdown"
         entered, register = asyncio.Event(), asyncio.Event()
         releases = {owner: asyncio.Event() for owner in ("owner", "peer")}
         stopped: list[str] = []
@@ -424,7 +425,8 @@ def test_stop_waits_for_accepted_launch_registration(
         await asyncio.wait_for(entered.wait(), 1)
         assert "owner" in manager.active_owner_ids()
         assert not any(task.ref.owner_session_id == "owner" for task in manager._records.values())
-        stopping = asyncio.create_task(manager.aclose() if shutdown else manager.stop_sub_agents("owner", tmp_path))
+        stop_owned = manager.stop_all_tasks if mode == "all_tasks" else manager.stop_sub_agents
+        stopping = asyncio.create_task(manager.aclose() if shutdown else stop_owned("owner", tmp_path))
         try:
             await asyncio.sleep(0.01)
             assert not stopping.done()

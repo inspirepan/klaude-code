@@ -219,7 +219,9 @@ async def _submit_user_turn(state: ServerAppState, run_op: op.RunAgentOperation)
         raise
 
 
-async def _submit_stop_sub_agents(state: ServerAppState, operation: op.StopSubAgentsOperation) -> None:
+async def _submit_stop_sub_agents(
+    state: ServerAppState, operation: op.StopSubAgentsOperation | op.StopAllTasksOperation
+) -> None:
     # The runtime publishes the failed lifecycle receipt; do not turn it into a root error frame.
     with contextlib.suppress(Exception):
         await state.runtime.submit(operation)
@@ -274,7 +276,7 @@ async def _handle_operation_frame(
             # loop (an interrupt frame could be right behind it).
             _spawn_ws_task(_submit_user_turn(state, operation))
             return
-        if isinstance(operation, op.StopSubAgentsOperation):
+        if isinstance(operation, op.StopSubAgentsOperation | op.StopAllTasksOperation):
             _spawn_ws_task(_submit_stop_sub_agents(state, operation))
             return
         if isinstance(operation, op.InterruptOperation):

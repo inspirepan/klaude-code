@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterator
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -118,23 +118,45 @@ class SessionActor:
         self._prefetched_control: op.Operation | _StopSignal | None = None
         self._prefetched_normal: op.Operation | None = None
         self._run_generation = 0
+        self._work_generation = 0
+        self._task_admission_blocks = 0
         self._queued_run_generations: dict[str, int] = {}
+        self._queued_work_generations: dict[str, int] = {}
         self._cancelled_run_ids: set[str] = set()
         # An actor outlives whoever created it first; its events never inherit that caller's IDs.
         self._worker_task: asyncio.Task[None] = asyncio.create_task(self._run_loop(), context=detached_context())
 
     async def enqueue(self, operation: op.Operation) -> None:
         self._mark_active()
-        if isinstance(operation, op.RunAgentOperation | op.ContinueAgentOperation | op.FollowUpAgentOperation):
-            self._queued_run_generations[operation.id] = self._run_generation
+        self.prepare_operation(operation)
         if _is_control_operation(operation):
             await self.control_mailbox.put(operation)
             return
         await self.normal_mailbox.put(operation)
 
+    def prepare_operation(self, operation: op.Operation) -> None:
+        """Capture admission before publishing acceptance can yield to a stop."""
+        if isinstance(operation, op.RunAgentOperation | op.ContinueAgentOperation | op.FollowUpAgentOperation):
+            self._queued_run_generations.setdefault(operation.id, self._run_generation)
+        if _starts_session_work(operation):
+            self._queued_work_generations.setdefault(operation.id, self._work_generation)
+            if self._task_admission_blocks:
+                self._cancelled_run_ids.add(operation.id)
+
     def cancel_queued_runs(self) -> None:
         """Invalidate queued runs, including an operation prefetched by the worker."""
         self._run_generation += 1
+
+    @contextlib.contextmanager
+    def block_task_admission(self) -> Iterator[None]:
+        """Invalidate pending work and reject new work throughout teardown."""
+        self._task_admission_blocks += 1
+        self._work_generation += 1
+        try:
+            yield
+        finally:
+            self._work_generation += 1
+            self._task_admission_blocks -= 1
 
     def cancel_queued_run(self, operation_id: str) -> None:
         # Admission may still be publishing acceptance before enqueue().
@@ -420,9 +442,15 @@ class SessionActor:
                 if isinstance(item, _StopSignal):
                     return
                 generation = self._queued_run_generations.pop(item.id, self._run_generation)
+                work_generation = self._queued_work_generations.pop(item.id, self._work_generation)
                 cancelled = item.id in self._cancelled_run_ids
                 self._cancelled_run_ids.discard(item.id)
-                if generation != self._run_generation or cancelled:
+                if (
+                    generation != self._run_generation
+                    or work_generation != self._work_generation
+                    or cancelled
+                    or (self._task_admission_blocks and _starts_session_work(item))
+                ):
                     await self._reject_operation(item, None)
                     continue
                 active_root_task = self._state.active_root_task
@@ -530,6 +558,12 @@ def _is_root_operation(operation: op.Operation) -> bool:
     )
 
 
+def _starts_session_work(operation: op.Operation) -> bool:
+    return _is_root_operation(operation) or isinstance(
+        operation, op.FollowUpAgentOperation | op.AskSideQuestionOperation | op.GenerateAwaySummaryOperation
+    )
+
+
 def _is_control_operation(operation: op.Operation) -> bool:
     return isinstance(
         operation,
@@ -538,6 +572,7 @@ def _is_control_operation(operation: op.Operation) -> bool:
         | op.ManageTasksOperation
         | op.InterruptOperation
         | op.StopSubAgentsOperation
+        | op.StopAllTasksOperation
         | op.UserInteractionRespondOperation
         | op.CloseSessionOperation,
     )

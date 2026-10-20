@@ -176,8 +176,9 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   older servers); server admission checks that operation immediately
   before enqueue. Labels confer no operator identity. A receipt is queued, not
   read; normal safe-boundary peer/follow-up semantics still apply after enqueue.
-- `/stop` submits `StopSubAgentsOperation` immediately, even while busy. It stops
-  only owned child agents (including queued runs); Esc interrupts only the root.
+- `/stop` submits `StopAllTasksOperation` immediately, even while busy. It stops
+  the root, owned descendant agents, background Bash, side questions, and queued
+  follow-ups. Peers and other owners are unchanged; Esc interrupts only the root.
   Render its actual `OperationFinishedEvent` outcome, never an optimistic success.
 - `/tasks list/output/wait/stop` submits `ManageTasksOperation(TaskRequest)`.
   `TaskControlResultEvent` carries the typed response or error through the normal

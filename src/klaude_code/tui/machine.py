@@ -1674,14 +1674,21 @@ class DisplayStateMachine:
     def _handle_OperationFinishedEvent(
         self, e: events.OperationFinishedEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
-        if e.operation_type != "stop_sub_agents":
+        if e.operation_type not in {"stop_sub_agents", "stop_all_tasks"}:
             return []
         success = e.status == "completed"
-        content = (
-            "Child agents stopped (including queued runs). Root, independent Bash tasks, and peers are unchanged."
-            if success
-            else f"Stopping child agents {e.status}: {e.error_message or 'operation did not complete'}"
-        )
+        if e.operation_type == "stop_all_tasks":
+            content = (
+                "Session tasks stopped, including owned agents, Bash, side questions, and queued follow-ups. Peers are unchanged."
+                if success
+                else f"Stopping session tasks {e.status}: {e.error_message or 'operation did not complete'}"
+            )
+        else:
+            content = (
+                "Child agents stopped (including queued runs). Root, independent Bash tasks, and peers are unchanged."
+                if success
+                else f"Stopping child agents {e.status}: {e.error_message or 'operation did not complete'}"
+            )
         return [RenderNotice(events.NoticeEvent(session_id=e.session_id, content=content, is_error=not success))]
 
     def _handle_WelcomeContextEvent(self, e: events.WelcomeContextEvent, *, s: _SessionState) -> list[RenderCommand]:

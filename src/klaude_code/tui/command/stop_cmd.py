@@ -10,11 +10,11 @@ class StopCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Stop this session's child agents (not the root, Bash, or peers)"
+        return "Stop all tasks in this session, including owned agents and Bash (not peers)"
 
     @property
     def runs_in_background(self) -> bool:
         return True
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
-        return CommandResult(operations=[op.StopSubAgentsOperation(session_id=agent.session.id)])
+        return CommandResult(operations=[op.StopAllTasksOperation(session_id=agent.session.id)])
