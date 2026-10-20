@@ -155,9 +155,10 @@ def test_background_rows_and_counts_survive_root_end_toggle_refresh_and_authorit
                 rows = updates[-1]
                 assert any("inspect shared tasks" in line.text for line in rows)
                 footer = rows[-1].text
-                state = "Needs you · Paused" if finish == "interrupt" else "Working · waiting agents"
-                assert footer.startswith(f" ◈  {state} · 1 agent · 1 shell")
-                assert "/stop agents" in footer and "Esc main" not in footer
+                state = "Paused · " if finish == "interrupt" else ""
+                assert footer == f" ◈  {state}1 agent running · 1 background shell running  /tasks"
+                if finish == "finish":
+                    assert rows[0].text == "Waiting for agents"
                 assert (
                     len(
                         [
@@ -670,10 +671,7 @@ def test_attention_priority_bounded_rows_and_finished_access_survive_replay(
             assert "Investigate component 7" in before[0] and "Waiting for approval" in before[0]
             assert sum("Investigate component" in line for line in before) == 8
             assert not any("unread" in line.lower() or "Completed failure" in line for line in before)
-            assert before[-1].startswith(
-                " ◈  Needs you · Needs input · Paused · 8 agents · 2 needs attention · 1 failed  /tasks"
-            )
-            assert "Esc main" not in before[-1]
+            assert before[-1] == " ◈  Needs input · Paused · 8 agents running  /tasks"
             for control in (
                 events.RefreshDisplayEvent,
                 events.ToggleTranscriptDetailEvent,

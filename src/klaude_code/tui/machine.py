@@ -722,6 +722,7 @@ class _SessionState:
     task_finished_at: float | None = None
     step_count: int = 0
     task_active: bool = False
+    compacting: bool = False
     status_composing: bool = False
     status_tool_calls: dict[str, int] = field(default_factory=_empty_status_tool_counts)
     status_tool_calls_by_id: dict[str, str] = field(default_factory=_empty_status_tool_ids)
@@ -1311,15 +1312,23 @@ class DisplayStateMachine:
         sub_agent_lines = self._sub_agent_status_lines()
         side_question_lines = self._side_question_status_lines()
         primary = self._sessions.get(self._primary_session_id or "")
+        fallback = self._main_status_fallback()
         main_line = SpinnerStatusLine(
-            text=self._spinner.get_status(),
-            waiting=primary is not None
-            and self._spinner.is_waiting_for_tasks(primary.active_tool_call_ids, primary.waiting_task_tools),
+            text=Text(fallback, style=ThemeKey.STATUS_TEXT) if fallback else self._spinner.get_status(),
+            waiting=bool(fallback)
+            or (
+                primary is not None
+                and self._spinner.is_waiting_for_tasks(primary.active_tool_call_ids, primary.waiting_task_tools)
+            ),
         )
         if sub_agent_lines:
             # Background children run beside the main agent, so its own status
             # stays on top; a blocking Agent call is already described by them.
-            main_lines = (main_line,) if self._main_task_active() and not self._spinner.blocked_on_sub_agents() else ()
+            main_lines = (
+                (main_line,)
+                if fallback or (self._main_task_active() and not self._spinner.blocked_on_sub_agents())
+                else ()
+            )
             status_lines = (*main_lines, *sub_agent_lines, *side_question_lines)
         elif side_question_lines and not self._any_task_active():
             # Nothing else is running: the side question is the whole status.
@@ -1329,9 +1338,9 @@ class DisplayStateMachine:
         return [
             MainTaskStatus(self._main_task_status()),
             SpinnerUpdate(
-                right_text=self._spinner.get_right_text(),
+                right_text=None if fallback else self._spinner.get_right_text(),
                 status_lines=status_lines,
-                separator_text=self._spinner.get_separator_text(),
+                separator_text=None if fallback else self._spinner.get_separator_text(),
             ),
         ]
 
@@ -1344,52 +1353,41 @@ class DisplayStateMachine:
 
     def _main_task_active(self) -> bool:
         primary = self._sessions.get(self._primary_session_id or "")
-        return primary is not None and primary.task_active
+        return primary is not None and (primary.task_active or primary.compacting)
 
     def _main_task_status(self) -> str | None:
-        """Bottom footer: background task counts plus the keys that act on them."""
-        primary = self._sessions.get(self._primary_session_id or "")
+        """Bottom footer: attention and active background tasks."""
         status = self._session_statuses.get(self._primary_session_id or "")
         if status is None:
             return None
-        tasks = list((primary.background_tasks or {}).values()) if primary else []
         agents = status.owned.active_agents
         shells = status.owned.active_shells
-        if not agents and not shells and status.category == "idle":
-            return None
-        attention = len(status.attention)
-        done = sum(task.status in {"completed", "stopped"} for task in tasks)
-        failed = sum(task.status in {"failed", "lost", "timed_out"} for task in tasks)
-        counts = [
-            f"{count} {noun if count == 1 else noun + 's'}"
-            for count, noun in ((agents, "agent"), (shells, "shell"))
-            if count
-        ]
-        if attention:
-            counts.append(f"{attention} needs attention")
-        if done:
-            counts.append(f"{done} done")
-        if failed:
-            counts.append(f"{failed} failed")
-        counts.insert(0, {"needs_you": "Needs you", "working": "Working", "idle": "Idle"}[status.category])
         reasons = dict.fromkeys(reason.kind for reason in status.attention)
         labels = {"needs_input": "Needs input", "error": "Error", "paused": "Paused"}
-        counts[1:1] = [labels[reason] for reason in reasons]
-        if status.execution != "none":
-            counts.insert(1, status.execution.replace("_", " "))
-        keys = ["/tasks"]
-        if status.execution in {"queued", "running"}:
-            keys.append("Esc main")
-        if agents:
-            keys.append("/stop agents")
+        parts = [labels[reason] for reason in reasons]
+        parts.extend(
+            f"{count} {noun if count == 1 else noun + 's'} running"
+            for count, noun in ((agents, "agent"), (shells, "background shell"))
+            if count
+        )
+        if not parts:
+            return None
         # The mark sits where sub-agent rows put theirs, so all row text shares column 4.
-        return f" ◈  {' · '.join(counts)}  {' · '.join(keys)}"
+        return f" ◈  {' · '.join(parts)}  /tasks"
+
+    def _main_status_fallback(self) -> str | None:
+        if self._main_task_active():
+            return None
+        status = self._session_statuses.get(self._primary_session_id or "")
+        if status is None:
+            return None
+        return {"queued": "Queued", "waiting_agents": "Waiting for agents"}.get(status.execution)
 
     def _handle_SessionStatusEvent(self, e: events.SessionStatusEvent, *, s: _SessionState) -> list[RenderCommand]:
         self._session_statuses[e.session_id] = e.status
         if self._any_task_active() or self._side_question_pending:
-            return self._spinner_update_commands()
-        return [MainTaskStatus(self._main_task_status())]
+            return [SpinnerStart(), *self._spinner_update_commands()]
+        return self._spinner_stop_commands()
 
     def _handle_UserInteractionRequestEvent(
         self, e: events.UserInteractionRequestEvent, *, s: _SessionState
@@ -1457,15 +1455,16 @@ class DisplayStateMachine:
         if drop_dangling_tasks:
             for session in self._sessions.values():
                 session.task_active = False
+                session.compacting = False
         if not self._any_task_active() and not self._side_question_pending:
             return [MainTaskStatus(self._main_task_status()), SpinnerStop()]
         return [SpinnerStart(), *self._spinner_update_commands()]
 
     def _any_task_active(self) -> bool:
         """Whether the spinner has a running task to report."""
-        primary = self._sessions.get(self._primary_session_id) if self._primary_session_id is not None else None
         return (
-            (primary is not None and primary.task_active)
+            self._main_task_active()
+            or self._main_status_fallback() is not None
             or bool(self._bash_mode_output_chunks_by_session)
             or any(s.is_sub_agent and s.task_active for s in self._sessions.values())
         )
@@ -1799,6 +1798,7 @@ class DisplayStateMachine:
 
     def _handle_CompactionStartEvent(self, e: events.CompactionStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        s.compacting = True
         if e.reason == "handoff":
             self._spinner.clear_tool_calls()
             self._spinner.set_reasoning_status(STATUS_HANDOFF_TEXT)
@@ -1811,12 +1811,14 @@ class DisplayStateMachine:
 
     def _handle_CompactionEndEvent(self, e: events.CompactionEndEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        s.compacting = False
         if e.reason != "handoff" and not e.aborted and not s.is_sub_agent and self._is_primary(e.session_id):
             self._spinner.notify_compaction()
         self._spinner.enter_waiting()
         if not s.task_active:
-            cmds.append(SpinnerStop())
-        cmds.extend(self._spinner_update_commands())
+            cmds.extend(self._spinner_stop_commands())
+        else:
+            cmds.extend(self._spinner_update_commands())
         if e.summary and not e.aborted and self._visible(e, s):
             if e.reason == "handoff":
                 cmds.append(RenderHandoff(summary=e.summary, session_id=e.session_id))
@@ -2470,6 +2472,7 @@ class DisplayStateMachine:
     def _handle_TaskFinishEvent(self, e: events.TaskFinishEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         s.task_active = False
+        s.compacting = False
         s.pending_interactions.clear()
         s.waiting_task_tools.clear()
         s.task_finished_at = e.timestamp
@@ -2535,6 +2538,7 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
         self._spinner.clear_task_state()
         s.task_active = False
+        s.compacting = False
         s.pending_interactions.clear()
         s.clear_status_activity()
         cmds.extend(self._spinner_stop_commands())

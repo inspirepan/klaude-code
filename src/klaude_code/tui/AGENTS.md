@@ -125,9 +125,11 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   under the height budget), then one ` ◈  N agents · N shells … /tasks …` footer
   (`MainTaskStatus`). Its category, execution, attention and active owned-task
   counts come from `SessionStatusEvent` / `session_info.status`, not local task
-  boundaries. Transcript rebuilds retain the live snapshot; persisted history
-  must not restore stale attention or pause state. Completed-task accounting
-  still comes from the existing task snapshots.
+  boundaries. Show only attention labels and active background task counts with
+  `/tasks`; omit category, execution, and completed-task counts from the footer.
+  Queued/waiting-agents execution is a main-row fallback when no main turn is
+  active. Transcript rebuilds retain the live snapshot; persisted history must
+  not restore stale attention or pause state.
 - Compact file diffs fold by size (`diffs.fold_limit`): up to 10 changed lines
   (30 for Markdown) show whole, larger edits preview 5 lines (15), a new or
   deleted code file shows only its header. A compact sub-agent's file changes

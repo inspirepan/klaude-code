@@ -73,10 +73,10 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
         await emit(full_state)
         await emit(full_state)
         line = background_line()
-        assert line is not None and "◈  Idle · 2 shells" in line.text
+        assert line is not None and "◈  2 background shells running" in line.text
         assert line.text.startswith(" ◈  ")
         assert "/tasks" in line.text and not line.show_spinner
-        assert "◈  Idle · 2 shells" in "".join(
+        assert "◈  2 background shells running" in "".join(
             fragment[1] for fragment in [*bar._get_status_fragments(), ("", "\n"), *bar._get_status_tail_fragments()]
         )
 
@@ -87,9 +87,9 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
         await emit(events.AssistantTextDeltaEvent(session_id="main", content="Working"))
         display.refresh_prompt_status()
         running_lines = updates[-1]
-        assert sum("◈  Idle · 2 shells" in line.text for line in running_lines) == 1
+        assert sum("◈  2 background shells running" in line.text for line in running_lines) == 1
         assert any(line.show_spinner for line in running_lines)
-        assert "◈  Idle · 2 shells" in "".join(
+        assert "◈  2 background shells running" in "".join(
             fragment[1] for fragment in [*bar._get_status_fragments(), ("", "\n"), *bar._get_status_tail_fragments()]
         )
         spinner_line = next(line for line in running_lines if line.show_spinner)
@@ -100,32 +100,32 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
                 for fragment in [*bar._get_status_fragments(), ("", "\n"), *bar._get_status_tail_fragments()]
             ).splitlines()
             main_line = next(text for text in visible if spinner_line.text in text)
-            background = next(text for text in visible if "◈  Idle · 2 shells" in text)
-            assert main_line.index(spinner_line.text) == background.index("Idle") == 4
+            background = next(text for text in visible if "◈  2 background shells running" in text)
+            assert main_line.index(spinner_line.text) == background.index("2 background shells running") == 4
 
         await emit(control(session_id="main"))
         display.refresh_prompt_status()
-        assert sum("◈  Idle · 2 shells" in line.text for line in updates[-1]) == 1
+        assert sum("◈  2 background shells running" in line.text for line in updates[-1]) == 1
         assert any(line.show_spinner for line in updates[-1])
         await emit(events.AssistantTextDeltaEvent(session_id="main", content=" more"))
         display.refresh_prompt_status()
-        assert sum("◈  Idle · 2 shells" in line.text for line in updates[-1]) == 1
+        assert sum("◈  2 background shells running" in line.text for line in updates[-1]) == 1
         await emit(events.AssistantTextEndEvent(session_id="main"))
         await emit(events.TaskFinishEvent(session_id="main", task_result="done"))
         bar.set_agent_running(False)
         line = background_line()
-        assert line is not None and "◈  Idle · 2 shells" in line.text
-        assert "◈  Idle · 2 shells" in "".join(
+        assert line is not None and "◈  2 background shells running" in line.text
+        assert "◈  2 background shells running" in "".join(
             fragment[1] for fragment in [*bar._get_status_fragments(), ("", "\n"), *bar._get_status_tail_fragments()]
         )
 
         await emit(control(session_id="main"))
         line = background_line()
-        assert line is not None and "◈  Idle · 2 shells" in line.text
+        assert line is not None and "◈  2 background shells running" in line.text
 
         await emit(events.ShellTasksUpdatedEvent(session_id="child", tasks=[_snapshot(session_id="child")]))
         line = background_line()
-        assert line is not None and "◈  Idle · 2 shells" in line.text
+        assert line is not None and "◈  2 background shells running" in line.text
 
         await emit(events.ShellTasksUpdatedEvent(session_id="main", tasks=[_snapshot(status="completed")]))
         await emit(events.SessionStatusEvent(session_id="main", status=SessionStatus()))
@@ -143,7 +143,7 @@ def test_background_shell_status_survives_task_finish_rebuild_and_session_switch
     asyncio.run(_test())
 
 
-def test_snapshot_after_empty_history_displays_idle_count(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_snapshot_after_empty_history_displays_background_count(monkeypatch: pytest.MonkeyPatch) -> None:
     async def _test() -> None:
         patch_scrollback_writes(monkeypatch)
         updates: list[tuple[PromptStatusLine, ...]] = []
@@ -162,7 +162,7 @@ def test_snapshot_after_empty_history_displays_idle_count(monkeypatch: pytest.Mo
             ),
         ]:
             await display.consume_envelope(make_envelope(event))
-        assert any("◈  Idle · 1 shell" in line.text for line in updates[-1])
+        assert any("◈  1 background shell running" in line.text for line in updates[-1])
         await display.stop()
 
     asyncio.run(_test())

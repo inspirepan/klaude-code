@@ -406,7 +406,7 @@ def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatc
         assert "Waiting for Find the panel" in texts[0]
         assert "Finder: Find the panel · 1 tool" in texts[1]
         assert any("Reading" in text and "src/app.py" in text for text in texts)
-        assert texts[-1] == " ◈  Working · running · 1 agent  /tasks · Esc main · /stop agents"
+        assert texts[-1] == " ◈  1 agent running  /tasks"
         # The live tail (thinking preview) renders between the main row and the child rows.
         assert head == texts[:1]
         assert tail == texts[1:]
