@@ -390,8 +390,8 @@ class SpinnerStatusState:
         self._context_effective_limit: int | None = None
         self._context_percent: float | None = None
         self._compaction_count: int = 0
-        self._cost_total: float | None = None
-        self._cost_currency: str = "USD"
+        self._cost_totals: dict[str, float] = {}
+        self._sub_agent_costs: dict[str, dict[str, float]] = {}
 
     def reset(self) -> None:
         self._enter_phase(SpinnerPhase.WAITING)
@@ -407,8 +407,8 @@ class SpinnerStatusState:
         self._context_effective_limit = None
         self._context_percent = None
         self._compaction_count = 0
-        self._cost_total = None
-        self._cost_currency = "USD"
+        self._cost_totals.clear()
+        self._sub_agent_costs.clear()
 
     def clear_task_state(self) -> None:
         """Clear task-scoped spinner state while keeping session metadata."""
@@ -535,8 +535,28 @@ class SpinnerStatusState:
 
         total_cost = usage.total_cost
         if total_cost is not None:
-            self._cost_total = (self._cost_total or 0.0) + total_cost
-            self._cost_currency = usage.currency
+            self._cost_totals[usage.currency] = self._cost_totals.get(usage.currency, 0.0) + total_cost
+
+    def set_sub_agent_costs(self, metadata: TaskMetadataItem) -> bool:
+        key = (
+            f"background:{metadata.background_task_id}"
+            if metadata.background_task_id is not None
+            else f"turn:{metadata.created_at.isoformat()}"
+        )
+        totals: dict[str, float] = {}
+        for task in metadata.sub_agent_task_metadata:
+            usage = task.usage
+            if usage is not None and usage.total_cost is not None and usage.total_cost > 0:
+                totals[usage.currency] = totals.get(usage.currency, 0.0) + usage.total_cost
+        previous = self._sub_agent_costs.get(key, {})
+        if previous == totals:
+            return False
+        for currency in previous.keys() | totals.keys():
+            self._cost_totals[currency] = (
+                self._cost_totals.get(currency, 0.0) + totals.get(currency, 0.0) - previous.get(currency, 0.0)
+            )
+        self._sub_agent_costs[key] = totals
+        return True
 
     def notify_compaction(self) -> None:
         self._compaction_count += 1
@@ -644,14 +664,15 @@ class SpinnerStatusState:
             if self._compaction_count > 0:
                 parts.append(f" · compact {self._compaction_count}")
 
-        if self._cost_total is not None:
+        costs = self._cost_totals
+        if costs:
             if parts:
                 parts.append(" · ")
-            currency_symbol = "¥" if self._cost_currency == "CNY" else "$"
-            if narrow:
-                parts.append(f"{currency_symbol}{self._cost_total:.4f}")
-            else:
-                parts.append(f"cost {currency_symbol}{self._cost_total:.4f}")
+            if not narrow:
+                parts.append("cost ")
+            parts.append(
+                " ".join(f"{'¥' if currency == 'CNY' else '$'}{value:.4f}" for currency, value in costs.items())
+            )
 
         if include_elapsed:
             current_elapsed = current_elapsed_text()
@@ -2401,13 +2422,15 @@ class DisplayStateMachine:
 
     def _handle_TaskMetadataEvent(self, e: events.TaskMetadataEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        if self._is_primary(e.session_id) and self._spinner.set_sub_agent_costs(e.metadata):
+            cmds.extend(self._spinner_update_commands())
         if e.metadata.background_task_id is not None:
             task_id = e.metadata.background_task_id
             # Compact mode reports a background agent once, in its batch summary block.
             if self._compact or task_id in s.rendered_background_metadata:
-                return []
+                return cmds
             s.rendered_background_metadata.add(task_id)
-            return [RenderTaskMetadata(e)]
+            return [*cmds, RenderTaskMetadata(e)]
         if s.is_sub_agent:
             s.task_metadata = e.metadata.main_agent
         if self._is_primary(e.session_id):

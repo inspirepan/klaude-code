@@ -35,10 +35,10 @@ from klaude_code.tui.commands import (
     SpinnerStop,
     SpinnerUpdate,
 )
-from klaude_code.tui.components.rich.status import DynamicText
+from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.machine import DisplayStateMachine
-from klaude_code.tui.transcript_detail import Detail
+from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
 
 
 def _last_spinner_update(cmds: Sequence[RenderCommand]) -> SpinnerUpdate:
@@ -1612,6 +1612,74 @@ def test_main_session_tokens_accumulate_across_task_boundaries() -> None:
     assert second_update.right_text is not None
     assert "in 20k · cache 21k · out 15k · thought 4k" in _right_plain(second_update)
     assert "cost $0.0046" in _right_plain(second_update)
+
+
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+def test_status_cost_includes_sub_agents_without_changing_main_tokens(detail: Detail) -> None:
+    machine = DisplayStateMachine(detail=TranscriptDetail(detail))
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    machine.transition(
+        events.UsageEvent(session_id="main", usage=Usage(input_tokens=100, output_tokens=20, input_cost=0.1))
+    )
+    metadata = TaskMetadataItem(
+        main_agent=TaskMetadata(usage=Usage(input_cost=0.1)),
+        sub_agent_task_metadata=[
+            TaskMetadata(usage=Usage(input_tokens=900, input_cost=0.2)),
+            TaskMetadata(usage=Usage(currency="CNY", output_cost=0.3)),
+        ],
+    )
+    event = events.TaskMetadataEvent(session_id="main", metadata=metadata)
+    for _ in range(2):
+        machine.transition(event)
+        update = _last_spinner_update(machine.transition(events.UsageEvent(session_id="main", usage=Usage())))
+        assert "in 100 · out 20" in _right_plain(update)
+        assert "cost $0.3000 ¥0.3000" in _right_plain(update)
+        assert isinstance(update.right_text, ResponsiveDynamicText)
+        assert "$0.3000 ¥0.3000" in update.right_text.render(narrow=True).plain
+
+    machine.transition(events.TaskFinishEvent(session_id="main", task_result="done"))
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    update = _last_spinner_update(
+        machine.transition(
+            events.TaskMetadataEvent(
+                session_id="main",
+                metadata=TaskMetadataItem(sub_agent_task_metadata=[TaskMetadata(usage=Usage(input_cost=0.4))]),
+            )
+        )
+    )
+    assert "cost $0.7000 ¥0.3000" in _right_plain(update)
+
+
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+def test_status_cost_deduplicates_background_snapshot_and_metadata(detail: Detail) -> None:
+    from klaude_code.protocol.background_task import BackgroundTaskResult, BackgroundTaskSnapshot, TaskReference
+
+    machine = DisplayStateMachine(detail=TranscriptDetail(detail))
+    machine.transition(events.TaskStartEvent(session_id="main", model_id="test-model"))
+    child_metadata = TaskMetadata(usage=Usage(input_cost=0.2))
+    snapshot = events.BackgroundTasksUpdatedEvent(
+        session_id="main",
+        tasks=[
+            BackgroundTaskSnapshot(
+                ref=TaskReference(
+                    kind="agent", owner_session_id="main", task_id="task-1", run_id="run-1", session_id="child"
+                ),
+                status="completed",
+                started_at=1.0,
+                ended_at=2.0,
+                result=BackgroundTaskResult(text="done", metadata=child_metadata),
+                delivery_id="delivery-1",
+            )
+        ],
+    )
+    persisted = events.TaskMetadataEvent(
+        session_id="main",
+        metadata=TaskMetadataItem(background_task_id="task-1", sub_agent_task_metadata=[child_metadata]),
+    )
+    for event in (snapshot, persisted, snapshot, persisted):
+        machine.transition(event)
+        update = _last_spinner_update(machine.transition(events.UsageEvent(session_id="main", usage=Usage())))
+        assert "cost $0.2000" in _right_plain(update)
 
 
 def test_spinner_update_separates_elapsed_interrupt_hint(monkeypatch: pytest.MonkeyPatch) -> None:

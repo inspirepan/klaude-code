@@ -87,4 +87,4 @@ def test_interrupt_preserves_accumulated_usage() -> None:
 
     assert m._spinner._token_input == 100  # pyright: ignore[reportPrivateUsage]
     assert m._spinner._token_output == 20  # pyright: ignore[reportPrivateUsage]
-    assert m._spinner._cost_total == 0.01  # pyright: ignore[reportPrivateUsage]
+    assert m._spinner._cost_totals == {"USD": 0.01}  # pyright: ignore[reportPrivateUsage]
