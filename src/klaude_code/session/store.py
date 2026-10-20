@@ -662,6 +662,7 @@ def build_meta_snapshot(
         "todos": [todo.model_dump(mode="json", exclude_defaults=True) for todo in todos],
         # Cache user messages to avoid scanning events.jsonl during session listing.
         "user_messages": list(user_messages),
+        "user_messages_filtered": True,
         "created_at": created_at,
         "updated_at": updated_at,
         "messages_count": messages_count,

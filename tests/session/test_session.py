@@ -820,6 +820,96 @@ class TestSessionPersistence:
 class TestSessionListAndClean:
     """Tests for Session.list_sessions and clean methods."""
 
+    @pytest.mark.parametrize("legacy_cache", [False, True])
+    def test_list_sessions_only_includes_operator_inputs(self, tmp_path: Path, legacy_cache: bool) -> None:
+        from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT, STREAM_ERROR_CONTINUATION_REMINDER
+        from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT
+        from klaude_code.session.selector import build_session_select_options
+
+        async def _test() -> None:
+            session = Session(work_dir=tmp_path)
+            session.append_history([message.UserMessage(parts=message.text_parts_from_str("first input"))])
+            assert session.user_messages == ["first input"]
+            injected = [
+                message.UserMessage(parts=message.text_parts_from_str(source), source=source)
+                for source in ("bash_mode", "shell_completion", "task_completion", "peer_message")
+            ]
+            injected.extend(
+                message.UserMessage(parts=message.text_parts_from_str(text))
+                for text in (
+                    EMPTY_RESPONSE_CONTINUATION_PROMPT,
+                    f"<assistant>partial</assistant>{STREAM_ERROR_CONTINUATION_REMINDER}",
+                    f"<system-reminder>{FORK_CONTEXT_GENERAL_PROMPT}</system-reminder>",
+                )
+            )
+            session.append_history(injected)
+            session.append_history(
+                [message.UserMessage(parts=message.text_parts_from_str("second input"), source="user")]
+            )
+            expected = ["first input", "second input"]
+            assert session.user_messages == expected
+            await session.wait_for_flush()
+            assert Session.load(session.id, work_dir=tmp_path).user_messages == expected
+
+            meta_path = Session.paths(tmp_path).meta_file(session.id)
+            if legacy_cache:
+                from klaude_code.session.codec import encode_jsonl_line
+
+                session.append_history([message.UserMessage(parts=message.text_parts_from_str("withdrawn"))])
+                assert session.retract_last_user_message("withdrawn")
+                await session.wait_for_flush()
+                meta = json.loads(meta_path.read_text(encoding="utf-8"))
+                meta.pop("user_messages_filtered")
+                meta["user_messages"] = [
+                    message.join_text_parts(item.parts)
+                    for item in session.conversation_history
+                    if isinstance(item, message.UserMessage)
+                ]
+                meta_path.write_text(json.dumps(meta), encoding="utf-8")
+                events_path = Session.paths(tmp_path).events_file(session.id)
+                contents = events_path.read_text(encoding="utf-8")
+                events_path.write_text(
+                    contents
+                    + "invalid json\n"
+                    + encode_jsonl_line(message.UserMessage(parts=message.text_parts_from_str("third input"))),
+                    encoding="utf-8",
+                )
+                expected.append("third input")
+
+            options = build_session_select_options(tmp_path)
+            assert len(options) == 1
+            assert options[0].user_messages == expected
+            assert json.loads(meta_path.read_text(encoding="utf-8"))["user_messages"] == expected
+            assert Session.list_sessions(work_dir=tmp_path)[0].user_messages == expected
+            await close_default_store()
+
+        arun(_test())
+
+    def test_list_sessions_does_not_cache_failed_history_read(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        from klaude_code.session.codec import encode_jsonl_line
+
+        paths = Session.paths(tmp_path)
+        session_id = "unreadable_history"
+        paths.session_dir(session_id).mkdir(parents=True)
+        events_path = paths.events_file(session_id)
+        events_path.write_text(encode_jsonl_line(message.UserMessage(parts=message.text_parts_from_str("input"))))
+        meta_path = paths.meta_file(session_id)
+        meta = {"id": session_id, "work_dir": str(tmp_path), "user_messages": ["old cached input"]}
+        meta_path.write_text(json.dumps(meta))
+        original_read_text = Path.read_text
+
+        def read_text(path: Path, *args: Any, **kwargs: Any) -> str:
+            if path == events_path:
+                raise PermissionError("unreadable history")
+            return original_read_text(path, *args, **kwargs)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(Path, "read_text", read_text)
+            assert Session.list_sessions(work_dir=tmp_path)[0].user_messages == []
+            assert json.loads(meta_path.read_text()) == meta
+
+        assert Session.list_sessions(work_dir=tmp_path)[0].user_messages == ["input"]
+
     def test_list_sessions_empty(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         project_dir = tmp_path / "empty_project"
         project_dir.mkdir()

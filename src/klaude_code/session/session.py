@@ -31,17 +31,23 @@ from klaude_code.protocol.models.session_status import (
     SessionRuntimeFacts,
     SessionTurnResult,
 )
+from klaude_code.session.codec import decode_jsonl_line
 from klaude_code.session.history import (
     extract_xml_tag,
     last_request_usage,
     scan_history,
     update_last_request_usage,
 )
+from klaude_code.session.ledger import is_auto_user_message
 from klaude_code.session.meta import parse_session_meta, read_json_dict
 from klaude_code.session.store import JsonlSessionStore, UserInputFlushResult, build_meta_snapshot
 from klaude_code.session.store_registry import get_store_for_path
 
 _FORK_TITLE_PREFIX = "Fork · "
+
+
+def _is_user_input(item: message.HistoryEvent) -> bool:
+    return isinstance(item, message.UserMessage) and item.source in (None, "user") and not is_auto_user_message(item)
 
 
 def _first_prompt_text(history: Sequence[message.HistoryEvent]) -> str:
@@ -156,7 +162,7 @@ class Session(BaseModel):
 
     @property
     def user_messages(self) -> list[str]:
-        """All user message contents in this session.
+        """Only operator-authored user message contents in this session.
 
         This is used for session selection UI and search, and is also persisted
         in meta.json to avoid scanning events.jsonl for every session.
@@ -166,7 +172,7 @@ class Session(BaseModel):
             self._user_messages_cache = [
                 message.join_text_parts(it.parts)
                 for it in self.conversation_history
-                if isinstance(it, message.UserMessage) and message.join_text_parts(it.parts)
+                if isinstance(it, message.UserMessage) and _is_user_input(it) and message.join_text_parts(it.parts)
             ]
         return self._user_messages_cache
 
@@ -186,7 +192,7 @@ class Session(BaseModel):
         """Return True when the session contains at least one non-empty user message."""
 
         raw = read_json_dict(cls.paths(work_dir).meta_file(id))
-        if raw is not None:
+        if raw is not None and raw.get("user_messages_filtered") is True:
             user_messages_raw = raw.get("user_messages")
             if isinstance(user_messages_raw, list):
                 return any(isinstance(msg, str) and bool(msg.strip()) for msg in cast(list[object], user_messages_raw))
@@ -366,7 +372,7 @@ class Session(BaseModel):
         new_user_messages = [
             message.join_text_parts(it.parts)
             for it in items
-            if isinstance(it, message.UserMessage) and message.join_text_parts(it.parts)
+            if isinstance(it, message.UserMessage) and _is_user_input(it) and message.join_text_parts(it.parts)
         ]
         if new_user_messages:
             if self._user_messages_cache is None:
@@ -374,7 +380,7 @@ class Session(BaseModel):
                 self._user_messages_cache = [
                     message.join_text_parts(it.parts)
                     for it in self.conversation_history
-                    if isinstance(it, message.UserMessage) and message.join_text_parts(it.parts)
+                    if isinstance(it, message.UserMessage) and _is_user_input(it) and message.join_text_parts(it.parts)
                 ]
             else:
                 self._user_messages_cache.extend(new_user_messages)
@@ -1183,41 +1189,26 @@ class Session(BaseModel):
     def list_sessions(cls, work_dir: Path) -> list[SessionMetaBrief]:
         store = get_store_for_path(work_dir)
 
-        def _get_user_messages(session_id: str) -> list[str]:
+        def _get_user_messages(session_id: str) -> list[str] | None:
             events_path = store.paths.events_file(session_id)
-            if not events_path.exists():
-                return []
-            messages: list[str] = []
             try:
-                for line in events_path.read_text(encoding="utf-8").splitlines():
-                    obj_raw = json.loads(line)
-                    if not isinstance(obj_raw, dict):
-                        continue
-                    obj = cast(dict[str, Any], obj_raw)
-                    if obj.get("type") != "UserMessage":
-                        continue
-                    data_raw = obj.get("data")
-                    if not isinstance(data_raw, dict):
-                        continue
-                    data = cast(dict[str, Any], data_raw)
-                    try:
-                        user_msg = message.UserMessage.model_validate(data)
-                    except ValidationError:
-                        continue
-                    content = message.join_text_parts(user_msg.parts)
-                    if content:
-                        messages.append(content)
-            except (OSError, json.JSONDecodeError):
-                pass
-            return messages
+                lines = events_path.read_text(encoding="utf-8").splitlines()
+            except (OSError, UnicodeError):
+                return None
+            history = scan_history((index, decode_jsonl_line(line)) for index, line in enumerate(lines)).active
+            return [
+                message.join_text_parts(item.parts)
+                for item in history
+                if isinstance(item, message.UserMessage)
+                and _is_user_input(item)
+                and message.join_text_parts(item.parts)
+            ]
 
-        def _maybe_backfill_user_messages(*, session_id: str, meta: dict[str, Any], user_messages: list[str]) -> None:
-            if isinstance(meta.get("user_messages"), list):
-                return
+        def _backfill_user_messages(*, session_id: str, user_messages: list[str]) -> None:
             # Persist through the store so the write is serialized under the
             # store's meta lock (re-read + merge), avoiding a lost-update race
             # with concurrent runtime-state writes during listing.
-            store.update_meta(session_id, {"user_messages": user_messages})
+            store.update_meta(session_id, {"user_messages": user_messages, "user_messages_filtered": True})
 
         items: list[Session.SessionMetaBrief] = []
         for meta_path in store.iter_meta_files():
@@ -1234,13 +1225,17 @@ class Session(BaseModel):
             title = data.get("title") if isinstance(data.get("title"), str) else None
 
             user_messages_raw = data.get("user_messages")
-            if isinstance(user_messages_raw, list) and all(
-                isinstance(m, str) for m in cast(list[object], user_messages_raw)
+            if (
+                data.get("user_messages_filtered") is True
+                and isinstance(user_messages_raw, list)
+                and all(isinstance(m, str) for m in cast(list[object], user_messages_raw))
             ):
                 user_messages = cast(list[str], user_messages_raw)
             else:
-                user_messages = _get_user_messages(sid)
-                _maybe_backfill_user_messages(session_id=sid, meta=data, user_messages=user_messages)
+                rebuilt = _get_user_messages(sid)
+                user_messages = rebuilt if rebuilt is not None else []
+                if rebuilt is not None:
+                    _backfill_user_messages(session_id=sid, user_messages=rebuilt)
             messages_count = int(data.get("messages_count", -1))
             model_name = data.get("model_name") if isinstance(data.get("model_name"), str) else None
             archived_raw = data.get("archived")
