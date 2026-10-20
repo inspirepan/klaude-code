@@ -36,7 +36,7 @@ class _RoundedTree(Tree):
 
 
 def _currency_symbol(currency: str) -> str:
-    return "¥" if currency == "CNY" else "$"
+    return {"CNY": "¥", "USD": "$"}.get(currency, f"{currency} ")
 
 
 def _positive_cost(metadata: TaskMetadata) -> tuple[str, float] | None:
@@ -216,7 +216,7 @@ def _build_metric_cells(
             )
 
         if usage.total_cost is not None:
-            currency_symbol = "¥" if usage.currency == "CNY" else "$"
+            currency_symbol = _currency_symbol(usage.currency)
             cells["cost"] = _MetricCell("cost", f"{currency_symbol}{usage.total_cost:.4f}")
 
     if show_duration and show_context_and_time and metadata.task_duration_s is not None:
@@ -271,7 +271,7 @@ def _build_metadata_content(
     return Group(identity, details)
 
 
-def _build_metadata_content_renderable(
+def render_metadata_content(
     metadata: TaskMetadata,
     *,
     show_context_and_time: bool = True,
@@ -279,6 +279,7 @@ def _build_metadata_content_renderable(
     show_duration: bool = True,
     interrupted: bool = False,
 ) -> RenderableType:
+    """Render one metadata entry using the shared responsive identity and metrics."""
     return _MetadataContent(
         metadata,
         show_context_and_time=show_context_and_time,
@@ -646,7 +647,7 @@ class _TaskMetadataRenderable:
             for meta in sub_agents:
                 grid.add_row(
                     Text("•", style=ThemeKey.METADATA),
-                    _build_metadata_content_renderable(meta, interrupted=self.interrupted),
+                    render_metadata_content(meta, interrupted=self.interrupted),
                 )
             yield grid
             costs = _total_costs(self.metadata) if len(sub_agents) > 1 else []
@@ -654,7 +655,7 @@ class _TaskMetadataRenderable:
                 yield _build_total_cost_text(costs)
             return
 
-        main_content = _build_metadata_content_renderable(main, interrupted=self.interrupted)
+        main_content = render_metadata_content(main, interrupted=self.interrupted)
 
         grid = create_grid()
         grid.add_row(Text("•", style=ThemeKey.METADATA), main_content)
@@ -672,7 +673,7 @@ class _TaskMetadataRenderable:
                 tree.add(row)
         else:
             for meta in sub_agents:
-                tree.add(_build_metadata_content_renderable(meta))
+                tree.add(render_metadata_content(meta))
 
         total_costs = _total_costs(self.metadata)
         if total_costs:

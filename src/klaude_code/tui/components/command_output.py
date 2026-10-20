@@ -1,11 +1,13 @@
 from rich.console import Group, RenderableType
 from rich.table import Table
 from rich.text import Text
+from rich.tree import Tree
 
 from klaude_code.protocol import events
-from klaude_code.protocol.models import SessionIdUIExtra
+from klaude_code.protocol.models import SessionIdUIExtra, TaskMetadata
 from klaude_code.session import Session
 from klaude_code.tui.components.common import truncate_middle
+from klaude_code.tui.components.metadata import render_metadata_content
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.workspace import active_work_dir
 
@@ -20,104 +22,59 @@ def render_notice(e: events.NoticeEvent) -> RenderableType:
 
 
 def render_session_stats(e: events.SessionStatsEvent) -> RenderableType:
-    """Render session stats with overview and per-model breakdown."""
+    """Render settled session usage without assigning costs to user tasks."""
     stats = e.stats
-    usage = stats.usage
+    costs: dict[str, float] = {}
+    usages = [meta.usage for meta in stats.by_model] if stats.by_model else [stats.usage]
+    for usage in usages:
+        if usage is not None and usage.total_cost is not None:
+            costs[usage.currency] = costs.get(usage.currency, 0.0) + usage.total_cost
 
-    def section_title(title: str) -> Text:
-        return Text(title, style=ThemeKey.SESSION_STATUS_BOLD)
-
-    def kv_table(rows: list[tuple[str, str]]) -> Table:
-        table = Table.grid(padding=(0, 2))
-        table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
-        table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
-        for key, value in rows:
-            table.add_row(f"{key}:", value)
-        return table
-
-    blocks: list[RenderableType] = []
-
-    blocks.append(section_title("Session Info"))
-    blocks.append(
-        kv_table(
-            [
-                ("File", stats.events_file_path),
-                ("ID", stats.session_id),
-            ]
-        )
+    total = Text("Total cost  ", style=ThemeKey.SESSION_STATUS)
+    total.append(
+        " + ".join(f"{currency} {cost:.4f}" for currency, cost in costs.items()) or "unavailable",
+        style=ThemeKey.SESSION_STATUS_BOLD,
     )
-    blocks.append(Text())
-
-    blocks.append(section_title("Messages"))
-    blocks.append(
-        kv_table(
-            [
-                ("User", _format_int(stats.user_messages_count)),
-                ("Assistant", _format_int(stats.assistant_messages_count)),
-                ("Tool Exection", _format_int(stats.tool_results_count)),
-                ("Total", _format_int(stats.total_messages_count)),
-            ]
-        )
+    messages = Text(
+        f"Messages  {stats.user_messages_count:,} user · {stats.assistant_messages_count:,} assistant\n"
+        f"Tools     {stats.tool_calls_count:,} calls · {stats.tool_results_count:,} results",
+        style=ThemeKey.SESSION_STATUS,
     )
-    blocks.append(Text())
+    tree = Tree(Text("Usage", style=ThemeKey.SESSION_STATUS_BOLD), guide_style=ThemeKey.METADATA_DIM)
+    legacy_metadata = stats.by_model
+    if not legacy_metadata and (stats.usage.total_tokens or stats.usage.total_cost is not None):
+        legacy_metadata = [TaskMetadata(model_name="All agents", usage=stats.usage)]
+    if stats.main_agent_by_model or stats.sub_agent_runs or not legacy_metadata:
+        main = tree.add(Text("Main agent", style=ThemeKey.SESSION_STATUS))
+        for meta in stats.main_agent_by_model:
+            main.add(render_metadata_content(meta, show_context_and_time=False))
+        if not stats.main_agent_by_model:
+            main.add(Text("No settled usage", style=ThemeKey.METADATA_DIM))
+        children = tree.add(Text(f"Sub-agents · {len(stats.sub_agent_runs)} runs", style=ThemeKey.SESSION_STATUS))
+        for meta in stats.sub_agent_runs:
+            content = render_metadata_content(meta)
+            if meta.usage is None:
+                content = Group(content, Text("Usage unavailable", style=ThemeKey.METADATA_DIM))
+            children.add(content)
+        if not stats.sub_agent_runs:
+            children.add(Text("No settled runs", style=ThemeKey.METADATA_DIM))
+    else:
+        legacy = tree.add(Text("Agent attribution unavailable (legacy)", style=ThemeKey.METADATA_DIM))
+        for meta in legacy_metadata:
+            legacy.add(render_metadata_content(meta, show_context_and_time=False))
 
-    blocks.append(section_title("Cost"))
-    blocks.append(kv_table([("Total", _format_cost(usage.total_cost, usage.currency))]))
-
-    if stats.by_model:
-        blocks.append(Text())
-        blocks.append(section_title("Usage by model"))
-
-        by_model_table = Table.grid(padding=(0, 2))
-        by_model_table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
-        by_model_table.add_column(style=ThemeKey.SESSION_STATUS, overflow="fold")
-
-        for meta in stats.by_model:
-            model_label = meta.model_name
-            if meta.provider:
-                model_label = f"{meta.model_name} ({meta.provider.lower().replace(' ', '-')})"
-
-            if meta.usage:
-                # `Usage.input_tokens` includes cached+cache_write; `output_tokens`
-                # includes reasoning. Subtract so each field displayed is disjoint.
-                net_input = max(meta.usage.input_tokens - meta.usage.cached_tokens - meta.usage.cache_write_tokens, 0)
-                net_output = max(meta.usage.output_tokens - meta.usage.reasoning_tokens, 0)
-                usage_detail = (
-                    f"{_format_tokens(net_input)} input, "
-                    f"{_format_tokens(net_output)} output, "
-                    f"{_format_tokens(meta.usage.cached_tokens)} cache read, "
-                    f"{_format_tokens(meta.usage.cache_write_tokens)} cache write, "
-                    f"{_format_tokens(meta.usage.reasoning_tokens)} thinking, "
-                    f"({_format_cost(meta.usage.total_cost, meta.usage.currency)})"
-                )
-            else:
-                usage_detail = "(no usage data)"
-            by_model_table.add_row(f"{model_label}:", usage_detail)
-
-        blocks.append(by_model_table)
-
-    return Group(*blocks)
-
-
-def _format_tokens(tokens: int) -> str:
-    if tokens >= 1_000_000:
-        return f"{tokens / 1_000_000:.2f}M"
-    if tokens >= 1_000:
-        return f"{tokens / 1_000:.1f}K"
-    return str(tokens)
-
-
-def _format_cost(cost: float | None, currency: str = "USD") -> str:
-    if cost is None:
-        return "-"
-    symbol = "Y" if currency == "CNY" else "$"
-    if cost < 0.01:
-        return f"{symbol}{cost:.4f}"
-    return f"{symbol}{cost:.2f}"
-
-
-def _format_int(value: int) -> str:
-    return f"{value:,}"
+    return Group(
+        Text("Session status", style=ThemeKey.SESSION_STATUS_BOLD),
+        total,
+        Text("Settled usage only; running usage excluded.", style=ThemeKey.METADATA_DIM),
+        Text(),
+        messages,
+        Text(),
+        tree,
+        Text(),
+        Text(f"Session  {stats.session_id}", style=ThemeKey.METADATA_DIM, no_wrap=True, overflow="ellipsis"),
+        Text(f"Events   {stats.events_file_path}", style=ThemeKey.METADATA_DIM, no_wrap=True, overflow="ellipsis"),
+    )
 
 
 def _render_fork_session_output(e: events.NoticeEvent) -> RenderableType:

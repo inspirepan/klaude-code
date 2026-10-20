@@ -46,14 +46,14 @@ class TaskMetadata(BaseModel):
 
     @staticmethod
     def aggregate_by_model(metadata_list: list[TaskMetadata]) -> list[TaskMetadata]:
-        """Aggregate multiple TaskMetadata by (model_name, provider)."""
-        aggregated: dict[tuple[str, str | None], TaskMetadata] = {}
+        """Aggregate multiple TaskMetadata by (model_name, provider, currency)."""
+        aggregated: dict[tuple[str, str | None, str], TaskMetadata] = {}
 
         for meta in metadata_list:
             if meta.usage is None:
                 continue
 
-            key = (meta.model_name, meta.provider)
+            key = (meta.model_name, meta.provider, meta.usage.currency)
             usage = meta.usage
 
             if key not in aggregated:

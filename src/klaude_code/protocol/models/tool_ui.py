@@ -131,6 +131,8 @@ class SessionStatsUIExtra(BaseModel):
     usage: Usage
     task_count: int
     by_model: list[TaskMetadata] = Field(default_factory=_empty_task_metadata_list)
+    main_agent_by_model: list[TaskMetadata] = Field(default_factory=_empty_task_metadata_list)
+    sub_agent_runs: list[TaskMetadata] = Field(default_factory=_empty_task_metadata_list)
 
 
 MultiUIExtraItem = (

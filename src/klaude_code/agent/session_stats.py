@@ -12,6 +12,8 @@ class AggregatedUsage(BaseModel):
 
     total: Usage
     by_model: list[TaskMetadata]
+    main_agent_by_model: list[TaskMetadata]
+    sub_agent_runs: list[TaskMetadata]
     task_count: int
 
 
@@ -47,16 +49,20 @@ def format_cost(cost: float | None, currency: str = "USD") -> str:
 
 def accumulate_session_usage(session: Session) -> AggregatedUsage:
     """Accumulate usage statistics from all TaskMetadataItems in session history."""
-    all_metadata: list[TaskMetadata] = []
+    main_metadata: list[TaskMetadata] = []
+    sub_agent_runs: list[TaskMetadata] = []
     task_count = 0
 
     for item in session.conversation_history:
         if isinstance(item, TaskMetadataItem):
             task_count += int(item.background_task_id is None)
-            all_metadata.append(item.main_agent)
-            all_metadata.extend(item.sub_agent_task_metadata)
+            main_metadata.append(item.main_agent)
+            sub_agent_runs.extend(item.sub_agent_task_metadata)
+            if item.background_task_id is not None and not item.sub_agent_task_metadata:
+                sub_agent_runs.append(TaskMetadata(sub_agent_name="agent"))
 
-    by_model = TaskMetadata.aggregate_by_model(all_metadata)
+    main_agent_by_model = TaskMetadata.aggregate_by_model(main_metadata)
+    by_model = TaskMetadata.aggregate_by_model([*main_metadata, *sub_agent_runs])
 
     total = Usage()
     for meta in by_model:
@@ -87,7 +93,17 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
         if usage.context_limit is not None:
             total.context_limit = usage.context_limit
 
-    return AggregatedUsage(total=total, by_model=by_model, task_count=task_count)
+    # A scalar Usage cannot represent costs in multiple currencies.
+    if len({meta.usage.currency for meta in by_model if meta.usage is not None}) > 1:
+        total.input_cost = total.output_cost = total.cache_read_cost = total.cache_write_cost = None
+
+    return AggregatedUsage(
+        total=total,
+        by_model=by_model,
+        main_agent_by_model=main_agent_by_model,
+        sub_agent_runs=sub_agent_runs,
+        task_count=task_count,
+    )
 
 
 def collect_message_stats(session: Session) -> MessageStats:
@@ -98,7 +114,7 @@ def collect_message_stats(session: Session) -> MessageStats:
 
     for item in session.conversation_history:
         if isinstance(item, message.UserMessage):
-            user_messages += 1
+            user_messages += int(item.source not in {"peer_message", "task_completion", "shell_completion"})
             continue
         if isinstance(item, message.AssistantMessage):
             assistant_messages += 1
@@ -130,4 +146,6 @@ def build_session_stats_ui_extra(session: Session) -> SessionStatsUIExtra:
         usage=aggregated.total,
         task_count=aggregated.task_count,
         by_model=aggregated.by_model,
+        main_agent_by_model=aggregated.main_agent_by_model,
+        sub_agent_runs=aggregated.sub_agent_runs,
     )
