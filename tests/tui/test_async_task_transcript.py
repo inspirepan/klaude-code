@@ -185,8 +185,8 @@ def test_compact_transcript_reports_each_background_fact_once(
     assert out.count("Waiting for Find the panel") == 1
     assert "· running" not in out and "interrupted" not in out
     # Messages name the peer by its task, show one line, and hide the receipt.
-    assert "✉ Message to Find the panel" in out and "│ first line" in out and "│ second line" in out
-    assert "› Message from Find the panel" in out and "│ hello" in out and "queued" not in out
+    assert "✉ Message to [finder] Find the panel" in out and "│ first line" in out and "│ second line" in out
+    assert "› Message from [finder] Find the panel" in out and "│ hello" in out and "queued" not in out
     # One block per finished agent, with the type, the report head, and no IDs or cost tree.
     assert out.count("Finder: Find the panel ✓") == 1
     assert "render_collaboration_result 已解析" in out and "第二点" in out and "第三点" not in out
@@ -331,8 +331,8 @@ def test_child_sourced_and_notice_content_keeps_the_quote_gutter(
     asyncio.run(run())
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert any(line.startswith("▌") and "› Message from main" in line for line in lines)
-    assert not any(not line.startswith("▌") and "› Message from main" in line for line in lines)
+    assert any(line.startswith("▌") and "› Message from [main]" in line for line in lines)
+    assert not any(not line.startswith("▌") and "› Message from [main]" in line for line in lines)
     if full:
         assert any(line.startswith("▌") and "Interrupted by user" in line for line in lines)
         assert not any(not line.startswith("▌") and "Interrupted by user" in line for line in lines)
@@ -402,6 +402,216 @@ def test_snapshot_summary_is_display_only() -> None:
     model_text = response.model_dump_json(exclude_none=True, exclude=MODEL_FACING_EXCLUDE)
     assert "summary" not in model_text and '"agent_type":"finder"' in model_text
     assert "render_collaboration_result" in response.model_dump_json()
+
+
+@pytest.mark.parametrize("sender", ["main", "child-a"])
+@pytest.mark.parametrize("receipt_first", [False, True])
+@pytest.mark.parametrize("show_call", [False, True])
+def test_peer_body_folds_only_after_a_displayed_send_is_identified(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    sender: str,
+    receipt_first: bool,
+    show_call: bool,
+) -> None:
+    async def run() -> None:
+        writes = patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        recipient = "child-a" if sender == "main" else "main"
+        body = "unique coordination body"
+        peer = PeerMessage(
+            id="stable-message", sender_session_id=sender, sender_label="title", recipient=recipient, body=body
+        )
+        receipt = events.ToolResultEvent(
+            session_id=sender,
+            tool_call_id="send",
+            tool_name=tools.MESSAGE_PEER,
+            status="success",
+            result=PeerReceipt(message_id=peer.id, target=recipient).model_dump_json(),
+        )
+        received = events.UserMessageEvent(session_id=recipient, source="peer_message", peer_message=peer, content="x")
+        script: list[events.Event] = [
+            _welcome(),
+            events.TaskStartEvent(session_id="main"),
+            events.BackgroundTasksUpdatedEvent(
+                session_id="main", tasks=[_agent("task-a", "child-a", "Find the panel")]
+            ),
+            events.TaskStartEvent(
+                session_id="child-a",
+                parent_session_id="main",
+                sub_agent_state=SubAgentState(
+                    sub_agent_type="finder", sub_agent_desc="Find the panel", sub_agent_prompt=""
+                ),
+            ),
+            events.ToolResultEvent(
+                session_id="main",
+                tool_call_id="list",
+                tool_name=tools.LIST_PEERS,
+                status="success",
+                result=json.dumps(
+                    {
+                        "peers": [
+                            {"session_id": "child-a", "name": "Child title", "state": "running", "work_dir": "/tmp"}
+                        ]
+                    }
+                ),
+            ),
+        ]
+        if show_call:
+            script.append(
+                events.ToolCallEvent(
+                    session_id=sender,
+                    tool_call_id="send",
+                    tool_name=tools.MESSAGE_PEER,
+                    arguments=json.dumps({"target": recipient, "body": body}),
+                )
+            )
+        script += [receipt, received] if receipt_first else [received, receipt]
+        # Identical text with another ID is a separate message, never a match.
+        script.append(received.model_copy(update={"peer_message": peer.model_copy(update={"id": "another-id"})}))
+        folded = show_call and receipt_first
+        expected_count = int(show_call) + (0 if folded else 1) + 1
+
+        def check_compact(output: str) -> None:
+            assert output.count(body) == expected_count
+            assert ("Message received from" in output) is folded
+            assert "queued" not in output and "not read" not in output
+            message_lines = [line for line in output.splitlines() if "Message" in line]
+            if show_call or sender == "child-a":
+                assert any("[finder] Find the panel" in line for line in message_lines)
+            child_direction = "received from" if folded and sender == "main" else "from" if sender == "main" else "to"
+            if show_call or sender == "main":
+                assert any(line.startswith("▌") and f"Message {child_direction}" in line for line in message_lines)
+
+        try:
+            for event in script:
+                await display.consume_envelope(make_envelope(event))
+            check_compact(capsys.readouterr().out)
+            await display.consume_envelope(make_envelope(events.RefreshDisplayEvent(session_id="main")))
+            check_compact(writes[-1][0])
+            await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
+            expanded = writes[-1][0]
+            assert expanded.count(body) == int(show_call) + 2
+            assert "transport receipt, not read" in expanded and "stable-message" in expanded
+            await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
+            check_compact(writes[-1][0])
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+
+
+def test_listed_external_peer_keeps_its_title_and_received_body(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        try:
+            for event in [
+                _welcome(),
+                events.ToolResultEvent(
+                    session_id="main",
+                    tool_call_id="list",
+                    tool_name=tools.LIST_PEERS,
+                    status="success",
+                    result=json.dumps(
+                        {
+                            "peers": [
+                                {
+                                    "session_id": "external",
+                                    "name": "Other conversation",
+                                    "state": "idle",
+                                    "work_dir": "/tmp",
+                                }
+                            ]
+                        }
+                    ),
+                ),
+                events.ToolCallEvent(
+                    session_id="main",
+                    tool_call_id="send",
+                    tool_name=tools.MESSAGE_PEER,
+                    arguments=json.dumps({"target": "external", "body": "same text"}),
+                ),
+                events.ToolResultEvent(
+                    session_id="main",
+                    tool_call_id="send",
+                    tool_name=tools.MESSAGE_PEER,
+                    status="success",
+                    result=PeerReceipt(message_id="external-id", target="external").model_dump_json(),
+                ),
+                events.UserMessageEvent(
+                    session_id="main",
+                    source="peer_message",
+                    peer_message=PeerMessage(
+                        id="external-id", sender_session_id="external", recipient="main", body="same text"
+                    ),
+                    content="x",
+                ),
+            ]:
+                await display.consume_envelope(make_envelope(event))
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+    output = capsys.readouterr().out
+    assert "Message to [peer] Other conversation" in output
+    assert "Message from [peer] Other conversation" in output
+    assert output.count("same text") == 2 and "Message received from" not in output
+
+
+@pytest.mark.parametrize(
+    ("target", "label"),
+    [
+        ("aaaa000011", "[main]"),
+        ("aaaa00", "[main]"),
+        ("bbbb0000", "[main]"),  # An exact name takes precedence over ID prefixes.
+        ("alice", "[finder] Find the panel"),
+        ("bbbb000011", "[finder] Find the panel"),
+        (" BBBB00001 ", "[finder] Find the panel"),
+        ("bbbb000", "bbbb000"),  # Ambiguous prefix: no asserted identity.
+        ("duplicate", "duplicate"),
+        ("carol", "[peer] carol"),
+        ("cccc00001", "[peer] carol"),
+        ("cccc0000", "another agent"),
+        ("not-listed", "not-listed"),
+        ("", "another agent"),
+    ],
+)
+def test_message_targets_resolve_names_and_unique_id_prefixes(target: str, label: str) -> None:
+    from rich.console import Console
+
+    from klaude_code.tui.components.background_tasks import (
+        TaskDirectory,
+        render_collaboration_call,
+        render_collaboration_result,
+    )
+    from klaude_code.tui.components.rich.theme import get_theme
+    from klaude_code.tui.transcript_detail import Detail
+
+    directory = TaskDirectory()
+    directory.name_main("aaaa000011")
+    directory.name_child("bbbb000011", "finder", "Find the panel")
+    directory.name_child("bbbb000022", "reviewer", "Review the panel")
+    peers = [
+        {"session_id": session_id, "name": name, "description": "Peer title", "state": "idle", "work_dir": "/tmp"}
+        for session_id, name in [
+            ("aaaa000011", "bbbb0000"),
+            ("bbbb000011", "alice"),
+            ("bbbb000022", "duplicate"),
+            ("cccc000011", "carol"),
+            ("cccc000022", "duplicate"),
+        ]
+    ]
+    render_collaboration_result(
+        tools.LIST_PEERS, json.dumps({"peers": peers}), detail=Detail.COMPACT, directory=directory
+    )
+    console = Console(width=100, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(
+        render_collaboration_call(tools.MESSAGE_PEER, json.dumps({"target": target, "body": "hello"}), directory)
+    )
+    assert f"Message to {label}\n" in console.export_text()
 
 
 def test_long_peer_message_shows_six_lines_in_compact_and_all_when_expanded() -> None:

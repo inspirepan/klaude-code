@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal, cast
 
+from pydantic import ValidationError
 from rich import box
 from rich.console import Console, Group, RenderableType
 from rich.padding import Padding
@@ -39,6 +40,7 @@ from klaude_code.protocol.models import (
     SubAgentState,
     UserImagesUIItem,
 )
+from klaude_code.protocol.peer import PeerReceipt
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -323,6 +325,7 @@ class TUICommandRenderer:
         self._shell_calls_with_identity: set[tuple[str, str]] = set()
         self._task_directory = TaskDirectory()
         self._task_call_actions: dict[tuple[str, str], str] = {}
+        self._displayed_message_calls: set[tuple[str, str]] = set()
         # Compact mode reports a sub-agent's file changes once, in the block of the run that made them.
         self._sub_agent_changes: dict[str, list[events.ToolResultEvent]] = {}
         # What the last scrollback write was, when it can absorb a repeat:
@@ -384,6 +387,7 @@ class TUICommandRenderer:
         self._shell_calls_with_identity.clear()
         self._task_directory.reset()
         self._task_call_actions.clear()
+        self._displayed_message_calls.clear()
         self._sub_agent_changes.clear()
         self._last_print_key = None
         self._sub_agent_color_index = 0
@@ -446,7 +450,7 @@ class TUICommandRenderer:
     def register_session(self, session_id: str, sub_agent_state: SubAgentState | None = None) -> None:
         st = _SessionStatus(sub_agent_state=sub_agent_state)
         if sub_agent_state is not None:
-            self._task_directory.name_session(session_id, sub_agent_state.sub_agent_desc)
+            self._task_directory.name_child(session_id, sub_agent_state.sub_agent_type, sub_agent_state.sub_agent_desc)
             batch_id = sub_agent_state.parent_tool_batch_id
             batch_index = sub_agent_state.parent_tool_batch_index
             batch_size = sub_agent_state.parent_tool_batch_size
@@ -1081,6 +1085,7 @@ class TUICommandRenderer:
             self.print(
                 render_collaboration_call(e.tool_name, e.arguments, self._task_directory, detail=self._detail.current)
             )
+            self._displayed_message_calls.add((e.session_id, e.tool_call_id))
             return True
         renderable = c_tools.render_tool_call(e, shell_task=shell_task, task_directory=self._task_directory)
         if renderable is not None:
@@ -1095,10 +1100,22 @@ class TUICommandRenderer:
         return False
 
     def display_tool_call_result(self, e: events.ToolResultEvent, *, is_sub_agent: bool = False) -> bool:
+        if e.tool_name == tools.MESSAGE_PEER:
+            call_key = (e.session_id, e.tool_call_id)
+            displayed = call_key in self._displayed_message_calls
+            self._displayed_message_calls.discard(call_key)
+            if displayed and not e.is_error:
+                # Until the receipt binds the send to an ID, keep incoming bodies.
+                try:
+                    receipt = PeerReceipt.model_validate_json(e.result)
+                except ValidationError:
+                    pass
+                else:
+                    self._task_directory.record_displayed_message(receipt, e.session_id)
         shell_call_key = (e.session_id, e.tool_call_id)
         show_shell_task_identity = shell_call_key not in self._shell_calls_with_identity
         self._shell_calls_with_identity.discard(shell_call_key)
-        if self._compact and is_sub_agent:
+        if self._compact and is_sub_agent and e.tool_name != tools.MESSAGE_PEER:
             if e.tool_name in _SUB_AGENT_FILE_TOOLS and not e.is_error:
                 # Interleaved with the main agent's rows these read as noise; the
                 # run's block summarizes them (and shows the diffs under ctrl-t).
@@ -1410,6 +1427,7 @@ class TUICommandRenderer:
         )
 
     def display_welcome(self, event: events.WelcomeEvent) -> None:
+        self._task_directory.name_main(event.session_id)
         self.print(c_welcome.render_welcome(event))
 
     def display_welcome_context(self, event: events.WelcomeContextEvent) -> None:

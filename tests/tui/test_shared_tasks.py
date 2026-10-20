@@ -386,7 +386,7 @@ def test_peer_and_task_reports_survive_history_and_tape_detail_toggle(
             )
             compact = writes[-1][0]
             # Compact mode shows the body in a panel under the header, without metadata.
-            assert "› Message from Alice" in compact and "│ first line" in compact and "│ full body" in compact
+            assert "› Message from [peer] Alice" in compact and "│ first line" in compact and "│ full body" in compact
             assert "reply_to:" not in compact
             # With no live snapshot, the report itself builds the agent's batch block, once.
             assert compact.count("Agent: inspect shared tasks ✓") == 1 and "task report body" in compact

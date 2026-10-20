@@ -44,6 +44,10 @@ class TaskDirectory:
     def __init__(self) -> None:
         self._tasks: dict[str, BackgroundTaskSnapshot] = {}
         self._session_labels: dict[str, str] = {}
+        self._peer_names: dict[str, str | None] = {}
+        self._main_session_id: str | None = None
+        self._agent_types: dict[str, str] = {}
+        self._displayed_messages: dict[str, tuple[str, str]] = {}
         # Finished tasks already printed, so a report and a wait result for the
         # same finish do not both reach the transcript.
         self._reported: set[str] = set()
@@ -60,6 +64,57 @@ class TaskDirectory:
         self._reported.clear()
         self._reported_sessions.clear()
         self._summarized_sessions.clear()
+        self._displayed_messages.clear()
+
+    def name_main(self, session_id: str) -> None:
+        if self._main_session_id is not None and self._main_session_id != session_id:
+            self._agent_types.clear()
+            self._displayed_messages.clear()
+        self._main_session_id = session_id
+
+    def name_child(self, session_id: str, agent_type: str, description: str) -> None:
+        self._agent_types[session_id] = agent_type
+        self.name_session(session_id, description)
+
+    def is_internal(self, session_id: str | None) -> bool:
+        return session_id is not None and (session_id == self._main_session_id or session_id in self._agent_types)
+
+    def message_label(self, session_id: str | None, fallback: str) -> str:
+        if session_id is not None and session_id == self._main_session_id:
+            return "[main]"
+        if session_id is not None and session_id in self._agent_types:
+            return f"[{self._agent_types[session_id]}] {self.session_label(session_id, fallback)}"
+        return f"[peer] {self.session_label(session_id, fallback)}"
+
+    def message_target_label(self, target: str) -> str:
+        needle = target.strip()
+        known_ids = self._session_labels.keys() | self._agent_types.keys() | self._peer_names.keys()
+        if self._main_session_id is not None:
+            known_ids.add(self._main_session_id)
+        if needle in known_ids:
+            return self.message_label(needle, target)
+        matches = [session_id for session_id, name in self._peer_names.items() if name == needle]
+        if not matches and needle:
+            matches = [session_id for session_id in known_ids if session_id.lower().startswith(needle.lower())]
+        if len(matches) == 1:
+            return self.message_label(matches[0], target)
+        return self.session_label(None, target)
+
+    def name_peer(self, peer: PeerInfo) -> None:
+        self._peer_names[peer.session_id] = peer.name
+        if not self.is_internal(peer.session_id):
+            self.name_session(peer.session_id, peer.name or peer.description)
+
+    def record_displayed_message(self, receipt: PeerReceipt, sender: str) -> None:
+        if receipt.accepted and self.is_internal(sender) and self.is_internal(receipt.target):
+            self._displayed_messages[receipt.message_id] = (sender, receipt.target)
+
+    def has_displayed_message(self, message_id: str, sender: str | None, recipient: str) -> bool:
+        return (
+            self.is_internal(sender)
+            and self.is_internal(recipient)
+            and self._displayed_messages.get(message_id) == (sender, recipient)
+        )
 
     def update(self, tasks: Iterable[BackgroundTaskSnapshot]) -> None:
         for task in tasks:
@@ -330,7 +385,14 @@ def render_peer_message(event: events.UserMessageEvent, *, detail: Detail, direc
     peer = event.peer_message
     if peer is None:
         return Text("Peer message metadata unavailable.", style=ThemeKey.METADATA_DIM)
-    sender = directory.session_label(peer.sender_session_id, peer.sender_label)
+    sender = directory.message_label(peer.sender_session_id, peer.sender_label)
+    if detail.is_compact and directory.has_displayed_message(peer.id, peer.sender_session_id, event.session_id):
+        return render_tool_call_tree(
+            mark=MARK_CALLBACK,
+            tool_name="Message",
+            details=Text(f"received from {sender}", style=ThemeKey.TOOL_PARAM),
+            mark_style=ThemeKey.PEER_MESSAGE_RECEIVED,
+        )
     row = render_message(MARK_CALLBACK, "from", sender, peer.body, detail=detail)
     if detail.is_compact:
         return row
@@ -398,7 +460,7 @@ def render_collaboration_result(
             peers = PeerList.model_validate_json(result).peers
             if directory is not None:
                 for peer in peers:
-                    directory.name_session(peer.session_id, peer.name or peer.description)
+                    directory.name_peer(peer)
             selected = peers[:8] if detail.is_compact else peers
             lines = [
                 " · ".join(part for part in (peer.name or "unnamed agent", peer.state, peer.description) if part)
@@ -435,7 +497,7 @@ def render_collaboration_call(
         return render_manage_tasks_call(arguments, directory)
     if tool_name == tools.MESSAGE_PEER:
         args = parse_tool_arguments(arguments)
-        target = directory.session_label(str(args.get("target", "")), str(args.get("target", "")))
+        target = directory.message_target_label(str(args.get("target", "")))
         return render_message(MARK_MESSAGE, "to", target, str(args.get("body", "")), detail=detail)
     presentation = get_tool_call_presentation(tool_name, arguments)
     return render_tool_call_tree(

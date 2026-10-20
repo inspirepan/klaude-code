@@ -148,7 +148,8 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 - Every sub-agent line that does reach the transcript keeps the `▌` gutter:
   batch summaries, sourced peer messages, retry errors, interrupts, and
   compaction/handoff notices. Child tool calls/results, assistant text,
-  thinking, and shell completions never print in compact.
+  thinking, and shell completions never print in compact, except `MessagePeer`
+  calls and errors; successful send receipts stay hidden.
 - Interaction request/resolved/cancelled events join by child session and
   request ID. The existing approval dialog remains the only approval surface.
   It cancels the task panel before `pause_for_external_input()` yields stdin;
@@ -178,6 +179,11 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   and `› … from X` in `PEER_MESSAGE_RECEIVED` (purple), one color for mark,
   border, and body. Compact shows six lines, expanded adds the whole body and
   incoming metadata.
+  Message identities are `[main]` for the displayed root, `[type] description`
+  for its children, and `[peer] title` for external sessions. In compact, an
+  internal incoming message prints only `received from` when its stable message
+  ID matches an accepted send receipt whose call body already printed. Without
+  that match, keep the incoming body; expanded always keeps both bodies.
 - `TaskMetadataItem.background_task_id` identifies independent background costs.
   Replay it without synthesizing a parent turn finish, and deduplicate against
   typed task snapshots. Background completion never starts an assistant turn.
