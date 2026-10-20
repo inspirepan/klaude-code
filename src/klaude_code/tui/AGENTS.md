@@ -316,6 +316,9 @@ When printing pre-rendered Markdown chunks, keep trailing newlines out of the `T
 
 Keep these invariants:
 
+- Main assistant/thinking streams belong to the primary session. Background
+  tool calls, metadata, and file summaries must not finalize them. Test live
+  deltas interleaved with child events; persisted replay hides this ordering.
 - Markdown block spacing should produce one visible blank line between Markdown blocks, not two.
 - The live suffix should not preserve standalone leading blank lines when the stable prefix already ended at a Markdown block boundary.
 - Assistant/thinking message boundaries should still leave one visible blank line before the next rendered block, such as a tool call or metadata line.

@@ -2150,16 +2150,15 @@ class DisplayStateMachine:
     def _handle_ToolCallStartEvent(self, e: events.ToolCallStartEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
         s.active_tool_call_ids.add(e.tool_call_id)
-        # Defensive: ensure any active main-session streams are finalized
-        # before tools start producing output.
-        if self._primary_session_id is not None:
-            primary = self._sessions.get(self._primary_session_id)
-            if primary is not None and primary.assistant_stream_active:
-                primary.assistant_stream_active = False
-                cmds.append(EndAssistantStream(session_id=primary.session_id))
-            if primary is not None and primary.thinking_stream_active:
-                primary.thinking_stream_active = False
-                cmds.append(EndThinkingStream(session_id=primary.session_id))
+        # Only the main agent's own tools end its streams. Background tools
+        # may arrive between main-agent deltas and must leave them open.
+        if self._is_primary(e.session_id):
+            if s.assistant_stream_active:
+                s.assistant_stream_active = False
+                cmds.append(EndAssistantStream(session_id=s.session_id))
+            if s.thinking_stream_active:
+                s.thinking_stream_active = False
+                cmds.append(EndThinkingStream(session_id=s.session_id))
 
         if s.is_sub_agent:
             s.status_composing = False
@@ -2213,14 +2212,13 @@ class DisplayStateMachine:
             cmds.extend(self._spinner_update_commands())
         # Same defensive behavior for tool calls that arrive without a
         # preceding ToolCallStartEvent.
-        if self._primary_session_id is not None:
-            primary = self._sessions.get(self._primary_session_id)
-            if primary is not None and primary.assistant_stream_active:
-                primary.assistant_stream_active = False
-                cmds.append(EndAssistantStream(session_id=primary.session_id))
-            if primary is not None and primary.thinking_stream_active:
-                primary.thinking_stream_active = False
-                cmds.append(EndThinkingStream(session_id=primary.session_id))
+        if self._is_primary(e.session_id):
+            if s.assistant_stream_active:
+                s.assistant_stream_active = False
+                cmds.append(EndAssistantStream(session_id=s.session_id))
+            if s.thinking_stream_active:
+                s.thinking_stream_active = False
+                cmds.append(EndThinkingStream(session_id=s.session_id))
 
         if s.is_sub_agent:
             s.set_tool_activity(e.tool_call_id, e.tool_name, e.arguments)
@@ -2412,8 +2410,9 @@ class DisplayStateMachine:
             return [RenderTaskMetadata(e)]
         if s.is_sub_agent:
             s.task_metadata = e.metadata.main_agent
-        cmds.append(EndThinkingStream(e.session_id))
-        cmds.append(EndAssistantStream(e.session_id))
+        if self._is_primary(e.session_id):
+            cmds.append(EndThinkingStream(e.session_id))
+            cmds.append(EndAssistantStream(e.session_id))
         if self._compact and not s.is_sub_agent:
             timing = self._turn_timing_command(e)
             if timing is not None:
@@ -2441,8 +2440,9 @@ class DisplayStateMachine:
         self, e: events.TaskFileChangeSummaryEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
-        cmds.append(EndThinkingStream(e.session_id))
-        cmds.append(EndAssistantStream(e.session_id))
+        if self._is_primary(e.session_id):
+            cmds.append(EndThinkingStream(e.session_id))
+            cmds.append(EndAssistantStream(e.session_id))
         return cmds
 
     def _handle_UsageEvent(self, e: events.UsageEvent, *, s: _SessionState) -> list[RenderCommand]:

@@ -417,6 +417,7 @@ def test_task_metadata_finalizes_streams_then_renders() -> None:
     from klaude_code.protocol.models import TaskMetadata, TaskMetadataItem
 
     m = DisplayStateMachine()
+    m.transition(_welcome("s1", None))
     mt = TaskMetadataItem(main_agent=TaskMetadata(model_name="test"))
     cmds = m.transition(events.TaskMetadataEvent(session_id="s1", metadata=mt))
     assert _types(cmds) == ["EndThinkingStream", "EndAssistantStream", "RenderTaskMetadata"]
