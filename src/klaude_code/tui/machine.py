@@ -69,7 +69,6 @@ from klaude_code.tui.commands import (
     RenderSubAgentBatchSummary,
     RenderSubAgentThinking,
     RenderTaskControlResult,
-    RenderTaskFileChangeSummary,
     RenderTaskFinish,
     RenderTaskMetadata,
     RenderTaskStart,
@@ -2435,7 +2434,6 @@ class DisplayStateMachine:
         cmds: list[RenderCommand] = []
         cmds.append(EndThinkingStream(e.session_id))
         cmds.append(EndAssistantStream(e.session_id))
-        cmds.append(RenderTaskFileChangeSummary(e))
         return cmds
 
     def _handle_UsageEvent(self, e: events.UsageEvent, *, s: _SessionState) -> list[RenderCommand]:

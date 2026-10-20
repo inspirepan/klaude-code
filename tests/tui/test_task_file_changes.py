@@ -1,3 +1,4 @@
+import pytest
 from rich.console import Console
 
 from klaude_code.protocol import events, message
@@ -6,10 +7,13 @@ from klaude_code.tui.commands import RenderTaskFileChangeSummary
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.task_file_changes import MAX_TASK_FILE_CHANGE_ROWS, render_task_file_change_summary
 from klaude_code.tui.machine import DisplayStateMachine
+from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
 
 
-def test_task_file_change_summary_event_renders_command() -> None:
-    machine = DisplayStateMachine()
+@pytest.mark.parametrize("detail", list(Detail))
+@pytest.mark.parametrize("rebuild", [False, True])
+def test_task_file_change_summary_event_does_not_render_command(detail: Detail, rebuild: bool) -> None:
+    machine = DisplayStateMachine(detail=TranscriptDetail(detail))
     event = events.TaskFileChangeSummaryEvent(
         session_id="s1",
         summary=message.TaskFileChangeSummaryEntry(
@@ -17,9 +21,9 @@ def test_task_file_change_summary_event_renders_command() -> None:
         ),
     )
 
-    commands = machine.transition(event)
+    commands = machine.transition_rebuild(event) if rebuild else machine.transition(event)
 
-    assert any(isinstance(command, RenderTaskFileChangeSummary) for command in commands)
+    assert not any(isinstance(command, RenderTaskFileChangeSummary) for command in commands)
 
 
 def test_task_file_change_summary_render_includes_diff_stat() -> None:
