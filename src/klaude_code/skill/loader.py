@@ -183,28 +183,20 @@ class SkillLoader:
 
     def _get_project_skill_dirs(self, work_dir: Path) -> list[Path]:
         cwd = work_dir.resolve()
-        git_root = self._find_git_repo_root(cwd)
-
+        seen = {directory.expanduser().resolve() for directory in self.USER_SKILLS_DIRS}
+        seen.add(self.SYSTEM_SKILLS_DIR.expanduser().resolve())
         dirs: list[Path] = []
-        if git_root is not None and git_root != cwd:
-            for project_dir in self.PROJECT_SKILLS_DIRS:
+        # Deduplicate highest priority first, then load distant ancestors first.
+        for ancestor in (cwd, *cwd.parents):
+            for project_dir in reversed(self.PROJECT_SKILLS_DIRS):
                 resolved = (
-                    (git_root / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
+                    (ancestor / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
                 )
+                if resolved in seen:
+                    continue
+                seen.add(resolved)
                 dirs.append(resolved)
-
-        for project_dir in self.PROJECT_SKILLS_DIRS:
-            resolved = (cwd / project_dir).resolve() if not project_dir.is_absolute() else project_dir.resolve()
-            dirs.append(resolved)
-
-        deduped_dirs: list[Path] = []
-        seen: set[Path] = set()
-        for d in dirs:
-            if d in seen:
-                continue
-            seen.add(d)
-            deduped_dirs.append(d)
-        return deduped_dirs
+        return dirs[::-1]
 
     def load_skill(self, skill_path: Path, location: str) -> Skill | None:
         """Load single skill from SKILL.md file
@@ -287,7 +279,8 @@ class SkillLoader:
         Loading order (lower priority first, higher priority overrides):
         1. System skills (~/.klaude/skills/.system/) - built-in, lowest priority
         2. User skills (~/.claude/skills/, ~/.klaude/skills/, ~/.agents/skills/, ~/.config/agents/skills/) - user-level
-        3. Project skills (./.claude/skills/, ./.agents/skills/) - project-level, highest priority
+        3. Project skills (.claude/skills/, .agents/skills/ at every ancestor from filesystem root
+           to work_dir) - project-level, nearest directory wins
 
         Args:
             work_dir: Project root directory for project skill discovery.
