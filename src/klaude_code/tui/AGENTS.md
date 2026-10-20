@@ -121,7 +121,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   (30 for Markdown) show whole, larger edits preview 5 lines (15), a new or
   deleted code file shows only its header. A compact sub-agent's file changes
   print nothing as they happen; the run's `▌` block sums them up in one
-  `± N files +a -r paths` line (each diff below it under ctrl-t). ctrl-t (`ToggleDiffDetailEvent`, `TranscriptDetail.diffs_expanded`)
+  `± N files +a -r` total followed by per-file paths and line counts (each diff below them under ctrl-t). ctrl-t (`ToggleDiffDetailEvent`, `TranscriptDetail.diffs_expanded`)
   expands every diff without leaving compact mode; expanded mode never folds.
 - A call the agent made keeps its tool mark (`$ Shell`, `◈ Tasks`); input the
   system fills back in later uses `MARK_CALLBACK` (`› Shell`, `› Task`, `› Message`).

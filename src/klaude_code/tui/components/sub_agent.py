@@ -17,6 +17,7 @@ from klaude_code.tui.components.rich.clip import MaxLines
 from klaude_code.tui.components.rich.markdown import NoInsetMarkdown
 from klaude_code.tui.components.rich.quote import TreeQuote
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.components.tools import FileChangeStat
 from klaude_code.tui.components.tools._presentation import display_path
 
 _MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+")
@@ -117,19 +118,27 @@ def render_compact_sub_agent_summary(
     return Group(*parts)
 
 
-def render_sub_agent_changes(paths: list[str], added: int, removed: int) -> Text:
-    """`± 8 files  +212 −30  a.py, b.py, …`: what a sub-agent run changed, in one line."""
+def render_sub_agent_changes(files: list[FileChangeStat]) -> RenderableType:
+    """Render run totals followed by one line per changed file."""
     line = Text(COMPACT_CONTINUATION_INDENT, no_wrap=True, overflow="ellipsis")
     line.append("± ", style=ThemeKey.TOOL_MARK)
-    line.append(f"{len(paths)} {'file' if len(paths) == 1 else 'files'}", style=ThemeKey.TOOL_NAME)
+    line.append(f"{len(files)} {'file' if len(files) == 1 else 'files'}", style=ThemeKey.TOOL_NAME)
+    added = sum(file.added for file in files)
+    removed = sum(file.removed for file in files)
     if added:
         line.append(f"  +{added}", style=ThemeKey.DIFF_STATS_ADD)
     if removed:
         line.append(f"  -{removed}", style=ThemeKey.DIFF_STATS_REMOVE)
-    line.append("  ")
-    shown = [display_path(path) for path in paths[:3]]
-    line.append(", ".join(shown) + (", …" if len(paths) > len(shown) else ""), style=ThemeKey.TOOL_PARAM_FILE_PATH)
-    return line
+    rows = [line]
+    for file in files:
+        row = Text(COMPACT_CONTINUATION_INDENT + "  ", overflow="fold")
+        row.append(display_path(file.path), style=ThemeKey.TOOL_PARAM_FILE_PATH)
+        if file.added:
+            row.append(f"  +{file.added}", style=ThemeKey.DIFF_STATS_ADD)
+        if file.removed:
+            row.append(f"  -{file.removed}", style=ThemeKey.DIFF_STATS_REMOVE)
+        rows.append(row)
+    return Group(*rows)
 
 
 def render_compact_result_body(result_summary: str, *, color: Style) -> RenderableType:

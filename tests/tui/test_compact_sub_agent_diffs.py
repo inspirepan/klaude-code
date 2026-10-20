@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from rich.console import Console
 
 from klaude_code.protocol import events, tools
 from klaude_code.protocol.models import (
@@ -13,6 +14,8 @@ from klaude_code.protocol.models import (
     SubAgentState,
 )
 from klaude_code.tui.commands import SubAgentSummary
+from klaude_code.tui.components.sub_agent import render_sub_agent_changes
+from klaude_code.tui.components.tools import FileChangeStat
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
 
@@ -97,14 +100,28 @@ def test_compact_sub_agent_edits_print_nothing_and_sum_up_in_the_run_block() -> 
     printed = _record(
         renderer,
         _change(tools.EDIT, "edit-1", _diff()),
-        _change(tools.APPLY_PATCH, "patch-1", MultiUIExtra(items=[_diff(), doc])),
+        _change(
+            tools.APPLY_PATCH,
+            "patch-1",
+            MultiUIExtra(
+                items=[
+                    _diff(),
+                    doc,
+                    MarkdownDocUIExtra(file_path="docs/second.md", content="second"),
+                    MarkdownDocUIExtra(file_path="docs/third.md", content="third"),
+                ]
+            ),
+        ),
     )
     assert printed == ""
 
     block = _finish(renderer)
     assert "GeneralPurpose: update generated files ✓" in block
     assert "↳ updated the files" in block
-    assert "± 2 files  +4  ./src/demo.py, ./docs/new.md" in block
+    lines = block.splitlines()
+    assert any(line.endswith("± 4 files  +6") for line in lines)
+    for path, added in [("src/demo.py", 2), ("docs/new.md", 2), ("docs/second.md", 1), ("docs/third.md", 1)]:
+        assert any(line.endswith(f"./{path}  +{added}") for line in lines)
     assert "new_value = 1" not in block and "╭" not in block
     # The next run of the same agent reports only its own changes.
     assert "± " not in _finish(renderer)
@@ -117,8 +134,24 @@ def test_ctrl_t_shows_each_sub_agent_diff_under_its_run_block() -> None:
     _record(renderer, _change(tools.EDIT, "edit-1", _diff()))
 
     block = _finish(renderer)
-    assert "± 1 file  +1  ./src/demo.py" in block
+    assert any(line.endswith("± 1 file  +1") for line in block.splitlines())
+    assert any(line.endswith("./src/demo.py  +1") for line in block.splitlines())
     assert "new_value = 1" in block and "╭" in block
+
+
+def test_sub_agent_changes_keep_per_file_counts_with_long_paths() -> None:
+    console = Console(width=40, record=True, force_terminal=False)
+    console.print(
+        render_sub_agent_changes(
+            [
+                FileChangeStat(path=f"src/{'nested/' * 10}first.py", added=123, removed=45),
+                FileChangeStat(path=f"src/{'nested/' * 10}second.py", added=7, removed=8),
+            ]
+        )
+    )
+    output = console.export_text()
+    assert "first.py" in output and "second.py" in output
+    assert "+123  -45" in output and "+7  -8" in output
 
 
 def test_run_block_without_a_result_has_no_placeholder_line() -> None:

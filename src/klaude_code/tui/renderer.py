@@ -1602,7 +1602,7 @@ class TUICommandRenderer:
     def _sub_agent_change_view(
         self, session_id: str, fallback: list[c_tools.FileChangeStat] | None = None
     ) -> RenderableType | None:
-        """The files a finished run changed: one summary line, plus each diff under ctrl-t."""
+        """The files a finished run changed: per-file stats, plus each diff under ctrl-t."""
         results = self._sub_agent_changes.pop(session_id, [])
         stats = [stat for result in results for stat in c_tools.file_change_stats(result)] or (fallback or [])
         if not stats:
@@ -1612,20 +1612,18 @@ class TUICommandRenderer:
             counts = totals.setdefault(stat.path, [0, 0])
             counts[0] += stat.added
             counts[1] += stat.removed
-        line = c_sub_agent.render_sub_agent_changes(
-            list(totals),
-            sum(counts[0] for counts in totals.values()),
-            sum(counts[1] for counts in totals.values()),
+        changes = c_sub_agent.render_sub_agent_changes(
+            [c_tools.FileChangeStat(path=path, added=counts[0], removed=counts[1]) for path, counts in totals.items()]
         )
         if self._detail.folds_diffs:
-            return line
+            return changes
         diffs = [
-            # Under the `± files` line, not under the block's gutter.
+            # Align with the changes block, not the gutter.
             Padding(diff, (0, 0, 0, len(c_sub_agent.COMPACT_CONTINUATION_INDENT)))
             for result in results
             if (diff := c_tools.render_compact_file_change(result, code_theme=self.themes.code_theme, fold=False))
         ]
-        return Group(line, *diffs)
+        return Group(changes, *diffs)
 
     def _render_sub_agent_summaries(
         self,
