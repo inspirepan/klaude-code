@@ -11,25 +11,35 @@ from .config import (
     prioritize_model_preference,
 )
 from .loader import (
+    ConfigReload,
     ConfigValidationError,
+    ConfigWatcher,
+    check_config_change,
+    config_revision,
     create_example_config,
     load_config,
     print_no_available_models_hint,
+    start_config_watcher,
 )
 
 __all__ = [
     "Config",
+    "ConfigReload",
     "ConfigValidationError",
+    "ConfigWatcher",
     "ModelAvailability",
     "ModelDiagnosis",
     "UserConfig",
     "WebSearchConfig",
     "WebSearchProviderConfig",
+    "check_config_change",
     "config_path",
+    "config_revision",
     "create_example_config",
     "example_config_path",
     "format_model_preference",
     "load_config",
     "print_no_available_models_hint",
     "prioritize_model_preference",
+    "start_config_watcher",
 ]

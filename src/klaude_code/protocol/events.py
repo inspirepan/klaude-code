@@ -38,6 +38,7 @@ __all__ = [
     "CompactModelChangedEvent",
     "CompactionEndEvent",
     "CompactionStartEvent",
+    "ConfigReloadedEvent",
     "ContextUsageEvent",
     "DeveloperMessageEvent",
     "EndEvent",
@@ -304,6 +305,20 @@ class ModelChangedEvent(Event):
 class ThinkingChangedEvent(Event):
     previous: str
     current: str
+
+
+class ConfigReloadedEvent(Event):
+    """The server re-read the config files and now serves a new revision.
+
+    Broadcast to every connected client, whatever session it watches, so a
+    hand-edit of ``~/.klaude/klaude-config.yaml`` is visible without a restart.
+    Sessions keep the LLM client they were built with; the change applies to
+    sessions and sub-agents started after the reload. ``session_id`` is empty
+    because the event belongs to the process, not to a session.
+    """
+
+    revision: int
+    summary: str
 
 
 class SubAgentModelChangedEvent(Event):

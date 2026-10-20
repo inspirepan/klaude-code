@@ -9,7 +9,7 @@ from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
 from klaude_code.agent.context_usage import analyze_context_usage
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
-from klaude_code.agent.runtime.llm import FallbackLLMClient, create_llm_client_for_candidates
+from klaude_code.agent.runtime.llm import create_llm_client_for_candidates
 from klaude_code.agent.session_stats import build_session_stats_ui_extra
 from klaude_code.config import format_model_preference, load_config, prioritize_model_preference
 from klaude_code.config.model_matcher import match_model_from_config
@@ -162,47 +162,42 @@ class ConfigHandler:
             )
 
     async def handle_change_sub_agent_model(self, operation: op.ChangeSubAgentModelOperation) -> None:
+        """Persist the sub-agent's model role to the config.
+
+        There is no session-level override for sub-agents: the model each child
+        session runs on is resolved from ``config.sub_agent_models`` at spawn
+        time, so saving here takes effect for the next dispatch without a
+        server restart.
+        """
         self._agent_operation_handler.cancel_auto_away_summary(operation.session_id)
         agent = await self._agent_operation_handler.ensure_agent(operation.session_id)
-        session_clients = self._agent_operation_handler.get_session_llm_clients(agent.session.id)
         config = load_config()
 
-        helper = SubAgentModelResolver(config)
         sub_agent_type = operation.sub_agent_type
         model_name = operation.model_name
 
         if model_name is None:
-            behavior = helper.describe_empty_model_config_behavior(
-                sub_agent_type,
-                main_model_name=session_clients.main.model_name,
-            )
-            session_clients.sub_clients.pop(sub_agent_type, None)
-            display_model = f"({behavior.description})"
+            display_model = "(inherit from main agent)"
         else:
             candidates = config.iter_model_config_candidates(model_name)
             if not candidates:
                 _ = config.get_model_config(model_name)
                 raise ValueError(f"Unknown model: {model_name}")
-            new_client = FallbackLLMClient(candidates)
-            session_clients.sub_clients[sub_agent_type] = new_client
-            display_model = new_client.model_name
+            display_model = candidates[0].model_name
 
-        if operation.save_as_default:
-            profile = get_sub_agent_profile(sub_agent_type)
-            role_key = profile.name
-            if model_name is None:
-                config.sub_agent_models.pop(role_key, None)
-            else:
-                config.sub_agent_models[role_key] = model_name
-            await config.save()
+        role_key = get_sub_agent_profile(sub_agent_type).name
+        if model_name is None:
+            config.sub_agent_models.pop(role_key, None)
+        else:
+            config.sub_agent_models[role_key] = model_name
+        await config.save()
 
-        saved_note = " (saved in ~/.klaude/klaude-config.yaml)" if operation.save_as_default else ""
         await self._emit_event(
             events.SubAgentModelChangedEvent(
                 session_id=agent.session.id,
                 sub_agent_type=sub_agent_type,
-                model_display=f"{display_model}{saved_note}",
-                saved_as_default=operation.save_as_default,
+                model_display=f"{display_model} (saved in ~/.klaude/klaude-config.yaml)",
+                saved_as_default=True,
             )
         )
 
@@ -393,6 +388,8 @@ class ConfigHandler:
             for sub_agent in helper.get_available_sub_agents():
                 if sub_agent.configured_model:
                     model_display = format_model_preference(sub_agent.configured_model) or ""
+                    if sub_agent.falls_back_to_main:
+                        model_display = f"{model_display} (unavailable; inherits {main_model_name})"
                 else:
                     behavior = helper.describe_empty_model_config_behavior(
                         sub_agent.profile.name,
@@ -540,7 +537,6 @@ class ConfigHandler:
                     session_id=operation.session_id,
                     sub_agent_type=target,
                     model_name=None if selected_model == "__default__" else selected_model,
-                    save_as_default=operation.save_as_default,
                 )
             )
 

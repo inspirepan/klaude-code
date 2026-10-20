@@ -181,6 +181,33 @@ def test_waiting_user_input_counts_as_busy() -> None:
     assert client.is_running() is False
 
 
+def test_session_info_mirrors_the_active_model() -> None:
+    """The prompt bar reads the model that runs, not only the stored selector."""
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+
+    client._apply_session_info(
+        {
+            "state": "idle",
+            "model_config_name": "removed-model",
+            "active_model_name": "sonnet",
+            "provider_name": "anthropic",
+        }
+    )
+
+    info = client.session_info()
+    assert info.model_config_name == "removed-model"
+    assert info.active_model_name == "sonnet"
+
+
+def test_session_info_without_an_active_model_stays_none() -> None:
+    """An older server sends no active model; the snapshot must not invent one."""
+    client = SocketRuntimeClient("session-id", on_envelope=_ignore_envelope)
+
+    client._apply_session_info({"state": "idle", "model_config_name": "sonnet"})
+
+    assert client.session_info().active_model_name is None
+
+
 def test_chunked_history_replay_reaches_the_display_as_one_replay() -> None:
     """Each replay is a rebuild that resets display state; chunks must not be split
     into several, or a child turn crossing a chunk boundary loses its block."""

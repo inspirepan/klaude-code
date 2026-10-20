@@ -44,6 +44,7 @@ EXPECTED_HANDLED_EVENT_NAMES = {
     "SubAgentModelChangedEvent",
     "CompactModelChangedEvent",
     "FallbackModelConfigWarnEvent",
+    "ConfigReloadedEvent",
     "OperationRejectedEvent",
     "StepStartEvent",
     "ThinkingStartEvent",
@@ -171,3 +172,13 @@ def test_config_change_notice_text(event: events.Event, expected_content: str, e
     assert notice.content == expected_content
     assert notice.style == expected_style
     assert notice.session_id == "main"
+
+
+def test_config_reloaded_renders_a_notice() -> None:
+    """The broadcast is process-wide, so its session_id stays empty."""
+    event = events.ConfigReloadedEvent(session_id="", revision=4, summary="main model: a -> b")
+    notice = _notice(event)
+
+    assert notice.content == "Config reloaded (revision 4): main model: a -> b"
+    assert notice.style is None
+    assert notice.session_id == ""

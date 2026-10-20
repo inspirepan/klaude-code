@@ -35,7 +35,7 @@ def get_system_temp() -> str:
 # Agent / LLM Configuration
 # =============================================================================
 
-MAX_FAILED_STEP_RETRIES = 10  # Maximum retry attempts for failed steps
+MAX_FAILED_STEP_RETRIES = 5  # Maximum retry attempts for failed steps
 MAX_EMPTY_RESPONSE_RETRIES = 3  # Maximum consecutive empty-response retries per task
 RETRY_PRESERVE_PARTIAL_MESSAGE = True  # Preserve partial message on stream error for retry continuation
 LLM_HTTP_TIMEOUT_TOTAL = 300.0  # HTTP timeout for LLM API requests (seconds)

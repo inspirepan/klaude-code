@@ -18,12 +18,6 @@ from klaude_code.llm.usage import MetadataTracker, error_llm_stream
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
-from klaude_code.protocol.tools import SubAgentType
-
-
-def _default_sub_clients() -> dict[SubAgentType, LLMClientABC]:
-    return {}
-
 
 # Credential fields excluded when dumping LLM configs into the debug log; the
 # server writes that log unconditionally, so plaintext keys must never land in it.
@@ -175,7 +169,6 @@ class LLMClients:
 
     main: LLMClientABC
     main_model_alias: str = ""
-    sub_clients: dict[SubAgentType, LLMClientABC] = dataclass_field(default_factory=_default_sub_clients)
     fast: LLMClientABC | None = None
     compact: LLMClientABC | None = None
     # Configured models that did not resolve and were replaced by a fallback,
@@ -194,7 +187,12 @@ class LLMClients:
             await self.main.warmup()
 
 
-def _resolution_error_detail(config: Config, model_pref: ModelPreference) -> str:
+def model_resolution_error_detail(config: Config, model_pref: ModelPreference) -> str:
+    """Why a model preference resolves to no candidate, for user-facing notices.
+
+    Resolution reports a model that no provider serves as an empty candidate
+    list, so the cause has to come from ``Config.get_model_config``.
+    """
     try:
         _ = config.get_first_available_model(model_pref)
     except ValueError as exc:
@@ -231,7 +229,7 @@ def _resolve_optional_role(
         # quietly is the intended behavior there, not a config problem.
         log_debug(f"{role} builtin default unavailable; {inherit_label} is used", debug_type=DebugType.LLM_CONFIG)
         return []
-    detail = _resolution_error_detail(config, model_pref)
+    detail = model_resolution_error_detail(config, model_pref)
     if builtin_pref is not None:
         builtin_candidates = config.iter_model_config_candidates(builtin_pref)
         if builtin_candidates:
@@ -263,7 +261,7 @@ def _resolve_main_candidates(
         ) or main_candidates[0].selector
         return main_candidates, model_name
 
-    detail = _resolution_error_detail(config, model_pref)
+    detail = model_resolution_error_detail(config, model_pref)
     if model_override is not None:
         # An explicit --model is a direct request; substituting another model
         # would silently ignore it.
@@ -286,7 +284,6 @@ def build_llm_clients(
     config: Config,
     *,
     model_override: str | None = None,
-    skip_sub_agents: bool = False,
 ) -> LLMClients:
     warnings: list[str] = []
     builtin = get_builtin_config()
@@ -337,33 +334,23 @@ def build_llm_clients(
         )
         compact_client = create_llm_client_for_candidates(compact_candidates)
 
-    if skip_sub_agents:
-        return LLMClients(
-            main=main_client,
-            main_model_alias=model_name,
-            fast=fast_client,
-            compact=compact_client,
-            warnings=warnings,
-        )
-
-    sub_clients: dict[SubAgentType, LLMClientABC] = {}
+    # Sub-agent roles build no clients here: a child session resolves its model
+    # from config.sub_agent_models at spawn time and builds its own client. The
+    # resolution below runs only to collect warnings about roles that cannot be
+    # resolved, which collect_model_config_warnings surfaces.
     for profile in iter_sub_agent_profiles():
-        role_key = profile.name
-        candidates = _resolve_optional_role(
+        _ = _resolve_optional_role(
             config,
-            f"sub_agent_models.{role_key}",
-            config.sub_agent_models.get(role_key),
-            builtin.sub_agent_models.get(role_key),
+            f"sub_agent_models.{profile.name}",
+            config.sub_agent_models.get(profile.name),
+            builtin.sub_agent_models.get(profile.name),
             inherit_label="the main model",
             warnings=warnings,
         )
-        if candidates:
-            sub_clients[profile.name] = FallbackLLMClient(candidates)
 
     return LLMClients(
         main=main_client,
         main_model_alias=model_name,
-        sub_clients=sub_clients,
         fast=fast_client,
         compact=compact_client,
         warnings=warnings,
@@ -402,9 +389,6 @@ def clone_llm_clients(template: LLMClients) -> LLMClients:
     return LLMClients(
         main=clone_llm_client(template.main),
         main_model_alias=template.main_model_alias,
-        sub_clients={
-            sub_agent_type: clone_llm_client(client) for sub_agent_type, client in template.sub_clients.items()
-        },
         fast=clone_llm_client(template.fast) if template.fast is not None else None,
         compact=clone_llm_client(template.compact) if template.compact is not None else None,
     )

@@ -6,6 +6,7 @@ import json
 import shutil
 import time
 from concurrent.futures import CancelledError as FutureCancelledError
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
 from uuid import uuid4
@@ -15,8 +16,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, ValidationError
 
 from klaude_code.agent.compaction import should_compact_threshold
+from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.control.event_bus import EventSubscription
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
+from klaude_code.llm.client import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, op, tools
 from klaude_code.protocol.models import TaskMetadataItem, Usage
@@ -426,7 +429,65 @@ _SESSION_INFO_REFRESH_EVENTS = (
     events.ModelChangedEvent,
     events.ThinkingChangedEvent,
     events.WelcomeEvent,
+    # A fallback advances the client's active candidate without rebuilding it,
+    # so the frame's active model would otherwise stay stale.
+    events.FallbackModelConfigWarnEvent,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _ForwardDecision:
+    """Whether one event reaches a socket, and which child it revealed."""
+
+    forward: bool
+    #: A child session discovered by this event, to follow from now on.
+    child_to_track: str | None = None
+
+
+_DROP = _ForwardDecision(forward=False)
+_FORWARD = _ForwardDecision(forward=True)
+
+
+def _forwarded_to_session(
+    event: events.Event,
+    session_id: str,
+    tracked_child_session_ids: set[str],
+) -> _ForwardDecision:
+    """Whether an event reaches the socket watching ``session_id``.
+
+    Events are forwarded by session ownership only. Children spawned before an
+    attach are found in persisted history; later ones by their TaskStart. A
+    task id is not ownership, since a peer's turn can be stamped with ours.
+    """
+    if isinstance(event, events.ConfigReloadedEvent):
+        # Process-wide: the config revision belongs to the server, not to the
+        # session this socket happens to watch, so every client sees it.
+        return _FORWARD
+    if event.session_id == session_id or event.session_id in tracked_child_session_ids:
+        return _FORWARD
+    if isinstance(event, events.TaskStartEvent) and (
+        event.parent_session_id == session_id or event.parent_session_id in tracked_child_session_ids
+    ):
+        # A sub-agent spawned under this session runs in its own actor with its
+        # own task id; follow its stream live.
+        return _ForwardDecision(forward=True, child_to_track=event.session_id)
+    return _DROP
+
+
+def _active_model_name(client: LLMClientABC) -> str | None:
+    """The model the next request will actually use, in prompt-bar vocabulary.
+
+    ``model_config_name`` is the selector that was *asked for*: a session whose
+    selector no longer resolves silently runs the main model, and a fallback
+    chain advances to the next candidate mid-run. Read the live client instead.
+    Its active candidate names the model the prompt bar shows (``sonnet``, not
+    ``sonnet@anthropic``); a plain client only has its upstream model id.
+    """
+    if isinstance(client, FallbackLLMClient):
+        selector = client.active_candidate.selector
+        if selector:
+            return selector.split("@", 1)[0]
+    return client.get_llm_config().model_id or None
 
 
 def _build_session_info(state: ServerAppState, session_id: str) -> dict[str, Any]:
@@ -438,6 +499,7 @@ def _build_session_info(state: ServerAppState, session_id: str) -> dict[str, Any
         "session_id": session_id,
         "state": derive_session_state_from_snapshot(snapshot) if snapshot is not None else "idle",
         "model_config_name": None,
+        "active_model_name": None,
         "provider_name": None,
         "effort": None,
         "follow_ups": [],
@@ -451,6 +513,7 @@ def _build_session_info(state: ServerAppState, session_id: str) -> dict[str, Any
         info["title"] = agent.session.title
         try:
             llm_config = agent.profile.llm_client.get_llm_config()
+            info["active_model_name"] = _active_model_name(agent.profile.llm_client)
             info["provider_name"] = llm_config.provider_name
             info["effort"] = llm_config.effective_effort
         except Exception:
@@ -582,8 +645,8 @@ async def _forward_events(
         subscription = state.subscribe_events(None)
     tracked_child_session_ids = set(descendant_session_ids or ())
 
-    # Events are forwarded by session ownership only. Children spawned before
-    # this attach are found in persisted history; later ones by their TaskStart.
+    # Children spawned before this attach are found in persisted history;
+    # later ones are added by `_forwarded_to_session` on their TaskStart.
     if descendant_session_ids is None:
         work_dir = resolve_session_work_dir_fast(
             state.session_live.index if state.session_live is not None else None, state.home_dir, session_id
@@ -613,19 +676,11 @@ async def _forward_events(
                     and envelope.event_seq <= shell_snapshot_cutoffs.get(envelope.session_id, 0)
                 ):
                     continue
-                if envelope.session_id == session_id or envelope.session_id in tracked_child_session_ids:
-                    pass
-                elif isinstance(envelope.event, events.TaskStartEvent) and (
-                    envelope.event.parent_session_id == session_id
-                    or envelope.event.parent_session_id in tracked_child_session_ids
-                ):
-                    # A sub-agent spawned under this session runs in its own
-                    # actor with its own task id; follow its stream live.
-                    tracked_child_session_ids.add(envelope.session_id)
-                else:
-                    # Only this session and its descendants: a task ID is not
-                    # ownership, since a peer's turn can be stamped with ours.
+                decision = _forwarded_to_session(envelope.event, session_id, tracked_child_session_ids)
+                if not decision.forward:
                     continue
+                if decision.child_to_track is not None:
+                    tracked_child_session_ids.add(decision.child_to_track)
 
                 # Attach replay dedup: events already delivered via the tape
                 # snapshot arrive here with a seq at or below the cut.
@@ -843,6 +898,17 @@ async def _receive_commands(
         await _handle_incoming_frame(session_id, frame, websocket, can_input=can_input)
 
 
+def _config_revision() -> int:
+    """Current config revision, so a client can tell whether its copy is current."""
+    from klaude_code.config import config_revision
+
+    try:
+        return config_revision()
+    except Exception as exc:
+        log_debug(f"[ws] config revision failed: {exc}", debug_type=DebugType.EXECUTION)
+        return 0
+
+
 def _model_config_warnings() -> list[str]:
     """Configured models this server cannot resolve (e.g. removed by an upgrade)."""
     from klaude_code.agent.runtime.llm import collect_model_config_warnings
@@ -918,6 +984,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 "session_id": session_id,
                 "protocol_version": PROTOCOL_VERSION,
                 "code_fingerprint": state.code_fingerprint,
+                "config_revision": _config_revision(),
                 "config_warnings": await asyncio.to_thread(_model_config_warnings),
             }
         )

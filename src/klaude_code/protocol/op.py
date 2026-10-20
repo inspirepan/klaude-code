@@ -195,7 +195,11 @@ class ChangeThinkingOperation(Operation):
 
 
 class ChangeSubAgentModelOperation(Operation):
-    """Operation for changing the model used by a specific sub-agent."""
+    """Operation for changing the model used by a specific sub-agent.
+
+    The change is always persisted to the config: it has no session-level
+    semantics.
+    """
 
     type: OperationType = OperationType.CHANGE_SUB_AGENT_MODEL
     session_id: str
@@ -203,7 +207,6 @@ class ChangeSubAgentModelOperation(Operation):
     # When None, clear explicit override and fall back to the sub-agent's default
     # behavior.
     model_name: str | None
-    save_as_default: bool = False
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_change_sub_agent_model(self)

@@ -915,6 +915,10 @@ def _compact_model_changed_text(e: events.CompactModelChangedEvent) -> str:
     return f"Compact model: {e.model_display}"
 
 
+def _config_reloaded_text(e: events.ConfigReloadedEvent) -> str:
+    return f"Config reloaded (revision {e.revision}): {e.summary}"
+
+
 def _fallback_model_config_warn_text(e: events.FallbackModelConfigWarnEvent) -> str:
     def _display(model: str, provider: str | None) -> str:
         return f"{model}@{provider}" if provider else model
@@ -933,6 +937,7 @@ _NOTICE_EVENT_SPECS: dict[type[events.Event], _NoticeSpec] = {
     events.SubAgentModelChangedEvent: _NoticeSpec(_sub_agent_model_changed_text),
     events.CompactModelChangedEvent: _NoticeSpec(_compact_model_changed_text),
     events.FallbackModelConfigWarnEvent: _NoticeSpec(_fallback_model_config_warn_text, style="warn"),
+    events.ConfigReloadedEvent: _NoticeSpec(_config_reloaded_text),
 }
 
 

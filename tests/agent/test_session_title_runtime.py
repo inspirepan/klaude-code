@@ -189,7 +189,7 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
         _create_client,
     )
 
-    clients = build_llm_clients(config, skip_sub_agents=True)
+    clients = build_llm_clients(config)
 
     assert clients.main.model_name == "main-model-id"
     assert clients.fast is not None
@@ -236,7 +236,7 @@ def test_build_llm_clients_uses_main_model_fallback_candidates(monkeypatch: pyte
         _create_client,
     )
 
-    clients = build_llm_clients(config, skip_sub_agents=True)
+    clients = build_llm_clients(config)
 
     assert isinstance(clients.main, FallbackLLMClient)
     assert [candidate.selector for candidate in clients.main.candidates] == [
@@ -279,7 +279,7 @@ def test_build_llm_clients_uses_compact_model_fallback_candidates(monkeypatch: p
         _create_client,
     )
 
-    clients = build_llm_clients(config, skip_sub_agents=True)
+    clients = build_llm_clients(config)
 
     assert isinstance(clients.compact, FallbackLLMClient)
     assert [candidate.selector for candidate in clients.compact.candidates] == [
@@ -323,7 +323,7 @@ def test_build_llm_clients_model_override_keeps_main_fallback_suffix(monkeypatch
         _create_client,
     )
 
-    clients = build_llm_clients(config, model_override="gpt-5.5@chatgpt", skip_sub_agents=True)
+    clients = build_llm_clients(config, model_override="gpt-5.5@chatgpt")
 
     assert isinstance(clients.main, FallbackLLMClient)
     assert [candidate.selector for candidate in clients.main.candidates] == [
@@ -394,7 +394,7 @@ def test_session_model_config_restore_keeps_main_fallback_suffix(
         request_user_interaction=_noop_request_user_interaction,
     )
 
-    clients = handler._ensure_session_llm_clients(session)
+    clients = handler._ensure_session_llm_clients(session).clients
 
     assert isinstance(clients.main, FallbackLLMClient)
     assert [candidate.selector for candidate in clients.main.candidates] == [

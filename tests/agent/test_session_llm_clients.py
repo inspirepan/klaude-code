@@ -4,18 +4,21 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from klaude_code.agent.agent_profile import AgentProfile
 from klaude_code.agent.runtime import agent_ops as agent_ops_module
 from klaude_code.agent.runtime import llm as llm_module
 from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
 from klaude_code.agent.runtime.llm import FallbackLLMClient, LLMClients
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
 from klaude_code.llm.client import LLMClientABC
-from klaude_code.protocol import llm_param, user_interaction
+from klaude_code.protocol import events, llm_param, user_interaction
+from klaude_code.protocol.models import SubAgentState
 from klaude_code.session.session import Session
 
 
@@ -46,6 +49,7 @@ def _stub_client_factory(monkeypatch: pytest.MonkeyPatch) -> None:
 class _StubActor:
     def __init__(self) -> None:
         self.clients: LLMClients | None = None
+        self.agent: Any = None
 
     def get_llm_clients(self) -> LLMClients | None:
         return self.clients
@@ -53,15 +57,40 @@ class _StubActor:
     def set_llm_clients(self, clients: LLMClients) -> None:
         self.clients = clients
 
+    def get_agent(self) -> Any:
+        return self.agent
+
+    def set_agent(self, agent: Any) -> None:
+        self.agent = agent
+
+
+class _StubProfileProvider:
+    """Builds a profile straight from the client; no prompts, tools, or disk scan."""
+
+    def build_profile(
+        self,
+        llm_client: LLMClientABC,
+        sub_agent_type: str | None = None,
+        *,
+        work_dir: Path,
+    ) -> AgentProfile:
+        del sub_agent_type, work_dir
+        return AgentProfile(llm_client=llm_client, system_prompt=None, tools=[], attachments=[])
+
 
 def _handler(
-    template_alias: str, *, parent_actors: dict[str, _StubActor] | None = None
+    template_alias: str,
+    *,
+    parent_actors: dict[str, _StubActor] | None = None,
+    emitted: list[Any] | None = None,
+    profile_provider: Any = Any,
 ) -> tuple[AgentOperationHandler, _StubActor]:
     actor = _StubActor()
     parents = parent_actors or {}
+    events_out = emitted if emitted is not None else []
 
-    async def _emit(_event: Any) -> None:
-        return None
+    async def _emit(event: Any) -> None:
+        events_out.append(event)
 
     async def _request_user_interaction(_request: Any) -> user_interaction.UserInteractionResponse:
         raise AssertionError("no interaction expected")
@@ -69,7 +98,8 @@ def _handler(
     handler = AgentOperationHandler(
         emit_event=_emit,
         llm_clients=LLMClients(main=_StubClient("startup-model-id"), main_model_alias=template_alias),
-        model_profile_provider=Any,  # ty: ignore[invalid-argument-type] # unused by _ensure_session_llm_clients
+        # The provider is only reached by the agent-initializing entry points.
+        model_profile_provider=profile_provider,
         on_child_task_state_change=lambda *_args: None,
         ensure_session_actor=lambda _sid: actor,  # ty: ignore[invalid-argument-type] # pyright: ignore[reportArgumentType]
         get_session_actor=lambda sid: parents.get(sid),  # ty: ignore[invalid-argument-type] # pyright: ignore[reportArgumentType]
@@ -102,7 +132,7 @@ def test_new_session_uses_the_current_main_model(tmp_path: Path, monkeypatch: py
     monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_main_model("switched-model"))
 
     session = Session(work_dir=tmp_path)
-    clients = handler._ensure_session_llm_clients(session)
+    clients = handler._ensure_session_llm_clients(session).clients
 
     assert clients.main_model_alias == "switched-model"
     assert clients.main.get_llm_config().model_id == "switched-model-id"
@@ -117,7 +147,7 @@ def test_new_session_falls_back_to_startup_clients_when_config_cannot_resolve(
     monkeypatch.setattr(agent_ops_module, "load_config", lambda: Config(main_model=None, provider_list=[]))
 
     session = Session(work_dir=tmp_path)
-    clients = handler._ensure_session_llm_clients(session)
+    clients = handler._ensure_session_llm_clients(session).clients
 
     assert clients.main_model_alias == "startup-model"
     assert isinstance(clients.main, _StubClient)
@@ -134,7 +164,7 @@ def test_session_model_override_still_wins(tmp_path: Path, monkeypatch: pytest.M
 
     session = Session(work_dir=tmp_path)
     session.model_config_name = "pinned-model"
-    clients = handler._ensure_session_llm_clients(session)
+    clients = handler._ensure_session_llm_clients(session).clients
 
     assert clients.main.get_llm_config().model_id == "pinned-model-id"
 
@@ -183,7 +213,324 @@ def test_sub_agent_prefers_parent_provider_for_unqualified_model(
     session = Session(work_dir=tmp_path)
     session.parent_session_id = "parent-id"
     session.model_config_name = model_config_name
-    clients = handler._ensure_session_llm_clients(session)
+    clients = handler._ensure_session_llm_clients(session).clients
 
     assert isinstance(clients.main, FallbackLLMClient)
     assert [candidate.provider for candidate in clients.main.candidates] == expected_providers
+
+
+def _config_with_role_chain(chain: list[str] | None = None) -> Config:
+    def _provider(name: str, models: list[str]) -> ProviderConfig:
+        return ProviderConfig(
+            provider_name=name,
+            protocol=llm_param.LLMClientProtocol.OPENAI,
+            api_key="test-key",
+            model_list=[ModelConfig(model_name=model, model_id=f"{model}-id") for model in models],
+        )
+
+    return Config(
+        main_model="sonnet",
+        sub_agent_models={"code-reviewer": chain or ["gpt-6.1-sol:max", "opus"]},
+        provider_list=[
+            _provider("openrouter", ["gpt-6.1-sol:max"]),
+            _provider("anthropic", ["opus", "sonnet"]),
+        ],
+    )
+
+
+def _sub_agent_session(tmp_path: Path, *, model: str | None = None, fork_context: bool = False) -> Session:
+    session = Session(work_dir=tmp_path)
+    session.sub_agent_state = SubAgentState(
+        sub_agent_type="code-reviewer",
+        sub_agent_desc="review",
+        sub_agent_prompt="review the diff",
+        model=model,
+        fork_context=fork_context,
+    )
+    return session
+
+
+def test_sub_agent_runs_its_whole_role_chain_with_the_main_model_as_tail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A provider can accept the request and still fail it, so the chain must survive.
+
+    sub_agent.py::_resolve_child_model stores only the chain's first match, which
+    leaves the child with nothing to fall back to when that provider answers 404.
+    """
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", _config_with_role_chain)
+
+    session = _sub_agent_session(tmp_path)
+    session.model_config_name = "gpt-6.1-sol:max"
+    clients = handler._ensure_session_llm_clients(session).clients
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == [
+        "gpt-6.1-sol:max@openrouter",
+        "opus@anthropic",
+        "sonnet@anthropic",
+    ]
+
+
+def test_explicit_sub_agent_model_override_is_not_widened(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Agent tool's `model` argument is a direct request, not a preference."""
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", _config_with_role_chain)
+
+    session = _sub_agent_session(tmp_path, model="opus")
+    session.model_config_name = "opus"
+    clients = handler._ensure_session_llm_clients(session).clients
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == ["opus@anthropic"]
+
+
+def test_fork_context_child_keeps_the_parent_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", _config_with_role_chain)
+
+    session = _sub_agent_session(tmp_path, fork_context=True)
+    session.model_config_name = "sonnet"
+    clients = handler._ensure_session_llm_clients(session).clients
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == ["sonnet@anthropic"]
+
+
+def test_restored_fork_context_child_keeps_the_parent_model(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """sub_agent_state is not persisted, so the role alone must not override the parent.
+
+    A fork child's stored model is the parent's, which can coincide with the first
+    match of a chain configured for the fork role.
+    """
+    handler, _actor = _handler("startup-model")
+    config = _config_with_role_chain(["sonnet", "opus"])
+    config.sub_agent_models = {"general-purpose-fork-context": ["sonnet", "opus"]}
+    monkeypatch.setattr(agent_ops_module, "load_config", lambda: config)
+
+    session = Session(work_dir=tmp_path)
+    session.agent_type = "general-purpose-fork-context"
+    session.parent_session_id = "parent-id"
+    session.spawn_kind = "subagent"
+    session.model_config_name = "sonnet"
+    clients = handler._ensure_session_llm_clients(session).clients
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == ["sonnet@anthropic"]
+
+
+def test_removed_provider_in_the_role_chain_falls_back_to_the_stored_selector(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(
+        agent_ops_module,
+        "load_config",
+        lambda: _config_with_role_chain(["sonnet@copilot", "opus"]),
+    )
+
+    session = _sub_agent_session(tmp_path)
+    session.model_config_name = "sonnet"
+    clients = handler._ensure_session_llm_clients(session).clients
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == ["sonnet@anthropic"]
+
+
+def test_headless_agent_session_runs_the_role_chain(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`klaude run --agent TYPE` carries its role in agent_type, not sub_agent_state."""
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", _config_with_role_chain)
+
+    session = Session(work_dir=tmp_path)
+    session.agent_type = "code-reviewer"
+    session.spawn_kind = "headless"
+    # What headless._resolve_run_model stores: the chain's first available match.
+    session.model_config_name = "gpt-6.1-sol:max"
+    clients = handler._ensure_session_llm_clients(session).clients
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == [
+        "gpt-6.1-sol:max@openrouter",
+        "opus@anthropic",
+        "sonnet@anthropic",
+    ]
+
+
+def test_headless_explicit_model_is_not_widened(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", _config_with_role_chain)
+
+    session = Session(work_dir=tmp_path)
+    session.agent_type = "code-reviewer"
+    session.spawn_kind = "headless"
+    session.model_config_name = "opus"
+    clients = handler._ensure_session_llm_clients(session).clients
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == ["opus@anthropic"]
+
+
+def test_unresolvable_role_chain_falls_back_to_the_stored_selector(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(
+        agent_ops_module,
+        "load_config",
+        lambda: _config_with_role_chain(["gone-a", "gone-b"]),
+    )
+
+    session = _sub_agent_session(tmp_path)
+    session.model_config_name = "sonnet"
+    clients = handler._ensure_session_llm_clients(session).clients
+
+    assert isinstance(clients.main, FallbackLLMClient)
+    assert [candidate.selector for candidate in clients.main.candidates] == ["sonnet@anthropic"]
+
+
+def _config_with_extra_model(model_name: str) -> Config:
+    config = _config_with_main_model("switched-model")
+    config.provider_list[0].model_list.append(ModelConfig(model_name=model_name, model_id=f"{model_name}-id"))
+    return config
+
+
+def test_session_model_that_no_longer_resolves_reports_the_fallback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The session model replaced by the config default must reach the client.
+
+    Silently running another model is the bug: the session keeps its own model
+    while it resolves, so the switch has to be stated.
+    """
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_main_model("switched-model"))
+
+    session = Session(work_dir=tmp_path)
+    session.model_config_name = "gone-model"
+    result = handler._ensure_session_llm_clients(session)
+
+    assert result.clients.main.get_llm_config().model_id == "switched-model-id"
+    warn = result.model_fallback_warn
+    assert warn is not None
+    assert warn.session_id == session.id
+    assert (warn.from_model, warn.from_provider) == ("gone-model", None)
+    assert (warn.to_model, warn.to_provider) == ("switched-model", "test-provider")
+    assert warn.reason == "Unknown model: gone-model"
+    assert warn.sub_agent_type is None
+
+
+def test_blank_session_model_inherits_silently(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`PUT /model/config` clears the override with a blank selector.
+
+    Clearing is the normal "inherit the config default" path, not a model that
+    failed to resolve.
+    """
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_main_model("switched-model"))
+
+    session = Session(work_dir=tmp_path)
+    session.model_config_name = "   "
+    result = handler._ensure_session_llm_clients(session)
+
+    assert result.clients.main_model_alias == "switched-model"
+    assert result.model_fallback_warn is None
+
+
+def test_session_model_reports_the_provider_it_was_pinned_to(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A qualified selector names its provider, which is often why it failed."""
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_main_model("switched-model"))
+
+    session = Session(work_dir=tmp_path)
+    session.model_config_name = "gone-model@gone-provider"
+    warn = handler._ensure_session_llm_clients(session).model_fallback_warn
+
+    assert warn is not None
+    assert (warn.from_model, warn.from_provider) == ("gone-model", "gone-provider")
+    assert warn.reason == "Unknown model: gone-model@gone-provider"
+
+
+def test_restored_sub_agent_session_keeps_its_role_label(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """sub_agent_state is not persisted, so the role has to come from agent_type."""
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_main_model("switched-model"))
+
+    session = Session(work_dir=tmp_path)
+    session.agent_type = "code-reviewer"
+    session.model_config_name = "gone-model"
+    warn = handler._ensure_session_llm_clients(session).model_fallback_warn
+
+    assert warn is not None
+    assert warn.sub_agent_type == "code-reviewer"
+
+
+def test_session_without_its_own_model_reports_no_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Inheriting the config default is the normal path, not a fallback."""
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_main_model("switched-model"))
+
+    session = Session(work_dir=tmp_path)
+    result = handler._ensure_session_llm_clients(session)
+
+    assert result.clients.main_model_alias == "switched-model"
+    assert result.model_fallback_warn is None
+
+
+def test_resolved_session_model_reports_no_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    handler, _actor = _handler("startup-model")
+    monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_extra_model("pinned-model"))
+
+    session = Session(work_dir=tmp_path)
+    session.model_config_name = "pinned-model"
+    result = handler._ensure_session_llm_clients(session)
+
+    assert result.clients.main.get_llm_config().model_id == "pinned-model-id"
+    assert result.model_fallback_warn is None
+
+
+def test_sub_agent_session_emits_the_fallback_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The actor that builds the clients warns; later calls reuse them silently."""
+
+    async def _test() -> None:
+        emitted: list[Any] = []
+        handler, actor = _handler("startup-model", emitted=emitted, profile_provider=_StubProfileProvider())
+        monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_main_model("switched-model"))
+
+        session = _sub_agent_session(tmp_path)
+        session.model_config_name = "gone-model"
+        await handler.init_sub_agent_session(session)
+
+        warns = [event for event in emitted if isinstance(event, events.FallbackModelConfigWarnEvent)]
+        assert len(warns) == 1
+        assert warns[0].session_id == session.id
+        assert warns[0].sub_agent_type == "code-reviewer"
+        assert (warns[0].from_model, warns[0].to_model) == ("gone-model", "switched-model")
+
+        again = handler._ensure_session_llm_clients(session)
+        assert again.clients is actor.clients
+        assert again.model_fallback_warn is None
+
+    asyncio.run(_test())
+
+
+def test_main_session_emits_the_fallback_without_a_sub_agent_label(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def _test() -> None:
+        emitted: list[Any] = []
+        handler, _actor = _handler("startup-model", emitted=emitted, profile_provider=_StubProfileProvider())
+        monkeypatch.setattr(agent_ops_module, "load_config", lambda: _config_with_main_model("switched-model"))
+
+        session = Session.create(work_dir=tmp_path)
+        session.model_config_name = "gone-model"
+        session.ensure_meta_exists()
+        await handler.ensure_agent(session.id, work_dir=tmp_path, suppress_welcome=True, defer_replay=True)
+
+        warns = [event for event in emitted if isinstance(event, events.FallbackModelConfigWarnEvent)]
+        assert len(warns) == 1
+        assert warns[0].session_id == session.id
+        assert warns[0].sub_agent_type is None
+
+    asyncio.run(_test())

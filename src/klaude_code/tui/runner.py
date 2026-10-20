@@ -377,8 +377,11 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             # the session's directory, which differs from the process CWD
             # when attached to a session rooted elsewhere.
             set_active_work_dir(Path(info.work_dir))
-        if info.model_config_name:
-            tui_display.set_model_name(info.model_config_name)
+        # The stored selector is not always what runs (a session model can fall
+        # back to the main model); older servers send only the selector.
+        model_name = info.active_model_name or info.model_config_name
+        if model_name:
+            tui_display.set_model_name(model_name)
         if input_provider is not None:
             input_provider.set_pending_messages(info.follow_ups)
             input_provider.set_startup_loading_title(info.title)
@@ -565,6 +568,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         on_user_activity=away_summary_coordinator.notify_user_activity,
         refresh_status=tui_display.refresh_prompt_status,
         get_current_model_config_name=lambda: client.session_info().model_config_name,
+        get_active_model_name=lambda: client.session_info().active_model_name,
         get_current_model_provider_name=lambda: client.session_info().provider_name,
         get_current_model_effort=lambda: client.session_info().effort,
         on_change_model=_change_model_from_prompt,

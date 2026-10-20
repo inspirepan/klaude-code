@@ -7,6 +7,7 @@ from klaude_code.auth.env import get_auth_env
 from klaude_code.config import Config
 from klaude_code.config.config import ModelConfig, ModelPreference, ProviderConfig, parse_env_var_syntax
 from klaude_code.config.formatters import format_model_params
+from klaude_code.config.sub_agent_model import SubAgentModelResolver
 from klaude_code.protocol.llm_param import LLMClientProtocol
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 
@@ -141,11 +142,15 @@ def _build_model_rows(
     provider_disabled = provider.disabled
     provider_available = (not provider_disabled) and (not provider.is_api_key_missing())
 
-    def _resolve_selector(value: str) -> str | None:
+    def _resolve_selector(value: str, *, available_only: bool) -> str | None:
         if not value:
             return None
         try:
-            resolved = config.resolve_model_location_prefer_available(value) or config.resolve_model_location(value)
+            resolved = (
+                config.resolve_model_location_prefer_available(value)
+                if available_only
+                else config.resolve_model_location(value)
+            )
         except ValueError:
             return None
         if resolved is None:
@@ -153,14 +158,19 @@ def _build_model_rows(
         return f"{resolved[0]}@{resolved[1]}"
 
     def _resolve_model_preference(value: ModelPreference) -> str | None:
+        """Resolve a preference to the selector whose row carries its role tags.
+
+        Available models win: a model that only an unusable provider defines would
+        otherwise put the tags on a row `show_all=False` never prints.
+        """
         if value is None:
             return None
-        if isinstance(value, str):
-            return _resolve_selector(value)
-        for candidate in value:
-            result = _resolve_selector(candidate)
-            if result is not None:
-                return result
+        candidates = value if isinstance(value, list) else [value]
+        for available_only in (True, False):
+            for candidate in candidates:
+                result = _resolve_selector(candidate, available_only=available_only)
+                if result is not None:
+                    return result
         return None
 
     default_selector = _resolve_model_preference(config.main_model)
@@ -174,6 +184,14 @@ def _build_model_rows(
         if selector not in model_to_agents:
             model_to_agents[selector] = []
         model_to_agents[selector].append(agent_role)
+
+    # Roles whose configured chain has no available model run on the main model
+    # instead, so tag them where they actually land rather than dropping them.
+    fallback_roles = [
+        info.profile.name
+        for info in SubAgentModelResolver(config).get_available_sub_agents()
+        if info.falls_back_to_main
+    ]
 
     model_rows: list[tuple[Text, Text, Text]] = []
 
@@ -212,6 +230,7 @@ def _build_model_rows(
             selector = f"{model.model_name}@{provider.provider_name}"
             if selector == default_selector:
                 roles.append("main")
+                roles.extend(f"{role} (fallback)" for role in fallback_roles)
             if selector in model_to_agents:
                 roles.extend(role.lower() for role in model_to_agents[selector])
             if roles:

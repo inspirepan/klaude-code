@@ -4,7 +4,6 @@ import pytest
 
 from klaude_code.agent.runtime import llm
 from klaude_code.agent.runtime.llm import (
-    FallbackLLMClient,
     ModelResolutionError,
     build_llm_clients,
     collect_model_config_warnings,
@@ -46,9 +45,8 @@ def test_removed_sub_agent_model_falls_back_to_builtin_with_warning() -> None:
 
     clients = build_llm_clients(config)
 
-    finder = clients.sub_clients["finder"]
-    assert isinstance(finder, FallbackLLMClient)
-    assert finder.candidates[0].selector == "gpt-6-luna@chatgpt"
+    # Sub-agent roles build no clients at build time; the resolution runs to
+    # report the unresolved role so the user can fix the config.
     assert len(clients.warnings) == 1
     assert "sub_agent_models.finder 'gpt-5.6-luna@chatgpt'" in clients.warnings[0]
     assert "gpt-6-luna@chatgpt" in clients.warnings[0]
@@ -62,8 +60,11 @@ def test_removed_fast_and_compact_models_do_not_fail() -> None:
         fast_model="gpt-5.6-luna@chatgpt",
         compact_model="gpt-5.6-luna@chatgpt",
     )
+    # This test asserts the fast/compact warnings only; leave the sub-agent
+    # roles unconfigured so they contribute no warnings of their own.
+    config.sub_agent_models = {}
 
-    clients = build_llm_clients(config, skip_sub_agents=True)
+    clients = build_llm_clients(config)
 
     assert clients.fast is not None
     assert clients.fast.model_name == "gpt-6-luna"
@@ -76,12 +77,12 @@ def test_removed_fast_and_compact_models_do_not_fail() -> None:
 def test_removed_main_model_falls_back_but_explicit_override_fails() -> None:
     config = Config(provider_list=[_provider()], main_model="gpt-5.6-luna@chatgpt")
 
-    clients = build_llm_clients(config, skip_sub_agents=True)
+    clients = build_llm_clients(config)
     assert clients.main_model_alias == "gpt-6.1-sol@chatgpt"
     assert clients.warnings and clients.warnings[0].startswith("main_model 'gpt-5.6-luna@chatgpt'")
 
     with pytest.raises(ModelResolutionError):
-        build_llm_clients(config, model_override="gpt-5.6-luna@chatgpt", skip_sub_agents=True)
+        build_llm_clients(config, model_override="gpt-5.6-luna@chatgpt")
 
 
 def test_unavailable_builtin_default_stays_silent(builtin: Config) -> None:
@@ -94,5 +95,5 @@ def test_unavailable_builtin_default_stays_silent(builtin: Config) -> None:
 
     clients = build_llm_clients(config)
 
-    assert "finder" not in clients.sub_clients
+    assert clients.warnings == []
     assert collect_model_config_warnings(config) == []

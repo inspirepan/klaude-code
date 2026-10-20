@@ -445,11 +445,8 @@ def test_attach_rehydrates_reclaimed_actor(app_env: AppEnv) -> None:
 
     # Simulate the 30min idle actor reclaim. The session stays on disk and
     # attach must rehydrate it before replaying persisted history.
-    response = app_env.client.put(
-        f"/api/sessions/{session_id}/model/config",
-        json={"model_name": "fake"},
-    )
-    assert response.status_code == 200
+    assert app_env.client.portal is not None
+    assert app_env.client.portal.call(app_env.runtime.close_session, session_id)
     assert not app_env.runtime.session_registry.has_session_actor(session_id)
 
     with _attach(app_env, session_id) as websocket:

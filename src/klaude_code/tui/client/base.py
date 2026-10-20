@@ -34,6 +34,9 @@ class SessionInfoSnapshot:
     session_id: str = ""
     state: str = "idle"
     model_config_name: str | None = None
+    #: The model the next request will use, read from the live client. The
+    #: prompt bar falls back to ``model_config_name`` when it is absent.
+    active_model_name: str | None = None
     provider_name: str | None = None
     effort: str | None = None
     work_dir: str | None = None

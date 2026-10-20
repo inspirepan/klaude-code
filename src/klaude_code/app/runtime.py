@@ -13,7 +13,7 @@ from klaude_code.agent.agent_profile import (
 from klaude_code.agent.runtime.llm import ModelResolutionError, build_llm_clients
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
 from klaude_code.app.runtime_facade import RuntimeFacade
-from klaude_code.config import Config, load_config
+from klaude_code.config import Config, ConfigReload, ConfigWatcher, load_config, start_config_watcher
 from klaude_code.control.event_bus import EventBus, EventSubscription
 from klaude_code.llm.proxy_support import configured_socks_proxy_var, is_missing_socks_proxy_support_error
 from klaude_code.log import DebugType, log, log_debug, set_debug_logging
@@ -57,6 +57,7 @@ class AppComponents:
     display_task: asyncio.Task[None]
     interaction_task: asyncio.Task[None] | None
     idle_reclaim_task: asyncio.Task[None]
+    config_watcher: ConfigWatcher
 
     async def wait_for_display_idle(self) -> None:
         """Wait until EventBus subscription has consumed pending events."""
@@ -129,6 +130,33 @@ async def _consume_interactions_from_subscription(
         holder.subscription = event_bus.subscribe(None)
 
 
+def _start_config_watcher(event_bus: EventBus) -> ConfigWatcher:
+    """Watch the config files and broadcast every reload to the clients.
+
+    Config edits apply to sessions and sub-agents started later; a running
+    session keeps the LLM client it was built with, so this only notifies.
+    """
+    loop = asyncio.get_running_loop()
+
+    def _publish(reload_event: ConfigReload) -> None:
+        log_debug(
+            f"[config] reloaded: revision {reload_event.revision} ({reload_event.summary})",
+            debug_type=DebugType.EXECUTION,
+        )
+        broadcast = events.ConfigReloadedEvent(
+            session_id="",
+            revision=reload_event.revision,
+            summary=reload_event.summary,
+        )
+        try:
+            asyncio.run_coroutine_threadsafe(event_bus.publish(broadcast), loop)
+        except RuntimeError as exc:
+            # The loop is gone: the server is shutting down.
+            log_debug(f"[config] reload broadcast skipped: {exc}", debug_type=DebugType.EXECUTION)
+
+    return start_config_watcher(_publish)
+
+
 async def initialize_app_components(
     *,
     init_config: AppInitConfig,
@@ -145,8 +173,13 @@ async def initialize_app_components(
         llm_clients = build_llm_clients(
             config,
             model_override=init_config.model,
-            skip_sub_agents=init_config.vanilla,
         )
+        if init_config.vanilla:
+            # Vanilla sessions never spawn sub-agents, so an unavailable sub-agent
+            # role model is not something the user needs to act on.
+            llm_clients.warnings = [
+                warning for warning in llm_clients.warnings if not warning.startswith("sub_agent_models.")
+            ]
     except ImportError as exc:
         if is_missing_socks_proxy_support_error(exc):
             proxy_var = configured_socks_proxy_var()
@@ -227,6 +260,8 @@ async def initialize_app_components(
     idle_reclaim_task = asyncio.create_task(_reclaim_idle_sessions_loop(runtime))
     _drain_background_task_exception(idle_reclaim_task, label="idle-reclaim")
 
+    config_watcher = _start_config_watcher(event_bus)
+
     display_task = asyncio.create_task(_consume_display_from_subscription(event_bus, event_bus_subscription, display))
     _drain_background_task_exception(display_task, label="display")
 
@@ -246,12 +281,16 @@ async def initialize_app_components(
         display_task=display_task,
         interaction_task=interaction_task,
         idle_reclaim_task=idle_reclaim_task,
+        config_watcher=config_watcher,
     )
 
 
 async def cleanup_app_components(components: AppComponents) -> None:
     """Clean up all runtime components."""
     try:
+        log_debug("[app] cleanup: stop config watcher", debug_type=DebugType.EXECUTION)
+        # The watcher blocks up to one poll interval; keep that off the loop.
+        await asyncio.to_thread(components.config_watcher.stop)
         log_debug("[app] cleanup: cancel idle reclaim task", debug_type=DebugType.EXECUTION)
         components.idle_reclaim_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

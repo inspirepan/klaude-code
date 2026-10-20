@@ -25,9 +25,13 @@ class SubAgentModelInfo:
     configured_model: ModelPreference
 
     # Effective model name used by this sub-agent.
-    # - When configured_model is set: equals configured_model.
-    # - When inheriting from defaults: resolved model name.
+    # - Configured and available: equals configured_model.
+    # - Configured but unavailable, or not configured: the main model.
     effective_model: ModelPreference
+
+    # True when configured_model is set but no model in its chain is currently
+    # available, so the sub-agent runs on the main model instead.
+    falls_back_to_main: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,21 +75,35 @@ class SubAgentModelResolver:
             resolved_model_name=resolved,
         )
 
+    def _configured_model_available(self, preference: ModelPreference) -> bool:
+        """Whether any model in a configured preference chain is currently usable."""
+        try:
+            return self._config.get_first_available_model(preference) is not None
+        except ValueError:
+            # Unknown model, disabled provider, missing credentials, or a provider
+            # removed from this build: unavailable for display purposes.
+            return False
+
     def get_available_sub_agents(self) -> list[SubAgentModelInfo]:
         """Return all available sub-agents with their current model config.
 
-        For sub-agents without explicit config, inherit the main model.
+        For sub-agents without explicit config, inherit the main model. A sub-agent
+        whose configured chain has no available model also ends up on the main model:
+        the runtime swallows the resolution error and hands the child the parent's
+        model, so the effective model must not claim the configured value.
         """
         result: list[SubAgentModelInfo] = []
         for profile in iter_sub_agent_profiles():
             role_key = profile.name
             configured_model = self._config.sub_agent_models.get(role_key)
-            effective_model = configured_model or self._config.main_model
+            falls_back = configured_model is not None and not self._configured_model_available(configured_model)
+            effective_model = self._config.main_model if configured_model is None or falls_back else configured_model
             result.append(
                 SubAgentModelInfo(
                     profile=profile,
                     configured_model=configured_model,
                     effective_model=effective_model,
+                    falls_back_to_main=falls_back,
                 )
             )
         return result

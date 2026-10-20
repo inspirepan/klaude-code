@@ -42,12 +42,17 @@ def build_agent_inventory(config: Any) -> list[dict[str, Any]]:
             "summary": "The full coding agent: all tools, full system prompt. Default for `klaude run`.",
             "tools": "all main-agent tools",
             "model": main_model,
+            "model_note": "",
         }
     ]
     resolver = SubAgentModelResolver(config)
     for info in resolver.get_available_sub_agents():
         profile = info.profile
         model = format_model_preference(info.effective_model) or main_model
+        # The runtime hands the child the parent's model when no model in the configured
+        # chain is available, so report the effective model and flag the configured one.
+        configured = format_model_preference(info.configured_model)
+        note = f"configured '{configured}' is unavailable" if info.falls_back_to_main and configured else ""
         tools = ", ".join(profile.tool_set) if profile.tool_set else "main-agent tool set"
         rows.append(
             {
@@ -55,6 +60,7 @@ def build_agent_inventory(config: Any) -> list[dict[str, Any]]:
                 "summary": " ".join(profile.invoker_summary.split()),
                 "tools": tools,
                 "model": model,
+                "model_note": note,
             }
         )
     return rows
@@ -252,7 +258,11 @@ def build_prime_guide(config: Any) -> str:
     lines.append("## Agent types (`klaude run --agent TYPE`)")
     lines.append("")
     for agent in agents:
-        lines.append(f"- `{agent['name']}` — {agent['summary']} (tools: {agent['tools']}; model: {agent['model']})")
+        note = agent["model_note"]
+        suffix = f"; {note}" if note else ""
+        lines.append(
+            f"- `{agent['name']}` — {agent['summary']} (tools: {agent['tools']}; model: {agent['model']}{suffix})"
+        )
     lines.append("")
     lines.append("## Model aliases (`klaude run -m ALIAS`)")
     lines.append("")
@@ -305,7 +315,7 @@ def _render_rich_view(config: Any) -> None:
     from rich.text import Text
 
     from klaude_code.cli.list_model import display_models_and_providers
-    from klaude_code.tui.components.rich.theme import get_theme
+    from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
     from klaude_code.tui.terminal.color import is_light_terminal_background
 
     if config.theme is None and sys.stdout.isatty():
@@ -325,6 +335,9 @@ def _render_rich_view(config: Any) -> None:
         header.append(f"  {agent['name']}", style="bold cyan")
         header.append("  ·  ", style="dim")
         header.append(str(agent["model"]))
+        if agent["model_note"]:
+            header.append("  ·  ", style="dim")
+            header.append(agent["model_note"], style=ThemeKey.CONFIG_STATUS_ERROR)
         console.print(header)
         console.print(Text(f"    tools: {agent['tools']}", style="dim"))
         if summary:

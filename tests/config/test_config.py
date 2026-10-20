@@ -1,6 +1,7 @@
 """Tests for the config module."""
 
 import asyncio
+import stat
 from pathlib import Path
 from typing import Any
 
@@ -926,6 +927,31 @@ class TestConfigSave:
         assert saved_content["fast_model"] == "fast-model"
         assert "provider_list" not in saved_content
 
+    def test_save_keeps_the_config_files_mode(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """The config can hold plaintext api keys, so a save must not widen its mode."""
+        test_config_path = tmp_path / "test-config.yaml"
+        test_config_path.write_text("main_model: old-model\n", encoding="utf-8")
+        test_config_path.chmod(0o600)
+        monkeypatch.setattr(_config_module, "config_path", test_config_path)
+
+        asyncio.run(Config(main_model="new-model").save())
+
+        assert stat.S_IMODE(test_config_path.stat().st_mode) == 0o600
+
+    def test_save_writes_through_a_symlinked_config(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A dotfiles-managed config is a symlink; saving must not replace the link."""
+        real_path = tmp_path / "dotfiles" / "klaude-config.yaml"
+        real_path.parent.mkdir(parents=True, exist_ok=True)
+        real_path.write_text("main_model: old-model\n", encoding="utf-8")
+        link_path = tmp_path / "klaude-config.yaml"
+        link_path.symlink_to(real_path)
+        monkeypatch.setattr(_config_module, "config_path", link_path)
+
+        asyncio.run(Config(main_model="new-model").save())
+
+        assert link_path.is_symlink()
+        assert yaml.safe_load(real_path.read_text())["main_model"] == "new-model"
+
     def test_save_config_preserves_model_preference_lists(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -1360,7 +1386,7 @@ class TestLoadConfig:
         assert "klaude conf" in message
 
     def test_load_config_caches_result(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Ensure config is cached and requires cache_clear to reload."""
+        """The cached instance is reused while the config files stay unchanged."""
         test_config_path = tmp_path / ".klaude" / "klaude-config.yaml"
         test_config_path.parent.mkdir(parents=True)
         monkeypatch.setattr(_config_module, "config_path", test_config_path)
@@ -1370,6 +1396,7 @@ class TestLoadConfig:
         first = load_config()
         assert first is not None
         assert first.main_model is None  # Builtin has no main_model
+        assert load_config() is first
 
         # Write a valid user config
         config_dict = {
@@ -1390,15 +1417,14 @@ class TestLoadConfig:
         }
         test_config_path.write_text(str(yaml.dump(config_dict) or ""))
 
-        # Without cache_clear, we still get cached result
-        cached = load_config()
-        assert cached.main_model is None
-
-        # After cache_clear, we get new config
-        load_config.cache_clear()
+        # The changed file invalidates the cache by itself
         refreshed = load_config()
         assert refreshed is not None
         assert refreshed.main_model == "after-create"
+
+        # An explicit clear still forces a fresh load
+        load_config.cache_clear()
+        assert load_config().main_model == "after-create"
 
 
 # =============================================================================

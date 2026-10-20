@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
+import pytest
 from prompt_toolkit.completion import Completion
 from prompt_toolkit.document import Document
 from prompt_toolkit.layout.controls import BufferControl
@@ -40,6 +41,7 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._refresh_status = None
     prompt_input._request_interrupt = None
     prompt_input._get_current_model_config_name = lambda: "test-model"
+    prompt_input._get_active_model_name = None
     prompt_input._get_current_model_provider_name = lambda: "test-provider"
     prompt_input._get_current_model_effort = None
     prompt_input._next_prefill_text = None
@@ -523,6 +525,54 @@ def test_input_footer_context_does_not_repeat_effort_from_model_suffix() -> None
 
     assert "test-model:xhigh via test-provider" in rendered
     assert "xhigh xhigh" not in rendered
+
+
+def test_input_footer_context_prefers_the_active_model() -> None:
+    """The stored selector can be one that fell back; the bar names what runs."""
+    prompt_input: Any = _build_input("")
+    prompt_input._get_active_model_name = lambda: "sonnet"
+    prompt_input._get_current_model_config_name = lambda: "opus@anthropic"
+
+    rendered = "".join(text for _style, text, *_ in prompt_input._build_prompt_context_fragments())
+
+    assert "sonnet via test-provider" in rendered
+    assert "opus" not in rendered
+
+
+def test_input_footer_context_falls_back_to_the_configured_model() -> None:
+    """No active model reported (older server, or no agent yet): use the selector."""
+    prompt_input: Any = _build_input("")
+    prompt_input._get_active_model_name = lambda: None
+    prompt_input._get_current_model_config_name = lambda: "opus@anthropic"
+
+    rendered = "".join(text for _style, text, *_ in prompt_input._build_prompt_context_fragments())
+
+    assert "opus via test-provider" in rendered
+
+
+def test_model_picker_prefill_keeps_the_configured_selector(monkeypatch: pytest.MonkeyPatch) -> None:
+    """/model pre-fills the stored selector, not the model that actually runs."""
+    import klaude_code.tui.input.prompt_toolkit as prompt_toolkit_module
+    from klaude_code.config.config import ModelEntry
+    from klaude_code.config.model_matcher import ModelMatchResult
+
+    prompt_input: Any = _build_input("")
+    prompt_input._get_current_model_config_name = lambda: "test-model:xhigh@test-provider"
+    prompt_input._get_active_model_name = lambda: "sonnet"
+    monkeypatch.setattr(
+        prompt_toolkit_module,
+        "match_model_from_config",
+        lambda preferred=None: ModelMatchResult(
+            matched_model=None,
+            filtered_models=[ModelEntry(model_name="test-model", provider="test-provider", model_id="test/model")],
+            filter_hint=preferred,
+        ),
+    )
+
+    items, initial = prompt_input._build_model_picker_items()
+
+    assert items
+    assert initial == "test-model:xhigh@test-provider"
 
 
 def test_input_footer_reserves_idle_metadata_row() -> None:

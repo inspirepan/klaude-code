@@ -33,7 +33,6 @@ class _FakeAgentOperationHandler:
             main=SimpleNamespace(model_name="main-model"),
             fast=None,
             compact=None,
-            sub_clients={},
         )
 
     async def ensure_agent(self, session_id: str) -> Any:
@@ -400,5 +399,202 @@ def test_request_sub_agent_model_operation_selects_fast_model(monkeypatch: pytes
         assert len(emitted) == 1
         assert isinstance(emitted[0], events.NoticeEvent)
         assert emitted[0].content == "Fast model: fast-model-id (saved in ~/.klaude/klaude-config.yaml)"
+
+    arun(_test())
+
+
+def test_request_sub_agent_model_operation_selects_compact_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The picker's compact branch must persist the choice, like the fast branch."""
+
+    async def _test() -> None:
+        session = Session(work_dir=tmp_path)
+        emitted: list[events.Event] = []
+        runner = _FakeAgentOperationHandler(session)
+        selected_option_ids = iter(["__compact__", "compact-model@openai"])
+
+        class _FakeConfig:
+            def __init__(self) -> None:
+                self.main_model = "main-model"
+                self.fast_model: str | list[str] | None = None
+                self.compact_model: str | list[str] | None = None
+                self.sub_agent_models: dict[str, str] = {}
+                self.saved = False
+
+            def iter_model_entries(self, *, only_available: bool, include_disabled: bool) -> list[Any]:
+                assert only_available is True
+                assert include_disabled is False
+                return [
+                    SimpleNamespace(
+                        selector="compact-model@openai",
+                        provider="openai",
+                        model_id="compact-model-id",
+                        model_name="compact-model",
+                    )
+                ]
+
+            def iter_model_config_candidates_with_preference_fallback(
+                self, model_selector: str, fallback_preference: Any
+            ) -> list[Any]:
+                assert model_selector == "compact-model@openai"
+                return [SimpleNamespace(selector=model_selector)]
+
+            async def save(self) -> None:
+                self.saved = True
+
+        fake_config = _FakeConfig()
+
+        async def _emit_event(event: events.Event) -> None:
+            emitted.append(event)
+
+        async def _request_user_interaction(
+            _session_id: str,
+            _request_id: str,
+            _source: user_interaction.UserInteractionSource,
+            _payload: user_interaction.UserInteractionRequestPayload,
+        ) -> user_interaction.UserInteractionResponse:
+            return user_interaction.UserInteractionResponse(
+                status="submitted",
+                payload=user_interaction.OperationSelectResponsePayload(
+                    selected_option_id=next(selected_option_ids),
+                ),
+            )
+
+        monkeypatch.setattr(runtime_mod, "load_config", lambda: cast(Any, fake_config))
+        monkeypatch.setattr(
+            runtime_mod,
+            "create_llm_client_for_candidates",
+            lambda _candidates: SimpleNamespace(model_name="compact-model-id"),
+        )
+
+        handler = runtime_mod.ConfigHandler(
+            agent_operation_handler=cast(Any, runner),
+            model_switcher=cast(Any, object()),
+            emit_event=_emit_event,
+            request_user_interaction=_request_user_interaction,
+            current_session_id=lambda: session.id,
+            on_model_change=None,
+        )
+
+        await handler.handle_request_sub_agent_model(
+            op.RequestSubAgentModelOperation(session_id=session.id, save_as_default=True)
+        )
+
+        assert runner.get_session_llm_clients(session.id).compact is not None
+        assert fake_config.compact_model == "compact-model@openai"
+        assert fake_config.saved is True
+
+        assert len(emitted) == 1
+        assert isinstance(emitted[0], events.CompactModelChangedEvent)
+        assert emitted[0].saved_as_default is True
+        assert "saved in ~/.klaude/klaude-config.yaml" in emitted[0].model_display
+
+    asyncio.run(_test())
+
+
+@pytest.mark.parametrize("initial_sub_agent_models", [{"finder": "old-model"}, {}], ids=["set", "unset"])
+def test_change_sub_agent_model_always_persists_to_config(
+    initial_sub_agent_models: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    async def _test() -> None:
+        session = Session(work_dir=tmp_path)
+        emitted: list[events.Event] = []
+        runner = _FakeAgentOperationHandler(session)
+
+        class _FakeConfig:
+            def __init__(self) -> None:
+                self.sub_agent_models = dict(initial_sub_agent_models)
+                self.saved = False
+
+            def iter_model_config_candidates(self, model_name: str) -> list[Any]:
+                assert model_name == "new-model@openai"
+                return [SimpleNamespace(model_name="new-model", selector="new-model@openai")]
+
+            async def save(self) -> None:
+                self.saved = True
+
+        fake_config = _FakeConfig()
+
+        async def _emit_event(event: events.Event) -> None:
+            emitted.append(event)
+
+        async def _unexpected_request(*_args: Any, **_kwargs: Any) -> Any:
+            raise AssertionError("changing a sub-agent model must not ask the user anything")
+
+        monkeypatch.setattr(runtime_mod, "load_config", lambda: cast(Any, fake_config))
+
+        handler = runtime_mod.ConfigHandler(
+            agent_operation_handler=cast(Any, runner),
+            model_switcher=cast(Any, object()),
+            emit_event=_emit_event,
+            request_user_interaction=_unexpected_request,
+            current_session_id=lambda: session.id,
+            on_model_change=None,
+        )
+
+        await handler.handle_change_sub_agent_model(
+            op.ChangeSubAgentModelOperation(
+                session_id=session.id,
+                sub_agent_type="finder",
+                model_name="new-model@openai",
+            )
+        )
+
+        assert fake_config.sub_agent_models["finder"] == "new-model@openai"
+        assert fake_config.saved is True
+        assert len(emitted) == 1
+        assert isinstance(emitted[0], events.SubAgentModelChangedEvent)
+        assert emitted[0].model_display == "new-model (saved in ~/.klaude/klaude-config.yaml)"
+        assert emitted[0].saved_as_default is True
+
+    arun(_test())
+
+
+def test_change_sub_agent_model_clears_config_on_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    async def _test() -> None:
+        session = Session(work_dir=tmp_path)
+        emitted: list[events.Event] = []
+        runner = _FakeAgentOperationHandler(session)
+
+        class _FakeConfig:
+            def __init__(self) -> None:
+                self.sub_agent_models = {"finder": "old-model"}
+                self.saved = False
+
+            async def save(self) -> None:
+                self.saved = True
+
+        fake_config = _FakeConfig()
+
+        async def _emit_event(event: events.Event) -> None:
+            emitted.append(event)
+
+        monkeypatch.setattr(runtime_mod, "load_config", lambda: cast(Any, fake_config))
+
+        handler = runtime_mod.ConfigHandler(
+            agent_operation_handler=cast(Any, runner),
+            model_switcher=cast(Any, object()),
+            emit_event=_emit_event,
+            request_user_interaction=cast(Any, object()),
+            current_session_id=lambda: session.id,
+            on_model_change=None,
+        )
+
+        await handler.handle_change_sub_agent_model(
+            op.ChangeSubAgentModelOperation(
+                session_id=session.id,
+                sub_agent_type="finder",
+                model_name=None,
+            )
+        )
+
+        assert fake_config.sub_agent_models == {}
+        assert fake_config.saved is True
+        assert len(emitted) == 1
+        assert isinstance(emitted[0], events.SubAgentModelChangedEvent)
+        assert emitted[0].model_display == "(inherit from main agent) (saved in ~/.klaude/klaude-config.yaml)"
 
     arun(_test())

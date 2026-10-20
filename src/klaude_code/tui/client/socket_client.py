@@ -812,6 +812,7 @@ class SocketRuntimeClient:
         info.session_id = str(item.get("session_id") or self._session_id)
         info.state = str(item.get("state") or "idle")
         info.model_config_name = item.get("model_config_name")
+        info.active_model_name = item.get("active_model_name")
         info.provider_name = item.get("provider_name")
         info.effort = item.get("effort")
         info.work_dir = item.get("work_dir")

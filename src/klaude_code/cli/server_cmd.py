@@ -215,6 +215,29 @@ def reload_command(
     log(("klaude server is running", "green"))
 
 
+@server_app.command("config-reload")
+def config_reload_command() -> None:
+    """Re-read ~/.klaude/klaude-config.yaml without restarting the server.
+
+    The server normally picks up edits by itself within a second; this makes it
+    immediate and reports the revision the server now serves. Running sessions
+    keep the model they were built with -- the change applies to sessions and
+    sub-agents started afterwards.
+    """
+
+    try:
+        status_code, body = _request("POST", "/api/server/config/reload")
+    except ServerNotRunningError as exc:
+        _print_not_running(str(exc))
+        raise typer.Exit(1) from None
+    if status_code != 200:
+        log((f"Unexpected server response ({status_code}): {body}", "red"))
+        raise typer.Exit(1)
+    revision = body.get("revision")
+    suffix = f" (revision {revision})" if isinstance(revision, int) else ""
+    log((f"klaude server reloaded its config{suffix}", "green"))
+
+
 @server_app.command("logs")
 def logs_command(
     lines: int = typer.Option(100, "--lines", "-n", help="Number of trailing lines to print"),

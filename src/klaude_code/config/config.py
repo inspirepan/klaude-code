@@ -1,12 +1,15 @@
 import asyncio
+import contextlib
 import difflib
 import os
 import re
+import stat
 from dataclasses import dataclass
 from dataclasses import field as dc_field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Literal, cast
+from uuid import uuid4
 
 import yaml
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -1056,11 +1059,33 @@ class Config(BaseModel):
             config_dict["provider_list"] = provider_list
 
         def _save_config() -> None:
-            config_path.parent.mkdir(parents=True, exist_ok=True)
+            # Write through a symlinked config instead of replacing the link, and
+            # keep the target's mode: the config can hold plaintext api keys, and
+            # dotfiles setups keep the real file somewhere else.
+            target = config_path.resolve() if config_path.is_symlink() else config_path
+            target.parent.mkdir(parents=True, exist_ok=True)
             yaml_content = yaml.dump(config_dict, default_flow_style=False, sort_keys=False)
-            config_path.write_text(yaml_content or "")
+            # Write beside the target and rename: the config watcher and other
+            # klaude processes must never parse a half-written file.
+            tmp_path = target.with_name(f"{target.name}.{uuid4().hex}.tmp")
+            try:
+                tmp_path.write_text(yaml_content or "", encoding="utf-8")
+                if target.exists():
+                    tmp_path.chmod(stat.S_IMODE(target.stat().st_mode))
+                tmp_path.replace(target)
+            except OSError:
+                with contextlib.suppress(OSError):
+                    tmp_path.unlink()
+                raise
 
         await asyncio.to_thread(_save_config)
+
+        # Re-stamp the config files: this write is ours, not an external edit.
+        # Without it the next load_config would rebuild the merged instance and
+        # drop in-memory changes that were not part of this save.
+        from klaude_code.config.loader import load_config
+
+        load_config.sync_fingerprint()
 
         # These edits are now on disk. Advance the baseline so a later save only
         # re-applies changes made from here on, instead of replaying this delta

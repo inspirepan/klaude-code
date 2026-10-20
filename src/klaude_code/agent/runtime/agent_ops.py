@@ -18,14 +18,20 @@ from klaude_code.agent.away_summary import generate_away_summary
 from klaude_code.agent.bash_mode import run_bash_command
 from klaude_code.agent.compaction import CompactionReason, get_last_context_tokens, run_compaction
 from klaude_code.agent.llm_request import LLMRequestLog, append_request_records
-from klaude_code.agent.model_fallback import build_fallback_model_config_warn, fallback_llm_client
+from klaude_code.agent.model_fallback import (
+    build_fallback_model_config_warn,
+    build_model_config_warn,
+    fallback_llm_client,
+)
 from klaude_code.agent.prompt_suggestion import run_prompt_suggestion, should_suggest
 from klaude_code.agent.rewind.summary import run_rewind_summary
 from klaude_code.agent.runtime.llm import (
+    FallbackLLMClient,
     LLMClients,
     build_llm_clients,
     clone_llm_clients,
     create_llm_client_for_candidates,
+    model_resolution_error_detail,
 )
 from klaude_code.agent.runtime.peers import PeerControl
 from klaude_code.agent.runtime.sub_agent import SubAgentLauncher
@@ -38,7 +44,7 @@ from klaude_code.agent.skill_inventory import (
 )
 from klaude_code.agent.user_input import freeze_user_input_for_history
 from klaude_code.config import format_model_preference, load_config
-from klaude_code.config.config import ModelConfigCandidate
+from klaude_code.config.config import Config, ModelConfigCandidate, ModelPreference
 from klaude_code.control.event_bus import event_publish_context
 from klaude_code.control.runtime.actor import SessionActor
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
@@ -46,7 +52,7 @@ from klaude_code.llm.client import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, message, op, user_interaction
 from klaude_code.protocol.models import SubAgentState
-from klaude_code.protocol.sub_agent import SubAgentResult
+from klaude_code.protocol.sub_agent import SubAgentResult, get_sub_agent_profile
 from klaude_code.session.session import Session
 from klaude_code.tool.shell.task_manager import ShellTaskManager
 from klaude_code.update import get_startup_update_summary
@@ -63,6 +69,147 @@ def _has_summary_since_last_user_turn(session: Session) -> bool:
         if isinstance(item, message.AwaySummaryEntry):
             return True
     return False
+
+
+def _with_fallback_tail(
+    candidates: list[ModelConfigCandidate],
+    tail: list[ModelConfigCandidate],
+) -> list[ModelConfigCandidate]:
+    """Append the ``tail`` candidates that ``candidates`` does not already cover."""
+    seen = {candidate.selector for candidate in candidates}
+    return [*candidates, *(candidate for candidate in tail if candidate.selector not in seen)]
+
+
+def _selector_parts(model_selector: str) -> tuple[str, str | None]:
+    """Split ``model@provider`` for display, mirroring ``Config``'s selector syntax."""
+    model_name, _, provider = model_selector.rpartition("@")
+    if not model_name:
+        return model_selector, None
+    return model_name, provider or None
+
+
+def _client_model_identity(client: LLMClientABC) -> tuple[str, str | None]:
+    """The model name and provider a client calls, as a notice should name them."""
+    if isinstance(client, FallbackLLMClient):
+        candidate = client.active_candidate
+        return candidate.model_name, candidate.provider
+    return client.model_name, client.get_llm_config().provider_name or None
+
+
+def _session_agent_type(session: Session) -> str | None:
+    """The sub-agent role a session runs as, for labelling user-facing notices."""
+    state = session.sub_agent_state
+    if state is not None:
+        return state.sub_agent_type
+    agent_type = session.agent_type
+    return agent_type if agent_type not in (None, "main") else None
+
+
+def _sub_agent_role_chain(session: Session, config: Config) -> ModelPreference | None:
+    """The role preference chain a session should run on, if any.
+
+    A fork-context child and a per-invocation `model` override each name their own
+    model, so both keep the plain selector path.
+    """
+    state = session.sub_agent_state
+    if state is not None:
+        if state.fork_context or (state.model or "").strip():
+            return None
+        preference = config.sub_agent_models.get(state.sub_agent_type)
+        return preference if isinstance(preference, list) else None
+
+    # No state: sub_agent_state is not persisted, so a session restored from disk or
+    # started with `klaude run --agent TYPE` carries its role in agent_type instead.
+    # Widen only a model the role resolution itself chose, so an explicit `--model`
+    # keeps winning.
+    agent_type = session.agent_type
+    if agent_type is None or agent_type == "main" or session.model_config_name is None:
+        return None
+    try:
+        # A fork-context profile owns the parent's model, whether or not its state
+        # survived the reload.
+        if get_sub_agent_profile(agent_type).fork_context:
+            return None
+    except KeyError:
+        return None
+    preference = config.sub_agent_models.get(agent_type)
+    if not isinstance(preference, list):
+        return None
+    try:
+        if session.model_config_name == config.get_first_available_model(preference):
+            return preference
+    except ValueError:
+        return None
+    return None
+
+
+def _session_model_candidates(session: Session, config: Config) -> SessionModelResolution:
+    """Model candidates for a session, preferring a sub-agent's whole role chain.
+
+    ``sub_agent.py::_resolve_child_model`` stores only the chain's first available
+    selector in ``model_config_name``, which drops the rest of the chain. A provider
+    that accepts the request can still fail it -- an OpenRouter account that permits
+    none of the upstream providers answers 404 -- and the child then has nothing to
+    fall back to. Keeping the whole chain, with the main model as the last resort,
+    lets the runtime advance instead of failing the task.
+
+    A session model that resolves to nothing is reported through
+    ``unresolved_reason`` instead of being dropped: the caller keeps running the
+    config default, but the user gets to hear about it.
+    """
+    chain = _sub_agent_role_chain(session, config)
+    if chain is not None:
+        with contextlib.suppress(ValueError):
+            candidates = config.iter_model_config_candidates(chain)
+            if candidates:
+                return SessionModelResolution(
+                    candidates=_with_fallback_tail(candidates, config.iter_model_config_candidates(config.main_model))
+                )
+
+    model_config_name = (session.model_config_name or "").strip()
+    if not model_config_name:
+        # A blank selector is how `PUT /model/config` clears the override, so it
+        # means "inherit the config default", not "a model that does not resolve".
+        return SessionModelResolution(candidates=[])
+    try:
+        candidates = config.iter_model_config_candidates_with_preference_fallback(
+            model_config_name,
+            config.main_model,
+        )
+    except ValueError:
+        candidates = []
+    if candidates:
+        return SessionModelResolution(candidates=candidates)
+    return SessionModelResolution(
+        candidates=[],
+        unresolved_reason=model_resolution_error_detail(config, model_config_name),
+    )
+
+
+@dataclass(frozen=True)
+class SessionModelResolution:
+    """A session's own model resolved into candidates, or the reason it has none.
+
+    ``unresolved_reason`` is set only when the session names a model that no
+    longer resolves. A session without its own model inherits the config
+    default, which is normal and reports nothing.
+    """
+
+    candidates: list[ModelConfigCandidate]
+    unresolved_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class SessionLLMClients:
+    """The clients installed on a session's actor, plus the notice they raised.
+
+    ``model_fallback_warn`` is set only by the call that actually built the
+    clients; a call that reuses the actor's cached clients gets None, so one
+    actor reports a session-model fallback exactly once.
+    """
+
+    clients: LLMClients
+    model_fallback_warn: events.FallbackModelConfigWarnEvent | None = None
 
 
 @dataclass
@@ -209,34 +356,65 @@ class AgentOperationHandler:
             )
             return clone_llm_clients(self._llm_clients_template)
 
-    def _ensure_session_llm_clients(self, session: Session) -> LLMClients:
+    def _ensure_session_llm_clients(self, session: Session) -> SessionLLMClients:
         runtime = self._ensure_session_actor(session.id)
         existing = runtime.get_llm_clients()
         if existing is not None:
-            return existing
+            # Cached clients were built (and reported) once for this actor.
+            return SessionLLMClients(clients=existing)
 
         clients = self._build_default_llm_clients()
         config = load_config()
 
-        model_config_name = session.model_config_name
-        if model_config_name is not None:
-            with contextlib.suppress(ValueError):
-                candidates = config.iter_model_config_candidates_with_preference_fallback(
-                    model_config_name,
-                    config.main_model,
-                )
-                candidates = self._prefer_parent_provider(session, model_config_name, candidates)
-                if candidates:
-                    clients.main = create_llm_client_for_candidates(candidates)
-                    clients.main_model_alias = (
-                        format_model_preference([candidate.selector for candidate in candidates]) or model_config_name
-                    )
+        model_fallback_warn: events.FallbackModelConfigWarnEvent | None = None
+        resolution = _session_model_candidates(session, config)
+        if resolution.candidates:
+            candidates = self._prefer_parent_provider(session, session.model_config_name or "", resolution.candidates)
+            clients.main = create_llm_client_for_candidates(candidates)
+            clients.main_model_alias = (
+                format_model_preference([candidate.selector for candidate in candidates])
+                or session.model_config_name
+                or clients.main_model_alias
+            )
+        elif resolution.unresolved_reason is not None:
+            model_fallback_warn = self._build_session_model_fallback_warn(
+                session,
+                clients,
+                reason=resolution.unresolved_reason,
+            )
 
         if session.model_thinking is not None:
             clients.main.get_llm_config().thinking = session.model_thinking.model_copy(deep=True)
 
         runtime.set_llm_clients(clients)
-        return clients
+        return SessionLLMClients(clients=clients, model_fallback_warn=model_fallback_warn)
+
+    def _build_session_model_fallback_warn(
+        self,
+        session: Session,
+        clients: LLMClients,
+        *,
+        reason: str,
+    ) -> events.FallbackModelConfigWarnEvent:
+        """The notice for a session model that did not resolve and was replaced.
+
+        Only the live event is raised. Every actor rebuild re-resolves the
+        session model, so persisting an entry would pile up one duplicate per
+        rebuild and print again inside the history replay that follows a fresh
+        actor -- the client is told while the fallback is in effect instead.
+        """
+        from_model, from_provider = _selector_parts(session.model_config_name or "")
+        to_model, to_provider = _client_model_identity(clients.main)
+        _entry, event = build_model_config_warn(
+            session_id=session.id,
+            from_model=from_model,
+            from_provider=from_provider,
+            to_model=to_model,
+            to_provider=to_provider,
+            reason=reason,
+            sub_agent_type=_session_agent_type(session),
+        )
+        return event
 
     def _prefer_parent_provider(
         self,
@@ -248,6 +426,8 @@ class AgentOperationHandler:
 
         The parent's provider is known to work right now, while provider_list
         order may put an exhausted one first. Other candidates stay as fallbacks.
+        Only the leading model is reordered: a role chain names its models in
+        priority order, and swapping whole models would change that choice.
         """
         if session.parent_session_id is None or "@" in model_config_name:
             return candidates
@@ -256,7 +436,10 @@ class AgentOperationHandler:
         if parent_clients is None:
             return candidates
         parent_provider = parent_clients.main.get_llm_config().provider_name
-        return sorted(candidates, key=lambda candidate: candidate.provider != parent_provider)
+        leading_model = candidates[0].model_name
+        leading = [candidate for candidate in candidates if candidate.model_name == leading_model]
+        rest = [candidate for candidate in candidates if candidate.model_name != leading_model]
+        return [*sorted(leading, key=lambda candidate: candidate.provider != parent_provider), *rest]
 
     def get_session_llm_clients(self, session_id: str) -> LLMClients:
         runtime = self._get_session_actor(session_id)
@@ -383,7 +566,10 @@ class AgentOperationHandler:
         if existing is not None:
             return existing
 
-        session_clients = self._ensure_session_llm_clients(session)
+        session_llm = self._ensure_session_llm_clients(session)
+        session_clients = session_llm.clients
+        if session_llm.model_fallback_warn is not None:
+            await self._emit_event(session_llm.model_fallback_warn)
 
         # Top-level sessions created via `klaude run --agent TYPE` carry the
         # agent type in meta; build the matching profile (prompt + tool set).
@@ -486,7 +672,11 @@ class AgentOperationHandler:
         if existing is not None:
             return existing
 
-        session_clients = self._ensure_session_llm_clients(session)
+        session_llm = self._ensure_session_llm_clients(session)
+        session_clients = session_llm.clients
+        if session_llm.model_fallback_warn is not None:
+            await self._emit_event(session_llm.model_fallback_warn)
+
         profile_agent_type: str | None = None
         if session.agent_type is not None and session.agent_type != "main":
             profile_agent_type = session.agent_type

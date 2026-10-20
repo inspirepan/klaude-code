@@ -221,6 +221,7 @@ class PromptToolkitInput(InputProviderABC):
         on_user_activity: Callable[[], None] | None = None,
         on_change_model: Callable[[str], Awaitable[None]] | None = None,
         get_current_model_config_name: Callable[[], str | None] | None = None,
+        get_active_model_name: Callable[[], str | None] | None = None,
         get_current_model_provider_name: Callable[[], str | None] | None = None,
         get_current_model_effort: Callable[[], str | None] | None = None,
         command_info_provider: Callable[[], list[CommandInfo]] | None = None,
@@ -240,6 +241,7 @@ class PromptToolkitInput(InputProviderABC):
         self._on_user_activity = on_user_activity
         self._on_change_model = on_change_model
         self._get_current_model_config_name = get_current_model_config_name
+        self._get_active_model_name = get_active_model_name
         self._get_current_model_provider_name = get_current_model_provider_name
         self._get_current_model_effort = get_current_model_effort
         self._command_info_provider = command_info_provider
@@ -584,8 +586,13 @@ class PromptToolkitInput(InputProviderABC):
         work_dir = active_work_dir()
         cwd_name = work_dir.name or str(work_dir)
         dir_name = repo_display or cwd_name
+        # The prompt bar names the model that actually runs: the session's
+        # stored selector can be one that fell back to the main model.
         current_model: str | None = None
-        if self._get_current_model_config_name is not None:
+        if self._get_active_model_name is not None:
+            with contextlib.suppress(Exception):
+                current_model = self._get_active_model_name()
+        if not current_model and self._get_current_model_config_name is not None:
             with contextlib.suppress(Exception):
                 current_model = self._get_current_model_config_name()
         if not current_model:

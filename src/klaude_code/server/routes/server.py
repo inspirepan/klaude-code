@@ -214,12 +214,15 @@ async def server_config_reload() -> dict[str, Any]:
     ~/.klaude/klaude-config.yaml (e.g. /manage-providers) would otherwise not
     affect server-side sessions until the server re-execs. Live LLM clients keep
     the model they were built with; only later resolutions see the new config.
+
+    The background watcher normally does this on its own; the endpoint makes it
+    immediate and reports the resulting revision.
     """
-    from klaude_code.config import load_config
+    from klaude_code.config import config_revision, load_config
 
     load_config.cache_clear()
     try:
         load_config()
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {"ok": True, "pid": os.getpid()}
+    return {"ok": True, "pid": os.getpid(), "revision": config_revision()}

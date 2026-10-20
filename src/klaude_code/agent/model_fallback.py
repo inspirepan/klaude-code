@@ -34,6 +34,12 @@ def is_fallbackable_llm_error(error_message: str) -> bool:
         "permission denied",
         "usage_limit_reached",
         "usage limit exceeded",
+        # A provider can answer 404 for a model it lists: OpenRouter serves a model
+        # through upstream providers its account settings may exclude. Retrying the
+        # same candidate cannot succeed, so the chain must advance.
+        "no allowed providers",
+        "no endpoints found",
+        "not available in your region",
     )
     return any(marker in text for marker in fallbackable_markers)
 
@@ -46,20 +52,28 @@ def fallback_llm_client(client: LLMClientABC, error_message: str) -> ModelFallba
     return client.fallback_to_next()
 
 
-def build_fallback_model_config_warn(
+def build_model_config_warn(
     *,
     session_id: str,
-    fallback: ModelFallback,
-    error_message: str,
+    from_model: str,
+    from_provider: str | None,
+    to_model: str,
+    to_provider: str | None,
+    reason: str,
     sub_agent_type: SubAgentType | None = None,
 ) -> tuple[message.FallbackModelConfigWarnEntry, events.FallbackModelConfigWarnEvent]:
-    reason = fallback_reason(error_message)
+    """Build the history entry and the live event for one model fallback.
+
+    Shared by the runtime fallback (a candidate chain advanced on an error) and
+    the session-model fallback (a session model that no longer resolves), so both
+    reach the client through the same event and the same rendering.
+    """
     entry = message.FallbackModelConfigWarnEntry(
         sub_agent_type=sub_agent_type,
-        from_model=fallback.from_candidate.model_name,
-        from_provider=fallback.from_candidate.provider,
-        to_model=fallback.to_candidate.model_name,
-        to_provider=fallback.to_candidate.provider,
+        from_model=from_model,
+        from_provider=from_provider,
+        to_model=to_model,
+        to_provider=to_provider,
         reason=reason,
     )
     event = events.FallbackModelConfigWarnEvent(
@@ -72,3 +86,21 @@ def build_fallback_model_config_warn(
         reason=entry.reason,
     )
     return entry, event
+
+
+def build_fallback_model_config_warn(
+    *,
+    session_id: str,
+    fallback: ModelFallback,
+    error_message: str,
+    sub_agent_type: SubAgentType | None = None,
+) -> tuple[message.FallbackModelConfigWarnEntry, events.FallbackModelConfigWarnEvent]:
+    return build_model_config_warn(
+        session_id=session_id,
+        from_model=fallback.from_candidate.model_name,
+        from_provider=fallback.from_candidate.provider,
+        to_model=fallback.to_candidate.model_name,
+        to_provider=fallback.to_candidate.provider,
+        reason=fallback_reason(error_message),
+        sub_agent_type=sub_agent_type,
+    )

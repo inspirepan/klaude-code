@@ -29,6 +29,31 @@ class ModelConfigRequest(BaseModel):
     model_name: str
 
 
+def _ensure_model_available(model: str) -> None:
+    """Reject a selector the current config cannot serve; raise 400/500.
+
+    Persisted selectors are re-resolved on every actor rehydrate, so an
+    unavailable one would silently fall back to the main model. Fail the request
+    instead.
+    """
+    from klaude_code.config import load_config
+
+    try:
+        config = load_config()
+        candidates = config.iter_model_config_candidates(model)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"unknown model '{model}': {exc}") from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"failed to load config: {exc}") from exc
+    if candidates:
+        return
+
+    from klaude_code.config.config import describe_model_unavailable
+
+    diagnosis = config.diagnose_model(model)
+    raise HTTPException(status_code=400, detail=describe_model_unavailable(model, diagnosis))
+
+
 @router.post("")
 async def create_session(
     payload: CreateSessionRequest,
@@ -40,20 +65,7 @@ async def create_session(
     target_work_dir = target_work_dir.resolve()
 
     if payload.model is not None:
-        from klaude_code.config import load_config
-
-        try:
-            config = load_config()
-            candidates = config.iter_model_config_candidates(payload.model)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"unknown model '{payload.model}': {exc}") from exc
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=f"failed to load config: {exc}") from exc
-        if not candidates:
-            from klaude_code.config.config import describe_model_unavailable
-
-            diagnosis = config.diagnose_model(payload.model)
-            raise HTTPException(status_code=400, detail=describe_model_unavailable(payload.model, diagnosis))
+        _ensure_model_available(payload.model)
 
     # Persist meta first (model/vanilla are read when the agent is built),
     # then spin up the actor so follow-up REST/WS calls find it.
@@ -97,6 +109,10 @@ async def configure_session_model(
 ) -> dict[str, bool]:
     """Set the model used by the next actor rehydrate."""
     work_dir = _check_write_access(state, session_id)
+    # A blank selector drops the override, so the session inherits the main
+    # model; only a real selector has to resolve.
+    if payload.model_name.strip():
+        _ensure_model_available(payload.model_name)
     if state.headless is not None and state.headless.has_pending(session_id):
         raise HTTPException(status_code=409, detail="session has pending headless work")
 
