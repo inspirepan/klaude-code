@@ -126,7 +126,7 @@ from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.components.tools._common import AdaptiveIndent
-from klaude_code.tui.components.tools._manage_shell import render_shell_completion
+from klaude_code.tui.components.tools._manage_shell import ManageShellRow, render_shell_completion
 from klaude_code.tui.components.tools._presentation import parse_tool_arguments
 from klaude_code.tui.input.flicker_safe_stdout import FlickerSafeStdoutProxy, write_scrollback_bulk
 from klaude_code.tui.input.pt_theme import CLASS_THINKING, CLASS_TOOL_RESULT
@@ -512,6 +512,24 @@ class TUICommandRenderer:
     # Low-level printing & bottom status
     # ---------------------------------------------------------------------
 
+    def _share_quote_indent(self, content: RenderableType) -> RenderableType:
+        """Let the child gutter occupy the content's existing left margin."""
+        indent = c_tools.TOOL_GROUP_INDENT
+        if isinstance(content, ManageShellRow):
+            return self._share_quote_indent(content.render_for_width(self.console.width))
+        if isinstance(content, Group):
+            return Group(*(self._share_quote_indent(item) for item in content.renderables))
+        if isinstance(content, Padding):
+            return Padding(
+                content.renderable,
+                (content.top, content.right, content.bottom, max(0, content.left - indent)),
+                style=content.style,
+                expand=content.expand,
+            )
+        if isinstance(content, AdaptiveIndent):
+            return AdaptiveIndent(content.renderable, content.indent, shared_indent=indent)
+        return content
+
     def print(
         self,
         *objects: Any,
@@ -523,7 +541,7 @@ class TUICommandRenderer:
         if self._current_sub_agent_color:
             if objects:
                 self._set_scrollback_boundary(False)
-                content = objects[0] if len(objects) == 1 else objects
+                content = self._share_quote_indent(objects[0] if len(objects) == 1 else Group(*objects))
                 self.console.print(
                     Quote(content, style=Style(color=self._current_sub_agent_color.color), prefix="▌ "),
                     overflow=overflow,
@@ -1780,9 +1798,9 @@ class TUICommandRenderer:
                     else:
                         parts.append(tool_type)
                 line = Text()
-                line.append("\n  Kept uncompacted: ", style=ThemeKey.COMPACTION_SUMMARY)
+                line.append("\nKept uncompacted: ", style=ThemeKey.COMPACTION_SUMMARY)
                 line.append(", ".join(parts), style=ThemeKey.COMPACTION_SUMMARY)
-                self.print(line)
+                self.print(Padding(line, (0, 0, 0, MARKDOWN_LEFT_MARGIN), expand=False))
 
         self.print()
 

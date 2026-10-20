@@ -64,7 +64,7 @@ class ManageShellRow:
         self.subject = subject
         self.mark = mark
 
-    def _renderable(self, width: int) -> RenderableType:
+    def render_for_width(self, width: int) -> RenderableType:
         narrow = width < TOOL_SUBJECT_INDENT + MIN_INDENTED_CONTENT_WIDTH
         row = render_tool_call_tree(
             mark=self.mark, tool_name="Shell", details=None if narrow else self.subject, overflow="fold"
@@ -72,10 +72,10 @@ class ManageShellRow:
         return Group(row, AdaptiveIndent(self.subject, TOOL_RESULT_INDENT)) if narrow else row
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        yield from console.render(self._renderable(options.max_width), options)
+        yield from console.render(self.render_for_width(options.max_width), options)
 
     def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
-        return Measurement.get(console, options, self._renderable(options.max_width))
+        return Measurement.get(console, options, self.render_for_width(options.max_width))
 
 
 _CALLBACK_SUBJECT_MAX_LINES = 2

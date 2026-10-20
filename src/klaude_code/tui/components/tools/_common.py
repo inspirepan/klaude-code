@@ -60,12 +60,15 @@ ToolResultStatus = Literal["success", "error", "aborted"]
 class AdaptiveIndent:
     """Left indent that yields on narrow terminals instead of crushing the content."""
 
-    def __init__(self, renderable: RenderableType, indent: int) -> None:
+    def __init__(self, renderable: RenderableType, indent: int, *, shared_indent: int = 0) -> None:
         self.renderable = renderable
         self.indent = indent
+        self.shared_indent = shared_indent
 
     def _effective_indent(self, max_width: int) -> int:
-        return max(0, min(self.indent, max_width - MIN_INDENTED_CONTENT_WIDTH))
+        # A surrounding gutter already occupies part of the original margin.
+        available_width = max_width + self.shared_indent
+        return max(0, min(self.indent, available_width - MIN_INDENTED_CONTENT_WIDTH) - self.shared_indent)
 
     def __rich_console__(self, console: "Console", options: "ConsoleOptions") -> "RenderResult":
         padded = Padding(self.renderable, (0, 0, 0, self._effective_indent(options.max_width)), expand=False)

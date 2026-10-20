@@ -33,6 +33,7 @@ from klaude_code.tui.commands import (
     SubAgentSummary,
 )
 from klaude_code.tui.components.sub_agent import render_sub_agent_call
+from klaude_code.tui.components.tools import render_tool_call, render_tool_result
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.transcript_detail import Detail
@@ -44,6 +45,45 @@ def _renderer_and_output() -> tuple[TUICommandRenderer, io.StringIO]:
     renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=100, force_terminal=False)
     renderer.console.push_theme(renderer.themes.markdown_theme)
     return renderer, output
+
+
+@pytest.mark.parametrize("width", [12, 18, 20, 40, 100])
+@pytest.mark.parametrize("kind", ["shell", "shell_result", "bash_result"])
+def test_child_tool_gutter_replaces_margin_at_all_widths(width: int, kind: str) -> None:
+    renderer, output = _renderer_and_output()
+    renderer.console.width = width
+    renderer.register_session(
+        "child", SubAgentState(sub_agent_type="finder", sub_agent_desc="review", sub_agent_prompt="")
+    )
+    if kind == "shell":
+        content = render_tool_call(
+            events.ToolCallEvent(
+                session_id="child",
+                tool_call_id="call",
+                tool_name=tools.MANAGE_SHELL,
+                arguments='{"action":"stop","task_id":"shell-12345678"}',
+            )
+        )
+    else:
+        content = render_tool_result(
+            events.ToolResultEvent(
+                session_id="child",
+                tool_call_id="call",
+                tool_name=tools.MANAGE_SHELL if kind == "shell_result" else tools.BASH,
+                result="one two three four five six seven eight nine ten",
+                status="error",
+            ),
+            detail=Detail.FULL,
+        )
+    assert content is not None
+    renderer.print(content)
+    main_lines = output.getvalue().splitlines()
+    output.seek(0)
+    output.truncate()
+    with renderer.session_print_context("child"):
+        renderer.print(content)
+    child_lines = output.getvalue().splitlines()
+    assert child_lines == ["▌ " + line[2:] for line in main_lines]
 
 
 @pytest.mark.parametrize(
@@ -133,6 +173,12 @@ def test_collaboration_and_warnings_continue_tool_block(kind: str, child: bool) 
     assert any("before.py" in line for line in lines)
     assert any("after.py" in line for line in lines)
     assert all(line.strip(" ▌") for line in lines), output.getvalue()
+    for line in lines:
+        if any(label in line for label in ("Read ", "Message ")):
+            assert line.startswith("▌ " if child else "  ")
+            assert line[2] not in {" ", "▌"}, line
+        if kind in {"send", "receive"} and "╭" in line:
+            assert line.index("╭") == 4, line
 
 
 def test_step_start_does_not_add_extra_blank_line_before_retry_error() -> None:
@@ -585,9 +631,9 @@ def test_sub_agent_developer_and_tool_blocks_have_no_blank_lines_between_them() 
     )
 
     rendered = output.getvalue()
-    assert "▌   + Activated skill commit\n▌   → Read" in rendered
-    assert "▌   → Read Skill" in rendered
-    assert "SKILL.md 1:1\n▌   + Activated skill submit-pr" in rendered
+    assert "▌ + Activated skill commit\n▌ → Read" in rendered
+    assert "▌ → Read Skill" in rendered
+    assert "SKILL.md 1:1\n▌ + Activated skill submit-pr" in rendered
     assert "commit\n▌ \n▌ → Read" not in rendered
     assert "SKILL.md 1:1\n▌ \n▌ + Activated skill submit-pr" not in rendered
 
@@ -617,7 +663,7 @@ def test_sub_agent_block_flush_can_force_top_level_blank_line() -> None:
     )
     renderer.flush_open_blocks(scoped=False)
 
-    assert output.getvalue().endswith("▌   + Activated skill commit\n\n")
+    assert output.getvalue().endswith("▌ + Activated skill commit\n\n")
     assert not output.getvalue().endswith("▌ + Activated skill commit\n▌ \n")
 
 
@@ -676,7 +722,7 @@ def test_sub_agent_tool_group_flush_keeps_quote_prefix() -> None:
     )
     renderer.flush_open_blocks()
 
-    assert output.getvalue().endswith("▌             done\n▌ \n")
+    assert output.getvalue().endswith("▌           done\n▌ \n")
 
 
 def test_tool_call_and_result_stay_grouped_until_next_visible_block() -> None:
@@ -763,6 +809,15 @@ def test_sub_agent_thinking_content_uses_scoped_quote() -> None:
     assert "▌  • first detail" in rendered
     assert "▌  • second detail" in rendered
     assert "Thought for" not in rendered
+
+
+def test_child_compaction_kept_items_share_the_quote_margin() -> None:
+    renderer, output = _renderer_and_output()
+    renderer.register_session(
+        "child", SubAgentState(sub_agent_type="finder", sub_agent_desc="review", sub_agent_prompt="")
+    )
+    renderer.display_compaction_summary("summary", (("Read", 2, "file.py"),), session_id="child")
+    assert "▌ Kept uncompacted: Read x 2\n" in output.getvalue()
 
 
 def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
