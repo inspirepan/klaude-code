@@ -277,7 +277,8 @@ class AgentsPanel:
                 chosen = row.id == self.selected_id
                 label = " ".join(self._clean(row.label).split())
                 category = self.labels[self.states.index(row.status.category)]
-                style = "class:highlighted" if chosen else "class:accent.cyan"
+                style = "class:highlighted bold" if chosen else "class:accent.cyan"
+                selection_style = " bold" if chosen else ""
                 time = self._updated_label(row.updated_at, now)
                 time_width = min(get_cwidth(time), max(0, width - 4))
                 content_width = max(0, width - 3 - time_width - 1)
@@ -294,10 +295,16 @@ class AgentsPanel:
                 category = self._fit(category, min(get_cwidth(category), content_width))
                 lines.extend(
                     [
-                        ("class:pointer" if chosen else "", self._fit(f" {'>' if chosen else ' '} ", min(3, width))),
-                        (status_style, category),
+                        (
+                            "class:pointer bold" if chosen else "",
+                            self._fit(f" {'>' if chosen else ' '} ", min(3, width)),
+                        ),
+                        (status_style + selection_style, category),
                         (style, self._fit(label, content_width - get_cwidth(category))),
-                        ("class:metadata.footer", (" " if width > 3 else "") + self._fit(time, time_width) + "\n"),
+                        (
+                            "class:metadata.footer" + selection_style,
+                            (" " if width > 3 else "") + self._fit(time, time_width) + "\n",
+                        ),
                     ]
                 )
             if len(rows) > 5:
@@ -305,7 +312,7 @@ class AgentsPanel:
                 label = "show less" if expanded else f"show more ({len(rows) - 5})"
                 lines.append(
                     (
-                        "class:highlighted" if chosen else "class:meta",
+                        "class:highlighted bold" if chosen else "class:meta",
                         self._fit(f" {'>' if chosen else ' '} {label}", width) + "\n",
                     )
                 )

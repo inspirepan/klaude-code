@@ -107,7 +107,7 @@ def test_list_reserves_display_cells_for_time_and_recomputes_on_refresh(
             assert get_cwidth(lines[1]) == width
             if width >= 12:
                 assert lines[1].endswith("now")
-                assert any(style == "class:metadata.footer" and "now" in text for style, text in fragments)
+                assert any("class:metadata.footer" in style.split() and "now" in text for style, text in fragments)
                 Clock.current += timedelta(minutes=5)
                 await panel.refresh()
                 assert "".join(text for _, text in panel._list_text(width)).splitlines()[1].endswith("5m ago")
@@ -803,7 +803,12 @@ def test_detail_hierarchy_preserves_theme_styles_after_wrapping(theme: str, monk
         assert attrs_for("Readable title").color == palette.green.lstrip("#")
         assert attrs_for("Another title").color == palette.cyan.lstrip("#")
         assert not attrs_for("Another title").bold
-        assert not attrs_for("Readable title").bold
+        assert attrs_for("Readable title").bold
+        selected_start = next(index for index, (_, text) in enumerate(fragments) if text == " > ")
+        assert all(
+            pt_theme.get_base_style().get_attrs_for_style_str(style).bold
+            for style, _ in fragments[selected_start : selected_start + 4]
+        )
         assert attrs_for("needs you").bold
         assert attrs_for("needs you").color == palette.yellow.lstrip("#")
         assert attrs_for("working ·").color == palette.green.lstrip("#")
