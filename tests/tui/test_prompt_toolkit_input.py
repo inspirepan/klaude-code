@@ -1,10 +1,13 @@
 import asyncio
+from collections.abc import Iterator
+from threading import Event
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
 import pytest
-from prompt_toolkit.completion import Completion
+from prompt_toolkit.buffer import Buffer, CompletionState
+from prompt_toolkit.completion import CompleteEvent, Completer, Completion, DummyCompleter
 from prompt_toolkit.document import Document
 from prompt_toolkit.layout.controls import BufferControl
 from prompt_toolkit.layout.processors import TransformationInput
@@ -19,6 +22,7 @@ from klaude_code.tui.input.prompt_toolkit import (
     PromptToolkitInput,
     _BtwPlaceholderProcessor,
     _PasteAwareFileHistory,
+    _TrackedThreadedCompleter,
 )
 from klaude_code.tui.renderer import TUICommandRenderer
 
@@ -50,6 +54,7 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._last_completion_panel_completions = ()
     prompt_input._last_completion_panel_selected_index = None
     prompt_input._last_completion_panel_context_key = None
+    prompt_input._empty_completion_document = None
     prompt_input._completion_panel_snapshot_cache = None
     prompt_input._bottom_bar = PromptBottomBar(invalidate=invalidate)
     prompt_input._queued_edit_active = False
@@ -578,13 +583,20 @@ def test_input_footer_reserves_idle_metadata_row() -> None:
     assert "\n" not in [text for _style, text, *_ in prompt_input._get_input_footer_fragments()]
 
 
-def test_input_footer_stays_hidden_while_completion_is_loading() -> None:
+def test_input_footer_stays_visible_across_completion_states() -> None:
     prompt_input: Any = _build_input("@use")
     buffer: Any = prompt_input._session.default_buffer
-    buffer.complete_state = SimpleNamespace(completions=[])  # ty: ignore[invalid-assignment]
+    prompt_input.set_status_lines((_metadata("in 10 · out 2"),))
+    original = prompt_input._get_input_footer_fragments()
 
-    assert prompt_input._get_input_footer_height() == 1
-    assert prompt_input._get_input_footer_fragments() == []
+    for state in (
+        CompletionState(buffer.document),
+        CompletionState(buffer.document, completions=[Completion("@user.py")], complete_index=0),
+        None,
+    ):
+        buffer.complete_state = state
+        assert prompt_input._get_input_footer_height() == 2
+        assert prompt_input._get_input_footer_fragments() == original
 
 
 def test_input_footer_stays_visible_for_non_completion_text_loading_state() -> None:
@@ -640,8 +652,80 @@ def test_completion_panel_does_not_reuse_cache_across_completion_contexts() -> N
     buffer: Any = prompt_input._session.default_buffer
     buffer.complete_state = SimpleNamespace(completions=[], complete_index=None)  # ty: ignore[invalid-assignment]
 
+    assert prompt_input._get_completion_panel_height() == 1
+    assert prompt_input._get_completion_panel_fragments() == []
+
+
+def test_no_match_survives_empty_completion_state_reset() -> None:
+    prompt_input: Any = _build_input("@missing")
+    buffer = prompt_input._session.default_buffer
+    buffer.complete_state = CompletionState(buffer.document)
+    prompt_input._remember_empty_completion(buffer.document)
+    buffer.complete_state = None
+    prompt_input._select_first_completion_on_open(buffer)
+
+    assert prompt_input._is_completion_panel_visible()
+    assert prompt_input._get_completion_panel_height() == 1
+    assert prompt_input._get_completion_panel_fragments() == [("class:meta", "  no match")]
+
+    buffer.document = Document("@missing ", cursor_position=9)
+    assert not prompt_input._is_completion_panel_visible()
     assert prompt_input._get_completion_panel_height() == 0
     assert prompt_input._get_completion_panel_fragments() == []
+
+
+def test_no_match_after_real_async_completion_finishes() -> None:
+    async def run() -> None:
+        prompt_input: Any = _build_input("@missing")
+        buffer = Buffer(
+            document=Document("@missing", 8),
+            completer=_TrackedThreadedCompleter(DummyCompleter(), prompt_input._remember_empty_completion),
+        )
+        prompt_input._session.default_buffer = buffer
+        buffer.on_completions_changed += prompt_input._select_first_completion_on_open
+
+        await buffer._async_completer()
+
+        assert buffer.complete_state is None
+        assert prompt_input._is_completion_panel_visible()
+        assert prompt_input._get_completion_panel_fragments() == [("class:meta", "  no match")]
+        assert prompt_input._get_input_footer_height() == 2
+
+    asyncio.run(run())
+
+
+def test_cancelled_loading_does_not_leave_no_match() -> None:
+    started = Event()
+    release = Event()
+
+    class SlowCompleter(Completer):
+        def get_completions(self, document: Document, complete_event: CompleteEvent) -> Iterator[Completion]:
+            started.set()
+            release.wait(timeout=5)
+            yield Completion("@existing")
+
+    async def run() -> None:
+        prompt_input: Any = _build_input("@ex")
+        buffer = Buffer(
+            document=Document("@ex", 3),
+            completer=_TrackedThreadedCompleter(SlowCompleter(), prompt_input._remember_empty_completion),
+        )
+        prompt_input._session.default_buffer = buffer
+        buffer.on_completions_changed += prompt_input._select_first_completion_on_open
+        buffer.on_cursor_position_changed += prompt_input._clear_empty_completion
+        task = asyncio.create_task(buffer._async_completer())
+        try:
+            assert await asyncio.to_thread(started.wait, 5)
+            assert prompt_input._get_completion_panel_fragments() == []
+            buffer.cursor_left()
+            buffer.cursor_right()
+        finally:
+            release.set()
+            await task
+        assert not prompt_input._is_completion_panel_visible()
+        assert prompt_input._empty_completion_document is None
+
+    asyncio.run(run())
 
 
 def test_input_height_estimate_counts_soft_wrapped_lines() -> None:
@@ -1204,7 +1288,10 @@ def test_picker_keeps_choice_visible_with_large_queue(monkeypatch: pytest.Monkey
         prompt._bottom_bar.stop()
 
 
-def test_completion_panel_shrinks_before_editor_and_status(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("rows, panel_height", [(8, 0), (9, 1)])
+def test_completion_panel_shrinks_before_editor_and_status(
+    monkeypatch: pytest.MonkeyPatch, rows: int, panel_height: int
+) -> None:
     from prompt_toolkit.application.current import create_app_session, set_app
     from prompt_toolkit.data_structures import Size
     from prompt_toolkit.input import DummyInput
@@ -1213,7 +1300,7 @@ def test_completion_panel_shrinks_before_editor_and_status(monkeypatch: pytest.M
     import klaude_code.tui.input.prompt_toolkit as module
 
     output = DummyOutput()
-    monkeypatch.setattr(output, "get_size", lambda: Size(rows=8, columns=80))
+    monkeypatch.setattr(output, "get_size", lambda: Size(rows=rows, columns=80))
     monkeypatch.setattr(module, "install_renderer_flush_guard", lambda _: None)
     with create_app_session(input=DummyInput(), output=output):
         prompt = PromptToolkitInput()
@@ -1226,7 +1313,7 @@ def test_completion_panel_shrinks_before_editor_and_status(monkeypatch: pytest.M
 
     try:
         with set_app(app):
-            assert prompt._get_completion_panel_height() == 1
+            assert prompt._get_completion_panel_height() == panel_height
             app.renderer.render(app, app.layout)
             screen = app.renderer._last_screen
             assert screen is not None
@@ -1237,6 +1324,6 @@ def test_completion_panel_shrinks_before_editor_and_status(monkeypatch: pytest.M
         assert "Loading…" in rendered
         assert "Steering (20 pending)" in rendered
         assert USER_MESSAGE_MARK in rendered
-        assert "model 0" in rendered
+        assert ("model 0" in rendered) == (panel_height > 0)
     finally:
         prompt._bottom_bar.stop()

@@ -131,8 +131,10 @@ def build_completion_panel_fragments(
 ) -> StyleAndTextTuples:
     """Render completions for the REPL bottom panel."""
 
-    if not completions or max_height <= 0:
+    if max_height <= 0:
         return []
+    if not completions:
+        return [("class:meta", "  no match")]
 
     selected = selected_index or 0
     selected = max(0, min(selected, len(completions) - 1))

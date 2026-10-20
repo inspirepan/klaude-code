@@ -5,14 +5,14 @@ import contextlib
 import re
 import sys
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
 from pathlib import Path
 from typing import override
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.application.current import get_app, set_app
 from prompt_toolkit.buffer import Buffer, CompletionState
-from prompt_toolkit.completion import Completion, ThreadedCompleter
+from prompt_toolkit.completion import CompleteEvent, Completer, Completion, ThreadedCompleter
 from prompt_toolkit.cursor_shapes import CursorShape
 from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Condition
@@ -96,6 +96,23 @@ _git_info_cache: tuple[float, Path, tuple[str | None, str | None]] | None = None
 
 class _PromptPaused(Exception):
     """Internal signal used to pause the REPL while another prompt_toolkit app owns stdin."""
+
+
+class _TrackedThreadedCompleter(ThreadedCompleter):
+    def __init__(self, completer: Completer, on_empty: Callable[[Document], None]) -> None:
+        super().__init__(completer)
+        self._on_empty = on_empty
+
+    @override
+    async def get_completions_async(
+        self, document: Document, complete_event: CompleteEvent
+    ) -> AsyncGenerator[Completion]:
+        found = False
+        async for completion in super().get_completions_async(document, complete_event):
+            found = True
+            yield completion
+        if not found:
+            self._on_empty(document)
 
 
 class _BtwPlaceholderProcessor(Processor):
@@ -262,6 +279,7 @@ class PromptToolkitInput(InputProviderABC):
         self._last_completion_panel_completions: tuple[Completion, ...] = ()
         self._last_completion_panel_selected_index: int | None = None
         self._last_completion_panel_context_key: str | None = None
+        self._empty_completion_document: Document | None = None
         self._completion_panel_snapshot_cache: (
             tuple[tuple[int, int, int | None, str], tuple[list[Completion], int | None]] | None
         ) = None
@@ -514,7 +532,10 @@ class PromptToolkitInput(InputProviderABC):
             multiline=True,
             cursor=CursorShape.BLINKING_BEAM,
             key_bindings=kb,
-            completer=ThreadedCompleter(create_repl_completer(command_info_provider=self._command_info_provider)),
+            completer=_TrackedThreadedCompleter(
+                create_repl_completer(command_info_provider=self._command_info_provider),
+                self._remember_empty_completion,
+            ),
             complete_while_typing=True,
             # Avoid reserving extra rows for completion menus in non-fullscreen mode.
             reserve_space_for_menu=0,
@@ -773,6 +794,8 @@ class PromptToolkitInput(InputProviderABC):
 
         # Ensure completion menu has default selection
         self._session.default_buffer.on_completions_changed += self._select_first_completion_on_open  # pyright: ignore[reportUnknownMemberType]
+        self._session.default_buffer.on_text_changed += self._clear_empty_completion
+        self._session.default_buffer.on_cursor_position_changed += self._clear_empty_completion
 
         self._install_bottom_windows()
 
@@ -835,7 +858,7 @@ class PromptToolkitInput(InputProviderABC):
         return [(style, "─" * max(1, columns))]
 
     def _get_input_footer_fragments(self) -> StyleAndTextTuples:
-        if self._is_completion_active() or self._is_completion_panel_visible() or self._is_picker_open():
+        if self._is_picker_open():
             return []
         fragments = self._build_prompt_context_fragments(prefix="  ")
         status_hint = self._bottom_bar.running_separator_label
@@ -849,7 +872,7 @@ class PromptToolkitInput(InputProviderABC):
     def _get_input_footer_height(self) -> int:
         if self._compact_picker_layout():
             return 0
-        if self._is_completion_active() or self._is_completion_panel_visible() or self._is_picker_open():
+        if self._is_picker_open():
             return 1
         return 1 + max(1, len(self._bottom_bar.metadata_footer_lines))
 
@@ -871,8 +894,8 @@ class PromptToolkitInput(InputProviderABC):
         try:
             return (
                 self._session.default_buffer.complete_state is not None
-                and self._current_completion_context() is not None
-            )
+                or self._empty_completion_document == self._session.default_buffer.document
+            ) and self._current_completion_context() is not None
         except Exception:
             return False
 
@@ -880,7 +903,7 @@ class PromptToolkitInput(InputProviderABC):
         if self._is_picker_open():
             return False
         completions, _selected_index = self._get_completion_panel_snapshot()
-        return bool(completions)
+        return bool(completions) or self._is_completion_active()
 
     def _get_completion_panel_snapshot(self) -> tuple[list[Completion], int | None]:
         try:
@@ -985,9 +1008,9 @@ class PromptToolkitInput(InputProviderABC):
         if self._is_picker_open():
             return 0
         completions, _selected_index = self._get_completion_panel_snapshot()
-        if not completions:
+        if not completions and not self._is_completion_active():
             return 0
-        height = min(10, len(completions))
+        height = min(10, max(1, len(completions)))
         try:
             rows = get_app().output.get_size().rows
         except Exception:
@@ -998,7 +1021,7 @@ class PromptToolkitInput(InputProviderABC):
 
     def _get_completion_panel_fragments(self) -> StyleAndTextTuples:
         completions, selected_index = self._get_completion_panel_snapshot()
-        if not completions:
+        if not completions and self._empty_completion_document != self._session.default_buffer.document:
             return []
         try:
             columns = get_app().output.get_size().columns
@@ -1131,12 +1154,23 @@ class PromptToolkitInput(InputProviderABC):
                 return
             if not state.completions:  # type: ignore[reportUnknownMemberType]
                 return
+            self._empty_completion_document = None
             if state.complete_index is None:  # type: ignore[reportUnknownMemberType]
                 state.complete_index = 0  # type: ignore[reportUnknownMemberType]
                 with contextlib.suppress(Exception):
                     self._session.app.invalidate()
         except Exception:
             return
+
+    def _remember_empty_completion(self, document: Document) -> None:
+        buffer = self._session.default_buffer
+        state = buffer.complete_state
+        if state is not None and state.original_document == document and buffer.document == document:
+            # prompt_toolkit clears empty states after the final callback.
+            self._empty_completion_document = document
+
+    def _clear_empty_completion(self, _buffer: Buffer) -> None:
+        self._empty_completion_document = None
 
     def _mark_queued_edit_active(self, _text: str) -> None:
         self._queued_edit_active = True
