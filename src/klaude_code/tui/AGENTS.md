@@ -242,12 +242,17 @@ does not use the queue, the spinner phase, or an overlay:
 
 ### Spacing invariants for the prompt bottom layout
 
-- Bottom-row stability is the core invariant: shrinking the bar without new
-  scrollback content repaints it at a higher bottom row and the whole bar
-  visibly hops up one line. The renderer therefore holds an ended stream's
-  `end_of_stream` signal until its next scrollback write, so the height
-  collapse lands in the same redraw that grows the transcript. Growth only
-  scrolls the view, which reads as normal streaming.
+- Bottom-row stability belongs to the outer `HSplit(align=VerticalAlign.BOTTOM)`.
+  Status and live-tail windows use their current content height; do not retain
+  high-water heights, accumulate spacer debt, or schedule delayed collapse.
+- Interactive render commands capture transcript output and defer prompt sinks
+  until `write_scrollback_bulk` enters its synchronized terminal cycle. Publish
+  layout updates after erase and before writing/redrawing, not when Rich merely
+  queues output. Capture buffers are not TTYs: Rich styling is preserved by the
+  Console, while the terminal writer alone owns DEC 2026 synchronization.
+- A tool-block separator is emitted with the first stable Markdown content,
+  never just because an assistant/thinking stream starts. Stream lifecycle
+  events may precede visible content by an arbitrary interval.
 - Keep one blank row between recent scrollback and the status block at all
   times; the status must never sit flush against transcript content.
 - Keep the live-tail block (bash output, thinking preview) directly below

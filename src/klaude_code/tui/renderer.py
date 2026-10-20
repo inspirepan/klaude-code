@@ -129,6 +129,7 @@ from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.components.tools._common import AdaptiveIndent
 from klaude_code.tui.components.tools._manage_shell import render_shell_completion
 from klaude_code.tui.components.tools._presentation import parse_tool_arguments
+from klaude_code.tui.input.flicker_safe_stdout import FlickerSafeStdoutProxy, write_scrollback_bulk
 from klaude_code.tui.input.pt_theme import CLASS_THINKING, CLASS_TOOL_RESULT
 from klaude_code.tui.status_runtime import clear_task_start, set_task_start
 from klaude_code.tui.terminal.image import print_kitty_image
@@ -193,13 +194,6 @@ def _text_fingerprint(text: Text) -> tuple[str, str, tuple[tuple[int, int, str],
     """Content fingerprint of a Text: plain text, root style, and styled spans."""
     spans = tuple((span.start, span.end, str(span.style)) for span in text.spans)
     return (text.plain, str(text.style) if text.style else "", spans)
-
-
-class _TerminalCaptureBuffer(io.StringIO):
-    """In-memory sink that reports as a terminal so ANSI styling is kept."""
-
-    def isatty(self) -> bool:
-        return True
 
 
 @dataclass
@@ -276,10 +270,7 @@ class TUICommandRenderer:
         self.console.push_theme(self.themes.markdown_theme)
 
         self._stream_renderable: RenderableType | None = None
-        # An ended stream's height collapse is deferred until the next
-        # scrollback write: shrinking the bottom bar without new transcript
-        # content above it makes the whole bar visibly hop up one line.
-        self._stream_end_pending: bool = False
+        self._prompt_frame_updates: list[Callable[[], None]] | None = None
         self._spinner_visible: bool = False
         self._progress_ui_suspended: bool = False
         self._main_task_status: str | None = None
@@ -430,15 +421,18 @@ class TUICommandRenderer:
         """
 
         console = self.console
-        buffer = _TerminalCaptureBuffer()
+        buffer = io.StringIO()
         size = console.size
         old_width, old_height = console._width, console._height  # pyright: ignore[reportPrivateUsage]
+        old_force_terminal = console._force_terminal
+        console._force_terminal = True if old_force_terminal is None else old_force_terminal
         old_file = console._file  # pyright: ignore[reportPrivateUsage]
         console.size = size
         console.file = buffer
         try:
             yield buffer
         finally:
+            console._force_terminal = old_force_terminal
             console._file = old_file  # pyright: ignore[reportPrivateUsage]
             console._width = old_width  # pyright: ignore[reportPrivateUsage]
             console._height = old_height  # pyright: ignore[reportPrivateUsage]
@@ -533,15 +527,11 @@ class TUICommandRenderer:
                 )
             else:
                 return
-            self._flush_pending_stream_end()
             return
         if not objects and self._scrollback_boundary_printed:
             return
         self._set_scrollback_boundary(not objects)
         self.console.print(*objects, style=style, end=end, overflow=overflow)
-        # Scrollback just grew: release any ended stream's reserved height in
-        # the same redraw so the bar shrink never floats it above the bottom.
-        self._flush_pending_stream_end()
 
     def _set_scrollback_boundary(self, printed: bool) -> None:
         if self._scrollback_boundary_printed == printed:
@@ -605,10 +595,16 @@ class TUICommandRenderer:
             case RenderUserMessage(event=event) if self._compact and event.source in _CALLBACK_SOURCES:
                 # A background report is not a new turn: it joins the tool block it answers.
                 return
-            case StartThinkingStream() | AppendThinking() | EndThinkingStream() if self._compact:
-                # Compact mode previews reasoning in the prompt's live area;
-                # nothing lands in scrollback, so thinking between tool calls
-                # must not break the contiguous tool block with a blank line.
+            case (
+                StartThinkingStream()
+                | AppendThinking()
+                | EndThinkingStream()
+                | StartAssistantStream()
+                | AppendAssistant()
+                | EndAssistantStream()
+            ):
+                # Stream lifecycle events need not produce visible text. Commit
+                # the separator only when Markdown writes its first stable chunk.
                 return
             case _:
                 self._flush_open_blocks()
@@ -622,9 +618,6 @@ class TUICommandRenderer:
         self._flush_pending_spinner_update()
         self._spinner_visible = False
         self._status_separator_text = None
-        # Safety net: a turn can end without a scrollback write after the
-        # last stream ended; release the held stream height with the status.
-        self._flush_pending_stream_end()
         self._emit_prompt_status(self._prompt_metadata_lines(), None)
 
     def spinner_update(
@@ -736,7 +729,6 @@ class TUICommandRenderer:
         if not suspended:
             self._cancel_spinner_flush()
             self._spinner_pending_update = None
-            self._stream_end_pending = False
             self._emit_prompt_status((), None)
             self._emit_prompt_stream((), end_of_stream=True)
             return
@@ -759,7 +751,8 @@ class TUICommandRenderer:
         if self._main_task_status is not None:
             lines = (*lines, PromptStatusLine(self._main_task_status, show_spinner=False))
         resolved_separator_text = self._resolve_separator_text(separator_text)
-        self._status_sink(lines, resolved_separator_text, reset_bottom_height)
+        sink = self._status_sink
+        self._publish_prompt_update(lambda: sink(lines, resolved_separator_text, reset_bottom_height))
 
     @staticmethod
     def _resolve_separator_text(separator_text: SeparatorText | None) -> str | None:
@@ -884,7 +877,8 @@ class TUICommandRenderer:
     ) -> None:
         if self._stream_sink is None:
             return
-        self._stream_sink(lines or (), end_of_stream, style_class)
+        sink = self._stream_sink
+        self._publish_prompt_update(lambda: sink(lines or (), end_of_stream, style_class))
 
     def _prompt_stream_lines(self, renderable: RenderableType, *, no_wrap: bool = False) -> tuple[str, ...]:
         options = self.console.options
@@ -987,28 +981,15 @@ class TUICommandRenderer:
         no_wrap: bool = False,
     ) -> None:
         if renderable is None:
-            # Hold the end-of-stream signal until the next scrollback write
-            # (see `_stream_end_pending`); the bar collapses in the same
-            # redraw that grows the transcript, staying pinned to the bottom.
             self._stream_renderable = None
-            self._stream_end_pending = True
+            self._emit_prompt_stream((), end_of_stream=True)
             return
 
-        if self._stream_end_pending:
-            # A new stream starts before any scrollback write: flush the held
-            # end first so the bar resets the previous stream's reservation.
-            self._flush_pending_stream_end()
         self._stream_renderable = renderable
         lines = self._prompt_stream_lines(renderable, no_wrap=no_wrap)
         if max_lines is not None:
             lines = lines[-max_lines:]
         self._emit_prompt_stream(lines, style_class=style_class)
-
-    def _flush_pending_stream_end(self) -> None:
-        if not self._stream_end_pending:
-            return
-        self._stream_end_pending = False
-        self._emit_prompt_stream((), end_of_stream=True)
 
     # ---------------------------------------------------------------------
     # Stream helpers (MarkdownStream)
@@ -1046,6 +1027,7 @@ class TUICommandRenderer:
         )
 
     def _mark_scrollback_content(self) -> None:
+        self._flush_open_blocks()
         self._set_scrollback_boundary(False)
 
     def _flush_thinking(self) -> None:
@@ -1975,7 +1957,39 @@ class TUICommandRenderer:
     # RenderCommand executor
     # ---------------------------------------------------------------------
 
+    def _publish_prompt_update(self, update: Callable[[], None]) -> None:
+        if self._prompt_frame_updates is None:
+            update()
+        else:
+            self._prompt_frame_updates.append(update)
+
     async def execute(self, commands: list[RenderCommand]) -> None:
+        # Interactive output and layout changes share a terminal commit. Rich's
+        # stdout proxy otherwise queues text while status sinks repaint immediately.
+        if self._replay_mode or not isinstance(self.console.file, FlickerSafeStdoutProxy):
+            await self._execute_commands(commands)
+            return
+        updates: list[Callable[[], None]] = []
+        self._prompt_frame_updates = updates
+
+        def publish() -> None:
+            self._prompt_frame_updates = None
+            for update in updates:
+                update()
+            updates.clear()
+
+        try:
+            with self.bulk_render_capture() as buffer:
+                await self._execute_commands(commands)
+                if buffer.getvalue():
+                    self._flush_pending_spinner_update()
+            await write_scrollback_bulk(buffer.getvalue(), before_write=publish)
+        finally:
+            # Cancellation must not leave future status refreshes buffered.
+            if self._prompt_frame_updates is not None:
+                publish()
+
+    async def _execute_commands(self, commands: list[RenderCommand]) -> None:
         finished_tasks_to_notify: list[RenderTaskFinish] = []
         for cmd in commands:
             self._flush_open_blocks_before(cmd)

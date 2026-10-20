@@ -657,8 +657,14 @@ class FlickerSafeStdoutProxy(StdoutProxy):
             await asyncio.sleep(0.01)
 
 
-async def write_scrollback_bulk(text: str, *, clear_screen: bool = False) -> None:
+async def write_scrollback_bulk(
+    text: str, *, clear_screen: bool = False, before_write: Callable[[], None] | None = None
+) -> None:
     """Write a large scrollback payload in a single erase/write/redraw cycle.
+
+    ``before_write`` publishes associated layout updates after erasure, inside
+    the same synchronized cycle as the text and closing redraw. A state-only
+    update needs no terminal write cycle.
 
     Used for session-resume replay: routing the transcript through the proxy
     would split it into ``_FRAME_MAX_CHARS`` frames, and each frame's cycle
@@ -668,9 +674,13 @@ async def write_scrollback_bulk(text: str, *, clear_screen: bool = False) -> Non
     event loop against a slow terminal.
     """
     if not text and not clear_screen:
+        if before_write is not None:
+            before_write()
         return
     proxy = sys.stdout
     if not isinstance(proxy, FlickerSafeStdoutProxy):
+        if before_write is not None:
+            before_write()
         if clear_screen:
             sys.stdout.write("\x1b[2J\x1b[3J\x1b[H")
         sys.stdout.write(text)
@@ -682,6 +692,8 @@ async def write_scrollback_bulk(text: str, *, clear_screen: bool = False) -> Non
     await proxy.wait_for_pending_writes()
     output = proxy._output
     async with synchronized_in_terminal():
+        if before_write is not None:
+            before_write()
         output.enable_autowrap()
         if clear_screen:
             output.write_raw("\x1b[2J\x1b[3J\x1b[H")

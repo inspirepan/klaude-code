@@ -923,3 +923,34 @@ def test_sub_agent_call_identifies_model_override() -> None:
     assert "[model override: sonnet:high@anthropic]" in rendered
     assert "high@anthropic high" not in rendered
     assert "model default" not in rendered
+
+
+def test_assistant_start_after_tool_does_not_commit_separator_before_text() -> None:
+    renderer, output = _renderer_and_output()
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderToolCall(
+                    event=events.ToolCallEvent(
+                        session_id="main",
+                        tool_call_id="tool-1",
+                        tool_name=tools.READ,
+                        arguments='{"file_path":"example.py"}',
+                    )
+                )
+            ]
+        )
+    )
+    after_tool = output.getvalue()
+    asyncio.run(renderer.execute([StartAssistantStream(session_id="main")]))
+    assert output.getvalue() == after_tool
+    asyncio.run(
+        renderer.execute(
+            [
+                AppendAssistant(session_id="main", content="The answer."),
+                EndAssistantStream(session_id="main"),
+            ]
+        )
+    )
+    assert output.getvalue().removeprefix(after_tool).startswith("\n")
+    assert "The answer." in output.getvalue()

@@ -346,7 +346,7 @@ def test_status_reserved_height_shrinks_with_remaining_status_rows() -> None:
     ]
 
 
-def test_running_fallback_preserves_status_height_until_idle() -> None:
+def test_running_fallback_uses_only_its_visible_row() -> None:
     async def _scenario() -> None:
         prompt_input = _build_input("")
         bar = prompt_input._bottom_bar
@@ -361,11 +361,11 @@ def test_running_fallback_preserves_status_height_until_idle() -> None:
         prompt_input.set_agent_running(True)
         prompt_input.set_status_lines((_metadata("in 1k"),))
 
-        assert bar._status_reserved_line_count == 3
-        assert bar._status_window_height() == 3
+        assert bar._status_reserved_line_count == 0
+        assert bar._status_window_height() == 1
 
         prompt_input.set_agent_running(False)
-        assert bar._status_collapse_handle is not None
+        assert bar._status_window_height() == 1
         bar.stop()
 
     asyncio.run(_scenario())
@@ -386,9 +386,7 @@ def test_status_top_spacer_is_always_reserved() -> None:
 
 
 def test_stream_end_collapses_height_immediately() -> None:
-    """The renderer anchors end_of_stream to its next scrollback write, so
-    the bar itself collapses immediately on the signal — the shrink lands in
-    the same redraw that grows the transcript above it."""
+    """An ended stream needs no future scrollback write to release its rows."""
 
     async def _scenario() -> None:
         prompt_input = _build_input("")
@@ -408,7 +406,7 @@ def test_stream_end_collapses_height_immediately() -> None:
     asyncio.run(_scenario())
 
 
-def test_status_clear_defers_height_collapse_under_loop() -> None:
+def test_status_clear_releases_height_without_a_timer() -> None:
     async def _scenario() -> None:
         invalidations = SimpleNamespace(count=0)
         prompt_input = _build_input("", invalidations=invalidations)
@@ -420,11 +418,9 @@ def test_status_clear_defers_height_collapse_under_loop() -> None:
         prompt_input.set_status_lines((), separator_text=None, reset_bottom_height=True)
         assert bar._status_lines == ()
         assert bar._get_status_fragments() == []
-        assert bar._status_reserved_line_count == 1
-        assert bar._status_collapse_handle is not None
+        assert bar._status_reserved_line_count == 0
 
         prompt_input.set_status_lines((_status("Loading…"),), separator_text="14s · esc to interrupt")
-        assert bar._status_collapse_handle is None
         assert bar._status_reserved_line_count == 1
 
     asyncio.run(_scenario())
@@ -819,8 +815,8 @@ def test_stream_lines_truncate_to_terminal_width_with_ellipsis() -> None:
         ]
 
 
-def test_stream_lines_height_high_water_holds_during_session() -> None:
-    """Stream height must not shrink mid-stream — that's the source of flicker."""
+def test_stream_height_tracks_content_without_accumulating_blank_rows() -> None:
+    """The outer bottom alignment owns stability, not per-stream blank rows."""
     invalidations = SimpleNamespace(count=0)
     prompt_input = _build_input("", invalidations=invalidations)
     bar = prompt_input._bottom_bar
@@ -829,18 +825,17 @@ def test_stream_lines_height_high_water_holds_during_session() -> None:
     assert bar._stream_reserved_line_count == 3
     base_invalidations = invalidations.count
 
-    # Frame-to-frame shrink: content drops to one line but reservation must hold.
+    # Shrinking content releases the unused rows immediately.
     prompt_input.set_stream_lines(("x",))
-    assert bar._stream_reserved_line_count == 3
+    assert bar._stream_reserved_line_count == 1
     assert bar._stream_lines == ("x",)
 
-    # Transient empty content (e.g. MarkdownStream consuming all live into stable)
-    # does not collapse the area — reserved height stays.
+    # Empty content does not leave a reserved blank block.
     prompt_input.set_stream_lines(())
-    assert bar._stream_reserved_line_count == 3
+    assert bar._stream_reserved_line_count == 0
     assert bar._stream_lines == ()
 
-    # Subsequent grow above the high-water raises it.
+    # Growth uses the new content height.
     prompt_input.set_stream_lines(("a", "b", "c", "d", "e"))
     assert bar._stream_reserved_line_count == 5
 
@@ -855,8 +850,7 @@ def test_stream_lines_end_of_stream_collapses_reserved() -> None:
     prompt_input.set_stream_lines(("a", "b", "c"))
     assert bar._stream_reserved_line_count == 3
 
-    # End-of-stream collapses immediately: the renderer only sends it
-    # anchored to a scrollback write (or a task-end path).
+    # End-of-stream collapses immediately.
     prompt_input.set_stream_lines((), end_of_stream=True)
     assert bar._stream_reserved_line_count == 0
     assert bar._stream_lines == ()
@@ -1012,3 +1006,114 @@ def test_paste_aware_history_stores_file_reference(tmp_path) -> None:
     assert list(_PasteAwareFileHistory(str(history_path)).load_history_strings()) == [expected]
     assert marker not in history_path.read_text(encoding="utf-8")
     assert expand_paste_markers(marker) == expected.removeprefix("prefix ").removesuffix(" suffix")
+
+
+@pytest.mark.parametrize("columns, rows", [(40, 16), (80, 24), (120, 40)])
+def test_bottom_layout_keeps_editor_at_bottom_when_status_shrinks(
+    monkeypatch: pytest.MonkeyPatch, columns: int, rows: int
+) -> None:
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.application.current import set_app
+    from prompt_toolkit.buffer import Buffer
+    from prompt_toolkit.input import DummyInput
+    from prompt_toolkit.layout import Layout
+    from prompt_toolkit.layout.containers import Window
+    from prompt_toolkit.layout.mouse_handlers import MouseHandlers
+    from prompt_toolkit.layout.screen import Screen, WritePosition
+    from prompt_toolkit.output import DummyOutput
+
+    prompt: Any = _build_input("")
+    buffer = Buffer()
+    monkeypatch.setattr(buffer, "load_history_if_not_yet_loaded", lambda: None)
+    editor = Window(BufferControl(buffer=buffer), height=1, dont_extend_height=True)
+    app: Application[None] = Application(layout=Layout(editor), input=DummyInput(), output=DummyOutput())
+    monkeypatch.setattr(prompt, "_session", SimpleNamespace(app=app, default_buffer=buffer))
+    monkeypatch.setattr(prompt, "_get_input_footer_fragments", lambda: [("", "FOOTER")])
+    monkeypatch.setattr(prompt, "_get_input_footer_height", lambda: 1)
+    monkeypatch.setattr(prompt, "_is_completion_panel_visible", lambda: False)
+    prompt._install_bottom_windows()
+
+    def editor_row() -> int:
+        with set_app(app):
+            screen = Screen()
+            app.layout.container.write_to_screen(
+                screen, MouseHandlers(), WritePosition(0, 0, columns, rows), "", True, None
+            )
+            return screen.visible_windows_to_write_positions[editor].ypos
+
+    prompt.set_status_lines(tuple(_status(f"agent {i}") for i in range(6)))
+    before = editor_row()
+    prompt.set_status_lines((_status("Loading…"),))
+    after = editor_row()
+    assert (before, after) == (rows - 3, rows - 3)
+    # Stream shrink/end and queued input removal must not move the editor either.
+    prompt.set_stream_lines(("one", "two", "three"))
+    assert editor_row() == rows - 3
+    prompt.set_stream_lines(("one",))
+    assert editor_row() == rows - 3
+    prompt.set_stream_lines((), end_of_stream=True)
+    assert editor_row() == rows - 3
+    prompt._bottom_bar.set_pending_messages(("queued follow-up",))
+    assert editor_row() == rows - 3
+    prompt._bottom_bar.set_pending_messages(())
+    prompt.set_status_lines(())
+    assert editor_row() == rows - 3
+
+
+def test_real_prompt_renderer_keeps_footer_pinned_across_scrollback_and_resize(monkeypatch: pytest.MonkeyPatch) -> None:
+    from prompt_toolkit.application.current import create_app_session, set_app
+    from prompt_toolkit.data_structures import Size
+    from prompt_toolkit.input import DummyInput
+    from prompt_toolkit.output import DummyOutput
+
+    import klaude_code.tui.input.prompt_toolkit as module
+
+    output = DummyOutput()
+    size = Size(rows=24, columns=80)
+    monkeypatch.setattr(output, "get_size", lambda: size)
+    monkeypatch.setattr(module, "install_renderer_flush_guard", lambda _: None)
+    monkeypatch.setattr(PromptToolkitInput, "_get_input_footer_fragments", lambda self: [("", "FOOTER")])
+    monkeypatch.setattr(PromptToolkitInput, "_get_input_footer_height", lambda self: 1)
+    with create_app_session(input=DummyInput(), output=output):
+        prompt = PromptToolkitInput()
+    app = prompt._session.app
+    monkeypatch.setattr(prompt._session.default_buffer, "load_history_if_not_yet_loaded", lambda: None)
+    monkeypatch.setattr(prompt, "_get_input_footer_fragments", lambda: [("", "FOOTER")])
+    monkeypatch.setattr(prompt, "_get_input_footer_height", lambda: 1)
+
+    def footer_row(origin: int) -> int:
+        with set_app(app):
+            app.renderer.render(app, app.layout)
+            screen = app.renderer._last_screen
+            assert screen is not None
+            matches = [
+                row
+                for row, cells in screen.data_buffer.items()
+                if "FOOTER" in "".join(cells[col].char for col in range(size.columns))
+            ]
+            assert len(matches) == 1
+            return origin + matches[0]
+
+    try:
+        origin = 9
+        app.renderer.report_absolute_cursor_row(origin + 1)
+        prompt.set_status_lines(tuple(_status(f"agent {i}") for i in range(6)))
+        assert footer_row(origin) == 23
+        prompt.set_status_lines((_status("Loading…"),))
+        assert footer_row(origin) == 23
+        # The terminal writer erases the old UI, writes a result, obtains a new
+        # cursor position, and redraws using the reduced available region.
+        app.renderer.erase()
+        origin += 1
+        app.renderer.report_absolute_cursor_row(origin + 1)
+        assert footer_row(origin) == 23
+        prompt.set_stream_lines(("tail one", "tail two", "tail three"))
+        assert footer_row(origin) == 23
+        prompt.set_stream_lines((), end_of_stream=True)
+        assert footer_row(origin) == 23
+        size = Size(rows=30, columns=60)
+        app.renderer.reset()
+        app.renderer.report_absolute_cursor_row(origin + 1)
+        assert footer_row(origin) == 29
+    finally:
+        prompt._bottom_bar.stop()

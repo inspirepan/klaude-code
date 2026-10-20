@@ -55,10 +55,8 @@ def test_stream_renderable_updates_prompt_stream_sink() -> None:
     assert full_updates[-1] == (("live stream",), False)
 
 
-def test_stream_renderable_clear_anchors_end_to_next_scrollback_write() -> None:
-    """Clearing the stream must not emit end_of_stream immediately: shrinking
-    the bottom bar without new scrollback content above it makes the whole
-    bar hop up one line. The signal is held until the next print()."""
+def test_stream_renderable_clear_does_not_wait_for_scrollback() -> None:
+    """Bottom alignment makes stream release independent of transcript growth."""
     from klaude_code.tui.renderer import TUICommandRenderer
 
     stream_updates, full_updates, sink = _make_stream_recorder()
@@ -69,8 +67,7 @@ def test_stream_renderable_clear_anchors_end_to_next_scrollback_write() -> None:
     renderer.set_stream_renderable(None)
 
     assert renderer._stream_renderable is None
-    # Held: the last emission is still the live content.
-    assert full_updates[-1] == (("live stream",), False)
+    assert full_updates[-1] == ((), True)
 
     renderer.print("tool result line")
 
@@ -78,7 +75,7 @@ def test_stream_renderable_clear_anchors_end_to_next_scrollback_write() -> None:
     assert full_updates[-1] == ((), True)
 
 
-def test_new_stream_flushes_held_end_before_new_lines() -> None:
+def test_new_stream_follows_end_before_new_lines() -> None:
     from klaude_code.tui.renderer import TUICommandRenderer
 
     _stream_updates, full_updates, sink = _make_stream_recorder()
@@ -506,8 +503,8 @@ def test_compact_thinking_preview_keeps_tail_out_of_scrollback() -> None:
 
     asyncio.run(renderer.execute([EndThinkingStream(session_id="main")]))
 
-    # End is held until the next scrollback write anchors the collapse.
-    assert renderer._stream_end_pending is True
+    assert updates[-1][0] == ()
+    assert updates[-1][1] is True
     assert renderer._thinking_live_buffer == ""
     assert _console_output(console) == ""
 
@@ -711,9 +708,7 @@ def test_display_bash_command_end_clears_live_tail() -> None:
 
     assert renderer._stream_renderable is None
     assert renderer._bash_stream_active is False
-    # The tail's height release rides the next scrollback write — in the
-    # real flow, the bash tool's compact result line.
-    assert renderer._stream_end_pending is True
+    assert stream_updates[-1] == ()
     renderer.print("  $ Bash    done ✓")
     assert stream_updates[-1] == ()
 

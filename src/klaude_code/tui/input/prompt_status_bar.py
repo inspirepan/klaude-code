@@ -6,14 +6,9 @@ scrollback gap, status spinner lines, stream tail, and queued follow-ups.
 and clipboard watcher; this module owns everything that renders below the
 input.
 
-Bottom-row stability is the core layout invariant: when the total bar
-height shrinks without new scrollback content, prompt-toolkit repaints the
-UI at a higher bottom row and the whole bar visibly hops up one line. The
-stream tail's height collapse is therefore anchored to scrollback growth:
-the renderer holds the ``end_of_stream`` signal until its next scrollback
-write, so the shrink lands in the same redraw that adds transcript content
-and the bar stays pinned to the terminal bottom. Growth only scrolls the
-view, which reads as normal streaming.
+The enclosing layout aligns the entire prompt to the available bottom row.
+Windows use their current content height; spare space belongs above the whole
+layout, not to accumulated per-window reservations or delayed collapse timers.
 """
 
 from __future__ import annotations
@@ -44,11 +39,6 @@ _STARTUP_LOADING_TEXT = "Preparing session…"
 # ~0.48s cadence keeps the clock fresh at a fraction of the cost.
 _STATUS_REFRESH_EVERY_TICKS = 4
 
-# How long to hold the status area's reserved height after the status lines
-# clear before truly collapsing it, so adjacent status flickers do not
-# bounce the layout.
-_STATUS_RESERVATION_HOLD_SECONDS = 0.6
-
 
 class PromptBottomBar:
     def __init__(
@@ -66,7 +56,6 @@ class PromptBottomBar:
         self._status_lines: tuple[PromptStatusLine, ...] = ()
         self._metadata_footer_lines: tuple[str, ...] = ()
         self._status_reserved_line_count: int = 0
-        self._status_collapse_handle: asyncio.TimerHandle | None = None
         self._running_separator_label: str | None = None
         self._startup_loading = False
         self._startup_loading_title: str | None = None
@@ -87,23 +76,9 @@ class PromptBottomBar:
     ) -> None:
         stream_lines = tuple(line for line in lines if line.strip())
 
-        # End-of-stream: collapse immediately. The renderer anchors this
-        # signal to its next scrollback write, so the shorter bar repaints in
-        # the same redraw that grows the transcript above it and never floats
-        # above the terminal bottom (see module docstring).
         if end_of_stream:
-            if not self._stream_lines and self._stream_reserved_line_count == 0:
-                return
-            self._stream_lines = ()
-            self._stream_reserved_line_count = 0
-            self._invalidate()
-            return
-
-        # Otherwise hold a high-water reservation so transient frame-to-frame
-        # height shrinking (e.g. MarkdownStream stable/live re-balancing) does
-        # not flicker the layout. prompt-toolkit pads the difference with
-        # blanks for free since the Window has a fixed height.
-        new_reserved = max(self._stream_reserved_line_count, len(stream_lines))
+            stream_lines = ()
+        new_reserved = len(stream_lines)
         if (
             stream_lines == self._stream_lines
             and new_reserved == self._stream_reserved_line_count
@@ -125,11 +100,9 @@ class PromptBottomBar:
         status_lines = tuple(line for line in lines if line.text.strip())
         visible_status_lines = tuple(line for line in status_lines if line.kind != "metadata")
         metadata_footer_lines = tuple(line.text for line in status_lines if line.kind == "metadata")
-        reserved_height_changed = False
-        if reset_bottom_height and visible_status_lines:
-            self._cancel_pending_status_collapse()
-            reserved_height_changed = self._status_reserved_line_count != len(visible_status_lines)
-            self._status_reserved_line_count = len(visible_status_lines)
+        # Kept in the sink contract for callers; geometry no longer needs a reset.
+        del reset_bottom_height
+        self._status_reserved_line_count = len(visible_status_lines)
         if status_lines == self._status_lines and separator_text == self._running_separator_label:
             if metadata_footer_lines:
                 self._metadata_footer_lines = metadata_footer_lines
@@ -137,11 +110,8 @@ class PromptBottomBar:
                 self._ensure_status_spinner()
             else:
                 self._cancel_status_spinner()
-            if reserved_height_changed:
-                self._invalidate()
             return
 
-        self._cancel_pending_status_collapse()
         self._status_lines = status_lines
         if metadata_footer_lines:
             self._metadata_footer_lines = metadata_footer_lines
@@ -150,46 +120,31 @@ class PromptBottomBar:
             self._status_reserved_line_count = max(1, len(visible_status_lines))
             self._ensure_status_spinner()
         elif self._startup_loading or self._agent_running:
-            self._status_reserved_line_count = max(self._status_reserved_line_count, 1)
             self._ensure_status_spinner()
         else:
             self._cancel_status_spinner()
-            if self._status_reserved_line_count > 0:
-                self._schedule_status_collapse()
         self._invalidate()
 
     def set_startup_loading(self, loading: bool) -> None:
         if self._startup_loading == loading:
             return
 
-        self._cancel_pending_status_collapse()
         self._startup_loading = loading
-        if loading:
-            self._status_reserved_line_count = max(self._status_reserved_line_count, 1)
-            self._ensure_status_spinner()
-        elif self._visible_status_lines() or self._agent_running:
+        if loading or self._visible_status_lines() or self._agent_running:
             self._ensure_status_spinner()
         else:
             self._cancel_status_spinner()
-            if self._status_reserved_line_count > 0:
-                self._schedule_status_collapse()
         self._invalidate()
 
     def set_agent_running(self, running: bool) -> None:
         if self._agent_running == running:
             return
 
-        self._cancel_pending_status_collapse()
         self._agent_running = running
-        if running:
-            self._status_reserved_line_count = max(self._status_reserved_line_count, 1)
-            self._ensure_status_spinner()
-        elif self._visible_status_lines() or self._startup_loading:
+        if running or self._visible_status_lines() or self._startup_loading:
             self._ensure_status_spinner()
         else:
             self._cancel_status_spinner()
-            if self._status_reserved_line_count > 0:
-                self._schedule_status_collapse()
         self._invalidate()
 
     def set_startup_loading_title(self, title: str | None) -> None:
@@ -199,32 +154,6 @@ class PromptBottomBar:
         self._startup_loading_title = title
         if self._startup_loading:
             self._invalidate()
-
-    def _cancel_pending_status_collapse(self) -> None:
-        handle = self._status_collapse_handle
-        if handle is None:
-            return
-        self._status_collapse_handle = None
-        with contextlib.suppress(Exception):
-            handle.cancel()
-
-    def _schedule_status_collapse(self) -> None:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._status_reserved_line_count = 0
-            return
-        self._status_collapse_handle = loop.call_later(
-            _STATUS_RESERVATION_HOLD_SECONDS,
-            self._do_status_collapse,
-        )
-
-    def _do_status_collapse(self) -> None:
-        self._status_collapse_handle = None
-        if self._status_reserved_line_count == 0:
-            return
-        self._status_reserved_line_count = 0
-        self._invalidate()
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
         pending_messages = tuple(message for message in messages if message.strip())
@@ -293,7 +222,6 @@ class PromptBottomBar:
 
     def stop(self) -> None:
         self._cancel_status_spinner()
-        self._cancel_pending_status_collapse()
 
     # ---- fragment generators --------------------------------------------
 

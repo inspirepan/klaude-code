@@ -594,3 +594,59 @@ def test_bulk_render_capture_buffers_output_and_restores_console() -> None:
     assert console._width == old_width
     assert console._height == old_height
     assert captured_width > 0
+
+
+def test_interactive_command_frame_defers_layout_until_terminal_commit(monkeypatch) -> None:
+    import klaude_code.tui.renderer as module
+    from klaude_code.protocol import events
+    from klaude_code.tui.commands import MainTaskStatus, RenderNotice
+    from klaude_code.tui.input.flicker_safe_stdout import FlickerSafeStdoutProxy
+
+    order: list[str] = []
+    proxy = FlickerSafeStdoutProxy(raw=True)
+    renderer = module.TUICommandRenderer(status_sink=lambda *_: order.append("status"))
+    from typing import TextIO, cast
+
+    renderer.console.file = cast(TextIO, proxy)
+
+    async def commit(text: str, *, before_write=None) -> None:
+        # No bottom-state mutation may escape while the text is still queued.
+        assert order == []
+        assert "tool finished" in text
+        order.append("erase")
+        assert before_write is not None
+        before_write()
+        order.extend(["write", "redraw"])
+
+    monkeypatch.setattr(module, "write_scrollback_bulk", commit)
+    try:
+        asyncio.run(
+            renderer.execute(
+                [
+                    MainTaskStatus("Working"),
+                    RenderNotice(events.NoticeEvent(session_id="main", content="tool finished")),
+                ]
+            )
+        )
+    finally:
+        proxy.close()
+    assert order == ["erase", "status", "write", "redraw"]
+
+
+def test_captured_markdown_does_not_close_outer_synchronized_frame() -> None:
+    from klaude_code.tui.commands import AppendAssistant, EndAssistantStream, StartAssistantStream
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    renderer = TUICommandRenderer()
+    with renderer.bulk_render_capture() as buffer:
+        asyncio.run(
+            renderer.execute(
+                [
+                    StartAssistantStream("main"),
+                    AppendAssistant("main", "The answer."),
+                    EndAssistantStream("main"),
+                ]
+            )
+        )
+    assert "The answer." in buffer.getvalue()
+    assert "\x1b[?2026" not in buffer.getvalue()

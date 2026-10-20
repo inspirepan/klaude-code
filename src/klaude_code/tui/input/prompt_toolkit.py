@@ -19,7 +19,7 @@ from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, to_plain_text
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.key_binding import merge_key_bindings
-from prompt_toolkit.layout.containers import ConditionalContainer, Container, HSplit, Window
+from prompt_toolkit.layout.containers import ConditionalContainer, Container, HSplit, VerticalAlign, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension
 from prompt_toolkit.layout.processors import Processor, Transformation, TransformationInput
@@ -813,7 +813,8 @@ class PromptToolkitInput(InputProviderABC):
             if self._task_picker is not None:
                 dynamic_panels.append(self._task_picker.container)
             self._session.app.layout.container = HSplit(
-                [*bar_containers, input_top_rule, root, input_bottom_rule, *dynamic_panels, input_footer]
+                [*bar_containers, input_top_rule, root, input_bottom_rule, *dynamic_panels, input_footer],
+                align=VerticalAlign.BOTTOM,
             )
 
     def _get_input_top_rule_fragments(self) -> StyleAndTextTuples:
