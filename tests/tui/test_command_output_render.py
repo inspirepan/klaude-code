@@ -47,14 +47,16 @@ def _stats(**updates: object) -> SessionStatsUIExtra:
 
 def _render_stats(stats: SessionStatsUIExtra, width: int) -> str:
     console = Console(width=width, record=True, theme=get_theme().app_theme)
-    console.print(render_session_stats(events.SessionStatsEvent(session_id="s1", stats=stats)))
+    rendered = render_session_stats(events.SessionStatsEvent(session_id="s1", stats=stats))
+    assert all(not segment.style or not segment.style.bold for segment in console.render(rendered))
+    console.print(rendered)
     output = console.export_text()
     assert all(cell_len(line) <= width for line in output.splitlines())
     return output
 
 
 @pytest.mark.parametrize("width", [80, 40])
-def test_session_stats_usage_tree_wraps_and_preserves_individual_runs(width: int) -> None:
+def test_session_stats_usage_list_wraps_and_preserves_individual_runs(width: int) -> None:
     main = TaskMetadata(
         model_name="shared-model",
         usage=Usage(
@@ -64,7 +66,13 @@ def test_session_stats_usage_tree_wraps_and_preserves_individual_runs(width: int
             output_tokens=2_000,
             reasoning_tokens=500,
             input_cost=1,
+            context_size=1000,
+            context_limit=10000,
+            max_tokens=1000,
+            throughput_tps=23.9,
         ),
+        task_duration_s=1795,
+        step_count=49,
     )
     child = TaskMetadata(
         model_name="child-model",
@@ -89,6 +97,10 @@ def test_session_stats_usage_tree_wraps_and_preserves_individual_runs(width: int
     assert "scan tools" in output and "scan UI" in output
     assert "in 5k" in flat and "out 1.5k" in flat
     assert "cache 20k" in flat and "cache write 5k" in flat and "thought 500" in flat
+    assert "ctx 1k/9k (11.1%)" in flat and "29m55s" in flat
+    assert "23.9 tok/s" in flat and "49 steps" in flat
+    child_lines = output[output.index("scan tools") : output.index("scan UI")].splitlines()
+    assert all(line.strip() for line in child_lines)
     assert "Messages  2 user" in output and "3 calls" in output
     assert "running usage excluded" in flat
     assert "Session " in output and "Events " in output
@@ -125,6 +137,69 @@ def test_session_stats_legacy_total_without_model_breakdown() -> None:
     output = _render_stats(_stats(usage=Usage(input_tokens=100, input_cost=1, currency="EUR")), 80)
 
     assert "Agent attribution unavailable (legacy)" in output
-    assert "All agents" in output and "cost EUR 1.0000" in output
+    assert "All agents" in output and "EUR 1.0000" in output
     assert "Total cost  EUR 1.0000" in output
     assert "No settled usage" not in output
+
+
+@pytest.mark.parametrize("width", [40, 80, 160])
+def test_session_stats_cost_first_sorting_preserves_metrics_and_unknowns(width: int) -> None:
+    cheap = TaskMetadata(
+        model_name="model",
+        provider="chatgpt",
+        sub_agent_name="finder",
+        description="cheap run",
+        usage=Usage(
+            input_tokens=1000,
+            cached_tokens=200,
+            cache_write_tokens=100,
+            output_tokens=100,
+            reasoning_tokens=20,
+            input_cost=0.001,
+            context_size=1000,
+            context_limit=10000,
+            max_tokens=1000,
+            throughput_tps=12.5,
+        ),
+        task_duration_s=65,
+        step_count=3,
+    )
+    expensive = cheap.model_copy(update={"description": "expensive run", "usage": Usage(input_cost=2)})
+    free = cheap.model_copy(update={"description": "free run", "usage": Usage(input_tokens=1, input_cost=0)})
+    unknown = cheap.model_copy(update={"description": "unknown run", "usage": None})
+    runs = [cheap, unknown, free, expensive]
+
+    output = _render_stats(_stats(sub_agent_runs=runs), width)
+    flat = " ".join(output.split())
+
+    assert output.index("expensive run") < output.index("cheap run") < output.index("free run")
+    assert output.index("free run") < output.index("unknown run")
+    for cost, description in [("$2.0000", "expensive run"), ("$0.0010", "cheap run"), ("$0.0000", "free run")]:
+        assert any(cost in line and description in line for line in output.splitlines())
+    assert "1 unknown" in flat
+    for metric in [
+        "in 700",
+        "cache 200",
+        "cache write 100",
+        "out 80",
+        "thought 20",
+        "ctx 1k/9k",
+        "12.5 tok/s",
+        "3 steps",
+    ]:
+        assert metric in flat
+    assert "1m05s" in flat
+    assert "via chatgpt" in flat
+    assert runs == [cheap, unknown, free, expensive]
+
+
+def test_session_stats_narrow_details_do_not_truncate_paths_or_models() -> None:
+    path = "src/klaude_code/tui/components/command_output.py"
+    model = "provider/very-long-model-name-with-reasoning"
+    run = TaskMetadata(description=f"Review {path}", model_name=model, usage=Usage(input_cost=1))
+
+    output = _render_stats(_stats(sub_agent_runs=[run]), 40)
+    compact = "".join(output.split())
+
+    assert path in compact
+    assert model in compact

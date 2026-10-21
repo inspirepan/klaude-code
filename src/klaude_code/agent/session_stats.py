@@ -62,6 +62,34 @@ def accumulate_session_usage(session: Session) -> AggregatedUsage:
                 sub_agent_runs.append(TaskMetadata(sub_agent_name="agent"))
 
     main_agent_by_model = TaskMetadata.aggregate_by_model(main_metadata)
+    for aggregate in main_agent_by_model:
+        usage = aggregate.usage
+        if usage is None:
+            continue
+        tracked_tokens = 0
+        weighted_throughput = 0.0
+        for meta in main_metadata:
+            source = meta.usage
+            if source is None or (meta.model_name, meta.provider, source.currency) != (
+                aggregate.model_name,
+                aggregate.provider,
+                usage.currency,
+            ):
+                continue
+            aggregate.step_count += meta.step_count
+            if meta.task_duration_s is not None:
+                aggregate.task_duration_s = (aggregate.task_duration_s or 0.0) + meta.task_duration_s
+            if source.context_size is not None:
+                usage.context_size = source.context_size
+            if source.context_limit is not None:
+                usage.context_limit = source.context_limit
+            if source.max_tokens is not None:
+                usage.max_tokens = source.max_tokens
+            if source.throughput_tps is not None and source.output_tokens > 0:
+                tracked_tokens += source.output_tokens
+                weighted_throughput += source.throughput_tps * source.output_tokens
+        if tracked_tokens:
+            usage.throughput_tps = weighted_throughput / tracked_tokens
     by_model = TaskMetadata.aggregate_by_model([*main_metadata, *sub_agent_runs])
 
     total = Usage()

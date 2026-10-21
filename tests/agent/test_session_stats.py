@@ -70,6 +70,37 @@ def test_same_model_and_provider_keep_currencies_separate(tmp_path: Path) -> Non
     assert aggregated.total.total_cost is None
 
 
+def test_main_model_summary_retains_context_and_execution_metrics(tmp_path: Path) -> None:
+    session = Session(work_dir=tmp_path)
+    first = TaskMetadata(
+        model_name="main",
+        usage=Usage(output_tokens=100, throughput_tps=10, context_size=1000, context_limit=10000, max_tokens=1000),
+        task_duration_s=20,
+        step_count=2,
+    )
+    latest = TaskMetadata(
+        model_name="main",
+        usage=Usage(output_tokens=300, throughput_tps=30, context_size=2000),
+        task_duration_s=40,
+        step_count=3,
+    )
+    other = TaskMetadata(model_name="other", usage=Usage(output_tokens=100), task_duration_s=99, step_count=9)
+    session.conversation_history.extend(TaskMetadataItem(main_agent=meta) for meta in [first, other, latest])
+
+    stats = build_session_stats_ui_extra(session)
+    main = next(meta for meta in stats.main_agent_by_model if meta.model_name == "main")
+
+    assert main.task_duration_s == 60
+    assert main.step_count == 5
+    assert main.usage is not None
+    assert main.usage.context_size == 2000
+    assert main.usage.context_limit == 10000
+    assert main.usage.max_tokens == 1000
+    assert main.usage.throughput_tps == 25
+    assert first.task_duration_s == 20 and first.step_count == 2
+    assert first.usage is not None and first.usage.context_size == 1000
+
+
 def test_settled_background_run_without_metadata_remains_visible(tmp_path: Path) -> None:
     session = Session(work_dir=tmp_path)
     session.conversation_history.append(TaskMetadataItem(background_task_id="failed-or-lost-agent"))

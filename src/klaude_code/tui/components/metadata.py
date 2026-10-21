@@ -289,6 +289,51 @@ def render_metadata_content(
     )
 
 
+@dataclass
+class SessionMetadataContent:
+    """Status details with atomic metric wrapping; cost is rendered by the caller."""
+
+    metadata: TaskMetadata
+    show_context_and_time: bool = True
+
+    def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
+        metadata = self.metadata
+        identity = _build_identity_text(
+            metadata.model_copy(update={"description": None}), split_sub_agent_and_model=False
+        )
+        if metadata.description:
+            title = Text(metadata.description, style=ThemeKey.SESSION_STATUS)
+            if title.cell_len + identity.cell_len + 2 <= options.max_width:
+                title.append("  ")
+                title.append_text(identity)
+                yield title
+            else:
+                yield title
+                yield identity
+        else:
+            yield identity
+
+        cells = _build_metric_cells(metadata, show_context_and_time=self.show_context_and_time)
+        cells.pop("cost", None)
+        if "ctx" in cells:
+            cells["ctx"].label = "ctx"
+        line = Text()
+        for key, cell in cells.items():
+            part = _build_details_text({key: cell})
+            if part is None:
+                continue
+            if line.plain and line.cell_len + part.cell_len + 3 > options.max_width:
+                yield line
+                line = Text()
+            if line.plain:
+                line.append(" · ", style=ThemeKey.METADATA_DIM)
+            line.append_text(part)
+        if line.plain:
+            yield line
+        if metadata.usage is None:
+            yield Text("Usage unavailable", style=ThemeKey.METADATA_DIM)
+
+
 def _build_aligned_metric_line(
     cells: dict[str, _MetricCell],
     *,
