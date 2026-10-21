@@ -129,7 +129,8 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 ### Shared background tasks and peer messages
 
 - `/tasks` without arguments opens `TaskPanel` in the existing prompt-toolkit
-  `SelectOverlay`; explicit `/tasks list/output/wait/stop` keeps text output.
+  `TaskBrowser` overlay with status tabs, search, and live output preview;
+  explicit `/tasks list/output/wait/stop` keeps text output.
   `RuntimeClient.manage_tasks()` uses the existing owned-task HTTP endpoint;
   panel queries do not enter the transcript or acknowledge model delivery.
 - Status bar order: the main agent's spinner row (kept while background

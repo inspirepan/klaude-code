@@ -6,6 +6,7 @@ from collections.abc import Callable
 from klaude_code.protocol.background_task import ACTIVE_TASK_STATUSES, BackgroundTaskSnapshot, TaskRequest
 from klaude_code.tui.client.base import RuntimeClient
 from klaude_code.tui.input.prompt_toolkit import PromptToolkitInput
+from klaude_code.tui.task_browser import TaskBrowser
 from klaude_code.tui.terminal.selector import SelectItem
 
 
@@ -73,14 +74,73 @@ class TaskPanel:
                 for task in tasks
             ]
             items.append(_item("Refresh snapshot", "refresh"))
-            selected = await self.prompt.choose_task_action(notice if tasks else "No background tasks", items)
+            selected = await self.prompt.choose_task_action(
+                notice if tasks else "No background tasks", items, browser_refresh=self._refresh_browser
+            )
             if selected is None:
                 return
             if selected == "refresh":
                 continue
-            task = next((task for task in tasks if task.ref.task_id == selected), None)
+            try:
+                response = await self.client.manage_tasks(TaskRequest(action="list"))
+            except Exception as exc:
+                notice = f"Refresh failed: {exc}"
+                continue
+            task = next((task for task in response.tasks if task.ref.task_id == selected), None)
             if task is not None:
                 await self._detail(task)
+
+    async def _refresh_browser(self, browser: TaskBrowser) -> None:
+        from prompt_toolkit.application import get_app
+
+        while True:
+            try:
+                response = await self.client.manage_tasks(TaskRequest(action="list"))
+                attention = self.attention()
+                tasks = sorted(
+                    response.tasks,
+                    key=lambda task: (
+                        0
+                        if task.ref.session_id in attention
+                        else 1
+                        if task.status in {"failed", "lost", "timed_out"}
+                        else 2
+                        if task.status in ACTIVE_TASK_STATUSES
+                        else 3,
+                        -task.started_at,
+                    ),
+                )
+                browser.update(tasks, attention)
+                browser.notice = ""
+                task_id = browser.selected_id
+                if task_id:
+                    response = await self.client.manage_tasks(
+                        TaskRequest(action="output", task_id=task_id, limit=16384)
+                    )
+                    if browser.selected_id == task_id:
+                        if browser.preview_id != task_id:
+                            browser.detail_line = 0
+                        browser.preview_id = task_id
+                        task = next((task for task in tasks if task.ref.task_id == task_id), None)
+                        heading = f"{task_label(task)[:120]} · {task.status}\n{task_id}\n\n" if task else ""
+                        output = (
+                            "Output expired or unavailable"
+                            if response.output_unavailable
+                            else response.output or "No output yet"
+                        )
+                        suffix = "\n\nMore output available: enter → View output" if response.truncated else ""
+                        browser.preview = "".join(
+                            char
+                            for char in heading + output + suffix
+                            if char in "\n\t" or (ord(char) >= 32 and ord(char) != 127)
+                        )
+            except Exception:
+                browser.notice = "Refresh failed; showing last snapshot · esc to quit"
+            get_app().invalidate()
+            for _ in range(10):
+                await asyncio.sleep(0.1)
+                if browser.selected_id != browser.preview_id:
+                    break
 
     async def _detail(self, task: BackgroundTaskSnapshot) -> None:
         notice = ""

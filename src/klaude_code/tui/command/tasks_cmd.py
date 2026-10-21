@@ -17,7 +17,7 @@ class TasksCommand(CommandABC):
 
     @property
     def summary(self) -> str:
-        return "Open task picker; list, read, wait for, or stop owned Agent and Bash tasks"
+        return "Browse tasks with live output; list, read, wait for, or stop Agent and Bash tasks"
 
     @property
     def support_addition_params(self) -> bool:

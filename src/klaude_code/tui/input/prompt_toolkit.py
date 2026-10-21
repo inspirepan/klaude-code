@@ -5,7 +5,7 @@ import contextlib
 import re
 import sys
 import time
-from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Coroutine
 from pathlib import Path
 from typing import override
 
@@ -74,6 +74,7 @@ from klaude_code.tui.input.pt_theme import (
     get_base_style,
 )
 from klaude_code.tui.input.resize_watcher import ResizeWatcher
+from klaude_code.tui.task_browser import TaskBrowser
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 from klaude_code.tui.workspace import active_work_dir
 
@@ -502,7 +503,7 @@ class PromptToolkitInput(InputProviderABC):
 
         # The model picker will be set up later; create placeholder condition.
         self._model_picker: SelectOverlay[str] | None = None
-        self._task_picker: SelectOverlay[str] | None = None
+        self._task_picker: TaskBrowser | None = None
         self._task_choice: asyncio.Future[str | None] | None = None
         input_enabled = Condition(lambda: not self._is_picker_open())
 
@@ -717,8 +718,7 @@ class PromptToolkitInput(InputProviderABC):
             get_reserved_rows=self._get_picker_reserved_rows,
         )
         self._model_picker = model_picker
-        self._task_picker = SelectOverlay[str](
-            list_height=12,
+        self._task_picker = TaskBrowser(
             get_reserved_rows=self._get_picker_reserved_rows,
             on_select=self._select_task_choice,
             on_cancel=self.close_task_overlay,
@@ -741,7 +741,12 @@ class PromptToolkitInput(InputProviderABC):
             self._task_choice.set_result(None)
 
     async def choose_task_action(
-        self, heading: str, items: list[SelectItem[str]], *, text_entry: bool = False
+        self,
+        heading: str,
+        items: list[SelectItem[str]],
+        *,
+        text_entry: bool = False,
+        browser_refresh: Callable[[TaskBrowser], Coroutine[object, object, None]] | None = None,
     ) -> str | None:
         while not self._session.app.is_running:
             if self._external_input_pause_count or self._exit_requested:
@@ -755,14 +760,20 @@ class PromptToolkitInput(InputProviderABC):
         with set_app(self._session.app):
             if self._model_picker is not None:
                 self._model_picker.close()
+            picker.browsing = browser_refresh is not None
             picker.text_entry = text_entry
             picker.set_content(message=heading, items=items)
             picker.open()
+            refresh_task = asyncio.create_task(browser_refresh(picker)) if browser_refresh else None
             try:
                 result = await choice
                 return picker.input_text if text_entry and result is not None else result
             finally:
+                if refresh_task is not None:
+                    refresh_task.cancel()
+                    await asyncio.gather(refresh_task, return_exceptions=True)
                 picker.close()
+                picker.browsing = False
                 self._task_choice = None
 
     def _apply_layout_customizations(self) -> None:

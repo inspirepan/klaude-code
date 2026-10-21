@@ -107,11 +107,18 @@ def test_busy_overlay_escape_preserves_live_draft_and_cursor_and_yields_to_appro
 
             class Client:
                 async def manage_tasks(self, request: TaskRequest) -> TaskResponse:
-                    return TaskResponse(tasks=[task_snapshot("failed", description="Long task name " * 40)])
+                    return TaskResponse(
+                        tasks=[task_snapshot("failed", description="Long task name " * 40)], output="Preview result"
+                    )
 
             panel = TaskPanel(cast(RuntimeClient, Client()), prompt, lambda: {})
             panel_task = asyncio.create_task(panel.open())
-            await until(lambda: any("Agent · failed · Long task name" in line for line in rendered_lines()))
+            await until(lambda: any("Agent · failed" in line for line in rendered_lines()))
+            assert not any("Window too small" in line for line in rendered_lines())
+            pipe.send_text("\x1b[C")
+            await until(lambda: any("No matching tasks" in line for line in rendered_lines()))
+            pipe.send_text("\x1b[C")
+            await until(lambda: any("Agent · failed" in line for line in rendered_lines()))
             pipe.send_text("\x1b")
             await asyncio.wait_for(panel_task, 2)
             assert prompt._session.default_buffer.document == Document("current draft", 4)
@@ -316,3 +323,110 @@ def test_message_confirmation_cancel_never_sends() -> None:
 
     panel = TaskPanel(cast(RuntimeClient, None), cast(PromptToolkitInput, Prompt()), lambda: {})
     assert asyncio.run(panel._message(task_snapshot())) == "Message not sent"
+
+
+def test_browser_refresh_preserves_selected_task_and_search() -> None:
+    from klaude_code.tui.task_browser import TaskBrowser
+
+    browser = TaskBrowser(on_select=lambda _: None, on_cancel=lambda: None, get_reserved_rows=lambda: 5)
+    first, second = task_snapshot(), task_snapshot("failed")
+    second.ref.task_id = "second"
+    browser.update([first, second], {})
+    browser._pointed_at = 1
+    browser.update([second, first], {})
+    assert browser.selected_id == "second"
+    assert browser._search_buffer is not None
+    browser._search_buffer.text = "second"
+    browser.update([first, second], {})
+    assert browser.selected_id == "second"
+    assert browser.input_text == "second"
+    browser.update([first], {})
+    assert browser.selected_id is None
+
+
+def test_browser_discards_output_for_selection_changed_during_fetch() -> None:
+    from klaude_code.tui.task_browser import TaskBrowser
+
+    async def run() -> None:
+        browser = TaskBrowser(on_select=lambda _: None, on_cancel=lambda: None, get_reserved_rows=lambda: 5)
+        first, second = task_snapshot(), task_snapshot()
+        second.ref.task_id = "second"
+        output_started = asyncio.Event()
+        release = asyncio.Event()
+
+        class Client:
+            async def manage_tasks(self, request: TaskRequest) -> TaskResponse:
+                if request.action == "output":
+                    output_started.set()
+                    await release.wait()
+                    return TaskResponse(tasks=[], output="old selection output")
+                return TaskResponse(tasks=[first, second])
+
+        panel = TaskPanel(cast(RuntimeClient, Client()), cast(PromptToolkitInput, None), lambda: {})
+        refresh = asyncio.create_task(panel._refresh_browser(browser))
+        await output_started.wait()
+        browser._pointed_at = 1
+        release.set()
+        await asyncio.sleep(0)
+        assert browser.preview_id is None
+        assert "old selection output" not in browser.preview
+        refresh.cancel()
+        await asyncio.gather(refresh, return_exceptions=True)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("columns", [60, 80])
+@pytest.mark.parametrize(("down", "up"), [("\x1b[6~", "\x1b[5~"), ("\x04", "\x15")])
+def test_page_keys_scroll_output_viewport_on_first_press(columns: int, down: str, up: str) -> None:
+    from prompt_toolkit.application import Application
+    from prompt_toolkit.data_structures import Size
+    from prompt_toolkit.layout import Layout
+
+    from klaude_code.tui.task_browser import TaskBrowser
+
+    class Output(DummyOutput):
+        def get_size(self) -> Size:
+            return Size(rows=24, columns=columns)
+
+    async def run() -> None:
+        with create_pipe_input() as pipe:
+            browser = TaskBrowser(on_select=lambda _: None, on_cancel=lambda: None, get_reserved_rows=lambda: 5)
+            browser.browsing = True
+            browser.update([task_snapshot()], {})
+            browser.preview_id = browser.selected_id
+            browser.preview = "\n".join(f"output line {i:03}" for i in range(100))
+            app: Application[None] = Application(
+                layout=Layout(browser.container),
+                key_bindings=browser.key_bindings,
+                input=pipe,
+                output=Output(),
+                full_screen=True,
+            )
+            pending = asyncio.create_task(app.run_async(pre_run=browser.open))
+
+            def visible_output() -> list[str]:
+                screen = app.renderer._last_screen
+                if screen is None:
+                    return []
+                return [
+                    text
+                    for row in screen.data_buffer.values()
+                    if "output line" in (text := "".join(cell.char for _, cell in sorted(row.items())))
+                ]
+
+            try:
+                await until(lambda: bool(visible_output()))
+                first = visible_output()[0]
+                selected = browser.selected_id
+                pipe.send_text(down)
+                await until(lambda: bool(visible_output()) and visible_output()[0] != first)
+                assert browser.selected_id == selected
+                pipe.send_text(up)
+                await until(lambda: bool(visible_output()) and visible_output()[0] == first)
+                assert browser.selected_id == selected
+            finally:
+                app.exit()
+                await pending
+
+    asyncio.run(run())
