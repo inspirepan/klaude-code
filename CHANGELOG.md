@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.43.0] - 2026-10-21
+
+### Added
+
+- 为任务浏览器添加代理与 Bash 类型筛选 (`d268d285`)
+- 为任务浏览器添加状态筛选和实时输出预览 (`f264757e`)
+- 重设计状态费用展示并补全主代理指标 (`80679772`)
+- 重设计 status 并展示会话 Agent 消耗树 (`57448b3d`)
+- 优化 agents 面板消息预览与布局 (`8e956a8e`)
+
+### Fixed
+
+- 修复 DeepSeek 思考回传与缓存误报 (`80171cff`)
+- 补全会话描述并过滤过期空闲会话 (`a615b126`)
+- 修正子代理输出之间的分隔线 (`b136ee4c`)
+- 修复任务详情滚动并添加快捷键 (`824c0c02`)
+- 精简 ManageShell 紧凑模式输出 (`acdb8873`)
+- 移除剪贴板图片自动轮询 (`b484c3a3`)
+- restore complete ordered history and sub-agent replay (`afcbf694`)
+- align sub-agent quote gutters with tool margins (`5c5290ae`)
+- 启动行不再复用子代理背景色 (`0b81325d`)
+- 用 Launch 表达后台代理启动 (`9933086a`)
+- synchronize interactions across attached clients (`4d74d8c8`)
+- 统一子代理配色并移除标题冒号 (`e74e0271`)
+- 显示补全空结果并修复输入底栏抖动 (`f41b105b`)
+- 默认禁用全部 Youtu provider (`3881d5e1`)
+
 ## [2.42.0] - 2026-10-20
 
 ### Added
@@ -2927,7 +2954,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.42.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.43.0...HEAD
+[2.43.0]: https://github.com/inspirepan/klaude-code/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/inspirepan/klaude-code/compare/v2.41.0...v2.42.0
 [2.41.0]: https://github.com/inspirepan/klaude-code/compare/v2.40.0...v2.41.0
 [2.40.0]: https://github.com/inspirepan/klaude-code/compare/v2.39.0...v2.40.0
