@@ -652,7 +652,10 @@ class TUICommandRenderer:
                 # the separator only when Markdown writes its first stable chunk.
                 return
             case _:
-                self._flush_open_blocks()
+                # A gutter-only separator belongs inside one child's output,
+                # never between sessions or before a top-level summary.
+                next_session_id = getattr(event, "session_id", getattr(cmd, "session_id", None))
+                self._flush_open_blocks(scoped=next_session_id == self._continuous_block_session_id)
 
     def spinner_start(self) -> None:
         self._spinner_visible = True
@@ -1069,7 +1072,8 @@ class TUICommandRenderer:
         )
 
     def _mark_scrollback_content(self) -> None:
-        self._flush_open_blocks()
+        # Both Markdown streams are owned by the main session.
+        self._flush_open_blocks(scoped=False)
         self._set_scrollback_boundary(False)
 
     def _flush_thinking(self) -> None:
@@ -2352,7 +2356,7 @@ class TUICommandRenderer:
         self._cancel_bash_live_flush()
         self._end_thinking_live_tail()
         self._cancel_spinner_flush()
-        self._flush_open_blocks()
+        self._flush_open_blocks(scoped=False)
         self._flush_assistant()
         self._flush_thinking()
         stop_terminal_title_blink()

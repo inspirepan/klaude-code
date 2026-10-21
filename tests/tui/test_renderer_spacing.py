@@ -16,6 +16,7 @@ from klaude_code.tui.commands import (
     EndAssistantStream,
     EndThinkingStream,
     PrintBlankLine,
+    RenderCommand,
     RenderCompactToolResult,
     RenderDeveloperMessage,
     RenderError,
@@ -27,6 +28,7 @@ from klaude_code.tui.commands import (
     RenderTaskStart,
     RenderToolCall,
     RenderToolResult,
+    RenderTurnTiming,
     RenderUserMessage,
     StartAssistantStream,
     StartThinkingStream,
@@ -179,6 +181,97 @@ def test_collaboration_and_warnings_continue_tool_block(kind: str, child: bool) 
             assert line[2] not in {" ", "▌"}, line
         if kind in {"send", "receive"} and "╭" in line:
             assert line.index("╭") == 4, line
+
+
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+def test_child_warning_before_user_message_has_unquoted_separator(detail: Detail) -> None:
+    renderer, output = _renderer_and_output()
+    renderer.set_transcript_detail(detail)
+    renderer.register_session(
+        "child", SubAgentState(sub_agent_type="finder", sub_agent_desc="review", sub_agent_prompt="")
+    )
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderError(
+                    events.ErrorEvent(
+                        session_id="child",
+                        error_message="Prompt cache break detected: likely server-side",
+                        can_retry=True,
+                    )
+                ),
+                RenderUserMessage(events.UserMessageEvent(session_id="main", content="next request")),
+            ]
+        )
+    )
+    lines = output.getvalue().splitlines()
+    assert lines[0].startswith("▌ ✘ Prompt cache break detected:")
+    assert lines[1] == ""
+    assert "next request" in lines[2]
+
+
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+@pytest.mark.parametrize("following", ["assistant", "thinking", "notice", "error", "summary", "timing", "stop"])
+def test_child_warning_to_top_level_has_unquoted_separator(detail: Detail, following: str) -> None:
+    if following == "thinking" and detail is Detail.COMPACT:
+        pytest.skip("Compact thinking has no scrollback output")
+    renderer, output = _renderer_and_output()
+    renderer.set_transcript_detail(detail)
+    renderer.register_session(
+        "child", SubAgentState(sub_agent_type="finder", sub_agent_desc="review", sub_agent_prompt="")
+    )
+    commands: list[RenderCommand] = [
+        RenderError(events.ErrorEvent(session_id="child", error_message="cache warning", can_retry=True))
+    ]
+    if following == "assistant":
+        commands.extend([StartAssistantStream("main"), AppendAssistant("main", "answer"), EndAssistantStream("main")])
+    elif following == "thinking":
+        commands.extend([StartThinkingStream("main"), AppendThinking("main", "reasoning"), EndThinkingStream("main")])
+    elif following == "notice":
+        commands.append(RenderNotice(events.NoticeEvent(session_id="main", content="notice")))
+    elif following == "error":
+        commands.append(RenderError(events.ErrorEvent(session_id="main", error_message="failed", can_retry=False)))
+    elif following == "summary":
+        commands.append(
+            RenderSubAgentBatchSummary(
+                (SubAgentSummary("child", "Finder", "review", "success", None, None, 1, None, "done"),)
+            )
+        )
+    elif following == "timing":
+        commands.append(RenderTurnTiming("done", 1.0))
+
+    async def run() -> None:
+        await renderer.execute(commands)
+        if following == "stop":
+            await renderer.stop()
+
+    asyncio.run(run())
+    lines = output.getvalue().splitlines()
+    assert lines[0].startswith("▌ ✘ cache warning")
+    assert lines[1] == ""
+    if following != "stop":
+        assert lines[2].strip()
+
+
+@pytest.mark.parametrize("same_child", [True, False])
+def test_child_block_separator_only_keeps_gutter_within_same_child(same_child: bool) -> None:
+    renderer, output = _renderer_and_output()
+    renderer.set_transcript_detail(Detail.FULL)
+    for session_id in ("child", "other-child"):
+        renderer.register_session(
+            session_id, SubAgentState(sub_agent_type="finder", sub_agent_desc="review", sub_agent_prompt="")
+        )
+    asyncio.run(
+        renderer.execute(
+            [
+                RenderError(events.ErrorEvent(session_id="child", error_message="cache warning", can_retry=True)),
+                RenderSubAgentThinking("child" if same_child else "other-child", "next reasoning"),
+            ]
+        )
+    )
+    lines = output.getvalue().splitlines()
+    assert lines[1] == ("▌ " if same_child else "")
+    assert lines[2].startswith("▌ ")
 
 
 def test_step_start_does_not_add_extra_blank_line_before_retry_error() -> None:
