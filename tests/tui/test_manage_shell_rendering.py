@@ -122,8 +122,8 @@ def test_presentation_and_activity_share_shell_identity_and_hint() -> None:
 @pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
 def test_result_dispatch_renders_ui_extra_without_model_text(action: str, detail: Detail) -> None:
     ui_extra = ShellTaskUIExtra.model_validate({"action": action, "tasks": [_task().model_dump()]})
-    if action == "wait" and detail.is_compact:
-        # A wait that returns with the task still running adds nothing to the status bar.
+    if detail.is_compact:
+        # Successful operations add no result details; pending waits also stay quiet.
         assert render_tool_result(_event(ui_extra), detail=detail) is None
         return
     rendered = _render(render_tool_result(_event(ui_extra), detail=detail))
@@ -225,32 +225,35 @@ def test_full_output_preserves_blank_lines_whitespace_and_literal_markup() -> No
     assert all(segment.style == console.get_style(ThemeKey.TOOL_RESULT) for segment in markup_segments)
 
 
-@pytest.mark.parametrize("output", ["", "\n", "command output must stay hidden"])
-def test_compact_output_hides_body_but_keeps_status_and_pagination(output: str) -> None:
-    ui_extra = ShellTaskUIExtra(
-        action="output",
-        tasks=[_task(status="failed", exit_code=2, reason="bad run")],
-        output=output,
-        next_offset=123,
-        truncated=True,
+@pytest.mark.parametrize("action", ["output", "list", "stop"])
+@pytest.mark.parametrize("task_status", ["running", "completed", "failed"])
+def test_compact_success_hides_result_details(action: str, task_status: str) -> None:
+    ui_extra = ShellTaskUIExtra.model_validate(
+        {
+            "action": action,
+            "tasks": [_task(status=task_status, exit_code=2 if task_status == "failed" else 0).model_dump()],
+            "output": "command output must stay hidden",
+            "next_offset": 123,
+            "truncated": True,
+        }
     )
-    results = [
-        render_tool_result(_event(ui_extra), detail=Detail.COMPACT),
+    assert render_tool_result(_event(ui_extra), detail=Detail.COMPACT) is None
+    rendered = _render(
         render_compact_tool_result(
             tools.MANAGE_SHELL,
-            json.dumps({"action": "output", "task_id": _TASK_ID}),
+            json.dumps({"action": action, "task_id": _TASK_ID}),
             "Model-facing text must not be displayed",
             status="success",
             ui_extra=ui_extra,
-        ),
-    ]
-    for result in results:
-        rendered = _render(result)
-        assert "failed · exit 2 · bad run" in rendered
-        assert "next_offset 123 · has_more" in rendered
-        assert "command output must stay hidden" not in rendered
-        assert "(no output)" not in rendered
-        assert len(rendered.splitlines()) == 2
+        )
+    )
+    assert "$ Shell" in rendered
+    assert "next_offset" not in rendered
+    assert "has_more" not in rendered
+    assert "exit" not in rendered
+    assert "command output" not in rendered
+    assert "Model-facing" not in rendered
+    assert len(rendered.splitlines()) == 1
 
 
 @pytest.mark.parametrize("output", ["", "\n", "   "])
@@ -263,35 +266,36 @@ def test_empty_and_blank_output_are_distinct(output: str) -> None:
     assert ("(no output)" in rendered) == (output == "")
 
 
-@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
-def test_list_and_output_limits_preserve_late_failures_and_output_tail(detail: Detail) -> None:
+def test_list_and_output_limits_preserve_late_failures_and_output_tail() -> None:
+    detail = Detail.FULL
     tasks = [_task(task_id=f"task-{idx}", description=f"task description {idx}") for idx in range(20)]
     tasks[-2] = _task(
         task_id="failure", description="important failure", status="failed", exit_code=9, reason="bad run"
     )
     rendered = _render(render_tool_result(_event(ShellTaskUIExtra(action="list", tasks=tasks)), detail=detail))
-    limit = 5 if detail.is_compact else FULL_TOOL_RESULT_MAX_LINES
+    limit = FULL_TOOL_RESULT_MAX_LINES
     assert rendered.count("task description") == limit - 1
-    identity = "important failure failure" if detail == Detail.FULL else "important failure"
-    assert f"{identity} · failed · exit 9 · bad run" in rendered
+    assert "important failure failure · failed · exit 9 · bad run" in rendered
     assert f"more {20 - limit} tasks" in rendered
     ui_extra = ShellTaskUIExtra(
         action="output", tasks=[tasks[-2]], output="\n".join(f"output-{idx}" for idx in range(20))
     )
     rendered = _render(render_tool_result(_event(ui_extra), detail=detail))
     assert "failed · exit 9 · bad run" in rendered
-    if detail.is_compact:
-        assert "output-" not in rendered
-    else:
-        assert "output-0" in rendered
-        assert "output-19" in rendered
-        assert f"more {20 - limit} lines" in rendered
+    assert "output-0" in rendered
+    assert "output-19" in rendered
+    assert f"more {20 - limit} lines" in rendered
 
 
 def test_empty_task_list_and_expired_output_are_explained() -> None:
-    assert "No managed shell tasks." in _render(render_tool_result(_event(ShellTaskUIExtra(action="list", tasks=[]))))
+    assert "No managed shell tasks." in _render(
+        render_tool_result(_event(ShellTaskUIExtra(action="list", tasks=[])), detail=Detail.FULL)
+    )
     rendered = _render(
-        render_tool_result(_event(ShellTaskUIExtra(action="output", tasks=[_task(status="lost", output_expired=True)])))
+        render_tool_result(
+            _event(ShellTaskUIExtra(action="output", tasks=[_task(status="lost", output_expired=True)])),
+            detail=Detail.FULL,
+        )
     )
     assert "lost" in rendered
     assert "output expired" in rendered
@@ -307,6 +311,9 @@ def test_old_persisted_json_uses_structured_rendering(legacy_kind: str, detail: 
         result = json.dumps([task.model_dump()])
     else:
         result = ShellTaskOutput(task=task, output="  old output", next_offset=22, truncated=True).model_dump_json()
+    if detail.is_compact and legacy_kind != "snapshot":
+        assert render_tool_result(_event(result=result), detail=detail) is None
+        return
     rendered = _render(render_tool_result(_event(result=result), detail=detail))
     expected_identity = legacy_kind == "list" or (legacy_kind == "snapshot" and detail.is_compact)
     assert ("Run targeted tests" in rendered) == expected_identity
@@ -319,7 +326,8 @@ def test_old_persisted_json_uses_structured_rendering(legacy_kind: str, detail: 
 
 @pytest.mark.parametrize("result", ["{broken json", '{"unknown": "data"}', "Output saved to /tmp/output.log"])
 def test_unknown_malformed_or_offloaded_content_keeps_fallback(result: str) -> None:
-    rendered = _render(render_tool_result(_event(result=result)))
+    assert render_tool_result(_event(result=result)) is None
+    rendered = _render(render_tool_result(_event(result=result), detail=Detail.FULL))
     assert result in rendered
 
 
@@ -336,6 +344,23 @@ def test_legacy_json_decode_is_bounded_and_ui_extra_never_decodes_model_text(mon
 def test_error_uses_existing_fallback_instead_of_snapshot_status() -> None:
     rendered = _render(render_tool_result(_event(result="ManageShell error: task not found", status="error")))
     assert "ManageShell error: task not found" in rendered
+
+
+@pytest.mark.parametrize("status", ["error", "aborted"])
+@pytest.mark.parametrize("with_ui_extra", [False, True])
+def test_compact_failure_shows_only_first_reason(status: str, with_ui_extra: bool) -> None:
+    event = _event(
+        ShellTaskUIExtra(action="output", tasks=[_task()], next_offset=123) if with_ui_extra else None,
+        result="\n  task not found\nextra diagnostic details\nmore details",
+        status="error" if status == "error" else "aborted",
+    )
+    rendered = _render(render_tool_result(event))
+    assert rendered.strip() == "task not found"
+    assert len(rendered.splitlines()) == 1
+    if not with_ui_extra:
+        full = _render(render_tool_result(event, detail=Detail.FULL))
+        assert "extra diagnostic details" in full
+        assert "more details" in full
 
 
 @pytest.mark.parametrize("width", [12, 24, 40])
@@ -376,9 +401,9 @@ def test_ui_extra_survives_event_serialization_and_compact_result_reuses_rendere
     )
     assert "$ Shell" in rendered
     if width == 120:
-        assert "Run targeted tests · running" in rendered
+        assert "Waiting for Run targeted tests" in rendered
     else:
         assert "targeted" in rendered
-        assert "running" in rendered
+    assert "running" not in rendered
     assert "✓" not in rendered
     assert "Model-facing" not in rendered

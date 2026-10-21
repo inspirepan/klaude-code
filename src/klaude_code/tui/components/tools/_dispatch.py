@@ -231,6 +231,11 @@ def render_tool_result(
         )
         return pad_result(result) if result is not None else None
 
+    if e.tool_name == tools.MANAGE_SHELL and detail.is_compact and e.is_error:
+        reason = next((line.strip() for line in e.result.splitlines() if line.strip()), e.status)
+        style = ThemeKey.INTERRUPT if e.status == "aborted" else ThemeKey.ERROR
+        return pad_result(Text(reason, style=style, no_wrap=True, overflow="ellipsis"))
+
     # Handle error case
     if e.is_error and e.ui_extra is None:
         if e.tool_name == tools.TODO_WRITE:
@@ -340,6 +345,8 @@ def render_tool_result(
                 # The automatic report and the wait share one claim, so whichever
                 # observes the finish first prints the single completion row.
                 return render_shell_completion(finished, detail=detail)
+            if detail.is_compact:
+                return None
             if shell_ui is not None:
                 return pad_result(
                     render_manage_shell_result(

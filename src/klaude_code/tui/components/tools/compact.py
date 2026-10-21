@@ -25,7 +25,6 @@ from klaude_code.tui.components.tools._common import (
 from klaude_code.tui.components.tools._manage_shell import (
     ManageShellRow,
     extract_shell_task_ui_extra,
-    render_manage_shell_result,
     render_manage_shell_subject,
 )
 from klaude_code.tui.components.tools._presentation import (
@@ -140,8 +139,8 @@ def render_compact_tool_result(
     presentation = get_tool_call_presentation(tool_name, arguments)
     if tool_name == tools.MANAGE_SHELL and status == "success":
         shell_ui = extract_shell_task_ui_extra(ui_extra, result)
-        if shell_ui is not None:
-            return ManageShellRow(render_manage_shell_result(shell_ui, show_task_identity=True))
+        shell_task = shell_ui.tasks[0] if shell_ui is not None and len(shell_ui.tasks) == 1 else None
+        return ManageShellRow(render_manage_shell_subject(arguments, shell_task=shell_task))
     if tool_name == tools.BASH:
         description, command_summary = _bash_parts(parse_tool_arguments(arguments))
         if command_summary:
