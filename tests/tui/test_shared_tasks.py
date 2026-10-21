@@ -599,6 +599,41 @@ def test_control_result_and_native_tools_are_readable_and_pageable() -> None:
     assert "Alice" in outgoing.subject and "summary" in outgoing.subject and "private detail" not in outgoing.subject
 
 
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+@pytest.mark.parametrize(
+    ("name", "description", "expected"),
+    [
+        (None, "Existing session title", "Existing session title · idle"),
+        (None, "Inspect peers", "Inspect peers · idle"),
+        ("Alice", "Inspect peers", "Alice · idle · Inspect peers"),
+        ("Alice", "Alice", "Alice · idle"),
+        (None, "", "unnamed agent · idle"),
+    ],
+)
+def test_peer_rows_use_existing_description_without_anonymous_prefix_or_duplication(
+    detail: Detail, name: str | None, description: str, expected: str
+) -> None:
+    rendered = render_collaboration_result(
+        tools.LIST_PEERS,
+        "Readable tool text",
+        detail=detail,
+        ui_extra=ControlUIExtra(
+            data={
+                "peers": [
+                    {
+                        "session_id": "peer-id",
+                        "name": name,
+                        "description": description,
+                        "state": "idle",
+                        "work_dir": "/tmp",
+                    }
+                ]
+            }
+        ),
+    )
+    assert rendered is not None and plain(rendered).strip() == expected
+
+
 def test_control_tools_render_structured_ui_data_instead_of_parsing_model_text() -> None:
     response = TaskResponse(tasks=[task_snapshot("completed")], output="report")
     managed = render_collaboration_result(

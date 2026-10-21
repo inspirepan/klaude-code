@@ -479,7 +479,15 @@ def render_collaboration_result(
                     directory.name_peer(peer)
             selected = peers[:8] if detail.is_compact else peers
             lines = [
-                " · ".join(part for part in (peer.name or "unnamed agent", peer.state, peer.description) if part)
+                " · ".join(
+                    part
+                    for part in (
+                        peer.name or peer.description or "unnamed agent",
+                        peer.state,
+                        peer.description if peer.name and peer.description != peer.name else "",
+                    )
+                    if part
+                )
                 for peer in selected
             ]
             if len(selected) < len(peers):

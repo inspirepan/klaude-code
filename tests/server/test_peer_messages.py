@@ -18,6 +18,7 @@ from klaude_code.protocol import events, llm_param, message
 from klaude_code.protocol.background_task import TaskRequest
 from klaude_code.protocol.models import TaskMetadataItem
 from klaude_code.protocol.peer import PeerMessage, PeerReceipt
+from klaude_code.server import peers as peers_module
 from klaude_code.server.routes import ws
 from klaude_code.server.state import get_server_state_from_app
 from klaude_code.session import store as session_store
@@ -340,10 +341,16 @@ def test_discovery_excludes_self_and_other_workspaces_and_rejects_ambiguous_targ
     other_dir = env.work_dir / "other"
     other_dir.mkdir()
     foreign = env.create_session(other_dir)
+    archived = env.create_session()
+    _call(env, get_store_for_path(env.work_dir).update_meta, archived, {"archived": True})
+    unloaded = Session(work_dir=env.work_dir)
+    _call(env, unloaded.ensure_meta_exists)
     peers = _call(env, env.runtime.peer_control.list, sender, env.work_dir)
     assert target in {peer.session_id for peer in peers}
-    assert sender not in {peer.session_id for peer in peers}
-    assert foreign not in {peer.session_id for peer in peers}
+    for excluded in (sender, foreign, archived, unloaded.id):
+        assert excluded not in {peer.session_id for peer in peers}
+        with pytest.raises(ValueError, match="no session matches"):
+            _call(env, env.runtime.peer_control.send, sender, excluded, "not sent")
     # The sender is never its own target, so ambiguity needs two other sessions.
     twin = env.create_session()
     for session_id in (sender, target, twin):
@@ -355,6 +362,99 @@ def test_discovery_excludes_self_and_other_workspaces_and_rejects_ambiguous_targ
         _call(env, get_store_for_path(env.work_dir).update_meta, session_id, {"name": "same-name"})
     with pytest.raises(ValueError, match="ambiguous"):
         _call(env, env.runtime.peer_control.send, sender, "same-name", "not sent")
+
+
+def test_peer_descriptions_use_titles_and_persisted_parent_spawn_rows(app_env: AppEnv) -> None:
+    env = app_env
+    sender, parent, child = (env.create_session() for _ in range(3))
+    other_dir = env.work_dir / "child-workspace"
+    other_dir.mkdir()
+    foreign_child = env.create_session(other_dir)
+    store = get_store_for_path(env.work_dir)
+    _call(env, store.update_meta, child, {"parent_session_id": parent})
+    _call(env, get_store_for_path(other_dir).update_meta, foreign_child, {"parent_session_id": parent})
+    actor = env.runtime.session_registry.get_session_actor(parent)
+    assert actor is not None
+    agent = actor.get_agent()
+    assert agent is not None
+    _call(
+        env,
+        agent.session.append_history,
+        [
+            message.SpawnSubAgentEntry(session_id=child, sub_agent_type="general", sub_agent_desc="Inspect peers"),
+            message.SpawnSubAgentEntry(
+                session_id=foreign_child, sub_agent_type="general", sub_agent_desc="Inspect another workspace"
+            ),
+        ],
+    )
+    _call(env, agent.session.wait_for_flush)
+    _call(env, store.update_meta, parent, {"title": "Existing parent title"})
+    # Discovery must use the persisted ledger, not just the live parent's state.
+    agent.session.conversation_history.clear()
+    listed = {peer.session_id: peer for peer in _call(env, env.runtime.peer_control.list, sender, env.work_dir)}
+    assert listed[parent].description == "Existing parent title"
+    assert listed[child].name is None and listed[child].description == "Inspect peers"
+    related = {peer.session_id: peer for peer in _call(env, env.runtime.peer_control.list, parent, env.work_dir)}
+    assert related[foreign_child].description == "Inspect another workspace"
+    _call(env, store.update_meta, child, {"title": "Existing child title"})
+    listed = {peer.session_id: peer for peer in _call(env, env.runtime.peer_control.list, sender, env.work_dir)}
+    assert listed[child].description == "Existing child title"
+    assert env.fake_llm.call_count == 0
+
+
+@pytest.mark.parametrize("relation", ["workspace", "parent", "child"])
+@pytest.mark.parametrize(
+    ("category", "age", "visible"),
+    [
+        ("idle", 24 * 60 * 60 - 1, True),
+        ("idle", 24 * 60 * 60, True),
+        ("idle", 24 * 60 * 60 + 1, False),
+        ("working", 48 * 60 * 60, True),
+        ("needs_you", 48 * 60 * 60, True),
+    ],
+)
+def test_peer_idle_cutoff_matches_message_reachability(
+    app_env: AppEnv,
+    monkeypatch: pytest.MonkeyPatch,
+    relation: str,
+    category: str,
+    age: int,
+    visible: bool,
+) -> None:
+    env = app_env
+    sender = env.create_session()
+    target_dir = env.work_dir
+    if relation != "workspace":
+        target_dir = env.work_dir / "related-workspace"
+        target_dir.mkdir()
+    target = env.create_session(target_dir)
+    now = 2_000_000_000.0
+    monkeypatch.setattr(peers_module, "time", lambda: now)
+    monkeypatch.setattr(peers_module, "_headless_state", lambda *_args: category)
+    _call(env, get_store_for_path(target_dir).update_meta, target, {"updated_at": now - age})
+    if relation == "parent":
+        _call(env, get_store_for_path(env.work_dir).update_meta, sender, {"parent_session_id": target})
+    elif relation == "child":
+        _call(env, get_store_for_path(target_dir).update_meta, target, {"parent_session_id": sender})
+    state = get_server_state_from_app(cast(Any, env.client.app))
+    assert state.headless is not None
+    delivered: list[PeerMessage] = []
+
+    async def deliver(peer: PeerMessage, work_dir: Path) -> PeerReceipt:
+        assert work_dir == target_dir
+        delivered.append(peer)
+        return PeerReceipt(message_id=peer.id, target=peer.recipient)
+
+    monkeypatch.setattr(state.headless, "deliver_peer", deliver)
+    listed = _call(env, env.runtime.peer_control.list, sender, env.work_dir)
+    assert (target in {peer.session_id for peer in listed}) == visible
+    if visible:
+        assert _call(env, env.runtime.peer_control.send, sender, target, "message").accepted
+        assert len(delivered) == 1
+    else:
+        with pytest.raises(ValueError, match="no session matches"):
+            _call(env, env.runtime.peer_control.send, sender, target, "message")
+        assert not delivered
 
 
 def test_metadata_write_failure_returns_500_without_false_acceptance_and_retry_recovers(

@@ -1,6 +1,8 @@
 """Peer delivery through the existing session index and input scheduler."""
 
+import asyncio
 from pathlib import Path
+from time import time
 
 from fastapi import HTTPException
 
@@ -15,20 +17,23 @@ from klaude_code.server.routes.headless import (
 )
 from klaude_code.server.session_index import SessionSummary
 from klaude_code.server.state import ServerAppState
+from klaude_code.session.store_registry import get_store_for_path
 
 
 def wire_peers(state: ServerAppState) -> None:
     def reachable(summary: SessionSummary, sender: str, sender_parent: str | None, work_dir: Path) -> bool:
-        """Whether `sender` may address `summary`: what ListPeers shows, plus its own parent and children.
+        """Whether `sender` may address `summary`, using the same rules as ListPeers.
 
         MessagePeer must not reach further than discovery, or it would revive
         reaped, archived, or other-workspace sessions by ID.
         """
         if summary.id == sender or summary.archived:
             return False
+        headless = _require_headless(state)
+        if _headless_state(state, headless, summary.id) == "idle" and summary.updated_at < time() - 24 * 60 * 60:
+            return False
         if summary.id == sender_parent or summary.parent_session_id == sender:
             return True
-        headless = _require_headless(state)
         live = {actor.session_id for actor in state.runtime.session_registry.list_session_actors()}
         return Path(summary.work_dir).resolve() == work_dir.resolve() and (
             summary.id in live or headless.has_pending(summary.id)
@@ -39,17 +44,33 @@ def wire_peers(state: ServerAppState) -> None:
         summaries = _load_summaries(state)
         origin = next((summary for summary in summaries if summary.id == sender), None)
         sender_parent = origin.parent_session_id if origin is not None else None
-        return [
-            PeerInfo(
-                session_id=summary.id,
-                name=summary.name,
-                state=_headless_state(state, headless, summary.id),
-                description=summary.title or "",
-                work_dir=summary.work_dir,
+        by_id = {summary.id: summary for summary in summaries}
+        spawned_descriptions: dict[str, dict[str, str]] = {}
+        peers: list[PeerInfo] = []
+        for summary in summaries:
+            if not reachable(summary, sender, sender_parent, work_dir):
+                continue
+            description = summary.title or ""
+            parent = by_id.get(summary.parent_session_id or "")
+            if not description and parent is not None:
+                if parent.id not in spawned_descriptions:
+                    spawn_rows = await asyncio.to_thread(
+                        get_store_for_path(Path(parent.work_dir)).scan_spawned_sub_agents, parent.id
+                    )
+                    spawned_descriptions[parent.id] = {
+                        entry.session_id: entry.sub_agent_desc for _, entry in spawn_rows
+                    }
+                description = spawned_descriptions[parent.id].get(summary.id, "")
+            peers.append(
+                PeerInfo(
+                    session_id=summary.id,
+                    name=summary.name,
+                    state=_headless_state(state, headless, summary.id),
+                    description=description,
+                    work_dir=summary.work_dir,
+                )
             )
-            for summary in summaries
-            if reachable(summary, sender, sender_parent, work_dir)
-        ]
+        return peers
 
     async def send_peer(sender: str, target: str, body: str, reply_to: str | None) -> PeerReceipt:
         try:
