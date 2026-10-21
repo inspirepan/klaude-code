@@ -108,6 +108,8 @@ class OpenAICompatibleClient(LLMClientABC):
         extra_headers: dict[str, str] = {}
         if param.session_id:
             extra_headers["x-session-id"] = param.session_id
+            if self.get_llm_config().provider_name == "opencode-go":
+                extra_headers["x-opencode-session"] = param.session_id
 
         try:
             stream = await self.client.chat.completions.create(

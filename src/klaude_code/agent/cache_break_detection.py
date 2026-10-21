@@ -236,6 +236,15 @@ class CacheTracker:
 
         Returns a ``CacheBreakReport`` if a break is detected, ``None`` otherwise.
         """
+        prompt_tokens = max(usage.input_tokens, usage.cached_tokens + usage.cache_write_tokens)
+        if prompt_tokens <= 0:
+            # Missing prompt usage is not evidence of a cache miss.
+            self.last_hit_rate = None
+            self.last_cached_tokens = 0
+            self.last_prev_input_tokens = 0
+            self._pending_snapshot = None
+            return None
+
         # --- hit rate ---
         if self._prev_step_input_tokens > 0:
             hit_rate = usage.cached_tokens / self._prev_step_input_tokens
@@ -251,10 +260,7 @@ class CacheTracker:
 
         # Use the larger value as denominator baseline so cache hit rate remains
         # stable across providers with different usage field semantics.
-        self._prev_step_input_tokens = max(
-            usage.input_tokens,
-            usage.cached_tokens + usage.cache_write_tokens,
-        )
+        self._prev_step_input_tokens = prompt_tokens
 
         return self._check_break(usage.cached_tokens)
 

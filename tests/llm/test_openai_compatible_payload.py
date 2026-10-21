@@ -82,6 +82,44 @@ def test_openai_compatible_payload_skips_invalid_assistant_turns_without_mutatin
     assert param == original
 
 
+@pytest.mark.parametrize("model_id", ["deepseek-flash", "deepseek-v4-flash", "vendor/DeepSeek-flash", "other-model"])
+def test_openai_compatible_payload_fills_missing_deepseek_reasoning(model_id: str) -> None:
+    param = llm_param.LLMCallParameter(
+        model_id=model_id,
+        input=[
+            message.UserMessage(parts=[message.TextPart(text="start")]),
+            message.AssistantMessage(parts=[message.TextPart(text="checking")]),
+            message.AssistantMessage(
+                parts=[message.ToolCallPart(call_id="call_1", tool_name="Bash", arguments_json="{}")]
+            ),
+            message.ToolResultMessage(call_id="call_1", tool_name="Bash", output_text="done", status="success"),
+            message.AssistantMessage(
+                parts=[
+                    message.ThinkingTextPart(text="plan", reasoning_field="reasoning_content"),
+                    message.TextPart(text="finished"),
+                ]
+            ),
+        ],
+    )
+    original = param.model_copy(deep=True)
+
+    payload, _ = build_openai_compatible_payload(param)
+
+    messages = list(payload["messages"])
+    assert [item["role"] for item in messages] == ["user", "assistant", "assistant", "tool", "assistant"]
+    for item in messages[1:3]:
+        if model_id == "other-model":
+            assert "reasoning_content" not in item
+        else:
+            assert item.get("reasoning_content") == ""
+    assert messages[2].get("tool_calls") == [
+        {"id": "call_1", "type": "function", "function": {"name": "Bash", "arguments": "{}"}}
+    ]
+    assert messages[3] == {"role": "tool", "tool_call_id": "call_1", "content": "done"}
+    assert messages[4].get("reasoning_content") == "plan"
+    assert param == original
+
+
 def test_responses_payload_omits_unset_temperature() -> None:
     payload = build_responses_payload(_param())
     assert "temperature" not in payload

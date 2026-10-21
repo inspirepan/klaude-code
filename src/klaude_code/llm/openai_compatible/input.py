@@ -37,7 +37,7 @@ def convert_history_to_input(
     model_name: str | None = None,
 ) -> list[chat.ChatCompletionMessageParam]:
     """Convert a list of messages to chat completion params."""
-    del model_name
+    is_deepseek = bool(model_name and model_name.lower().rsplit("/", 1)[-1].startswith("deepseek"))
     system = strip_system_prompt_boundary(system)
     messages: list[chat.ChatCompletionMessageParam] = (
         [cast(chat.ChatCompletionMessageParam, {"role": "system", "content": system})] if system else []
@@ -75,6 +75,9 @@ def convert_history_to_input(
                 assistant_message = _assistant_message_to_openai(msg)
                 # Strict providers reject empty or reasoning-only assistant turns.
                 if assistant_message.get("content") or assistant_message.get("tool_calls"):
+                    if is_deepseek:
+                        # DeepSeek requires this field even when the response omitted reasoning.
+                        cast(dict[str, object], assistant_message).setdefault("reasoning_content", "")
                     messages.append(assistant_message)
             case _:
                 continue

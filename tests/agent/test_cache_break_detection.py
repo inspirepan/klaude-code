@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from klaude_code.agent.cache_break_detection import CacheTracker
 from klaude_code.protocol import llm_param, message
 from klaude_code.protocol.models import Usage
@@ -99,6 +101,33 @@ class TestCacheTrackerHitRate:
 
 
 class TestCacheTrackerBreakDetection:
+    @pytest.mark.parametrize("output_tokens", [0, 100])
+    def test_missing_prompt_usage_preserves_baseline(self, output_tokens: int) -> None:
+        t = CacheTracker()
+        t.record_pre_call_state("prompt", _make_tools("bash"), "model")
+        t.update(_make_usage(cached=40_000, input_tokens=50_000))
+        t.record_pre_call_state("prompt", _make_tools("bash"), "model")
+        t.update(_make_usage(cached=50_000, input_tokens=60_000))
+        assert t.avg_hit_rate == 1.0
+
+        t.record_pre_call_state("unreported prompt", _make_tools("read"), "other-model")
+        assert t.update(Usage(output_tokens=output_tokens)) is None
+        assert t.prev_step_input_tokens == 60_000
+        assert t.last_hit_rate is None
+        assert t.last_cached_tokens == 0
+        assert t.last_prev_input_tokens == 0
+        assert t.avg_hit_rate == 1.0
+
+        t.record_pre_call_state("prompt", _make_tools("bash"), "model")
+        report = t.update(_make_usage(cached=0, input_tokens=70_000))
+        assert report is not None
+        assert report.prev_cached_tokens == 50_000
+        assert report.prev_snapshot.model_name == "model"
+        assert "prompt unchanged" in report.reason
+        assert t.last_prev_input_tokens == 60_000
+        assert t.last_hit_rate == 0.0
+        assert t.avg_hit_rate == 0.5
+
     def test_first_call_no_report(self) -> None:
         t = CacheTracker()
         t.record_pre_call_state("prompt", _make_tools("bash"), "claude-sonnet-4-20250514")
