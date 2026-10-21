@@ -1,6 +1,7 @@
 """Embedded task list and output preview, sharing the prompt's input owner."""
 
 from collections.abc import Callable
+from typing import Literal
 
 from prompt_toolkit.application import get_app
 from prompt_toolkit.data_structures import Point
@@ -16,6 +17,7 @@ from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay
 
 
 class TaskBrowser(SelectOverlay[str]):
+    kinds: tuple[Literal["agent", "shell"], ...] = ("agent", "shell")
     tabs = ("all", "active", "needs attention", "finished")
 
     def __init__(
@@ -24,6 +26,7 @@ class TaskBrowser(SelectOverlay[str]):
         self.browsing = False
         self.tasks: list[BackgroundTaskSnapshot] = []
         self.attention: dict[str, str] = {}
+        self.kind: Literal["agent", "shell"] = "agent"
         self.tab = "all"
         self.preview = ""
         self.preview_id: str | None = None
@@ -50,7 +53,7 @@ class TaskBrowser(SelectOverlay[str]):
         self.tasks, self.attention = tasks, attention
         self._items = []
         for task in tasks:
-            if not self._matches_tab(task, self.tab):
+            if task.ref.kind != self.kind or not self._matches_tab(task, self.tab):
                 continue
             label = " ".join((task.description or (task.shell.command if task.shell else "Agent task")).split())
             status = attention.get(task.ref.session_id or "", task.status)
@@ -80,8 +83,15 @@ class TaskBrowser(SelectOverlay[str]):
 
         @keys.add("left", filter=active, eager=True)
         @keys.add("right", filter=active, eager=True)
-        def change_tab(event: KeyPressEvent) -> None:
+        def change_kind(event: KeyPressEvent) -> None:
             delta = -1 if event.key_sequence[0].key == "left" else 1
+            self.kind = self.kinds[(self.kinds.index(self.kind) + delta) % len(self.kinds)]
+            self.update(self.tasks, self.attention)
+
+        @keys.add("tab", filter=active, eager=True)
+        @keys.add("s-tab", filter=active, eager=True)
+        def change_tab(event: KeyPressEvent) -> None:
+            delta = -1 if event.key_sequence[0].key == "s-tab" else 1
             self.tab = self.tabs[(self.tabs.index(self.tab) + delta) % len(self.tabs)]
             self.update(self.tasks, self.attention)
 
@@ -106,13 +116,22 @@ class TaskBrowser(SelectOverlay[str]):
 
         def height() -> int:
             reserved = self._get_reserved_rows() if self._get_reserved_rows else 5
-            return max(1, min(14, get_app().output.get_size().rows - reserved - 4))
+            return max(1, min(14, get_app().output.get_size().rows - reserved - 5))
+
+        def kinds() -> list[tuple[str, str]]:
+            return [
+                (
+                    "class:question_tab_active" if kind == self.kind else "class:question_tab_inactive",
+                    f" {'subagent' if kind == 'agent' else 'bash'} {sum(task.ref.kind == kind for task in self.tasks)} ",
+                )
+                for kind in self.kinds
+            ]
 
         def tabs() -> list[tuple[str, str]]:
             return [
                 (
                     "class:question_tab_active" if tab == self.tab else "class:question_tab_inactive",
-                    f" {tab} {sum(self._matches_tab(task, tab) for task in self.tasks)} ",
+                    f" {tab} {sum(task.ref.kind == self.kind and self._matches_tab(task, tab) for task in self.tasks)} ",
                 )
                 for tab in self.tabs
             ]
@@ -155,15 +174,16 @@ class TaskBrowser(SelectOverlay[str]):
         search = Window(BufferControl(buffer=self._search_buffer), height=1)
         body = HSplit(
             [
+                Window(FormattedTextControl(kinds), height=1),
                 Window(FormattedTextControl(tabs), height=1),
                 VSplit([Window(FormattedTextControl(" / "), width=3), search], height=1),
                 VSplit([listing, Window(width=1, char="│", style="class:lines"), preview], height=height),
                 Window(
-                    FormattedTextControl(lambda: self.notice or "↑/↓ to select · ←/→ to filter · enter to manage"),
+                    FormattedTextControl(lambda: self.notice or "↑/↓ to select · ←/→ to switch type · enter to manage"),
                     height=1,
                 ),
                 Window(
-                    FormattedTextControl("ctrl-u/d or pgup/pgdn to scroll output · esc to clear/quit"),
+                    FormattedTextControl("tab to filter · ctrl-u/d to scroll · esc to clear/quit"),
                     height=1,
                 ),
             ]

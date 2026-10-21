@@ -119,6 +119,10 @@ def test_busy_overlay_escape_preserves_live_draft_and_cursor_and_yields_to_appro
             await until(lambda: any("No matching tasks" in line for line in rendered_lines()))
             pipe.send_text("\x1b[C")
             await until(lambda: any("Agent · failed" in line for line in rendered_lines()))
+            pipe.send_text("\t")
+            await until(lambda: any("No matching tasks" in line for line in rendered_lines()))
+            pipe.send_text("\t")
+            await until(lambda: any("Agent · failed" in line for line in rendered_lines()))
             pipe.send_text("\x1b")
             await asyncio.wait_for(panel_task, 2)
             assert prompt._session.default_buffer.document == Document("current draft", 4)
@@ -430,3 +434,34 @@ def test_page_keys_scroll_output_viewport_on_first_press(columns: int, down: str
                 await pending
 
     asyncio.run(run())
+
+
+def test_browser_defaults_to_subagents_and_combines_kind_status_and_search() -> None:
+    from klaude_code.tui.task_browser import TaskBrowser
+
+    browser = TaskBrowser(on_select=lambda _: None, on_cancel=lambda: None, get_reserved_rows=lambda: 5)
+    agent = task_snapshot()
+    shell = task_snapshot("completed", description="build assets")
+    shell.ref.kind = "shell"
+    shell.ref.task_id = "shell-1"
+    shell.ref.session_id = None
+    tasks = [agent, shell]
+    browser.update(tasks, {})
+    assert browser.kind == "agent"
+    assert [item.value for item in browser._items] == [agent.ref.task_id]
+    browser.kind = "shell"
+    browser.update(tasks, {})
+    assert browser.selected_id == "shell-1"
+    browser.tab = "active"
+    browser.update(tasks, {})
+    assert browser.selected_id is None
+    browser.tab = "finished"
+    browser.update(tasks, {})
+    assert browser.selected_id == "shell-1"
+    assert browser._search_buffer is not None
+    browser._search_buffer.text = "build"
+    browser.update(tasks, {})
+    assert browser.selected_id == "shell-1"
+    browser.update([agent], {})
+    assert browser.selected_id is None
+    assert browser.kind == "shell"
