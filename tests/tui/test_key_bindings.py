@@ -14,6 +14,27 @@ from prompt_toolkit.keys import Keys
 from klaude_code.tui.input.key_bindings import create_key_bindings
 
 
+def test_clipboard_image_is_read_only_when_ctrl_v_is_pressed() -> None:
+    captures: list[bool] = []
+
+    def capture() -> str:
+        captures.append(True)
+        return "[image /tmp/clipboard.png]"
+
+    bindings = create_key_bindings(
+        capture_clipboard_tag=capture,
+        at_token_pattern=re.compile(r"$^"),
+        skill_token_pattern=re.compile(r"$^"),
+    )
+    assert not captures
+    buffer = Buffer()
+    event = cast(KeyPressEvent, SimpleNamespace(current_buffer=buffer))
+    bindings.get_bindings_for_keys((Keys.ControlV,))[-1].handler(event)
+
+    assert captures == [True]
+    assert buffer.text == "[image /tmp/clipboard.png]"
+
+
 def test_ctrl_u_clears_to_start_of_current_logical_line() -> None:
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,

@@ -41,7 +41,6 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
         default_buffer=SimpleNamespace(text=text, document=document, complete_state=None),
         app=SimpleNamespace(invalidate=invalidate),
     )
-    prompt_input._clipboard_has_image = False
     prompt_input._refresh_status = None
     prompt_input._request_interrupt = None
     prompt_input._get_current_model_config_name = lambda: "test-model"
@@ -158,15 +157,14 @@ def test_paused_buffer_text_is_restored_while_agent_runs() -> None:
     asyncio.run(_run())
 
 
-def test_placeholder_shows_paste_image_hint_with_prompt_suggestion() -> None:
+def test_placeholder_shows_prompt_suggestion_accept_hint() -> None:
     prompt_input = _build_input("")
     prompt_input._prompt_suggestion = "run tests"
-    prompt_input._clipboard_has_image = True
 
     placeholder = prompt_input._build_placeholder()
 
     assert ("class:prompt-suggestion", "run tests") in placeholder
-    assert any("ctrl-v to paste image" in text and "\n" not in text for _style, text, *_ in placeholder)
+    assert any("[enter send · tab edit]" in text for _style, text, *_ in placeholder)
 
 
 def test_running_placeholder_prompts_for_steering() -> None:

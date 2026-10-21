@@ -58,7 +58,6 @@ from klaude_code.tui.input.flicker_safe_stdout import flicker_safe_patch_stdout,
 from klaude_code.tui.input.images import (
     capture_clipboard_tag,
     extract_images_from_text,
-    has_clipboard_image,
 )
 from klaude_code.tui.input.key_bindings import create_key_bindings
 from klaude_code.tui.input.paste import (
@@ -274,8 +273,6 @@ class PromptToolkitInput(InputProviderABC):
         self._next_prefill_text: str | None = None
         self._resumed_buffer_text: str | None = None
         self._resumed_cursor_position: int | None = None
-        self._clipboard_has_image: bool = False
-        self._clipboard_watcher_task: asyncio.Task[None] | None = None
         self._prompt_suggestion: str | None = None
         self._last_completion_panel_completions: tuple[Completion, ...] = ()
         self._last_completion_panel_selected_index: int | None = None
@@ -567,19 +564,13 @@ class PromptToolkitInput(InputProviderABC):
         """Build placeholder showing repo/directory name, Git branch, and model.
 
         When a prompt suggestion is pending, show it with an accept hint.
-        When an image is detected on the system clipboard, also show a ctrl-v
-        paste reminder.
         """
         if self._is_agent_running():
             text = "   Steer the main agent"
-            if self._clipboard_has_image:
-                text = f"{text} · ctrl-v to paste image"
             return FormattedText([("class:placeholder", text)])
 
         if self._prompt_suggestion:
             hint = "[enter send · tab edit]"
-            if self._clipboard_has_image:
-                hint = f"{hint} · ctrl-v to paste image"
             suggestion = self._prompt_suggestion
             try:
                 cols = get_app().output.get_size().columns
@@ -594,9 +585,6 @@ class PromptToolkitInput(InputProviderABC):
                 ("class:placeholder-hint", " " * padding + hint),
             ]
             return FormattedText(parts)
-
-        if self._clipboard_has_image:
-            return FormattedText([("class:placeholder", "   ctrl-v to paste image")])
 
         return FormattedText([])
 
@@ -1238,67 +1226,15 @@ class PromptToolkitInput(InputProviderABC):
         await self._on_change_model(model_name)
 
     # -------------------------------------------------------------------------
-    # Clipboard image watcher
-    # -------------------------------------------------------------------------
-
-    # Poll interval for the clipboard image check. Each poll spawns an
-    # `osascript` on macOS (or equivalent on other platforms), so keep it
-    # conservative.
-    _CLIPBOARD_POLL_INTERVAL = 3.0
-
-    async def _watch_clipboard_image(self) -> None:
-        """Periodically refresh `self._clipboard_has_image`.
-
-        Only polls while the input buffer is empty (the only time the
-        placeholder is actually rendered). Invalidates the app when the state
-        flips so the placeholder re-renders immediately.
-        """
-        while True:
-            try:
-                buffer_empty = not self._session.default_buffer.text
-            except Exception:
-                buffer_empty = False
-
-            has_image = False
-            if buffer_empty:
-                try:
-                    has_image = await asyncio.to_thread(has_clipboard_image)
-                except Exception:
-                    has_image = False
-
-            if has_image != self._clipboard_has_image:
-                self._clipboard_has_image = has_image
-                with contextlib.suppress(Exception):
-                    self._session.app.invalidate()
-
-            await asyncio.sleep(self._CLIPBOARD_POLL_INTERVAL)
-
-    def _ensure_clipboard_watcher(self) -> None:
-        if self._clipboard_watcher_task is not None and not self._clipboard_watcher_task.done():
-            return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        self._clipboard_watcher_task = loop.create_task(self._watch_clipboard_image())
-
-    def _cancel_clipboard_watcher(self) -> None:
-        task = self._clipboard_watcher_task
-        if task is None:
-            return
-        self._clipboard_watcher_task = None
-        if not task.done():
-            task.cancel()
-
-    # -------------------------------------------------------------------------
     # InputProviderABC implementation
     # -------------------------------------------------------------------------
 
     async def start(self) -> None:
-        self._ensure_clipboard_watcher()
+        # Read the clipboard only on explicit paste; polling macOS helpers can
+        # repeatedly register a second terminal icon in the Dock.
+        pass
 
     async def stop(self) -> None:
-        self._cancel_clipboard_watcher()
         self._bottom_bar.stop()
 
     @override

@@ -8,7 +8,7 @@ import pytest
 from klaude_code.tui.input import images
 
 
-@pytest.mark.parametrize("operation", ["check", "pngpaste", "osascript"])
+@pytest.mark.parametrize("operation", ["pngpaste", "osascript"])
 @pytest.mark.parametrize("has_bundle_id", [False, True])
 def test_macos_clipboard_helpers_do_not_inherit_app_identity(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, operation: str, has_bundle_id: bool
@@ -29,12 +29,9 @@ def test_macos_clipboard_helpers_do_not_inherit_app_identity(
     monkeypatch.setattr(images.subprocess, "run", fake_run)
     monkeypatch.setattr(images.shutil, "which", lambda _: "pngpaste" if operation == "pngpaste" else None)
 
-    if operation == "check":
-        assert images._has_clipboard_image_macos()
-    else:
-        dest_path = tmp_path / "clipboard.png"
-        dest_path.write_bytes(b"image")
-        assert images._grab_clipboard_image_macos(dest_path)
+    dest_path = tmp_path / "clipboard.png"
+    dest_path.write_bytes(b"image")
+    assert images._grab_clipboard_image_macos(dest_path)
 
     env = cast(dict[str, str], captured["env"])
     assert env == {key: value for key, value in parent_env.items() if key != "__CFBundleIdentifier"}
