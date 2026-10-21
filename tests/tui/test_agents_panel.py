@@ -933,3 +933,34 @@ def test_detail_hierarchy_preserves_theme_styles_after_wrapping(theme: str, monk
         active_style = next(style for style, text in tabs if "all" in text)
         assert active_style == "class:question_tab_active"
         assert pt_theme.get_base_style().get_attrs_for_style_str(active_style).reverse
+
+
+@pytest.mark.parametrize(("down", "up"), [("\x1b[6~", "\x1b[5~"), ("\x04", "\x15")])
+def test_detail_viewport_scrolls_on_first_keypress(down: str, up: str) -> None:
+    async def fetch() -> list[AgentPanelSession]:
+        return [session("a")]
+
+    async def load(id: str) -> AgentPanelPreview:
+        return AgentPanelPreview(output="\n".join(f"line {i}" for i in range(100)))
+
+    async def check() -> None:
+        with create_pipe_input() as pipe:
+            panel = AgentsPanel(fetch, load_output=load, input=pipe, output=DummyOutput())
+            pending = asyncio.create_task(panel.run())
+            try:
+                await until(
+                    lambda: panel.detail_window.render_info is not None
+                    and panel.detail_window.render_info.content_height > 100
+                )
+                pipe.send_text(down)
+                await until(lambda: panel.detail_window.vertical_scroll > 0)
+                assert panel.selected_id == "a"
+                assert panel.detail_window.vertical_scroll == panel.detail_line
+                pipe.send_text(up)
+                await until(lambda: panel.detail_window.vertical_scroll == 0)
+                assert panel.selected_id == "a"
+            finally:
+                pipe.send_text("q")
+                await asyncio.wait_for(pending, 3)
+
+    asyncio.run(check())

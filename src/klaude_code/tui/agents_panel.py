@@ -135,6 +135,7 @@ class AgentsPanel:
         )
         self.detail_window = Window(
             _WidthControl(self._detail_text, get_cursor_position=lambda: Point(0, self.detail_line)),
+            get_vertical_scroll=lambda _: self.detail_line,
             wrap_lines=False,
             always_hide_cursor=True,
         )
@@ -470,7 +471,9 @@ class AgentsPanel:
         # Rich wraps display cells; non-overlapping spans keep PTK theme tokens intact.
         lines = text.wrap(get_console(), width, overflow="fold") if width is not None else text.split(allow_blank=True)
         if width is not None:
-            self.detail_line = min(self.detail_line, max(0, len(lines) - 1))
+            info = self.detail_window.render_info
+            viewport_height = info.window_height if info is not None else 1
+            self.detail_line = min(self.detail_line, max(0, len(lines) - viewport_height))
         fragments: list[tuple[str, str]] = []
         for index, line in enumerate(lines):
             if index:
@@ -494,7 +497,7 @@ class AgentsPanel:
         if self.searching:
             return [("class:meta", " enter done · esc cancel")]
         row = self.selected
-        hints = ["p peek", "pgup/pgdn details"] if row else []
+        hints = ["p peek", "ctrl-u/d or pgup/pgdn to scroll details"] if row else []
         if self._selected_group is not None:
             hints = ["enter show less" if self._selected_group in self._expanded_groups else "enter show more"]
         elif row and self.control_session and not self.fetch_error:
@@ -788,6 +791,8 @@ class AgentsPanel:
         def cancel(event: KeyPressEvent) -> None:
             self.confirm_interrupt = None
 
+        @keys.add("c-u", filter=browsing)
+        @keys.add("c-d", filter=browsing)
         @keys.add("pageup", filter=browsing)
         @keys.add("pagedown", filter=browsing)
         def scroll(event: KeyPressEvent) -> None:
@@ -795,9 +800,9 @@ class AgentsPanel:
             if info is None or info.window_width <= 0:
                 return
             delta = max(1, info.window_height // 2)
-            if event.key_sequence[0].key == "pageup":
+            if event.key_sequence[0].key in {"pageup", "c-u"}:
                 delta = -delta
-            self.detail_line = max(0, min(info.content_height - 1, self.detail_line + delta))
+            self.detail_line = max(0, min(max(0, info.content_height - info.window_height), self.detail_line + delta))
 
         return keys
 
