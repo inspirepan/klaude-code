@@ -188,6 +188,10 @@ class ShellTasksUpdatedEvent(Event):
 
 class BackgroundTasksUpdatedEvent(Event):
     tasks: list[BackgroundTaskSnapshot]
+    # Initial attach restores state without appending historical completions.
+    restore_only: bool = False
+    # Only completions at/before the attach boundary are historical.
+    restore_before: float | None = None
 
 
 class SessionStatusEvent(Event):

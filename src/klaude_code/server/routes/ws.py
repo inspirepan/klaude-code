@@ -854,6 +854,8 @@ async def _send_background_task_snapshots(
     *,
     state: ServerAppState,
     targets: dict[str, Path] | None = None,
+    restore_only: bool = False,
+    restore_before: float | None = None,
 ) -> dict[str, int]:
     manager = getattr(state.runtime, "task_manager", None)
     if manager is None:
@@ -864,7 +866,11 @@ async def _send_background_task_snapshots(
     cutoffs: dict[str, int] = {}
     for target, target_dir in targets.items():
         tasks = await manager.list_tasks(target, target_dir)
-        snapshots.append(events.BackgroundTasksUpdatedEvent(session_id=target, tasks=tasks))
+        snapshots.append(
+            events.BackgroundTasksUpdatedEvent(
+                session_id=target, tasks=tasks, restore_only=restore_only, restore_before=restore_before
+            )
+        )
         cut = state.tapes.cut(target) if state.tapes is not None else None
         cutoffs[target] = cut.max_event_seq if cut is not None else 0
     for snapshot in snapshots:
@@ -1006,6 +1012,7 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
             }
         )
         if attach_mode:
+            attach_started_at = time.time()
             await websocket.send_json(_build_session_info(state, session_id))
             await websocket.send_json(await _load_usage_snapshot(session_id, work_dir, websocket))
             # Subscribe, then cut the tape inside the same event-loop step
@@ -1024,7 +1031,13 @@ async def session_websocket(websocket: WebSocket, session_id: str) -> None:
                 session_id, work_dir, websocket, state=state, targets=targets
             )
             background_cutoffs = await _send_background_task_snapshots(
-                session_id, work_dir, websocket, state=state, targets=targets
+                session_id,
+                work_dir,
+                websocket,
+                state=state,
+                targets=targets,
+                restore_only=not resume_mode,
+                restore_before=attach_started_at,
             )
             # Status may change while loading replay/snapshots. Close that gap
             # with an authoritative snapshot after the live subscription exists.

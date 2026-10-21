@@ -142,8 +142,15 @@ def test_load_keeps_the_compacted_prefix_in_the_active_list(isolated_home: Path,
             "kept assistant",
             "after compact",
         ]
-        # Replay still hides the summarized-away prefix.
-        assert _replayed_user_messages(loaded) == ["kept user", "after compact"]
+        # Display history is complete even though the model sees only the suffix.
+        assert _replayed_user_messages(loaded) == ["old user", "kept user", "after compact"]
+        assert [
+            item.content for item in loaded.get_history_item() if isinstance(item, events.AssistantTextDeltaEvent)
+        ] == ["old assistant", "kept assistant"]
+        # Attach tape splicing still limits by the original active-history index.
+        assert [
+            item.content for item in loaded.get_history_item(limit=2) if isinstance(item, events.UserMessageEvent)
+        ] == ["old user"]
 
     arun(_test())
 
@@ -284,7 +291,7 @@ def test_old_history_without_line_coordinates_loads_identically(isolated_home: P
         # The RetractEntry rides along in the LLM view (the agent layer filters
         # non-Message entries); only the compacted prefix is gone.
         assert [_text(item) for item in loaded.get_llm_history()] == ["summary", "kept user", None]
-        assert _replayed_user_messages(loaded) == ["kept user"]
+        assert _replayed_user_messages(loaded) == ["old user", "kept user"]
 
     arun(_test())
 

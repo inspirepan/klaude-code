@@ -65,6 +65,7 @@ def test_attach_reuses_task_snapshot_targets_without_full_history_copies(
 
     monkeypatch.setattr(JsonlSessionStore, "scan_spawned_sub_agents", scan)
     monkeypatch.setattr(JsonlSessionStore, "load_history", full_copy)
+    before_attach = time.time()
     with app_env.client.websocket_connect(f"/api/sessions/{parent_id}/ws?{mode}=1") as websocket:
         handshake = _consume_attach_handshake(websocket)
     for event_type in ("shell_tasks_updated", "background.tasks.updated"):
@@ -72,6 +73,9 @@ def test_attach_reuses_task_snapshot_targets_without_full_history_copies(
             item["session_id"] for item in handshake["replay"] if item.get("event_type") == event_type
         } == target_ids
     assert sorted(scans) == sorted(target_ids) if has_child else scans == []
+    snapshots = [item for item in handshake["replay"] if item.get("event_type") == "background.tasks.updated"]
+    assert all(item["event"]["restore_only"] == (mode == "replay") for item in snapshots)
+    assert all(before_attach <= item["event"]["restore_before"] <= time.time() for item in snapshots)
 
 
 def _attach(app_env: AppEnv, session_id: str, **params: str) -> Any:

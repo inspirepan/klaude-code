@@ -1261,16 +1261,20 @@ class DisplayStateMachine:
             return []
         batch_id = state.parent_tool_batch_id or session.session_id
         members: list[_SessionState] = []
+        flushed_count = 0
         for item in self._sessions.values():
             item_state = item.sub_agent_state
-            if item_state is None or item.compact_batch_flushed:
+            if item_state is None:
                 continue
             if (item_state.parent_tool_batch_id or item.session_id) == batch_id:
-                members.append(item)
+                if item.compact_batch_flushed:
+                    flushed_count += 1
+                else:
+                    members.append(item)
         expected = max(
             (item.sub_agent_state.parent_tool_batch_size or 1) for item in members if item.sub_agent_state is not None
         )
-        expected = max(0, expected - self._unspawned_sub_agents_by_batch.get(batch_id, 0))
+        expected = max(0, expected - self._unspawned_sub_agents_by_batch.get(batch_id, 0) - flushed_count)
         if len(members) < expected or any(item.terminal_status is None for item in members):
             return []
 
@@ -1593,6 +1597,7 @@ class DisplayStateMachine:
             self._primary_session_id = e.session_id
         cmds: list[RenderCommand] = [BackgroundTasksStatus(e)]
         latest: dict[str, BackgroundTaskSnapshot] = {}
+        completed_to_render: list[_SessionState] = []
         for task in sorted(tasks.values(), key=lambda item: item.started_at):
             if task.result is not None and task.result.metadata is not None:
                 cmds.extend(
@@ -1658,7 +1663,16 @@ class DisplayStateMachine:
                         c_sub_agent.extract_result_summary(result_text) if result_text.strip() else task.status
                     )
                 child.clear_status_activity()
-                cmds.extend(self._maybe_finish_sub_agent_batch(child))
+                if e.restore_only and (
+                    e.restore_before is None or (task.ended_at is not None and task.ended_at <= e.restore_before)
+                ):
+                    child.compact_batch_flushed = True
+                else:
+                    completed_to_render.append(child)
+        # Reconcile every member before deciding whether a batch can flush.
+        # A newer completion may precede an older, restored one in this list.
+        for child in completed_to_render:
+            cmds.extend(self._maybe_finish_sub_agent_batch(child))
         if self._any_task_active() or self._side_question_pending:
             cmds.append(SpinnerStart())
             cmds.extend(self._spinner_update_commands())

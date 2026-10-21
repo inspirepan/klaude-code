@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import heapq
 import json
 import time
 import uuid
@@ -117,10 +118,6 @@ class Session(BaseModel):
     _pending_idempotent_flushes: list[tuple[asyncio.Future[UserInputFlushResult | None], int]] = PrivateAttr(
         default_factory=list
     )
-    # Replay-only cut: items before this index were compacted away before the
-    # session was loaded from disk (see ``get_history_item``). Live appends
-    # never move it.
-    _replay_cut_index: int = PrivateAttr(default=0)
 
     def model_post_init(self, __context: Any) -> None:
         self._store = get_store_for_path(self.work_dir)
@@ -254,9 +251,6 @@ class Session(BaseModel):
         session.conversation_history = scan.active
         session._history_lines = scan.active_lines
         session._line_count = len(rows)
-        # The compacted prefix stays in the list (live sessions keep it too);
-        # only replay hides it, exactly where the loader used to cut.
-        session._replay_cut_index = scan.first_kept_active_index or 0
         return session
 
     @classmethod
@@ -523,8 +517,6 @@ class Session(BaseModel):
                 del self._history_lines[idx]
             self._invalidate_messages_count_cache()
             self._user_messages_cache = None
-            if idx < self._replay_cut_index:
-                self._replay_cut_index -= 1
             # append_history rebuilds the meta snapshot (user_messages, counts)
             # from the already-trimmed history and resets _last_request_usage —
             # the retraction changes the prompt prefix, so the next request is
@@ -774,11 +766,38 @@ class Session(BaseModel):
         )
 
     def _has_task_completed(self) -> bool:
-        """Check whether this session's task has completed (normally or via interruption)."""
-        return any(isinstance(it, TaskMetadataItem) for it in self.conversation_history)
+        """Only completion evidence from the latest turn can close its replay."""
+        for item in reversed(self.conversation_history):
+            if isinstance(item, TaskMetadataItem) and item.background_task_id is None:
+                return not item.is_partial
+            if isinstance(item, message.InterruptEntry):
+                return True
+            if isinstance(item, message.UserMessage | message.AssistantMessage | message.ToolResultMessage):
+                return False
+        return False
 
     def get_history_item(
         self, *, emit_finish: bool = True, parent_session_id: str | None = None, limit: int | None = None
+    ) -> Iterable[events.ReplayEventUnion]:
+        # Preserve each session's lifecycle order while interleaving children
+        # by time. A child's whole run must not print at its launch position.
+        streams: dict[str, list[tuple[float, int, events.ReplayEventUnion]]] = {}
+        for index, event in enumerate(
+            self._get_history_item(emit_finish=emit_finish, parent_session_id=parent_session_id, limit=limit)
+        ):
+            stream = streams.setdefault(event.session_id, [])
+            floor = stream[-1][0] if stream else event.timestamp
+            if not stream and isinstance(event, events.TaskStartEvent) and event.parent_session_id:
+                parent_stream = streams.get(event.parent_session_id)
+                if parent_stream:
+                    floor = max(floor, parent_stream[-1][0])
+            timestamp = max(event.timestamp, floor)
+            stream.append((timestamp, index, event))
+        for _, _, event in heapq.merge(*streams.values()):
+            yield event
+
+    def _get_history_item(
+        self, *, emit_finish: bool, parent_session_id: str | None, limit: int | None
     ) -> Iterable[events.ReplayEventUnion]:
         seen_sub_agent_sessions: set[str] = set()
         prev_item: message.HistoryEvent | None = None
@@ -791,12 +810,8 @@ class Session(BaseModel):
         # synthesized history with the server-side event tape without overlap.
         history = self.conversation_history if limit is None else self.conversation_history[:limit]
         history_len = len(history)
-        # Display-only cut: a session loaded from disk replays from the last
-        # persisted compaction's kept start, so reopening a long compacted
-        # session does not replay the summarized-away prefix. ``limit`` still
-        # indexes conversation_history (the tape splice depends on that) —
-        # items are skipped, never re-indexed.
-        replay_start = min(max(self._replay_cut_index, 0), history_len)
+        # Compaction limits the LLM context, not the visible transcript.
+        # Replay all active history, preserving the tape splice coordinates.
         spawn_entries = {item.session_id: item for item in history if isinstance(item, message.SpawnSubAgentEntry)}
         spawn_by_call = {
             item.call_id: spawn_entries[item.ui_extra.session_id]
@@ -810,7 +825,7 @@ class Session(BaseModel):
             for entry in spawn_entries.values()
             if entry.parent_tool_batch_id is not None and entry.parent_tool_batch_index is not None
         }
-        if history_len - replay_start <= 0:
+        if history_len == 0:
             # Nothing happened yet: an empty replay must not synthesize a
             # dangling TaskStartEvent — the display machine would keep the
             # spinner (and its "Loading…" status) alive forever.
@@ -839,7 +854,7 @@ class Session(BaseModel):
             last_assistant_content = ""
             task_finish_pending = False
 
-        for idx in range(replay_start, history_len):
+        for idx in range(history_len):
             it = history[idx]
             # Track the original message creation time
             if hasattr(it, "created_at"):
@@ -1059,7 +1074,8 @@ class Session(BaseModel):
                     # finish is settled here (matching the live metadata→finish
                     # order). Deferring it to the next boundary let a following
                     # retracted turn's InterruptEntry suppress it.
-                    yield from _flush_task_finish(msg_ts)
+                    if not mt.is_partial:
+                        yield from _flush_task_finish(msg_ts)
                 case message.TaskFileChangeSummaryEntry() as summary:
                     yield events.TaskFileChangeSummaryEvent(session_id=self.id, summary=summary, timestamp=msg_ts)
                 case message.DeveloperMessage() as dm:

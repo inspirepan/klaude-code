@@ -1503,6 +1503,17 @@ class TUICommandRenderer:
                 if known is not None and known.sub_agent_state is not None
                 else "agent"
             )
+            if known is None or known.sub_agent_state is None:
+                # A persisted report can arrive without its launch event.
+                # Register the identity before rendering its colored summary.
+                self.register_session(
+                    session_id,
+                    SubAgentState(
+                        sub_agent_type=agent_type,
+                        sub_agent_desc=task.description,
+                        sub_agent_prompt="",
+                    ),
+                )
             summaries.append(
                 SubAgentSummary(
                     session_id=session_id,

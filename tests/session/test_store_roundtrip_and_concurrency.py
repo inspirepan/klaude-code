@@ -332,7 +332,7 @@ def test_overlapping_flush_receipts_preserve_physical_lines_and_compaction(
             ]
         assert [
             event.content for event in loaded.get_history_item() if isinstance(event, events.AssistantTextDeltaEvent)
-        ] == ["must retain A"]
+        ] == ["must retain A"] * (2 if assistant_between else 1)
 
     arun(test())
 

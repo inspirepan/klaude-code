@@ -48,6 +48,10 @@ dynamic UI in both busy and idle states:
     until the next frame. Each `ReplayHistoryEvent` is a rebuild that resets
     machine and renderer state, so splitting it strands sub-agents whose turns
     cross a chunk and the task snapshot then prints them at the end.
+  - Persisted attach replay includes the full active history. Compaction cuts
+    the model context only; retractions and legacy rewind still remove entries.
+    Child histories interleave by timestamp while preserving each session's
+    lifecycle order and the parent launch before the child's first event.
   - The tape is the single re-render source. Do not add a second replay path
     from persisted history for anything the live display already consumed.
   - `DisplayStateMachine` handlers always run with live semantics; a rebuild
@@ -201,6 +205,11 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   reconciles existing sub-agent rows and counts; legacy shell events must not
   override its counts. A running Agent tool reference is not child completion.
   Root completion/interruption does not end child rows or block the editor.
+  Initial attach snapshots use `restore_only` with `restore_before`: historical
+  completions restore state without appending summaries. Completions after the
+  attach boundary still print, including those arriving during the handshake.
+  Active children still print on later completion. Resume snapshots retain
+  normal completion behavior.
 - Peer and task reports are sourced messages, not operator input cards. Render
   `peer_message` fields directly; never parse `<agent-message>` body text.
   Peer messages render as a `Message` tool row naming the peer, with the body

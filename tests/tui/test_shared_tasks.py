@@ -72,6 +72,147 @@ def plain(renderable: object) -> str:
     return capture.get()
 
 
+@pytest.mark.parametrize("rebuild", [False, True])
+@pytest.mark.parametrize("finish_event", [False, True])
+def test_initial_snapshot_hides_old_completions_but_live_batch_member_still_finishes(
+    rebuild: bool, finish_event: bool
+) -> None:
+    machine = DisplayStateMachine(TranscriptDetail(Detail.COMPACT))
+    transition = machine.transition_rebuild if rebuild else machine.transition
+    transition(_welcome("main"))
+    for index, child_id in enumerate(("child", "running-child")):
+        transition(
+            events.TaskStartEvent(
+                session_id=child_id,
+                parent_session_id="main",
+                timestamp=1.0,
+                sub_agent_state=SubAgentState(
+                    sub_agent_type="finder",
+                    sub_agent_desc=child_id,
+                    sub_agent_prompt="",
+                    parent_tool_batch_id="batch",
+                    parent_tool_batch_index=index,
+                    parent_tool_batch_size=2,
+                ),
+            )
+        )
+    old = task_snapshot("completed", ended_at=2.0, result=BackgroundTaskResult(text="old result"))
+    running = task_snapshot(
+        ref=TaskReference(
+            kind="agent", owner_session_id="main", task_id="agent-2", run_id="run-2", session_id="running-child"
+        )
+    )
+    initial = events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[old, running], restore_only=True)
+    assert not any(isinstance(cmd, RenderSubAgentBatchSummary) for cmd in transition(initial))
+    assert machine._sessions["running-child"].task_active
+    # Repeated full-list updates must not resurrect the old completion.
+    update = initial.model_copy(update={"restore_only": False})
+    assert not any(isinstance(cmd, RenderSubAgentBatchSummary) for cmd in transition(update))
+    finished = running.model_copy(
+        update={"status": "completed", "ended_at": 3.0, "result": BackgroundTaskResult(text="new result")}
+    )
+    completion = update.model_copy(update={"tasks": [old, finished]})
+    finish = (
+        events.TaskFinishEvent(session_id="running-child", task_result="new result", timestamp=3.0)
+        if finish_event
+        else completion
+    )
+    summaries = [cmd for cmd in transition(finish) if isinstance(cmd, RenderSubAgentBatchSummary)]
+    assert len(summaries) == 1
+    assert [summary.session_id for summary in summaries[0].summaries] == ["running-child"]
+    assert not any(isinstance(cmd, RenderSubAgentBatchSummary) for cmd in transition(completion))
+
+
+def test_initial_snapshot_restores_compacted_child_without_printing_result() -> None:
+    machine = DisplayStateMachine(TranscriptDetail(Detail.COMPACT))
+    machine.transition(_welcome("main"))
+    snapshot = events.BackgroundTasksUpdatedEvent(
+        session_id="main",
+        tasks=[task_snapshot("completed", ended_at=2.0, result=BackgroundTaskResult(text="old result"))],
+        restore_only=True,
+    )
+    assert not any(isinstance(cmd, RenderSubAgentBatchSummary) for cmd in machine.transition(snapshot))
+    child = machine._sessions["child"]
+    assert child.terminal_status == "success"
+    assert child.compact_batch_flushed
+    assert not child.task_active
+    live = snapshot.model_copy(update={"restore_only": False})
+    assert not any(isinstance(cmd, RenderSubAgentBatchSummary) for cmd in machine.transition(live))
+
+
+@pytest.mark.parametrize("ended_at, expected", [(2.0, 0), (3.0, 0), (4.0, 1)])
+def test_attach_snapshot_only_suppresses_completions_before_attach(ended_at: float, expected: int) -> None:
+    machine = DisplayStateMachine(TranscriptDetail(Detail.COMPACT))
+    machine.transition(_welcome("main"))
+    machine.transition(
+        events.TaskStartEvent(
+            session_id="child",
+            parent_session_id="main",
+            timestamp=1.0,
+            sub_agent_state=SubAgentState(sub_agent_type="finder", sub_agent_desc="find", sub_agent_prompt=""),
+        )
+    )
+    snapshot = events.BackgroundTasksUpdatedEvent(
+        session_id="main",
+        restore_only=True,
+        restore_before=3.0,
+        tasks=[task_snapshot("completed", ended_at=ended_at, result=BackgroundTaskResult(text="done"))],
+    )
+    commands = machine.transition(snapshot)
+    assert sum(isinstance(cmd, RenderSubAgentBatchSummary) for cmd in commands) == expected
+    # A queued finish or later full snapshot must not duplicate the result.
+    commands = machine.transition(events.TaskFinishEvent(session_id="child", timestamp=ended_at, task_result="done"))
+    commands += machine.transition(snapshot.model_copy(update={"restore_only": False}))
+    assert not any(isinstance(cmd, RenderSubAgentBatchSummary) for cmd in commands)
+
+
+def test_attach_reconciles_whole_batch_before_emitting_new_completion() -> None:
+    machine = DisplayStateMachine(TranscriptDetail(Detail.COMPACT))
+    machine.transition(_welcome("main"))
+    tasks: list[BackgroundTaskSnapshot] = []
+    for index, (child_id, started_at, ended_at) in enumerate((("new", 1.0, 5.0), ("old", 2.0, 3.0))):
+        machine.transition(
+            events.TaskStartEvent(
+                session_id=child_id,
+                parent_session_id="main",
+                timestamp=started_at,
+                sub_agent_state=SubAgentState(
+                    sub_agent_type="finder",
+                    sub_agent_desc=child_id,
+                    sub_agent_prompt="",
+                    parent_tool_batch_id="batch",
+                    parent_tool_batch_index=index,
+                    parent_tool_batch_size=2,
+                ),
+            )
+        )
+        tasks.append(
+            task_snapshot(
+                "completed",
+                started_at=started_at,
+                ended_at=ended_at,
+                result=BackgroundTaskResult(text=child_id),
+                ref=TaskReference(
+                    kind="agent", owner_session_id="main", task_id=child_id, run_id=child_id, session_id=child_id
+                ),
+            )
+        )
+    commands = machine.transition(
+        events.BackgroundTasksUpdatedEvent(
+            session_id="main",
+            tasks=tasks,
+            restore_only=True,
+            restore_before=4.0,
+        )
+    )
+    assert [
+        summary.session_id
+        for cmd in commands
+        if isinstance(cmd, RenderSubAgentBatchSummary)
+        for summary in cmd.summaries
+    ] == ["new"]
+
+
 @pytest.mark.parametrize("finish", ["finish", "interrupt"])
 def test_background_rows_and_counts_survive_root_end_toggle_refresh_and_authoritative_removal(
     monkeypatch: pytest.MonkeyPatch, finish: str
@@ -502,6 +643,27 @@ def test_long_task_report_only_points_to_result_and_plain_user_is_not_a_peer() -
             events.UserMessageEvent(session_id="main", content="<agent-message>plain input</agent-message>")
         )
     assert "plain input" in capture.getvalue() and "来自" not in capture.getvalue()
+
+
+@pytest.mark.parametrize("registered", [False, True])
+def test_task_report_without_launch_initializes_child_color(registered: bool) -> None:
+    renderer = TUICommandRenderer()
+    if registered:
+        renderer.register_session("child")
+    response = TaskResponse(
+        tasks=[task_snapshot("completed", agent_type="finder", result=BackgroundTaskResult(text="found the cause"))]
+    )
+    with renderer.bulk_render_capture() as capture:
+        renderer.display_task_outcomes(response)
+    assert "found the cause" in capture.getvalue()
+    color = renderer._get_session_sub_agent_color("child")
+    assert color.color is not None
+    assert color in renderer.themes.sub_agent_styles
+    assert renderer.is_sub_agent_session("child")
+    with renderer.bulk_render_capture() as repeated:
+        renderer.display_task_outcomes(response)
+    assert repeated.getvalue() == ""
+    assert renderer._get_session_sub_agent_color("child") == color
 
 
 def test_sub_agent_shell_report_is_dropped_from_sourced_message() -> None:
