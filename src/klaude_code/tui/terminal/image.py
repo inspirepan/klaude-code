@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import math
 import os
 import shutil
 import subprocess
@@ -71,10 +72,7 @@ def _convert_to_png(path: Path) -> bytes | None:
 
 
 def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> None:
-    """Print an image to the terminal using Kitty graphics protocol.
-
-    Only specifies column width; Kitty auto-scales height to preserve aspect ratio.
-    """
+    """Print a Kitty image with explicit cell dimensions and scrollback rows."""
     path = Path(file_path) if isinstance(file_path, str) else file_path
     if not path.exists():
         print(f"Image not found: {path}", file=file or sys.stdout, flush=True)
@@ -152,19 +150,35 @@ def print_kitty_image(file_path: str | Path, *, file: IO[str] | None = None) -> 
         else:
             # Fallback: constrain by height since we can't determine image size
             size_param = f"r={_MAX_ROWS}"
+
+        # Pin both dimensions so the image cannot extend beyond its reserved rows.
+        # The terminal preserves aspect ratio within this rectangle, even when its
+        # actual cell size differs from our estimate.
+        if dimensions is not None:
+            img_width, img_height = dimensions
+            if size_param.startswith("r="):
+                display_rows = int(size_param[2:])
+                display_cols = math.ceil(img_width * display_rows * _PIXELS_PER_ROW / (img_height * _PIXELS_PER_COL))
+            else:
+                display_cols = int(size_param[2:]) if size_param else math.ceil(img_width / _PIXELS_PER_COL)
+                display_rows = math.ceil(img_height * display_cols * _PIXELS_PER_COL / (img_width * _PIXELS_PER_ROW))
+        else:
+            display_cols, display_rows = target_cols, _MAX_ROWS
+        display_cols = max(1, min(display_cols, target_cols))
+        display_rows = max(1, min(display_rows, _MAX_TALL_ROWS))
+        size_param = f"c={display_cols},r={display_rows},C=1"
+
         print("", file=out)
         if not _write_kitty_graphics_via_file(out, data, size_param=size_param):
             # Inline transmission ships the full image as base64 in one escape
             # sequence; shrink large images so the write cycle doesn't hold
             # the bottom UI erased while a slow terminal drains megabytes.
             shrunk = shrink_image_bytes_for_inline_display(data)
-            if shrunk is not data and not size_param and dimensions is not None:
-                # Pin the original display size so the downscaled pixels
-                # still occupy the same cell area.
-                size_param = f"c={min(max(dimensions[0] // _PIXELS_PER_COL, 1), target_cols)}"
             encoded = base64.standard_b64encode(shrunk).decode("ascii")
             _write_kitty_graphics(out, encoded, size_param=size_param)
-        print("", file=out)
+        # Automatic Kitty cursor movement is undefined past the screen edge.
+        # Ordinary newlines scroll reliably, including for images taller than a pane.
+        out.write("\n" * (display_rows + 1))
         out.flush()
     except Exception:
         print(f"[[Image: {path}]]", file=file or sys.stdout, flush=True)
@@ -245,6 +259,7 @@ def _write_kitty_graphics(out: IO[str], encoded_data: str, *, size_param: str) -
     - f=100: PNG format (auto-detected by Kitty)
     - c=N: display width in columns
     - r=N: display height in rows
+    - C=1: leave cursor movement to the caller
     - m=1: more data follows, m=0: last chunk
     """
     total_len = len(encoded_data)

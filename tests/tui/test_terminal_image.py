@@ -70,7 +70,7 @@ def test_print_kitty_image_skips_conversion_for_png_bytes_with_svg_suffix(
 
     terminal_image.print_kitty_image(fake_svg, file=io.StringIO())
 
-    assert write_calls == [""]
+    assert write_calls == ["c=2,r=1,C=1"]
 
 
 def _rendered_size_params(
@@ -98,7 +98,7 @@ def test_print_kitty_image_expands_rows_for_tall_image_readability(
     png_path.write_bytes(_png_bytes(width=303, height=1219))
 
     # Readability boost is capped by the portrait width budget (80 * 0.6 = 48).
-    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=80) == ["c=48"]
+    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=80) == ["c=48,r=97,C=1"]
 
 
 def test_print_kitty_image_caps_portrait_width_to_ratio(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -106,14 +106,58 @@ def test_print_kitty_image_caps_portrait_width_to_ratio(monkeypatch: pytest.Monk
     # Phone-screenshot shape: without the portrait budget this rendered at c=100.
     png_path.write_bytes(_png_bytes(width=1080, height=2400))
 
-    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=120) == ["c=60"]
+    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=120) == ["c=60,r=67,C=1"]
 
 
 def test_print_kitty_image_keeps_full_width_for_landscape(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     png_path = tmp_path / "wide.png"
     png_path.write_bytes(_png_bytes(width=1800, height=900))
 
-    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=120) == ["c=100"]
+    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=120) == ["c=100,r=25,C=1"]
+
+
+@pytest.mark.parametrize("via_file", [False, True])
+@pytest.mark.parametrize("terminal_rows", [10, 24, 80])
+def test_print_kitty_image_reserves_tall_image_rows_before_following_text(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, via_file: bool, terminal_rows: int
+) -> None:
+    png_path = tmp_path / "tall.png"
+    png_path.write_bytes(_png_bytes(width=303, height=1219))
+    monkeypatch.setattr(terminal_image, "_supports_kitty_file_transmission", lambda: via_file)
+    monkeypatch.setattr(terminal_image.shutil, "get_terminal_size", lambda: os.terminal_size((80, terminal_rows)))
+    # Keep file transmission artifacts inside the test directory.
+    mkstemp = terminal_image.tempfile.mkstemp
+    monkeypatch.setattr(
+        terminal_image.tempfile,
+        "mkstemp",
+        lambda *, prefix, suffix, dir: mkstemp(prefix=prefix, suffix=suffix, dir=str(tmp_path)),
+    )
+
+    output = io.StringIO()
+    terminal_image.print_kitty_image(png_path, file=output)
+    output.write("following text")
+
+    payload = output.getvalue()
+    assert "c=48,r=97,C=1" in payload
+    # C=1 prevents automatic movement; real newlines scroll beyond the pane's
+    # bottom instead of clamping the cursor while the image covers later text.
+    assert payload.rsplit("\033\\", 1)[1] == "\n" * 98 + "following text"
+    assert ("t=f" in payload) is via_file
+
+
+def test_print_kitty_image_preserves_reserved_size_after_inline_shrink(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    png_path = tmp_path / "small.png"
+    png_path.write_bytes(_png_bytes(width=180, height=360))
+    monkeypatch.setattr(terminal_image, "shrink_image_bytes_for_inline_display", lambda data: _png_bytes(18, 36))
+
+    output = io.StringIO()
+    terminal_image.print_kitty_image(png_path, file=output)
+
+    payload = output.getvalue()
+    assert "c=20,r=20,C=1" in payload
+    assert payload.rsplit("\033\\", 1)[1] == "\n" * 21
 
 
 def test_print_kitty_image_falls_back_when_unsupported(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
