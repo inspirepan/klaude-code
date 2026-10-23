@@ -838,6 +838,48 @@ def test_accounting_partial_failure_is_retryable_and_restart_safe(
     asyncio.run(test())
 
 
+def test_acknowledge_allows_new_tasks_during_persist(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test() -> None:
+        manager = TaskManager(None, _no_stop, _emit)
+
+        async def run(task_id: str, started: Callable[[str, str], Awaitable[None]]) -> SubAgentResult:
+            await started("child", "operation")
+            return SubAgentResult(task_result="report", session_id="child")
+
+        task = await manager.start_agent("owner", tmp_path, "first", run)
+        await manager.manage("owner", tmp_path, TaskRequest(action="wait", task_id=task.ref.task_id))
+        entered, release = asyncio.Event(), asyncio.Event()
+        original = manager._persist
+
+        async def persist(record: BackgroundTaskSnapshot) -> None:
+            if record.ref.task_id == task.ref.task_id and record.delivered:
+                entered.set()
+                await release.wait()
+            await original(record)
+
+        monkeypatch.setattr(manager, "_persist", persist)
+        acknowledgement = asyncio.create_task(manager.acknowledge("owner", task.delivery_id))
+        try:
+            await asyncio.wait_for(entered.wait(), 5)
+            added = await manager.start_agent("owner", tmp_path, "second", run)
+            await manager.manage("owner", tmp_path, TaskRequest(action="wait", task_id=added.ref.task_id))
+            assert added.ref.task_id in manager._records
+            release.set()
+            await asyncio.wait_for(acknowledgement, 5)
+            restored = {
+                record.ref.task_id: record
+                for record in await TaskManager(None, _no_stop, _emit).list_tasks("owner", tmp_path)
+            }
+            assert restored[task.ref.task_id].delivered
+            assert not restored[added.ref.task_id].delivered
+        finally:
+            release.set()
+            await asyncio.gather(acknowledgement, return_exceptions=True)
+            await manager.aclose()
+
+    asyncio.run(test())
+
+
 def test_task_snapshot_writes_are_nonblocking_serial_and_cancel_safe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

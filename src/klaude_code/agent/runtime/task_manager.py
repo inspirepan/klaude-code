@@ -524,7 +524,7 @@ class TaskManager:
         )
 
     async def acknowledge(self, owner: str, delivery_id: str) -> None:
-        for task in self._records.values():
+        for task in list(self._records.values()):
             if (
                 task.ref.owner_session_id == owner
                 and task.delivery_id == delivery_id
