@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 from collections.abc import AsyncGenerator
 from pathlib import Path
@@ -8,6 +9,7 @@ from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
+from rich.console import Console
 
 import klaude_code.agent.runtime.agent_ops as agent_ops_runtime
 import klaude_code.agent.runtime.sub_agent as sub_agent_runtime
@@ -33,6 +35,9 @@ from klaude_code.tool.agent_tool import AgentTool
 from klaude_code.tool.core.abc import ToolConcurrencyPolicy, ToolMetadata
 from klaude_code.tool.core.context import TodoContext, ToolContext
 from klaude_code.tool.core.runner import ToolCallRequest, ToolExecutionResult, ToolExecutor
+from klaude_code.tui.commands import PromptStatusLine
+from klaude_code.tui.machine import DisplayStateMachine
+from klaude_code.tui.renderer import TUICommandRenderer
 
 
 def _tool_context() -> ToolContext:
@@ -768,14 +773,24 @@ def test_collector_recovers_report_and_metadata_after_event_overflow(
     asyncio.run(test())
 
 
-def test_sub_agent_model_override_uses_explicit_client(
+def test_sub_agent_launch_snapshot_preserves_identity_and_model_override(
     tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del isolated_home
 
     async def _test() -> None:
         parent_client = _RecordingClient("main-model", "main response")
-        override_client = _RecordingClient("override-model-id", "override response")
+        override_client = _ScriptedClient(
+            "override-model-id",
+            [
+                [
+                    message.AssistantTextDelta(content="override response", response_id="resp"),
+                    message.AssistantMessage(
+                        parts=message.text_parts_from_str("override response"), response_id="resp", stop_reason="stop"
+                    ),
+                ]
+            ],
+        )
         config = Config(
             main_model="main-model",
             provider_list=[
@@ -787,7 +802,7 @@ def test_sub_agent_model_override_uses_explicit_client(
                 )
             ],
         )
-        _event_bus, facade, launcher = _make_facade_launcher(
+        event_bus, facade, launcher = _make_facade_launcher(
             monkeypatch,
             template_client=parent_client,
             config=config,
@@ -800,28 +815,101 @@ def test_sub_agent_model_override_uses_explicit_client(
                 profile=AgentProfile(llm_client=parent_client, system_prompt=None, tools=[], attachments=[]),
             )
 
-            result = await _run_background_sub_agent(
-                facade,
-                launcher,
-                parent_agent,
-                SubAgentState(
-                    sub_agent_type="finder",
-                    sub_agent_desc="override test",
-                    sub_agent_prompt="hello",
-                    model="override-model",
-                ),
+            state = SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc="override test",
+                sub_agent_prompt="hello",
+                model="override-model",
+                parent_tool_batch_id="launch-batch",
+                parent_tool_batch_index=1,
+                parent_tool_batch_size=2,
             )
+            # Hold executable work until the real launcher publishes its initial snapshot.
+            allow_start = asyncio.Event()
+            submit = launcher._submit_operation
+
+            async def delayed_submit(operation: op.Operation) -> str:
+                await allow_start.wait()
+                return await submit(operation)
+
+            monkeypatch.setattr(launcher, "_submit_operation", delayed_submit)
+            monkeypatch.setattr("klaude_code.tui.renderer.SPINNER_UPDATE_MIN_INTERVAL_S", 0)
+            subscription = event_bus.subscribe(None)
+            task = await launcher.start_sub_agent(parent_agent, state)
+            initial = _drain_subscription_events(subscription)
+            assert not any(isinstance(event, events.TaskStartEvent) for event in initial)
+            snapshot_event = next(event for event in initial if isinstance(event, events.BackgroundTasksUpdatedEvent))
+            assert snapshot_event.tasks[0].ref.session_id == task.ref.session_id
+            status: list[tuple[PromptStatusLine, ...]] = []
+            renderer = TUICommandRenderer(status_sink=lambda lines, _: status.append(lines))
+            renderer.console = Console(file=io.StringIO(), theme=renderer.themes.app_theme, width=120)
+            renderer.set_progress_ui_suspended(True)
+            machine = DisplayStateMachine()
+            await renderer.execute(machine.transition(events.TaskStartEvent(session_id=parent_session.id)))
+            await renderer.execute(
+                machine.transition(
+                    events.ToolCallEvent(
+                        session_id=parent_session.id,
+                        tool_call_id="launch",
+                        tool_name=tools.AGENT,
+                        arguments=json.dumps({"type": state.sub_agent_type, "description": state.sub_agent_desc}),
+                        tool_batch_id=state.parent_tool_batch_id,
+                        tool_batch_index=state.parent_tool_batch_index,
+                        tool_batch_size=state.parent_tool_batch_size,
+                    )
+                )
+            )
+            await renderer.execute(machine.transition(snapshot_event))
+            assert task.ref.session_id is not None
+            color = renderer._sessions[task.ref.session_id].color
+            assert color == renderer.themes.sub_agent_styles[2]
+            assert any("Initializing" in line.text for line in status[-1])
+            allow_start.set()
+            response = await facade.task_manager.manage(
+                parent_session.id, tmp_path, TaskRequest(action="wait", task_id=task.ref.task_id)
+            )
+            child_events = [
+                event
+                for event in _drain_subscription_events(subscription)
+                if isinstance(
+                    event,
+                    (
+                        events.TaskStartEvent,
+                        events.AssistantTextStartEvent,
+                        events.AssistantTextDeltaEvent,
+                        events.AssistantTextEndEvent,
+                    ),
+                )
+            ]
+            assert any(isinstance(event, events.TaskStartEvent) for event in child_events)
+            assert any(isinstance(event, events.AssistantTextDeltaEvent) for event in child_events)
+            for event in child_events:
+                await renderer.execute(machine.transition(event))
+                assert renderer._sessions[task.ref.session_id].color == color
+            start = next(event for event in child_events if isinstance(event, events.TaskStartEvent))
+            await renderer.execute(machine.transition(start))
+            assert renderer._sessions[task.ref.session_id].color == color
+            await renderer.stop()
 
             spawn_entries = [
                 item for item in parent_session.conversation_history if isinstance(item, message.SpawnSubAgentEntry)
             ]
-            assert result.task_result == "override response"
-            assert result.error is False
+            assert response.output == "override response"
+            assert response.tasks[0].result is not None and not response.tasks[0].result.error
             assert parent_client.call_count == 0
             assert override_client.call_count == 1
             assert spawn_entries[0].model == "override-model"
+            snapshot = (await facade.task_manager.list_tasks(parent_session.id, tmp_path))[0]
+            assert snapshot.parent_tool_batch_id == "launch-batch"
+            assert snapshot.parent_tool_batch_index == 1
+            assert snapshot.parent_tool_batch_size == 2
+            restored = TaskManager(None, AsyncMock(), AsyncMock())
+            persisted = (await restored.list_tasks(parent_session.id, tmp_path))[0]
+            assert persisted.parent_tool_batch_id == snapshot.parent_tool_batch_id
+            assert persisted.parent_tool_batch_index == snapshot.parent_tool_batch_index
+            assert persisted.parent_tool_batch_size == snapshot.parent_tool_batch_size
 
-            child_session = Session.load(result.session_id, work_dir=tmp_path)
+            child_session = Session.load(task.ref.session_id, work_dir=tmp_path)
             assert child_session.parent_session_id == parent_session.id
             assert child_session.spawn_kind == "subagent"
             assert child_session.agent_type == "finder"

@@ -56,6 +56,9 @@ class BackgroundTaskSnapshot(BaseModel):
     status: TaskStatus
     description: str = ""
     agent_type: str | None = None
+    parent_tool_batch_id: str | None = None
+    parent_tool_batch_index: int | None = None
+    parent_tool_batch_size: int | None = None
     started_at: float
     ended_at: float | None = None
     result: BackgroundTaskResult | None = None

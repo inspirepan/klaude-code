@@ -514,6 +514,35 @@ def test_recovery_marks_original_agent_run_lost_without_reexecution(tmp_path: Pa
     asyncio.run(test())
 
 
+def test_recovery_loads_legacy_snapshot_without_launch_batch(tmp_path: Path) -> None:
+    async def test() -> None:
+        manager = TaskManager(None, _no_stop, _emit)
+
+        async def run(task_id: str, started: Callable[[str, str], Awaitable[None]]) -> SubAgentResult:
+            await started("child", "operation")
+            return SubAgentResult(task_result="done", session_id="child")
+
+        task = await manager.start_agent("owner", tmp_path, "legacy", run)
+        await manager.manage("owner", tmp_path, TaskRequest(action="wait", task_id=task.ref.task_id))
+        await manager.aclose()
+        path = manager._directories[task.ref.task_id] / f"{task.ref.task_id}.json"
+        legacy = BackgroundTaskSnapshot.model_validate_json(path.read_text())
+        path.write_text(
+            legacy.model_dump_json(
+                exclude={"parent_tool_batch_id", "parent_tool_batch_index", "parent_tool_batch_size"}
+            )
+        )
+        restored = TaskManager(None, _no_stop, _emit)
+        recovered = (await restored.list_tasks("owner", tmp_path))[0]
+        assert recovered.ref == task.ref and recovered.status == "completed"
+        assert recovered.parent_tool_batch_id is None
+        assert recovered.parent_tool_batch_index is None
+        assert recovered.parent_tool_batch_size is None
+        await restored.aclose()
+
+    asyncio.run(test())
+
+
 def test_shell_stop_and_failed_wait_keep_results_without_notifications(tmp_path: Path) -> None:
     async def test() -> None:
         shell = ShellTaskManager()

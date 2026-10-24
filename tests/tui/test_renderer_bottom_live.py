@@ -1,5 +1,6 @@
 # pyright: reportPrivateUsage=false
 
+import asyncio
 import io
 import json
 from pathlib import Path
@@ -256,6 +257,116 @@ def test_compact_sub_agent_colors_continue_across_tool_batches() -> None:
     )
 
     assert renderer._sessions["batch-a-replay"].color_index == 1
+
+
+@pytest.mark.parametrize("start_first", [False, True])
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+def test_background_snapshot_and_task_start_keep_launch_and_status_colors(
+    monkeypatch: pytest.MonkeyPatch, start_first: bool, detail: Detail
+) -> None:
+    from klaude_code.protocol.background_task import BackgroundTaskSnapshot, TaskReference
+    from klaude_code.protocol.models import SubAgentState
+    from klaude_code.tui.commands import PromptStatusLine
+    from klaude_code.tui.machine import DisplayStateMachine
+    from klaude_code.tui.renderer import TUICommandRenderer
+
+    async def test() -> None:
+        monkeypatch.setattr("klaude_code.tui.renderer.SPINNER_UPDATE_MIN_INTERVAL_S", 0)
+        status: list[tuple[PromptStatusLine, ...]] = []
+        shared_detail = TranscriptDetail(detail)
+        machine = DisplayStateMachine(shared_detail)
+        renderer = TUICommandRenderer(detail=shared_detail, status_sink=lambda lines, _: status.append(lines))
+        console = _renderer_console(renderer)
+        renderer.set_progress_ui_suspended(True)
+        launches: list[RenderableType] = []
+        monkeypatch.setattr(renderer, "print", lambda row=None: launches.append(row) if row is not None else None)
+        await renderer.execute(machine.transition(events.TaskStartEvent(session_id="main")))
+        for index in range(2):
+            await renderer.execute(
+                machine.transition(
+                    events.ToolCallEvent(
+                        session_id="main",
+                        tool_call_id=f"call-{index}",
+                        tool_name=tools.AGENT,
+                        arguments=json.dumps({"type": "finder", "description": f"inspect-{index}"}),
+                        tool_batch_id="batch",
+                        tool_batch_index=index,
+                        tool_batch_size=2,
+                    )
+                )
+            )
+        launch_rows = list(launches)
+        snapshots: list[BackgroundTaskSnapshot] = []
+        for index in (1, 0):
+            state = SubAgentState(
+                sub_agent_type="finder",
+                sub_agent_desc=f"inspect-{index}",
+                sub_agent_prompt="private prompt",
+                model="child-model",
+                parent_tool_batch_id="batch",
+                parent_tool_batch_index=index,
+                parent_tool_batch_size=2,
+            )
+            start = events.TaskStartEvent(session_id=f"child-{index}", parent_session_id="main", sub_agent_state=state)
+            snapshot = BackgroundTaskSnapshot(
+                ref=TaskReference(
+                    kind="agent",
+                    owner_session_id="main",
+                    task_id=f"task-{index}",
+                    run_id=f"run-{index}",
+                    session_id=f"child-{index}",
+                ),
+                status="running",
+                description=state.sub_agent_desc,
+                agent_type=state.sub_agent_type,
+                parent_tool_batch_id=state.parent_tool_batch_id,
+                parent_tool_batch_index=state.parent_tool_batch_index,
+                parent_tool_batch_size=state.parent_tool_batch_size,
+                started_at=start.timestamp,
+                delivery_id=f"delivery-{index}",
+            )
+            if start_first:
+                await renderer.execute(machine.transition(start))
+            # A queued task without a session must not consume a temporary color slot.
+            pending = snapshot.model_copy(deep=True)
+            pending.ref.session_id = None
+            before = renderer._sub_agent_color_index
+            await renderer.execute(
+                machine.transition(events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[*snapshots, pending]))
+            )
+            assert f"task:task-{index}" not in renderer._sessions
+            assert f"task:task-{index}" not in machine._sessions
+            assert renderer._sub_agent_color_index == before
+            snapshots.append(snapshot)
+            await renderer.execute(
+                machine.transition(events.BackgroundTasksUpdatedEvent(session_id="main", tasks=snapshots))
+            )
+            color = renderer.themes.sub_agent_styles[index + 1]
+            child = renderer._sessions[f"child-{index}"]
+            assert child.color == color
+            if not start_first and detail is Detail.COMPACT:
+                assert any("Initializing" in line.text for line in status[-1])
+            identity_style = next(
+                style for line in status[-1] for style, text in line.fragments if f"inspect-{index}" in text
+            )
+            assert color.color is not None
+            assert f"fg:{color.color.get_truecolor().hex}" in identity_style
+            for event in (start, start, events.AssistantTextStartEvent(session_id=f"child-{index}")):
+                await renderer.execute(machine.transition(event))
+                assert renderer._sessions[f"child-{index}"].color == color
+            # A later sparse snapshot and top-level registration cannot downgrade the child.
+            await renderer.execute(
+                machine.transition(events.BackgroundTasksUpdatedEvent(session_id="main", tasks=snapshots))
+            )
+            renderer.register_session(f"child-{index}")
+            assert child.sub_agent_state == state
+            assert child.color == color
+            segment = next(
+                segment for row in launch_rows for segment in console.render(row) if f"inspect-{index}" in segment.text
+            )
+            assert segment.style is not None and segment.style.color == color.color
+
+    asyncio.run(test())
 
 
 @pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])

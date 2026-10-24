@@ -1611,7 +1611,9 @@ class DisplayStateMachine:
                         s=s,
                     )
                 )
-            if task.ref.kind == "agent":
+            if task.ref.kind == "agent" and (
+                task.ref.session_id is not None or task.status not in ACTIVE_TASK_STATUSES
+            ):
                 latest[task.ref.session_id or f"task:{task.ref.task_id}"] = task
         for task in previous.values():
             child_id = task.ref.session_id or f"task:{task.ref.task_id}"
@@ -1636,7 +1638,12 @@ class DisplayStateMachine:
                 continue
             if child.sub_agent_state is None:
                 child.sub_agent_state = SubAgentState(
-                    sub_agent_type=task.agent_type or "agent", sub_agent_desc=task.description, sub_agent_prompt=""
+                    sub_agent_type=task.agent_type or "agent",
+                    sub_agent_desc=task.description,
+                    sub_agent_prompt="",
+                    parent_tool_batch_id=task.parent_tool_batch_id,
+                    parent_tool_batch_index=task.parent_tool_batch_index,
+                    parent_tool_batch_size=task.parent_tool_batch_size,
                 )
             child.parent_session_id = e.session_id
             child.task_started_at = task.started_at

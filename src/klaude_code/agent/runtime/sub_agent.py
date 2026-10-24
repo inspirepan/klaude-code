@@ -74,6 +74,9 @@ class SubAgentLauncher:
             state.sub_agent_desc,
             collect,
             agent_type=state.sub_agent_type,
+            parent_tool_batch_id=state.parent_tool_batch_id,
+            parent_tool_batch_index=state.parent_tool_batch_index,
+            parent_tool_batch_size=state.parent_tool_batch_size,
             on_result=lambda: self._task_manager.settle_agent_results(parent_agent.session),
         )
 

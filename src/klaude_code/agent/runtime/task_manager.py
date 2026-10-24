@@ -181,6 +181,9 @@ class TaskManager:
         run: Callable[[str, Callable[[str, str], Awaitable[None]]], Awaitable[SubAgentResult]],
         *,
         agent_type: str | None = None,
+        parent_tool_batch_id: str | None = None,
+        parent_tool_batch_index: int | None = None,
+        parent_tool_batch_size: int | None = None,
         on_result: Callable[[], Awaitable[None]] | None = None,
     ) -> BackgroundTaskSnapshot:
         if self._closed:
@@ -191,6 +194,9 @@ class TaskManager:
             status="queued",
             description=description,
             agent_type=agent_type,
+            parent_tool_batch_id=parent_tool_batch_id,
+            parent_tool_batch_index=parent_tool_batch_index,
+            parent_tool_batch_size=parent_tool_batch_size,
             started_at=time.time(),
             delivery_id=f"{TASK_DELIVERY_ID_PREFIX}{task_id}",
         )

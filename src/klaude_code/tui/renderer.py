@@ -29,7 +29,7 @@ from klaude_code.const import (
 )
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, tools
-from klaude_code.protocol.background_task import TaskResponse
+from klaude_code.protocol.background_task import ACTIVE_TASK_STATUSES, BackgroundTaskSnapshot, TaskResponse
 from klaude_code.protocol.models import (
     AtFileImagesUIItem,
     BashUIExtra,
@@ -444,9 +444,19 @@ class TUICommandRenderer:
     # ---------------------------------------------------------------------
 
     def register_session(self, session_id: str, sub_agent_state: SubAgentState | None = None) -> None:
-        st = _SessionStatus(sub_agent_state=sub_agent_state)
-        if sub_agent_state is not None:
-            self._task_directory.name_child(session_id, sub_agent_state.sub_agent_type, sub_agent_state.sub_agent_desc)
+        st = self._sessions.setdefault(session_id, _SessionStatus())
+        if sub_agent_state is None:
+            return
+        if st.sub_agent_state is not None:
+            updates = {
+                key: value
+                for key, value in sub_agent_state.model_dump(exclude_unset=True, exclude_none=True).items()
+                if value != ""
+            }
+            sub_agent_state = st.sub_agent_state.model_copy(update=updates)
+        st.sub_agent_state = sub_agent_state
+        self._task_directory.name_child(session_id, sub_agent_state.sub_agent_type, sub_agent_state.sub_agent_desc)
+        if st.color_index is None:
             batch_id = sub_agent_state.parent_tool_batch_id
             batch_index = sub_agent_state.parent_tool_batch_index
             batch_size = sub_agent_state.parent_tool_batch_size
@@ -457,7 +467,21 @@ class TUICommandRenderer:
                 color, color_index = self._pick_sub_agent_color()
             st.color = color
             st.color_index = color_index
-        self._sessions[session_id] = st
+
+    def _register_background_agent(self, session_id: str, task: BackgroundTaskSnapshot) -> None:
+        known = self._sessions.get(session_id)
+        self.register_session(
+            session_id,
+            SubAgentState(
+                sub_agent_type=task.agent_type
+                or (known.sub_agent_state.sub_agent_type if known and known.sub_agent_state else "agent"),
+                sub_agent_desc=task.description,
+                sub_agent_prompt="",
+                parent_tool_batch_id=task.parent_tool_batch_id,
+                parent_tool_batch_index=task.parent_tool_batch_index,
+                parent_tool_batch_size=task.parent_tool_batch_size,
+            ),
+        )
 
     def _get_sub_agent_batch_color_index(
         self, batch_id: str | None, batch_index: int | None, batch_size: int | None
@@ -1507,17 +1531,7 @@ class TUICommandRenderer:
                 if known is not None and known.sub_agent_state is not None
                 else "agent"
             )
-            if known is None or known.sub_agent_state is None:
-                # A persisted report can arrive without its launch event.
-                # Register the identity before rendering its colored summary.
-                self.register_session(
-                    session_id,
-                    SubAgentState(
-                        sub_agent_type=agent_type,
-                        sub_agent_desc=task.description,
-                        sub_agent_prompt="",
-                    ),
-                )
+            self._register_background_agent(session_id, task)
             summaries.append(
                 SubAgentSummary(
                     session_id=session_id,
@@ -2298,16 +2312,9 @@ class TUICommandRenderer:
                         if (
                             task.ref.kind == "agent"
                             and task.ref.owner_session_id == event.session_id
-                            and child_id not in self._sessions
+                            and (task.ref.session_id is not None or task.status not in ACTIVE_TASK_STATUSES)
                         ):
-                            self.register_session(
-                                child_id,
-                                SubAgentState(
-                                    sub_agent_type=task.agent_type or "agent",
-                                    sub_agent_desc=task.description,
-                                    sub_agent_prompt="",
-                                ),
-                            )
+                            self._register_background_agent(child_id, task)
                 case RenderTaskControlResult(event=event):
                     self.print(render_task_control(event, detail=self._detail.current))
                     self.print()

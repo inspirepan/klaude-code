@@ -320,16 +320,17 @@ def test_background_rows_and_counts_survive_root_end_toggle_refresh_and_authorit
     asyncio.run(run())
 
 
-def test_queued_snapshot_without_child_identity_has_visible_row() -> None:
+def test_queued_snapshot_waits_for_child_identity_before_showing_row() -> None:
     machine = DisplayStateMachine()
     machine.transition(_welcome("main"))
     queued = task_snapshot(
         "queued", ref=TaskReference(kind="agent", owner_session_id="main", task_id="queued", run_id="queued")
     )
     machine.transition(events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[queued]))
-    assert machine._sessions["task:queued"].task_active
+    assert "task:queued" not in machine._sessions
+    assert machine._sessions["main"].background_tasks == {"queued": queued}
     machine.transition(events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[task_snapshot()]))
-    assert not machine._sessions["task:queued"].task_active
+    assert "task:queued" not in machine._sessions
     assert machine._sessions["child"].task_active
 
 
