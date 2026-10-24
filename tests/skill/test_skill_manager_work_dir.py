@@ -21,9 +21,7 @@ def _write_project_skill(project_dir: Path, name: str) -> None:
 
 @pytest.fixture
 def isolated_manager(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [])
-    monkeypatch.setattr(manager, "install_system_skills", lambda: None)
     monkeypatch.setattr(manager, "_loaders", {})
 
 

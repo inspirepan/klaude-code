@@ -102,7 +102,7 @@ class Skill:
 
     name: str  # Skill identifier (lowercase-hyphen)
     description: str  # What the skill does and when to use it
-    location: str  # Skill source: 'system', 'user', or 'project'
+    location: str  # Skill source: 'user' or 'project'
     skill_path: Path
     base_dir: Path
     license: str | None = None
@@ -123,9 +123,6 @@ class Skill:
 class SkillLoader:
     """Load and manage Claude Skills from SKILL.md files"""
 
-    # System-level skills directory (built-in, lowest priority)
-    SYSTEM_SKILLS_DIR: ClassVar[Path] = Path("~/.klaude/skills/.system")
-
     # User-level skills directories (checked in order, later ones override earlier ones with same name)
     USER_SKILLS_DIRS: ClassVar[list[Path]] = [
         Path("~/.claude/skills"),
@@ -142,7 +139,7 @@ class SkillLoader:
     def __init__(self) -> None:
         """Initialize the skill loader"""
         self.loaded_skills: dict[str, Skill] = {}
-        self.skill_warnings_by_location: dict[str, list[str]] = {"system": [], "user": [], "project": []}
+        self.skill_warnings_by_location: dict[str, list[str]] = {"user": [], "project": []}
 
     def iter_skill_files(self, root_dir: Path) -> list[Path]:
         skill_files: list[Path] = []
@@ -163,6 +160,8 @@ class SkillLoader:
 
             kept_dirnames: list[str] = []
             for dirname in dirnames:
+                if dirname.startswith("."):
+                    continue
                 child_dir = current_dir / dirname
                 try:
                     child_real = child_dir.resolve()
@@ -184,7 +183,6 @@ class SkillLoader:
     def _get_project_skill_dirs(self, work_dir: Path) -> list[Path]:
         cwd = work_dir.resolve()
         seen = {directory.expanduser().resolve() for directory in self.USER_SKILLS_DIRS}
-        seen.add(self.SYSTEM_SKILLS_DIR.expanduser().resolve())
         dirs: list[Path] = []
         # Deduplicate highest priority first, then load distant ancestors first.
         for ancestor in (cwd, *cwd.parents):
@@ -203,7 +201,7 @@ class SkillLoader:
 
         Args:
             skill_path: Path to SKILL.md file
-            location: Skill location ('system', 'user', or 'project')
+            location: Skill location ('user' or 'project')
 
         Returns:
             Skill object or None if loading failed
@@ -274,12 +272,11 @@ class SkillLoader:
             return None
 
     def discover_skills(self, work_dir: Path) -> list[Skill]:
-        """Recursively find all SKILL.md files and load them from system, user and project directories.
+        """Recursively find all SKILL.md files and load them from user and project directories.
 
         Loading order (lower priority first, higher priority overrides):
-        1. System skills (~/.klaude/skills/.system/) - built-in, lowest priority
-        2. User skills (~/.claude/skills/, ~/.klaude/skills/, ~/.agents/skills/, ~/.config/agents/skills/) - user-level
-        3. Project skills (.claude/skills/, .agents/skills/ at every ancestor from filesystem root
+        1. User skills (~/.claude/skills/, ~/.klaude/skills/, ~/.agents/skills/, ~/.config/agents/skills/) - user-level
+        2. Project skills (.claude/skills/, .agents/skills/ at every ancestor from filesystem root
            to work_dir) - project-level, nearest directory wins
 
         Args:
@@ -289,8 +286,8 @@ class SkillLoader:
             List of successfully loaded Skill objects
         """
         skills: list[Skill] = []
-        priority = {"system": 0, "user": 1, "project": 2}
-        self.skill_warnings_by_location = {"system": [], "user": [], "project": []}
+        priority = {"user": 0, "project": 1}
+        self.skill_warnings_by_location = {"user": [], "project": []}
 
         def register(skill: Skill) -> None:
             existing = self.loaded_skills.get(skill.name)
@@ -319,23 +316,11 @@ class SkillLoader:
             )
             self.skill_warnings_by_location.setdefault(skill.location, []).append(warning)
 
-        # Load system-level skills first (lowest priority, can be overridden)
-        system_dir = self.SYSTEM_SKILLS_DIR.expanduser()
-        if system_dir.exists():
-            for skill_file in self.iter_skill_files(system_dir):
-                skill = self.load_skill(skill_file, location="system")
-                if skill:
-                    skills.append(skill)
-                    register(skill)
-
-        # Load user-level skills (override system skills if same name)
+        # Load user-level skills.
         for user_dir in self.USER_SKILLS_DIRS:
             expanded_dir = user_dir.expanduser()
             if expanded_dir.exists():
                 for skill_file in self.iter_skill_files(expanded_dir):
-                    # Skip files under .system directory (already loaded above)
-                    if ".system" in skill_file.parts:
-                        continue
                     skill = self.load_skill(skill_file, location="user")
                     if skill:
                         skills.append(skill)
@@ -353,12 +338,9 @@ class SkillLoader:
         # Log discovery summary
         if self.loaded_skills:
             selected = list(self.loaded_skills.values())
-            system_count = sum(1 for s in selected if s.location == "system")
             user_count = sum(1 for s in selected if s.location == "user")
             project_count = sum(1 for s in selected if s.location == "project")
             parts: list[str] = []
-            if system_count > 0:
-                parts.append(f"{system_count} system")
             if user_count > 0:
                 parts.append(f"{user_count} user")
             if project_count > 0:
@@ -403,7 +385,7 @@ class SkillLoader:
             XML-like string with all skill metadata entries.
         """
         xml_parts: list[str] = []
-        location_order = {"project": 0, "user": 1, "system": 2}
+        location_order = {"project": 0, "user": 1}
         for skill in sorted(self.loaded_skills.values(), key=lambda s: location_order.get(s.location, 3)):
             name = escape(skill.name)
             description = escape(skill.description.replace("\n", " ").strip())

@@ -18,7 +18,6 @@ def test_discover_skills_includes_git_root_project_skills(tmp_path: Path, monkey
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [])
 
     loader = SkillLoader()
@@ -50,7 +49,6 @@ def test_discover_skills_prefers_cwd_project_skill_over_git_root(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [])
 
     loader = SkillLoader()
@@ -81,7 +79,6 @@ def test_discover_skills_includes_ancestors_above_repo(
         skill_file.parent.mkdir(parents=True)
         skill_file.write_text(f"---\nname: {ancestor.name}\ndescription: inherited\n---\n", encoding="utf-8")
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [])
     loader = SkillLoader()
     loader.discover_skills(work_dir)
@@ -109,7 +106,6 @@ def test_discover_skills_prefers_nearer_ancestors_then_agents(
         skill_file.parent.mkdir(parents=True)
         skill_file.write_text("---\nname: shared\ndescription: shared skill\n---\n", encoding="utf-8")
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [])
     loader = SkillLoader()
     loader.discover_skills(work_dir)
@@ -127,7 +123,6 @@ def test_discover_skills_does_not_reload_user_dirs_as_project(
         skill_file.parent.mkdir(parents=True)
         skill_file.write_text("---\nname: shared\ndescription: user skill\n---\n", encoding="utf-8")
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", isolated_home / "missing-system")
     loader = SkillLoader()
     skills = loader.discover_skills(work_dir)
 
@@ -149,7 +144,6 @@ def test_discover_skills_preserves_priority_for_symlinked_ancestor(
     (tmp_path / ".agents").mkdir()
     (tmp_path / ".agents" / "skills").symlink_to(work_dir / ".agents" / "skills", target_is_directory=True)
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [])
     loader = SkillLoader()
     skills = loader.discover_skills(work_dir)

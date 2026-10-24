@@ -2,7 +2,6 @@
 
 This module provides the core skill functionality:
 - Skill discovery and loading from multiple directories
-- System skill installation
 - Per-work_dir skill access via manager functions
 
 Public API (all take the project work_dir; loaders are cached per directory):

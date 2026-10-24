@@ -14,7 +14,6 @@ def test_discover_skills_records_name_folder_mismatch_warning(tmp_path: Path, mo
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [skills_root])
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
@@ -37,7 +36,6 @@ def test_discover_skills_no_warning_when_name_matches_folder(tmp_path: Path, mon
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [skills_root])
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
@@ -58,7 +56,6 @@ def test_discover_skills_falls_back_to_folder_name_when_name_missing(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [skills_root])
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
@@ -85,7 +82,6 @@ def test_discover_skills_follows_subdirectory_symlink(tmp_path: Path, monkeypatc
     except OSError as e:
         pytest.skip(f"symlink not supported in this environment: {e}")
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [skills_root])
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
@@ -96,13 +92,13 @@ def test_discover_skills_follows_subdirectory_symlink(tmp_path: Path, monkeypatc
 
 
 def test_discover_skills_records_conflict_warning_on_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    system_root = tmp_path / "system-skills"
+    earlier_root = tmp_path / "earlier-skills"
     user_root = tmp_path / "user-skills"
 
-    system_skill_dir = system_root / "dup-skill"
-    system_skill_dir.mkdir(parents=True)
-    (system_skill_dir / "SKILL.md").write_text(
-        "---\nname: dup-skill\ndescription: from system\n---\n",
+    earlier_skill_dir = earlier_root / "dup-skill"
+    earlier_skill_dir.mkdir(parents=True)
+    (earlier_skill_dir / "SKILL.md").write_text(
+        "---\nname: dup-skill\ndescription: from earlier user directory\n---\n",
         encoding="utf-8",
     )
 
@@ -113,8 +109,7 @@ def test_discover_skills_records_conflict_warning_on_override(tmp_path: Path, mo
         encoding="utf-8",
     )
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", system_root)
-    monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [user_root])
+    monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [earlier_root, user_root])
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 
     loader = SkillLoader()
@@ -125,7 +120,7 @@ def test_discover_skills_records_conflict_warning_on_override(tmp_path: Path, mo
     assert len(warnings) == 1
     assert warnings[0] == (
         'duplicate "dup-skill" skill:\n'
-        f"- [system] {system_skill_dir / 'SKILL.md'}\n"
+        f"- [user] {earlier_skill_dir / 'SKILL.md'}\n"
         f"- [user] {user_skill_dir / 'SKILL.md'} (using this)"
     )
 
@@ -147,7 +142,6 @@ def test_discover_skills_no_warning_for_symlink_duplicate(tmp_path: Path, monkey
     except OSError as e:
         pytest.skip(f"symlink not supported in this environment: {e}")
 
-    monkeypatch.setattr(SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(SkillLoader, "USER_SKILLS_DIRS", [real_dir.parent, link_root])
     monkeypatch.setattr(SkillLoader, "PROJECT_SKILLS_DIRS", [])
 

@@ -33,8 +33,6 @@ pre-push:
 	$(MAKE) build
 
 install: web
-	@echo "==> Syncing git submodules..."
-	git submodule update --init --recursive
 	@echo "==> Installing Python package (editable, via uv tool)..."
 	$(UV) tool install -e .
 	@echo "==> Restarting the running klaude server on the new code (if any)..."

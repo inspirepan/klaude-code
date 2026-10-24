@@ -61,7 +61,6 @@ markers = [
 [tool.ruff]
 line-length = 120
 src = ["src"]
-exclude = ["src/klaude_code/skill/assets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "UP", "SIM", "RUF", "TID251"]
@@ -95,9 +94,6 @@ python-version = "3.13"
 include = [
     "src",
     "tests",
-]
-exclude = [
-    "src/klaude_code/skill/assets",
 ]
 
 # Strictest posture: treat every rule as error-level, and fail the run on any

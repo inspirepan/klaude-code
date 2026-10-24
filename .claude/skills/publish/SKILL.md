@@ -12,15 +12,7 @@ This skill manages the release process for klaude-code, including version manage
 - `UV_PUBLISH_TOKEN` environment variable must be set for PyPI publishing
 - Working directory must be the klaude-code repository root
 - Git repository must be clean (no uncommitted changes)
-- Git submodules must be initialized and up-to-date (`src/klaude_code/skill/assets`)
 - Node.js and pnpm (preferred) or npm must be available to build the web viewer
-
-Before starting the release workflow, run:
-
-```bash
-git submodule sync --recursive
-git submodule update --init --recursive
-```
 
 ## Release Workflow
 
@@ -69,7 +61,7 @@ jj diff --from main@origin
 make pre-push
 ```
 
-`make pre-push` formats, lints, tests, and runs `make build`. The build first runs `make web`, then builds the sdist and wheel and executes `scripts/verify_dist.py`. Verification checks the current version's two artifacts for the complete web bundle and system skill files, including references and scripts; it does not select an older wheel from `dist/`.
+`make pre-push` formats, lints, tests, and runs `make build`. The build first runs `make web`, then builds the sdist and wheel and executes `scripts/verify_dist.py`. Verification checks the current version's two artifacts for the complete web bundle; it does not select an older wheel from `dist/`.
 
 Review any formatting changes before committing. If formatting changed files, rerun the affected checks. Stop if any check or artifact verification fails; do not tag, push, or publish an unverified release.
 
@@ -104,8 +96,6 @@ jj git push --bookmark main
 git push origin v<new_version>
 ```
 
-The submodule commit must already be available on its remote before pushing the release. Initializing a local submodule does not publish its commits.
-
 ### Step 7: Publish Verified Artifacts
 
 Publish only the current version's artifacts built and verified in Step 4. Do not rebuild after tagging without rerunning validation; the published package must match the release commit.
@@ -127,4 +117,4 @@ Do not use bare `uv publish`: `dist/` may contain artifacts from older versions.
 
 - `scripts/bump_version.py` - Handles semantic version bumping
 - `scripts/update_changelog.py` - Updates CHANGELOG.md with commits since last tag
-- `scripts/verify_dist.py` - Checks the current wheel and sdist include the built web viewer and required system skills
+- `scripts/verify_dist.py` - Checks the current wheel and sdist include the built web viewer

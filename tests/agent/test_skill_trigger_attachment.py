@@ -227,7 +227,6 @@ def test_skill_attachment_hot_reloads_new_static_skill(tmp_path: Path, monkeypat
     user_skills_dir = tmp_path / "user-skills"
     user_skills_dir.mkdir()
 
-    monkeypatch.setattr(skill_attachments.SkillLoader, "SYSTEM_SKILLS_DIR", tmp_path / "missing-system")
     monkeypatch.setattr(skill_attachments.SkillLoader, "USER_SKILLS_DIRS", [user_skills_dir])
     monkeypatch.setattr(skill_attachments.SkillLoader, "PROJECT_SKILLS_DIRS", [])
 

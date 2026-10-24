@@ -33,7 +33,6 @@ from klaude_code.skill.loader import (
     discover_skills_near_paths,
     extract_skill_listing_paths_from_xml,
 )
-from klaude_code.skill.system_skills import install_system_skills
 from klaude_code.tool.file._utils import hash_text_sha256
 
 from . import truncate_text_by_lines
@@ -118,7 +117,6 @@ def find_dynamic_skill(session: Session, name: str, *, allow_short_fallback: boo
 
 
 def get_static_skill_loader_for_session(session: Session) -> SkillLoader:
-    install_system_skills()
     loader = SkillLoader()
     loader.discover_skills(work_dir=session.work_dir)
     return loader
@@ -334,7 +332,6 @@ def _mark_system_skill_listing_loaded(session: Session, skill_paths_by_name: dic
 
 
 def get_available_skills_for_session(session: Session) -> list[Skill]:
-    install_system_skills()
     loader = SkillLoader()
     loader.discover_skills(work_dir=session.work_dir)
     return list(loader.loaded_skills.values())

@@ -22,16 +22,7 @@ def main() -> None:
         if not any(path.is_file() and path.stat().st_size for path in web.glob(pattern)):
             raise SystemExit(f"Web bundle is missing {pattern}; run make web before building the package")
 
-    required = {"klaude_code/skill/assets/klaude-config/SKILL.md"}
-    required.update(f"klaude_code/{path.relative_to(package).as_posix()}" for path in web.rglob("*") if path.is_file())
-    for skill in (package / "skill" / "assets").iterdir():
-        if not (skill / "SKILL.md").is_file():
-            continue
-        for path in skill.rglob("*"):
-            if {".git", "__pycache__"}.intersection(path.parts) or path.suffix in {".pyc", ".pyo"}:
-                continue
-            if path.is_file():
-                required.add(f"klaude_code/{path.relative_to(package).as_posix()}")
+    required = {f"klaude_code/{path.relative_to(package).as_posix()}" for path in web.rglob("*") if path.is_file()}
     stem = f"klaude_code-{version}"
     wheel = root / "dist" / f"{stem}-py3-none-any.whl"
     sdist = root / "dist" / f"{stem}.tar.gz"
@@ -43,13 +34,13 @@ def main() -> None:
         missing = sorted(required - set(archive.namelist()))
     if missing:
         raise SystemExit(f"{wheel.name} is missing bundled assets: {', '.join(missing)}")
-    print(f"Verified bundled web and skill assets in {wheel.name}", flush=True)
+    print(f"Verified bundled web assets in {wheel.name}", flush=True)
 
     with tarfile.open(sdist) as archive:
         missing = sorted({f"{stem}/src/{name}" for name in required} - set(archive.getnames()))
     if missing:
         raise SystemExit(f"{sdist.name} is missing bundled assets: {', '.join(missing)}")
-    print(f"Verified bundled web and skill assets in {sdist.name}", flush=True)
+    print(f"Verified bundled web assets in {sdist.name}", flush=True)
 
 
 if __name__ == "__main__":

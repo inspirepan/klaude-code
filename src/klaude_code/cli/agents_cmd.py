@@ -129,8 +129,7 @@ def build_prime_guide(config: Any) -> str:
     )
     lines.append(
         "- Current runtime tool descriptions, system tool strategy, and this guide define the current contract. "
-        "Older bundled klaude-config skill guidance must not override it; updating that skill "
-        "requires a separate skills-submodule release."
+        "Installed skill guidance must not override it; skills are updated independently."
     )
     lines.append("")
     lines.append("## CLI cheatsheet (external orchestration / fallback)")

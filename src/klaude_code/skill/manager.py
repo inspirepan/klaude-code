@@ -11,7 +11,6 @@ import threading
 from pathlib import Path
 
 from klaude_code.skill.loader import Skill, SkillLoader
-from klaude_code.skill.system_skills import install_system_skills
 
 _loaders: dict[Path, SkillLoader] = {}
 _loaders_lock = threading.Lock()
@@ -28,7 +27,6 @@ def get_skill_loader(work_dir: Path) -> SkillLoader:
     with _loaders_lock:
         loader = _loaders.get(key)
         if loader is None:
-            install_system_skills()
             loader = SkillLoader()
             loader.discover_skills(work_dir=key)
             _loaders[key] = loader
@@ -54,11 +52,11 @@ def get_available_skills(work_dir: Path) -> list[tuple[str, str, str]]:
     Returns:
         List of (name, short_description, location) tuples.
         Uses metadata['short-description'] if available, otherwise falls back to description.
-        Skills are ordered by priority: project > user > system.
+        Skills are ordered by priority: project > user.
     """
     loader = get_skill_loader(work_dir)
     skills = [(s.name, s.short_description, s.location) for s in loader.loaded_skills.values()]
-    location_order = {"project": 0, "user": 1, "system": 2}
+    location_order = {"project": 0, "user": 1}
     skills.sort(key=lambda x: location_order.get(x[2], 3))
     return skills
 
@@ -70,9 +68,8 @@ def get_skill_warnings_by_location(work_dir: Path) -> dict[str, list[str]]:
     result = {
         "user": sorted(warnings.get("user", [])),
         "project": sorted(warnings.get("project", [])),
-        "system": sorted(warnings.get("system", [])),
     }
-    if not result["user"] and not result["project"] and not result["system"]:
+    if not result["user"] and not result["project"]:
         return {}
     return result
 

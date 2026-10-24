@@ -19,11 +19,6 @@ import pytest
         ("wheel", "server/web/assets/index-test.js"),
         ("sdist", "server/web/assets/index-test.css"),
         ("sdist", "server/web/favicon.svg"),
-        ("wheel", "skill/assets/klaude-config/SKILL.md"),
-        ("sdist", "skill/assets/klaude-config/SKILL.md"),
-        ("wheel", "skill/assets/klaude-config/references/config.md"),
-        ("sdist", "skill/assets/example/scripts/run.py"),
-        ("wheel", "skill/assets/example/SKILL.md"),
     ],
 )
 def test_verify_release_dist(tmp_path: Path, artifact: str | None, missing: str | None) -> None:
@@ -37,19 +32,11 @@ def test_verify_release_dist(tmp_path: Path, artifact: str | None, missing: str 
         "server/web/assets/index-test.js": b"console.log('ok')",
         "server/web/assets/index-test.css": b"body { color: black }",
         "server/web/favicon.svg": b"<svg/>",
-        "skill/assets/klaude-config/SKILL.md": b"# Skill",
-        "skill/assets/klaude-config/references/config.md": b"# Configuration",
-        "skill/assets/example/SKILL.md": b"# Example",
-        "skill/assets/example/scripts/run.py": b"print('ok')",
     }
     for name, content in files.items():
         path = tmp_path / "src" / "klaude_code" / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
-
-    cache = tmp_path / "src/klaude_code/skill/assets/example/scripts/__pycache__"
-    cache.mkdir()
-    (cache / "run.cpython-313.pyc").write_bytes(b"cache")
 
     dist = tmp_path / "dist"
     dist.mkdir()
@@ -67,7 +54,7 @@ def test_verify_release_dist(tmp_path: Path, artifact: str | None, missing: str 
     result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, check=False)
     if missing is None:
         assert result.returncode == 0, result.stderr
-        assert "Verified bundled web and skill assets" in result.stdout
+        assert "Verified bundled web assets" in result.stdout
     else:
         assert result.returncode != 0
         assert "missing bundled assets" in result.stderr

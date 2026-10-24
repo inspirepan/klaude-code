@@ -35,7 +35,7 @@ The `task-result:` message ID prefix is reserved for internal task delivery; `se
 
 Busy TUI input and peer messages enter a durable queue and are admitted as a FIFO batch at the next safe step boundary, after tool results are paired. Steering can release a task wait without stopping the child. Background completion updates state but never starts an idle parent turn; a dependency wait is released by its target, not unrelated shell completions. User input, `source=peer_message`, and `source=task_completion` retain distinct origins; peer data and task reports are not operator authorization. Recovery restores history, results, and pending delivery, marks unrecoverable execution `lost`, and uses stable IDs plus durable acknowledgment to prevent duplicate delivery; it does not replay side effects. CLI/TUI output reads and partial pages do not acknowledge model consumption.
 
-Implementation note: current runtime tool descriptions, system tool strategy, and `klaude agents --prime` define this contract. The bundled `klaude-config` skill still needs a separate release in the independent skills submodule; its older orchestration guidance must not override these rules. This documentation update does not change the submodule or skill loading.
+Implementation note: current runtime tool descriptions, system tool strategy, and `klaude agents --prime` define this contract.
 
 For the full integration guide (command cheatsheet, orchestration patterns, current models and agent types, assembled from your live config):
 
@@ -86,13 +86,12 @@ klaude upgrade
 ```bash
 git clone https://github.com/inspirepan/klaude-code.git
 cd klaude-code
-make install    # init submodules, install as editable
+make install    # install as editable
 ```
 
 Or step by step:
 
 ```bash
-git submodule update --init --recursive
 uv sync                              # install Python deps
 uv tool install -e .                 # install CLI globally (editable)
 ```
@@ -458,3 +457,13 @@ Klaude reads instruction files from your project directory to customize agent be
 | `CLAUDE.md` | Personal instructions (typically gitignored) |
 
 These files are loaded automatically and injected into the system prompt. They can be placed at the project root or in subdirectories for scoped instructions.
+
+## Install Skills
+
+Skills are installed separately from the application. Shared skills in `~/.agents/skills/` work with klaude and other supporting agents:
+
+```bash
+npx skills add inspirepan/agent-skills --global --agent codex claude-code --skill klaude-config
+```
+
+The application does not install bundled skills. Existing personal skills remain in their current directories; hidden child directories are skipped during discovery.

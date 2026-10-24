@@ -9,8 +9,7 @@ there is no index to maintain here — put area-specific rules next to the code 
 
 - `make lint` / `make format` / `make test` — lint, format, and test.
 - `uv run pytest tests/<area>/test_foo.py -x -q --tb=short` — single file.
-- `git submodule update --init --recursive` — **required** before build/test/release; the
-  bundled skills live in the `src/klaude_code/skill/assets` submodule.
+- Skills are installed separately with `npx skills`; the application does not bundle skills.
 
 ## Usage Model Semantics
 
