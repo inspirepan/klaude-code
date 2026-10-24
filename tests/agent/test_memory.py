@@ -1,8 +1,85 @@
+import asyncio
 from pathlib import Path
 
 import pytest
 
 import klaude_code.agent.attachments.memory as memory
+from klaude_code.protocol import message
+from klaude_code.protocol.models import FileStatus
+from klaude_code.session import Session
+
+
+@pytest.mark.parametrize("duplicate_source", ["user", "project", "auto"])
+def test_memory_attachment_deduplicates_content(isolated_home: Path, duplicate_source: str) -> None:
+    work_dir = isolated_home / "repo"
+    work_dir.mkdir()
+    first_path = isolated_home / ".claude" / "CLAUDE.md"
+    first_path.parent.mkdir()
+    first_path.write_text("shared instructions\n", encoding="utf-8")
+    match duplicate_source:
+        case "user":
+            duplicate_path = isolated_home / ".codex" / "AGENTS.md"
+            duplicate_path.parent.mkdir()
+        case "project":
+            duplicate_path = work_dir / "AGENTS.md"
+        case _:
+            duplicate_path = memory.get_auto_memory_path(work_dir)
+    duplicate_path.write_text(first_path.read_text(encoding="utf-8"), encoding="utf-8")
+    unique_path = work_dir / ".agents" / "AGENTS.md"
+    unique_path.parent.mkdir()
+    unique_path.write_text("different instructions\n", encoding="utf-8")
+    session = Session(work_dir=work_dir)
+
+    attachment = asyncio.run(memory.memory_attachment(session))
+
+    assert attachment is not None
+    text = message.join_text_parts(attachment.parts)
+    assert text.count("shared instructions") == 1
+    assert "different instructions" in text
+    assert f"Contents of {first_path}" in text
+    assert f"Contents of {duplicate_path}" not in text
+    assert asyncio.run(memory.memory_attachment(session)) is None
+
+
+def test_dynamic_memory_deduplicates_content_across_calls(tmp_path: Path) -> None:
+    session = Session(work_dir=tmp_path)
+    for name in ("first", "duplicate", "different"):
+        directory = tmp_path / name
+        directory.mkdir()
+        content = "different instructions\n" if name == "different" else "shared instructions\n"
+        (directory / "AGENTS.md").write_text(content, encoding="utf-8")
+        session.file_tracker[str(directory)] = FileStatus(mtime=directory.stat().st_mtime, is_directory=True)
+        attachment = asyncio.run(memory.last_path_memory_attachment(session))
+        if name == "duplicate":
+            assert attachment is None
+            (directory / "AGENTS.md").write_text("changed instructions\n", encoding="utf-8")
+            assert asyncio.run(memory.last_path_memory_attachment(session)) is None
+        else:
+            assert attachment is not None
+            assert content in message.join_text_parts(attachment.parts)
+
+
+def test_budget_skipped_memory_does_not_suppress_duplicate_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(memory, "MEMORY_MAX_SESSION_BYTES", 400)
+    (tmp_path / "AGENTS.md").write_text("x" * 300, encoding="utf-8")
+    auto_path = memory.get_auto_memory_path(tmp_path)
+    auto_path.write_text("y" * 200, encoding="utf-8")
+    session = Session(work_dir=tmp_path)
+    attachment = asyncio.run(memory.memory_attachment(session))
+    assert attachment is not None
+    assert "y" * 200 not in message.join_text_parts(attachment.parts)
+
+    nested_dir = tmp_path / "nested"
+    nested_dir.mkdir()
+    (nested_dir / "AGENTS.md").write_text("y" * 200, encoding="utf-8")
+    session.file_tracker[str(nested_dir)] = FileStatus(mtime=nested_dir.stat().st_mtime, is_directory=True)
+
+    discovered = asyncio.run(memory.last_path_memory_attachment(session))
+
+    assert discovered is not None
+    assert "y" * 200 in message.join_text_parts(discovered.parts)
 
 
 def test_load_auto_memory_without_truncation(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

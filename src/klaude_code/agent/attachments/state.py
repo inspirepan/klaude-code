@@ -85,7 +85,7 @@ def reset_attachment_loaded_flags(file_tracker: dict[str, FileStatus]) -> None:
 
 
 def is_memory_loaded(session: Session, path: str) -> bool:
-    """Check if a memory file has already been loaded or read unchanged."""
+    """Check if a memory file's path or content has already been loaded."""
 
     paths_to_check = [path]
     try:
@@ -103,18 +103,28 @@ def is_memory_loaded(session: Session, path: str) -> bool:
             return True
         if is_tracked_file_unchanged(session, checked_path):
             return True
+
+    loaded_hashes = {status.content_sha256 for status in session.file_tracker.values() if status.is_memory}
+    loaded_hashes.discard(None)
+    if not loaded_hashes:
+        return False
+    if compute_file_content_sha256(path) in loaded_hashes:
+        mark_memory_loaded(session, path)
+        return True
     return False
 
 
-def mark_memory_loaded(session: Session, path: str) -> None:
-    """Mark a file as loaded memory in file_tracker."""
+def mark_memory_loaded(session: Session, path: str, *, content_loaded: bool = True) -> None:
+    """Mark a memory path as handled; budget-skipped content must not deduplicate other paths."""
 
     try:
         mtime = Path(path).stat().st_mtime
     except (OSError, FileNotFoundError):
         mtime = 0.0
     try:
-        content_sha256 = hash_text_sha256(Path(path).read_text(encoding="utf-8", errors="replace"))
+        content_sha256 = (
+            hash_text_sha256(Path(path).read_text(encoding="utf-8", errors="replace")) if content_loaded else None
+        )
     except (OSError, FileNotFoundError, PermissionError, UnicodeDecodeError):
         content_sha256 = None
 

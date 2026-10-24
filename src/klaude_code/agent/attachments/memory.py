@@ -326,7 +326,7 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
                     text += _fmt_memory_truncated(MEMORY_MAX_SESSION_BYTES)
                     text_bytes = len(text.encode("utf-8"))
                 else:
-                    mark_memory_loaded(session, path_str)
+                    mark_memory_loaded(session, path_str, content_loaded=False)
                     continue
             remaining_budget -= text_bytes
             mark_memory_loaded(session, path_str)
@@ -349,7 +349,7 @@ async def memory_attachment(session: Session) -> message.DeveloperMessage | None
                     Memory(path=auto_memory.path, instruction=auto_memory.instruction, content=auto_memory_content)
                 )
             else:
-                mark_memory_loaded(session, auto_memory.path)
+                mark_memory_loaded(session, auto_memory.path, content_loaded=False)
     else:
         auto_memory_path = get_auto_memory_path(session.work_dir)
         path_str = str(auto_memory_path)
