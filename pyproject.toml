@@ -61,6 +61,8 @@ markers = [
 [tool.ruff]
 line-length = 120
 src = ["src"]
+# Legacy skill checkouts are independent of the application source.
+extend-exclude = ["src/klaude_code/skill/assets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I", "UP", "SIM", "RUF", "TID251"]
@@ -91,6 +93,7 @@ known-first-party = ["klaude_code"]
 python-version = "3.13"
 
 [tool.ty.src]
+exclude = ["src/klaude_code/skill/assets"]
 include = [
     "src",
     "tests",
