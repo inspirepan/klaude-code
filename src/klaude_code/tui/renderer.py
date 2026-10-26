@@ -1491,10 +1491,10 @@ class TUICommandRenderer:
 
     def display_welcome(self, event: events.WelcomeEvent) -> None:
         self._task_directory.name_main(event.session_id)
-        self.print(c_welcome.render_welcome(event))
+        self.print(c_welcome.render_welcome(event, detail=self._detail.current))
 
     def display_welcome_context(self, event: events.WelcomeContextEvent) -> None:
-        context = c_welcome.render_welcome_context(event)
+        context = c_welcome.render_welcome_context(event, detail=self._detail.current)
         if context is not None:
             self.print(context)
 

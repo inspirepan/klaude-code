@@ -14,6 +14,7 @@ from klaude_code.log import is_debug_enabled
 from klaude_code.protocol import events
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.theme import ThemeKey
+from klaude_code.tui.transcript_detail import Detail
 from klaude_code.update import get_display_version
 
 
@@ -306,6 +307,7 @@ def _build_context_renderables(
     loaded_skills: dict[str, list[str]],
     loaded_skill_warnings: dict[str, list[str]],
     leading_spacing: bool,
+    detail: Detail,
 ) -> list[RenderableType]:
     renderables: list[RenderableType] = []
     grouped_context: list[tuple[str, list[str]]] = []
@@ -330,20 +332,30 @@ def _build_context_renderables(
         if warnings:
             warning_items.extend(warnings)
     if warning_items:
-        warning_tree = _RoundedTree(
-            Text("skill warnings", style=ThemeKey.WARN_BOLD),
-            guide_style=ThemeKey.LINES,
-        )
-        for entry in _aggregate_skill_warnings(warning_items):
-            warning_tree.add(_render_aggregated_warning(entry, work_dir=work_dir))
         if leading_spacing or renderables:
             renderables.append(Text())
-        renderables.append(warning_tree)
+        entries = _aggregate_skill_warnings(warning_items)
+        if detail.is_compact:
+            label = "skill warning" if len(entries) == 1 else "skill warnings"
+            renderables.append(
+                Text.assemble(
+                    (f"{len(entries)} {label}", ThemeKey.WARN_BOLD),
+                    (" · ctrl-o to expand", ThemeKey.WELCOME_INFO),
+                )
+            )
+        else:
+            warning_tree = _RoundedTree(
+                Text("skill warnings", style=ThemeKey.WARN_BOLD),
+                guide_style=ThemeKey.LINES,
+            )
+            for entry in entries:
+                warning_tree.add(_render_aggregated_warning(entry, work_dir=work_dir))
+            renderables.append(warning_tree)
 
     return renderables
 
 
-def render_welcome(e: events.WelcomeEvent) -> RenderableType:
+def render_welcome(e: events.WelcomeEvent, *, detail: Detail = Detail.FULL) -> RenderableType:
     """Render the welcome panel with model info and settings."""
     debug_mode = is_debug_enabled()
     renderables: list[RenderableType] = []
@@ -382,6 +394,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
             loaded_skills=e.loaded_skills,
             loaded_skill_warnings=e.loaded_skill_warnings,
             leading_spacing=True,
+            detail=detail,
         )
     )
 
@@ -393,7 +406,7 @@ def render_welcome(e: events.WelcomeEvent) -> RenderableType:
     return Group(panel_content, "")
 
 
-def render_welcome_context(e: events.WelcomeContextEvent) -> RenderableType | None:
+def render_welcome_context(e: events.WelcomeContextEvent, *, detail: Detail = Detail.FULL) -> RenderableType | None:
     """Render context discovered after the base welcome is visible."""
     renderables = _build_context_renderables(
         work_dir=Path(e.work_dir),
@@ -401,6 +414,7 @@ def render_welcome_context(e: events.WelcomeContextEvent) -> RenderableType | No
         loaded_skills=e.loaded_skills,
         loaded_skill_warnings=e.loaded_skill_warnings,
         leading_spacing=False,
+        detail=detail,
     )
     if not renderables:
         return None

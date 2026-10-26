@@ -1,12 +1,14 @@
 import io
 from pathlib import Path
 
+import pytest
 from rich.console import Console
 
 from klaude_code.protocol import events
 from klaude_code.protocol.llm_param import LLMClientProtocol, LLMConfigParameter
 from klaude_code.tui.components.rich.theme import get_theme
 from klaude_code.tui.components.welcome import render_welcome, render_welcome_context
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _print_welcome(event: events.WelcomeEvent) -> str:
@@ -223,3 +225,43 @@ def test_render_deferred_context_does_not_repeat_base_welcome() -> None:
     assert "Klaude Code" not in output
     assert " via " not in output
     assert "shortcuts" not in output
+
+
+@pytest.mark.parametrize("deferred", [False, True])
+@pytest.mark.parametrize("extra_warning", [False, True])
+def test_compact_skill_warnings_expand_without_losing_details(deferred: bool, extra_warning: bool) -> None:
+    warnings = {
+        "user": ['duplicate "pdf" skill:\n- [system] /system/pdf/SKILL.md\n- [user] /user/pdf/SKILL.md (using this)'],
+        "project": [
+            'duplicate "pdf" skill:\n- [user] /user/pdf/SKILL.md\n- [project] /project/pdf/SKILL.md (using this)'
+        ],
+    }
+    if extra_warning:
+        warnings["project"].append("another warning")
+    context = events.WelcomeContextEvent(session_id="s1", work_dir="/project", loaded_skill_warnings=warnings)
+    welcome = events.WelcomeEvent(
+        session_id="s1",
+        work_dir="/project",
+        llm_config=LLMConfigParameter(protocol=LLMClientProtocol.OPENAI, provider_name="demo", model_id="gpt-demo"),
+        loaded_skill_warnings=warnings,
+    )
+    outputs: list[str] = []
+    for detail in (Detail.COMPACT, Detail.FULL, Detail.COMPACT):
+        out = io.StringIO()
+        console = Console(file=out, force_terminal=False, width=200, theme=get_theme().app_theme)
+        renderable = (
+            render_welcome_context(context, detail=detail) if deferred else render_welcome(welcome, detail=detail)
+        )
+        assert renderable is not None
+        console.print(renderable)
+        outputs.append(out.getvalue())
+
+    compact, full, compact_again = outputs
+    summary = "2 skill warnings" if extra_warning else "1 skill warning"
+    assert f"{summary} · ctrl-o to expand" in compact
+    assert "pdf" not in compact
+    assert "another warning" not in compact
+    assert "pdf  [system] /system/pdf → [user] /user/pdf → [project] pdf" in full
+    assert ("another warning" in full) == extra_warning
+    assert "ctrl-o to expand" not in full
+    assert compact_again == compact
