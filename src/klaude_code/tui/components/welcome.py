@@ -232,7 +232,7 @@ def _render_aggregated_warning(entry: _AggregatedWarning, *, work_dir: Path) -> 
 
 def _build_multi_column_tree(
     title: str,
-    grouped_items: list[tuple[str, list[str]]],
+    grouped_items: list[tuple[str, list[Text]]],
 ) -> Tree:
     """Build a Tree with grouped children displayed in multi-column layout."""
     tree = _RoundedTree(Text(title, style=ThemeKey.WELCOME_HIGHLIGHT), guide_style=ThemeKey.LINES)
@@ -240,12 +240,12 @@ def _build_multi_column_tree(
     content_width = shutil.get_terminal_size().columns - 12
     sep = " | "
     for scope, items in grouped_items:
-        max_name_width = max(len(item) for item in items)
+        max_name_width = max(item.cell_len for item in items)
         num_cols = min(4, max(1, (content_width + len(sep)) // (max_name_width + len(sep))))
         # Compute per-column max widths for this group
         col_widths = [0] * num_cols
         for i, item in enumerate(items):
-            col_widths[i % num_cols] = max(col_widths[i % num_cols], len(item))
+            col_widths[i % num_cols] = max(col_widths[i % num_cols], item.cell_len)
         scope_text = Text()
         scope_text.append(scope, style=ThemeKey.WELCOME_SCOPE)
         for i, item in enumerate(items):
@@ -256,10 +256,9 @@ def _build_multi_column_tree(
             else:
                 scope_text.append(sep, style=ThemeKey.LINES)
             is_last_in_row = (col == num_cols - 1) or (i == len(items) - 1)
-            if is_last_in_row:
-                scope_text.append(item, style=ThemeKey.WELCOME_INFO)
-            else:
-                scope_text.append(f"{item:<{col_widths[col]}}", style=ThemeKey.WELCOME_INFO)
+            scope_text.append_text(item)
+            if not is_last_in_row:
+                scope_text.append(" " * (col_widths[col] - item.cell_len), style=ThemeKey.WELCOME_INFO)
         tree.add(scope_text)
     return tree
 
@@ -310,31 +309,48 @@ def _build_context_renderables(
     detail: Detail,
 ) -> list[RenderableType]:
     renderables: list[RenderableType] = []
-    grouped_context: list[tuple[str, list[str]]] = []
+    warning_items = [
+        warning for scope in ("user", "project", "system") for warning in loaded_skill_warnings.get(scope, [])
+    ]
+    entries = _aggregate_skill_warnings(warning_items)
+    warned_skills: set[tuple[str, str]] = set()
+    if detail.is_compact:
+        for entry in entries:
+            if isinstance(entry, _DuplicateWarning):
+                warned_skills.update((scope, entry.name) for scope, _path in entry.chain)
+            elif isinstance(entry, _NameMismatchWarning):
+                warned_skills.add((entry.scope, entry.skill_name))
+
+    grouped_context: list[tuple[str, list[Text]]] = []
     for scope in ("user", "project"):
         paths = loaded_memories.get(scope) or []
         if paths:
-            grouped_context.append((f"{scope} memory", [_format_memory_path(p, work_dir=work_dir) for p in paths]))
+            grouped_context.append(
+                (
+                    f"{scope} memory",
+                    [Text(_format_memory_path(p, work_dir=work_dir), style=ThemeKey.WELCOME_INFO) for p in paths],
+                )
+            )
 
     for scope in ("user", "project", "system"):
         skills = loaded_skills.get(scope) or []
         if skills:
-            grouped_context.append((f"{scope} skills", skills))
+            skill_labels: list[Text] = []
+            for skill in skills:
+                label = Text(skill, style=ThemeKey.WELCOME_INFO)
+                if (scope, skill) in warned_skills:
+                    label.append(" •", style=ThemeKey.WARN)
+                skill_labels.append(label)
+            grouped_context.append((f"{scope} skills", skill_labels))
 
     if grouped_context:
         if leading_spacing:
             renderables.append(Text())
         renderables.append(_build_multi_column_tree("context", grouped_context))
 
-    warning_items: list[str] = []
-    for scope in ("user", "project", "system"):
-        warnings = loaded_skill_warnings.get(scope) or []
-        if warnings:
-            warning_items.extend(warnings)
     if warning_items:
         if leading_spacing or renderables:
             renderables.append(Text())
-        entries = _aggregate_skill_warnings(warning_items)
         if detail.is_compact:
             label = "skill warning" if len(entries) == 1 else "skill warnings"
             renderables.append(

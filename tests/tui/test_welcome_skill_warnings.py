@@ -6,7 +6,7 @@ from rich.console import Console
 
 from klaude_code.protocol import events
 from klaude_code.protocol.llm_param import LLMClientProtocol, LLMConfigParameter
-from klaude_code.tui.components.rich.theme import get_theme
+from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.components.welcome import render_welcome, render_welcome_context
 from klaude_code.tui.transcript_detail import Detail
 
@@ -265,3 +265,42 @@ def test_compact_skill_warnings_expand_without_losing_details(deferred: bool, ex
     assert ("another warning" in full) == extra_warning
     assert "ctrl-o to expand" not in full
     assert compact_again == compact
+
+
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+@pytest.mark.parametrize("deferred", [False, True])
+def test_skill_warning_dots_mark_only_affected_names_and_scopes(detail: Detail, deferred: bool) -> None:
+    context = events.WelcomeContextEvent(
+        session_id="s1",
+        work_dir="/project",
+        loaded_memories={"project": ["/project/pdf"]},
+        loaded_skills={"user": ["pdf", "draft"], "project": ["pdf", "draft", "clean"]},
+        loaded_skill_warnings={
+            "project": [
+                'duplicate "pdf" skill:\n- [user] /user/pdf/SKILL.md\n- [project] /project/pdf/SKILL.md (using this)',
+                'skill name "draft" should match directory name "draft-dir":\n- [project] /project/draft-dir/SKILL.md',
+                "unrelated warning",
+            ]
+        },
+    )
+    welcome = events.WelcomeEvent(
+        **context.model_dump(exclude={"event_type"}),
+        llm_config=LLMConfigParameter(protocol=LLMClientProtocol.OPENAI, provider_name="demo", model_id="gpt-demo"),
+    )
+    renderable = render_welcome_context(context, detail=detail) if deferred else render_welcome(welcome, detail=detail)
+    assert renderable is not None
+    out = io.StringIO()
+    console = Console(file=out, force_terminal=False, width=200, theme=get_theme().app_theme)
+    console.print(renderable)
+    output = out.getvalue()
+    if detail.is_compact:
+        assert output.count("pdf •") == 2
+        assert output.count("draft •") == 1
+        assert "clean •" not in output
+        assert "3 skill warnings · ctrl-o to expand" in output
+        dots = [segment for segment in console.render(renderable) if "•" in segment.text]
+        assert len(dots) == 3
+        assert all(segment.style == console.get_style(ThemeKey.WARN) for segment in dots)
+    else:
+        assert "•" not in output
+        assert "draft ≠ draft-dir" in output
