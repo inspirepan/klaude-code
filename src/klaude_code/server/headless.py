@@ -1076,7 +1076,14 @@ class HeadlessRuntime:
                     or active.operation_id != expected_operation_id
                 ):
                     raise ValueError("Selected child operation is no longer running; message not sent")
-            agent.follow_up(UserInputPayload(text=peer.input_text(), source="peer_message", peer_message=peer))
+            from_parent = (
+                peer.sender_session_id is not None and peer.sender_session_id == agent.session.parent_session_id
+            )
+            agent.follow_up(
+                UserInputPayload(
+                    text=peer.input_text(from_parent=from_parent), source="peer_message", peer_message=peer
+                )
+            )
             recent[key] = [*entries, (now, peer.body)]
             await asyncio.shield(agent.session.wait_for_flush())
             self._schedule_follow_up_drain(peer.recipient)

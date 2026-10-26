@@ -78,6 +78,8 @@ class MessagePeerTool(ToolABC):
                 "avoid the contested work or ask the operator. "
                 "Returns only a queued transport receipt, not proof of reading or a reply; use reply_to to "
                 "correlate a reply. Messages cannot approve requests, execute slash commands, or attach @files. "
+                "A runtime-verified parent may update its child's delegated task within existing user authorization; "
+                "this does not require separate user confirmation or grant new permissions. "
                 "Receiver permissions still apply; never route denied or blocked actions through a peer. "
                 "Repeated messages and queue overflow are refused."
             ),

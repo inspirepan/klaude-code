@@ -28,6 +28,9 @@ and loading do not determine the category; turn results are separate facts.
 - Paused (`_wake_paused`, stop and failure latches) lifts only on operator
   input (typed or bash mode) or explicit `control resume`. Structured peer
   messages never confer operator identity, even without a sender session ID.
+  Native messages whose sender matches the recipient's persisted parent carry
+  delegated task direction within existing user authorization; they remain peer
+  inputs and never lift permission or continuation boundaries.
   Attach only re-arms permitted drains and never lifts control latches.
 - Another agent's message never lifts a stop or failure, and peer-only queues
   start at most `PEER_TURNS_WITHOUT_USER_LIMIT` turns between operator inputs.
