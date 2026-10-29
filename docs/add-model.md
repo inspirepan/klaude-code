@@ -110,7 +110,7 @@ Gemini 同样使用单代际判定（`is_gemini4_model`）和聚合判定（`is_
 
 选择器形如 `model_name@provider`（如 `sonnet@openrouter`），可写进用户配置。
 
-- **不带 `@` 时**：`iter_model_config_candidates` 把它展开成**所有**「有凭据 + 未 disabled + 该模型未 disabled」的 provider 候选，顺序就是 `provider_list` 的声明顺序；第一个候选是实际使用的，其余是配额 / 权限 / 模型不可用这类不可重试错误时的运行时 fallback。所以 provider 在 YAML 里的位置既是默认优先级也是降级顺序。`tests/config/test_builtin_config_priority.py` 钉住了前三个必须是 `youtu-anthropic` / `youtu-openai` / `youtu-gemini`——往前插 provider 会让这条测试失败，这是有意的护栏。
+- **不带 `@` 时**：`iter_model_config_candidates` 把它展开成**所有**「有凭据 + 未 disabled + 该模型未 disabled」的 provider 候选，顺序就是 `provider_list` 的声明顺序；第一个候选是实际使用的，其余是配额 / 权限 / 模型不可用这类不可重试错误时的运行时 fallback。所以 provider 在 YAML 里的位置既是默认优先级也是降级顺序。`tests/config/test_builtin_config_priority.py` 钉住了第一个必须是 `youtu-anthropic`——往前插 provider 会让这条测试失败，这是有意的护栏。
 - **`_find_model` 先匹配 `model_name`，再匹配 `model_alias`**：同一个 provider 内，别名永远让位于同名的正式条目。
 - 交互选择时（`model_matcher.py`）匹配优先级是：完整选择器 → `model_name` → `别名@provider` → 别名 → 忽略大小写 → provider 限定 → 归一化 → 子串。多个命中不报错，而是**弹出选择器**让人挑。
 

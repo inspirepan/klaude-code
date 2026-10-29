@@ -4,7 +4,7 @@ from klaude_code.protocol import llm_param
 
 def test_argon_resolves_all_tiers_without_replacing_flash_or_pro() -> None:
     config = get_builtin_config()
-    expected_providers = ["youtu-gemini", "google", "google-vertex", "openrouter"]
+    expected_providers = ["google", "google-vertex", "openrouter"]
     config.provider_list = [p for p in config.provider_list if p.provider_name in expected_providers]
     for provider in config.provider_list:
         provider.disabled = False

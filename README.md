@@ -180,7 +180,7 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 
 | Provider(s) | Credentials |
 |-------------|-------------|
-| `youtu-anthropic`, `youtu-openai`, `youtu-gemini` | `YOUTU_API_KEY` |
+| `youtu-anthropic` | `YOUTU_API_KEY` |
 | `anthropic` | `ANTHROPIC_API_KEY` |
 | `aws-bedrock` | `AWS_BEDROCK_ACCESS_KEY_ID` + `AWS_BEDROCK_SECRET_ACCESS_KEY` + `AWS_BEDROCK_REGION` (standard `AWS_*` fallbacks are also accepted) |
 | `openai` | `OPENAI_API_KEY` |
