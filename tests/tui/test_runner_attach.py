@@ -328,7 +328,7 @@ def run_scenario(
         "build_welcome_context_event",
         lambda **kwargs: events.WelcomeContextEvent(session_id=kwargs["session_id"], work_dir="."),
     )
-    monkeypatch.setattr(runner_module.HerdrReporter, "from_env", classmethod(lambda cls: None))
+    monkeypatch.setattr(runner_module.ProgramStatusReporter, "from_terminal", classmethod(lambda cls: None))
     monkeypatch.setattr(runner_module.Session, "exists", staticmethod(lambda *a, **k: False))
 
     async def _main() -> None:
@@ -774,7 +774,7 @@ def test_peek_mode_rejects_input(monkeypatch: pytest.MonkeyPatch) -> None:
         "build_welcome_context_event",
         lambda **kwargs: events.WelcomeContextEvent(session_id=kwargs["session_id"], work_dir="."),
     )
-    monkeypatch.setattr(runner_module.HerdrReporter, "from_env", classmethod(lambda cls: None))
+    monkeypatch.setattr(runner_module.ProgramStatusReporter, "from_terminal", classmethod(lambda cls: None))
     monkeypatch.setattr(runner_module.Session, "exists", staticmethod(lambda *a, **k: False))
     _install_deferred_script(monkeypatch)
 

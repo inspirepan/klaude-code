@@ -29,7 +29,6 @@ from uuid import uuid4
 
 from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
 from klaude_code.agent.welcome_context import build_welcome_context_event
-from klaude_code.app.herdr import HerdrReporter
 from klaude_code.config import load_config
 from klaude_code.log import DebugType, log, log_console, log_debug
 from klaude_code.protocol import events, op, user_interaction
@@ -57,6 +56,7 @@ from klaude_code.tui.input.pt_theme import CLASS_TOOL_RESULT, configure_pt_theme
 from klaude_code.tui.terminal.color import is_light_terminal_background
 from klaude_code.tui.terminal.control import install_sigint_interrupt
 from klaude_code.tui.terminal.modal import collect_modal
+from klaude_code.tui.terminal.program_status import ProgramStatusReporter
 from klaude_code.tui.terminal.selector import (
     DEFAULT_PICKER_STYLE,
     QuestionPrompt,
@@ -151,7 +151,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         on_stream_update=_set_stream_lines,
     )
 
-    herdr = HerdrReporter.from_env()
+    program_status = ProgramStatusReporter.from_terminal()
     local_turn_ops: set[str] = set()
 
     # -- interaction pickers (terminal UI, unchanged from the in-process era) --
@@ -382,8 +382,8 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
     # -- client wiring --
 
     def _on_session_info(info: SessionInfoSnapshot) -> None:
-        if herdr is not None:
-            herdr.report_session_state(info.session_id, info.status.category)
+        if program_status is not None:
+            program_status.report_session_state(info.session_id, info.status.category)
         if info.work_dir:
             # Completers, drag-drop conversion, and path shortening key off
             # the session's directory, which differs from the process CWD
@@ -411,15 +411,14 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             log_debug(f"Welcome context initialization failed: {exc}", debug_type=DebugType.EXECUTION)
             return None
 
-    def _report_herdr(event: events.Event) -> None:
-        if herdr is None:
+    def _report_program_status(event: events.Event) -> None:
+        if program_status is None:
             return
         with contextlib.suppress(Exception):
-            herdr.consume_event(event)
             if event.session_id != client.session_id:
                 return
             if isinstance(event, events.SessionStatusEvent):
-                herdr.report_session_state(event.session_id, event.status.category)
+                program_status.report_session_state(event.session_id, event.status.category)
 
     async def _on_envelope(envelope: events.EventEnvelope) -> None:
         event = envelope.event
@@ -433,7 +432,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                 # never settle while this consumer is still inside it.
                 _spawn(_switch_to_rewound(event))
             return
-        _report_herdr(envelope.event)
+        _report_program_status(envelope.event)
         await tui_display.consume_envelope(envelope)
 
     client: RuntimeClient = SocketRuntimeClient(
@@ -1064,9 +1063,9 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             await away_summary_coordinator.stop()
 
         was_running = client.is_running() or bool(client.follow_up_texts())
-        if herdr is not None:
+        if program_status is not None:
             with contextlib.suppress(Exception):
-                await herdr.close()
+                await program_status.close()
         with contextlib.suppress(Exception):
             await client.close()
         with contextlib.suppress(Exception):
