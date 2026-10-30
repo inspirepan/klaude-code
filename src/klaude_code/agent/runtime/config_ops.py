@@ -12,12 +12,23 @@ from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
 from klaude_code.agent.runtime.llm import create_llm_client_for_candidates
 from klaude_code.agent.session_stats import build_session_stats_ui_extra
 from klaude_code.config import format_model_preference, load_config, prioritize_model_preference
+from klaude_code.config.config import ModelEntry
+from klaude_code.config.model_catalog import build_model_catalog_entry
 from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.config.sub_agent_model import SubAgentModelResolver
 from klaude_code.llm.registry import create_llm_client
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.llm_param import LLMConfigParameter, Thinking
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
+
+
+def _model_option(entry: ModelEntry) -> user_interaction.OperationSelectOption:
+    return user_interaction.OperationSelectOption(
+        id=entry.selector,
+        label=entry.selector,
+        description=f"{entry.provider} / {entry.model_id or entry.model_name}",
+        model=build_model_catalog_entry(entry),
+    )
 
 
 class ModelSwitcher:
@@ -263,6 +274,7 @@ class ConfigHandler:
 
     async def _save_main_model_default_if_needed(self, *, session_id: str, model_name: str) -> bool:
         config = load_config()
+        config.get_model_config(model_name)
         updated_preference = prioritize_model_preference(config.main_model, model_name)
         if config.main_model == updated_preference:
             return False
@@ -312,14 +324,7 @@ class ConfigHandler:
                     )
                     return
 
-                options = [
-                    user_interaction.OperationSelectOption(
-                        id=entry.selector,
-                        label=entry.selector,
-                        description=f"{entry.provider} / {entry.model_id or entry.model_name}",
-                    )
-                    for entry in match.filtered_models
-                ]
+                options = [_model_option(entry) for entry in match.filtered_models]
                 filter_suffix = f" (filtered by '{match.filter_hint}')" if match.filter_hint else ""
                 selected_model = await self._ask_single_choice(
                     session_id=operation.session_id,
@@ -416,6 +421,9 @@ class ConfigHandler:
                 await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
                 return
 
+            config = load_config()
+            helper = SubAgentModelResolver(config)
+
             if target == "__compact__":
                 compact_options = [
                     user_interaction.OperationSelectOption(
@@ -425,13 +433,7 @@ class ConfigHandler:
                     )
                 ]
                 for entry in config.iter_model_entries(only_available=True, include_disabled=False):
-                    compact_options.append(
-                        user_interaction.OperationSelectOption(
-                            id=entry.selector,
-                            label=entry.selector,
-                            description=f"{entry.provider} / {entry.model_id or entry.model_name}",
-                        )
-                    )
+                    compact_options.append(_model_option(entry))
 
                 selected_model = await self._ask_single_choice(
                     session_id=operation.session_id,
@@ -462,13 +464,7 @@ class ConfigHandler:
                     )
                 ]
                 for entry in config.iter_model_entries(only_available=True, include_disabled=False):
-                    fast_options.append(
-                        user_interaction.OperationSelectOption(
-                            id=entry.selector,
-                            label=entry.selector,
-                            description=f"{entry.provider} / {entry.model_id or entry.model_name}",
-                        )
-                    )
+                    fast_options.append(_model_option(entry))
 
                 selected_model = await self._ask_single_choice(
                     session_id=operation.session_id,
@@ -481,6 +477,7 @@ class ConfigHandler:
                     await self._emit_event(events.NoticeEvent(session_id=operation.session_id, content="(no change)"))
                     return
 
+                config = load_config()
                 if selected_model == "__default__":
                     session_clients.fast = None
                     display_model = "(inherit from main agent)"
@@ -514,13 +511,7 @@ class ConfigHandler:
                 )
             ]
             for entry in helper.get_selectable_models(target):
-                sub_model_options.append(
-                    user_interaction.OperationSelectOption(
-                        id=entry.selector,
-                        label=entry.selector,
-                        description=f"{entry.provider} / {entry.model_id or entry.model_name}",
-                    )
-                )
+                sub_model_options.append(_model_option(entry))
 
             selected_model = await self._ask_single_choice(
                 session_id=operation.session_id,

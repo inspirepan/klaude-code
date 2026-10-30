@@ -20,6 +20,7 @@ from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op
 from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.events import EventEnvelope, parse_event_envelope
+from klaude_code.protocol.model_catalog import ModelCatalog
 from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.protocol.peer import PeerReceipt
 from klaude_code.protocol.version import PROTOCOL_VERSION, is_protocol_compatible
@@ -434,6 +435,11 @@ class SocketRuntimeClient:
         from klaude_code.tui.client.server_api import manage_session_tasks
 
         return await asyncio.to_thread(manage_session_tasks, self.session_id, request)
+
+    async def get_model_catalog(self) -> ModelCatalog:
+        from klaude_code.tui.client.server_api import get_model_catalog
+
+        return await asyncio.to_thread(get_model_catalog)
 
     async def send_task_message(self, task_id: str, body: str) -> PeerReceipt:
         from klaude_code.tui.client.server_api import send_owned_task_message

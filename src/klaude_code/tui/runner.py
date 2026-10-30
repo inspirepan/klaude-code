@@ -33,6 +33,7 @@ from klaude_code.config import load_config
 from klaude_code.log import DebugType, log, log_console, log_debug
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.model_catalog import ModelCatalog
 from klaude_code.session.session import Session
 from klaude_code.tui.client import ClientConnectionError, RuntimeClient, SessionInfoSnapshot, SocketRuntimeClient
 from klaude_code.tui.client.command_agent import ClientCommandAgent
@@ -207,17 +208,10 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         if not payload.options:
             return None
 
-        valid_ids = {opt.id for opt in payload.options}
-
-        config = load_config()
-        entries = [
-            m for m in config.iter_model_entries(only_available=True, include_disabled=False) if m.selector in valid_ids
-        ]
-        model_selectors = {m.selector for m in entries}
-
+        entries = [option.model for option in payload.options if option.model is not None]
         items = build_model_select_items(entries)
 
-        special_opts = [opt for opt in payload.options if opt.id not in model_selectors]
+        special_opts = [opt for opt in payload.options if opt.model is None]
         for opt in reversed(special_opts):
             title: list[tuple[str, str]] = [("class:msg", opt.label)]
             if opt.description:
@@ -525,6 +519,23 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             )
         )
 
+    async def _get_model_catalog() -> ModelCatalog | None:
+        try:
+            catalog = await client.get_model_catalog()
+        except Exception as exc:
+            await client.emit_local_event(
+                events.NoticeEvent(
+                    session_id=client.session_id,
+                    content=f"Could not load models from server: {exc}",
+                    is_error=True,
+                )
+            )
+            return None
+        if not catalog.models:
+            await _emit_local_notice("No models available.")
+            return None
+        return catalog
+
     async def _dequeue_pending_messages() -> tuple[str, ...]:
         # The server-confirmed pop is authoritative. The local mirror can
         # still list a message whose turn the drain already started; filling
@@ -577,6 +588,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         get_current_model_provider_name=lambda: client.session_info().provider_name,
         get_current_model_effort=lambda: client.session_info().effort,
         on_change_model=_change_model_from_prompt,
+        get_model_catalog=_get_model_catalog,
         command_info_provider=get_command_info_list,
         request_toggle_transcript=_request_toggle_transcript,
         request_toggle_diffs=_request_toggle_diffs,

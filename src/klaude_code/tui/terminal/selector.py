@@ -26,6 +26,7 @@ from prompt_toolkit.styles import Style, merge_styles
 from prompt_toolkit.styles.base import BaseStyle
 
 from klaude_code.config.formatters import format_model_params
+from klaude_code.protocol.model_catalog import ModelCatalogEntry
 from klaude_code.tui.input.pt_theme import get_base_style
 from klaude_code.tui.terminal.modal import run_modal
 
@@ -102,10 +103,10 @@ def build_model_select_items(
     *,
     highlighted_selectors: set[str] | None = None,
 ) -> list[SelectItem[str]]:
-    """Build SelectItem list from ModelEntry objects.
+    """Build SelectItem list from config or server model entries.
 
     Args:
-        models: List of ModelEntry objects (from config.iter_model_entries).
+        models: ModelEntry or ModelCatalogEntry objects.
         highlighted_selectors: Selectors to visually emphasize (e.g. recommended
             alternatives when the configured main_model is unavailable). Matching
             rows get a yellow background plus a star badge but remain in place
@@ -163,7 +164,7 @@ def build_model_select_items(
             model_id_str = m.model_id or "N/A"
             display_name = m.model_name
             first_line_prefix = f"{display_name:<{max_model_name_length}}"
-            meta_parts = format_model_params(m)
+            meta_parts = m.params if isinstance(m, ModelCatalogEntry) else format_model_params(m)
             meta_str = " · ".join(meta_parts) if meta_parts else ""
             title: list[tuple[str, str]] = [
                 ("class:meta", f"{model_idx:>{num_width}}. "),

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Awaitable, Callable, Coroutine
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,7 @@ from typing import Any, TypeVar, cast
 import pytest
 
 from klaude_code.agent.runtime import config_ops as runtime_mod
+from klaude_code.config.config import ModelEntry
 from klaude_code.config.model_matcher import ModelMatchResult
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.session.session import Session
@@ -122,6 +124,88 @@ def test_request_model_operation_single_match_dispatches_change(
     arun(_test())
 
 
+@pytest.mark.parametrize("target", ["main", "__compact__", "__fast__", "finder", "same-main"])
+def test_model_picker_rejects_model_disabled_before_submission(target: str, isolated_home: Path) -> None:
+    config_path = isolated_home / ".klaude" / "klaude-config.yaml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    model = {"model_name": "choice", "model_id": "upstream", "model_alias": ["alias"], "disabled": False}
+    config = {
+        "provider_list": [
+            {
+                "provider_name": "catalog-test",
+                "protocol": "openai",
+                "api_key": "test-only-key",
+                "model_list": [model, {"model_name": "other"}],
+            }
+        ]
+    }
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    async def _test() -> None:
+        session = Session(work_dir=isolated_home)
+        if target == "same-main":
+            session.model_config_name = "choice@catalog-test"
+        runner = _FakeAgentOperationHandler(session)
+        emitted: list[events.Event] = []
+        payloads: list[user_interaction.OperationSelectRequestPayload] = []
+
+        async def _emit(event: events.Event) -> None:
+            emitted.append(event)
+
+        async def _request(
+            _session_id: str,
+            _request_id: str,
+            source: user_interaction.UserInteractionSource,
+            payload: user_interaction.UserInteractionRequestPayload,
+        ) -> user_interaction.UserInteractionResponse:
+            assert isinstance(payload, user_interaction.OperationSelectRequestPayload)
+            if source == "operation_sub_agent_model":
+                selection = target
+            else:
+                payloads.append(payload)
+                choice = next(option for option in payload.options if option.id == "choice@catalog-test")
+                assert choice.model is not None
+                assert choice.model.model_dump() == {
+                    "selector": "choice@catalog-test",
+                    "model_name": "choice",
+                    "provider": "catalog-test",
+                    "model_id": "upstream",
+                    "model_alias": ["alias"],
+                    "params": [],
+                }
+                if target not in {"main", "same-main"}:
+                    assert payload.options[0].id == "__default__"
+                    assert payload.options[0].model is None
+                model["disabled"] = True
+                config_path.write_text(json.dumps(config), encoding="utf-8")
+                selection = choice.id
+            return user_interaction.UserInteractionResponse(
+                status="submitted",
+                payload=user_interaction.OperationSelectResponsePayload(selected_option_id=selection),
+            )
+
+        handler = runtime_mod.ConfigHandler(
+            agent_operation_handler=cast(Any, runner),
+            model_switcher=runtime_mod.ModelSwitcher(cast(Any, object())),
+            emit_event=_emit,
+            request_user_interaction=_request,
+            current_session_id=lambda: session.id,
+            on_model_change=None,
+        )
+        with pytest.raises(ValueError, match="disabled"):
+            if target in {"main", "same-main"}:
+                await handler.handle_request_model(op.RequestModelOperation(session_id=session.id))
+            else:
+                await handler.handle_request_sub_agent_model(op.RequestSubAgentModelOperation(session_id=session.id))
+        assert len(payloads) == 1
+        assert runner.get_session_llm_clients(session.id).fast is None
+        assert runner.get_session_llm_clients(session.id).compact is None
+        assert emitted == []
+        assert json.loads(config_path.read_text(encoding="utf-8")) == config
+
+    arun(_test())
+
+
 def test_request_model_operation_cancelled_emits_no_change(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     async def _test() -> None:
         session = Session(work_dir=tmp_path)
@@ -132,8 +216,7 @@ def test_request_model_operation_cancelled_emits_no_change(monkeypatch: pytest.M
             interaction_response=user_interaction.UserInteractionResponse(status="cancelled", payload=None),
         )
 
-        model_entry: Any = SimpleNamespace(
-            selector="model-a",
+        model_entry = ModelEntry(
             provider="openai",
             model_id="gpt-5.2",
             model_name="gpt-5.2",
@@ -195,14 +278,12 @@ def test_request_model_operation_uses_initial_search_text_for_picker(
         match_calls: list[str | None] = []
 
         model_entries = [
-            SimpleNamespace(
-                selector="gpt-5.4@openai",
+            ModelEntry(
                 provider="openai",
                 model_id="gpt-5.4",
                 model_name="gpt-5.4",
             ),
-            SimpleNamespace(
-                selector="claude-sonnet-4-6@anthropic",
+            ModelEntry(
                 provider="anthropic",
                 model_id="claude-sonnet-4-6",
                 model_name="sonnet",
@@ -249,6 +330,9 @@ def test_request_model_operation_uses_initial_search_text_for_picker(
         payload = cast(user_interaction.OperationSelectRequestPayload, request_payloads[0])
         assert payload.initial_search_text == "sonnet"
         assert len(payload.options) == 2
+        assert [option.model for option in payload.options] == [
+            runtime_mod.build_model_catalog_entry(entry) for entry in model_entries
+        ]
 
         assert len(emitted) == 1
         assert isinstance(emitted[0], events.NoticeEvent)
@@ -281,6 +365,9 @@ def test_request_model_operation_same_runtime_model_still_saves_default(
             def __init__(self) -> None:
                 self.main_model = "opus@anthropic"
                 self.saved = False
+
+            def get_model_config(self, model_name: str) -> None:
+                assert model_name == "gpt@openai"
 
             async def save(self) -> None:
                 self.saved = True
@@ -325,8 +412,7 @@ def test_request_sub_agent_model_operation_selects_fast_model(monkeypatch: pytes
                 assert only_available is True
                 assert include_disabled is False
                 return [
-                    SimpleNamespace(
-                        selector="fast-model@openai",
+                    ModelEntry(
                         provider="openai",
                         model_id="fast-model-id",
                         model_name="fast-model",
@@ -390,6 +476,12 @@ def test_request_sub_agent_model_operation_selects_fast_model(monkeypatch: pytes
 
         fast_payload = cast(user_interaction.OperationSelectRequestPayload, request_payloads[1])
         assert fast_payload.header == "Fast"
+        assert fast_payload.options[0].id == "__default__"
+        assert fast_payload.options[0].model is None
+        assert fast_payload.options[1].model == runtime_mod.build_model_catalog_entry(
+            fake_config.iter_model_entries(only_available=True, include_disabled=False)[0]
+        )
+        assert all(option.model is None for option in top_level_payload.options)
 
         assert runner.get_session_llm_clients(session.id).fast is not None
         assert runner.get_session_llm_clients(session.id).fast.model_name == "fast-model-id"
@@ -426,8 +518,7 @@ def test_request_sub_agent_model_operation_selects_compact_model(
                 assert only_available is True
                 assert include_disabled is False
                 return [
-                    SimpleNamespace(
-                        selector="compact-model@openai",
+                    ModelEntry(
                         provider="openai",
                         model_id="compact-model-id",
                         model_name="compact-model",

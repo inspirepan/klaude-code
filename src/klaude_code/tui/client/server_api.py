@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.env_sync import ENV_SYNC_HEADER, encode_env_header
+from klaude_code.protocol.model_catalog import ModelCatalog
 from klaude_code.protocol.peer import PeerReceipt
 
 
@@ -21,6 +22,10 @@ class ServerAPIError(RuntimeError):
     def __init__(self, status_code: int, detail: Any) -> None:
         self.status_code = status_code
         super().__init__(f"server error {status_code}: {detail}")
+
+
+def get_model_catalog() -> ModelCatalog:
+    return ModelCatalog.model_validate(_request("GET", "/api/server/models", timeout=5.0))
 
 
 def manage_session_tasks(session_id: str, request: TaskRequest) -> TaskResponse:

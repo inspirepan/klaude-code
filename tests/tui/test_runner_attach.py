@@ -25,6 +25,7 @@ import klaude_code.tui.runner as runner_module
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.model_catalog import ModelCatalog, ModelCatalogEntry
 from klaude_code.tui.client import ClientConnectionError
 from klaude_code.tui.client.base import SessionInfoSnapshot
 
@@ -41,6 +42,7 @@ class FakeRuntimeClient:
         self.closed = False
         self.dequeue_calls = 0
         self.task_requests: list[TaskRequest] = []
+        self.model_catalog = ModelCatalog(models=[], revision=0)
         self.hold_run_ops = False
 
         self._info = SessionInfoSnapshot(session_id=session_id, work_dir="/nonexistent-work-dir")
@@ -140,6 +142,9 @@ class FakeRuntimeClient:
     async def manage_tasks(self, request: TaskRequest) -> TaskResponse:
         self.task_requests.append(request)
         return TaskResponse(tasks=[])
+
+    async def get_model_catalog(self) -> ModelCatalog:
+        return self.model_catalog
 
     def is_running(self) -> bool:
         return self._running
@@ -385,6 +390,95 @@ async def _settle() -> None:
 
 
 # -- tests ------------------------------------------------------------------
+
+
+def test_model_interaction_uses_server_metadata_without_local_model_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[Any] = []
+    server_model = ModelCatalogEntry(
+        selector="server-model@server-provider",
+        model_name="server-model",
+        provider="server-provider",
+        model_id="upstream-model",
+        model_alias=["server-alias"],
+        params=["effort high"],
+    )
+
+    def select_one(*, items: list[Any], **kwargs: Any) -> str:
+        captured.extend(items)
+        return server_model.selector
+
+    monkeypatch.setattr(runner_module, "select_one", select_one)
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client._interaction_queue.put_nowait(
+            events.UserInteractionRequestEvent(
+                session_id=client.session_id,
+                request_id="model",
+                source="operation_model",
+                payload=user_interaction.OperationSelectRequestPayload(
+                    header="Model",
+                    question="Select a model:",
+                    options=[
+                        user_interaction.OperationSelectOption(
+                            id="__default__", label="Use default behavior", description="Inherit main model"
+                        ),
+                        user_interaction.OperationSelectOption(
+                            id=server_model.selector, label=server_model.selector, description="", model=server_model
+                        ),
+                    ],
+                ),
+            )
+        )
+        for _ in range(100):
+            if client.ops_of(op.UserInteractionRespondOperation):
+                break
+            await asyncio.sleep(0.01)
+        yield UserInputPayload(text="exit")
+
+    # The harness supplies only a local theme, with no local model configuration.
+    client = run_scenario(monkeypatch, script)
+    assert [item.value for item in captured] == ["__default__", None, server_model.selector]
+    assert captured[1].selectable is False
+    title = "".join(text for _style, text in captured[2].title)
+    assert "upstream-model" in title
+    assert "effort high" in title
+    assert "server-alias" in captured[2].search_text
+    response = client.ops_of(op.UserInteractionRespondOperation)[0].response
+    assert isinstance(response.payload, user_interaction.OperationSelectResponsePayload)
+    assert response.payload.selected_option_id == server_model.selector
+
+
+@pytest.mark.parametrize("result", ["models", "empty", "error"])
+def test_prompt_model_catalog_callback_uses_server_and_reports_failures(
+    monkeypatch: pytest.MonkeyPatch, result: str
+) -> None:
+    expected = ModelCatalog(
+        models=[ModelCatalogEntry(selector="remote@provider", model_name="remote", provider="provider")], revision=4
+    )
+
+    async def get_catalog(self: FakeRuntimeClient) -> ModelCatalog:
+        if result == "error":
+            raise RuntimeError("server unavailable")
+        return expected if result == "models" else ModelCatalog(models=[], revision=5)
+
+    monkeypatch.setattr(FakeRuntimeClient, "get_model_catalog", get_catalog)
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        provider = FakeInputProvider.instance
+        assert provider is not None
+        catalog = await provider.kwargs["get_model_catalog"]()
+        assert catalog == expected if result == "models" else catalog is None
+        yield UserInputPayload(text="exit")
+
+    client = run_scenario(monkeypatch, script)
+    notices = [event for event in client.local_events if isinstance(event, events.NoticeEvent)]
+    if result == "models":
+        assert not notices
+    elif result == "empty":
+        assert notices[0].content == "No models available."
+    else:
+        assert notices[0].is_error
+        assert "server unavailable" in notices[0].content
 
 
 @pytest.mark.parametrize("before_attach", [True, False])

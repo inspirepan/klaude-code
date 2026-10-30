@@ -29,9 +29,9 @@ from prompt_toolkit.utils import get_cwidth
 
 from klaude_code.app.ports import InputProviderABC
 from klaude_code.config import load_config
-from klaude_code.config.model_matcher import match_model_from_config
 from klaude_code.const import project_key_from_path
 from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.model_catalog import ModelCatalog
 from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.common import format_model_with_effort
@@ -249,6 +249,7 @@ class PromptToolkitInput(InputProviderABC):
         request_toggle_diffs: Callable[[], None] | None = None,
         request_refresh_transcript: Callable[[], None] | None = None,
         on_color_scheme_change: Callable[[str], None] | None = None,
+        get_model_catalog: Callable[[], Awaitable[ModelCatalog | None]] | None = None,
     ):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
@@ -257,6 +258,8 @@ class PromptToolkitInput(InputProviderABC):
         self._on_prompt_end = on_prompt_end
         self._on_user_activity = on_user_activity
         self._on_change_model = on_change_model
+        self._get_model_catalog = get_model_catalog
+        self._model_catalog_task: asyncio.Task[None] | None = None
         self._get_current_model_config_name = get_current_model_config_name
         self._get_active_model_name = get_active_model_name
         self._get_current_model_provider_name = get_current_model_provider_name
@@ -343,6 +346,7 @@ class PromptToolkitInput(InputProviderABC):
         triggers the normal detach path.
         """
         self._exit_requested = True
+        self._cancel_model_catalog_request()
         if self._prompt_active:
             with contextlib.suppress(Exception):
                 self._session.app.exit(exception=_PromptPaused())
@@ -439,6 +443,7 @@ class PromptToolkitInput(InputProviderABC):
         """Pause the active REPL prompt so a modal selector can read stdin exclusively."""
 
         self._external_input_pause_count += 1
+        self._cancel_model_catalog_request()
         self.close_task_overlay()
         self._external_input_resume_event.clear()
 
@@ -743,6 +748,7 @@ class PromptToolkitInput(InputProviderABC):
         if self._external_input_pause_count or self._task_picker is None:
             return None
         picker = self._task_picker
+        self._cancel_model_catalog_request()
         choice = asyncio.get_running_loop().create_future()
         self._task_choice = choice
         with set_app(self._session.app):
@@ -1178,41 +1184,46 @@ class PromptToolkitInput(InputProviderABC):
     # Model picker
     # -------------------------------------------------------------------------
 
-    def _build_model_picker_items(self) -> tuple[list[SelectItem[str]], str | None]:
-        result = match_model_from_config()
-        if result.error_message or not result.filtered_models:
-            return [], None
+    def _cancel_model_catalog_request(self) -> None:
+        if self._model_catalog_task is not None:
+            self._model_catalog_task.cancel()
 
-        items = build_model_select_items(result.filtered_models)
-
-        initial = None
-        if self._get_current_model_config_name is not None:
-            with contextlib.suppress(Exception):
-                initial = self._get_current_model_config_name()
-        if initial is None:
-            config = load_config()
-            main_candidates = config.iter_model_config_candidates(config.main_model)
-            initial = main_candidates[0].selector if main_candidates else None
-        if isinstance(initial, str) and initial and "@" not in initial:
-            config = load_config()
-            try:
-                resolved = config.resolve_model_location_prefer_available(initial) or config.resolve_model_location(
-                    initial
-                )
-            except ValueError:
-                resolved = None
-            if resolved is not None:
-                initial = f"{resolved[0]}@{resolved[1]}"
-        return items, initial
+    def _can_open_model_picker(self) -> bool:
+        return (
+            self._model_picker is not None
+            and self._prompt_active
+            and self._session.app.is_running
+            and not self._session.app.is_done
+            and not self._exit_requested
+            and not self._external_input_pause_count
+            and not self._is_picker_open()
+        )
 
     def _open_model_picker(self) -> None:
-        if self._model_picker is None:
+        if self._get_model_catalog is None or not self._can_open_model_picker():
             return
-        items, initial = self._build_model_picker_items()
-        if not items:
+        if self._model_catalog_task is not None and not self._model_catalog_task.done():
             return
-        self._model_picker.set_content(message="Select a model:", items=items, initial_value=initial)
-        self._model_picker.open()
+        self._model_catalog_task = self._session.app.create_background_task(self._load_model_picker())
+
+    async def _load_model_picker(self) -> None:
+        try:
+            if self._get_model_catalog is None:
+                return
+            catalog = await self._get_model_catalog()
+            if catalog is None or not self._can_open_model_picker():
+                return
+            items = build_model_select_items(catalog.models)
+            if not items or self._model_picker is None:
+                return
+            initial = None
+            if self._get_current_model_config_name is not None:
+                with contextlib.suppress(Exception):
+                    initial = self._get_current_model_config_name()
+            self._model_picker.set_content(message="Select a model:", items=items, initial_value=initial)
+            self._model_picker.open()
+        finally:
+            self._model_catalog_task = None
 
     async def _handle_model_selected(self, model_name: str) -> None:
         current = None
@@ -1235,6 +1246,7 @@ class PromptToolkitInput(InputProviderABC):
         pass
 
     async def stop(self) -> None:
+        self._cancel_model_catalog_request()
         self._bottom_bar.stop()
 
     @override
@@ -1308,6 +1320,7 @@ class PromptToolkitInput(InputProviderABC):
                 prompt_paused = True
             finally:
                 self._prompt_active = False
+                self._cancel_model_catalog_request()
                 pause_waiter = self._prompt_pause_waiter
                 self._prompt_pause_waiter = None
                 if pause_waiter is not None and not pause_waiter.done():

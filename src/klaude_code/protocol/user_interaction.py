@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from klaude_code.protocol.model_catalog import ModelCatalogEntry
+
 
 class StaleUserInteractionError(ValueError):
     """The interaction is no longer pending; another client may have answered."""
@@ -42,6 +44,7 @@ class OperationSelectOption(BaseModel):
     id: str
     label: str
     description: str
+    model: ModelCatalogEntry | None = None
 
 
 class OperationSelectRequestPayload(BaseModel):

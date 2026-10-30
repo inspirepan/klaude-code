@@ -7,6 +7,9 @@ from typing import Any, Final, Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from klaude_code.config import config_revision, load_config
+from klaude_code.config.model_catalog import build_model_catalog_entry
+from klaude_code.protocol.model_catalog import ModelCatalog
 from klaude_code.protocol.version import PROTOCOL_VERSION
 from klaude_code.server.binding import web_url
 from klaude_code.server.lifecycle import ServerLifecycle
@@ -17,6 +20,18 @@ from klaude_code.update import get_display_version
 
 router = APIRouter(prefix="/api/server", tags=["server"])
 _SERVER_STATE_DEP: Final = Depends(get_server_state)
+
+
+@router.get("/models")
+def server_models() -> ModelCatalog:
+    config = load_config()
+    return ModelCatalog(
+        models=[
+            build_model_catalog_entry(entry)
+            for entry in config.iter_model_entries(only_available=True, include_disabled=False)
+        ],
+        revision=config_revision(),
+    )
 
 
 class ReloadRequest(BaseModel):
@@ -218,8 +233,6 @@ async def server_config_reload() -> dict[str, Any]:
     The background watcher normally does this on its own; the endpoint makes it
     immediate and reports the resulting revision.
     """
-    from klaude_code.config import config_revision, load_config
-
     load_config.cache_clear()
     try:
         load_config()

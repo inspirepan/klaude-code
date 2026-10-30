@@ -1,9 +1,9 @@
 import asyncio
-from collections.abc import Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from threading import Event
 from types import SimpleNamespace
-from typing import Any
-from unittest.mock import patch
+from typing import Any, cast
+from unittest.mock import Mock, patch
 
 import pytest
 from prompt_toolkit.buffer import Buffer, CompletionState
@@ -13,6 +13,7 @@ from prompt_toolkit.layout.controls import BufferControl
 from prompt_toolkit.layout.processors import TransformationInput
 from rich.text import Text
 
+from klaude_code.protocol.model_catalog import ModelCatalog, ModelCatalogEntry
 from klaude_code.tui.commands import DynamicSeparatorText, PromptStatusLine, SpinnerStatusLine
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
 from klaude_code.tui.input.key_bindings import merge_dequeued_messages, split_queued_message_edit_text
@@ -64,6 +65,9 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._external_input_resume_event = asyncio.Event()
     prompt_input._external_input_resume_event.set()
     prompt_input._model_picker = None
+    prompt_input._get_model_catalog = None
+    prompt_input._model_catalog_task = None
+    prompt_input._exit_requested = False
     prompt_input._task_picker = None
     prompt_input._task_choice = None
     prompt_input._resumed_cursor_position = None
@@ -549,29 +553,161 @@ def test_input_footer_context_falls_back_to_the_configured_model() -> None:
     assert "opus via test-provider" in rendered
 
 
-def test_model_picker_prefill_keeps_the_configured_selector(monkeypatch: pytest.MonkeyPatch) -> None:
-    """/model pre-fills the stored selector, not the model that actually runs."""
-    import klaude_code.tui.input.prompt_toolkit as prompt_toolkit_module
-    from klaude_code.config.config import ModelEntry
-    from klaude_code.config.model_matcher import ModelMatchResult
-
-    prompt_input: Any = _build_input("")
-    prompt_input._get_current_model_config_name = lambda: "test-model:xhigh@test-provider"
-    prompt_input._get_active_model_name = lambda: "sonnet"
-    monkeypatch.setattr(
-        prompt_toolkit_module,
-        "match_model_from_config",
-        lambda preferred=None: ModelMatchResult(
-            matched_model=None,
-            filtered_models=[ModelEntry(model_name="test-model", provider="test-provider", model_id="test/model")],
-            filter_hint=preferred,
-        ),
+def _build_model_picker_input(get_catalog: Callable[[], Awaitable[ModelCatalog | None]]) -> Any:
+    prompt_input = cast(Any, _build_input("draft"))
+    prompt_input._prompt_active = True
+    prompt_input._get_model_catalog = get_catalog
+    prompt_input._session = SimpleNamespace(
+        default_buffer=prompt_input._session.default_buffer,
+        app=SimpleNamespace(is_running=True, is_done=False, create_background_task=asyncio.create_task, exit=Mock()),
     )
+    picker = Mock(is_open=False)
+    picker.open.side_effect = lambda: setattr(picker, "is_open", True)
+    prompt_input._model_picker = picker
+    return prompt_input
 
-    items, initial = prompt_input._build_model_picker_items()
 
-    assert items
-    assert initial == "test-model:xhigh@test-provider"
+@pytest.mark.parametrize("selector", ["test-model:xhigh@test-provider", "test-model", None])
+def test_model_picker_prefill_keeps_the_configured_selector(selector: str | None) -> None:
+    async def _run() -> None:
+        async def get_catalog() -> ModelCatalog:
+            return ModelCatalog(
+                models=[
+                    ModelCatalogEntry(
+                        selector="test-model@test-provider", model_name="test-model", provider="test-provider"
+                    )
+                ],
+                revision=1,
+            )
+
+        prompt_input = _build_model_picker_input(get_catalog)
+        prompt_input._get_current_model_config_name = lambda: selector
+        prompt_input._get_active_model_name = lambda: "sonnet"
+
+        prompt_input._open_model_picker()
+        await prompt_input._model_catalog_task
+
+        content = prompt_input._model_picker.set_content.call_args.kwargs
+        assert content["items"]
+        assert content["initial_value"] == selector
+        prompt_input._model_picker.open.assert_called_once()
+
+    asyncio.run(_run())
+
+
+def test_model_picker_fetches_fresh_server_groups_without_local_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    import klaude_code.tui.input.prompt_toolkit as module
+
+    monkeypatch.setattr(module, "load_config", Mock(side_effect=AssertionError("Local config is unavailable")))
+
+    async def _run() -> None:
+        requests = 0
+
+        async def get_catalog() -> ModelCatalog:
+            nonlocal requests
+            requests += 1
+            return ModelCatalog(
+                models=[
+                    ModelCatalogEntry(
+                        selector=f"model-{requests}@remote", model_name=f"model-{requests}", provider="remote"
+                    ),
+                    ModelCatalogEntry(selector="other@server", model_name="other", provider="server"),
+                ],
+                revision=requests,
+            )
+
+        prompt_input = _build_model_picker_input(get_catalog)
+        picker = prompt_input._model_picker
+        for index in (1, 2):
+            prompt_input._open_model_picker()
+            await prompt_input._model_catalog_task
+            items = picker.set_content.call_args.kwargs["items"]
+            assert [item.value for item in items if item.selectable] == [f"model-{index}@remote", "other@server"]
+            headers = ["".join(text for _, text in item.title) for item in items if not item.selectable]
+            assert len(headers) == 2
+            assert headers[0].startswith("remote (1)")
+            assert headers[1].startswith("server (1)")
+            prompt_input._open_model_picker()
+            assert requests == index
+            picker.is_open = False
+        assert requests == 2
+
+    asyncio.run(_run())
+
+
+@pytest.mark.parametrize("interruption", [None, "pause", "task", "exit", "stop", "done"])
+def test_pending_model_catalog_deduplicates_and_does_not_steal_focus(interruption: str | None) -> None:
+    async def _run() -> None:
+        started = asyncio.Event()
+        release = asyncio.Event()
+        requests = 0
+
+        async def get_catalog() -> ModelCatalog:
+            nonlocal requests
+            requests += 1
+            started.set()
+            await release.wait()
+            return ModelCatalog(
+                models=[ModelCatalogEntry(selector="remote@server", model_name="remote", provider="server")],
+                revision=1,
+            )
+
+        prompt_input = _build_model_picker_input(get_catalog)
+        picker = prompt_input._model_picker
+        prompt_input._open_model_picker()
+        task = prompt_input._model_catalog_task
+        prompt_input._open_model_picker()
+        await started.wait()
+        prompt_input._open_model_picker()
+        assert requests == 1
+        picker.open.assert_not_called()
+        assert prompt_input._session.default_buffer.text == "draft"
+
+        if interruption == "pause":
+            pause = asyncio.create_task(prompt_input.pause_for_external_input())
+            await asyncio.sleep(0)
+            prompt_input._prompt_active = False
+            prompt_input._prompt_pause_waiter.set_result(None)
+            resume = await pause
+            resume()
+            prompt_input._prompt_active = True
+        elif interruption == "task":
+            prompt_input._task_picker = Mock(is_open=True)
+        elif interruption == "exit":
+            prompt_input.request_exit()
+        elif interruption == "stop":
+            await prompt_input.stop()
+        elif interruption == "done":
+            prompt_input._session.app.is_done = True
+        release.set()
+        await asyncio.gather(task, return_exceptions=True)
+
+        if interruption is None:
+            picker.open.assert_called_once()
+        else:
+            picker.open.assert_not_called()
+            picker.set_content.assert_not_called()
+        assert prompt_input._model_catalog_task is None
+
+    asyncio.run(_run())
+
+
+def test_model_catalog_none_does_not_open_and_allows_retry() -> None:
+    async def _run() -> None:
+        requests = 0
+
+        async def get_catalog() -> None:
+            nonlocal requests
+            requests += 1
+
+        prompt_input = _build_model_picker_input(get_catalog)
+        for _ in range(2):
+            prompt_input._open_model_picker()
+            await prompt_input._model_catalog_task
+        assert requests == 2
+        prompt_input._model_picker.open.assert_not_called()
+
+    asyncio.run(_run())
 
 
 def test_input_footer_reserves_idle_metadata_row() -> None:

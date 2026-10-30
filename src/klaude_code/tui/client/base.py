@@ -15,6 +15,7 @@ from typing import Protocol
 
 from klaude_code.protocol import events, op
 from klaude_code.protocol.background_task import TaskRequest, TaskResponse
+from klaude_code.protocol.model_catalog import ModelCatalog
 from klaude_code.protocol.models.session_status import SessionStatus, SessionStatusCategory
 from klaude_code.protocol.peer import PeerReceipt
 
@@ -91,6 +92,10 @@ class RuntimeClient(Protocol):
         ...
 
     async def dequeue_follow_ups(self) -> tuple[str, ...]: ...
+
+    async def get_model_catalog(self) -> ModelCatalog:
+        """Read the server's currently available models without caching."""
+        ...
 
     async def manage_tasks(self, request: TaskRequest) -> TaskResponse:
         """Query/control owned tasks without transcript writes or delivery acknowledgments."""
