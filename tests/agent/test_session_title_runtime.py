@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
+import httpx
 import pytest
 
 from klaude_code.agent.agent import Agent
@@ -21,6 +23,7 @@ from klaude_code.agent.session_title import (
 )
 from klaude_code.config.config import Config, ModelConfig, ProviderConfig
 from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.protocol import llm_param, message
 from klaude_code.session.session import Session
 
@@ -156,6 +159,81 @@ def test_generate_session_title_retries_up_to_three_attempts() -> None:
     assert len(client.calls) == 3
 
 
+@pytest.mark.parametrize(
+    ("error", "fallback"),
+    [
+        ("insufficient_quota", True),
+        ("invalid_request_error: invalid parameter", False),
+        ("context length exceeded: insufficient_quota", False),
+    ],
+)
+def test_title_fallback_is_classified_and_isolated(monkeypatch: pytest.MonkeyPatch, error: str, fallback: bool) -> None:
+    provider = ProviderConfig(
+        provider_name="test-provider",
+        protocol=llm_param.LLMClientProtocol.OPENAI,
+        api_key="test-key",
+        model_list=[ModelConfig(model_name=f"model-{i}", model_id=f"model-{i}") for i in range(4)],
+    )
+    config = Config(provider_list=[provider], main_model=[f"model-{i}" for i in range(4)])
+    client = build_llm_clients(config).main
+    assert isinstance(client, FallbackLLMClient)
+    calls: list[str] = []
+
+    class _Client(_FakeLLMClient):
+        async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
+            apply_config_defaults(param, self.get_llm_config())
+            calls.append(param.model_id or "")
+            return await super().call(param)
+
+    def _create(llm_config: llm_param.LLMConfigParameter) -> LLMClientABC:
+        items: list[message.LLMStreamItem] = (
+            [message.AssistantMessage(parts=[message.TextPart(text="标题")])]
+            if llm_config.model_id == "model-3"
+            else [message.StreamErrorItem(error=error)]
+        )
+        return _Client(items, config=llm_config)
+
+    monkeypatch.setattr("klaude_code.agent.runtime.llm.create_llm_client", _create)
+    monkeypatch.setattr("klaude_code.agent.runtime.llm.load_config", lambda: config)
+    if fallback:
+        assert asyncio.run(generate_session_title(llm_client=client, user_messages=["请求"])) == "标题"
+        assert calls == ["model-0", "model-1", "model-2", "model-3"]
+    else:
+        with pytest.raises(RuntimeError, match=error):
+            asyncio.run(generate_session_title(llm_client=client, user_messages=["请求"]))
+        assert calls == ["model-0"] * 3
+    assert client.active_candidate.model_name == "model-0"
+    assert len(client._clients) == (4 if fallback else 1)
+
+
+def test_title_fallback_sends_each_candidate_model_to_openai(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = ProviderConfig(
+        provider_name="test-provider",
+        protocol=llm_param.LLMClientProtocol.OPENAI,
+        api_key="test-key",
+        model_list=[ModelConfig(model_name=name, model_id=name) for name in ("first", "second")],
+    )
+    config = Config(provider_list=[provider], main_model=["first", "second"])
+    models: list[str] = []
+
+    async def create(**kwargs: Any) -> Any:
+        models.append(kwargs["model"])
+        raise httpx.ConnectError("insufficient_quota" if kwargs["model"] == "first" else "invalid request")
+
+    monkeypatch.setattr(
+        "klaude_code.llm.openai_compatible.client.openai.AsyncOpenAI",
+        lambda **_kwargs: SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))),
+    )
+    monkeypatch.setattr("klaude_code.llm.openai_compatible.client.create_async_http_client", lambda: None)
+    monkeypatch.setattr("klaude_code.agent.runtime.llm.load_config", lambda: config)
+    client = build_llm_clients(config).main
+
+    with pytest.raises(RuntimeError, match="invalid request"):
+        asyncio.run(generate_session_title(llm_client=client, user_messages=["请求"]))
+
+    assert models == ["first", "second", "second", "second"]
+
+
 def test_normalize_session_title_canonicalizes_separator() -> None:
     assert _normalize_session_title('  "Session titles | Refine prompts"  ') == "Session titles — Refine prompts"
 
@@ -168,13 +246,14 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
         model_list=[
             ModelConfig(model_name="main-model", model_id="main-model-id"),
             ModelConfig(model_name="fast-model", model_id="fast-model-id"),
+            ModelConfig(model_name="fast-backup", model_id="fast-backup-id"),
             ModelConfig(model_name="compact-model", model_id="compact-model-id"),
         ],
     )
     config = Config(
         provider_list=[provider],
         main_model="main-model",
-        fast_model=["missing-fast-model", "fast-model"],
+        fast_model=["missing-fast-model", "fast-model", "fast-backup"],
         compact_model=["missing-compact-model", "compact-model"],
     )
 
@@ -194,6 +273,8 @@ def test_build_llm_clients_uses_fast_model_separately(monkeypatch: pytest.Monkey
     assert clients.main.model_name == "main-model-id"
     assert clients.fast is not None
     assert clients.fast.model_name == "fast-model-id"
+    assert isinstance(clients.fast, FallbackLLMClient)
+    assert [candidate.model_name for candidate in clients.fast.candidates] == ["fast-model", "fast-backup"]
     assert clients.compact is not None
     assert clients.compact.model_name == "compact-model-id"
     assert created_clients == []

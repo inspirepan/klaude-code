@@ -1,8 +1,18 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator
 from typing import ParamSpec, TypeVar
+from uuid import uuid4
 
 from klaude_code.protocol import llm_param, message
+
+
+def session_headers(provider_name: str, session_id: str | None) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    if session_id:
+        headers["x-session-id"] = session_id
+    if provider_name in {"opencode-go", "opencode-go-responses"}:
+        headers["x-opencode-session"] = session_id or uuid4().hex
+    return headers
 
 
 class LLMStreamABC(ABC):

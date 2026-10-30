@@ -78,6 +78,13 @@ class FallbackLLMClient(LLMClientABC):
     def candidates(self) -> list[ModelConfigCandidate]:
         return list(self._candidates)
 
+    def fork(self) -> FallbackLLMClient:
+        """Keep candidate selection independent while sharing cached provider clients."""
+        client = FallbackLLMClient(self.candidates)
+        client._clients = self._clients
+        client._client_lock = self._client_lock
+        return client
+
     def fallback_to_next(self) -> ModelFallback | None:
         with self._client_lock:
             if not self.has_next_candidate:
@@ -308,14 +315,13 @@ def build_llm_clients(
         warnings=warnings,
     )
     if fast_candidates:
-        # The fast role uses a single concrete model, no fallback chain.
         fast_candidate = fast_candidates[0]
         log_debug(
             "Fast LLM config",
             fast_candidate.llm_config.model_dump_json(exclude_none=True, exclude=_LLM_CONFIG_SECRET_FIELDS),
             debug_type=DebugType.LLM_CONFIG,
         )
-        fast_client = create_llm_client_for_candidates([fast_candidate])
+        fast_client = create_llm_client_for_candidates(fast_candidates)
 
     compact_client: LLMClientABC | None = None
     compact_candidates = _resolve_optional_role(

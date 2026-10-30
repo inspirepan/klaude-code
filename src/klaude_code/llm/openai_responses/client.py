@@ -10,7 +10,7 @@ from openai.types import responses
 from openai.types.responses.response_create_params import Reasoning, ResponseCreateParamsBase
 
 from klaude_code.const import CHATGPT_USAGE_LIMIT_CODES, CHATGPT_USAGE_SETTINGS_URL
-from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.client import LLMClientABC, LLMStreamABC, session_headers
 from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_responses.input import convert_history_to_input, convert_tool_schema
@@ -476,9 +476,7 @@ class ResponsesClient(LLMClientABC):
             lambda: debug_json(payload),
             debug_type=DebugType.LLM_PAYLOAD,
         )
-        extra_headers: dict[str, str] = {}
-        if param.session_id:
-            extra_headers["x-session-id"] = param.session_id
+        extra_headers = session_headers(self.get_llm_config().provider_name, param.session_id)
         try:
             stream = await self.client.responses.create(
                 **payload,

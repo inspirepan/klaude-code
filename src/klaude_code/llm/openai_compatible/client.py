@@ -5,7 +5,7 @@ import httpx
 import openai
 from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
 
-from klaude_code.llm.client import LLMClientABC, LLMStreamABC
+from klaude_code.llm.client import LLMClientABC, LLMStreamABC, session_headers
 from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
@@ -105,11 +105,7 @@ class OpenAICompatibleClient(LLMClientABC):
             debug_type=DebugType.LLM_PAYLOAD,
         )
 
-        extra_headers: dict[str, str] = {}
-        if param.session_id:
-            extra_headers["x-session-id"] = param.session_id
-            if self.get_llm_config().provider_name == "opencode-go":
-                extra_headers["x-opencode-session"] = param.session_id
+        extra_headers = session_headers(self.get_llm_config().provider_name, param.session_id)
 
         try:
             stream = await self.client.chat.completions.create(

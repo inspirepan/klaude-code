@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import re
 
+from klaude_code.agent.model_fallback import fallback_llm_client
+from klaude_code.agent.runtime.llm import FallbackLLMClient
 from klaude_code.llm.client import LLMClientABC
 from klaude_code.log import DebugType, log_debug
 from klaude_code.prompts.session_title import SESSION_TITLE_SYSTEM_PROMPT, SESSION_TITLE_USER_PROMPT
@@ -50,6 +52,8 @@ async def generate_session_title(
 ) -> str | None:
     if not user_messages:
         return None
+    if isinstance(llm_client, FallbackLLMClient):
+        llm_client = llm_client.fork()
     title_input = _build_session_title_input(user_messages, previous_title=previous_title)
     call_param = llm_param.LLMCallParameter(
         input=title_input,
@@ -65,9 +69,11 @@ async def generate_session_title(
         debug_type=DebugType.RESPONSE,
     )
 
-    for attempt in range(1, _SESSION_TITLE_MAX_ATTEMPTS + 1):
+    attempt = 0
+    while attempt < _SESSION_TITLE_MAX_ATTEMPTS:
+        attempt += 1
         try:
-            stream = await llm_client.call(call_param)
+            stream = await llm_client.call(call_param.model_copy(deep=True))
             parts: list[str] = []
             final_text: str | None = None
             stop_reason: str | None = None
@@ -82,6 +88,9 @@ async def generate_session_title(
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            if fallback_llm_client(llm_client, str(exc)) is not None:
+                attempt = 0
+                continue
             if attempt == _SESSION_TITLE_MAX_ATTEMPTS:
                 log_debug(
                     f"[SessionTitle] attempt {attempt}/{_SESSION_TITLE_MAX_ATTEMPTS} failed: {exc!s}; giving up",
