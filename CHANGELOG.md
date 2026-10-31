@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.43.1] - 2026-10-31
+
+### Added
+
+- 使用 OSC 7501 替换旧 Herdr 状态上报 (`84d15dce`)
+- 接入 GPT-6.1 Terra 并清理 Youtu 配置 (`2ca4157d`)
+- 为有警告的技能名称添加黄色圆点 (`ee96de53`)
+- 在 compact 模式折叠技能警告 (`acd2fd4c`)
+
+### Changed
+
+- 移除内置技能打包与自动安装机制 (`9062906a`)
+
+### Fixed
+
+- 精简 OpenCode 模型并更新 Flash 配置 (`c147e42a`)
+- 修复标题生成及模型回退 (`0f0dfa81`)
+- 统一使用服务端模型候选 (`cf54346d`)
+- 允许父代理在已有授权内更新子任务 (`addccc7e`)
+- 排除独立技能目录的静态检查 (`2c239dda`)
+- 统一子代理注册并保持启动颜色一致 (`422c85ce`)
+- 按内容去重记忆文件 (`0a7cbef9`)
+- 修复长图覆盖后续文字 (`e5330568`)
+- 修复确认后台任务结果时的字典迭代竞态 (`c1d15028`)
+
 ## [2.43.0] - 2026-10-21
 
 ### Added
@@ -2954,7 +2979,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.43.0...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.43.1...HEAD
+[2.43.1]: https://github.com/inspirepan/klaude-code/compare/v2.43.0...v2.43.1
 [2.43.0]: https://github.com/inspirepan/klaude-code/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/inspirepan/klaude-code/compare/v2.41.0...v2.42.0
 [2.41.0]: https://github.com/inspirepan/klaude-code/compare/v2.40.0...v2.41.0

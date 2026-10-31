@@ -648,7 +648,7 @@ wheels = [
 
 [[package]]
 name = "klaude-code"
-version = "2.43.0"
+version = "2.43.1"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic", extra = ["bedrock"] },
