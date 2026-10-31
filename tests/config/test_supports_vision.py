@@ -20,7 +20,6 @@ def test_supports_vision_defaults_to_true() -> None:
 
 
 def test_builtin_marks_glm_as_non_vision() -> None:
-    assert _find_model("opencode-go", "glm-5.3").supports_vision is False
     assert _find_model("openrouter", "glm").supports_vision is False
 
 
@@ -31,6 +30,7 @@ def test_builtin_deepseek_variants_accept_images() -> None:
 
 
 def test_builtin_keeps_other_models_vision_capable() -> None:
+    assert _find_model("opencode-go", "glm-5.3-flash").supports_vision is True
     assert _find_model("deepseek", "deepseek-flash").supports_vision is True
     assert _find_model("opencode-go", "deepseek-flash").supports_vision is True
     assert _find_model("anthropic", "sonnet").supports_vision is True
