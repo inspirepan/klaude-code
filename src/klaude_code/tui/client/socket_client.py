@@ -835,6 +835,7 @@ class SocketRuntimeClient:
         info = self._info
         info.session_id = str(item.get("session_id") or self._session_id)
         info.status = SessionStatus.model_validate(item["status"])
+        info.is_replay_snapshot = not self._replay_complete.is_set()
         info.state = info.status.category
         info.model_config_name = item.get("model_config_name")
         info.active_model_name = item.get("active_model_name")

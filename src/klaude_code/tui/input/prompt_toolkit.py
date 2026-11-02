@@ -18,6 +18,7 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.formatted_text import FormattedText, StyleAndTextTuples, to_plain_text
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.input.vt100 import Vt100Input
 from prompt_toolkit.key_binding import merge_key_bindings
 from prompt_toolkit.layout.containers import ConditionalContainer, Container, HSplit, VerticalAlign, Window
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
@@ -64,6 +65,7 @@ from klaude_code.tui.input.paste import (
     expand_paste_markers,
     expand_paste_markers_for_history,
 )
+from klaude_code.tui.input.program_status import ProgramStatusParser
 from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
 from klaude_code.tui.input.pt_theme import (
     CLASS_LINES,
@@ -74,6 +76,7 @@ from klaude_code.tui.input.pt_theme import (
 )
 from klaude_code.tui.input.resize_watcher import ResizeWatcher
 from klaude_code.tui.task_browser import TaskBrowser
+from klaude_code.tui.terminal.program_status import ProgramStatusReporter
 from klaude_code.tui.terminal.selector import SelectItem, SelectOverlay, build_model_select_items
 from klaude_code.tui.workspace import active_work_dir
 
@@ -250,6 +253,7 @@ class PromptToolkitInput(InputProviderABC):
         request_refresh_transcript: Callable[[], None] | None = None,
         on_color_scheme_change: Callable[[str], None] | None = None,
         get_model_catalog: Callable[[], Awaitable[ModelCatalog | None]] | None = None,
+        program_status: ProgramStatusReporter | None = None,
     ):
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
@@ -308,6 +312,12 @@ class PromptToolkitInput(InputProviderABC):
         install_color_scheme_sequences()
 
         self._session = self._build_prompt_session(prompt)
+        terminal_input = self._session.app.input
+        if program_status is not None and isinstance(terminal_input, Vt100Input):
+            terminal_input.vt100_parser = ProgramStatusParser(
+                terminal_input.vt100_parser, program_status.receive_capabilities
+            )
+            self._session.app.before_render += lambda _: program_status.start_detection()
         self._session.app.key_processor.before_key_press += self._handle_user_activity
         self._setup_model_picker()
         self._apply_layout_customizations()

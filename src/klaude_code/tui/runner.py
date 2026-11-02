@@ -376,8 +376,8 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
     # -- client wiring --
 
     def _on_session_info(info: SessionInfoSnapshot) -> None:
-        if program_status is not None:
-            program_status.report_session_state(info.session_id, info.status.category)
+        if program_status is not None and info.is_replay_snapshot:
+            program_status.report_session_state(info.session_id, info.status, snapshot=True)
         if info.work_dir:
             # Completers, drag-drop conversion, and path shortening key off
             # the session's directory, which differs from the process CWD
@@ -405,14 +405,18 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             log_debug(f"Welcome context initialization failed: {exc}", debug_type=DebugType.EXECUTION)
             return None
 
-    def _report_program_status(event: events.Event) -> None:
+    def _report_program_status(envelope: events.EventEnvelope) -> None:
         if program_status is None:
             return
+        event = envelope.event
         with contextlib.suppress(Exception):
+            program_status.report_interaction(event)
             if event.session_id != client.session_id:
                 return
-            if isinstance(event, events.SessionStatusEvent):
-                program_status.report_session_state(event.session_id, event.status.category)
+            # Local session_info copies can predate the final attach snapshot.
+            # Only ordered live server statuses may announce new turn results.
+            if isinstance(event, events.SessionStatusEvent) and envelope.event_seq > 0:
+                program_status.report_session_state(event.session_id, event.status)
 
     async def _on_envelope(envelope: events.EventEnvelope) -> None:
         event = envelope.event
@@ -426,7 +430,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                 # never settle while this consumer is still inside it.
                 _spawn(_switch_to_rewound(event))
             return
-        _report_program_status(envelope.event)
+        _report_program_status(envelope)
         await tui_display.consume_envelope(envelope)
 
     client: RuntimeClient = SocketRuntimeClient(
@@ -594,6 +598,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         request_toggle_diffs=_request_toggle_diffs,
         request_refresh_transcript=_request_refresh_transcript,
         on_color_scheme_change=_on_terminal_color_scheme_change if cfg.theme is None else None,
+        program_status=program_status,
     )
     input_provider.set_dequeue_pending_messages(_dequeue_pending_messages)
     from klaude_code.tui.task_panel import TaskPanel

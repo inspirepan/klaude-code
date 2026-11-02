@@ -26,6 +26,18 @@ _RETRY_MAX_ATTEMPTS = 62  # ~5s before giving up
 
 _pending_title: str | None = None
 _retry_task: asyncio.Task[None] | None = None
+_native_status = False
+_last_title: str | None = None
+
+
+def set_native_status_supported(supported: bool) -> None:
+    """Use the terminal's status UI only after a positive feature reply."""
+    global _native_status
+    _native_status = supported
+    if supported:
+        stop_terminal_title_blink()
+        if _last_title is not None:
+            set_terminal_title(_last_title)
 
 
 def _format_session_title(session_title: str | None) -> str | None:
@@ -136,9 +148,11 @@ def update_terminal_title(
     session_title: str | None = None,
 ) -> None:
     """Update terminal title with an optional status prefix and session title."""
+    global _last_title
     title = _build_terminal_title(work_dir, session_title)
+    _last_title = title
 
-    if prefix:
+    if prefix and not _native_status:
         title = f"{prefix} {title}"
 
     set_terminal_title(title)
@@ -171,6 +185,9 @@ def start_terminal_title_blink(model_name: str | None, session_title: str | None
     stop_terminal_title_blink()
     _blink_model_name = model_name
     _blink_session_title = session_title
+    if _native_status:
+        update_terminal_title(model_name, session_title=session_title)
+        return
     _blink_task = asyncio.create_task(_blink_loop())
 
 
@@ -190,6 +207,8 @@ def is_title_blinking() -> bool:
 def set_terminal_title_override(prefix: str) -> None:
     """Temporarily replace the active-task spinner with a status prefix."""
     global _title_override_prefix
+    if _native_status:
+        return
     _title_override_prefix = prefix
     update_terminal_title(_blink_model_name, prefix=prefix, session_title=_blink_session_title)
 
@@ -198,6 +217,8 @@ def clear_terminal_title_override() -> None:
     """Clear a temporary status prefix and restore the active-task title."""
     global _title_override_prefix
     _title_override_prefix = None
+    if _native_status:
+        return
     prefix = _BLINK_PREFIXES[0] if is_title_blinking() else None
     update_terminal_title(_blink_model_name, prefix=prefix, session_title=_blink_session_title)
 

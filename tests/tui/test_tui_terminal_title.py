@@ -99,6 +99,36 @@ def test_update_terminal_title_falls_back_to_default_title(monkeypatch: pytest.M
     assert captured == ["✔ klaude · project"]
 
 
+def test_confirmed_native_status_removes_prefix_and_stops_animation(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[str] = []
+    monkeypatch.setattr(terminal_title, "set_terminal_title", captured.append)
+
+    async def _test() -> None:
+        terminal_title.start_terminal_title_blink("model", "Session name")
+        terminal_title.update_terminal_title(prefix="working", work_dir="/tmp/project", session_title="Session name")
+        assert terminal_title.is_title_blinking()
+        terminal_title.set_native_status_supported(True)
+        try:
+            assert captured[-1] == "Session name · project"
+            assert not terminal_title.is_title_blinking()
+            terminal_title.start_terminal_title_blink("model", "Session name")
+            assert not terminal_title.is_title_blinking()
+            terminal_title.update_terminal_title(work_dir="/tmp/project", session_title="New session name")
+            before_question = captured.copy()
+            terminal_title.set_terminal_title_override("❓")
+            terminal_title.clear_terminal_title_override()
+            assert captured == before_question
+            assert captured[-1] == "New session name · project"
+            terminal_title.update_terminal_title(prefix="error", work_dir="/tmp/project", session_title="Session name")
+            assert captured[-1] == "Session name · project"
+        finally:
+            terminal_title.set_native_status_supported(False)
+        terminal_title.update_terminal_title(prefix="done", work_dir="/tmp/project", session_title="Session name")
+        assert captured[-1] == "done Session name · project"
+
+    asyncio.run(_test())
+
+
 def test_terminal_title_override_blinks(monkeypatch: pytest.MonkeyPatch) -> None:
     prefixes: list[str | None] = []
     ticks = 0

@@ -45,6 +45,7 @@ class SessionInfoSnapshot:
     work_dir: str | None = None
     title: str | None = None
     follow_ups: tuple[str, ...] = field(default_factory=tuple)
+    is_replay_snapshot: bool = False
 
 
 class RuntimeClient(Protocol):
