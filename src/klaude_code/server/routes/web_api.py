@@ -20,19 +20,18 @@ from typing import Any, Final
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 
+from klaude_code.app.process_queries import persisted_status
+from klaude_code.app.session_index import resolve_session_work_dir_fast
 from klaude_code.const import get_system_temp
 from klaude_code.server import system_context
-from klaude_code.server.routes.headless import session_status_for
-from klaude_code.server.session_index import resolve_session_work_dir_fast
-from klaude_code.server.state import ServerAppState, get_server_state
-from klaude_code.session import search
-from klaude_code.session.meta import parse_runtime_facts
+from klaude_code.server.web_state import ReadOnlyWebState, get_web_state
+from klaude_code.session import Session, search
 from klaude_code.session.store import JsonlSessionStore
 from klaude_code.session.store_registry import get_store_for_path
 from klaude_code.workspace import resolve_workspace_path
 
 router = APIRouter(prefix="/api/web", tags=["web-api"])
-_STATE_DEP: Final = Depends(get_server_state)
+_STATE_DEP: Final = Depends(get_web_state)
 
 DEFAULT_HISTORY_LIMIT: Final = 500
 MAX_HISTORY_LIMIT: Final = 2000
@@ -63,13 +62,14 @@ class _SessionRef:
     meta: dict[str, Any]
 
 
-def _resolve_session(state: ServerAppState, session_id: str) -> _SessionRef:
+def _resolve_session(state: ReadOnlyWebState, session_id: str) -> _SessionRef:
     """Locate a session on disk without touching the runtime.
 
     The live index answers first; the fallback scan finds sessions the index
     hides or has not seen (created by another process since startup).
     """
-    index = state.session_live.index if state.session_live is not None else None
+    state.index.reload()
+    index = state.index
     work_dir = resolve_session_work_dir_fast(index, state.home_dir, session_id)
     if work_dir is None:
         raise HTTPException(status_code=404, detail="session not found")
@@ -93,10 +93,10 @@ def _optional_float(meta: dict[str, Any], key: str) -> float | None:
 
 
 @router.get("/sessions/{session_id}/meta")
-async def get_session_meta(session_id: str, state: ServerAppState = _STATE_DEP) -> dict[str, Any]:
+async def get_session_meta(session_id: str, state: ReadOnlyWebState = _STATE_DEP) -> dict[str, Any]:
     ref = _resolve_session(state, session_id)
     line_count = await asyncio.to_thread(ref.store.history_line_count, session_id)
-    status = session_status_for(state, session_id, parse_runtime_facts(ref.meta))
+    status = persisted_status(Session.load_meta(session_id, work_dir=ref.work_dir))
     return {
         "session_id": session_id,
         "title": _optional_str(ref.meta, "title"),
@@ -107,9 +107,6 @@ async def get_session_meta(session_id: str, state: ServerAppState = _STATE_DEP) 
         "updated_at": _optional_float(ref.meta, "updated_at"),
         "state": status.category,
         "status": status.model_dump(mode="json"),
-        # False means "no agent in memory": the ledger below still answers,
-        # and asking for it never spins one up.
-        "loaded": state.runtime.session_registry.has_session_actor(session_id),
         "line_count": line_count,
     }
 
@@ -120,7 +117,7 @@ async def get_session_history(
     before_line: int | None = None,
     after_line: int | None = None,
     limit: int = DEFAULT_HISTORY_LIMIT,
-    state: ServerAppState = _STATE_DEP,
+    state: ReadOnlyWebState = _STATE_DEP,
 ) -> dict[str, Any]:
     if before_line is not None and after_line is not None:
         raise HTTPException(status_code=400, detail="before_line and after_line are mutually exclusive")
@@ -190,7 +187,7 @@ def _read_history_page(
 
 
 @router.get("/sessions/{session_id}/children")
-async def get_session_children(session_id: str, state: ServerAppState = _STATE_DEP) -> dict[str, Any]:
+async def get_session_children(session_id: str, state: ReadOnlyWebState = _STATE_DEP) -> dict[str, Any]:
     """The sub-agents this session spawned, as its own ledger recorded them.
 
     The session list nests children under their parent, but a child's meta only
@@ -234,7 +231,7 @@ async def search_session_history(
     session_id: str,
     q: str = _QUERY_PARAM,
     limit: int = DEFAULT_SEARCH_LIMIT,
-    state: ServerAppState = _STATE_DEP,
+    state: ReadOnlyWebState = _STATE_DEP,
 ) -> dict[str, Any]:
     """Term search over the whole ledger, including the lines nobody loaded.
 
@@ -286,11 +283,10 @@ def _search_history(
 
 
 @router.get("/sessions/{session_id}/system-context")
-async def get_session_system_context(session_id: str, state: ServerAppState = _STATE_DEP) -> dict[str, Any]:
+async def get_session_system_context(session_id: str, state: ReadOnlyWebState = _STATE_DEP) -> dict[str, Any]:
     """The system prompt, tool catalogue and model knobs behind the SYSTEM row.
 
-    A loaded session answers from its live profile. A cold one is rebuilt from
-    meta with the same builders the agent uses -- read-only, and labelled
+    Context is rebuilt from saved metadata -- read-only, and labelled
     ``rebuilt`` because it reflects today's prompt files rather than what was
     sent back then. Answers are cached per session for 30s.
     """
@@ -299,14 +295,7 @@ async def get_session_system_context(session_id: str, state: ServerAppState = _S
     if hit is not None:
         return hit
 
-    actor = state.runtime.session_registry.get_session_actor(session_id)
-    agent = actor.get_agent() if actor is not None else None
-    if agent is not None:
-        payload = system_context.live_payload(agent.profile, model_config_name=agent.session.model_config_name)
-    else:
-        # Prompt assembly reads prompt files and stats the work_dir; keep it off
-        # the event loop.
-        payload = await asyncio.to_thread(system_context.rebuilt_payload, ref.meta, ref.work_dir)
+    payload = await asyncio.to_thread(system_context.rebuilt_payload, ref.meta, ref.work_dir)
     return system_context.store(session_id, payload)
 
 
@@ -325,7 +314,7 @@ def _allowed_file_roots(ref: _SessionRef) -> tuple[Path, ...]:
 
 
 @router.get("/file")
-async def get_local_file(session_id: str, path: str, state: ServerAppState = _STATE_DEP) -> Response:
+async def get_local_file(session_id: str, path: str, state: ReadOnlyWebState = _STATE_DEP) -> Response:
     ref = _resolve_session(state, session_id)
     try:
         # Resolves symlinks, so an escaping link fails the containment check

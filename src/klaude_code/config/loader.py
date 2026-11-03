@@ -309,12 +309,12 @@ def _reload_config() -> tuple[_schema.Config, int]:
     _refresh_cached_fingerprint(config)
     if before is None:
         # A first load -- of this file, or after the config path moved: this is
-        # the baseline every client starts from, so there is nothing to announce.
+        # the baseline local readers start from, so there is nothing to announce.
         _pending_reload = None
         _reported_snapshot = _last_snapshot
     elif _last_snapshot is not None:
         # Recorded here, not by whoever noticed the file: a reload triggered by
-        # any caller (the reload endpoint, a socket handshake, the runtime) is
+        # any local reader (the model catalog or Runtime) is
         # announced exactly once by `check_config_change`.
         _pending_reload = ConfigReload(
             revision=_config_revision,
@@ -453,8 +453,8 @@ def _summarize_reload(before: _ConfigSnapshot, after: _ConfigSnapshot) -> str:
 def check_config_change() -> ConfigReload | None:
     """Report a config reload that no client has been told about yet.
 
-    Reloads triggered elsewhere -- the reload endpoint, a socket handshake, a
-    runtime call -- are reported here too, because the reload records itself
+    Reloads triggered by another local reader, such as a model catalog or
+    Runtime call, are reported here too, because the reload records itself
     rather than relying on whoever happens to read the file first. Never raises
     on an invalid file: the caller is a poll loop that must survive a
     half-written edit, and the next successful read reports the change.
@@ -478,7 +478,7 @@ DEFAULT_CONFIG_WATCH_INTERVAL_S = 1.0
 
 
 class ConfigWatcher:
-    """Daemon poll loop that reloads the config when the files change.
+    """Background poll loop that reloads the config when the files change.
 
     A plain ``stat`` per tick: the files are local and tiny, so polling costs
     less than a dependency on an OS file watcher. ``on_reload`` runs on this

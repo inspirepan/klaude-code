@@ -1,8 +1,6 @@
 import asyncio
 import sys
-import threading
 from collections.abc import Sequence
-from concurrent.futures import Future
 from pathlib import Path
 from typing import Any
 
@@ -10,33 +8,30 @@ import click
 import typer
 from typer.core import TyperGroup
 
-from klaude_code.cli.agents_cmd import register_agents_command
-from klaude_code.cli.attach_cmd import register_attach_command
 from klaude_code.cli.auth_cmd import register_auth_commands
 from klaude_code.cli.config_cmd import register_config_commands
 from klaude_code.cli.headless_cmd import register_headless_commands
 from klaude_code.cli.models_cmd import register_models_command
 from klaude_code.cli.self_update import register_self_upgrade_commands, version_option_callback
-from klaude_code.cli.server_cmd import register_server_commands
-from klaude_code.cli.trace_cmd import register_trace_command
+from klaude_code.cli.skill_guide import skill_option_callback
+from klaude_code.cli.web_cmd import register_web_command
 
-# Product spec: docs/agent-multiplexer.md §2. Plain text on purpose — help is
+# Product spec: docs/tasks/local-tui-runtime/outline.md. Plain text on purpose — help is
 # read by agents as often as by humans, so no rich panels or box drawing.
 TOP_LEVEL_HELP = """\
 Usage: klaude [OPTIONS] [COMMAND]
 
-klaude — an agent multiplexer.
+klaude — coding agents in independent local processes.
 
-Run coding agents interactively, in the background, or from other
-agents. A single local server owns all execution; the TUI and every
-CLI command below are clients of it. Running klaude with no command
-opens an interactive session in the current directory (the server is
-auto-started when needed).
+Running klaude opens a local interactive conversation. Each process owns
+its agents and shell tasks; exit saves history and stops owned execution.
+Use a terminal multiplexer to keep a TUI process alive.
 
 Options:
-  -c, --continue       Attach to the latest session in this directory
-  -r, --resume [ID]    Open the agents panel, or attach by id/name
+  -c, --continue       Resume the latest saved session in this directory
+  -r, --resume [ID]    Select local history, or resume by id/name
   -m, --model TEXT     Select model (see `klaude models`)
+      --skill          Print the CLI guide for coding agents
       --vanilla        Minimal mode: basic tools, no system prompts
   -d, --debug          Enable debug logging
   -V, --version        Show version and exit
@@ -52,16 +47,9 @@ Background agents:
   respond    Answer a pending approval/question of a session
   kill       Interrupt a running agent (session stays resumable)
 
-Attach:
-  attach     Open the TUI on a session: replay, then follow live
-  agents     Live session panel: directory groups, status tabs, details
-  trace      Open the read-only browser trajectory viewer for all sessions
-
 Discovery:
   models     List configured models and role bindings; --json for machines
-
-Server:
-  server     Manage the local server (status / stop / reload / logs / run)
+  web        Start a read-only viewer of saved history
 
 Setup:
   conf       Edit config file
@@ -76,7 +64,9 @@ discovery command for machine-readable output.
 Orchestration is plain bash: `run` returns immediately, multi-target
 `wait` is a barrier, `--group` names a fan-out. For the playbook
 (parallel fan-out, barriers, loops, synthesis pipelines) and the
-current model/agent inventory, run: klaude agents --prime
+current model/agent inventory, run: klaude --skill
+
+Agent? Run: klaude --skill
 """
 
 
@@ -169,56 +159,6 @@ def prepare_debug_logging(debug: bool) -> tuple[bool, Path | None]:
     return _prepare_debug_logging(debug)
 
 
-def _maybe_start_auto_upgrade() -> Future[str] | None:
-    """Ask the server to install a pending update, from a background thread.
-
-    Controlled by ``Config.auto_upgrade`` (default True). Only fires when the
-    persisted update state says newer code exists. The server installs and
-    re-execs at its next idle boundary; this process keeps running the code it
-    started with. The future resolves to a notice for the TUI, or never when
-    there is nothing to say.
-    """
-
-    try:
-        from klaude_code.config import load_config
-    except Exception:
-        return None
-
-    try:
-        cfg = load_config()
-        if not cfg.auto_upgrade:
-            return None
-    except Exception:
-        return None
-
-    from klaude_code.update import has_pending_update
-
-    try:
-        if not has_pending_update():
-            return None
-    except Exception:
-        return None
-
-    notice: Future[str] = Future()
-
-    def _worker() -> None:
-        from klaude_code.cli.uds_client import describe_upgrade_status, request_server_upgrade, settle_upgrade_status
-
-        try:
-            status = request_server_upgrade()
-            message = describe_upgrade_status(settle_upgrade_status(status)) if status is not None else None
-        except Exception as exc:
-            from klaude_code.log import log_debug
-
-            log_debug(f"auto-upgrade request failed: {exc}")
-            return
-        if message is not None:
-            notice.set_result(message)
-
-    threading.Thread(target=_worker, name="auto-upgrade", daemon=True).start()
-    return notice
-
-
 app = typer.Typer(
     cls=_PreprocessingTyperGroup,
     add_completion=False,
@@ -232,12 +172,9 @@ app = typer.Typer(
 register_auth_commands(app)
 register_config_commands(app)
 register_self_upgrade_commands(app)
-register_server_commands(app)
 register_headless_commands(app)
-register_attach_command(app)
-register_trace_command(app)
-register_agents_command(app)
 register_models_command(app)
+register_web_command(app)
 
 
 # cost command is registered via a lazy wrapper to avoid pulling in
@@ -269,17 +206,17 @@ def main_callback(
         help="Select model; pass a value to auto-select on unique match or prefill the picker search, or use --model with no value to open the picker",
         rich_help_panel="LLM",
     ),
-    continue_: bool = typer.Option(False, "--continue", "-c", help="Attach to the latest session"),
+    continue_: bool = typer.Option(False, "--continue", "-c", help="Resume the latest saved session"),
     resume: bool = typer.Option(
         False,
         "--resume",
         "-r",
-        help="Open the agents panel, or use --resume <id/name> to attach directly",
+        help="Select saved history, or use --resume <id/name>",
     ),
     resume_by_id: str | None = typer.Option(
         None,
         "--resume-by-id",
-        help="Attach to session by ID, unique prefix, or name",
+        help="Resume saved history by ID, unique prefix, or name",
         hidden=True,
     ),
     select_model: bool = typer.Option(
@@ -300,6 +237,13 @@ def main_callback(
         False,
         "--vanilla",
         help="Minimal mode: basic tools only, no system prompts",
+    ),
+    skill: bool = typer.Option(
+        False,
+        "--skill",
+        help="Print the CLI guide for coding agents and exit",
+        callback=skill_option_callback,
+        is_eager=True,
     ),
     version: bool = typer.Option(
         False,
@@ -326,18 +270,20 @@ def main_callback(
             log(("Error: --resume <id> cannot be combined with --continue or interactive --resume", "red"))
             raise typer.Exit(2)
 
-        if resume or resume_by_id_value is not None:
-            from klaude_code.cli.attach_cmd import attach_session
+        resolved_history = None
+        if resume_by_id_value is not None:
+            from klaude_code.cli.history import select_history
 
-            attach_session(resume_by_id_value, debug=debug)
-            return
+            try:
+                resolved_history = select_history(resume_by_id_value)
+            except ValueError as exc:
+                log((str(exc), "red"))
+                raise typer.Exit(1) from None
 
         if not sys.stdin.isatty() or not sys.stdout.isatty():
             log(("Error: interactive mode requires a TTY", "red"))
             log(("Hint: run klaude from an interactive terminal", "yellow"))
             raise typer.Exit(2)
-
-        upgrade_notice = _maybe_start_auto_upgrade()
 
         from klaude_code.tui.command.model_picker import ModelSelectStatus, select_model_interactive
 
@@ -355,28 +301,30 @@ def main_callback(
         # Resolve session id before entering asyncio loop
         # session_id=None means create a new session
         session_id: str | None = None
+        session_work_dir = Path.cwd()
+
+        if resume or resume_by_id_value is not None:
+            from klaude_code.cli.history import select_history
+
+            try:
+                selected = resolved_history or select_history(resume_by_id_value)
+            except ValueError as exc:
+                log((str(exc), "red"))
+                raise typer.Exit(1) from None
+            if selected is None:
+                return
+            session_id = selected.id
+            session_work_dir = Path(selected.work_dir)
 
         if continue_:
             session_id = Session.most_recent_session_id(work_dir=Path.cwd())
         # If still no session_id, leave as None to create a new session
 
-        from klaude_code.cli.uds_client import ServerNotRunningError, ensure_server_running, request
-
-        session_loaded = False
         if session_id is not None and chosen_model is None:
-            # Keep the live model, which may differ from persisted metadata.
-            try:
-                status, body = request("GET", f"/api/web/sessions/{session_id}/meta")
-            except ServerNotRunningError:
-                pass
-            else:
-                session_loaded = status == 200 and isinstance(body, dict) and body.get("loaded") is True
-
-        if session_id is not None and chosen_model is None and not session_loaded:
             from klaude_code.config import ConfigValidationError, load_config
             from klaude_code.log import log
 
-            session_meta = Session.load_meta(session_id, work_dir=Path.cwd())
+            session_meta = Session.load_meta(session_id, work_dir=session_work_dir)
             try:
                 cfg = load_config()
             except ConfigValidationError as exc:
@@ -418,8 +366,8 @@ def main_callback(
             # error + picker flow as when chosen_model starts out None.
 
         # If still no model, check main_model; if not configured or invalid,
-        # trigger interactive selection. Loaded sessions only need an attach.
-        if chosen_model is None and not session_loaded:
+        # trigger interactive selection. Saved sessions keep their model selection.
+        if chosen_model is None:
             from klaude_code.config import (
                 ConfigValidationError,
                 ModelAvailability,
@@ -479,51 +427,17 @@ def main_callback(
             elif isinstance(main_model, str):
                 chosen_model = main_model
 
-        # TUI = client of the single local server: auto-start it, create the
-        # session server-side when needed, then attach (replay + live).
-        from klaude_code.tui.runner import run_attach
+        from klaude_code.tui.runner import run_local
 
-        try:
-            ensure_server_running()
-        except ServerNotRunningError as exc:
-            log((f"Error: could not start the klaude server: {exc}", "red"))
-            log(("Hint: run `klaude server run` in the foreground to debug it", "yellow"))
-            raise typer.Exit(1) from None
-
-        # Debug logging must be enabled on the server (where agent/LLM work
-        # runs). Do this after the server is reachable.
-        try:
-            _debug_enabled, log_path = prepare_debug_logging(debug)
-        except Exception as exc:
-            log((f"Error: failed to enable debug logging: {exc}", "red"))
-            raise typer.Exit(1) from None
-        del _debug_enabled
-
+        debug_enabled, log_path = prepare_debug_logging(debug)
         if log_path:
             log(f"Debug log: {log_path}")
-
-        if session_id is None:
-            status, body = request(
-                "POST",
-                "/api/sessions",
-                json_body={"work_dir": str(Path.cwd()), "model": chosen_model, "vanilla": vanilla},
+        try:
+            asyncio.run(
+                run_local(
+                    session_id, model=chosen_model, debug=debug_enabled, vanilla=vanilla, work_dir=session_work_dir
+                )
             )
-            if status != 200 or not isinstance(body, dict) or not body.get("session_id"):
-                detail = body.get("detail") if isinstance(body, dict) else body
-                log((f"Error: failed to create session: {detail}", "red"))
-                raise typer.Exit(1)
-            session_id = str(body["session_id"])
-        elif chosen_model:
-            # Resuming: persist the resolved model (explicit -m, the session's
-            # own model, or the fallback) so the server rehydrates with it.
-            status, body = request(
-                "PUT",
-                f"/api/sessions/{session_id}/model/config",
-                json_body={"model_name": chosen_model},
-            )
-            if status != 200 or not isinstance(body, dict) or body.get("ok") is not True:
-                detail = body.get("detail") if isinstance(body, dict) else body
-                log((f"Error: failed to configure session model: {detail}", "red"))
-                raise typer.Exit(1)
-
-        asyncio.run(run_attach(session_id, upgrade_notice=upgrade_notice))
+        except ValueError as exc:
+            log((str(exc), "red"))
+            raise typer.Exit(1) from None

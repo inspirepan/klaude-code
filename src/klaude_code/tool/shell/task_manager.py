@@ -125,7 +125,7 @@ class ShellTaskManager:
                 if snapshot.status in _ACTIVE:
                     snapshot.status = "lost"
                     snapshot.ended_at = time.time()
-                    snapshot.reason = "Server restarted; process ownership was lost."
+                    snapshot.reason = "Klaude process restarted; shell ownership was lost."
                     await self._persist(task)
                 task.done.set()
                 loaded.append(task)

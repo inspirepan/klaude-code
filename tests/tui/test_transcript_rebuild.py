@@ -226,7 +226,7 @@ def test_end_rebuild_restarts_spinner_only_while_running() -> None:
 
 
 def test_end_rebuild_drops_dangling_tasks_from_persisted_history() -> None:
-    """A history killed mid-turn (e.g. server reload --force) replays a
+    """A history killed mid-turn (e.g. process termination) replays a
     TaskStart — including a sub-agent's — with no terminal event. Persisted-
     history replays must clear those danglers or the spinner and the
     sub-agent status row stick around forever."""

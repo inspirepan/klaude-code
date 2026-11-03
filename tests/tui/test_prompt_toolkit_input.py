@@ -543,7 +543,7 @@ def test_input_footer_context_prefers_the_active_model() -> None:
 
 
 def test_input_footer_context_falls_back_to_the_configured_model() -> None:
-    """No active model reported (older server, or no agent yet): use the selector."""
+    """No active model reported (initialization, or no agent yet): use the selector."""
     prompt_input: Any = _build_input("")
     prompt_input._get_active_model_name = lambda: None
     prompt_input._get_current_model_config_name = lambda: "opus@anthropic"
@@ -595,7 +595,7 @@ def test_model_picker_prefill_keeps_the_configured_selector(selector: str | None
     asyncio.run(_run())
 
 
-def test_model_picker_fetches_fresh_server_groups_without_local_config(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_model_picker_fetches_fresh_catalog_groups(monkeypatch: pytest.MonkeyPatch) -> None:
     import klaude_code.tui.input.prompt_toolkit as module
 
     monkeypatch.setattr(module, "load_config", Mock(side_effect=AssertionError("Local config is unavailable")))
@@ -611,7 +611,7 @@ def test_model_picker_fetches_fresh_server_groups_without_local_config(monkeypat
                     ModelCatalogEntry(
                         selector=f"model-{requests}@remote", model_name=f"model-{requests}", provider="remote"
                     ),
-                    ModelCatalogEntry(selector="other@server", model_name="other", provider="server"),
+                    ModelCatalogEntry(selector="other@catalog", model_name="other", provider="catalog"),
                 ],
                 revision=requests,
             )
@@ -622,11 +622,11 @@ def test_model_picker_fetches_fresh_server_groups_without_local_config(monkeypat
             prompt_input._open_model_picker()
             await prompt_input._model_catalog_task
             items = picker.set_content.call_args.kwargs["items"]
-            assert [item.value for item in items if item.selectable] == [f"model-{index}@remote", "other@server"]
+            assert [item.value for item in items if item.selectable] == [f"model-{index}@remote", "other@catalog"]
             headers = ["".join(text for _, text in item.title) for item in items if not item.selectable]
             assert len(headers) == 2
             assert headers[0].startswith("remote (1)")
-            assert headers[1].startswith("server (1)")
+            assert headers[1].startswith("catalog (1)")
             prompt_input._open_model_picker()
             assert requests == index
             picker.is_open = False
@@ -648,7 +648,7 @@ def test_pending_model_catalog_deduplicates_and_does_not_steal_focus(interruptio
             started.set()
             await release.wait()
             return ModelCatalog(
-                models=[ModelCatalogEntry(selector="remote@server", model_name="remote", provider="server")],
+                models=[ModelCatalogEntry(selector="remote@catalog", model_name="remote", provider="catalog")],
                 revision=1,
             )
 

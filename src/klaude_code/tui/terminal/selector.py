@@ -54,7 +54,8 @@ def _list_max_height() -> Dimension:
     """Compute the list window's max height based on current terminal size."""
 
     rows = shutil.get_terminal_size((80, 24)).lines
-    return Dimension(max=max(_LIST_MIN_ROWS, rows - _LIST_RESERVED_ROWS))
+    preferred = max(_LIST_MIN_ROWS, rows - _LIST_RESERVED_ROWS)
+    return Dimension(max=min(preferred, max(1, rows - 4)))
 
 
 # NOTE: intentionally a *function* object, not a Style instance. Call sites
@@ -75,6 +76,10 @@ class SelectItem[T]:
     summary: str | None = None
     selectable: bool = True
     markdown: str | None = None
+
+    @property
+    def is_header(self) -> bool:
+        return not self.selectable and self.value is None
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,7 +108,7 @@ def build_model_select_items(
     *,
     highlighted_selectors: set[str] | None = None,
 ) -> list[SelectItem[str]]:
-    """Build SelectItem list from config or server model entries.
+    """Build SelectItem list from local config or model catalog entries.
 
     Args:
         models: ModelEntry or ModelCatalogEntry objects.
@@ -368,22 +373,21 @@ def _filter_items[T](
     def _is_match(it: SelectItem[T]) -> bool:
         return all(_matches_search_token(it.search_text, token) for token in tokens)
 
-    matched_selectable = [i for i, it in enumerate(items) if it.selectable and _is_match(it)]
-    if not matched_selectable:
+    matched_items = [i for i, it in enumerate(items) if not it.is_header and _is_match(it)]
+    if not matched_items:
         return [], False
 
-    matched_set = set(matched_selectable)
+    matched_set = set(matched_items)
     visible: list[int] = []
 
-    # If we have non-selectable header rows, keep a header visible only when its
-    # group has at least one matched selectable item.
+    # Disabled choices remain searchable; only structural rows act as headers.
     i = 0
     while i < len(items):
         it = items[i]
-        if not it.selectable:
+        if it.is_header:
             header_idx = i
             group_start = i + 1
-            group_end = next((j for j in range(group_start, len(items)) if not items[j].selectable), len(items))
+            group_end = next((j for j in range(group_start, len(items)) if items[j].is_header), len(items))
             group_matches = [j for j in range(group_start, group_end) if j in matched_set]
             if group_matches:
                 visible.append(header_idx)
@@ -417,7 +421,23 @@ def _coerce_pointed_at_to_selectable[T](
         idx = visible_indices[pos]
         if items[idx].selectable:
             return pos
+    for offset in range(len(visible_indices)):
+        pos = (start + offset) % len(visible_indices)
+        if not items[visible_indices[pos]].is_header:
+            return pos
     return start
+
+
+def _move_pointed_at[T](items: list[SelectItem[T]], indices: list[int], pointed_at: int, delta: int) -> int:
+    if not indices:
+        return 0
+    selectable = any(items[index].selectable for index in indices)
+    for offset in range(1, len(indices) + 1):
+        pos = (pointed_at + delta * offset) % len(indices)
+        item = items[indices[pos]]
+        if item.selectable or (not selectable and not item.is_header):
+            return pos
+    return pointed_at
 
 
 def _build_choices_tokens[T](
@@ -442,13 +462,13 @@ def _build_choices_tokens[T](
 
     for pos, idx in enumerate(visible_indices):
         is_pointed = pos == pointed_at
-        if is_pointed:
-            tokens.append(("class:pointer", pointed_prefix))
+        if is_pointed and not items[idx].is_header:
+            tokens.append(("class:pointer" if items[idx].selectable else "class:meta", pointed_prefix))
             tokens.append(("[SetCursorPosition]", ""))
         else:
             tokens.append(("class:text", pointer_pad))
 
-        if is_pointed and highlight_pointed_item:
+        if is_pointed and items[idx].selectable and highlight_pointed_item:
             title_tokens = _restyle_title(items[idx].title, "class:highlighted")
         else:
             title_tokens = items[idx].title
@@ -516,7 +536,20 @@ def _build_search_container(
     frame: bool = True,
 ) -> tuple[Window, Container]:
     """Build the search input container with placeholder."""
-    placeholder_text = f"{search_placeholder} · ↑/↓ to select · enter/tab to confirm · esc to quit"
+
+    def placeholder_tokens() -> list[tuple[str, str]]:
+        columns = get_app().output.get_size().columns
+        if columns >= 72:
+            text = f"{search_placeholder} · ↑/↓ to select · enter/tab to confirm · esc to quit"
+        elif columns >= 50:
+            text = f"{search_placeholder} · enter to confirm · esc to quit"
+        elif columns >= 34:
+            text = "enter to confirm · esc to quit"
+        elif columns >= 24:
+            text = "search · esc to quit"
+        else:
+            text = "search"
+        return [("class:search_placeholder", text)]
 
     search_prefix_window = Window(
         FormattedTextControl([("class:search_prefix", "/ ")]),
@@ -533,7 +566,7 @@ def _build_search_container(
     )
     placeholder_window = ConditionalContainer(
         content=Window(
-            FormattedTextControl([("class:search_placeholder", placeholder_text)]),
+            FormattedTextControl(placeholder_tokens),
             height=1,
             dont_extend_height=Always(),
             always_hide_cursor=Always(),
@@ -568,6 +601,7 @@ def select_one[T](
     highlight_pointed_item: bool = True,
     closed: Event | None = None,
     item_style_transform: (Callable[[list[tuple[str, str]], int, int], list[tuple[str, str]]] | None) = None,
+    items_provider: Callable[[], list[SelectItem[T]]] | None = None,
 ) -> T | None:
     """Terminal single-choice selector based on prompt_toolkit."""
     if not items:
@@ -593,7 +627,9 @@ def select_one[T](
         return [("class:question", message + " ")]
 
     def get_choices_tokens() -> list[tuple[str, str]]:
-        nonlocal pointed_at
+        nonlocal pointed_at, items
+        if items_provider is not None:
+            items = items_provider()
         filter_text = get_filter_text()
         indices, matched = _filter_items(items, filter_text)
         if indices:
@@ -609,17 +645,15 @@ def select_one[T](
         )
 
     def move_pointed_at(delta: int) -> None:
-        nonlocal pointed_at
+        nonlocal pointed_at, items
+        if items_provider is not None:
+            items = items_provider()
         indices, _ = _filter_items(items, get_filter_text())
         if not indices:
             return
 
         pointed_at = _coerce_pointed_at_to_selectable(items, indices, pointed_at)
-        for _ in range(len(indices)):
-            pointed_at = (pointed_at + delta) % len(indices)
-            idx = indices[pointed_at]
-            if items[idx].selectable:
-                return
+        pointed_at = _move_pointed_at(items, indices, pointed_at, delta)
 
     def on_search_changed(_buf: Buffer) -> None:
         nonlocal pointed_at
@@ -648,30 +682,22 @@ def select_one[T](
         event.app.invalidate()
 
     @kb.add(Keys.Enter, eager=True)
-    def _(event: KeyPressEvent) -> None:
-        indices, _ = _filter_items(items, get_filter_text())
-        if not indices:
-            return
-
-        nonlocal pointed_at
-        pointed_at = _coerce_pointed_at_to_selectable(items, indices, pointed_at)
-        idx = indices[pointed_at % len(indices)]
-        value = items[idx].value
-        if value is None:
-            event.app.exit(result=None)
-            return
-        event.app.exit(result=value)
-
     @kb.add(Keys.Tab, eager=True)
     def _(event: KeyPressEvent) -> None:
-        """Accept the currently pointed item."""
+        nonlocal pointed_at, items
+        if items_provider is not None:
+            items = items_provider()
         indices, _ = _filter_items(items, get_filter_text())
         if not indices:
             return
 
-        nonlocal pointed_at
-        pointed_at = _coerce_pointed_at_to_selectable(items, indices, pointed_at)
         idx = indices[pointed_at % len(indices)]
+        if items[idx].is_header:
+            pointed_at = _coerce_pointed_at_to_selectable(items, indices, pointed_at)
+            idx = indices[pointed_at % len(indices)]
+        if not items[idx].selectable:
+            event.app.invalidate()
+            return
         value = items[idx].value
         if value is None:
             event.app.exit(result=None)
@@ -752,6 +778,7 @@ def select_one[T](
         mouse_support=False,
         full_screen=False,
         erase_when_done=True,
+        refresh_interval=1.0 if items_provider is not None else None,
         # Force 24-bit color so hex styles render exactly as specified
         # instead of being snapped to the xterm-256 palette.
         color_depth=ColorDepth.TRUE_COLOR,
@@ -894,11 +921,7 @@ class SelectOverlay[T]:
                 return
 
             self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
-            for _ in range(len(indices)):
-                self._pointed_at = (self._pointed_at + delta) % len(indices)
-                idx = indices[self._pointed_at]
-                if self._items[idx].selectable:
-                    return
+            self._pointed_at = _move_pointed_at(self._items, indices, self._pointed_at, delta)
 
         @kb.add(Keys.Down, filter=is_open_filter, eager=True)
         def _(event: KeyPressEvent) -> None:
@@ -918,6 +941,8 @@ class SelectOverlay[T]:
 
             self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
             idx = indices[self._pointed_at % len(indices)]
+            if not self._items[idx].selectable:
+                return
             value = self._items[idx].value
             if value is None:
                 self.close()
@@ -939,6 +964,8 @@ class SelectOverlay[T]:
 
             self._pointed_at = _coerce_pointed_at_to_selectable(self._items, indices, self._pointed_at)
             idx = indices[self._pointed_at % len(indices)]
+            if not self._items[idx].selectable:
+                return
             value = self._items[idx].value
             if value is None:
                 self.close()

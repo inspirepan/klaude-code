@@ -1,4 +1,4 @@
-"""Narrow callback bridge; discovery and scheduling stay server-owned."""
+"""Narrow callback bridge; discovery and scheduling stay process-owned."""
 
 from collections.abc import Awaitable, Callable
 from pathlib import Path

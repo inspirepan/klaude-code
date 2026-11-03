@@ -379,7 +379,7 @@ async def _build_summary_fork(
     Only messages before ``cut_index`` are sent; the kept tail is excluded so
     the summary scope aligns with the fallback path. The wire prefix up to
     ``cut_index`` still matches what the parent request sent, so the
-    server-side prompt cache is reused up to that point.
+    provider prompt cache is reused up to that point.
     """
     if cancel is not None and cancel.is_set():
         raise asyncio.CancelledError

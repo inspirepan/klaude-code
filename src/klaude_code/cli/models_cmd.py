@@ -1,4 +1,4 @@
-"""Model discovery without starting a server or an interactive session."""
+"""Read-only discovery of locally configured models."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def models_command(
     """List configured models by provider, with parameters and agent-role bindings.
 
     Select a model with `klaude -m SELECTOR` or `klaude run --model SELECTOR`.
-    This command reads local configuration only; it does not start the server.
+    This command reads local configuration only; it does not create a Runtime.
     """
     from klaude_code.config import ConfigValidationError, load_config
 

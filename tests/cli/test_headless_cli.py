@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -21,20 +20,6 @@ from klaude_code.cli.headless_cmd import (
     _split_targets,  # pyright: ignore[reportPrivateUsage]
     _watch_ps_rows,  # pyright: ignore[reportPrivateUsage]
 )
-from klaude_code.protocol import events
-
-
-def _event_frame(event: events.Event, sequence: int) -> dict[str, Any]:
-    event_type = events.event_type_name(event)
-    return events.EventEnvelope(
-        event_id=f"event-{sequence}",
-        event_seq=sequence,
-        session_id=event.session_id,
-        event_type=event_type,
-        durability=events.event_durability(event_type),
-        timestamp=event.timestamp,
-        event=event,
-    ).model_dump(mode="json")
 
 
 def test_split_targets_mixes_spaces_and_commas() -> None:
@@ -313,46 +298,16 @@ def test_output_follow_idle_returns_without_connecting(monkeypatch: pytest.Monke
 def test_follow_stream_prints_each_delta_once_and_exits_on_finish(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from websockets.asyncio import client as websocket_client
-
-    finished = False
-
-    class FakeWebSocket:
-        def __init__(self) -> None:
-            self.frames: Iterator[dict[str, Any]] = iter(
-                [
-                    {"type": "connection_info", "session_id": "session-id"},
-                    {"type": "replay_complete", "session_id": "session-id"},
-                    _event_frame(events.AssistantTextDeltaEvent(session_id="session-id", content="hello "), 7),
-                    _event_frame(events.AssistantTextDeltaEvent(session_id="session-id", content="hello "), 7),
-                    _event_frame(events.AssistantTextDeltaEvent(session_id="session-id", content="world"), 8),
-                    _event_frame(events.TaskFinishEvent(session_id="session-id", task_result="success"), 9),
-                ]
-            )
-
-        async def recv(self) -> str:
-            nonlocal finished
-            frame = next(self.frames)
-            if frame.get("event_type") == "task.finish":
-                finished = True
-            return json.dumps(frame)
-
-        async def close(self) -> None:
-            return None
-
-    async def fake_connect(**_kwargs: object) -> FakeWebSocket:
-        return FakeWebSocket()
-
-    def fetch_rows(*_args: object, **_kwargs: object) -> list[dict[str, Any]]:
-        return [{"id": "session-id", "state": "idle" if finished else "working", "pending": False}]
-
-    monkeypatch.setattr(websocket_client, "unix_connect", fake_connect)
-    monkeypatch.setattr(headless_cmd, "_fetch_rows", fetch_rows)
-    monkeypatch.setattr(
-        headless_cmd,
-        "_fetch_output",
-        lambda *_args, **_kwargs: {"id": "session-id", "state": "idle", "output": "hello world"},
+    snapshots = iter(
+        [
+            {"state": "working", "streaming_output": "hello "},
+            {"state": "working", "streaming_output": "hello "},
+            {"state": "working", "streaming_output": "hello world"},
+            {"state": "idle", "output": "hello world"},
+        ]
     )
+    monkeypatch.setattr(headless_cmd, "_fetch_output", lambda *_a, **_k: next(snapshots))
+    monkeypatch.setattr(headless_cmd, "FOLLOW_STATE_POLL_INTERVAL_SECONDS", 0)
 
     exit_code = asyncio.run(headless_cmd._follow_output_stream("session-id", initial_output=""))  # pyright: ignore[reportPrivateUsage]
 
@@ -360,27 +315,9 @@ def test_follow_stream_prints_each_delta_once_and_exits_on_finish(
     assert capsys.readouterr().out == "hello world\n"
 
 
-def test_follow_stream_fills_connection_race_from_final_output(
+def test_follow_stream_reads_final_output_when_process_already_exited(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    from websockets.asyncio import client as websocket_client
-
-    class FakeWebSocket:
-        async def recv(self) -> str:
-            return json.dumps(_event_frame(events.TaskFinishEvent(session_id="session-id", task_result="success"), 10))
-
-        async def close(self) -> None:
-            return None
-
-    async def fake_connect(**_kwargs: object) -> FakeWebSocket:
-        return FakeWebSocket()
-
-    monkeypatch.setattr(websocket_client, "unix_connect", fake_connect)
-    monkeypatch.setattr(
-        headless_cmd,
-        "_fetch_rows",
-        lambda *_args, **_kwargs: [{"id": "session-id", "state": "idle", "pending": False}],
-    )
     monkeypatch.setattr(
         headless_cmd,
         "_fetch_output",
@@ -388,14 +325,14 @@ def test_follow_stream_fills_connection_race_from_final_output(
             "id": "session-id",
             "state": "idle",
             "pending": False,
-            "output": "completed before connect",
+            "output": "completed before polling",
         },
     )
 
     exit_code = asyncio.run(headless_cmd._follow_output_stream("session-id", initial_output="old output"))  # pyright: ignore[reportPrivateUsage]
 
     assert exit_code == 0
-    assert capsys.readouterr().out == "completed before connect\n"
+    assert capsys.readouterr().out == "completed before polling\n"
 
 
 def test_headless_help_lists_watch_follow_and_approval_warning() -> None:

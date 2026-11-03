@@ -32,9 +32,7 @@ class ManageProvidersCommand(CommandABC):
 
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input
-        # This command runs in the client process while the server owns the
-        # session. Re-read the file first: the cached copy dates from attach and
-        # may miss what the server saved since (model defaults, sub-agent models).
+        # Re-read the file so this edit includes changes from other processes.
         load_config.cache_clear()
         config = load_config()
         states = build_provider_states(config)
@@ -84,27 +82,16 @@ class ManageProvidersCommand(CommandABC):
             config.web_search = candidate.web_search
         load_config.cache_clear()
 
-        # The server caches config per process; without this it keeps serving the
-        # old provider set until `klaude server reload`. Imported lazily to keep
-        # the socket client out of command-registry loading.
-        from klaude_code.tui.client.server_api import reload_server_config, server_code_is_stale
-
-        reload_error = await asyncio.to_thread(reload_server_config)
         changes = [f"{len(changed)} provider(s)"] if changed else []
         if search_changed:
             chain = " > ".join(selected.search_provider_names) or "(none)"
             changes.append(f"web search: {chain}")
         content = f"Provider settings saved ({'; '.join(changes)})."
-        if reload_error is not None:
-            content += f"\nServer still uses the old providers ({reload_error}); run: klaude server reload"
-        elif await asyncio.to_thread(server_code_is_stale):
-            content += "\nServer is running older code; behavior changes need: klaude server reload --force"
         return CommandResult(
             events=[
                 events.NoticeEvent(
                     session_id=agent.session.id,
                     content=content,
-                    is_error=reload_error is not None,
                 )
             ]
         )

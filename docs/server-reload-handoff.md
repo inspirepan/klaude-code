@@ -1,5 +1,7 @@
 # Server 更新与优雅重启：调研 handoff
 
+> 执行架构已更新：以 [独立 TUI 计划](tasks/local-tui-runtime/outline.md) 为准。本文的共享 server、WS、attach 和自动重启内容仅作历史记录。
+
 ## 背景与结论
 
 Klaude 的交互 TUI 是独立 server 的客户端。退出 TUI 不会退出或重启 server；安装新代码也不等于 server 已运行新代码。当前自动 Git 升级会尝试对空闲 server 执行一次非强制 reload，但 server 忙碌时只返回 pending，不会在稍后空闲时自行重试。因此，TUI 的“自动升级成功”通知只能表示安装完成，不能表示 server 已切换到新代码。

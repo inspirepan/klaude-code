@@ -69,8 +69,6 @@ export interface SessionMeta {
   readonly updated_at: number | null
   readonly state: SessionState
   readonly status: SessionStatus
-  /** True when an agent is in memory, i.e. when the WS channel is worth opening. */
-  readonly loaded: boolean
   readonly line_count: number
 }
 
@@ -102,7 +100,7 @@ export interface SessionStatus {
 }
 
 /**
- * One row of `GET /api/headless/sessions` (`routes/headless.py: _serialize_row`).
+ * One row of `GET /api/web/sessions`, read from persisted history.
  *
  * The identity field is `id`, not `session_id`; timestamps are epoch seconds.
  */
@@ -128,7 +126,6 @@ export interface SessionListRow {
   readonly messages_count?: number | null
   /** Free-text activity line the headless API renders in `ps`. */
   readonly activity?: string | null
-  readonly pending?: boolean
 }
 
 /**
@@ -190,15 +187,14 @@ export interface SystemContextModel {
 /**
  * `GET /api/web/sessions/{id}/system-context` response.
  *
- * `source: 'live'` is the loaded agent's own profile — the exact system prompt
- * and tools its next step would send. `source: 'rebuilt'` re-ran the builders
+ * `source: 'rebuilt'` re-ran the builders
  * off the session meta, so it reflects **today's** prompt files and tool set
  * rather than what the session actually sent; the SYSTEM row says so.
  * `available: false` carries a `reason` and no payload (HTTP is still 200).
  */
 export interface SystemContext {
   readonly available: boolean
-  readonly source?: 'live' | 'rebuilt' | null
+  readonly source?: 'rebuilt' | null
   readonly system_prompt?: string | null
   readonly tools?: readonly SystemContextTool[] | null
   readonly model?: SystemContextModel | null

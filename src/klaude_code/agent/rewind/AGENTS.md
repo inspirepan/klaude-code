@@ -8,7 +8,7 @@ the read path survives, so old session files still load — see "Legacy" below.
 
 ## User rewind (`/rewind` TUI command)
 
-- Semantics: **fork to a new session**. The server-side
+- Semantics: **fork to a new session**. The local Runtime operation
   `RewindWithSummaryOperation` summarizes messages `[pivot..end]` via the
   cache-sharing fork request (full `get_llm_history()` prefix + trailing
   instruction — same pattern as `_build_summary_fork` in

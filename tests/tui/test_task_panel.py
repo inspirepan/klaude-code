@@ -14,7 +14,6 @@ from prompt_toolkit.output import DummyOutput
 from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.peer import PeerReceipt
-from klaude_code.tui.client import server_api
 from klaude_code.tui.client.base import RuntimeClient
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.input import prompt_toolkit as prompt_module
@@ -209,74 +208,6 @@ def test_panel_pages_stops_owned_task_and_confirms_exact_peer_target_with_failur
         assert any("Queued → child" in heading for heading in prompt.headings) is not send_fails
 
     asyncio.run(run())
-
-
-def test_task_message_http_uses_selected_owned_child_and_external_identity(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[tuple[str, dict[str, Any]]] = []
-
-    def request(method: str, path: str, **kwargs: Any) -> Any:
-        calls.append((path, kwargs))
-        if path.endswith("/tasks"):
-            task = task_snapshot()
-            task.ref.operation_id = "child-operation"
-            return TaskResponse(tasks=[task]).model_dump()
-        return {"message_id": "receipt", "target": "child", "accepted": True}
-
-    monkeypatch.setattr(server_api, "_request", request)
-    receipt = server_api.send_owned_task_message("main", "agent-1", "/stop")
-    assert receipt.target == "child"
-    path, params = calls[-1]
-    assert path == "/api/headless/sessions/child/send-active"
-    assert params["json_body"]["text"] == "/stop"
-    assert "sender_session_id" not in params["json_body"]
-    assert params["json_body"]["sender"].endswith("(external)")
-    assert params["json_body"]["expected_operation_id"] == "child-operation"
-    with pytest.raises(ValueError, match="owned child"):
-        server_api.send_owned_task_message("foreign", "agent-1", "text")
-    assert len([path for path, _ in calls if path.endswith("/send-active")]) == 1
-
-
-def test_old_server_cannot_silently_fall_back_to_unguarded_send(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[str] = []
-
-    def request(method: str, path: str, **kwargs: Any) -> Any:
-        calls.append(path)
-        if path.endswith("/tasks"):
-            task = task_snapshot()
-            task.ref.operation_id = "operation"
-            return TaskResponse(tasks=[task]).model_dump()
-        raise server_api.ServerAPIError(404, "Not Found")
-
-    monkeypatch.setattr(server_api, "_request", request)
-    with pytest.raises(RuntimeError, match=r"unsupported.*message not sent"):
-        server_api.send_owned_task_message("main", "agent-1", "body")
-    assert calls == ["/api/headless/sessions/main/tasks", "/api/headless/sessions/child/send-active"]
-
-
-@pytest.mark.parametrize("status", ["completed", "failed", "stopping", "queued"])
-def test_nonrunning_child_has_no_message_action_and_http_refuses_send(
-    monkeypatch: pytest.MonkeyPatch, status: str
-) -> None:
-    task = task_snapshot(status)
-
-    class Prompt:
-        async def choose_task_action(self, heading: str, items: Any, **kwargs: Any) -> str | None:
-            assert "output" in [item.value for item in items]
-            assert "message" not in [item.value for item in items]
-            assert ("stop" in [item.value for item in items]) == (status in {"stopping", "queued"})
-            return None
-
-    asyncio.run(TaskPanel(cast(RuntimeClient, None), cast(PromptToolkitInput, Prompt()), lambda: {})._detail(task))
-    calls: list[str] = []
-
-    def request(method: str, path: str, **kwargs: Any) -> Any:
-        calls.append(path)
-        return TaskResponse(tasks=[task]).model_dump()
-
-    monkeypatch.setattr(server_api, "_request", request)
-    with pytest.raises(ValueError, match="no longer running"):
-        server_api.send_owned_task_message("main", "agent-1", "body")
-    assert all(path.endswith("/tasks") for path in calls)
 
 
 def test_picker_refresh_keeps_finished_tasks_and_prioritizes_attention_then_failure() -> None:

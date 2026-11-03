@@ -5,7 +5,7 @@ Writes the fork-summary request. Two paths:
 - Cache-sharing fork (preferred): the request wire is the session's FULL
   LLM-facing history (``get_llm_history()``) plus a trailing instruction
   message. The prefix is byte-identical to the parent's most recent request,
-  so the server-side prompt cache is reused up to the end of the kept tail.
+  so the provider prompt cache is reused up to the end of the kept tail.
   Requires the summarizer client to share the main profile's cache key (see
   ``is_cache_sharable``).
 - Fallback: the tail ``[pivot..end]`` is serialized into a standalone request
@@ -159,7 +159,7 @@ async def run_rewind_summary(
     (``Session.load``-equivalent — the caller must NOT rebuild the live list,
     whose in-place rewind/retract mutations make ``rebuild_loaded_history``
     non-idempotent). The cache-sharing fork prefix is the session's full
-    LLM-facing history, so the server-side prompt cache is reused up to the
+    LLM-facing history, so the provider prompt cache is reused up to the
     end of the kept tail when the compact client shares the main profile's
     cache key (``is_cache_sharable``); otherwise the tail is serialized into
     a standalone request.

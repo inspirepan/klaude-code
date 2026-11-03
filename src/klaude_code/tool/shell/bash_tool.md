@@ -1,6 +1,6 @@
 Runs a non-interactive shell command and returns stdout/stderr.
 
-The default foreground wait is `wait_ms=10000`. If the command is still running, the same process becomes a managed background task and returns a task ID. `run_in_background=true` returns immediately. Background execution requires the server-owned manager; direct local calls wait for completion and reject explicit background mode.
+The default foreground wait is `wait_ms=10000`. If the command is still running, the same process becomes a managed background task and returns a task ID. `run_in_background=true` returns immediately. Background execution requires the process-owned manager; direct local calls wait for completion and reject explicit background mode.
 
 `timeout_ms` is the hard total runtime limit, including background time, default 1800000 (30 minutes). Set `timeout_ms=null` explicitly for a long-lived dev server. Background handoff never disables a hard timeout. Use ManageShell to list, read paginated output, wait, or stop a task. IDs survive context compression. Completion is reported automatically; do useful work rather than busy-polling.
 

@@ -21,7 +21,6 @@ class CommandName(str, Enum):
     SUB_AGENT_MODEL = "sub-agent-model"
     COMPACT = "compact"
     REFRESH_TERMINAL = "refresh-terminal"
-    RELOAD = "reload"
     NEW = "new"
     STATUS = "status"
     CONTEXT = "context"
@@ -34,7 +33,7 @@ class CommandName(str, Enum):
     BTW = "btw"
     TASKS = "tasks"
     STOP = "stop"
-    DETACH = "detach"
+    EXIT = "exit"
 
     def __str__(self) -> str:
         return self.value

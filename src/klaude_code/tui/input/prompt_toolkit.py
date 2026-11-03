@@ -254,7 +254,9 @@ class PromptToolkitInput(InputProviderABC):
         on_color_scheme_change: Callable[[str], None] | None = None,
         get_model_catalog: Callable[[], Awaitable[ModelCatalog | None]] | None = None,
         program_status: ProgramStatusReporter | None = None,
+        exit_as_input: bool = False,
     ):
+        self._exit_as_input = exit_as_input
         self._prompt_text = prompt
         self._pre_prompt = pre_prompt
         self._post_prompt = post_prompt
@@ -349,11 +351,11 @@ class PromptToolkitInput(InputProviderABC):
             self._on_user_activity()
 
     def request_exit(self) -> None:
-        """End the input loop from outside (e.g. the server connection died).
+        """End the input loop from the host.
 
         The active prompt is aborted like a pause; ``_iter_inputs_inner``
         sees the flag and returns, which ends the runner's input loop and
-        triggers the normal detach path.
+        triggers normal Runtime cleanup.
         """
         self._exit_requested = True
         self._cancel_model_catalog_request()
@@ -1328,6 +1330,10 @@ class PromptToolkitInput(InputProviderABC):
                 queued_edit = self._queued_edit_active
             except _PromptPaused:
                 prompt_paused = True
+            except (EOFError, KeyboardInterrupt):
+                if not self._exit_as_input:
+                    raise
+                line = "exit"
             finally:
                 self._prompt_active = False
                 self._cancel_model_catalog_request()

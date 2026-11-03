@@ -21,7 +21,6 @@ from klaude_code.protocol.peer import PeerMessage
 from klaude_code.protocol.user_interaction import AskUserQuestionRequestPayload
 from klaude_code.session.session import Session
 from klaude_code.tui import machine as machine_module
-from klaude_code.tui.client.socket_client import SocketRuntimeClient, _local_envelope
 from klaude_code.tui.command import get_command_info_list, has_background_command
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -765,43 +764,6 @@ def test_manage_tasks_expanded_tool_output_respects_line_budget_and_pagination(m
     assert "/tasks output agent-1 8192" in rendered
     operator_page = plain(render_task_response(response, detail=Detail.FULL))
     assert "output line 500" in operator_page
-
-
-def test_socket_shared_snapshot_preserves_idle_and_peer_is_not_swallowed() -> None:
-    async def run() -> None:
-        async def ignore(_envelope: events.EventEnvelope) -> None:
-            pass
-
-        client = SocketRuntimeClient("main", on_envelope=ignore)
-        client._pending_echo_swallows.append(("same text", time.monotonic()))
-        peer = PeerMessage(sender_label="Alice", recipient="main", body="same text")
-        event = events.UserMessageEvent(
-            session_id="main", content="same text", source="peer_message", peer_message=peer
-        )
-        await client._handle_envelope(_local_envelope(event))
-        client.state_changed_event().clear()
-        snapshot = events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[task_snapshot()])
-        await client._handle_frame(make_envelope(snapshot).model_dump(mode="json", serialize_as_any=True))
-        assert not client.is_running() and not client.state_changed_event().is_set()
-        assert "child" in client._child_session_ids
-        assert client._display_queue.get_nowait().event == event
-        assert isinstance(client._display_queue.get_nowait().event, events.BackgroundTasksUpdatedEvent)
-        await client._handle_frame(
-            make_envelope(events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[])).model_dump(
-                mode="json", serialize_as_any=True
-            )
-        )
-        assert not client.is_running() and not client.state_changed_event().is_set()
-        interaction = events.UserInteractionRequestEvent(
-            session_id="child",
-            request_id="question",
-            source="tool",
-            payload=AskUserQuestionRequestPayload(questions=[]),
-        )
-        await client._handle_envelope(_local_envelope(interaction))
-        assert client._interaction_queue.get_nowait() == interaction
-
-    asyncio.run(run())
 
 
 @pytest.mark.parametrize(("columns", "height"), [(80, 24), (60, 20)])

@@ -39,7 +39,6 @@ def model_config(monkeypatch: pytest.MonkeyPatch) -> Config:
     def unexpected_server() -> None:
         pytest.fail("model discovery must not start a server")
 
-    monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", unexpected_server)
     return config
 
 

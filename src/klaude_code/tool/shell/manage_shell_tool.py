@@ -67,7 +67,7 @@ class ManageShellTool(ToolABC):
         manager = context.shell_task_manager
         if manager is None:
             return message.ToolResultMessage(
-                status="error", output_text="Managed shell tasks are unavailable without the server-owned manager."
+                status="error", output_text="Managed shell tasks are unavailable without the process-owned manager."
             )
         try:
             args = cls.Arguments.model_validate_json(arguments)

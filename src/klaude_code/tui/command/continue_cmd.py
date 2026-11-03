@@ -15,11 +15,6 @@ class ContinueCommand(CommandABC):
     def summary(self) -> str:
         return "Continue current session without a new user message"
 
-    @property
-    def needs_history(self) -> bool:
-        # Reads messages_count, which is computed from the loaded history.
-        return True
-
     async def run(self, agent: Agent, user_input: message.UserInputPayload) -> CommandResult:
         del user_input  # unused
 

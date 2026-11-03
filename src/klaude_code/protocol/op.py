@@ -286,7 +286,7 @@ class RewindWithSummaryOperation(Operation):
     ForkSummaryReadyEvent so frontends can switch.
 
     ``pivot_index`` indexes the pivot UserMessage in the session's
-    conversation_history (validated server-side); -1 rewinds the entire
+    conversation_history (validated by the Runtime); -1 rewinds the entire
     conversation. See ``agent/rewind/AGENTS.md``.
     """
 
@@ -295,7 +295,7 @@ class RewindWithSummaryOperation(Operation):
     pivot_index: int
     # Exact text of the pivot UserMessage as the picker saw it. The picker
     # indexes its own loaded (rebuilt) history view, which diverges from the
-    # server's live list for compacted sessions — the server resolves the
+    # Runtime's live list for compacted sessions — the Runtime resolves the
     # pivot in the equivalent rebuilt space and rejects on text mismatch.
     pivot_text: str | None = None
 
@@ -382,7 +382,7 @@ class InitAgentOperation(Operation):
     work_dir: Path
     defer_welcome_context: bool = False
     defer_replay: bool = False
-    # Rehydrating a reclaimed actor mid-attach: no welcome banner should
+    # Rehydrating a reclaimed actor during a local session switch: no welcome banner should
     # appear in the middle of the transcript.
     suppress_welcome: bool = False
 

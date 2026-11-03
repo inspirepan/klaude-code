@@ -1,6 +1,6 @@
 /**
  * Hand-written trajectory snapshot used to bring the forked UI up before the
- * REST/WS adapter exists. It exercises one turn: a user message, a two-step
+ * persisted-history adapter exists. It exercises one turn: a user message, a two-step
  * assistant exchange with one tool call, and the request headers that put
  * request dots on the ledger.
  */
@@ -83,7 +83,7 @@ const nodes: readonly ConversationNode[] = [
     callTime: T0 + 2_420,
     content: [{
       type: 'text',
-      text: '# klaude-code\n\nA terminal coding agent.\n\n- Persistent server, many sessions\n'
+      text: '# klaude-code\n\nA terminal coding agent.\n\n- Independent terminal processes\n'
         + '- Headless command surface\n- Web trajectory viewer\n',
     }],
     isError: false,
@@ -99,8 +99,8 @@ const nodes: readonly ConversationNode[] = [
     blocks: [{
       kind: 'text',
       text: '`klaude-code` is a terminal coding agent.\n\n'
-        + '- One **persistent server** multiplexes many sessions.\n'
-        + '- A headless command surface (`run`/`ps`/`wait`) drives it from scripts.\n'
+        + '- Each terminal owns its conversation in an **independent process**.\n'
+        + '- Headless commands (`run`/`ps`/`wait`) manage independent background processes.\n'
         + '- This web viewer replays a session trajectory read-only.\n',
     }],
     usage: {

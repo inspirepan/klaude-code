@@ -1471,7 +1471,7 @@ class DisplayStateMachine:
         history: an in-flight turn's events arrive through the live stream
         after the rebuild, and completed/interrupted turns replay their own
         terminal events, so anything still "active" here is a dangler from a
-        session killed mid-turn (e.g. ``server reload --force``). Clearing it
+        session killed mid-turn (e.g. process termination). Clearing it
         keeps the spinner and sub-agent status rows from sticking forever.
         Repaints from the display's own tape (toggle/refresh) must NOT drop —
         their tape does include the live turn.

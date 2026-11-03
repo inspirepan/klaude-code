@@ -12,7 +12,6 @@ import hashlib
 import json
 import os
 import shutil
-import stat
 import subprocess
 import threading
 import time
@@ -27,7 +26,6 @@ PACKAGE_NAME = "klaude-code"
 PYPI_URL = f"https://pypi.org/pypi/{PACKAGE_NAME}/json"
 CHECK_INTERVAL_SECONDS = 3600  # Check at most once per hour
 UPDATE_STATE_FILE = "update_state.json"
-AUTO_UPGRADE_DONE_ENV = "KLAUDE_AUTO_UPGRADE_DONE"
 
 INSTALL_KIND_UNKNOWN = "unknown"
 INSTALL_KIND_INDEX = "index"
@@ -41,7 +39,6 @@ UPDATE_SOURCE_PYPI = "pypi"
 UPDATE_SOURCE_GIT = "git"
 
 UPGRADE_BRANCH = "main"
-_FINGERPRINT_PATHS = ("src/klaude_code", "pyproject.toml", "uv.lock")
 
 
 class InstallationInfo(NamedTuple):
@@ -173,110 +170,6 @@ def get_install_source_path() -> str | None:
     return path
 
 
-_cached_code_fingerprint: str | None = None
-
-
-def get_code_fingerprint() -> str:
-    """Fingerprint of the code this process runs; used for the client/server handshake.
-
-    - git checkout install (editable/local): HEAD commit, plus a digest of
-      dirty paths and their current contents
-    - wheel install: package version
-
-    Cached per process: the first call freezes the value, so a long-lived
-    server keeps reporting the code it actually loaded at startup.
-    """
-
-    global _cached_code_fingerprint
-    if _cached_code_fingerprint is None:
-        _cached_code_fingerprint = _compute_code_fingerprint()
-    return _cached_code_fingerprint
-
-
-def _compute_code_fingerprint() -> str:
-    install_info = get_installation_info()
-    if install_info.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
-        source_path = get_install_source_path()
-        if source_path is not None:
-            fingerprint = _compute_git_fingerprint(source_path)
-            if fingerprint is not None:
-                return fingerprint
-    return f"pkg:{install_info.version or 'unknown'}"
-
-
-def _compute_git_fingerprint(source_path: str) -> str | None:
-    """HEAD hash plus dirty-state digest; None when not a usable git checkout."""
-
-    repo_path = Path(source_path).expanduser()
-    if not repo_path.is_dir() or shutil.which("git") is None:
-        return None
-    repo = str(repo_path)
-    head = _git_output(repo, ["rev-parse", "HEAD"])
-    if head is None:
-        return None
-    status = _git_bytes(
-        repo,
-        [
-            "status",
-            "--porcelain=v1",
-            "-z",
-            "--untracked-files=all",
-            "--ignore-submodules=all",
-            "--",
-            *_FINGERPRINT_PATHS,
-        ],
-    )
-    if status is None:
-        return None
-    if not status:
-        return f"git:{head[:12]}"
-    hasher = hashlib.sha256()
-    records = status.split(b"\0")
-    index = 0
-    while index < len(records):
-        record = records[index]
-        index += 1
-        if not record:
-            continue
-        hasher.update(record)
-        hasher.update(b"\0")
-        status_code = record[:2]
-        if (b"R" in status_code or b"C" in status_code) and index < len(records):
-            hasher.update(records[index])
-            hasher.update(b"\0")
-            index += 1
-        rel_path = os.fsdecode(record[3:])
-        _hash_worktree_path(hasher, repo_path / rel_path)
-    return f"git:{head[:12]}+{hasher.hexdigest()[:12]}"
-
-
-def _hash_worktree_path(hasher: Any, path: Path) -> None:
-    """Hash one dirty worktree path without following symlinks."""
-
-    try:
-        path_stat = path.lstat()
-    except OSError as exc:
-        hasher.update(f"missing:{exc.errno}\0".encode())
-        return
-    hasher.update(f"mode:{path_stat.st_mode:o}\0".encode())
-    if stat.S_ISLNK(path_stat.st_mode):
-        try:
-            hasher.update(b"symlink:\0" + os.fsencode(os.readlink(path)) + b"\0")
-        except OSError as exc:
-            hasher.update(f"unreadable-symlink:{exc.errno}\0".encode())
-        return
-    if not stat.S_ISREG(path_stat.st_mode):
-        hasher.update(b"non-regular\0")
-        return
-    try:
-        with path.open("rb") as file:
-            while chunk := file.read(1024 * 1024):
-                hasher.update(chunk)
-    except OSError as exc:
-        hasher.update(f"unreadable:{exc.errno}\0".encode())
-    hasher.update(b"\0")
-
-
 def _get_installed_version() -> str | None:
     try:
         result = subprocess.run(
@@ -369,18 +262,11 @@ def _git_output(repo: str, args: list[str], timeout: int = GIT_QUERY_TIMEOUT) ->
     return result.stdout.strip()
 
 
-def _git_bytes(repo: str, args: list[str], timeout: int = GIT_QUERY_TIMEOUT) -> bytes | None:
-    result = _run_git(repo, args, timeout, text=False)
-    if result is None or result.returncode != 0 or not isinstance(result.stdout, bytes):
-        return None
-    return result.stdout
-
-
 def _git_checkout_on_upgrade_branch(source_path: str) -> bool:
-    """True when the checkout sits on the branch auto-upgrade fast-forwards.
+    """True when the checkout sits on the branch manual upgrade fast-forwards.
 
     Detached HEAD (e.g. a jj colocated repo) or any other branch makes the Git
-    upgrade refuse, so arming it there only repeats a failure on every launch.
+    upgrade refuse, so update notices explain why a manual upgrade would refuse.
     """
 
     return _git_output(str(Path(source_path).expanduser()), ["rev-parse", "--abbrev-ref", "HEAD"]) == UPGRADE_BRANCH
@@ -565,72 +451,6 @@ def _start_background_update_check() -> None:
     thread.start()
 
 
-def has_pending_update() -> bool:
-    """True when the last check found newer code or a Git upgrade needs recovery.
-
-    Cheap and file-only: this is the client-side trigger for asking the server
-    to upgrade. The server re-validates against its own install metadata.
-    """
-
-    info = get_installation_info()
-    if info.install_kind in {INSTALL_KIND_LOCAL, INSTALL_KIND_EDITABLE}:
-        source_path = get_install_source_path()
-        if source_path is not None and _git_upgrade_marker(source_path).exists():
-            return True
-    persisted = _load_persisted_update_info()
-    if persisted is None or not persisted.update_available or not persisted.latest:
-        return False
-    if persisted.update_source == UPDATE_SOURCE_GIT:
-        source_path = get_install_source_path()
-        return source_path is not None and _git_checkout_on_upgrade_branch(source_path)
-    return True
-
-
-def perform_upgrade(check: bool = False) -> AutoUpgradeResult:
-    """Install the latest code in place; runs inside the server at an idle boundary.
-
-    With ``check`` the upstream is queried first (manual ``klaude upgrade``);
-    otherwise the persisted result of the last background check decides. A
-    result with ``performed`` False and no message means nothing to install.
-    """
-
-    if check:
-        try:
-            info = check_for_updates_blocking()
-        except RuntimeError as exc:
-            return AutoUpgradeResult(False, None, f"update check failed: {exc}", "warn")
-        if info is None:
-            return AutoUpgradeResult(False, None, "update check unavailable: `uv` not found in PATH", "warn")
-        write_persisted_update_info(
-            PersistedUpdateInfo(
-                checked_at=time.time(),
-                installed=info.installed,
-                latest=info.latest,
-                update_available=info.update_available,
-                install_kind=info.install_kind,
-                update_source=info.update_source,
-            )
-        )
-    return perform_auto_upgrade_if_needed()
-
-
-def upgraded_code_fingerprint(result: AutoUpgradeResult) -> str | None:
-    """Fingerprint of the code just installed, bypassing the per-process cache.
-
-    Git installs are fingerprinted from the checkout that was fast-forwarded;
-    wheel installs from the version ``uv`` reported.
-    """
-
-    info = get_installation_info()
-    if info.install_kind in {INSTALL_KIND_LOCAL, INSTALL_KIND_EDITABLE}:
-        source_path = get_install_source_path()
-        if source_path is not None:
-            fingerprint = _compute_git_fingerprint(source_path)
-            if fingerprint is not None:
-                return fingerprint
-    return f"pkg:{result.new_version}" if result.new_version else None
-
-
 def _is_persisted_update_info_fresh(info: PersistedUpdateInfo) -> bool:
     return (time.time() - info.checked_at) < CHECK_INTERVAL_SECONDS
 
@@ -651,7 +471,7 @@ def _build_update_message(
     if update_source == UPDATE_SOURCE_GIT:
         return (
             f"origin/{UPGRADE_BRANCH} {latest} available. Current {installed_display}; "
-            "auto-upgrade applies on next start, or run `klaude upgrade`."
+            "run `klaude upgrade` to install it."
         )
 
     if install_kind == INSTALL_KIND_EDITABLE:
@@ -701,7 +521,7 @@ def get_startup_update_summary() -> StartupUpdateSummary | None:
     ):
         return StartupUpdateSummary(
             f"origin/{UPGRADE_BRANCH} {persisted.latest} available. Current {persisted.installed or 'unknown'} "
-            f"is not on {UPGRADE_BRANCH}, so auto-upgrade is off; update the checkout manually.",
+            f"is not on {UPGRADE_BRANCH}, switch branches before running `klaude upgrade`.",
             level="warn",
         )
 
@@ -717,7 +537,7 @@ def get_startup_update_summary() -> StartupUpdateSummary | None:
     return StartupUpdateSummary(message=message, level="warn")
 
 
-class AutoUpgradeResult(NamedTuple):
+class UpgradeResult(NamedTuple):
     performed: bool
     new_version: str | None
     message: str | None
@@ -738,12 +558,12 @@ def _git_upgrade_marker(source_path: str) -> Path:
     return Path.home() / ".klaude" / "updates" / f"{key}.json"
 
 
-def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResult:
+def _upgrade_git_install(install_kind: str, source_path: str) -> UpgradeResult:
     """Update a local checkout and its uv tool under a per-checkout process lock."""
 
     repo = str(Path(source_path).expanduser().resolve())
     if not Path(repo).is_dir() or shutil.which("git") is None or shutil.which("uv") is None:
-        return AutoUpgradeResult(False, None, f"Git upgrade unavailable at {repo}: source, git or uv missing", "warn")
+        return UpgradeResult(False, None, f"Git upgrade unavailable at {repo}: source, git or uv missing", "warn")
 
     marker = _git_upgrade_marker(repo)
     state_dir = marker.parent
@@ -751,15 +571,15 @@ def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResu
         state_dir.mkdir(parents=True, exist_ok=True)
         lock_file = marker.with_suffix(".lock").open("a+b")
     except OSError as exc:
-        return AutoUpgradeResult(False, None, f"Cannot create upgrade lock: {exc}", "warn")
+        return UpgradeResult(False, None, f"Cannot create upgrade lock: {exc}", "warn")
 
     with lock_file:
         try:
             fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            return AutoUpgradeResult(False, None, "Another upgrade is already running for this checkout", "warn")
+            return UpgradeResult(False, None, "Another upgrade is already running for this checkout", "warn")
         except OSError as exc:
-            return AutoUpgradeResult(False, None, f"Cannot lock upgrade: {exc}", "warn")
+            return UpgradeResult(False, None, f"Cannot lock upgrade: {exc}", "warn")
 
         stash_sha: str | None = None
         pre_head: str | None = None
@@ -780,10 +600,7 @@ def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResu
                 pre_head = pending.get("pre_head")
                 if not isinstance(pre_head, str) or not pre_head:
                     raise RuntimeError(f"Recovery marker lacks pre-upgrade HEAD: {marker}")
-                if (
-                    _git_output(repo, ["status", "--porcelain", "--untracked-files=all", "--ignore-submodules=all"])
-                    != ""
-                ):
+                if _git_output(repo, ["status", "--porcelain", "--untracked-files=all"]) != "":
                     raise RuntimeError(f"Checkout changed since interrupted upgrade; inspect it and marker {marker}")
             else:
                 branch = _git_output(repo, ["symbolic-ref", "--quiet", "--short", "HEAD"])
@@ -791,9 +608,7 @@ def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResu
                     raise RuntimeError(
                         f"Checkout is on {branch or 'detached HEAD'}, not {UPGRADE_BRANCH}; switch manually"
                     )
-                status = _git_output(
-                    repo, ["status", "--porcelain", "--untracked-files=all", "--ignore-submodules=all"]
-                )
+                status = _git_output(repo, ["status", "--porcelain", "--untracked-files=all"])
                 if status is None:
                     raise RuntimeError("Cannot read git status")
                 pre_head = _git_output(repo, ["rev-parse", "HEAD"])
@@ -808,7 +623,7 @@ def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResu
                     stash = _run_git(
                         repo,
                         ["stash", "push", "--include-untracked", "-m", "klaude-upgrade-autostash"],
-                        AUTO_UPGRADE_GIT_PULL_TIMEOUT,
+                        UPGRADE_GIT_PULL_TIMEOUT,
                     )
                     after = _git_output(repo, ["rev-parse", "--verify", "refs/stash"])
                     if after is not None and after != before:
@@ -817,10 +632,7 @@ def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResu
                         raise RuntimeError(
                             f"Stash failed; do not update. Check git stash list (new entry: {stash_sha}); marker: {marker}"
                         )
-                    if (
-                        _git_output(repo, ["status", "--porcelain", "--untracked-files=all", "--ignore-submodules=all"])
-                        != ""
-                    ):
+                    if _git_output(repo, ["status", "--porcelain", "--untracked-files=all"]) != "":
                         raise RuntimeError(
                             f"Stash did not clean checkout; changes saved as {stash_sha}; restore manually"
                         )
@@ -840,15 +652,9 @@ def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResu
                 )
                 if fetch is None or fetch.returncode != 0:
                     raise RuntimeError("Git fetch failed; no cached origin/main was used")
-                merge = _run_git(
-                    repo, ["merge", "--ff-only", f"origin/{UPGRADE_BRANCH}"], AUTO_UPGRADE_GIT_PULL_TIMEOUT
-                )
+                merge = _run_git(repo, ["merge", "--ff-only", f"origin/{UPGRADE_BRANCH}"], UPGRADE_GIT_PULL_TIMEOUT)
                 if merge is None or merge.returncode != 0:
                     raise RuntimeError("Git fast-forward failed; checkout was not reset")
-            submodule = _run_git(repo, ["submodule", "update", "--init", "--recursive"], AUTO_UPGRADE_SUBMODULE_TIMEOUT)
-            if submodule is None or submodule.returncode != 0:
-                raise RuntimeError("Git submodule update failed")
-
             install_args = ["uv", "tool", "install", "--force"]
             if install_kind == INSTALL_KIND_EDITABLE:
                 install_args.append("--editable")
@@ -857,7 +663,7 @@ def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResu
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=AUTO_UPGRADE_UV_INSTALL_TIMEOUT,
+                timeout=UPGRADE_UV_INSTALL_TIMEOUT,
             )
             if install.returncode != 0:
                 raise RuntimeError(f"uv reinstall failed (exit {install.returncode})")
@@ -917,7 +723,7 @@ def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResu
 
             if stash_sha:
                 marker.write_text(json.dumps({"repo": repo, "stash": stash_sha, "phase": "restore"}), encoding="utf-8")
-                applied = _run_git(repo, ["stash", "apply", "--index", stash_sha], AUTO_UPGRADE_GIT_PULL_TIMEOUT)
+                applied = _run_git(repo, ["stash", "apply", "--index", stash_sha], UPGRADE_GIT_PULL_TIMEOUT)
                 if applied is None or applied.returncode != 0:
                     raise RuntimeError(
                         f"Stash apply conflicted; stash {stash_sha} is preserved. Resolve manually; marker: {marker}"
@@ -941,111 +747,12 @@ def _upgrade_git_install(install_kind: str, source_path: str) -> AutoUpgradeResu
                 raise RuntimeError("Cannot verify updated checkout HEAD")
             marker.unlink()
             _invalidate_persisted_update_info()
-            return AutoUpgradeResult(
+            return UpgradeResult(
                 True, expected, "Git checkout and installed klaude verified; restart the CLI", revision=revision
             )
         except (OSError, ValueError, KeyError, subprocess.SubprocessError, RuntimeError) as exc:
-            return AutoUpgradeResult(False, None, f"Git upgrade incomplete: {exc}; retry `klaude upgrade`", "warn")
+            return UpgradeResult(False, None, f"Git upgrade incomplete: {exc}; retry `klaude upgrade`", "warn")
 
 
-AUTO_UPGRADE_PYPI_TIMEOUT = 180  # uv tool upgrade, includes solve+download
-AUTO_UPGRADE_GIT_STATUS_TIMEOUT = 15
-AUTO_UPGRADE_GIT_PULL_TIMEOUT = 60
-AUTO_UPGRADE_SUBMODULE_TIMEOUT = 180
-AUTO_UPGRADE_UV_INSTALL_TIMEOUT = 180
-
-
-def _auto_upgrade_pypi() -> AutoUpgradeResult:
-    if shutil.which("uv") is None:
-        return AutoUpgradeResult(False, None, "auto-upgrade skipped: `uv` not found in PATH", "warn")
-    try:
-        result = subprocess.run(
-            ["uv", "tool", "upgrade", PACKAGE_NAME],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=AUTO_UPGRADE_PYPI_TIMEOUT,
-        )
-    except subprocess.TimeoutExpired:
-        return AutoUpgradeResult(
-            False, None, f"auto-upgrade skipped: `uv tool upgrade` timed out after {AUTO_UPGRADE_PYPI_TIMEOUT}s", "warn"
-        )
-    except OSError as err:
-        return AutoUpgradeResult(False, None, f"auto-upgrade failed: {err}", "warn")
-    if result.returncode != 0:
-        return AutoUpgradeResult(False, None, f"auto-upgrade failed (uv tool upgrade exit {result.returncode})", "warn")
-    return AutoUpgradeResult(True, _get_installed_version(), None)
-
-
-def _auto_upgrade_local_git(install_kind: str, source_path: str) -> AutoUpgradeResult:
-    return _upgrade_git_install(install_kind, source_path)
-
-
-def perform_auto_upgrade_if_needed() -> AutoUpgradeResult:
-    """Attempt to upgrade the current installation in place.
-
-    The caller should re-exec the process when ``performed`` is True.
-    """
-
-    # Prevent recursion after we re-exec post-upgrade.
-    if os.environ.get(AUTO_UPGRADE_DONE_ENV) == "1":
-        return AutoUpgradeResult(False, None, None)
-
-    # Resolve install metadata from the current process, not the cache, so an
-    # out-of-band install-method change does not steer us to the wrong branch.
-    install_info = get_installation_info()
-    install_kind = install_info.install_kind
-    is_local_kind = install_kind in {INSTALL_KIND_LOCAL, INSTALL_KIND_EDITABLE}
-    source_path = get_install_source_path() if is_local_kind else None
-    persisted = _load_persisted_update_info()
-    recovering = source_path is not None and _git_upgrade_marker(source_path).exists()
-    if (persisted is None or not persisted.update_available or not persisted.latest) and not recovering:
-        return AutoUpgradeResult(False, None, None)
-
-    if recovering:
-        pass
-    elif persisted is not None and persisted.update_source == UPDATE_SOURCE_GIT:
-        # `latest` is a commit sha here, so there is no version ordering to
-        # check; the recorded behind-count already answered the question.
-        if not is_local_kind:
-            # Install method changed out of band; let the next check re-resolve.
-            _invalidate_persisted_update_info()
-            return AutoUpgradeResult(False, None, None)
-    else:
-        assert persisted is not None
-        assert persisted.latest is not None
-        current_version = install_info.version
-        if current_version and not _compare_versions(current_version, persisted.latest):
-            return AutoUpgradeResult(False, None, None)
-
-    if recovering and source_path is not None:
-        result = _auto_upgrade_local_git(install_kind, source_path)
-    elif install_kind == INSTALL_KIND_INDEX:
-        result = _auto_upgrade_pypi()
-    elif is_local_kind:
-        if source_path is None:
-            return AutoUpgradeResult(False, None, "auto-upgrade skipped: local install source path unavailable", "warn")
-        result = _auto_upgrade_local_git(install_kind, source_path)
-    else:
-        # direct_url or unknown: no safe automatic path
-        return AutoUpgradeResult(False, None, None)
-
-    if result.performed:
-        _invalidate_persisted_update_info()
-        target = (
-            f"local Git {result.new_version}"
-            if recovering or (persisted is not None and persisted.update_source == UPDATE_SOURCE_GIT)
-            else result.new_version or "latest release"
-        )
-        return AutoUpgradeResult(
-            True,
-            result.new_version,
-            f"Auto-upgraded klaude-code to {target}.",
-            "info",
-            result.revision,
-        )
-    if result.message is not None and not recovering and persisted is not None:
-        # Without this every launch re-requests the same failing install; the
-        # next scheduled check re-arms it.
-        write_persisted_update_info(persisted._replace(checked_at=time.time(), update_available=False))
-    return result
+UPGRADE_GIT_PULL_TIMEOUT = 60
+UPGRADE_UV_INSTALL_TIMEOUT = 180

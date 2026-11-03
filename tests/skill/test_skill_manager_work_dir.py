@@ -1,8 +1,6 @@
 """Regression tests: skill manager access is keyed by work_dir, not process CWD.
 
-The server process hosts sessions rooted in different directories; the old
-CWD-bound singleton showed every session the skills of whatever directory
-first spawned the server.
+Restored sessions and child agents may use directories other than the process CWD.
 """
 
 from pathlib import Path
@@ -37,9 +35,9 @@ def test_available_skills_are_per_work_dir(
     _write_project_skill(project_b, "skill-b")
 
     # The process CWD points at neither project.
-    server_cwd = tmp_path / "server-cwd"
-    server_cwd.mkdir()
-    monkeypatch.chdir(server_cwd)
+    process_cwd = tmp_path / "process-cwd"
+    process_cwd.mkdir()
+    monkeypatch.chdir(process_cwd)
 
     names_a = {name for name, _desc, _loc in manager.get_available_skills(project_a)}
     names_b = {name for name, _desc, _loc in manager.get_available_skills(project_b)}

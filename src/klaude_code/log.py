@@ -99,7 +99,7 @@ def set_debug_logging(
         _prune_old_logs(DEFAULT_DEBUG_LOG_DIR, LOG_RETENTION_DAYS, LOG_MAX_TOTAL_BYTES)
 
     if use_file and file_path is not None:
-        # Plain rotating handler: rollover runs inside emit() on the server's
+        # Plain rotating handler: rollover runs inside emit() on the process's
         # event loop, and gzipping 50MB there would stall every session.
         _file_handler = RotatingFileHandler(
             file_path,
@@ -146,7 +146,7 @@ def log_info(
     """Log operational messages that must survive without debug mode.
 
     Unlike log_debug this is not gated on the debug flag; records reach any
-    attached handler (e.g. the server's file log) at INFO level. With no
+    attached handler (e.g. the process's file log) at INFO level. With no
     handler attached the record is dropped silently.
     """
     message = _build_message(objects)
@@ -313,7 +313,7 @@ _DEBUG_TRUNCATE_PREFIX_CHARS = 96
 # Keys whose values should be truncated (e.g., signatures, large payloads)
 _TRUNCATE_KEYS = {"thought_signature", "thoughtSignature"}
 
-# Credential keys redacted at any nesting depth; the server writes the debug
+# Credential keys redacted at any nesting depth; the application writes the debug
 # log unconditionally, so defense-in-depth beyond the call-site excludes.
 _SECRET_KEYS = {"api_key", "aws_access_key", "aws_secret_key", "aws_session_token", "authorization", "x-api-key"}
 

@@ -28,19 +28,6 @@ _ENV_REF_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*(?:\|[A-Za-z_][A-Za-z
 _REMOVED_PROVIDER_NAMES = {"copilot", "github-copilot"}
 
 
-def _collect_env_var_names(value: Any, names: set[str]) -> None:
-    """Recursively collect environment variable names from a config value."""
-    if isinstance(value, str):
-        for expression in _ENV_REF_PATTERN.findall(value):
-            names.update(name for name in expression.split("|") if name)
-    elif isinstance(value, dict):
-        for item in value.values():
-            _collect_env_var_names(item, names)
-    elif isinstance(value, (list, tuple)):
-        for item in value:
-            _collect_env_var_names(item, names)
-
-
 def describe_model_unavailable(model_selector: str, diagnosis: "ModelDiagnosis") -> str:
     """Render a model availability failure as a 400 detail string."""
     detail = f"model '{model_selector}' is unavailable"
@@ -431,9 +418,7 @@ class UserConfig(BaseModel):
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     sub_agent_model_decision_tree: str | None = None
     theme: str | None = None
-    auto_upgrade: bool | None = None
     # Max concurrently running headless sessions (spawned via `klaude run`).
-    headless_max_running: int | None = None
     # Web search provider chain override; None means "use builtin defaults".
     web_search: WebSearchConfig | None = None
     provider_list: list[UserProviderConfig] = Field(default_factory=lambda: [])
@@ -450,8 +435,6 @@ _MERGEABLE_USER_FIELDS = (
     "compact_model",
     "sub_agent_model_decision_tree",
     "theme",
-    "auto_upgrade",
-    "headless_max_running",
     "web_search",
 )
 
@@ -532,10 +515,6 @@ class Config(BaseModel):
     sub_agent_models: dict[str, ModelPreference] = Field(default_factory=dict)
     sub_agent_model_decision_tree: str | None = None
     theme: str | None = None
-    auto_upgrade: bool = True
-    # Max concurrently running headless sessions (spawned via `klaude run`);
-    # further `run` requests queue on the server until a slot frees.
-    headless_max_running: int = 8
     # Web search provider chain (merged builtin defaults + user override).
     web_search: WebSearchConfig = Field(default_factory=default_web_search_config)
     provider_list: list[ProviderConfig] = Field(default_factory=lambda: [])
@@ -666,26 +645,6 @@ class Config(BaseModel):
         if not base or not provider:
             raise ValueError(f"Invalid model selector: {model_selector!r}")
         return base, provider
-
-    def referenced_env_vars(self) -> frozenset[str]:
-        """Names of env vars referenced by ${VAR} syntax in the merged config.
-
-        Credential resolution reads ``os.environ`` live, so a long-running daemon
-        sees whatever env it was launched with. Clients use this set to send the
-        referenced variables along with each request, letting the daemon's
-        availability checks follow the caller's terminal instead.
-        """
-        names: set[str] = set()
-        _collect_env_var_names(self.model_dump(), names)
-        return frozenset(names)
-
-    def referenced_env_values(self) -> dict[str, str]:
-        """Env var values referenced by the merged config, present in this process.
-
-        Returns only variables that are actually set; the CLI sends exactly
-        these to the server with every request.
-        """
-        return {name: os.environ[name] for name in self.referenced_env_vars() if name in os.environ}
 
     def diagnose_model(self, model_selector: str, *, max_suggestions: int = 3) -> ModelDiagnosis:
         """Diagnose whether a selector is available and suggest close alternatives.
@@ -1001,7 +960,6 @@ class Config(BaseModel):
             else None
         )
         user_config.theme = self.theme if self.theme != builtin.theme else None
-        user_config.auto_upgrade = self.auto_upgrade if self.auto_upgrade != builtin.auto_upgrade else None
         user_config.web_search = self.web_search if self.web_search != builtin.web_search else None
 
         # For sub_agent_models, only save entries that differ from builtin
@@ -1019,8 +977,8 @@ class Config(BaseModel):
         Partial user overrides for builtin providers may be written.
         Values that match builtin defaults are omitted to keep the file minimal.
 
-        The write merges into a fresh read of the file: the server and every TUI
-        client hold their own cached snapshot, so a blind overwrite would roll
+        The write merges into a fresh read of the file: each Klaude process
+        holds its own cached snapshot, so a blind overwrite would roll
         back whatever another process saved after this snapshot was loaded. Only
         the fields this process changed (relative to ``_user_config_baseline``)
         are applied on top of the current file contents.

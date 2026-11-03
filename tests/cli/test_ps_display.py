@@ -122,6 +122,7 @@ def test_ps_filters_tree_and_json_preserve_authoritative_status(monkeypatch: pyt
     assert calls == [
         {
             "limit": 0,
+            "history": True,
             "targets": "one,two",
             "group": "batch",
             "dir": "/w",

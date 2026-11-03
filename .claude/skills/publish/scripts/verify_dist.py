@@ -3,7 +3,7 @@
 # requires-python = ">=3.13"
 # dependencies = []
 # ///
-"""Verify the current release includes the built web viewer and system skills."""
+"""Verify the current release includes the built Web viewer."""
 
 import tarfile
 import tomllib

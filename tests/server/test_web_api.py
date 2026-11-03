@@ -8,7 +8,6 @@ agent — that cold path is exactly what the viewer uses for old sessions.
 from __future__ import annotations
 
 import json
-import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -27,7 +26,7 @@ from klaude_code.protocol.models.session_status import SessionStatus
 from klaude_code.server.routes import web_api
 from klaude_code.session.codec import encode_jsonl_line
 
-from .conftest import AppEnv
+from .conftest import WebEnv as AppEnv
 
 type Line = message.HistoryEvent | str
 
@@ -103,11 +102,9 @@ def test_meta_reports_disk_fields_for_a_cold_session(app_env: AppEnv) -> None:
         "updated_at": 2000.0,
         "state": "idle",
         "status": SessionStatus().model_dump(mode="json"),
-        "loaded": False,
         "line_count": 2,
     }
     # Reading a cold session must not spin up an agent for it.
-    assert not app_env.runtime.session_registry.has_session_actor(session_id)
 
 
 def test_meta_prefers_the_model_config_name_and_reports_the_parent(app_env: AppEnv) -> None:
@@ -126,72 +123,8 @@ def test_meta_prefers_the_model_config_name_and_reports_the_parent(app_env: AppE
     assert payload["line_count"] == 0
 
 
-def test_meta_reports_loaded_for_a_session_with_an_actor(app_env: AppEnv) -> None:
-    session_id = app_env.create_session()
-
-    payload = app_env.client.get(f"/api/web/sessions/{session_id}/meta").json()
-
-    assert payload["loaded"] is True
-    assert payload["work_dir"] == str(app_env.work_dir)
-    assert payload["state"] == "idle"
-
-
 def test_meta_of_an_unknown_session_is_404(app_env: AppEnv) -> None:
     assert app_env.client.get("/api/web/sessions/nope/meta").status_code == 404
-
-
-def test_cli_resume_keeps_the_loaded_actor(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
-    from types import SimpleNamespace
-    from typing import cast
-
-    import typer
-
-    from klaude_code.cli import main as cli_main
-
-    session_id = app_env.create_session()
-    actor = app_env.runtime.session_registry.get_session_actor(session_id)
-    attached: list[str] = []
-    requests: list[str] = []
-
-    def _request(method: str, path: str, **kwargs: Any) -> tuple[int, Any]:
-        requests.append(method)
-        response = app_env.client.request(method, path, json=kwargs.get("json_body"))
-        return response.status_code, response.json()
-
-    async def _run_attach(target: str, *, peek: bool = False, upgrade_notice: object = None) -> None:
-        assert peek is False
-        attached.append(target)
-
-    def _load_config() -> None:
-        raise AssertionError("loaded sessions should keep their live model")
-
-    monkeypatch.chdir(app_env.work_dir)
-    monkeypatch.setattr(cli_main, "_maybe_start_auto_upgrade", lambda: None)
-    monkeypatch.setattr(cli_main, "prepare_debug_logging", lambda _debug: (False, None))
-    monkeypatch.setattr(cli_main.sys, "stdin", SimpleNamespace(isatty=lambda: True))
-    monkeypatch.setattr(cli_main.sys, "stdout", SimpleNamespace(isatty=lambda: True))
-    monkeypatch.setattr("klaude_code.cli.uds_client.request", _request)
-    monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda: None)
-    monkeypatch.setattr("klaude_code.tui.runner.run_attach", _run_attach)
-    monkeypatch.setattr("klaude_code.tui.terminal.title.update_terminal_title", lambda: None)
-    monkeypatch.setattr("klaude_code.config.load_config", _load_config)
-
-    cli_main.main_callback(
-        ctx=cast(typer.Context, SimpleNamespace(invoked_subcommand=None)),
-        model=None,
-        continue_=False,
-        resume=False,
-        resume_by_id=session_id,
-        select_model=False,
-        debug=False,
-        vanilla=False,
-        version=False,
-    )
-
-    assert attached == [session_id]
-    assert requests == ["GET"]
-    assert actor is not None
-    assert app_env.runtime.session_registry.get_session_actor(session_id) is actor
 
 
 # -- history paging --
@@ -925,7 +858,6 @@ def test_system_context_rebuilds_for_a_cold_session(app_env: AppEnv) -> None:
     assert payload["model"]["model_config_name"] == "sonnet"
     assert payload["reason"] is None
     # Reading a cold session must not spin up an agent for it.
-    assert not app_env.runtime.session_registry.has_session_actor(session_id)
 
 
 def test_system_context_reports_a_vanilla_session_without_the_main_prompt(app_env: AppEnv) -> None:
@@ -937,37 +869,6 @@ def test_system_context_reports_a_vanilla_session_without_the_main_prompt(app_en
     assert payload["source"] == "rebuilt"
     assert payload["system_prompt"] == "You're an agent running in user's terminal"
     assert {tool["name"] for tool in payload["tools"]} == {"Bash", "Edit", "Write", "Read"}
-
-
-def test_system_context_serves_the_live_profile_for_a_loaded_session(app_env: AppEnv) -> None:
-    session_id = app_env.create_session()
-    actor = app_env.runtime.session_registry.get_session_actor(session_id)
-    assert actor is not None
-    agent = actor.get_agent()
-    assert agent is not None
-
-    payload = _system_context(app_env, session_id)
-
-    assert payload["available"] is True
-    assert payload["source"] == "live"
-    # Exactly what the next step would put on the wire.
-    assert payload["system_prompt"] == agent.profile.system_prompt
-    assert [tool["name"] for tool in payload["tools"]] == [tool.name for tool in agent.profile.tools]
-    assert payload["model"]["provider"] == "test"
-    assert payload["model"]["model"] == "fake-model"
-
-
-def test_system_context_never_leaks_a_credential(app_env: AppEnv) -> None:
-    session_id = app_env.create_session()
-    # The live path reads the client's config; plant a key in it.
-    app_env.fake_llm.get_llm_config().api_key = "sk-LEAKED-SECRET"
-    app_env.fake_llm.get_llm_config().aws_secret_key = "aws-LEAKED-SECRET"
-
-    raw = app_env.client.get(f"/api/web/sessions/{session_id}/system-context").text
-
-    assert "LEAKED" not in raw
-    for banned in ("api_key", "aws_secret_key", "aws_access_key", "aws_session_token"):
-        assert banned not in raw
 
 
 def test_system_context_is_cached_per_session(app_env: AppEnv, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -988,26 +889,3 @@ def test_system_context_of_an_unknown_session_is_404(app_env: AppEnv) -> None:
 
 
 # -- live session growth --
-
-
-def test_history_follows_a_live_session_append(app_env: AppEnv) -> None:
-    session_id = app_env.create_session()
-    app_env.fake_llm.enqueue(
-        message.AssistantTextDelta(content="hi there"),
-        message.AssistantMessage(parts=[message.TextPart(text="hi there")], stop_reason="stop"),
-    )
-    response = app_env.client.post(f"/api/headless/sessions/{session_id}/send", json={"text": "hello"})
-    assert response.status_code == 200
-
-    deadline = time.monotonic() + 10.0
-    while time.monotonic() < deadline:
-        if app_env.client.get(f"/api/headless/sessions/{session_id}/brief").json()["state"] == "idle":
-            break
-        time.sleep(0.05)
-
-    payload = _history(app_env, session_id)
-    kinds = [row["entry"]["type"] for row in payload["rows"] if row["entry"] is not None]
-    assert "UserMessage" in kinds
-    assert "AssistantMessage" in kinds
-    assert payload["line_count"] == len(payload["rows"])
-    assert app_env.client.get(f"/api/web/sessions/{session_id}/meta").json()["line_count"] == payload["line_count"]

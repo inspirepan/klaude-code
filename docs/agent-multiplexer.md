@@ -1,9 +1,10 @@
 # klaude Agent Multiplexer 设计
 
-状态：Phase 1–4 已实现；Phase 5 进行中（2026-08，决策见 §8.4）
-决策：移除 web 模块；klaude 变成 agent multiplexer —— 唯一的本地 server 持有全部 agent 执行，TUI 与 CLI 都是客户端。目标使用者有两类：人类（TUI attach）和其他 Agent（如 Claude Code 通过 Bash 调用 CLI）。
+状态：历史设计；进程归属、daemon、attach 和 Web 决策已由 [独立 TUI 计划](tasks/local-tui-runtime/outline.md) 取代。
 
-## 当前实现摘要：原生编排优先，CLI 保留外部闭环
+当前实现以该计划、实际 `--help` 和源码为准；下文保留旧设计记录。
+
+## 旧实现摘要：原生编排优先，CLI 保留外部闭环
 
 本节覆盖后续 steering / 异步协作 Phase1–3B 的实现；本轮 Phase4 同步文档与 `agents --prime`，不等同于上文早期 multiplexer 阶段编号。下文保留原产品设计和决策过程，旧 help 示例不是当前接口规格；冲突时以本节、实际 `--help`、runtime tool description / system strategy 和生成的 prime guide 为准。
 
@@ -23,8 +24,8 @@
 
 ### 文档同步与真实剩余
 
-- 内置 `klaude-config` 的旧指引仍需在 `src/klaude_code/skill/assets` 独立子模块中后续发布，再更新父仓库 pointer；本轮不改子模块、不 commit/push，也不通过 vendor/copy/loader 补丁覆盖。
-- 当前 runtime tool description、system strategy 与 prime guide 是新契约；旧 skill 的 CLI-only、同步等待或 interrupt/steer 说明不能覆盖新规则。skill 加载行为不变。
+- 不再维护内置 system skills；旧 skills checkout 与子模块配置已移除，用户和项目 skills 独立安装。
+- 当前 runtime tool description、system strategy 与 `klaude --skill` 是新契约；应用不携带旧版内置 skill 指南。
 - 本轮仅核对源码、同步文案并运行相关格式/CLI 检查；全量 lint/typecheck/test/build、端到端与终端验证由主会话统一补充，不在这里宣称已通过。
 
 ## 早期 multiplexer 设计记录

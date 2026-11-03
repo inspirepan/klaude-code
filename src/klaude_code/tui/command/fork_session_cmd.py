@@ -327,10 +327,6 @@ class ForkSessionCommand(CommandABC):
         return "Fork current session from a selected point"
 
     @property
-    def needs_history(self) -> bool:
-        return True
-
-    @property
     def is_interactive(self) -> bool:
         return True
 

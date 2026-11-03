@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.13"
 
 [[package]]
@@ -671,7 +671,6 @@ dependencies = [
     { name = "trafilatura" },
     { name = "typer" },
     { name = "uvicorn" },
-    { name = "websockets" },
 ]
 
 [package.dev-dependencies]
@@ -707,7 +706,6 @@ requires-dist = [
     { name = "trafilatura", specifier = ">=2.0.0" },
     { name = "typer", specifier = ">=0.17.3" },
     { name = "uvicorn" },
-    { name = "websockets", specifier = ">=15.0.1" },
 ]
 
 [package.metadata.requires-dev]

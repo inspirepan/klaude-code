@@ -1,6 +1,8 @@
 # 默认 steering：当前实现与历史调查
 
-> 状态：四个 Phase 已实现并完成分阶段 review 与最终自动化验收；未提交、未重载现有服务。内置 skills 子模块旧指引待独立发布。
+> 执行架构已更新：以 [独立 TUI 计划](tasks/local-tui-runtime/outline.md) 为准。本文的共享 server、WS、attach 和自动重启内容仅作历史记录。
+
+> 状态：四个 Phase 已实现并完成分阶段 review 与最终自动化验收；未提交、未重载现有服务。内置 skills 与子模块已移除。
 > 调查日期：2026-10-15。下文行号对应调查时的本地源码，不代表上游所有版本。
 > 异步任务与协作框架的进一步调查见 `docs/async-tools-and-agent-collaboration-plan.md`。
 
@@ -35,8 +37,8 @@
 
 ## Phase4 验收与交付边界
 
-- 当前 runtime tool description、system strategy 和 `klaude agents --prime` 是新契约；内置 `klaude-config` 的旧指引不能反向覆盖它们。
-- skills 位于独立 `src/klaude_code/skill/assets` 子模块，旧指引需后续独立 commit/push/release 再更新父 pointer；本轮未获提交权限，不改子模块、不 vendor/copy/loader 覆盖，skill 加载不变。
+- 当前 runtime tool description、system strategy 和 `klaude --skill` 是新契约。
+- 不再维护内置 system skills；旧 checkout 和子模块配置已移除，用户和项目 skills 独立安装。
 - 最终通过格式检查、lint/typecheck/import-linter、3361 项 Python 非 network 测试、194 项 Web 测试及 Web 类型检查；构建与打包资产校验通过。
 - 集成测试覆盖真实原生工具及 runtime/headless 链路；renderer capture 与 CLI PTY smoke 通过。未测真实模型、network 或完整人工 TUI 操作，未重载正在运行的服务。
 - 下文“尚未实现”“待确认”“当前行为”均属于调查时记录：默认 async、不用 fast model、peer 显式消息、CLI tasks/stop、`--steer` 兼容语义已确认，不再作为待用户决定事项。

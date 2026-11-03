@@ -57,7 +57,7 @@ def test_render_welcome_shows_skill_warnings_section() -> None:
 
 
 def test_render_welcome_shows_duplicate_skill_warning_as_single_line_chain() -> None:
-    system_path = Path.home() / ".klaude/skills/.system/pdf/SKILL.md"
+    legacy_user_path = Path.home() / ".klaude/skills/pdf/SKILL.md"
     project_path = Path("/tmp/project/.claude/skills/pdf/SKILL.md")
     llm_config = LLMConfigParameter(
         protocol=LLMClientProtocol.OPENAI,
@@ -69,21 +69,21 @@ def test_render_welcome_shows_duplicate_skill_warning_as_single_line_chain() -> 
         work_dir="/tmp/project",
         llm_config=llm_config,
         loaded_skill_warnings={
-            "project": [f'duplicate "pdf" skill:\n- [system] {system_path}\n- [project] {project_path} (using this)']
+            "project": [f'duplicate "pdf" skill:\n- [user] {legacy_user_path}\n- [project] {project_path} (using this)']
         },
     )
 
     output = _print_welcome(event)
 
-    assert "pdf  [system] ~/.klaude/skills/.system/pdf → [project] .claude/skills/pdf" in output
+    assert "pdf  [user] ~/.klaude/skills/pdf → [project] .claude/skills/pdf" in output
     assert 'duplicate "' not in output
     assert "(using this)" not in output
     assert "SKILL.md" not in output
-    assert "  • [system]" not in output
+    assert "  • [user]" not in output
 
 
 def test_render_welcome_merges_same_name_duplicate_warnings_into_one_chain() -> None:
-    system_path = Path.home() / ".klaude/skills/.system/gpt-image-gen/SKILL.md"
+    legacy_user_path = Path.home() / ".klaude/skills/gpt-image-gen/SKILL.md"
     user_path = Path.home() / ".claude/skills/gpt-image-gen/SKILL.md"
     project_path = Path("/tmp/project/.claude/skills/gpt-image-gen/SKILL.md")
     llm_config = LLMConfigParameter(
@@ -96,7 +96,9 @@ def test_render_welcome_merges_same_name_duplicate_warnings_into_one_chain() -> 
         work_dir="/tmp/project",
         llm_config=llm_config,
         loaded_skill_warnings={
-            "user": [f'duplicate "gpt-image-gen" skill:\n- [system] {system_path}\n- [user] {user_path} (using this)'],
+            "user": [
+                f'duplicate "gpt-image-gen" skill:\n- [user] {legacy_user_path}\n- [user] {user_path} (using this)'
+            ],
             "project": [
                 f'duplicate "gpt-image-gen" skill:\n- [user] {user_path}\n- [project] {project_path} (using this)'
             ],
@@ -106,12 +108,12 @@ def test_render_welcome_merges_same_name_duplicate_warnings_into_one_chain() -> 
     output = _print_welcome(event)
 
     assert (
-        "gpt-image-gen  [system] ~/.klaude/skills/.system/gpt-image-gen"
+        "gpt-image-gen  [user] ~/.klaude/skills/gpt-image-gen"
         " → [user] ~/.claude/skills/gpt-image-gen"
         " → [project] .claude/skills/gpt-image-gen"
     ) in output
     # Merged into a single tree leaf
-    assert output.count("gpt-image-gen  [system]") == 1
+    assert output.count("gpt-image-gen  [user]") == 1
 
 
 def test_render_welcome_merges_memories_and_skills_into_context_tree() -> None:
@@ -125,7 +127,7 @@ def test_render_welcome_merges_memories_and_skills_into_context_tree() -> None:
         work_dir="/tmp",
         llm_config=llm_config,
         loaded_memories={"user": ["/tmp/user.md"], "project": ["/work/project.md"]},
-        loaded_skills={"system": ["playwright", "web-search"]},
+        loaded_skills={"user": ["playwright", "web-search"]},
     )
 
     output = _print_welcome(event)
@@ -133,7 +135,7 @@ def test_render_welcome_merges_memories_and_skills_into_context_tree() -> None:
     assert "context" in output
     assert "user memory" in output
     assert "project memory" in output
-    assert "system skills" in output
+    assert "user skills" in output
     assert "skills" not in output.split("context", 1)[0]
     assert "user.md" in output
     assert "/work/project.md" in output
@@ -155,12 +157,12 @@ def test_render_welcome_keeps_per_group_multi_column_layout() -> None:
         loaded_memories={
             "user": ["/very/long/path/to/a/memory/file/that/should/not/force/skills/to_single_column/user-memory.md"]
         },
-        loaded_skills={"system": ["playwright", "web-search", "render-mermaid", "commit"]},
+        loaded_skills={"user": ["playwright", "web-search", "render-mermaid", "commit"]},
     )
 
     output = _print_welcome(event)
 
-    assert "system skills" in output
+    assert "user skills" in output
     assert "playwright | web-search" in output or "web-search | render-mermaid" in output
 
 
@@ -213,7 +215,7 @@ def test_render_deferred_context_does_not_repeat_base_welcome() -> None:
     event = events.WelcomeContextEvent(
         session_id="s1",
         work_dir="/tmp/project",
-        loaded_skills={"system": ["playwright", "web-search"]},
+        loaded_skills={"user": ["playwright", "web-search"]},
         loaded_memories={"project": ["/tmp/project/AGENTS.md"]},
     )
 
@@ -231,7 +233,9 @@ def test_render_deferred_context_does_not_repeat_base_welcome() -> None:
 @pytest.mark.parametrize("extra_warning", [False, True])
 def test_compact_skill_warnings_expand_without_losing_details(deferred: bool, extra_warning: bool) -> None:
     warnings = {
-        "user": ['duplicate "pdf" skill:\n- [system] /system/pdf/SKILL.md\n- [user] /user/pdf/SKILL.md (using this)'],
+        "user": [
+            'duplicate "pdf" skill:\n- [user] /legacy-user/pdf/SKILL.md\n- [user] /user/pdf/SKILL.md (using this)'
+        ],
         "project": [
             'duplicate "pdf" skill:\n- [user] /user/pdf/SKILL.md\n- [project] /project/pdf/SKILL.md (using this)'
         ],
@@ -261,7 +265,7 @@ def test_compact_skill_warnings_expand_without_losing_details(deferred: bool, ex
     assert f"{summary} · ctrl-o to expand" in compact
     assert "pdf" not in compact
     assert "another warning" not in compact
-    assert "pdf  [system] /system/pdf → [user] /user/pdf → [project] pdf" in full
+    assert "pdf  [user] /legacy-user/pdf → [user] /user/pdf → [project] pdf" in full
     assert ("another warning" in full) == extra_warning
     assert "ctrl-o to expand" not in full
     assert compact_again == compact

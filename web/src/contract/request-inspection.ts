@@ -46,7 +46,7 @@ export interface RequestPromptInspection {
 }
 
 // klaude: RequestPromptInspector and inspectRequestPrompt dropped — they read a
-// host SessionEvent that klaude's REST/WS adapter never produces
+// host SessionEvent that klaude's history adapter never produces
 
 /** Lifecycle fields shared by ordinary generation and compaction requests. */
 interface RequestViewBase {

@@ -144,7 +144,7 @@ async def _build_handoff_fork(
     """Build a handoff summary by asking the main LLM to stop and summarize in-line.
 
     Wire prefix matches the parent's last request (via ``session.get_llm_history()``),
-    so the server-side prompt cache is reused. Only the appended handoff request
+    so the provider prompt cache is reused. Only the appended handoff request
     (and the response) is paid as fresh tokens.
     """
     if cancel is not None and cancel.is_set():

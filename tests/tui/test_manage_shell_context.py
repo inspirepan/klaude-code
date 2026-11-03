@@ -79,7 +79,7 @@ def test_manage_shell_replay_hint_is_used_without_a_snapshot_and_rejects_foreign
 
 
 @pytest.mark.parametrize("rebuild", ["toggle", "refresh"])
-@pytest.mark.parametrize("source", ["live", "attach"])
+@pytest.mark.parametrize("source", ["live", "replay"])
 def test_waiting_shell_description_stays_out_of_compact_transcript(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], rebuild: str, source: str
 ) -> None:

@@ -1,4 +1,3 @@
-from klaude_code.tui.client.base import ClientConnectionError, RuntimeClient, SessionInfoSnapshot
-from klaude_code.tui.client.socket_client import SocketRuntimeClient
+from klaude_code.tui.client.base import RuntimeClient, SessionInfoSnapshot
 
-__all__ = ["ClientConnectionError", "RuntimeClient", "SessionInfoSnapshot", "SocketRuntimeClient"]
+__all__ = ["RuntimeClient", "SessionInfoSnapshot"]

@@ -1,7 +1,6 @@
 """Regression tests: session work must not depend on the process CWD.
 
-The server process hosts sessions rooted in different directories, so its CWD
-is arbitrary. Every test here runs with CWD deliberately pointed at a
+Restored sessions and child agents can use directories other than the process CWD. Every test here runs with CWD deliberately pointed at a
 directory different from the session work_dir; before the workspace-path fix
 these scenarios silently resolved against the process CWD.
 """
@@ -36,7 +35,7 @@ def work_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def elsewhere(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Chdir to a directory that is NOT the session work_dir."""
-    path = tmp_path / "server-cwd"
+    path = tmp_path / "process-cwd"
     path.mkdir()
     monkeypatch.chdir(path)
     return path

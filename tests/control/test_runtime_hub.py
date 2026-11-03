@@ -967,7 +967,7 @@ def test_actor_loop_survives_operation_failure() -> None:
 
     Regression: a handler exception used to propagate out of _run_loop, so
     every later operation for the session sat in the mailbox forever — an
-    attached client saw a silent, permanent hang.
+    TUI saw a silent, permanent hang.
     """
 
     async def _test() -> None:

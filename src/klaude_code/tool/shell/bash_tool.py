@@ -60,7 +60,7 @@ class BashTool(ToolABC):
                     "run_in_background": {
                         "type": "boolean",
                         "default": False,
-                        "description": "Return a managed task ID immediately; requires the server-owned task manager.",
+                        "description": "Return a managed task ID immediately; requires the process-owned task manager.",
                     },
                 },
                 "required": ["command"],
@@ -89,7 +89,7 @@ class BashTool(ToolABC):
             return message.ToolResultMessage(status="error", output_text=f"Command rejected: {safety.error_msg}")
         if args.run_in_background and context.shell_task_manager is None:
             return message.ToolResultMessage(
-                status="error", output_text="Background execution requires a server-owned shell task manager."
+                status="error", output_text="Background execution requires a process-owned shell task manager."
             )
         env = os.environ.copy()
         env.update(
@@ -185,7 +185,7 @@ class BashTool(ToolABC):
                 if snapshot.status not in {"running", "stopping"}:
                     break
                 if context.shell_task_manager is not None and time.monotonic() - started >= args.wait_ms / 1000:
-                    # Set the guard before awaiting callbacks: cancellation after detach must not kill it.
+                    # Set the guard before awaiting callbacks: cancellation after background handoff must not kill it.
                     return await background_result()
             for chunk in collect(final=True):
                 if context.emit_tool_output_delta is not None:

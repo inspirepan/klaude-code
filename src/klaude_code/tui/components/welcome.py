@@ -39,7 +39,7 @@ def _format_memory_path(path: str, *, work_dir: Path) -> str:
         return path
 
 
-_SCOPE_PRIORITY = {"system": 0, "user": 1, "project": 2}
+_SCOPE_PRIORITY = {"user": 0, "project": 1}
 
 
 @dataclass(frozen=True)
@@ -135,7 +135,7 @@ def _merge_duplicate_chain(
     """Merge a new duplicate pair into an ordered override chain.
 
     Keeps unique (scope, path) entries in encounter order, then ensures the
-    highest-priority scope (project > user > system) is last — that is the
+    highest-priority scope (project > user) is last — that is the
     effective skill.
     """
     seen = {(scope, path) for scope, path in existing}
@@ -149,7 +149,7 @@ def _merge_duplicate_chain(
     if len(merged) <= 1:
         return merged
 
-    winner_idx = max(range(len(merged)), key=lambda i: _SCOPE_PRIORITY.get(merged[i][0], -1))
+    winner_idx = max(range(len(merged)), key=lambda i: (_SCOPE_PRIORITY.get(merged[i][0], -1), i))
     if winner_idx != len(merged) - 1:
         winner = merged.pop(winner_idx)
         merged.append(winner)
@@ -309,9 +309,7 @@ def _build_context_renderables(
     detail: Detail,
 ) -> list[RenderableType]:
     renderables: list[RenderableType] = []
-    warning_items = [
-        warning for scope in ("user", "project", "system") for warning in loaded_skill_warnings.get(scope, [])
-    ]
+    warning_items = [warning for scope in ("user", "project") for warning in loaded_skill_warnings.get(scope, [])]
     entries = _aggregate_skill_warnings(warning_items)
     warned_skills: set[tuple[str, str]] = set()
     if detail.is_compact:
@@ -332,7 +330,7 @@ def _build_context_renderables(
                 )
             )
 
-    for scope in ("user", "project", "system"):
+    for scope in ("user", "project"):
         skills = loaded_skills.get(scope) or []
         if skills:
             skill_labels: list[Text] = []

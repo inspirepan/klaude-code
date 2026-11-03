@@ -1,12 +1,12 @@
-"""Sub-agent spawning: each sub-agent runs as a first-class server session.
+"""Sub-agent spawning: each sub-agent runs as a session actor within its owning process.
 
 The Agent tool used to execute sub-agents inline inside the parent's task,
-forwarding child events through the parent's pipeline. Phase 5 routes them
+forwarding child events through the parent's pipeline. The launcher routes them
 through their own session actor instead: the launcher prepares the child
 session, registers its agent, submits a RunAgentOperation to the child
 actor, and follows the child's event stream for the result. Child events
-reach clients directly on the bus (tagged with the child session id), so
-the child is observable and addressable (ps/attach/kill/respond) like any
+reach the TUI directly on the bus (tagged with the child session id), so
+the child is observable and addressable (ps/kill/respond) like any
 other session.
 """
 

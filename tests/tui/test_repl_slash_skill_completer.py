@@ -55,11 +55,14 @@ def test_double_slash_completion_shows_only_skills() -> None:
     assert "/model " not in texts
 
 
-def test_detach_completion_uses_registered_command() -> None:
+def test_exit_completion_uses_registered_command() -> None:
     completer = _ComboCompleter(command_info_provider=get_command_info_list)
-    completions = list(completer.get_completions(Document(text="/det"), cast(Any, None)))
+    completions = list(completer.get_completions(Document(text="/ex"), cast(Any, None)))
 
-    assert any(completion.text == "/detach " for completion in completions)
+    assert any(completion.text == "/exit " for completion in completions)
+    names = {command.name for command in get_command_info_list()}
+    assert "exit" in names
+    assert "detach" not in names and "reload" not in names
 
 
 def test_inline_slash_skill_completion_works() -> None:

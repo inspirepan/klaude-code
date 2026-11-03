@@ -49,7 +49,6 @@ __all__ = [
     "FallbackModelConfigWarnEvent",
     "FollowUpQueueUpdatedEvent",
     "ForkCacheHitRateEvent",
-    "HistoryAppendedEvent",
     "InterruptEvent",
     "ModelChangedEvent",
     "NoticeEvent",
@@ -188,9 +187,9 @@ class ShellTasksUpdatedEvent(Event):
 
 class BackgroundTasksUpdatedEvent(Event):
     tasks: list[BackgroundTaskSnapshot]
-    # Initial attach restores state without appending historical completions.
+    # Initial history replay restores state without appending historical completions.
     restore_only: bool = False
-    # Only completions at/before the attach boundary are historical.
+    # Only completions at/before the initial replay boundary are historical.
     restore_before: float | None = None
 
 
@@ -278,10 +277,10 @@ class ForkSummaryEvent(Event):
 
 
 class ForkSummaryReadyEvent(Event):
-    """Server-side rewind finished preparing the new session.
+    """The Runtime finished rewind preparing the new session.
 
     Ephemeral runner-level control event: the TUI intercepts it (before the
-    display machine) and reattaches to ``new_session_id``. ``operation_id``
+    display machine) and switches to ``new_session_id``. ``operation_id``
     lets the client drain the rewind op's completion before switching, so the
     foreground-busy tracking ends cleanly. Not persisted — the summary panel
     itself replays from ForkSummaryEntry in the new session.
@@ -319,9 +318,9 @@ class ThinkingChangedEvent(Event):
 
 
 class ConfigReloadedEvent(Event):
-    """The server re-read the config files and now serves a new revision.
+    """This process re-read the config files and now has a new revision.
 
-    Broadcast to every connected client, whatever session it watches, so a
+    Published on the local event bus so a
     hand-edit of ``~/.klaude/klaude-config.yaml`` is visible without a restart.
     Sessions keep the LLM client they were built with; the change applies to
     sessions and sub-agents started after the reload. ``session_id`` is empty
@@ -362,18 +361,6 @@ class ContextUsageEvent(Event):
 
 class SessionTitleChangedEvent(Event):
     title: str
-
-
-class HistoryAppendedEvent(Event):
-    """A batch of history items reached ``events.jsonl``.
-
-    Published from the store's write hook (see ``server/history_bridge.py``),
-    so a viewer reading the ledger over REST knows when to pull the tail
-    increment. ``line_count`` is the session's physical jsonl line count after
-    the flush, i.e. the exclusive upper bound of ``line_index``.
-    """
-
-    line_count: int
 
 
 class OperationAcceptedEvent(Event):
@@ -580,7 +567,7 @@ class InterruptEvent(Event):
 class FollowUpQueueUpdatedEvent(Event):
     """The session's queued follow-up messages changed (enqueue/pop/drain).
 
-    Lets attached clients mirror the server-held queue for their pending
+    Lets the TUI mirror the Runtime-held queue for their pending
     message UI without polling.
     """
 

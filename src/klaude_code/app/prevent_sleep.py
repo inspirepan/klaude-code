@@ -1,0 +1,202 @@
+from __future__ import annotations
+
+import asyncio
+import atexit
+import contextlib
+import os
+import signal
+import subprocess
+import sys
+import threading
+from collections.abc import Callable, Iterable
+from types import FrameType
+
+from klaude_code.app.session_state import derive_session_state_from_snapshot
+from klaude_code.control.runtime.actor import SessionActorSnapshot
+from klaude_code.log import DebugType, log_debug
+
+CAFFEINATE_TIMEOUT_SECONDS = 300
+RESTART_INTERVAL_SECONDS = 4 * 60
+MONITOR_POLL_INTERVAL_SECONDS = 5.0
+
+_lock = threading.Lock()
+_caffeinate_process: subprocess.Popen[bytes] | None = None
+_restart_timer: threading.Timer | None = None
+_ref_count = 0
+_cleanup_registered = False
+_signal_handlers_registered = False
+
+
+async def run_prevent_sleep_monitor(
+    snapshots_provider: Callable[[], Iterable[SessionActorSnapshot]],
+    *,
+    poll_interval: float = MONITOR_POLL_INTERVAL_SECONDS,
+    background_busy: Callable[[], bool] | None = None,
+) -> None:
+    """Hold macOS sleep assertions while any session actor is running.
+
+    Covers idle sleep plus system sleep (e.g. lid close) on AC power; battery
+    lid-close sleep cannot be overridden. Sessions blocked on user interaction
+    do not count as running: a machine waiting on an absent human should be
+    allowed to sleep.
+    """
+
+    if not _is_macos():
+        return
+
+    active = False
+    try:
+        while True:
+            busy = any(derive_session_state_from_snapshot(snapshot) == "running" for snapshot in snapshots_provider())
+            busy = busy or (background_busy is not None and background_busy())
+            if busy and not active:
+                start_prevent_sleep()
+                active = True
+            elif not busy and active:
+                stop_prevent_sleep()
+                active = False
+            await asyncio.sleep(poll_interval)
+    finally:
+        if active:
+            stop_prevent_sleep()
+
+
+def start_prevent_sleep() -> None:
+    """Prevent macOS idle sleep (and system sleep on AC power) while agent work is active."""
+
+    global _ref_count
+    with _lock:
+        _ref_count += 1
+        if _ref_count == 1:
+            _spawn_caffeinate_locked()
+            _start_restart_timer_locked()
+
+
+def stop_prevent_sleep() -> None:
+    """Release one active sleep-prevention request."""
+
+    global _ref_count
+    with _lock:
+        if _ref_count > 0:
+            _ref_count -= 1
+        if _ref_count == 0:
+            _stop_restart_timer_locked()
+            _kill_caffeinate_locked()
+
+
+def force_stop_prevent_sleep() -> None:
+    """Release all sleep-prevention state immediately."""
+
+    global _ref_count
+    with _lock:
+        _ref_count = 0
+        _stop_restart_timer_locked()
+        _kill_caffeinate_locked()
+
+
+def _is_macos() -> bool:
+    return sys.platform == "darwin"
+
+
+def _start_restart_timer_locked() -> None:
+    global _restart_timer
+    if not _is_macos() or _restart_timer is not None:
+        return
+    _restart_timer = threading.Timer(RESTART_INTERVAL_SECONDS, _restart_caffeinate)
+    _restart_timer.daemon = True
+    _restart_timer.start()
+
+
+def _stop_restart_timer_locked() -> None:
+    global _restart_timer
+    if _restart_timer is not None:
+        _restart_timer.cancel()
+        _restart_timer = None
+
+
+def _restart_caffeinate() -> None:
+    global _restart_timer
+    with _lock:
+        _restart_timer = None
+        if _ref_count <= 0:
+            return
+        log_debug("Restarting caffeinate to maintain sleep prevention", debug_type=DebugType.TERMINAL)
+        _kill_caffeinate_locked()
+        _spawn_caffeinate_locked()
+        _start_restart_timer_locked()
+
+
+def _spawn_caffeinate_locked() -> None:
+    global _caffeinate_process, _cleanup_registered
+    if not _is_macos() or _caffeinate_process is not None:
+        return
+
+    if not _cleanup_registered:
+        _cleanup_registered = True
+        atexit.register(force_stop_prevent_sleep)
+        _register_exit_signal_handlers_locked()
+
+    try:
+        # -i blocks idle sleep; -s additionally blocks system sleep (e.g.
+        # lid close) but only while on AC power. Battery lid-close sleep
+        # cannot be overridden.
+        _caffeinate_process = subprocess.Popen(
+            ["caffeinate", "-i", "-s", "-t", str(CAFFEINATE_TIMEOUT_SECONDS)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        log_debug("Started caffeinate to prevent sleep", debug_type=DebugType.TERMINAL)
+    except (OSError, subprocess.SubprocessError) as exc:
+        _caffeinate_process = None
+        log_debug(f"caffeinate spawn error: {exc}", debug_type=DebugType.TERMINAL)
+
+
+def _kill_caffeinate_locked() -> None:
+    global _caffeinate_process
+    if _caffeinate_process is None:
+        return
+
+    proc = _caffeinate_process
+    _caffeinate_process = None
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
+        proc.kill()
+        proc.wait(timeout=1.0)
+        log_debug("Stopped caffeinate, allowing sleep", debug_type=DebugType.TERMINAL)
+
+
+def _register_exit_signal_handlers_locked() -> None:
+    global _signal_handlers_registered
+    if _signal_handlers_registered:
+        return
+    _signal_handlers_registered = True
+
+    for signum in (signal.SIGTERM, getattr(signal, "SIGHUP", None)):
+        if signum is None:
+            continue
+        try:
+            original_handler = signal.getsignal(signum)
+            if original_handler is not signal.SIG_DFL:
+                continue
+            signal.signal(signum, _handle_exit_signal)
+        except (OSError, ValueError):
+            continue
+
+
+def _handle_exit_signal(signum: int, frame: FrameType | None) -> None:
+    del frame
+    _kill_caffeinate_for_signal()
+    with contextlib.suppress(OSError, ValueError):
+        signal.signal(signum, signal.SIG_DFL)
+    os.kill(os.getpid(), signum)
+
+
+def _kill_caffeinate_for_signal() -> None:
+    global _caffeinate_process
+    proc = _caffeinate_process
+    _caffeinate_process = None
+    if proc is None:
+        return
+    with contextlib.suppress(OSError, subprocess.SubprocessError):
+        proc.kill()

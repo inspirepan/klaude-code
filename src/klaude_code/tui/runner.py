@@ -1,17 +1,6 @@
-"""Interactive TUI runner: a WebSocket client of the local klaude server.
+"""Interactive TUI with an owned local Runtime and serialized event display.
 
-The TUI no longer embeds a runtime. ``run_attach`` connects to the single
-local server (UDS WS), replays the session, and follows live. Every exit
-path is a detach: the server keeps the session and any running task alive.
-
-Structure:
-- ``SocketRuntimeClient`` owns the wire, the display feed, and state mirrors.
-- A watcher task drives the prompt's busy state, Esc interrupt handling,
-  interrupt prefill, and the queued-message list from client mirrors —
-  turns started by other clients or by the server's follow-up drain are
-  reflected exactly like locally started ones.
-- Follow-up queueing and draining live on the server; typing while the
-  agent runs sends a FollowUpAgentOperation.
+The process owns execution, child tasks, interactions and shutdown.
 """
 
 from __future__ import annotations
@@ -21,32 +10,32 @@ import contextlib
 import shutil
 import sys
 from collections.abc import AsyncGenerator, Callable, Coroutine
-from concurrent.futures import Future
 from pathlib import Path
 from threading import Event
 from typing import Any, cast
 from uuid import uuid4
 
 from klaude_code.agent.runtime.away_summary import AwaySummaryCoordinator
-from klaude_code.agent.welcome_context import build_welcome_context_event
+from klaude_code.app.process_lifecycle import cancel_on_termination
 from klaude_code.config import load_config
 from klaude_code.log import DebugType, log, log_console, log_debug
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.model_catalog import ModelCatalog
 from klaude_code.session.session import Session
-from klaude_code.tui.client import ClientConnectionError, RuntimeClient, SessionInfoSnapshot, SocketRuntimeClient
-from klaude_code.tui.client.command_agent import ClientCommandAgent
+from klaude_code.tui.client import SessionInfoSnapshot
+from klaude_code.tui.client.local import LocalRuntimeClient
 from klaude_code.tui.command import (
-    command_needs_history,
     dispatch_command,
     get_command_info_list,
     has_background_command,
     has_interactive_command,
-    is_detach_command,
+    is_exit_command,
     is_registered_command,
 )
+from klaude_code.tui.command.command_abc import Agent as CommandAgent
 from klaude_code.tui.command.command_abc import CommandResult
+from klaude_code.tui.command.registry import command_switches_session
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.display import TUIDisplay
@@ -84,16 +73,16 @@ def _split_queue_edit_payload(user_input: UserInputPayload) -> tuple[UserInputPa
 
 def _is_exit_input(text: str) -> bool:
     stripped = text.strip()
-    return stripped.lower() in {"exit", ":q", "quit"} or is_detach_command(stripped)
+    return stripped.lower() in {"exit", ":q", "quit"} or is_exit_command(stripped)
 
 
 def _requires_client_dispatch(text: str) -> bool:
     """Whether this input has to run on the client instead of queueing as text.
 
     Bash (`!cmd`) and registered slash commands are executed by the TUI, so
-    they cannot sit in the server's text queue. Everything else that merely
+    they cannot sit in the runtime's text queue. Everything else that merely
     starts with `/` is plain text for the model — notably `/skill:name`, which
-    the server expands from the message body when the turn runs — and queues
+    the Runtime expands from the message body when the turn runs — and queues
     like any other message.
     """
     stripped = text.lstrip()
@@ -102,8 +91,27 @@ def _requires_client_dispatch(text: str) -> bool:
     return is_registered_command(stripped)
 
 
-async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Future[str] | None = None) -> None:
-    """Attach the interactive TUI to a server-side session."""
+async def run_local(
+    session_id: str | None = None,
+    *,
+    model: str | None = None,
+    debug: bool = False,
+    vanilla: bool = False,
+    work_dir: Path | None = None,
+) -> None:
+    with cancel_on_termination():
+        await _run_local_ui(session_id or uuid4().hex, model=model, debug=debug, vanilla=vanilla, work_dir=work_dir)
+
+
+async def _run_local_ui(
+    session_id: str,
+    *,
+    model: str | None = None,
+    debug: bool = False,
+    vanilla: bool = False,
+    work_dir: Path | None = None,
+) -> None:
+    """Render and operate the conversation owned by this process."""
 
     update_terminal_title()
 
@@ -381,29 +389,16 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         if info.work_dir:
             # Completers, drag-drop conversion, and path shortening key off
             # the session's directory, which differs from the process CWD
-            # when attached to a session rooted elsewhere.
+            # when restoring a session rooted elsewhere.
             set_active_work_dir(Path(info.work_dir))
         # The stored selector is not always what runs (a session model can fall
-        # back to the main model); older servers send only the selector.
+        # back to the main model); a restored session may carry only the selector.
         model_name = info.active_model_name or info.model_config_name
         if model_name:
             tui_display.set_model_name(model_name)
         if input_provider is not None:
             input_provider.set_pending_messages(info.follow_ups)
             input_provider.set_startup_loading_title(info.title)
-
-    async def _provide_welcome_context() -> events.WelcomeContextEvent | None:
-        # Injected by the client right behind the attach-handshake welcome,
-        # ahead of the history replay (skills/memories render at the top).
-        try:
-            return await asyncio.to_thread(
-                build_welcome_context_event,
-                session_id=client.session_id,
-                work_dir=_session_work_dir(),
-            )
-        except Exception as exc:
-            log_debug(f"Welcome context initialization failed: {exc}", debug_type=DebugType.EXECUTION)
-            return None
 
     def _report_program_status(envelope: events.EventEnvelope) -> None:
         if program_status is None:
@@ -413,9 +408,11 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             program_status.report_interaction(event)
             if event.session_id != client.session_id:
                 return
-            # Local session_info copies can predate the final attach snapshot.
-            # Only ordered live server statuses may announce new turn results.
-            if isinstance(event, events.SessionStatusEvent) and envelope.event_seq > 0:
+            # Buffered initialization statuses must never announce old results.
+            if (
+                isinstance(event, events.SessionStatusEvent)
+                and envelope.event_seq > client.session_info().replay_through_event_seq
+            ):
                 program_status.report_session_state(event.session_id, event.status)
 
     async def _on_envelope(envelope: events.EventEnvelope) -> None:
@@ -426,19 +423,21 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         # the op reacts; replayed/stale ready events must not hijack a switch.
         if isinstance(event, events.ForkSummaryReadyEvent):
             if event.operation_id in local_turn_ops:
-                # Spawn: _reattach_to drains the display queue, which can
+                # Spawn: _switch_session drains the display queue, which can
                 # never settle while this consumer is still inside it.
                 _spawn(_switch_to_rewound(event))
             return
         _report_program_status(envelope)
         await tui_display.consume_envelope(envelope)
 
-    client: RuntimeClient = SocketRuntimeClient(
+    client = LocalRuntimeClient(
         session_id,
         on_envelope=_on_envelope,
         on_session_info=_on_session_info,
-        peek=peek,
-        welcome_context_provider=_provide_welcome_context,
+        model=model,
+        debug=debug,
+        vanilla=vanilla,
+        work_dir=work_dir,
     )
 
     def _agent_busy() -> bool:
@@ -530,7 +529,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             await client.emit_local_event(
                 events.NoticeEvent(
                     session_id=client.session_id,
-                    content=f"Could not load models from server: {exc}",
+                    content=f"Could not load models: {exc}",
                     is_error=True,
                 )
             )
@@ -541,7 +540,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         return catalog
 
     async def _dequeue_pending_messages() -> tuple[str, ...]:
-        # The server-confirmed pop is authoritative. The local mirror can
+        # The Runtime-confirmed pop is authoritative. The local mirror can
         # still list a message whose turn the drain already started; filling
         # the buffer from the mirror would resubmit a running message.
         try:
@@ -599,6 +598,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         request_refresh_transcript=_request_refresh_transcript,
         on_color_scheme_change=_on_terminal_color_scheme_change if cfg.theme is None else None,
         program_status=program_status,
+        exit_as_input=True,
     )
     input_provider.set_dequeue_pending_messages(_dequeue_pending_messages)
     from klaude_code.tui.task_panel import TaskPanel
@@ -612,7 +612,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
 
     def _start_interrupt_once() -> None:
         nonlocal interrupt_pending, interrupt_target_operation_id
-        if peek or interrupt_pending or not _agent_busy():
+        if interrupt_pending or not _agent_busy():
             return
         interrupt_pending = True
         interrupt_target_operation_id = client.active_operation_id()
@@ -633,7 +633,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                     expected_operation_id=expected_operation_id,
                     retract_unanswered_input=retract,
                     # Esc mid-queue moves on to the next queued message
-                    # (matches the pre-attach runner); kill keeps it stopped.
+                    # (matches normal user input); kill keeps it stopped.
                     resume_follow_ups=True,
                 )
             )
@@ -671,12 +671,11 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             if busy and not ui_busy:
                 ui_busy = True
                 input_provider.set_agent_running(True)
-                if not peek:
-                    input_provider.set_interrupt_handler(_request_interrupt_once)
-                    restore_sigint = install_sigint_interrupt(_request_interrupt_once)
+                input_provider.set_interrupt_handler(_request_interrupt_once)
+                restore_sigint = install_sigint_interrupt(_request_interrupt_once)
                 continue
             if not busy and ui_busy:
-                # Debounce the idle gap between server-drained queue turns.
+                # Debounce the idle gap between runtime-drained queue turns.
                 if client.follow_up_texts() and not interrupt_pending:
                     with contextlib.suppress(TimeoutError):
                         await asyncio.wait_for(state_changed.wait(), timeout=1.0)
@@ -710,23 +709,12 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                 continue
             if not busy and not ui_busy:
                 # A retract event can trail the idle transition (e.g. the
-                # server flushed the interrupt batch, then stalled before the
+                # Runtime flushed the interrupt batch, then stalled before the
                 # retraction). Apply a late prefill instead of shelving it
                 # until some future prompt rebuild.
                 prefill = client.consume_interrupt_prefill()
                 if prefill is not None:
                     input_provider.set_next_prefill(prefill)
-
-    # -- connection watcher: auto-detach when the server goes away --
-
-    async def _watch_connection() -> None:
-        await client.connection_lost_event().wait()
-        # The recv loop already queued the "Connection lost … reattach with"
-        # error; let it paint, then end the input loop — a dead connection
-        # has nothing left to attach to.
-        with contextlib.suppress(Exception):
-            await _display_idle_bounded()
-        input_provider.request_exit()
 
     # -- interaction consumer --
 
@@ -736,9 +724,9 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             request_event = await queue.get()
             closed = client.interaction_closed_event(request_event)
             # Replay may contain both a request and its later resolution. Only
-            # open a modal after the attach snapshot has fully settled.
+            # open a modal after the initial replay has fully settled.
             await startup_replay_finished.wait()
-            if peek or closed.is_set():
+            if closed.is_set():
                 continue
             task_panel.close()
             try:
@@ -768,9 +756,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             try:
                 await asyncio.wait_for(client.wait_for_replay_complete(), timeout=15.0)
             except TimeoutError:
-                await _emit_local_notice(
-                    "Attach replay did not complete — the server may be running older code. Try: klaude server reload"
-                )
+                await _emit_local_notice("History replay did not complete.")
             await _display_idle_bounded()
         finally:
             input_provider.set_startup_loading(False)
@@ -780,12 +766,6 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
 
     async def _emit_local_notice(text: str) -> None:
         await client.emit_local_event(events.NoticeEvent(session_id=client.session_id, content=text))
-
-    async def _show_upgrade_notice() -> None:
-        await startup_replay_finished.wait()
-        assert upgrade_notice is not None
-        message = await asyncio.shield(asyncio.wrap_future(upgrade_notice))
-        await _emit_local_notice(message)
 
     def _track_foreground_op(operation_id: str) -> None:
         local_turn_ops.add(operation_id)
@@ -807,10 +787,10 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         _track_foreground_op(run_op.id)
 
     def _queue_follow_ups(payloads: list[UserInputPayload]) -> None:
-        # Optimistic: mirror + queue UI update now; the server confirm
+        # Optimistic: mirror + queue UI update now; the Runtime confirm
         # (FollowUpQueueUpdatedEvent) reconciles. Awaiting the round trip in
         # the input loop kept the prompt — and the whole bottom bar — torn
-        # down until the server replied: a visible blink on every queued
+        # down until the Runtime replied: a visible blink on every queued
         # submission.
         client.optimistically_append_follow_ups([p.text for p in payloads])
         input_provider.set_pending_messages(client.follow_up_texts())
@@ -821,30 +801,28 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                     await client.submit_and_wait(op.FollowUpAgentOperation(session_id=client.session_id, input=payload))
                 except Exception:
                     # A swallowed failure left the mirror showing a message
-                    # the server never accepted: the queue looked pending
+                    # the Runtime never accepted: the queue looked pending
                     # forever and the text was silently lost. Roll back and
                     # hand the text back to the user instead.
                     client.remove_optimistic_follow_up(payload.text)
                     input_provider.set_pending_messages(client.follow_up_texts())
                     preview = payload.text if len(payload.text) <= 120 else payload.text[:119] + "…"
                     with contextlib.suppress(Exception):
-                        await _emit_local_notice(f"Message could not be queued (server unreachable): {preview}")
+                        await _emit_local_notice(f"Message could not be queued: {preview}")
 
         _spawn(_submit_queued())
 
-    async def _reattach_to(new_session_id: str) -> None:
+    async def _switch_session(new_session_id: str) -> None:
         await _display_idle_bounded()
-        await client.reattach(new_session_id)
+        await client.switch_session(new_session_id)
         client.start_display()
         try:
             await asyncio.wait_for(client.wait_for_replay_complete(), timeout=15.0)
         except TimeoutError:
-            await _emit_local_notice(
-                "Attach replay did not complete — the server may be running older code. Try: klaude server reload"
-            )
+            await _emit_local_notice("History replay did not complete.")
 
     async def _switch_to_forked(operation: op.ForkAndSwitchSessionOperation, notice: str | None = None) -> None:
-        await _reattach_to(operation.new_session_id)
+        await _switch_session(operation.new_session_id)
         await client.emit_local_event(
             events.NoticeEvent(
                 session_id=operation.new_session_id,
@@ -883,15 +861,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             await client.emit_local_event(evt)
         for operation in result.operations or []:
             if isinstance(operation, op.ClearSessionOperation):
-                # /new: fresh server session in the same directory, same model.
-                from klaude_code.tui.client.server_api import create_server_session
-
-                new_id = await asyncio.to_thread(
-                    create_server_session,
-                    work_dir=_session_work_dir(),
-                    model=client.session_info().model_config_name,
-                )
-                await _reattach_to(new_id)
+                await _switch_session(await client.create_session())
                 continue
             if isinstance(operation, op.ForkAndSwitchSessionOperation):
                 await _switch_to_forked(operation)
@@ -902,12 +872,9 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             await client.submit(operation)
             _track_foreground_op(operation.id)
 
-    def _load_command_agent(raw_text: str) -> ClientCommandAgent:
-        return ClientCommandAgent(
-            client.session_id,
-            _session_work_dir(),
-            load_history=command_needs_history(raw_text),
-        )
+    def _load_command_agent(raw_text: str) -> CommandAgent:
+        del raw_text
+        return client.command_agent()
 
     async def _dispatch_background_command(user_input: UserInputPayload) -> None:
         try:
@@ -959,8 +926,8 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                     await client.emit_local_event(evt)
                 for operation in result.operations or []:
                     if isinstance(operation, op.ForkAndSwitchSessionOperation):
-                        # Session switches must reattach this client; submitting
-                        # to the server would leave the display on the old session.
+                        # Session switches must update the local client; submitting
+                        # an operation alone would leave the display on the old session.
                         await _switch_to_forked(operation)
                         continue
                     if isinstance(operation, op.RewindWithSummaryOperation):
@@ -973,12 +940,12 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                         _track_foreground_op(operation.id)
                         continue
                     try:
-                        # The op keeps running server-side after a timeout;
-                        # only the inline wait is bounded — a frozen server
+                        # The op keeps running in-process after a timeout;
+                        # only the inline wait is bounded — a frozen Runtime
                         # must not hold the input area down indefinitely.
                         await asyncio.wait_for(client.submit_and_wait(operation), timeout=30.0)
                     except TimeoutError:
-                        await _emit_local_notice("The command is taking long; it continues on the server.")
+                        await _emit_local_notice("The command is taking long; it continues in this process.")
                 await _display_idle_bounded()
                 await settle_flicker_safe_stdout()
                 return
@@ -993,7 +960,6 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
     watcher_task: asyncio.Task[None] | None = None
     interaction_task: asyncio.Task[None] | None = None
     startup_task: asyncio.Task[None] | None = None
-    connection_task: asyncio.Task[None] | None = None
     exited_via_ctrl_c = False
 
     try:
@@ -1004,25 +970,37 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         watcher_task = asyncio.create_task(_watch_state())
         interaction_task = asyncio.create_task(_consume_interactions())
         startup_task = asyncio.create_task(_startup_replay())
-        connection_task = asyncio.create_task(_watch_connection())
-        if upgrade_notice is not None:
-            _spawn(_show_upgrade_notice())
 
-        # Seed prompt state for mid-turn attaches.
+        # Seed prompt state after local initialization.
         client.state_changed_event().set()
 
         await input_provider.start()
         inputs_iter = cast("AsyncGenerator[UserInputPayload]", input_provider.iter_inputs())
         async with contextlib.aclosing(inputs_iter) as inputs:
             async for user_input in inputs:
-                if client.connection_lost_event().is_set():
-                    break
                 if _is_exit_input(user_input.text):
+                    if client.has_running_tasks():
+                        selected = await asyncio.to_thread(
+                            select_one,
+                            message="Stop running tasks, save this session, and exit?",
+                            items=[
+                                SelectItem[bool](
+                                    title=[("class:msg", "Keep working")], value=False, search_text="keep"
+                                ),
+                                SelectItem[bool](
+                                    title=[("class:msg", "Stop tasks and exit")], value=True, search_text="stop"
+                                ),
+                            ],
+                            initial_value=False,
+                            style=DEFAULT_PICKER_STYLE(),
+                        )
+                        if selected is not True:
+                            continue
                     break
                 if user_input.text.strip() == "":
                     continue
-                if peek:
-                    await _emit_local_notice("Read-only attach (--peek): input is disabled.")
+                if command_switches_session(user_input.text) and client.has_running_tasks():
+                    await _emit_local_notice("Stop running tasks with /stop before switching sessions.")
                     continue
                 try:
                     if has_background_command(user_input.text):
@@ -1041,9 +1019,7 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
 
                     if _agent_busy():
                         if _requires_client_dispatch(user_input.text):
-                            await _emit_local_notice(
-                                "This command runs in the client and cannot be queued; press esc to interrupt first."
-                            )
+                            await _emit_local_notice("This command cannot be queued; press esc to interrupt first.")
                             continue
                         _queue_follow_ups(list(_split_queue_edit_payload(user_input)))
                         continue
@@ -1053,19 +1029,14 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
                     await _submit_idle_input(first)
                     if rest:
                         _queue_follow_ups(rest)
-                except ClientConnectionError as exc:
-                    # The receive loop already surfaced its own error event;
-                    # detach gracefully instead of crashing the input loop.
-                    log_debug(f"send failed, detaching: {exc}", debug_type=DebugType.EXECUTION)
-                    with contextlib.suppress(Exception):
-                        await _display_idle_bounded()
-                    break
+                except (ValueError, RuntimeError) as exc:
+                    await _emit_local_notice(f"Command failed: {exc}")
 
     except KeyboardInterrupt:
         exited_via_ctrl_c = True
     finally:
         tui_display.set_progress_ui_suspended(False)
-        for task in (watcher_task, interaction_task, startup_task, connection_task):
+        for task in (watcher_task, interaction_task, startup_task):
             if task is not None and not task.done():
                 task.cancel()
                 with contextlib.suppress(Exception, asyncio.CancelledError):
@@ -1079,12 +1050,15 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
         with contextlib.suppress(Exception):
             await away_summary_coordinator.stop()
 
-        was_running = client.is_running() or bool(client.follow_up_texts())
         if program_status is not None:
             with contextlib.suppress(Exception):
                 await program_status.close()
         with contextlib.suppress(Exception):
+            await input_provider.stop()
+        try:
             await client.close()
+        except Exception as exc:
+            log((f"Session cleanup failed: {exc}", "red"))
         with contextlib.suppress(Exception):
             await tui_display.stop()
         with contextlib.suppress(Exception):
@@ -1092,8 +1066,6 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             stream.write("\033[?25h")
             stream.flush()
 
-        # Detach semantics: the server keeps the session (and any running
-        # task) alive; only this client goes away.
         work_dir = _session_work_dir()
         # log_console has no theme of its own, so lend it the palette the
         # session was drawn with before printing the farewell in grey.
@@ -1104,11 +1076,6 @@ async def run_attach(session_id: str, *, peek: bool = False, upgrade_notice: Fut
             log(("Bye!", info))
         if Session.exists(client.session_id, work_dir=work_dir):
             short_id = Session.shortest_unique_prefix(client.session_id, work_dir=work_dir)
-            if was_running:
-                log(
-                    ("detached, agent keeps running — reattach with:", info),
-                    (f"klaude attach {short_id}", "green"),
-                )
-            elif Session.has_user_messages(client.session_id, work_dir=work_dir):
+            if Session.has_user_messages(client.session_id, work_dir=work_dir):
                 log((f"Session ID: {client.session_id}", info))
                 log((f"Resume with: klaude -r {short_id}", info))

@@ -18,7 +18,7 @@ help:
 	@printf "%s\n" \
 		"Targets:" \
 		"  make pre-push     Run all formatting, linting, tests, and builds" \
-		"  make install      Install package (editable) + web viewer, then reload the running server" \
+		"  make install      Install package (editable) + web viewer" \
 		"  make web          Install web viewer deps and build the static bundle (pnpm preferred, npm fallback)" \
 		"  make build        Build web viewer + Python package and verify bundled assets" \
 		"  make lint         Run ruff + ty + import-linter" \
@@ -35,15 +35,7 @@ pre-push:
 install: web
 	@echo "==> Installing Python package (editable, via uv tool)..."
 	$(UV) tool install -e .
-	@echo "==> Restarting the running klaude server on the new code (if any)..."
-	@if ! command -v $(KLAUDE) >/dev/null 2>&1; then \
-		echo "error: '$(KLAUDE)' not found in PATH; cannot reload the server after install" >&2; \
-		exit 1; \
-	elif $(KLAUDE) server status >/dev/null 2>&1; then \
-		$(KLAUDE) server reload --when-idle; \
-	else \
-		echo "klaude server is not running; it will start on the next klaude command"; \
-	fi
+	@echo "Installed. Restart each Klaude process to load the updated code."
 
 web:
 	@if command -v $(PNPM) >/dev/null 2>&1; then \

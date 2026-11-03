@@ -21,7 +21,7 @@ def _text(item: message.HistoryEvent) -> str | None:
 
 
 def _replayed_user_messages(session: Session) -> list[str]:
-    """User messages a TUI attach/replay would show for this session."""
+    """User messages a TUI history replay would show for this session."""
     return [item.content for item in session.get_history_item() if isinstance(item, events.UserMessageEvent)]
 
 
@@ -147,10 +147,6 @@ def test_load_keeps_the_compacted_prefix_in_the_active_list(isolated_home: Path,
         assert [
             item.content for item in loaded.get_history_item() if isinstance(item, events.AssistantTextDeltaEvent)
         ] == ["old assistant", "kept assistant"]
-        # Attach tape splicing still limits by the original active-history index.
-        assert [
-            item.content for item in loaded.get_history_item(limit=2) if isinstance(item, events.UserMessageEvent)
-        ] == ["old user"]
 
     arun(_test())
 

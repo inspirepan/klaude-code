@@ -12,13 +12,16 @@
 
 ## Current Interactive TUI Architecture
 
-The TUI is a WebSocket client of the local klaude server (`run_attach()` in
-runner.py; the wire lives in `tui/client/socket_client.py`). Execution,
-follow-up queueing/draining, and interaction parking all happen server-side;
-the runner renders the event stream and sends operations over the socket.
-Exiting the TUI is a detach — the server keeps the session running.
+Normal CLI startup and history resume use `run_local()` with
+`LocalRuntimeClient`. The process owns its Runtime, follow-up scheduler,
+interactions, child agents and shells. Running tasks require exit confirmation;
+confirmed exit stops owned work and flushes history. `/new`, `/fork-session`
+and `/rewind` reject a switch while owned tasks run. `/exit` saves history and closes this process; `/detach` and `/reload` are removed.
 
-During interactive `run_attach()` sessions, prompt-toolkit owns the bottom
+`RuntimeClient` is the runner boundary; `LocalRuntimeClient` supplies execution,
+state snapshots, interactions and ordered events within this process.
+
+During interactive `run_local()` sessions, prompt-toolkit owns the bottom
 dynamic UI in both busy and idle states:
 
 - Rich prints stable scrollback content above the prompt.
@@ -39,17 +42,14 @@ dynamic UI in both busy and idle states:
   a live markdown stream for the main agent and a complete thinking block per
   sub-agent once that block finishes.
 - Transcript rebuilds (ctrl-o toggle, `/refresh`) replay `TUIDisplay._tape`
-  (`control/event_tape.py`), NOT `runtime.replay_session_history`. The tape
+  (`control/event_tape.py`), NOT `Agent.replay_history()`. The tape
   records everything the display consumed — including the in-flight turn that
   persisted history does not cover — so a mid-run rebuild reproduces the screen
   and the machine state exactly. Rules:
-  - One attach replay is one `ReplayHistoryEvent`: the server sends long
-    history in `replay_history` chunks, and `SocketRuntimeClient` merges them
-    until the next frame. Each `ReplayHistoryEvent` is a rebuild that resets
-    machine and renderer state, so splitting it strands sub-agents whose turns
-    cross a chunk and the task snapshot then prints them at the end.
-  - Persisted attach replay includes the full active history. Compaction cuts
-    the model context only; retractions and legacy rewind still remove entries.
+  - Initial local replay is one `ReplayHistoryEvent`; each replay resets the
+    machine and renderer, so do not split it across child lifecycle events.
+  - Persisted replay includes the full active history. Compaction cuts the
+    model context only; retractions and legacy rewind still remove entries.
     Child histories interleave by timestamp while preserving each session's
     lifecycle order and the parent launch before the child's first event.
   - The tape is the single re-render source. Do not add a second replay path
@@ -131,7 +131,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 - `/tasks` without arguments opens `TaskPanel` in the existing prompt-toolkit
   `TaskBrowser` overlay with status tabs, search, and live output preview;
   explicit `/tasks list/output/wait/stop` keeps text output.
-  `RuntimeClient.manage_tasks()` uses the existing owned-task HTTP endpoint;
+  `LocalRuntimeClient.manage_tasks()` calls the owned task manager in process;
   panel queries do not enter the transcript or acknowledge model delivery.
 - Status bar order: the main agent's spinner row (kept while background
   children run; hidden only while a blocking Agent call is pending), then the
@@ -190,8 +190,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   restores both the current draft and its cursor exactly once.
 - Task-panel messages require explicit confirmation and a running owned child.
   `send_task_message()` rechecks the task and sends external peer data with
-  `expected_operation_id` on `/send-active` (required, no `/send` fallback on
-  older servers); server admission checks that operation immediately
+  `expected_operation_id`; the local scheduler checks that operation immediately
   before enqueue. Labels confer no operator identity. A receipt is queued, not
   read; normal safe-boundary peer/follow-up semantics still apply after enqueue.
 - `/stop` submits `StopAllTasksOperation` immediately, even while busy. It stops
@@ -206,9 +205,9 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   reconciles existing sub-agent rows and counts; legacy shell events must not
   override its counts. A running Agent tool reference is not child completion.
   Root completion/interruption does not end child rows or block the editor.
-  Initial attach snapshots use `restore_only` with `restore_before`: historical
+  Initial local snapshots use `restore_only` with `restore_before`: historical
   completions restore state without appending summaries. Completions after the
-  attach boundary still print, including those arriving during the handshake.
+  initial replay boundary still print, including those arriving during initialization.
   Active children still print on later completion. Resume snapshots retain
   normal completion behavior.
 - Peer and task reports are sourced messages, not operator input cards. Render

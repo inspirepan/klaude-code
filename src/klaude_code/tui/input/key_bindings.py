@@ -88,7 +88,7 @@ def create_key_bindings(
             or None when there is nothing to suggest.
         consume_prompt_suggestion: Returns and clears the suggestion in one step
             (used when the user accepts it, so it can't be accepted twice).
-        dequeue_pending_messages: Pops all queued messages on the server and
+        dequeue_pending_messages: Pops all queued messages from the Runtime and
             returns the confirmed texts (empty when the drain got there first).
         has_pending_messages: Returns True while queued messages are available.
         is_agent_running: Returns True while Tab can switch between follow-up and `/btw` input.
@@ -173,7 +173,7 @@ def create_key_bindings(
         app = event.app
 
         async def _fill_from_confirmed() -> None:
-            # Fill from the server-confirmed pop, not the local mirror: the
+            # Fill from the Runtime-confirmed pop, not the local mirror: the
             # drain may have already started the queue head as a turn, and a
             # stale mirror would put an already-running message back in the
             # buffer for a duplicate submit. The confirm is a local-socket

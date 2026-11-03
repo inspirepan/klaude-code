@@ -37,7 +37,7 @@ def build_payload(
         "usage": {"include": True},  # To get the cache tokens at the end of the response
     }
 
-    # Debug echo is opt-in via env var: the server keeps debug logging always
+    # Debug echo is opt-in via env var: the application keeps debug logging always
     # on, so gating on is_debug_enabled() would inflate every production
     # response with the echoed upstream body.
     if os.environ.get("KLAUDE_OPENROUTER_DEBUG_ECHO"):

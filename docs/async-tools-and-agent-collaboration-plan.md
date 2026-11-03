@@ -1,6 +1,8 @@
 # 异步工具与 Agent 协作：统一边界的调查与建议
 
-> 状态：四个 Phase 已实现并完成自动化验收及分阶段独立 review，尚未提交或重启现有服务。skills 子模块旧指引待独立发布。下文早期调查保留为设计记录，不代表当前接口。
+> 执行架构已更新：以 [独立 TUI 计划](tasks/local-tui-runtime/outline.md) 为准。本文的共享 server、WS、attach 和自动重启内容仅作历史记录。
+
+> 状态：四个 Phase 已实现并完成自动化验收及分阶段独立 review，尚未提交或重启现有服务。内置 skills 与子模块已移除。下文早期调查保留为设计记录，不代表当前接口。
 > 日期：2026-10-15。与 `docs/steering-plan.md` 一起阅读。
 > 仅阅读本地源码、测试和用户提供的指南，未运行同行项目的测试或示例。
 
@@ -29,7 +31,7 @@
 - 最终集成 review 发现的不可信任务报告附件展开与内部交付 ID 冲突已修复；第二轮独立复核没有新增 finding。
 - 渲染 smoke 使用真实 renderer 与 Console capture；另用 PTY 验证新 CLI 帮助。没有运行真实模型、network 测试或完整人工 TUI 操作。
 - 未安装或重载当前运行的 klaude 服务，未 commit/push；运行中旧进程需要后续安全重载才能使用新代码。
-- `skill/assets` 子模块无源文件改动。其旧协作说明受独立提交/发布流程约束，未获提交授权，因此未修改或绕过加载规则。
+- 不再维护内置 system skills；旧 checkout 与子模块配置已移除，用户和项目 skills 独立安装。
 
 ## 当前实现摘要
 
@@ -49,8 +51,8 @@
 
 剩余工作不是重新确认上述接口：
 
-- 内置 `klaude-config` 旧指引需后续独立 skills 子模块发布，再更新父 pointer；`src/klaude_code/skill/assets` 本轮不改、不 commit/push，也不通过 vendor/copy/loader 补丁覆盖，skill 加载不变。
-- 当前 runtime tool description / system strategy / prime guide 定义新契约，旧 skill 的 CLI-only、同步等待与 interrupt/steer 说明不能覆盖它。
+- CLI 使用指南由 `klaude --skill` 按当前配置生成，不再随内置 skill 发布。
+- 当前 runtime tool description / system strategy / `klaude --skill` 定义新契约，应用不携带旧版内置 skill 指南。
 - 自动化验证与 smoke 的实际覆盖见顶部最终验收；历史同行测试清单不表示本轮运行了那些仓库的测试。
 - 下文自“结论：统一控制与投递”起是历史调查与方案；其中“尚待用户决定”、候选命名、前台等待和 fast-model 设想保留取舍过程，不再表示顶部已确认事项仍未定。
 

@@ -34,7 +34,7 @@ base = line_index * 8
 base + 0   the request produced by that line   (request dot anchor)
 base + 1   the conversation node               (the ledger row)
 base + 2   step end / reserved
-base + 3.. reserved (live partial rows, future sidecars)
+base + 3.. reserved (future sidecars)
 ```
 
 Consequences:
@@ -227,42 +227,21 @@ the cells:
 Fields: `lineIndex`, `discarded`, `auto`, `subAgent`, and `kind` (the `rewind` /
 `btw` override, since no upstream node arm produces those rows).
 
-## Live state
+## Persisted history refresh
 
-`partial` and `runningCalls` are always empty **here**. They are spliced in
-afterwards by `src/app/live`, which is the only consumer of the WS channel:
+`partial` and `runningCalls` stay empty: the read-only viewer never subscribes
+to execution memory or a WebSocket. `src/app/session-page.tsx` polls metadata
+and the persisted tail; `src/app/history.ts` merges `after_line` pages and
+refreshes statuses when a compaction/retraction/rewind marker lands.
 
 ```
-buildTrajectorySnapshot(rows)  ->  spliceLiveSnapshot(snapshot, liveState)  ->  TrajectoryView
-        (REST, landed rows)              (WS, partial + runningCalls)
+buildTrajectorySnapshot(rows) -> TrajectoryView
+          persisted history only
 ```
 
-The split is deliberate and matches the upstream snapshot model: REST owns
-every row that reached `events.jsonl` — with its ledger status, its usage and
-its stable seq — and the socket only contributes the two fields that describe
-work still in flight. A cold session never opens a socket (decision #28) and
-therefore simply has neither, which is deviation D11.
-
-`assistant.text.end` carries a `stop_reason` when — and only when — the final
-`AssistantMessage` closed the block; a block a tool call cut short has no such
-key, and neither does an old tape. The reducer keeps it on the partial and
-`splice.ts` surfaces it as an in-flight `RequestView` whose status is derived
-the way a landed row's `stop_reason` is (`error` → a failed request). Before it
-arrives, nothing extra is added.
-
-The wire carries no absolute turn ordinal for a response that has not landed,
-so `spliceLiveSnapshot` anchors the in-flight rows on the newest landed one:
-the streaming `partial` is the step *after* it inside the same turn, and a
-running tool call belongs to the streaming step when a response is open, else
-to the landed step. `history.appended` refreshes the tail within a flush of the
-row landing, so that anchor is never more than one row stale.
-
-`app/live/merge.ts` owns the other half of the handshake — pulling the
-`after_line` increment, and re-reading the statuses of the loaded window when a
-marker (`CompactionEntry` / `RetractEntry` / `RewindEntry`) lands, since a
-marker restates the status of lines above it. The refresh replaces `status` and
-`dropped_by` in place: `line_index` and `entry` are never rewritten, so React
-keys and the folded layout survive it.
+Line indices and entries remain stable during refresh, so React keys and
+folded rows survive new disk writes. Request status comes from persisted
+`LLMRequestEntry` and `AssistantMessage.stop_reason` records.
 
 ## Search jump
 

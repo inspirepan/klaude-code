@@ -1,16 +1,11 @@
-"""Client-side interface between the TUI runner and the klaude server.
-
-The TUI no longer embeds a runtime: it attaches to the single local server
-and speaks the WS frame protocol. ``RuntimeClient`` is the seam — the runner
-only depends on this protocol, so tests can inject an in-memory fake, and the
-sole production implementation is :class:`SocketRuntimeClient` (UDS WebSocket).
-"""
+"""Runtime seam shared by the TUI runner and in-process execution adapter."""
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from threading import Event
 from typing import Protocol
 
 from klaude_code.protocol import events, op
@@ -20,18 +15,9 @@ from klaude_code.protocol.models.session_status import SessionStatus, SessionSta
 from klaude_code.protocol.peer import PeerReceipt
 
 
-class ClientConnectionError(Exception):
-    """Send-side operation failed because the server connection is gone.
-
-    The receive loop surfaces its own error event when the socket drops;
-    this lets the input loop distinguish a dead connection from a bug and
-    detach gracefully instead of crashing with a traceback.
-    """
-
-
 @dataclass
 class SessionInfoSnapshot:
-    """Client-side mirror of the server's session_info frame."""
+    """Snapshot of the locally owned session."""
 
     session_id: str = ""
     state: SessionStatusCategory = "idle"
@@ -46,10 +32,11 @@ class SessionInfoSnapshot:
     title: str | None = None
     follow_ups: tuple[str, ...] = field(default_factory=tuple)
     is_replay_snapshot: bool = False
+    replay_through_event_seq: int = 0
 
 
 class RuntimeClient(Protocol):
-    """What the TUI runner needs from the server connection."""
+    """Operations, event delivery, and state required by the TUI runner."""
 
     # -- lifecycle --
 
@@ -57,12 +44,12 @@ class RuntimeClient(Protocol):
     def session_id(self) -> str: ...
 
     async def start(self) -> None:
-        """Connect and complete the attach handshake (replay buffered)."""
+        """Initialize execution and buffer the initial history replay."""
         ...
 
     async def close(self) -> None: ...
 
-    async def reattach(self, session_id: str) -> None:
+    async def switch_session(self, session_id: str) -> None:
         """Switch this client to another session (/new, /fork-session)."""
         ...
 
@@ -85,7 +72,7 @@ class RuntimeClient(Protocol):
     async def submit_and_wait(self, operation: op.Operation) -> None: ...
 
     async def emit_user_message(self, event: events.UserMessageEvent) -> None:
-        """Echo a user message into the shared session narrative (all clients)."""
+        """Echo a user message into the session narrative."""
         ...
 
     async def emit_local_event(self, event: events.Event) -> None:
@@ -95,7 +82,7 @@ class RuntimeClient(Protocol):
     async def dequeue_follow_ups(self) -> tuple[str, ...]: ...
 
     async def get_model_catalog(self) -> ModelCatalog:
-        """Read the server's currently available models without caching."""
+        """Read currently available models from this process configuration."""
         ...
 
     async def manage_tasks(self, request: TaskRequest) -> TaskResponse:
@@ -115,12 +102,12 @@ class RuntimeClient(Protocol):
     def follow_up_texts(self) -> tuple[str, ...]: ...
 
     def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
-        """Show newly queued texts in the mirror immediately; the server's
+        """Show newly queued texts in the mirror immediately; the runtime's
         FollowUpQueueUpdatedEvent reconciles the authoritative list."""
         ...
 
     def remove_optimistic_follow_up(self, text: str) -> None:
-        """Roll back one optimistic entry whose server submit failed."""
+        """Roll back one optimistic entry whose runtime submit failed."""
         ...
 
     def session_info(self) -> SessionInfoSnapshot: ...
@@ -131,10 +118,8 @@ class RuntimeClient(Protocol):
         """Set whenever running state or the follow-up queue changes."""
         ...
 
-    def connection_lost_event(self) -> asyncio.Event:
-        """Set when the server connection drops for good (not on reattach)."""
-        ...
-
     # -- interactions --
 
     def interaction_requests(self) -> asyncio.Queue[events.UserInteractionRequestEvent]: ...
+
+    def interaction_closed_event(self, request: events.UserInteractionRequestEvent) -> Event: ...

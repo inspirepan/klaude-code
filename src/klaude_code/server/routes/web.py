@@ -6,7 +6,7 @@ npm) that lands inside the package at ``klaude_code/server/web/``:
 client-side, so only ``/`` needs the HTML.
 
 Paths are resolved from this module's location, never from the process CWD
-(the server chdir's to $HOME at startup and TID251 bans CWD APIs here).
+(TID251 bans CWD APIs here).
 """
 
 from __future__ import annotations
@@ -35,15 +35,13 @@ def web_index_file() -> Path:
 def missing_bundle_html() -> str:
     return f"""<!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>klaude trace viewer is not built</title></head>
+<head><meta charset="utf-8"><title>klaude history viewer is not built</title></head>
 <body style="font-family: system-ui, sans-serif; margin: 3rem auto; max-width: 40rem; line-height: 1.6">
 <h1>Web bundle not built</h1>
-<p>The klaude server is running, but the viewer's static files are missing from
+<p>The history viewer is running, but its static files are missing from
 <code>{web_dist_dir()}</code>.</p>
 <p>Build them from a source checkout:</p>
 <pre style="background:#f4f4f5;padding:0.75rem;border-radius:6px"><code>{BUILD_HINT}</code></pre>
-<p>The API is unaffected: <code>/api/server/status</code> and the rest of
-<code>/api/...</code> answer normally.</p>
 </body>
 </html>
 """

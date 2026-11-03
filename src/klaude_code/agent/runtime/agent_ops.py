@@ -341,10 +341,10 @@ class AgentOperationHandler:
     def _build_default_llm_clients(self) -> LLMClients:
         """Build a session's default clients from the current config.
 
-        The startup template pins whatever the config held when the server
+        The startup template pins whatever the config held when the process
         booted, so reusing it would keep /model, /sub-agent-model and provider
-        changes out of every session created afterwards until the server
-        re-execs. The template stays as a fallback for a config that no longer
+        changes out of every session created afterwards until the process
+        restarts. The template stays as a fallback for a config that no longer
         resolves (e.g. the model a provider toggle just made unavailable).
         """
         try:
@@ -490,6 +490,23 @@ class AgentOperationHandler:
                 if not task.done():
                     task.cancel()
 
+    async def stop_auxiliary_tasks(self, session_id: str | None = None) -> None:
+        tasks = [
+            task
+            for group in (self._title_refresh_tasks, self._prompt_suggestion_tasks, self._auto_away_summary_tasks)
+            for owner, task in group.items()
+            if session_id is None or owner == session_id
+        ]
+        tasks.extend(
+            pending.task
+            for pending in self._side_question_tasks.values()
+            if session_id is None or pending.session_id == session_id
+        )
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
     def _register_task(self, *, operation_id: str, task_id: str, task: asyncio.Task[None], session_id: str) -> None:
         self._register_runtime_task(session_id, operation_id, task_id, task)
 
@@ -556,9 +573,7 @@ class AgentOperationHandler:
         if session_id is None:
             session = Session.create(work_dir=work_dir)
         else:
-            # A full history parse of a long session takes seconds; run on
-            # the server's only event loop it froze event forwarding and
-            # every attached client (the "first turn blocks ~4s" incident).
+            # Keep a long history parse off the event loop so input remains responsive.
             session = await asyncio.to_thread(Session.load, session_id, work_dir=work_dir)
 
         runtime = self._ensure_session_actor(session.id)
@@ -576,14 +591,14 @@ class AgentOperationHandler:
         profile_agent_type: str | None = None
         if session.agent_type is not None and session.agent_type != "main":
             profile_agent_type = session.agent_type
-        # Vanilla is a per-session flag now that the server owns all sessions.
+        # Vanilla is a per-session flag, including newly created sessions.
         profile_provider: ModelProfileProvider = self._model_profile_provider
         if session.vanilla:
             from klaude_code.agent.agent_profile import VanillaModelProfileProvider
 
             profile_provider = VanillaModelProfileProvider()
         # System-prompt assembly scans skills and memory files on disk;
-        # keep it off the server's event loop.
+        # keep it off the Runtime's event loop.
         profile = await asyncio.to_thread(
             profile_provider.build_profile,
             session_clients.main,
@@ -608,35 +623,7 @@ class AgentOperationHandler:
             return existing
 
         if not suppress_welcome:
-            startup_update = get_startup_update_summary()
-
-            await self._emit_event(
-                events.WelcomeEvent(
-                    session_id=session.id,
-                    work_dir=str(session.work_dir),
-                    llm_config=session_clients.main.get_llm_config(),
-                    title=session.title,
-                    loaded_skills={} if defer_welcome_context else get_skill_names_by_location(session.work_dir),
-                    loaded_skill_warnings=(
-                        {} if defer_welcome_context else get_skill_warnings_by_location(session.work_dir)
-                    ),
-                    loaded_memories=(
-                        {}
-                        if defer_welcome_context
-                        else get_existing_memory_paths_by_location(work_dir=session.work_dir)
-                    ),
-                    startup_info=events.WelcomeStartupInfo(
-                        update_info=(
-                            events.WelcomeUpdateInfo(
-                                message=startup_update.message,
-                                level=startup_update.level,
-                            )
-                            if startup_update is not None
-                            else None
-                        )
-                    ),
-                )
-            )
+            await self._emit_session_welcome(agent, defer_welcome_context=defer_welcome_context)
 
         if defer_replay:
             existing = runtime.get_agent()
@@ -708,6 +695,36 @@ class AgentOperationHandler:
         runtime.set_agent(agent)
         return agent
 
+    async def _emit_session_welcome(self, agent: Agent, *, defer_welcome_context: bool) -> None:
+        session = agent.session
+        startup_update = get_startup_update_summary()
+
+        await self._emit_event(
+            events.WelcomeEvent(
+                session_id=session.id,
+                work_dir=str(session.work_dir),
+                llm_config=agent.profile.llm_client.get_llm_config(),
+                title=session.title,
+                loaded_skills={} if defer_welcome_context else get_skill_names_by_location(session.work_dir),
+                loaded_skill_warnings=(
+                    {} if defer_welcome_context else get_skill_warnings_by_location(session.work_dir)
+                ),
+                loaded_memories=(
+                    {} if defer_welcome_context else get_existing_memory_paths_by_location(work_dir=session.work_dir)
+                ),
+                startup_info=events.WelcomeStartupInfo(
+                    update_info=(
+                        events.WelcomeUpdateInfo(
+                            message=startup_update.message,
+                            level=startup_update.level,
+                        )
+                        if startup_update is not None
+                        else None
+                    )
+                ),
+            )
+        )
+
     async def init_agent(
         self,
         session_id: str,
@@ -720,16 +737,18 @@ class AgentOperationHandler:
         agent = await self.ensure_agent(
             session_id,
             work_dir=work_dir,
-            defer_welcome_context=defer_welcome_context,
-            defer_replay=defer_replay,
-            suppress_welcome=suppress_welcome,
+            suppress_welcome=True,
+            defer_replay=True,
         )
+        # Initialization owns display setup even when another task preloaded the actor.
         if not suppress_welcome:
-            # Rehydrating a reclaimed actor is not a session switch: it must
-            # not steal the primary-session slot from an interactive TUI.
+            await self._emit_session_welcome(agent, defer_welcome_context=defer_welcome_context)
+        if not defer_replay:
+            await self._replay_session_history(session_id)
+        if not suppress_welcome:
             self._primary_session_id = agent.session.id
 
-    async def replay_session_history(self, session_id: str) -> None:
+    async def _replay_session_history(self, session_id: str) -> None:
         runtime = self._get_session_actor(session_id)
         agent = runtime.get_agent() if runtime is not None else None
         if agent is None:
@@ -1297,6 +1316,9 @@ class AgentOperationHandler:
         """
         self._cancel_side_questions(session_id)
 
+    def has_running_side_questions(self) -> bool:
+        return any(not pending.task.done() for pending in self._side_question_tasks.values())
+
     async def stop_side_questions(self, session_id: str) -> None:
         pending = {
             request_id: item for request_id, item in self._side_question_tasks.items() if item.session_id == session_id
@@ -1583,8 +1605,8 @@ class AgentOperationHandler:
         # Suggested next prompt for the landed session. Deliberately bypasses
         # should_suggest()'s early-conversation gate: the new session has no
         # assistant turns yet, but the summary gives the predictor plenty to
-        # work with. The event rides the new session's stream; if the client
-        # attaches after it was published, replay restores it from the entry.
+        # work with. The event rides the new session's stream; if the TUI
+        # switches after it was published, replay restores it from the entry.
         task = asyncio.create_task(
             self._generate_rewind_prompt_suggestion(session_id=new_session.id, work_dir=new_session.work_dir)
         )
@@ -1601,7 +1623,7 @@ class AgentOperationHandler:
     async def _generate_rewind_prompt_suggestion(self, *, session_id: str, work_dir: Path) -> None:
         # Resolve through the runtime so the entry lands on the SAME Session
         # object the live agent uses — fork()'s in-memory copy goes stale once
-        # the client attaches and ensure_agent loads its own instance.
+        # the TUI switches and ensure_agent loads its own instance.
         agent = await self.ensure_agent(session_id, work_dir=work_dir, suppress_welcome=True, defer_replay=True)
         session = agent.session
         try:
@@ -1617,7 +1639,7 @@ class AgentOperationHandler:
         if result is None or result.suggestion is None:
             return
         session.append_history([message.PromptSuggestionEntry(text=result.suggestion)])
-        # Flush before the ready event: the client may reattach and replay
+        # Flush before the ready event: the TUI may switch sessions and replay
         # immediately, and replay must include this entry.
         await session.wait_for_flush()
         await self._emit_event(

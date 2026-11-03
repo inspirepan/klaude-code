@@ -5,7 +5,6 @@ import subprocess
 import time
 from collections.abc import Callable
 from pathlib import Path
-from types import SimpleNamespace
 from typing import cast
 
 import pytest
@@ -15,40 +14,6 @@ import klaude_code.update as update
 
 def _fake_which(name: str) -> str:
     return f"/usr/bin/{name}"
-
-
-def _init_fingerprint_repo(repo: Path) -> None:
-    (repo / "src" / "klaude_code").mkdir(parents=True)
-    (repo / "src" / "klaude_code" / "main.py").write_text("value = 1\n", encoding="utf-8")
-    (repo / "pyproject.toml").write_text("[project]\nname = 'demo'\n", encoding="utf-8")
-    (repo / "uv.lock").write_text("version = 1\n", encoding="utf-8")
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
-    subprocess.run(["git", "-C", str(repo), "add", "."], check=True)
-    subprocess.run(
-        [
-            "git",
-            "-C",
-            str(repo),
-            "-c",
-            "user.name=Test",
-            "-c",
-            "user.email=test@example.com",
-            "commit",
-            "-qm",
-            "initial",
-        ],
-        check=True,
-    )
-
-
-def test_code_fingerprint_ignores_untracked_files_outside_runtime_paths(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    _init_fingerprint_repo(repo)
-    before = update._compute_git_fingerprint(str(repo))
-
-    (repo / "unrelated-data.bin").write_bytes(b"x" * (2 * 1024 * 1024))
-
-    assert update._compute_git_fingerprint(str(repo)) == before
 
 
 def _make_fake_run(
@@ -138,156 +103,6 @@ def test_persist_current_update_info_writes_state_file(monkeypatch: pytest.Monke
     assert payload["install_kind"] == update.INSTALL_KIND_INDEX
 
 
-@pytest.mark.parametrize(
-    ("status", "expected"),
-    [
-        (
-            {"phase": "pending", "action": "upgrade", "active_sessions": [{"session_id": "a", "state": "running"}]},
-            "klaude server will install the update and restart once 1 agent turn finishes (/reload to check).",
-        ),
-        (
-            {
-                "phase": "pending",
-                "action": "upgrade",
-                "active_sessions": [
-                    {"session_id": "a", "state": "background_shell"},
-                    {"session_id": "b", "state": "background_shell"},
-                ],
-            },
-            "klaude server will install the update and restart once 2 background shells finish (/reload to check).",
-        ),
-        (
-            {"phase": "pending", "action": "upgrade", "active_sessions": []},
-            "klaude server is about to install the update and restart; this client reconnects automatically.",
-        ),
-        (
-            {"phase": "installing", "action": "upgrade"},
-            "klaude server is installing the update and restarts when done.",
-        ),
-        ({"phase": "failed", "action": None, "message": "uv missing"}, "klaude upgrade failed: uv missing"),
-    ],
-)
-def test_auto_upgrade_notice_describes_server_status(
-    monkeypatch: pytest.MonkeyPatch, status: dict[str, object], expected: str
-) -> None:
-    from klaude_code.cli import main as cli_main
-    from klaude_code.cli import uds_client
-
-    monkeypatch.setattr("klaude_code.config.load_config", lambda: SimpleNamespace(auto_upgrade=True))
-    monkeypatch.setattr(update, "has_pending_update", lambda: True)
-    requested: list[dict[str, object]] = []
-
-    def fake_request(*, check: bool = False, timeout: float = 0.0) -> dict[str, object]:
-        del timeout
-        requested.append({"check": check})
-        return status
-
-    monkeypatch.setattr(uds_client, "request_server_upgrade", fake_request)
-    monkeypatch.setattr(uds_client, "settle_upgrade_status", lambda status: status)
-    notice = cli_main._maybe_start_auto_upgrade()
-    assert notice is not None
-    assert notice.result(timeout=5) == expected
-    assert requested == [{"check": False}]
-
-
-def test_settle_upgrade_status_reports_fast_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    from klaude_code.cli import uds_client
-
-    replies = iter(
-        [
-            {"phase": "installing", "action": "upgrade"},
-            {"phase": "failed", "action": None, "message": "detached HEAD"},
-        ]
-    )
-    monkeypatch.setattr(uds_client.time, "sleep", lambda _: None)
-    monkeypatch.setattr(uds_client, "request", lambda *_, **__: (200, next(replies)))
-    settled = uds_client.settle_upgrade_status({"phase": "pending", "action": "upgrade", "active_sessions": []})
-    assert uds_client.describe_upgrade_status(settled) == "klaude upgrade failed: detached HEAD"
-
-
-def test_settle_upgrade_status_stops_on_busy_or_reexec(monkeypatch: pytest.MonkeyPatch) -> None:
-    from klaude_code.cli import uds_client
-
-    busy = {"phase": "pending", "action": "upgrade", "active_sessions": [{"session_id": "a", "state": "running"}]}
-    monkeypatch.setattr(uds_client, "request", lambda *_, **__: pytest.fail("busy status must not poll"))
-    assert uds_client.settle_upgrade_status(busy) == busy
-
-    def gone(*_: object, **__: object) -> None:
-        raise uds_client.ServerNotRunningError("down")
-
-    monkeypatch.setattr(uds_client.time, "sleep", lambda _: None)
-    monkeypatch.setattr(uds_client, "request", gone)
-    settled = uds_client.settle_upgrade_status({"phase": "installing", "action": "upgrade"})
-    assert settled["phase"] == "reloading"
-
-
-def test_auto_upgrade_skips_when_nothing_pending(monkeypatch: pytest.MonkeyPatch) -> None:
-    from klaude_code.cli import main as cli_main
-
-    monkeypatch.setattr("klaude_code.config.load_config", lambda: SimpleNamespace(auto_upgrade=True))
-    monkeypatch.setattr(update, "has_pending_update", lambda: False)
-    assert cli_main._maybe_start_auto_upgrade() is None
-
-
-def test_auto_upgrade_notice_stays_unresolved_without_server(monkeypatch: pytest.MonkeyPatch) -> None:
-    from klaude_code.cli import main as cli_main
-    from klaude_code.cli import uds_client
-
-    monkeypatch.setattr("klaude_code.config.load_config", lambda: SimpleNamespace(auto_upgrade=True))
-    monkeypatch.setattr(update, "has_pending_update", lambda: True)
-    monkeypatch.setattr(uds_client, "request_server_upgrade", lambda **_: None)
-    notice = cli_main._maybe_start_auto_upgrade()
-    assert notice is not None
-    with pytest.raises(TimeoutError):
-        notice.result(timeout=0.2)
-
-
-def test_has_pending_update_reads_persisted_state(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
-    del isolated_home
-    monkeypatch.setattr(
-        update, "get_installation_info", lambda: update.InstallationInfo("1.0.0", update.INSTALL_KIND_INDEX, None)
-    )
-    assert update.has_pending_update() is False
-    update.write_persisted_update_info(
-        update.PersistedUpdateInfo(time.time(), "1.0.0", "1.1.0", True, update.INSTALL_KIND_INDEX)
-    )
-    assert update.has_pending_update() is True
-
-
-def test_perform_upgrade_with_check_persists_then_installs(
-    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
-) -> None:
-    del isolated_home
-    monkeypatch.setattr(
-        update,
-        "check_for_updates_blocking",
-        lambda: update.VersionInfo("1.0.0", "1.1.0", True, update.INSTALL_KIND_INDEX),
-    )
-    performed = update.AutoUpgradeResult(True, "1.1.0", "done")
-    monkeypatch.setattr(update, "perform_auto_upgrade_if_needed", lambda: performed)
-    assert update.perform_upgrade(check=True) == performed
-    persisted = update._load_persisted_update_info()
-    assert persisted is not None and persisted.latest == "1.1.0" and persisted.update_available
-
-
-def test_perform_upgrade_with_check_reports_check_failure(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fail() -> None:
-        raise RuntimeError("offline")
-
-    monkeypatch.setattr(update, "check_for_updates_blocking", fail)
-    result = update.perform_upgrade(check=True)
-    assert not result.performed
-    assert result.message == "update check failed: offline"
-
-
-def test_upgraded_code_fingerprint_uses_new_wheel_version(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        update, "get_installation_info", lambda: update.InstallationInfo("1.0.0", update.INSTALL_KIND_INDEX, None)
-    )
-    assert update.upgraded_code_fingerprint(update.AutoUpgradeResult(True, "1.1.0", None)) == "pkg:1.1.0"
-    assert update.upgraded_code_fingerprint(update.AutoUpgradeResult(True, None, None)) is None
-
-
 def test_get_startup_update_summary_returns_message_from_persisted_state(
     monkeypatch: pytest.MonkeyPatch, isolated_home: Path
 ) -> None:
@@ -345,85 +160,6 @@ def test_get_startup_update_summary_refreshes_stale_state_in_background(
     assert summary is not None
     assert "editable install" in summary.message
     assert started["value"] is True
-
-
-def test_perform_auto_upgrade_if_needed_runs_pypi_upgrade(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
-    del isolated_home
-
-    monkeypatch.delenv(update.AUTO_UPGRADE_DONE_ENV, raising=False)
-    update.write_persisted_update_info(
-        update.PersistedUpdateInfo(
-            checked_at=time.time(),
-            installed="1.0.0",
-            latest="1.1.0",
-            update_available=True,
-            install_kind=update.INSTALL_KIND_INDEX,
-        )
-    )
-    monkeypatch.setattr(
-        update,
-        "get_installation_info",
-        lambda: update.InstallationInfo(version="1.0.0", install_kind=update.INSTALL_KIND_INDEX, source_url=None),
-    )
-
-    calls: list[list[str]] = []
-
-    def _fake_run(cmd: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        calls.append(cmd)
-        output = "klaude-code v1.2.0\n" if cmd == ["uv", "tool", "list"] else ""
-        return subprocess.CompletedProcess(cmd, 0, stdout=output, stderr="")
-
-    monkeypatch.setattr(update.shutil, "which", _fake_which)
-    monkeypatch.setattr(update.subprocess, "run", _fake_run)
-
-    result = update.perform_auto_upgrade_if_needed()
-    assert result.performed is True
-    assert result.new_version == "1.2.0"
-    assert calls and calls[0][:3] == ["uv", "tool", "upgrade"]
-    assert not (Path.home() / ".klaude" / update.UPDATE_STATE_FILE).exists()
-
-
-def test_perform_auto_upgrade_if_needed_skips_when_already_current(
-    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
-) -> None:
-    del isolated_home
-
-    monkeypatch.delenv(update.AUTO_UPGRADE_DONE_ENV, raising=False)
-    update.write_persisted_update_info(
-        update.PersistedUpdateInfo(
-            checked_at=time.time(),
-            installed="1.0.0",
-            latest="1.1.0",
-            update_available=True,
-            install_kind=update.INSTALL_KIND_INDEX,
-        )
-    )
-    monkeypatch.setattr(
-        update,
-        "get_installation_info",
-        lambda: update.InstallationInfo(version="1.1.0", install_kind=update.INSTALL_KIND_INDEX, source_url=None),
-    )
-
-    result = update.perform_auto_upgrade_if_needed()
-    assert result.performed is False
-
-
-def test_perform_auto_upgrade_if_needed_respects_done_env(monkeypatch: pytest.MonkeyPatch, isolated_home: Path) -> None:
-    del isolated_home
-
-    monkeypatch.setenv(update.AUTO_UPGRADE_DONE_ENV, "1")
-    update.write_persisted_update_info(
-        update.PersistedUpdateInfo(
-            checked_at=time.time(),
-            installed="1.0.0",
-            latest="1.1.0",
-            update_available=True,
-            install_kind=update.INSTALL_KIND_INDEX,
-        )
-    )
-
-    result = update.perform_auto_upgrade_if_needed()
-    assert result.performed is False
 
 
 def test_fetch_version_info_tracks_git_for_editable_install(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -488,24 +224,3 @@ def test_fetch_version_info_falls_back_to_pypi_when_source_not_a_git_repo(
     assert info.update_source == update.UPDATE_SOURCE_PYPI
     assert info.latest == "1.1.0"
     assert info.update_available is True
-
-
-def test_blocking_sessions_are_named_with_what_holds_them() -> None:
-    from klaude_code.cli import uds_client
-
-    active = [
-        {
-            "session_id": "5f8f46394f954b969a5fcf56261c2083",
-            "state": "background_shell",
-            "title": "",
-            "detail": "background shell: dev server (12m)",
-        },
-        {"session_id": "b", "state": "running", "title": "优化归因风格", "detail": "agent turn running"},
-    ]
-    assert uds_client.describe_active_sessions(active) == [
-        "  5f8f4639 · background shell: dev server (12m)",
-        "  优化归因风格 · agent turn running",
-    ]
-    options = uds_client.describe_upgrade_options(active)
-    assert any("/tasks" in line for line in options)
-    assert any("reload --force" in line and "stops background shells" in line for line in options)

@@ -69,7 +69,7 @@ beforeEach(() => {
   childrenAnswer = () => Promise.resolve(answer({ session_id: PARENT, children: CHILDREN }))
   fetchMock = vi.fn((input: unknown) => {
     const url = String(input)
-    if (url.startsWith('/api/headless/sessions')) return Promise.resolve(answer({ sessions: SESSIONS }))
+    if (url.startsWith('/api/web/sessions?')) return Promise.resolve(answer({ sessions: SESSIONS }))
     if (url.endsWith('/children')) return childrenAnswer()
     return Promise.reject(new Error(`unexpected request: ${url}`))
   })

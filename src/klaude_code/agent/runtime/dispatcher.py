@@ -226,9 +226,6 @@ class OperationDispatcher:
             suppress_welcome=operation.suppress_welcome,
         )
 
-    async def replay_session_history(self, session_id: str) -> None:
-        await self._agent_operation_handler.replay_session_history(session_id)
-
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._agent_operation_handler.run_agent(operation)
 
@@ -331,6 +328,12 @@ class OperationDispatcher:
 
     def cancel_side_questions(self, session_id: str) -> None:
         self._agent_operation_handler.cancel_side_questions(session_id)
+
+    def has_running_side_questions(self) -> bool:
+        return self._agent_operation_handler.has_running_side_questions()
+
+    async def stop_auxiliary_tasks(self, session_id: str | None = None) -> None:
+        await self._agent_operation_handler.stop_auxiliary_tasks(session_id)
 
     async def handle_change_model(self, operation: op.ChangeModelOperation) -> None:
         await self._config_handler.handle_change_model(operation)

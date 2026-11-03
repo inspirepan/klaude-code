@@ -6,13 +6,6 @@ from klaude_code.skill.loader import Skill, SkillLoader, extract_skill_listing_p
 def test_get_skills_xml_uses_requested_skill_block_format() -> None:
     loader = SkillLoader()
     loader.loaded_skills = {
-        "system-skill": Skill(
-            name="system-skill",
-            description="system desc",
-            location="system",
-            skill_path=Path("/system/SKILL.md"),
-            base_dir=Path("/system"),
-        ),
         "project-skill": Skill(
             name="project-skill",
             description="project desc\nline2 & <xml>",
@@ -36,13 +29,12 @@ def test_get_skills_xml_uses_requested_skill_block_format() -> None:
     # base_dir is the parent of SKILL.md here, so it is left implicit.
     assert "base_dir" not in output
     # One line per skill keeps this always-in-context listing small.
-    assert len(output.splitlines()) == 3
+    assert len(output.splitlines()) == 2
 
-    # Skills should keep project > user > system order.
+    # Skills should keep project > user order.
     project_pos = output.index("project-skill")
     user_pos = output.index("user-skill")
-    system_pos = output.index("system-skill")
-    assert project_pos < user_pos < system_pos
+    assert project_pos < user_pos
 
 
 def test_get_skills_xml_emits_base_dir_only_when_it_differs_from_skill_dir() -> None:

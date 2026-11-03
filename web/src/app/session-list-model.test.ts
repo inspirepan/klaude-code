@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { SessionListRow, SpawnedChild } from '../adapter/index.ts'
 import { sessionStatus } from '../adapter/fixtures.ts'
 import {
-  buildSessionTree, filterSessionRows, flattenSessionTree, isLiveState, messagesCount,
+  buildSessionTree, filterSessionRows, flattenSessionTree, isWorkingState, messagesCount,
   relativeUpdated, rowLabel, rowState, rowTitle, statusLabel, workDirName,
 } from './session-list-model.ts'
 
@@ -46,9 +46,9 @@ describe('row fields', () => {
     expect(rowState(row)).toBe('needs_you')
     expect(filterSessionRows([row], 'needs_you running')).toEqual([row])
     expect(rowState(listRow('a'))).toBe('idle')
-    expect(isLiveState('working')).toBe(true)
-    expect(isLiveState('needs_you')).toBe(false)
-    expect(isLiveState('idle')).toBe(false)
+    expect(isWorkingState('working')).toBe(true)
+    expect(isWorkingState('needs_you')).toBe(false)
+    expect(isWorkingState('idle')).toBe(false)
   })
 
   it('keeps attention reasons and parallel execution visible', () => {

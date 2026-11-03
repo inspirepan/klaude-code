@@ -10,6 +10,7 @@ from klaude_code.agent.agent import Agent
 from klaude_code.agent.agent_profile import ModelProfileProvider
 from klaude_code.agent.runtime.dispatcher import OperationDispatcher, OperationDispatcherPorts
 from klaude_code.agent.runtime.llm import LLMClients
+from klaude_code.app.session_lease import SessionLease
 from klaude_code.control.event_bus import EventBus, event_publish_context
 from klaude_code.control.runtime.registry import OperationLifecycleHooks, SessionRegistry
 from klaude_code.control.user_interaction import PendingUserInteractionRequest
@@ -96,6 +97,7 @@ class RuntimeFacade:
         on_model_change: Callable[[str], None] | None = None,
     ):
         self._stopped = False
+        self._session_leases: dict[str, SessionLease] = {}
         self.shell_task_manager = ShellTaskManager(
             on_update=self._shell_tasks_updated, on_complete=self._shell_completed
         )
@@ -141,7 +143,6 @@ class RuntimeFacade:
         self.task_manager = self._operation_dispatcher.task_manager
         self.peer_control = self._operation_dispatcher.peer_control
         self._stopped = False
-        self._reclaim_exclusions_provider: Callable[[], set[str]] | None = None
 
     async def _reject_operation(self, operation: op.Operation, active_task_id: str | None) -> None:
         session_id = getattr(operation, "session_id", None)
@@ -234,7 +235,7 @@ class RuntimeFacade:
                 answers = [
                     user_interaction.AskUserQuestionAnswer(
                         question_id=question.id,
-                        selected_option_ids=[],
+                        selected_option_ids=["__other__"],
                         other_text=(
                             "No human is available to answer (unattended run). "
                             "Proceed with your best judgment and state the assumption in your final report."
@@ -323,6 +324,8 @@ class RuntimeFacade:
     async def submit(self, operation: op.Operation) -> str:
         if self._stopped:
             raise RuntimeError("RuntimeFacade is stopped")
+        if isinstance(operation, op.InitAgentOperation):
+            self.claim_session(operation.session_id)
 
         self._operation_awaiter.register(operation.id)
         try:
@@ -338,6 +341,10 @@ class RuntimeFacade:
         )
 
         return operation.id
+
+    def claim_session(self, session_id: str) -> None:
+        if session_id not in self._session_leases:
+            self._session_leases[session_id] = SessionLease(session_id)
 
     async def emit_event(self, event: events.Event) -> None:
         await self._operation_dispatcher.emit_event(event)
@@ -360,10 +367,6 @@ class RuntimeFacade:
     async def _shell_completed(self, task: ShellTaskSnapshot) -> None:
         await self.task_manager.record_shell(task, Path(task.work_dir))
 
-    async def replay_session_history(self, session_id: str) -> None:
-        """Replay an initialized session's transcript to the display."""
-        await self._operation_dispatcher.replay_session_history(session_id)
-
     def current_session_id(self) -> str | None:
         return self._operation_dispatcher.current_session_id()
 
@@ -372,8 +375,10 @@ class RuntimeFacade:
         return self._operation_dispatcher.current_agent
 
     def has_running_tasks(self) -> bool:
-        return self.shell_task_manager.has_running_tasks() or any(
-            not active.task.done() for active in self._operation_dispatcher.list_active_tasks()
+        return (
+            self.shell_task_manager.has_running_tasks()
+            or self._operation_dispatcher.has_running_side_questions()
+            or any(not active.task.done() for active in self._operation_dispatcher.list_active_tasks())
         )
 
     def cancel_auto_away_summary(self, session_id: str) -> None:
@@ -383,6 +388,7 @@ class RuntimeFacade:
         # Side-question answers live outside the actor's task handles, so closing
         # would otherwise leave one writing history for a released session.
         self._operation_dispatcher.cancel_side_questions(session_id)
+        await self._operation_dispatcher.stop_auxiliary_tasks(session_id)
         cancelled_requests: list[PendingUserInteractionRequest] = []
         if force:
             # Stop the owner first so it cannot launch another child during teardown.
@@ -413,23 +419,17 @@ class RuntimeFacade:
                     ),
                     causation_id=request.request_id,
                 )
+            lease = self._session_leases.pop(session_id, None)
+            if lease is not None:
+                lease.close()
         return closed
 
-    def set_reclaim_exclusions_provider(self, provider: Callable[[], set[str]] | None) -> None:
-        """Sessions the idle reaper must leave alone (e.g. WS-attached ones)."""
-        self._reclaim_exclusions_provider = provider
-
     async def reclaim_idle_sessions(self, *, idle_for_seconds: float) -> list[str]:
-        # Never reclaim the primary (TUI-active) session or any session an
-        # exclusion provider vouches for (the server excludes every session
-        # with a live WS attach — an attached-but-quiet TUI is still in use).
+        # Keep the primary session and owners of active tasks in memory.
         exclude: set[str] = self.shell_task_manager.active_session_ids() | self.task_manager.active_owner_ids()
         primary = self._operation_dispatcher.current_session_id()
         if primary is not None:
             exclude.add(primary)
-        if self._reclaim_exclusions_provider is not None:
-            with contextlib.suppress(Exception):
-                exclude |= self._reclaim_exclusions_provider()
         return await self.session_registry.reclaim_idle_sessions(
             idle_for_seconds=idle_for_seconds, exclude=exclude or None
         )
@@ -481,11 +481,16 @@ class RuntimeFacade:
         if tasks_to_await:
             await asyncio.gather(*tasks_to_await, return_exceptions=True)
 
+        await self._operation_dispatcher.stop_auxiliary_tasks()
+
         for agent in sessions_to_flush:
             with contextlib.suppress(Exception):
                 await agent.session.wait_for_flush()
 
         await self.session_registry.stop()
+        for lease in self._session_leases.values():
+            lease.close()
+        self._session_leases.clear()
         await self._operation_awaiter.stop()
         self._operation_dispatcher.clear_active_tasks()
 

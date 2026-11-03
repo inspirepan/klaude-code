@@ -179,7 +179,7 @@ class ConfigHandler:
         There is no session-level override for sub-agents: the model each child
         session runs on is resolved from ``config.sub_agent_models`` at spawn
         time, so saving here takes effect for the next dispatch without a
-        server restart.
+        process restart.
         """
         self._agent_operation_handler.cancel_auto_away_summary(operation.session_id)
         agent = await self._agent_operation_handler.ensure_agent(operation.session_id)

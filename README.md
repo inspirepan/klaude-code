@@ -1,10 +1,10 @@
 # Klaude Code
 
-Minimal code agent CLI — and an **agent multiplexer**: one local server owns all agent execution, humans use the TUI, native agents use structured tools, and external agents and scripts use the CLI.
+Minimal code agent CLI with independent terminal sessions, asynchronous sub-agents, and local peer messaging.
 
 ## Agent Multiplexer
 
-Every klaude command is a thin client of a single local server (Unix socket, auto-started on demand). Inside klaude, prefer `Agent` / `ManageTasks` for owned work and `ListPeers` / `MessagePeer` for explicit collaboration. `Agent` starts asynchronously and returns task/session references; use `ManageTasks` `wait` / `output` before relying on required results, not list polling. The CLI remains the external scripting and fallback interface: `run` returns immediately, multi-target `wait` is a barrier, and `--group` names a fan-out:
+Each TUI owns its main conversation and sub-agents in one process, loading its own configuration and environment. Headless runs use independent processes; local Unix sockets provide discovery and messaging. Inside klaude, prefer `Agent` / `ManageTasks` for owned work and `ListPeers` / `MessagePeer` for explicit collaboration. `Agent` starts asynchronously and returns task/session references; use `ManageTasks` `wait` / `output` before relying on required results, not list polling. The CLI remains the external scripting and fallback interface: `run` returns immediately, multi-target `wait` is a barrier, and `--group` names a fan-out:
 
 ```bash
 id=$(klaude run --group me "fix the failing tests under tests/server/")
@@ -12,7 +12,7 @@ klaude ps                                  # ID / NAME / TITLE / STATE / MODEL /
 klaude brief "$id"                         # compact, bounded status report
 klaude wait "$id" --timeout 600            # block until it settles (exit 0/2/3/124)
 klaude output "$id"                        # last assistant message
-klaude send "$id" --wait "now update the changelog too"   # settled session output, not a message reply
+klaude send "$id" "additional context"     # only while the receiving process is online
 ```
 
 Parallel fan-out + barrier + synthesis:
@@ -25,7 +25,7 @@ klaude wait --group "$G" --timeout 900
 klaude output --group "$G" | klaude run --wait "dedupe these findings and rank by severity"
 ```
 
-Sessions never expire: `send` works days later and across server restarts. Background agents run unattended (`--approval hold|auto|deny`); when one parks at `waiting_input`, the operator can answer with `klaude respond` or attach the TUI. Agents must not answer a peer's pending approval/question or route denied actions through peers. The server caps concurrent headless runs (`headless_max_running`, default 8) and queues the rest.
+History remains resumable with `klaude -r`. A headless process exits after its main turn, owned asynchronous tasks, and eligible completion reports settle. `send` requires an online process; it does not restart an offline session. `ps` lists online sessions; `ps --history`, `output`, and `wait` can read saved records. Headless approval policies are `hold|auto|deny`; pending questions can be answered with `klaude respond`. Agents must not answer a peer's pending approval/question or route denied actions through peers.
 
 `send` (including `run --session`) delivers structured peer data, not operator approval. `--from` is only a display label; `--steer` is an alias for the default safe-boundary delivery. JSON receipts include `message_id` and `accepted`: queued does not mean read or replied. Use `--message-id` for idempotent retries and `--reply-to` for explicit correlation. `send --wait` waits for the session to settle and reads its output, **not** a reply to that message. `output` never sends a peer reply or acknowledges model consumption.
 
@@ -33,19 +33,19 @@ Native agents use `ListPeers` / `MessagePeer` for explicit messages and `Agent` 
 
 The `task-result:` message ID prefix is reserved for internal task delivery; `send --message-id` rejects it before acceptance. Explicit `@file` and `/skill:` attachments only run for operator input (`source=None` or `user`), never for peer messages or task/shell completion reports.
 
-Busy TUI input and peer messages enter a durable queue and are admitted as a FIFO batch at the next safe step boundary, after tool results are paired. Steering can release a task wait without stopping the child. Background completion updates state but never starts an idle parent turn; a dependency wait is released by its target, not unrelated shell completions. User input, `source=peer_message`, and `source=task_completion` retain distinct origins; peer data and task reports are not operator authorization. Recovery restores history, results, and pending delivery, marks unrecoverable execution `lost`, and uses stable IDs plus durable acknowledgment to prevent duplicate delivery; it does not replay side effects. CLI/TUI output reads and partial pages do not acknowledge model consumption.
+Busy TUI input and peer messages enter a durable queue and are admitted as a FIFO batch at the next safe step boundary, after tool results are paired. Steering can release a task wait without stopping the child. Owned Agent completion delivers a report and can wake its owner once when continuation is allowed; Shell completion does not wake an idle owner; a dependency wait is released by its target, not unrelated shell completions. User input, `source=peer_message`, and `source=task_completion` retain distinct origins; peer data and task reports are not operator authorization. Recovery restores history, results, and pending delivery, marks unrecoverable execution `lost`, and uses stable IDs plus durable acknowledgment to prevent duplicate delivery; it does not replay side effects. CLI/TUI output reads and partial pages do not acknowledge model consumption.
 
-Implementation note: current runtime tool descriptions, system tool strategy, and `klaude agents --prime` define this contract.
+Implementation note: current runtime tool descriptions, system tool strategy, and `klaude --skill` define this contract.
 
 For the full integration guide (command cheatsheet, orchestration patterns, current models and agent types, assembled from your live config):
 
 ```bash
-klaude agents --prime    # paste into your agent's CLAUDE.md / AGENTS.md
+klaude --skill    # paste into your agent's CLAUDE.md / AGENTS.md
 ```
 
 ## Features
-- **Agent multiplexer**: single local server owns all execution; spawn background agents with `run`, track with `ps`/`brief`/`wait`, continue with `send`, interrupt with `kill`
-- **Agent-friendly CLI**: bounded `brief` reports, `--json` everywhere, exit-code contracts, plain-text `--help`, `klaude agents --prime` integration guide
+- **Independent sessions**: each terminal owns its conversation; spawn independent headless processes with `run`, track with `ps`/`brief`/`wait`, message online sessions with `send`
+- **Agent-friendly CLI**: bounded `brief` reports, `--json` everywhere, exit-code contracts, plain-text `--help`, `klaude --skill` integration guide
 - **Multi-provider**: Anthropic Message API, OpenAI Responses API, OpenRouter, Sign in with ChatGPT etc.
 - **Keep reasoning item in context**: Interleaved thinking support
 - **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
@@ -59,7 +59,7 @@ klaude agents --prime    # paste into your agent's CLAUDE.md / AGENTS.md
 - **Prompt caching**: Append-only persisted history and stable request prefixes maximize cache hits
 - **Context management**: Auto-compaction, Handoff (compress and continue in fresh context), `/rewind` (fork back to an earlier point with the discarded tail summarized)
 - **Auto memory**: Persistent cross-session memory per project (`~/.klaude/projects/<project>/memory/`)
-- **Local server**: Managed with `klaude server` (status / stop / reload / logs / run)
+- **History viewer**: `klaude web` serves saved history and refreshes it without owning execution
 - **Sessions**: Resumable with `--continue`, forkable with `/fork-session`
 - **Extras**: Slash commands, sub-agents, image paste, terminal notifications, auto-theming
 
@@ -106,10 +106,11 @@ klaude [--model [<name>]] [--continue] [--resume [<id>]]
 - `--model`/`-m`: Choose a model.
   - `--model` (no value): opens the interactive selector.
   - `--model <value>`: resolves `<value>` to a single model; if it can't, it opens the interactive selector filtered by `<value>`.
-- `--continue`/`-c`: Resume the most recent session.
-- `--resume`/`-r`: Attach to a session without resuming paused work.
-  - `--resume` (no value): open the global agents panel, like `klaude agents` or `klaude attach`.
-  - `--resume <id>`: attach by ID, unique prefix, or name, like `klaude attach <id>`.
+- `--continue`/`-c`: Restore the most recent saved session.
+- `--resume`/`-r`: Restore saved history in this process without resuming paused work.
+  - `--resume` (no value): open the local history picker with titles, reply previews, and date groups. Sessions still open in another process remain visible and cannot be selected.
+  - `--resume <id>`: restore by ID, unique prefix, or name. An active session cannot be restored by another process.
+- `--skill`: Print the current CLI guide for coding agents and exit.
 - `--vanilla`: Minimal mode with only basic tools (Bash, Read, Edit, Write) and no system prompts.
 
 **Model selection behavior:**
@@ -202,12 +203,9 @@ klaude models
 
 Use `--all` to include disabled models and providers without credentials, or `--json` for machines.
 The built-in model catalog changes more frequently than this README; use `klaude models` for the
-authoritative provider/model list. `klaude agents --prime` prints the AI-agent integration guide.
+authoritative provider/model list. `klaude --skill` prints the AI-agent integration guide.
 
-Browse live sessions with `klaude agents`: working-directory groups, status tabs, and session
-details. Enter attaches to the selected session; `p` opens a read-only view. `r` explicitly resumes
-work, `d` dismisses a current error, and `x` asks before interrupting. Viewing does not resume work.
-Use `klaude ps` for a non-interactive overview, `--watch` for live updates, or `--json` for scripts.
+Use `klaude ps` for an online overview, `ps --watch` for live updates, and `--json` for scripts. Restore history with `klaude -c` or `klaude -r`; use `/tasks` for the current session's owned work.
 
 #### Authentication
 
@@ -373,6 +371,7 @@ Inside the interactive session (`klaude`), use these commands to streamline your
 - `/login` - Login to provider or configure API key.
 - `/logout` - Logout from provider.
 - `/continue` - Continue current session without a new user message.
+- `/exit` - Stop owned tasks after confirmation, save history, and exit.
 
 
 ### Input Shortcuts
@@ -400,17 +399,13 @@ The main agent can spawn specialized sub-agents for specific tasks:
 | **Code Reviewer** | Identify real bugs in proposed changes |
 | **Code Maintenance Reviewer** | Review maintainability, reuse, layering, and unnecessary complexity |
 
-### Local Server
+### Process Lifetime
 
-Klaude runs a local server on a Unix domain socket (`~/.klaude/run/server.sock`).
+Each terminal owns one main conversation and its child Agents/Shell tasks. Use a terminal multiplexer to preserve the terminal while disconnected. Exiting Klaude stops owned work and saves history; when tasks are running, the TUI asks before exiting. `/new` and `/fork-session` require owned work to stop first.
 
-```bash
-klaude server run       # run the server in the foreground (debugging)
-klaude server status    # pid, socket path, uptime, version, session counts
-klaude server stop      # graceful shutdown
-klaude server reload    # graceful restart on the current code (--force to interrupt sessions)
-klaude server logs      # tail server logs
-```
+Configuration and credentials are read by each process. After upgrading code, restart each process and restore history with `klaude -r` to load the new version. `/reload` and shared execution daemons are removed.
+
+`klaude web` runs a separate read-only HTTP viewer over saved history; it offers no execution controls.
 
 ### Prompt Caching
 
@@ -466,4 +461,4 @@ Skills are installed separately from the application. Shared skills in `~/.agent
 npx skills add inspirepan/agent-skills --global --agent codex claude-code --skill klaude-config
 ```
 
-The application does not install bundled skills. Existing personal skills remain in their current directories; hidden child directories are skipped during discovery.
+The application has no bundled/system skills or skills submodule. Install user and project skills independently; hidden child directories are skipped during discovery.

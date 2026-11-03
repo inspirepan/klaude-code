@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
 import sys
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 import typer
@@ -12,6 +12,7 @@ from klaude_code.agent.agent_profile import (
 )
 from klaude_code.agent.runtime.llm import ModelResolutionError, build_llm_clients
 from klaude_code.app.ports import DisplayABC, InteractionHandlerABC
+from klaude_code.app.prevent_sleep import run_prevent_sleep_monitor
 from klaude_code.app.runtime_facade import RuntimeFacade
 from klaude_code.config import Config, ConfigReload, ConfigWatcher, load_config, start_config_watcher
 from klaude_code.control.event_bus import EventBus, EventSubscription
@@ -58,6 +59,7 @@ class AppComponents:
     interaction_task: asyncio.Task[None] | None
     idle_reclaim_task: asyncio.Task[None]
     config_watcher: ConfigWatcher
+    prevent_sleep_task: asyncio.Task[None] | None = None
 
     async def wait_for_display_idle(self) -> None:
         """Wait until EventBus subscription has consumed pending events."""
@@ -151,7 +153,7 @@ def _start_config_watcher(event_bus: EventBus) -> ConfigWatcher:
         try:
             asyncio.run_coroutine_threadsafe(event_bus.publish(broadcast), loop)
         except RuntimeError as exc:
-            # The loop is gone: the server is shutting down.
+            # The loop is gone: the process is shutting down.
             log_debug(f"[config] reload broadcast skipped: {exc}", debug_type=DebugType.EXECUTION)
 
     return start_config_watcher(_publish)
@@ -261,6 +263,13 @@ async def initialize_app_components(
     _drain_background_task_exception(idle_reclaim_task, label="idle-reclaim")
 
     config_watcher = _start_config_watcher(event_bus)
+    prevent_sleep_task = asyncio.create_task(
+        run_prevent_sleep_monitor(
+            runtime.session_registry.all_snapshots,
+            background_busy=runtime.shell_task_manager.has_running_tasks,
+        )
+    )
+    _drain_background_task_exception(prevent_sleep_task, label="prevent-sleep")
 
     display_task = asyncio.create_task(_consume_display_from_subscription(event_bus, event_bus_subscription, display))
     _drain_background_task_exception(display_task, label="display")
@@ -282,48 +291,43 @@ async def initialize_app_components(
         interaction_task=interaction_task,
         idle_reclaim_task=idle_reclaim_task,
         config_watcher=config_watcher,
+        prevent_sleep_task=prevent_sleep_task,
     )
 
 
 async def cleanup_app_components(components: AppComponents) -> None:
-    """Clean up all runtime components."""
+    """Attempt every cleanup step even when an earlier component fails."""
+    failures: list[Exception] = []
+
+    async def attempt(action: Awaitable[object]) -> None:
+        try:
+            await action
+        except Exception as exc:
+            failures.append(exc)
+            log_debug(f"[app] cleanup failed: {exc}", debug_type=DebugType.EXECUTION)
+
     try:
-        log_debug("[app] cleanup: stop config watcher", debug_type=DebugType.EXECUTION)
-        # The watcher blocks up to one poll interval; keep that off the loop.
-        await asyncio.to_thread(components.config_watcher.stop)
-        log_debug("[app] cleanup: cancel idle reclaim task", debug_type=DebugType.EXECUTION)
+        await attempt(asyncio.to_thread(components.config_watcher.stop))
+        if components.prevent_sleep_task is not None:
+            components.prevent_sleep_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await attempt(components.prevent_sleep_task)
         components.idle_reclaim_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
-            await components.idle_reclaim_task
-
-        log_debug("[app] cleanup: runtime.stop start", debug_type=DebugType.EXECUTION)
-        await components.runtime.stop()
-        log_debug("[app] cleanup: runtime.stop done", debug_type=DebugType.EXECUTION)
-        with contextlib.suppress(Exception):
-            log_debug("[app] cleanup: close_default_store start", debug_type=DebugType.EXECUTION)
-            await close_default_store()
-            log_debug("[app] cleanup: close_default_store done", debug_type=DebugType.EXECUTION)
-
-        with contextlib.suppress(Exception):
-            log_debug("[app] cleanup: wait_for_display_idle start", debug_type=DebugType.EXECUTION)
-            await components.wait_for_display_idle()
-            log_debug("[app] cleanup: wait_for_display_idle done", debug_type=DebugType.EXECUTION)
-
-        with contextlib.suppress(Exception):
-            log_debug("[app] cleanup: publish EndEvent start", debug_type=DebugType.EXECUTION)
-            await components.event_bus.publish(events.EndEvent())
-            log_debug("[app] cleanup: publish EndEvent done", debug_type=DebugType.EXECUTION)
-
+            await attempt(components.idle_reclaim_task)
+        await attempt(components.runtime.stop())
+        await attempt(close_default_store())
+        if not components.display_task.done():
+            await attempt(asyncio.wait_for(components.wait_for_display_idle(), timeout=5))
+        await attempt(components.event_bus.publish(events.EndEvent()))
         if components.interaction_task is not None:
-            with contextlib.suppress(Exception):
-                log_debug("[app] cleanup: interaction task await start", debug_type=DebugType.EXECUTION)
-                await components.interaction_task
-                log_debug("[app] cleanup: interaction task await done", debug_type=DebugType.EXECUTION)
-        log_debug("[app] cleanup: display task await start", debug_type=DebugType.EXECUTION)
-        await components.display_task
-        log_debug("[app] cleanup: display task await done", debug_type=DebugType.EXECUTION)
+            components.interaction_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await attempt(components.interaction_task)
+        await attempt(asyncio.wait_for(components.display_task, timeout=5))
+        if failures:
+            raise ExceptionGroup("Runtime cleanup failed", failures)
     finally:
-        # Ensure the terminal cursor is visible even if Rich's spinner did not stop cleanly.
         with contextlib.suppress(Exception):
             stream = getattr(sys, "__stdout__", None) or sys.stdout
             stream.write("\033[?25h")

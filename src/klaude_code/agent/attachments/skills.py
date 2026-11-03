@@ -41,7 +41,8 @@ from .state import is_tracked_file_unchanged
 
 # Match /skill:xxx or //skill:xxx inline (at start of line or after whitespace).
 SLASH_SKILL_PATTERN = re.compile(r"(?:^|\s)(?://|/)skill:(?P<skill>[^\s/]+)(?=\s|$)")
-SYSTEM_SKILL_LISTING_MARKER_NAME = ".klaude-system-skill-listing"
+# Keep the persisted key so existing session trackers remain compatible.
+SKILL_LISTING_MARKER_NAME = ".klaude-system-skill-listing"
 
 
 def _fmt_skill_block(
@@ -237,12 +238,12 @@ def format_available_skills_str(skills: list[Skill]) -> str:
 
 
 def _sort_skills_for_listing(skills: Sequence[Skill]) -> list[Skill]:
-    location_order = {"project": 0, "user": 1, "system": 2}
+    location_order = {"project": 0, "user": 1}
     return sorted(skills, key=lambda skill: (location_order.get(skill.location, 3), skill.name))
 
 
-def _get_system_skill_listing_marker_path(session: Session) -> str:
-    return str((session.work_dir / SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
+def _get_skill_listing_marker_path(session: Session) -> str:
+    return str((session.work_dir / SKILL_LISTING_MARKER_NAME).resolve())
 
 
 def _extract_skill_listing_paths(message_item: message.DeveloperMessage) -> tuple[dict[str, str], bool] | None:
@@ -283,7 +284,7 @@ def _restore_available_skill_paths_from_history(session: Session) -> dict[str, s
     if not restored_paths:
         return {}
 
-    _mark_system_skill_listing_loaded(session, restored_paths)
+    _mark_skill_listing_loaded(session, restored_paths)
     return restored_paths
 
 
@@ -302,7 +303,7 @@ def _load_cached_skill_listing_paths(cached_content: str | None) -> dict[str, st
 
 
 def _get_available_skill_paths_by_name(session: Session) -> dict[str, str]:
-    status = session.file_tracker.get(_get_system_skill_listing_marker_path(session))
+    status = session.file_tracker.get(_get_skill_listing_marker_path(session))
     if status is None or not status.is_skill_listing:
         return {}
     if status.skill_listing_paths_by_name is not None:
@@ -314,8 +315,8 @@ def _get_available_skill_paths_by_name(session: Session) -> dict[str, str]:
     return _restore_available_skill_paths_from_history(session)
 
 
-def _mark_system_skill_listing_loaded(session: Session, skill_paths_by_name: dict[str, str]) -> None:
-    marker_path = _get_system_skill_listing_marker_path(session)
+def _mark_skill_listing_loaded(session: Session, skill_paths_by_name: dict[str, str]) -> None:
+    marker_path = _get_skill_listing_marker_path(session)
     existing = session.file_tracker.get(marker_path)
     serialized_state = json.dumps(skill_paths_by_name, sort_keys=True)
     session.file_tracker[marker_path] = FileStatus(
@@ -450,7 +451,7 @@ async def available_skills_attachment_for(
     if not updated_skills:
         return None
 
-    _mark_system_skill_listing_loaded(session, current_skill_paths)
+    _mark_skill_listing_loaded(session, current_skill_paths)
     content = (
         _fmt_available_skills_added(_build_skills_xml(updated_skills))
         if previous_skill_paths

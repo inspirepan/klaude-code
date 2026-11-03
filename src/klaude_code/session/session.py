@@ -81,7 +81,7 @@ class Session(BaseModel):
     model_name: str | None = None
     archived: bool = False
 
-    # Headless/multiplexer metadata (set by `klaude run`).
+    # Headless process metadata (set by `klaude run`).
     # spawn_kind is None for interactive sessions, "headless" for `klaude run`.
     name: str | None = None
     group: str | None = None
@@ -777,13 +777,13 @@ class Session(BaseModel):
         return False
 
     def get_history_item(
-        self, *, emit_finish: bool = True, parent_session_id: str | None = None, limit: int | None = None
+        self, *, emit_finish: bool = True, parent_session_id: str | None = None
     ) -> Iterable[events.ReplayEventUnion]:
         # Preserve each session's lifecycle order while interleaving children
         # by time. A child's whole run must not print at its launch position.
         streams: dict[str, list[tuple[float, int, events.ReplayEventUnion]]] = {}
         for index, event in enumerate(
-            self._get_history_item(emit_finish=emit_finish, parent_session_id=parent_session_id, limit=limit)
+            self._get_history_item(emit_finish=emit_finish, parent_session_id=parent_session_id)
         ):
             stream = streams.setdefault(event.session_id, [])
             floor = stream[-1][0] if stream else event.timestamp
@@ -797,7 +797,7 @@ class Session(BaseModel):
             yield event
 
     def _get_history_item(
-        self, *, emit_finish: bool, parent_session_id: str | None, limit: int | None
+        self, *, emit_finish: bool, parent_session_id: str | None
     ) -> Iterable[events.ReplayEventUnion]:
         seen_sub_agent_sessions: set[str] = set()
         prev_item: message.HistoryEvent | None = None
@@ -806,12 +806,10 @@ class Session(BaseModel):
         had_any_step = False
         task_finish_pending = False
         prev_step_interrupted = False
-        # `limit` truncates the source items so an attach replay can splice
-        # synthesized history with the server-side event tape without overlap.
-        history = self.conversation_history if limit is None else self.conversation_history[:limit]
+        history = self.conversation_history
         history_len = len(history)
         # Compaction limits the LLM context, not the visible transcript.
-        # Replay all active history, preserving the tape splice coordinates.
+        # Replay all active history.
         spawn_entries = {item.session_id: item for item in history if isinstance(item, message.SpawnSubAgentEntry)}
         spawn_by_call = {
             item.call_id: spawn_entries[item.ui_extra.session_id]

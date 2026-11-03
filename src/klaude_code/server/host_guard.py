@@ -3,16 +3,7 @@
 The web viewer has no authentication: it is reachable only from loopback. A
 page on any origin can still make the *browser* resolve an attacker domain to
 127.0.0.1 and talk to this server, so requests arriving over TCP must carry a
-``Host`` of ``localhost`` or ``127.0.0.1``. Requests over the Unix socket are
-exempt: httpx/websockets send whatever host the base URL had (the CLI uses
-``http://klaude``, the TUI ``ws://klaude/...``), and reaching that socket
-already requires local filesystem access.
-
-Transport detection uses ``scope["server"]``, which uvicorn fills from the
-listening socket's ``getsockname()`` (``uvicorn/protocols/utils.py``):
-
-- Unix socket  -> ``(<socket path>, None)``  (port is always None)
-- TCP socket   -> ``("127.0.0.1", <bound port>)``
+``Host`` of ``localhost`` or ``127.0.0.1``.
 
 Matching the bound web port exactly (rather than "port is not None") keeps
 in-process ASGI clients such as Starlette's TestClient, whose scope says
@@ -26,7 +17,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 ALLOWED_HOSTNAMES = frozenset({"localhost", "127.0.0.1"})
 
 _REJECT_STATUS = 421  # Misdirected Request
-_REJECT_BODY = b"klaude trace viewer only accepts Host: localhost or 127.0.0.1\n"
+_REJECT_BODY = b"klaude history viewer only accepts Host: localhost or 127.0.0.1\n"
 
 
 def hostname_from_host_header(raw: str) -> str:

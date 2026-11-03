@@ -20,8 +20,6 @@ from klaude_code.protocol.user_interaction import (
     AskUserQuestionRequestPayload,
     OperationSelectRequestPayload,
 )
-from klaude_code.tui.client.base import SessionInfoSnapshot
-from klaude_code.tui.client.socket_client import SocketRuntimeClient
 from klaude_code.tui.input.program_status import ProgramStatusParser
 from klaude_code.tui.terminal.program_status import ProgramStatusReporter
 
@@ -377,58 +375,6 @@ def test_interaction_clears_old_completion_and_bounds_message(terminal: FakeTTY)
             reporter.report_session_state("other", SessionStatus(last_turn=turn), snapshot=True)
             await asyncio.sleep(0.01)
             assert terminal.getvalue().count("state=done") == 1
-        finally:
-            await reporter.close()
-
-    asyncio.run(_test())
-
-
-def test_attach_snapshots_but_not_live_info_refresh_baseline_results(terminal: FakeTTY) -> None:
-    async def _test() -> None:
-        reporter = ProgramStatusReporter(terminal)
-
-        def on_info(info: SessionInfoSnapshot) -> None:
-            if info.is_replay_snapshot:
-                reporter.report_session_state(info.session_id, info.status, snapshot=True)
-
-        async def on_envelope(envelope: events.EventEnvelope) -> None:
-            if isinstance(envelope.event, events.SessionStatusEvent) and envelope.event_seq > 0:
-                reporter.report_session_state(envelope.session_id, envelope.event.status)
-
-        client = SocketRuntimeClient("s", on_envelope=on_envelope, on_session_info=on_info)
-        try:
-            frame = {
-                "type": "session_info",
-                "session_id": "s",
-                "status": {"last_turn": {"id": "old", "result": "succeeded"}},
-            }
-            await client._handle_frame(frame)  # pyright: ignore[reportPrivateUsage]
-            frame["status"] = {"last_turn": {"id": "second_snapshot", "result": "succeeded"}}
-            await client._handle_frame(frame)  # pyright: ignore[reportPrivateUsage]
-            while not client._display_queue.empty():  # pyright: ignore[reportPrivateUsage]
-                await on_envelope(client._display_queue.get_nowait())  # pyright: ignore[reportPrivateUsage]
-            await wait_until(lambda: bool(terminal.getvalue()))
-            assert "state=done" not in terminal.getvalue()
-            await client._handle_frame({"type": "replay_complete"})  # pyright: ignore[reportPrivateUsage]
-            turn = SessionTurnResult(id="new", result="succeeded")
-            live = events.EventEnvelope(
-                event_id="live",
-                event_seq=1,
-                session_id="s",
-                event_type="session.status",
-                durability="ephemeral",
-                timestamp=0,
-                event=events.SessionStatusEvent(session_id="s", status=SessionStatus(last_turn=turn)),
-            )
-            await on_envelope(live)
-            await wait_until(lambda: "state=done" in terminal.getvalue())
-            output = terminal.getvalue()
-            frame["status"] = {"last_turn": turn.model_dump()}
-            await client._handle_frame(frame)  # pyright: ignore[reportPrivateUsage]
-            while not client._display_queue.empty():  # pyright: ignore[reportPrivateUsage]
-                await on_envelope(client._display_queue.get_nowait())  # pyright: ignore[reportPrivateUsage]
-            await asyncio.sleep(0.01)
-            assert terminal.getvalue() == output
         finally:
             await reporter.close()
 

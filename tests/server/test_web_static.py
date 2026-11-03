@@ -8,7 +8,7 @@ import pytest
 
 from klaude_code.server.routes import web as web_routes
 
-from .conftest import AppEnv
+from .conftest import WebEnv as AppEnv
 
 
 @pytest.fixture
@@ -74,15 +74,6 @@ def test_missing_bundle_returns_503_with_build_hint(
 
 
 def test_api_routes_take_precedence_over_static(app_env: AppEnv, bundle_dir: Path) -> None:
-    del bundle_dir
-    response = app_env.client.get("/api/server/status")
+    response = app_env.client.get("/api/web/sessions")
     assert response.status_code == 200
-    assert response.json()["ok"] is True
-
-
-def test_status_reports_no_web_port_without_tcp_listener(app_env: AppEnv) -> None:
-    """The app_env fixture builds the app without a web port (UDS-only degradation)."""
-
-    payload = app_env.client.get("/api/server/status").json()
-    assert payload["web_port"] is None
-    assert payload["web_url"] is None
+    assert response.json() == {"sessions": []}

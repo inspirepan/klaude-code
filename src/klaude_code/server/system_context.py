@@ -4,10 +4,8 @@ Neither the system prompt nor the tool schemas belong in a status frame that
 refreshes on every model change -- together they are tens of kilobytes -- so the
 viewer asks for them once, when a reader opens the SYSTEM row.
 
-Two sources, and the answer says which one it is:
+The answer is labeled with its source:
 
-- ``live``: the loaded agent's own profile, i.e. the exact ``system`` / ``tools``
-  the next step would send.
 - ``rebuilt``: for a cold session, the same builders run again off the session
   meta (model name, work_dir, agent type). Prompt assembly reads prompt files
   and probes the work_dir; it never constructs an LLM client, touches the
@@ -24,7 +22,7 @@ import time
 from pathlib import Path
 from typing import Any, Final
 
-from klaude_code.agent.agent_profile import AgentProfile, load_agent_tools
+from klaude_code.agent.agent_profile import load_agent_tools
 from klaude_code.agent.system_prompt import load_system_prompt
 from klaude_code.protocol import llm_param
 from klaude_code.tool.core.registry import get_tool_schemas
@@ -48,26 +46,6 @@ def _tool_payload(schemas: list[llm_param.ToolSchema]) -> list[dict[str, Any]]:
     return [{"name": tool.name, "description": tool.description, "parameters": tool.parameters} for tool in schemas]
 
 
-def _live_model_payload(config: llm_param.LLMConfigParameter, model_config_name: str | None) -> dict[str, Any]:
-    """Allowlisted display fields. Never widen this to a model dump."""
-    thinking = config.thinking
-    return {
-        "provider": config.provider_name or None,
-        "protocol": config.protocol.value,
-        "model": config.model_id,
-        "model_config_name": model_config_name,
-        "effort": config.effective_effort,
-        "max_tokens": config.max_tokens,
-        "context_limit": config.context_limit,
-        "temperature": config.temperature,
-        "verbosity": config.verbosity,
-        "thinking": thinking.model_dump(mode="json", exclude_none=True) if thinking is not None else None,
-        "fast_mode": config.fast_mode,
-        "cache_retention": config.cache_retention,
-        "supports_vision": config.supports_vision,
-    }
-
-
 def _cold_model_payload(meta: dict[str, Any]) -> dict[str, Any]:
     """What meta.json remembers about the model. No config lookup, no secrets."""
     thinking = meta.get("model_thinking")
@@ -88,17 +66,6 @@ def _cold_model_payload(meta: dict[str, Any]) -> dict[str, Any]:
         "fast_mode": None,
         "cache_retention": None,
         "supports_vision": None,
-    }
-
-
-def live_payload(profile: AgentProfile, *, model_config_name: str | None) -> dict[str, Any]:
-    return {
-        "available": True,
-        "source": "live",
-        "system_prompt": profile.system_prompt,
-        "tools": _tool_payload(profile.tools),
-        "model": _live_model_payload(profile.llm_client.get_llm_config(), model_config_name),
-        "reason": None,
     }
 
 
@@ -167,7 +134,6 @@ __all__ = [
     "CACHE_TTL_SECONDS",
     "cached",
     "clear_cache",
-    "live_payload",
     "rebuilt_payload",
     "store",
     "unavailable",

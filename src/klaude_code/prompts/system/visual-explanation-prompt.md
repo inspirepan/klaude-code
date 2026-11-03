@@ -46,10 +46,10 @@ src/
 sequenceDiagram
     participant User
     participant UI
-    participant Daemon
+    participant Runtime
     User->>UI: choose command
-    UI->>Daemon: send expanded prompt
-    Daemon-->>UI: stream result
+    UI->>Runtime: send expanded prompt
+    Runtime-->>UI: stream result
 ```
 
 - What changes, when the surrounding shape already exists: a `diff`. Match the diff shape to the topic -- diff the file tree for a layout change, the call tree for a flow change, the pseudocode for a state change.

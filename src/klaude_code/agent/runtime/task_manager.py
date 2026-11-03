@@ -147,7 +147,7 @@ class TaskManager:
                     task.status = "lost"
                     task.ended_at = time.time()
                     task.result = BackgroundTaskResult(
-                        text="Server restarted; original agent run was interrupted.", error=True
+                        text="Klaude process restarted; original agent run was interrupted.", error=True
                     )
                     await self._persist(task)
                 done = self._done.setdefault(task.ref.task_id, asyncio.Event())

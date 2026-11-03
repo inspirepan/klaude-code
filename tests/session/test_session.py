@@ -1484,11 +1484,6 @@ class TestCliResume:
         import klaude_code.cli.main as _cli_main
         from klaude_code.cli.main import app
 
-        monkeypatch.setattr("klaude_code.cli.uds_client.ensure_server_running", lambda: None)
-        monkeypatch.setattr(
-            "klaude_code.cli.uds_client.request_with_autostart",
-            lambda *args, **kwargs: (404, {"detail": "session not found"}),
-        )
         _orig_run = _cli_main.asyncio.run
 
         def _should_not_run(*_args: object, **_kwargs: object) -> None:

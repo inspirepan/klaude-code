@@ -115,7 +115,7 @@ export async function fetchSessions(
   signal?: AbortSignal,
 ): Promise<readonly SessionListRow[]> {
   const page = await getJson<{ sessions?: readonly SessionListRow[] }>(
-    `/api/headless/sessions?include_children=1&include_archived=1&limit=${limit}`,
+    `/api/web/sessions?include_children=1&include_archived=1&limit=${limit}`,
     signal,
   )
   return page.sessions ?? []

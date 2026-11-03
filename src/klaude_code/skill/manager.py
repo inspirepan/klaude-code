@@ -1,9 +1,8 @@
 """Per-work_dir skill loaders with lazy initialization.
 
 This module provides a centralized interface for accessing skills throughout
-the application. One server process hosts sessions rooted in different
-directories, so loaders are cached per work_dir instead of a process-wide
-singleton bound to the CWD. Skills are loaded lazily on first access to
+the application. Restored sessions and child agents can use different
+directories, so loaders are cached per work_dir rather than the process CWD. Skills are loaded lazily on first access to
 avoid unnecessary IO at startup.
 """
 

@@ -119,6 +119,16 @@ def is_slash_command_name(name: str) -> bool:
     return _resolve_command_key(name) is not None
 
 
+def command_switches_session(text: str) -> bool:
+    _ensure_commands_loaded()
+    token = text.strip().split(maxsplit=1)[0] if text.strip() else ""
+    return token.startswith("/") and _resolve_command_key(token[1:]) in {
+        CommandName.NEW,
+        CommandName.FORK_SESSION,
+        CommandName.REWIND,
+    }
+
+
 async def dispatch_command(user_input: message.UserInputPayload, agent: Agent, *, submission_id: str) -> CommandResult:
     _ensure_commands_loaded()
     # Detect command name
@@ -202,17 +212,9 @@ def has_background_command(raw: str) -> bool:
     return command is not None and command.runs_in_background
 
 
-def is_detach_command(raw: str) -> bool:
+def is_exit_command(raw: str) -> bool:
     command = _resolve_command(raw)
-    return command is not None and command.name == CommandName.DETACH
-
-
-def command_needs_history(raw: str) -> bool:
-    """Whether `raw` resolves to a command that reads conversation history."""
-    command = _resolve_command(raw)
-    # Unresolved slash text (a `/skill:name` call, a typo) is forwarded to the
-    # agent verbatim by dispatch_command, which only reads the session id.
-    return command is not None and command.needs_history
+    return command is not None and command.name == CommandName.EXIT
 
 
 def is_registered_command(raw: str) -> bool:

@@ -1,8 +1,4 @@
-"""Headless command surface: run / ps / brief / wait / output / send / respond / kill.
-
-Thin client: every command is one or more HTTP calls over the server's Unix
-socket. Heavy imports stay inside functions so each invocation starts fast.
-"""
+"""Headless CLI: online process control and persisted-history queries."""
 
 from __future__ import annotations
 
@@ -42,13 +38,9 @@ def _api(
     params: dict[str, Any] | None = None,
     timeout: float = 30.0,
 ) -> Any:
-    from klaude_code.cli.uds_client import ServerNotRunningError, request_with_autostart
+    from klaude_code.cli.process_client import request
 
-    try:
-        status, body = request_with_autostart(method, path, json_body=json_body, params=params, timeout=timeout)
-    except ServerNotRunningError as exc:
-        typer.echo(f"error: klaude server is not reachable ({exc})", err=True)
-        raise typer.Exit(EXIT_USAGE) from None
+    status, body = request(method, path, json_body=json_body, params=params, timeout=timeout)
     if status >= 400:
         detail = body.get("detail") if isinstance(body, dict) else body
         if isinstance(detail, dict):
@@ -153,8 +145,9 @@ def _fetch_rows(
     limit: int = 0,
     include_archived: bool = False,
     include_children: bool = False,
+    include_history: bool = True,
 ) -> list[dict[str, Any]]:
-    params: dict[str, Any] = {"limit": limit}
+    params: dict[str, Any] = {"limit": limit, "history": include_history}
     if targets:
         params["targets"] = ",".join(targets)
     if group:
@@ -369,102 +362,26 @@ async def _follow_output_stream(
     *,
     initial_output: str,
 ) -> int:
-    """Consume the server replay/live splice and print this turn's text once."""
+    """Poll the owning process, then read its saved terminal result."""
     import asyncio
-    import contextlib
 
-    from websockets.asyncio.client import unix_connect
-
-    from klaude_code.protocol import events
-    from klaude_code.server.paths import server_socket_path
-
-    uri = f"ws://klaude/api/sessions/{session_id}/ws?replay=1&peek=1"
-    streamed_parts: list[str] = []
-    seen_sequences: set[int] = set()
-    terminal_row: dict[str, Any] | None = None
-    disconnected = False
-    websocket: Any = None
-
-    try:
-        websocket = await unix_connect(
-            path=str(server_socket_path()),
-            uri=uri,
-            max_size=64 * 1024 * 1024,
-            ping_interval=None,
-        )
-    except Exception as exc:
-        typer.echo(f"error: cannot connect to klaude server WebSocket ({exc})", err=True)
-        return EXIT_FAILED
-
-    try:
-        while terminal_row is None:
-            try:
-                raw = await asyncio.wait_for(websocket.recv(), timeout=FOLLOW_STATE_POLL_INTERVAL_SECONDS)
-            except TimeoutError:
-                raw = None
-            except Exception:
-                disconnected = True
-                break
-
-            if raw is not None:
-                try:
-                    frame = json.loads(raw)
-                except (TypeError, json.JSONDecodeError):
-                    frame = None
-                items = frame if isinstance(frame, list) else [frame]
-                for item in items:
-                    if not isinstance(item, dict) or item.get("session_id") not in (None, session_id):
-                        continue
-                    # Handshake and replay control frames are not event
-                    # envelopes. They do not carry output.
-                    if isinstance(item.get("type"), str):
-                        continue
-                    try:
-                        envelope = events.parse_event_envelope(item)
-                    except ValueError:
-                        continue
-                    sequence = envelope.event_seq
-                    if sequence > 0 and sequence in seen_sequences:
-                        continue
-                    if sequence > 0:
-                        seen_sequences.add(sequence)
-                    event = envelope.event
-                    if isinstance(event, events.AssistantTextDeltaEvent):
-                        content = event.content
-                        streamed_parts.append(content)
-                        _write_follow_text(content)
-                    elif isinstance(event, events.ErrorEvent):
-                        typer.echo(
-                            f"error: {event.compact_message or event.error_message or 'agent failed'}",
-                            err=True,
-                        )
-            rows = await asyncio.to_thread(_fetch_rows, [session_id], None)
-            if not rows:
-                typer.echo("error: session disappeared while following output", err=True)
-                return EXIT_USAGE
-            row = rows[0]
-            if row.get("state") != "working":
-                terminal_row = row
-    finally:
-        if websocket is not None:
-            with contextlib.suppress(Exception):
-                await websocket.close()
-
-    result = await asyncio.to_thread(_fetch_output, session_id)
-    final_output = str(result.get("output") or "")
-    streamed = "".join(streamed_parts)
-    if final_output != initial_output and final_output.startswith(streamed):
-        _write_follow_text(final_output[len(streamed) :])
-        streamed = final_output
-    if streamed and not streamed.endswith("\n"):
-        _write_follow_text("\n")
-
-    _print_attention(result)
-
-    if disconnected and terminal_row is None and result.get("state") == "working":
-        typer.echo("error: connection to klaude server lost while session was active", err=True)
-        return EXIT_FAILED
-    return _exit_code_for_rows([terminal_row or result])
+    printed = ""
+    while True:
+        result = await asyncio.to_thread(_fetch_output, session_id)
+        text = str(result.get("streaming_output") or "")
+        if not text and result.get("state") != "working":
+            final = str(result.get("output") or "")
+            if final != initial_output:
+                text = final
+        if text.startswith(printed):
+            _write_follow_text(text[len(printed) :])
+            printed = text
+        if result.get("state") != "working":
+            if printed and not printed.endswith("\n"):
+                _write_follow_text("\n")
+            _print_attention(result)
+            return _exit_code_for_rows([result])
+        await asyncio.sleep(FOLLOW_STATE_POLL_INTERVAL_SECONDS)
 
 
 def _print_output_block(result: dict[str, Any], *, with_header: bool) -> None:
@@ -543,7 +460,7 @@ def run_command(
         "main",
         "--agent",
         show_default=False,
-        help="Agent type (see `klaude agents --prime`). Default: main — the full agent with all tools. "
+        help="Agent type (see `klaude --skill`). Default: main — the full agent with all tools. "
         "Other types (finder, code-reviewer, ...) run with their own prompt, tool set, and bound model",
     ),
     name: str | None = typer.Option(None, "--name", help="Addressable name for ps/brief/wait/send"),
@@ -560,7 +477,7 @@ def run_command(
         "hold",
         "--approval",
         show_default=False,
-        help="What to do on permission requests when no human is attached: "
+        help="What to do on permission requests during unattended execution: "
         "hold = park request, state=needs_you (default); "
         "auto = approve permission requests (questions still need input); use only in trusted dirs; "
         "deny = reject; agent must work around",
@@ -569,7 +486,7 @@ def run_command(
     timeout: float | None = typer.Option(None, "--timeout", metavar="SECS", help="With --wait: exit 124 on timeout"),
     json_: bool = typer.Option(False, "--json", help='Print {"session_id": ..., "name": ...}'),
 ) -> None:
-    """Spawn a background agent on the server and print its session id, then return immediately.
+    """Start an independent background process and print its session id.
 
     The agent keeps running after this command exits. PROMPT is read from the
     argument, or from stdin when piped. When both are given, stdin is appended
@@ -650,8 +567,9 @@ def ps_command(
     tree: bool = typer.Option(False, "--tree", help="Include sub-agent sessions nested under their parents"),
     watch: bool = typer.Option(False, "--watch", help="Live-refreshing table (human view)"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
+    history: bool = typer.Option(False, "--history", help="Include exited sessions from saved history"),
 ) -> None:
-    """List sessions known to the server.
+    """List online processes; --history also includes saved sessions.
 
     Sessions needing attention sort first, then working sessions, then idle
     sessions — each group by most recently updated. With TARGETs — ids, unique prefixes, or names;
@@ -689,6 +607,7 @@ def ps_command(
             limit=0 if show_all else limit,
             include_archived=show_all,
             include_children=tree,
+            include_history=history or show_all,
         )
         return _order_rows_as_tree(rows) if tree else rows
 
@@ -1051,33 +970,12 @@ def send_command(
     reply_to: str | None = typer.Option(None, "--reply-to", help="Message ID for explicit reply correlation"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
-    """Send a message to a session.
+    """Send peer data to an online session at its next safe boundary.
 
-    \b
-      idle session:     starts a new turn immediately — the message
-                        keeps the full conversation context
-      running session:  queued and delivered at the next safe step
-                        boundary, without interrupting streams or tools
-      --steer:          same safe delivery as the default
-
-    Sessions never expire: send works minutes or days after the last turn,
-    and across server restarts — the conversation is reloaded from disk on
-    demand. This is how a calling agent iterates with the same klaude agent
-    over many rounds:
-
-    \b
-      id=$(klaude run "read the codebase, summarize the auth flow")
-      klaude wait "$id"
-      klaude send "$id" --wait "now write tests for the edge cases you found"
-      klaude send "$id" --wait "one of them fails, here is the log: ..."
-
-    Every send is structured peer data, never operator approval. --from is
-    a display label only. Native MessagePeer tools establish session identity.
-    --wait reads settled session output, not a correlated peer reply.
-
-    Note: send does NOT answer a pending interaction — a session parked
-    waiting for input needs `klaude respond`. Peer messages never resume a
-    paused session; use `klaude resume` explicitly.
+    Offline sessions reject delivery. Resume history explicitly with -r;
+    send never restarts a process or writes an offline inbox. Messages do
+    not confer operator identity, answer approvals, or resume paused work.
+    --wait reads settled session output, not a correlated message reply.
     """
     message = " ".join(text).strip()
     if not message:
@@ -1149,7 +1047,7 @@ def kill_command(
     Stops only the current root inference/wait, not children or Bash tasks.
     --all explicitly selects all active sessions. Use stop TARGET for children.
     The session is kept. Use `resume` to allow pending work to continue;
-    attaching or sending peer messages does not lift the pause.
+    restoring history or sending peer messages does not lift the pause.
     """
     target_list = _split_targets(targets or [])
     if not target_list and not group and not all_:

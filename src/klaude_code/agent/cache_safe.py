@@ -1,7 +1,7 @@
 """Cache-safe LLM request construction for forked queries.
 
 A forked LLM query (compact, handoff, sub-agent fork_context, etc.) wants to
-piggy-back on the parent session's server-side prompt cache. The Anthropic API
+piggy-back on the parent session's provider prompt cache. The Anthropic API
 cache key is composed of:
 
 - system prompt
@@ -67,7 +67,7 @@ def build_cache_safe_messages(
     """Append fork-specific messages after the parent's wire prefix.
 
     The returned list has :attr:`CacheSafeParams.prefix_messages` as its prefix
-    byte-for-byte, so the server-side prompt cache built on the parent's last
+    byte-for-byte, so the provider prompt cache built on the parent's last
     request is reusable. Only ``extra`` adds new bytes that will be cached
     fresh (or not, if the caller sets a ``skip_cache_write`` flag downstream).
     """

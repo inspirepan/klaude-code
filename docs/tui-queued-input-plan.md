@@ -1,5 +1,7 @@
 # TUI 执行期输入与批量 steering 队列
 
+> 执行架构已更新：以 [独立 TUI 计划](tasks/local-tui-runtime/outline.md) 为准。本文的共享 server、WS、attach 和自动重启内容仅作历史记录。
+
 > 状态：已实现。本文记录当前行为和维护约束，不再作为分阶段实施计划。
 > 更细的终端渲染约束见 `src/klaude_code/tui/AGENTS.md`。
 > 当前 `FollowUpAgentOperation` / `follow_up_queue` 是沿用的内部命名，语义已改为安全边界批量 steering，不是 task 结束后逐条执行。

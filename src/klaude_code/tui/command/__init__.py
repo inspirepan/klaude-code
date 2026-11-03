@@ -1,13 +1,12 @@
 from .command_abc import CommandABC, CommandResult
 from .registry import (
-    command_needs_history,
     dispatch_command,
     get_command_info_list,
     get_command_names,
     get_commands,
     has_background_command,
     has_interactive_command,
-    is_detach_command,
+    is_exit_command,
     is_registered_command,
     is_slash_command_name,
     register,
@@ -38,7 +37,7 @@ def ensure_commands_loaded() -> None:
     from .context_cmd import ContextCommand
     from .continue_cmd import ContinueCommand
     from .copy_cmd import CopyCommand
-    from .detach_cmd import DetachCommand
+    from .exit_cmd import ExitCommand
     from .fork_session_cmd import ForkSessionCommand
     from .grill_me_cmd import GrillMeCommand
     from .login_cmd import LoginCommand
@@ -48,7 +47,6 @@ def ensure_commands_loaded() -> None:
     from .new_cmd import NewCommand
     from .recap_cmd import RecapCommand
     from .refresh_cmd import RefreshTerminalCommand
-    from .reload_cmd import ReloadCommand
     from .rewind_cmd import RewindCommand
     from .status_cmd import StatusCommand
     from .stop_cmd import StopCommand
@@ -61,7 +59,6 @@ def ensure_commands_loaded() -> None:
     register(ForkSessionCommand())
     register(RewindCommand())
     register(RefreshTerminalCommand())
-    register(ReloadCommand())
     register(NewCommand())
     register(ModelCommand())
     register(ManageProvidersCommand())
@@ -76,7 +73,7 @@ def ensure_commands_loaded() -> None:
     register(BtwCommand())
     register(TasksCommand())
     register(StopCommand())
-    register(DetachCommand())
+    register(ExitCommand())
 
 
 # Lazy accessors for command classes
@@ -87,7 +84,7 @@ def __getattr__(name: str) -> object:
         "CompactCommand": "compact_cmd",
         "ContinueCommand": "continue_cmd",
         "CopyCommand": "copy_cmd",
-        "DetachCommand": "detach_cmd",
+        "ExitCommand": "exit_cmd",
         "ForkSessionCommand": "fork_session_cmd",
         "GrillMeCommand": "grill_me_cmd",
         "LoginCommand": "login_cmd",
@@ -96,7 +93,6 @@ def __getattr__(name: str) -> object:
         "ModelCommand": "model_cmd",
         "RecapCommand": "recap_cmd",
         "RefreshTerminalCommand": "refresh_cmd",
-        "ReloadCommand": "reload_cmd",
         "RewindCommand": "rewind_cmd",
         "StatusCommand": "status_cmd",
         "SubAgentModelCommand": "sub_agent_model_cmd",
@@ -120,7 +116,6 @@ __all__ = [
     "CommandInfo",
     "CommandName",
     "CommandResult",
-    "command_needs_history",
     "dispatch_command",
     "ensure_commands_loaded",
     "get_command_info_list",
@@ -128,7 +123,7 @@ __all__ = [
     "get_commands",
     "has_background_command",
     "has_interactive_command",
-    "is_detach_command",
+    "is_exit_command",
     "is_registered_command",
     "is_slash_command_name",
 ]

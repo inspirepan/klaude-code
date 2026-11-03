@@ -70,6 +70,9 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
         def cancel_side_questions(self, session_id: str) -> None:
             self.cancelled_side_questions.append(session_id)
 
+        async def stop_auxiliary_tasks(self, session_id: str | None = None) -> None:
+            assert session_id == "s1"
+
         async def handle_stop_sub_agents(self, operation: Any) -> None:
             assert operation.session_id == "s1"
 
@@ -97,6 +100,7 @@ def test_close_session_force_emits_interaction_cancelled_and_resolved_events() -
 
     async def _test() -> None:
         runtime_any = cast(Any, object.__new__(RuntimeFacade))
+        runtime_any._session_leases = {}
         runtime_any.session_registry = _StubSessionRegistry()
         runtime_any._operation_dispatcher = _StubOperationDispatcher()
         runtime_any.shell_task_manager = ShellTaskManager()
@@ -178,6 +182,9 @@ def test_runtime_stop_flushes_sessions(tmp_path: Path) -> None:
         def list_active_tasks(self) -> list[Any]:
             return [SimpleNamespace(task=self.task)]
 
+        async def stop_auxiliary_tasks(self, session_id: str | None = None) -> None:
+            assert session_id is None
+
         def clear_active_tasks(self) -> None:
             self.cleared = True
 
@@ -190,6 +197,7 @@ def test_runtime_stop_flushes_sessions(tmp_path: Path) -> None:
 
     async def _test() -> None:
         runtime_any = cast(Any, object.__new__(RuntimeFacade))
+        runtime_any._session_leases = {}
         session = _StubSession(tmp_path)
         actor = _StubRuntime("s1", session)
         runtime_any.session_registry = _StubSessionRegistry(actor)

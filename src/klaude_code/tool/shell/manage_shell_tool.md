@@ -5,4 +5,4 @@ Manage shell tasks owned by the current session; never lists arbitrary OS proces
 - `wait`: wait for completion up to `wait_ms` (default 10000). New input (a user or peer message, a finished background agent) ends the wait early with `interrupted-wait; still-running.`; handle it, then wait again if still needed. A wait timeout does not stop the task. Prefer a meaningful wait over repeatedly polling output or list.
 - `stop`: terminate the owned process group and preserve its output.
 
-Background completion is reported automatically. Do other useful work instead of busy-polling. A `lost` task means the server restarted and cannot attest to its old process; it is not a successful completion. Old output may expire under retention limits.
+Background completion is reported automatically. Do other useful work instead of busy-polling. A `lost` task means the owning Klaude process restarted and cannot attest to the old shell process; it is not a successful completion. Old output may expire under retention limits.

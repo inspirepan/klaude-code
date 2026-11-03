@@ -62,7 +62,7 @@ const ROWS: readonly HistoryRow[] = [
 
 const CONTEXT: SystemContext = {
   available: true,
-  source: 'live',
+  source: 'rebuilt',
   system_prompt: 'You are klaude.',
   tools: [
     { name: 'Read', description: 'Read a file', parameters: { type: 'object' } },
@@ -145,13 +145,6 @@ describe('available', () => {
     ))
   })
 
-  it('says nothing extra when the context was read live', () => {
-    const system = cells(snapshot).find(cell => cell.kind === 'system')
-    expect(system?.promptDetail?.caveat).toBeUndefined()
-  })
-})
-
-describe('rebuilt', () => {
   it('carries a caveat, because it is today prompt files and not a recording', () => {
     const snapshot = snapshotOf({ ...CONTEXT, source: 'rebuilt' })
     const system = cells(snapshot).find(cell => cell.kind === 'system')

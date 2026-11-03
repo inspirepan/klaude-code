@@ -96,7 +96,7 @@
 }
 
 /* Working sessions carry the live emphasis. */
-.row[data-live='true'] .title {
+.row[data-working='true'] .title {
   font-weight: 600;
 }
 

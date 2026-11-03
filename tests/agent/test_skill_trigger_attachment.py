@@ -257,8 +257,8 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
     from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
 
     skills = [
-        _make_skill("commit", root=tmp_path, location="system"),
-        _make_skill("submit-pr", root=tmp_path, location="user"),
+        _make_skill("commit", root=tmp_path, location="user"),
+        _make_skill("submit-pr", root=tmp_path, location="project"),
     ]
     monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: skills)  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
@@ -292,7 +292,7 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
 def test_available_skills_attachment_hot_reloads_only_new_skills(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
+    skills = [_make_skill("commit", root=tmp_path, location="user", description="initial commit skill")]
     monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
@@ -303,7 +303,7 @@ def test_available_skills_attachment_hot_reloads_only_new_skills(
     first_text = message.join_text_parts(first_attachment.parts)
     assert 'name="commit"' in first_text
 
-    skills[0] = _make_skill("commit", root=tmp_path, location="system", description="updated commit skill")
+    skills[0] = _make_skill("commit", root=tmp_path, location="user", description="updated commit skill")
     assert _arun(skill_attachments.available_skills_attachment(session)) is None
 
     skills.append(_make_skill("publish", root=tmp_path, location="user", description="publish skill"))
@@ -326,7 +326,7 @@ def test_available_skills_attachment_reannounces_skill_when_path_changes(
 ) -> None:
     initial_root = tmp_path / "initial"
     override_root = tmp_path / "override"
-    skills = [_make_skill("commit", root=initial_root, location="system", description="initial commit skill")]
+    skills = [_make_skill("commit", root=initial_root, location="user", description="initial commit skill")]
     monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
@@ -352,7 +352,7 @@ def test_available_skills_attachment_reannounces_skill_when_path_changes(
 def test_available_skills_attachment_resume_keeps_listing_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
+    skills = [_make_skill("commit", root=tmp_path, location="user", description="initial commit skill")]
     monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
@@ -364,7 +364,7 @@ def test_available_skills_attachment_resume_keeps_listing_state(
     session.ensure_meta_exists()
     resumed = Session.load_meta(session.id, work_dir=tmp_path)
 
-    marker_path = str((tmp_path / skill_attachments.SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
+    marker_path = str((tmp_path / skill_attachments.SKILL_LISTING_MARKER_NAME).resolve())
     assert resumed.file_tracker[marker_path].skill_listing_paths_by_name == {
         "commit": str((tmp_path / "commit" / "SKILL.md").resolve())
     }
@@ -374,7 +374,7 @@ def test_available_skills_attachment_resume_keeps_listing_state(
 def test_available_skills_attachment_restores_state_from_history_for_legacy_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
+    skills = [_make_skill("commit", root=tmp_path, location="user", description="initial commit skill")]
     monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
@@ -387,7 +387,7 @@ def test_available_skills_attachment_restores_state_from_history_for_legacy_sess
             ui_extra=DeveloperUIExtra(items=[SkillListingUIItem(names=["commit"])]),
         )
     )
-    marker_path = str((tmp_path / skill_attachments.SYSTEM_SKILL_LISTING_MARKER_NAME).resolve())
+    marker_path = str((tmp_path / skill_attachments.SKILL_LISTING_MARKER_NAME).resolve())
     session.file_tracker[marker_path] = FileStatus(mtime=0.0, is_skill_listing=True)
 
     assert _arun(skill_attachments.available_skills_attachment(session)) is None
@@ -401,7 +401,7 @@ def test_available_skills_attachment_reinjects_after_attachment_flags_reset_even
 ) -> None:
     from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
 
-    skills = [_make_skill("commit", root=tmp_path, location="system", description="initial commit skill")]
+    skills = [_make_skill("commit", root=tmp_path, location="user", description="initial commit skill")]
     monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
 
     session = Session(work_dir=tmp_path)
@@ -660,7 +660,7 @@ def test_skill_attachment_prefers_dynamic_skill_over_static_with_same_name(
     static_skill = Skill(
         name="commit",
         description="static commit",
-        location="system",
+        location="user",
         skill_path=static_skill_path,
         base_dir=static_skill_dir,
     )
@@ -715,7 +715,7 @@ def test_skill_attachment_preserves_exact_namespaced_static_skill(
     static_skill = Skill(
         name="team:commit",
         description="namespaced commit",
-        location="system",
+        location="user",
         skill_path=static_skill_path,
         base_dir=static_skill_dir,
     )

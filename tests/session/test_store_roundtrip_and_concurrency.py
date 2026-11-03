@@ -33,7 +33,6 @@ from klaude_code.session.store import (
     JsonlSessionStore,
     build_meta_snapshot,
     count_file_lines,
-    register_session_history_observer,
 )
 from klaude_code.session.store_registry import close_default_store, get_store_for_path
 
@@ -681,17 +680,16 @@ class TestSubAgentMetaRoundTrip:
 
 
 # =====================================================================
-# History append notifications: the ledger's "disk grew" signal.
+# Physical history line counts after confirmed writes.
 # =====================================================================
 
 
-class TestHistoryAppendNotifications:
-    def test_observer_reports_the_running_line_count(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+class TestHistoryLineCount:
+    def test_reports_the_running_line_count(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         project_dir = tmp_path / "proj"
         project_dir.mkdir()
         monkeypatch.chdir(project_dir)
         seen: list[tuple[str, int]] = []
-        unregister = register_session_history_observer(lambda sid, count: seen.append((sid, count)))
         holder: dict[str, str] = {}
 
         async def _test() -> None:
@@ -699,6 +697,7 @@ class TestHistoryAppendNotifications:
             holder["id"] = session.id
             session.append_history([message.UserMessage(parts=message.text_parts_from_str("one"))])
             await session.wait_for_flush()
+            seen.append((session.id, get_store_for_path(project_dir).history_line_count(session.id)))
             session.append_history(
                 [
                     message.UserMessage(parts=message.text_parts_from_str("two")),
@@ -706,11 +705,9 @@ class TestHistoryAppendNotifications:
                 ]
             )
             await session.wait_for_flush()
+            seen.append((session.id, get_store_for_path(project_dir).history_line_count(session.id)))
 
-        try:
-            arun(_test())
-        finally:
-            unregister()
+        arun(_test())
 
         session_id = holder["id"]
         assert [entry for entry in seen if entry[0] == session_id] == [(session_id, 1), (session_id, 3)]

@@ -20,7 +20,7 @@ from klaude_code.protocol import llm_param
 from klaude_code.protocol.sub_agent import iter_sub_agent_profiles
 
 # Credential fields excluded when dumping LLM configs into the debug log; the
-# server writes that log unconditionally, so plaintext keys must never land in it.
+# process writes that log unconditionally, so plaintext keys must never land in it.
 _LLM_CONFIG_SECRET_FIELDS = llm_param.LLM_CONFIG_SECRET_FIELDS
 
 

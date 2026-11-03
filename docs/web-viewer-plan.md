@@ -1,5 +1,7 @@
 # klaude Web 会话查看器方案
 
+> 执行架构已更新：以 [独立 TUI 计划](tasks/local-tui-runtime/outline.md) 为准。本文的共享 server、WS、attach 和自动重启内容仅作历史记录。
+
 > 状态：实施中。已落地：M0-1 删 checkpoint（`7c3723f6`）、M0-2 坐标统一 + 行号 + `scan_history`
 > （`e2350d67`）、M1 双 socket / Host guard / 静态伺服 / `klaude trace` / 删 log viewer（`f2950f92`）、
 > M2-B 磁盘历史分页 API + `HistoryAppendedEvent`（`7e93dc34`）、M2-F1 适配器 + 轨迹页（`17bbc715`）、

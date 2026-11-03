@@ -4,7 +4,7 @@ The user asks something while the main agent keeps working. The answer must not
 change what the main agent sees, so this module only *reads* the session:
 
 - The wire prefix is ``session.get_llm_history()`` — the same transform the
-  parent step uses, so the server-side prompt cache is reused where possible
+  parent step uses, so the provider prompt cache is reused where possible
   (mid-task the prefix ends with synthetic aborted results for tool calls that
   have not returned yet; the cached prefix up to that point still hits).
 - system prompt / tools / model / thinking come from the parent profile, so the

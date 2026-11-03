@@ -45,9 +45,9 @@ def configure_pt_theme(theme: str | None) -> None:
 
 
 def _ensure_configured() -> None:
-    """Lazy theme detection for CLI entry points that bypass ``run_attach``.
+    """Lazy theme detection for CLI entry points that bypass ``run_local``.
 
-    ``run_attach`` calls :func:`configure_pt_theme` explicitly; the
+    ``run_local`` calls :func:`configure_pt_theme` explicitly; the
     ``klaude --model`` / ``klaude --resume`` paths construct selectors
     before that runs, so we fall back to user config + terminal background
     detection on first use.
@@ -169,6 +169,7 @@ def _build_style_rules(palette: Palette) -> list[tuple[str, str]]:
         # background shifts to call attention without hiding other options.
         ("picker.suggested", f"bg:{palette.yellow_background}"),
         ("picker.suggested.badge", f"bold fg:{palette.yellow}"),
+        ("history.selected", f"bg:{palette.grey_background}"),
     ]
 
 

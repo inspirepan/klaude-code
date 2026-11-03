@@ -1,7 +1,7 @@
 /**
  * Session list page: `#/`.
  *
- * One poll of `GET /api/headless/sessions` every 5 s (decision #24), paused
+ * One poll of `GET /api/web/sessions` every 5 s (decision #24), paused
  * while the tab is hidden so a backgrounded viewer costs nothing. Rows are
  * grouped by `parent_session_id`: sub-agent sessions are real sessions with
  * their own ledger (decision #10), so they nest under their parent rather than
@@ -18,7 +18,7 @@ import { t } from '../locale.ts'
 import { SESSION_LIST_LIMIT, fetchSessionChildren, fetchSessions } from './api.ts'
 import type { SessionTreeNode } from './session-list-model.ts'
 import {
-  buildSessionTree, filterSessionRows, flattenSessionTree, isLiveState, messagesCount,
+  buildSessionTree, filterSessionRows, flattenSessionTree, isWorkingState, messagesCount,
   relativeUpdated, rowLabel, rowState, statusLabel, workDirName,
 } from './session-list-model.ts'
 import css from './SessionList.module.css'
@@ -65,7 +65,7 @@ function SessionRow({
     <li
       className={css.row}
       data-archived={row.archived === true ? 'true' : undefined}
-      data-live={isLiveState(state) ? 'true' : undefined}
+      data-working={isWorkingState(state) ? 'true' : undefined}
       style={{ paddingLeft: `${8 + node.depth * 18}px` }}
     >
       {hasChildren
@@ -86,7 +86,7 @@ function SessionRow({
         <span className={css.title}>{label.title}</span>
         {directory !== null && <span className={css.dir}>{directory}</span>}
         <span className={css.state} data-state={state}>
-          {isLiveState(state) && <span className={css.dot} />}
+          {isWorkingState(state) && <span className={css.dot} />}
           {statusLabel(row.status)}
         </span>
         {hasChildren && !expanded && (

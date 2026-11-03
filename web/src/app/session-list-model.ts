@@ -1,7 +1,7 @@
 /**
  * Pure model behind the session list page.
  *
- * `GET /api/headless/sessions` returns a flat array whose only structure is
+ * `GET /api/web/sessions` returns a flat array whose only structure is
  * `parent_session_id`. Everything the page needs on top of that — the parent
  * tree, the sort, the substring filter, the visible-row flattening — is here,
  * so it can be tested without a DOM.
@@ -20,7 +20,7 @@ export function rowState(row: SessionListRow): SessionState {
 }
 
 /** Whether a category deserves a live dot. */
-export function isLiveState(state: SessionState): boolean {
+export function isWorkingState(state: SessionState): boolean {
   return state === 'working'
 }
 

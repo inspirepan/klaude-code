@@ -179,7 +179,7 @@ class TaskPanel:
                         notice = "Task no longer available"
                     else:
                         task = updated
-                        notice = f"Server reports: {task.status}"
+                        notice = f"Task status: {task.status}"
             except Exception as exc:
                 notice = f"{action} failed: {exc}"
 

@@ -46,56 +46,6 @@ _DELETE_WINS_META_KEYS = (
     "headless_queued_at",
 )
 
-type SessionMetaObserver = Callable[[str, dict[str, Any]], None]
-
-_SESSION_META_OBSERVERS: list[SessionMetaObserver] = []
-_SESSION_META_OBSERVERS_LOCK = threading.Lock()
-
-
-def register_session_meta_observer(observer: SessionMetaObserver) -> Callable[[], None]:
-    with _SESSION_META_OBSERVERS_LOCK:
-        _SESSION_META_OBSERVERS.append(observer)
-
-    def _unregister() -> None:
-        with _SESSION_META_OBSERVERS_LOCK, suppress(ValueError):
-            _SESSION_META_OBSERVERS.remove(observer)
-
-    return _unregister
-
-
-def _notify_session_meta_observers(session_id: str, meta: dict[str, Any]) -> None:
-    with _SESSION_META_OBSERVERS_LOCK:
-        observers = list(_SESSION_META_OBSERVERS)
-    for observer in observers:
-        observer(session_id, dict(meta))
-
-
-# Called from the writer thread once a batch reached disk, with the session's
-# physical jsonl line count after the flush. The server bridges it onto the
-# event loop as a HistoryAppendedEvent (see server/history_bridge.py).
-type SessionHistoryObserver = Callable[[str, int], None]
-
-_SESSION_HISTORY_OBSERVERS: list[SessionHistoryObserver] = []
-_SESSION_HISTORY_OBSERVERS_LOCK = threading.Lock()
-
-
-def register_session_history_observer(observer: SessionHistoryObserver) -> Callable[[], None]:
-    with _SESSION_HISTORY_OBSERVERS_LOCK:
-        _SESSION_HISTORY_OBSERVERS.append(observer)
-
-    def _unregister() -> None:
-        with _SESSION_HISTORY_OBSERVERS_LOCK, suppress(ValueError):
-            _SESSION_HISTORY_OBSERVERS.remove(observer)
-
-    return _unregister
-
-
-def _notify_session_history_observers(session_id: str, line_count: int) -> None:
-    with _SESSION_HISTORY_OBSERVERS_LOCK:
-        observers = list(_SESSION_HISTORY_OBSERVERS)
-    for observer in observers:
-        observer(session_id, line_count)
-
 
 def count_file_lines(path: Path) -> int:
     """Count physical lines without decoding them.
@@ -285,7 +235,6 @@ class JsonlSessionWriter:
         self._remember_line_count(batch.session_id, events_path, line_count)
         if self._on_history_written is not None:
             self._on_history_written(batch.session_id)
-        _notify_session_history_observers(batch.session_id, line_count)
 
         meta_path = self._paths.meta_file(batch.session_id)
         with self._meta_lock:
@@ -301,8 +250,6 @@ class JsonlSessionWriter:
             meta = {k: v for k, v in meta.items() if v is not None}
 
             _write_json_dict_atomic(meta_path, meta, "w")
-
-        _notify_session_meta_observers(batch.session_id, meta)
 
         if not batch.done.done():
             batch.done.set_result(result)
@@ -380,7 +327,6 @@ class JsonlSessionStore:
                 if raise_on_error:
                     raise
                 return False
-            _notify_session_meta_observers(session_id, data)
             return True
 
     def update_meta_if_queued_id(
@@ -407,7 +353,6 @@ class JsonlSessionStore:
                 _write_json_dict_atomic(meta_path, data, "u")
             except OSError:
                 return False
-            _notify_session_meta_observers(session_id, data)
             return True
 
     def create_meta_if_missing(self, session_id: str, meta: dict[str, Any]) -> bool:
@@ -420,7 +365,6 @@ class JsonlSessionStore:
                 _write_json_dict_atomic(meta_path, meta, "c")
             except OSError:
                 return False
-            _notify_session_meta_observers(session_id, meta)
             return True
 
     def load_history(self, session_id: str) -> list[message.HistoryEvent]:
@@ -681,7 +625,7 @@ def build_meta_snapshot(
         if headless_queued_turn is not None
         else None,
         "runtime": (runtime or SessionRuntimeFacts()).model_dump(mode="json"),
-        # Headless/multiplexer metadata (set by `klaude run`).
+        # Headless process metadata (set by `klaude run`).
         "name": name,
         "group": group,
         "agent_type": agent_type,

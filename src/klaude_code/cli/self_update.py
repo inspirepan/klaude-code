@@ -2,7 +2,6 @@
 
 import shutil
 import subprocess
-import time
 
 import typer
 
@@ -37,96 +36,6 @@ def _upgrade_local_git_install(install_kind: str, source_path: str) -> None:
     log(result.message or "Update complete")
 
 
-_SERVER_UPGRADE_POLL_SECONDS = 0.5
-# Git fetch + submodules + uv install can take several minutes on a cold cache.
-_SERVER_UPGRADE_WAIT_SECONDS = 600.0
-# A pending request on an idle server fires within the coordinator's settle
-# window; wait this long before treating "pending" as "busy".
-_SERVER_UPGRADE_PENDING_GRACE_SECONDS = 3.0
-
-
-def _upgrade_via_server() -> bool:
-    """Let the running server install and re-exec itself; False when no server took the job.
-
-    The server is the long-lived process, so it must not be left on a
-    half-replaced venv: it installs only once its sessions are idle, then
-    restarts. This follows its status and reports the outcome.
-    """
-
-    from klaude_code.cli.uds_client import (
-        ServerNotRunningError,
-        describe_active_sessions,
-        describe_upgrade_options,
-        describe_upgrade_status,
-        request,
-        request_server_upgrade,
-        wait_for_reloaded_server,
-    )
-    from klaude_code.log import log
-
-    try:
-        request("GET", "/api/server/status", timeout=3.0)
-    except ServerNotRunningError:
-        return False
-    status = request_server_upgrade(check=True, timeout=5.0)
-    if status is None:
-        return False
-
-    pid = status.get("pid")
-    deadline = time.monotonic() + _SERVER_UPGRADE_WAIT_SECONDS
-    pending_since = time.monotonic()
-    announced: set[str] = set()
-    target: str | None = None
-    while time.monotonic() < deadline:
-        phase = status.get("phase")
-        if phase == "pending":
-            active = status.get("active_sessions") or []
-            if active and time.monotonic() - pending_since > _SERVER_UPGRADE_PENDING_GRACE_SECONDS:
-                log((describe_upgrade_status(status) or "klaude server is busy; upgrade pending", "yellow"))
-                for line in describe_active_sessions(active):
-                    log(line)
-                for line in describe_upgrade_options(active):
-                    log((line, "dim"))
-                return True
-        elif phase == "installing":
-            if "installing" not in announced:
-                announced.add("installing")
-                log("Server is installing the update (checking upstream first)…")
-        elif phase == "reloading":
-            target = status.get("target_fingerprint") if isinstance(status.get("target_fingerprint"), str) else None
-            break
-        elif phase == "failed":
-            log((f"Error: {status.get('message') or 'upgrade failed'}", "red"))
-            raise typer.Exit(1)
-        else:
-            log(status.get("message") or "Already up to date.")
-            return True
-        time.sleep(_SERVER_UPGRADE_POLL_SECONDS)
-        try:
-            code, body = request("GET", "/api/server/upgrade", timeout=5.0)
-        except ServerNotRunningError:
-            # Socket gone mid-install can only mean the server is re-execing.
-            break
-        if code != 200 or not isinstance(body, dict):
-            log((f"Error: unexpected server response ({code})", "red"))
-            raise typer.Exit(1)
-        status = body
-    else:
-        log(("Error: server upgrade did not finish in time; check `klaude server status`", "red"))
-        raise typer.Exit(1)
-
-    log("Update installed; waiting for the server to restart…")
-    outcome = wait_for_reloaded_server(local_fingerprint=target, pid=pid if isinstance(pid, int) else None)
-    if outcome == "ok":
-        log(("Server restarted on the updated code. Re-run `klaude` to update this CLI too.", "green"))
-        return True
-    if outcome == "exited":
-        log(("Error: server exited while restarting; run `klaude server run` to see why", "red"))
-    else:
-        log(("Error: server did not come back on the updated code; check `klaude server status`", "red"))
-    raise typer.Exit(1)
-
-
 def upgrade_command(
     check: bool = typer.Option(
         False,
@@ -149,10 +58,7 @@ def upgrade_command(
     )
 
     if not check:
-        if _upgrade_via_server():
-            return
-        # No server running (or one that predates server-owned upgrades):
-        # install here; the next `klaude` starts a server on the new code.
+        # Each Klaude process loads the updated code on its next start.
         install = get_installation_info()
         if install.install_kind in {INSTALL_KIND_EDITABLE, INSTALL_KIND_LOCAL}:
             source = get_install_source_path()

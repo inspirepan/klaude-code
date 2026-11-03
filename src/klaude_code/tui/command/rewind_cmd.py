@@ -135,10 +135,6 @@ class RewindCommand(CommandABC):
         return "Rewind to an earlier point (the discarded tail is summarized into a new session)"
 
     @property
-    def needs_history(self) -> bool:
-        return True
-
-    @property
     def is_interactive(self) -> bool:
         return True
 
@@ -171,7 +167,7 @@ class RewindCommand(CommandABC):
             return CommandResult(events=[event])
 
         # Anchor the pivot by exact text: the picker indexes the client's
-        # rebuilt history view, which the server re-derives and validates
+        # rebuilt history view, which the Runtime re-derives and validates
         # against (indices alone are ambiguous for compacted sessions).
         selected = next((fp for fp in fork_points if fp.history_index == result), None)
         pivot_text = None

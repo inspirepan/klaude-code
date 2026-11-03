@@ -116,7 +116,7 @@ def test_git_upgrade_retries_install_without_losing_stash(
     assert (checkout / "local.txt").read_text() == "keep me"
 
 
-def test_auto_upgrade_recovers_without_cached_update(
+def test_manual_upgrade_recovers_without_cached_update(
     checkout: Path, isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del isolated_home
@@ -124,13 +124,12 @@ def test_auto_upgrade_recovers_without_cached_update(
     _fake_uv(monkeypatch, tmp_path, install_fails=True)
     assert not update._upgrade_git_install(update.INSTALL_KIND_LOCAL, str(checkout)).performed
     _fake_uv(monkeypatch, tmp_path)
-    monkeypatch.delenv(update.AUTO_UPGRADE_DONE_ENV, raising=False)
     monkeypatch.setattr(
         update,
         "get_installation_info",
         lambda: update.InstallationInfo("1.2.3", update.INSTALL_KIND_LOCAL, checkout.as_uri()),
     )
-    result = update.perform_auto_upgrade_if_needed()
+    result = update._upgrade_git_install(update.INSTALL_KIND_LOCAL, str(checkout))
     assert result.performed, result.message
     assert (checkout / "local.txt").read_text() == "keep me"
 
@@ -149,7 +148,6 @@ def test_cli_recovers_after_fetch_check_fails(
         lambda: update.InstallationInfo("1.2.3", update.INSTALL_KIND_LOCAL, checkout.as_uri()),
     )
     monkeypatch.setattr(update, "check_for_updates_blocking", lambda: (_ for _ in ()).throw(RuntimeError("offline")))
-    monkeypatch.setattr(self_update, "_upgrade_via_server", lambda: False)
     self_update.upgrade_command(check=False)
     assert not update._git_upgrade_marker(str(checkout)).exists()
 
@@ -162,7 +160,7 @@ def _persist_git_update(latest: str = "abc1234") -> None:
     )
 
 
-def test_detached_checkout_does_not_arm_auto_upgrade(
+def test_detached_checkout_explains_manual_upgrade_restriction(
     checkout: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del isolated_home
@@ -173,19 +171,20 @@ def test_detached_checkout_does_not_arm_auto_upgrade(
     )
     _persist_git_update()
     _git(checkout, "checkout", "-q", "--detach")
-    assert update.has_pending_update() is False
     summary = update.get_startup_update_summary()
     assert summary is not None and "not on main" in summary.message
 
     _git(checkout, "checkout", "-q", "main")
-    assert update.has_pending_update() is True
+    summary = update.get_startup_update_summary()
+    assert summary is not None and "not on main" not in summary.message
+    assert "klaude upgrade" in summary.message
+    assert "auto-upgrade" not in summary.message and "next start" not in summary.message
 
 
-def test_failed_auto_upgrade_waits_for_next_check(
+def test_failed_manual_upgrade_preserves_update_notice(
     checkout: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del isolated_home
-    monkeypatch.delenv(update.AUTO_UPGRADE_DONE_ENV, raising=False)
     monkeypatch.setattr(
         update,
         "get_installation_info",
@@ -194,12 +193,11 @@ def test_failed_auto_upgrade_waits_for_next_check(
     _persist_git_update()
     _git(checkout, "checkout", "-q", "-b", "feature")
 
-    result = update.perform_auto_upgrade_if_needed()
+    result = update._upgrade_git_install(update.INSTALL_KIND_LOCAL, str(checkout))
     assert not result.performed and result.message
 
     persisted = update._load_persisted_update_info()
-    assert persisted is not None and persisted.update_available is False
-    assert update.has_pending_update() is False
+    assert persisted is not None and persisted.update_available is True
 
 
 def test_git_upgrade_refuses_concurrent_lock(
