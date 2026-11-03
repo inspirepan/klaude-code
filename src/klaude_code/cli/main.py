@@ -21,50 +21,49 @@ from klaude_code.cli.web_cmd import register_web_command
 TOP_LEVEL_HELP = """\
 Usage: klaude [OPTIONS] [COMMAND]
 
-klaude — coding agents in independent local processes.
-
-Running klaude opens a local interactive conversation. Each process owns
-its agents and shell tasks; exit saves history and stops owned execution.
-Use a terminal multiplexer to keep a TUI process alive.
+Run coding agents in independent local processes.
+Open an interactive conversation with `klaude`; exit saves history and
+stops this process's agents and tasks.
 
 Options:
   -c, --continue       Resume the latest saved session in this directory
-  -r, --resume [ID]    Select local history, or resume by id/name
-  -m, --model TEXT     Select model (see `klaude models`)
+  -r, --resume [ID]    Select saved history, or resume by id/name
+  -m, --model [MODEL]  Choose a model (see `klaude models`)
       --skill          Print the CLI guide for coding agents
-      --vanilla        Minimal mode: basic tools, no system prompts
+      --vanilla        Basic tools only, without system prompts
   -d, --debug          Enable debug logging
   -V, --version        Show version and exit
   -h, --help           Show this message and exit
 
-Background agents:
-  run        Spawn a background agent, print its id, return at once
-  ps         List sessions and their runtime states
-  brief      Compact status of one session (agent-friendly, bounded)
-  wait       Block until agents finish; print their results
-  output     Print a session's output (last reply / transcript)
-  send       Send a follow-up message (queued by default)
-  respond    Answer a pending approval/question of a session
-  kill       Interrupt a running agent (session stays resumable)
+Sessions:
+  run          Start a background process and print its session id
+  ps           List online sessions; --history includes exited sessions
+  brief        Show a compact summary of one session
+  output       Read saved or live session output
+  wait         Wait until sessions finish or need attention
+  send         Send a message to an online session
 
-Discovery:
-  models     List configured models and role bindings; --json for machines
-  web        Start a read-only viewer of saved history
+Control:
+  interrupt    Interrupt root inference/wait; children and Bash continue
+  unpause      Allow an online session's pending work to continue
+  respond      Answer a pending approval or question
+  dismiss      Acknowledge an error without unpausing
+  stop         Stop a session's child agents
+  tasks        List, inspect, wait for, or stop background tasks
 
 Setup:
-  conf       Edit config file
-  auth       Login/logout
-  cost       Show usage stats
-  upgrade    Upgrade to latest version
+  login        Log in to a provider or configure credentials
+  logout       Log out or remove configured credentials
+  config       Open the configuration file in your editor
+  upgrade      Upgrade Klaude
 
-TARGET accepts a session id (unique prefix is enough) or a --name
-given at `klaude run`. Pass --json to any background-agent or
-discovery command for machine-readable output.
+Inspect:
+  models       List configured models and role bindings
+  cost         Show usage and costs
+  web          Open a read-only viewer of saved history
 
-Orchestration is plain bash: `run` returns immediately, multi-target
-`wait` is a barrier, `--group` names a fan-out. For the playbook
-(parallel fan-out, barriers, loops, synthesis pipelines) and the
-current model/agent inventory, run: klaude --skill
+TARGET is a session id, unique prefix, or name set by `run --name`.
+Run `klaude COMMAND --help` for options.
 
 Agent? Run: klaude --skill
 """

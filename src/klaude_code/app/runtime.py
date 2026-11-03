@@ -204,10 +204,10 @@ async def initialize_app_components(
                 log(("Hint: run `klaude models` to view available models", "yellow"))
             else:
                 log((f"Error: failed to load the default model configuration: {exc.original}", "red"))
-                log(("Hint: run `klaude conf` to edit the config file", "yellow"))
+                log(("Hint: run `klaude config` to edit the config file", "yellow"))
         else:
             log((f"Error: failed to resolve {exc.role}: {exc.original}", "red"))
-            log(("Hint: run `klaude conf` to edit the config file", "yellow"))
+            log(("Hint: run `klaude config` to edit the config file", "yellow"))
         raise typer.Exit(2) from None
     except ValueError as exc:
         if init_config.model:
@@ -220,7 +220,7 @@ async def initialize_app_components(
             log(("Hint: run `klaude models` to view available models", "yellow"))
         else:
             log((f"Error: failed to load the default model configuration: {exc}", "red"))
-            log(("Hint: run `klaude conf` to edit the config file", "yellow"))
+            log(("Hint: run `klaude config` to edit the config file", "yellow"))
         raise typer.Exit(2) from None
 
     for warning in llm_clients.warnings:

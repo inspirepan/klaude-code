@@ -209,7 +209,7 @@ def model_resolution_error_detail(config: Config, model_pref: ModelPreference) -
 
 def _unresolved_warning(role: str, model_pref: ModelPreference, detail: str, fallback: str) -> str:
     pref_text = format_model_preference(model_pref) or "<unset>"
-    return f"{role} '{pref_text}' is unavailable ({detail}); {fallback}. Run `klaude conf` to update it."
+    return f"{role} '{pref_text}' is unavailable ({detail}); {fallback}. Run `klaude config` to update it."
 
 
 def _resolve_optional_role(

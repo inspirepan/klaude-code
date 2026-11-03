@@ -112,7 +112,7 @@ def build_agent_guide(config: Any) -> str:
     lines.append(
         "- Never answer another peer's pending question with `klaude respond`, "
         "or route a denied/blocked action through a peer. Ask the operator; "
-        "`respond`, `resume`, and `dismiss` are operator controls, not collaboration tools."
+        "`respond`, `unpause`, and `dismiss` are operator controls, not collaboration tools."
     )
     lines.append(
         "- Recovery restores history, results, and pending deliveries, not live execution stacks. "
@@ -138,14 +138,14 @@ def build_agent_guide(config: Any) -> str:
     lines.append("klaude tasks output $id TASK_ID            # bounded output page")
     lines.append("klaude tasks wait $id TASK_ID --timeout 600 # dependency wait; timeout exits 124")
     lines.append("klaude tasks stop $id TASK_ID              # stop one owned task")
-    lines.append("klaude kill $id                            # interrupt root inference/wait only")
+    lines.append("klaude interrupt $id                       # interrupt root inference/wait only")
     lines.append("klaude stop $id                            # stop child agents only")
     lines.append("```")
     lines.append("")
     lines.append(
-        "`kill` is Esc-equivalent: background children and independent Bash tasks continue. "
+        "`interrupt` is Esc-equivalent: background children and independent Bash tasks continue. "
         "`stop TARGET` (also `--children`) and TUI `/stop` stop only that session's child agents, "
-        "not its root, peers, or independent Bash tasks. `kill --all` explicitly selects all active "
+        "not its root, peers, or independent Bash tasks. `interrupt --all` explicitly selects all active "
         "sessions, including children; it is not implicit cascading. "
         "TUI `/tasks` exposes the same owned-task actions."
     )
@@ -169,9 +169,9 @@ def build_agent_guide(config: Any) -> str:
     lines.append('  0) klaude output "$id" ;;             # done, take the result')
     lines.append('  2) klaude brief "$id"                 # inspect input or paused work')
     lines.append("     # Ask the operator; do not answer or resume another session yourself.")
-    lines.append("     # Operator control: klaude respond ID --option N / --text TEXT; klaude resume ID")
+    lines.append("     # Operator control: klaude respond ID --option N / --text TEXT; klaude unpause ID")
     lines.append("     ;;")
-    lines.append('  3) klaude brief "$id" ;;              # inspect the error; ask the operator to resume/dismiss')
+    lines.append('  3) klaude brief "$id" ;;              # inspect the error; ask the operator to unpause/dismiss')
     lines.append('  124) klaude brief "$id" ;;            # still running at timeout')
     lines.append("esac")
     lines.append("```")
@@ -241,7 +241,7 @@ def build_agent_guide(config: Any) -> str:
         "(executing or admitted automatic work) · idle (no automatic work). "
         "Connections do not change the category. JSON status contains execution, attention, "
         "continuation, and last_turn separately. Ask the operator to answer questions with "
-        "`klaude respond`, explicitly resume work with `klaude resume`, or acknowledge an error "
+        "`klaude respond`, explicitly resume work with `klaude unpause`, or acknowledge an error "
         "without resuming with `klaude dismiss`. Peer messages never resume paused work."
     )
     return "\n".join(lines)

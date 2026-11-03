@@ -27,7 +27,7 @@ class XaiOAuthClient(ResponsesClient):
         self._token_manager = XaiTokenManager()
         self._oauth = XaiOAuth(self._token_manager)
         if not self._token_manager.is_logged_in():
-            raise XaiNotLoggedInError("xAI authentication required. Run 'klaude auth login xai' first.")
+            raise XaiNotLoggedInError("xAI authentication required. Run 'klaude login xai' first.")
         super().__init__(config)
 
     def _create_client(self, config: llm_param.LLMConfigParameter) -> AsyncOpenAI:
@@ -36,7 +36,7 @@ class XaiOAuthClient(ResponsesClient):
             raise ValueError("xAI OAuth only supports the official https://api.x.ai/v1 endpoint")
         state = self._token_manager.get_state()
         if state is None:
-            raise XaiNotLoggedInError("Not logged in to xAI. Run 'klaude auth login xai' first.")
+            raise XaiNotLoggedInError("Not logged in to xAI. Run 'klaude login xai' first.")
         return AsyncOpenAI(
             api_key=state.access_token,
             base_url=XAI_BASE_URL,
@@ -49,7 +49,7 @@ class XaiOAuthClient(ResponsesClient):
         """Refresh an expired OAuth token before making an API request."""
         state = self._token_manager.get_state()
         if state is None:
-            raise XaiNotLoggedInError("Not logged in to xAI. Run 'klaude auth login xai' first.")
+            raise XaiNotLoggedInError("Not logged in to xAI. Run 'klaude login xai' first.")
         if state.is_expired():
             self._oauth.refresh()
             self.client = self._create_client(self._config)

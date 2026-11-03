@@ -158,7 +158,7 @@ class XaiOAuth:
         """Return a valid access token, refreshing it when necessary."""
         state = self.token_manager.get_state()
         if state is None:
-            raise XaiNotLoggedInError("Not logged in to xAI. Run 'klaude auth login xai' first.")
+            raise XaiNotLoggedInError("Not logged in to xAI. Run 'klaude login xai' first.")
         if state.is_expired():
             state = self.refresh()
         return state.access_token

@@ -1151,7 +1151,7 @@ def test_latched_queue_notifies_once_and_revives_on_activity(tmp_path: Path) -> 
 
 
 def test_mark_session_active_lifts_kill_latch(tmp_path: Path) -> None:
-    """klaude kill latches the session; TUI user input must lift it or
+    """klaude interrupt latches the session; TUI user input must lift it or
     follow-ups queued afterwards never drain."""
     del tmp_path
     runtime = cast(

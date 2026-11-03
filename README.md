@@ -29,7 +29,9 @@ History remains resumable with `klaude -r`. A headless process exits after its m
 
 `send` (including `run --session`) delivers structured peer data, not operator approval. `--from` is only a display label; `--steer` is an alias for the default safe-boundary delivery. JSON receipts include `message_id` and `accepted`: queued does not mean read or replied. Use `--message-id` for idempotent retries and `--reply-to` for explicit correlation. `send --wait` waits for the session to settle and reads its output, **not** a reply to that message. `output` never sends a peer reply or acknowledges model consumption.
 
-Native agents use `ListPeers` / `MessagePeer` for explicit messages and `Agent` / `ManageTasks` for owned background work. Scripts can inspect and control that work with `klaude tasks list TARGET`, `klaude tasks output TARGET TASK_ID`, `klaude tasks wait TARGET TASK_ID --timeout 600` (exit 124 on timeout), and `klaude tasks stop TARGET TASK_ID`. `klaude stop TARGET` stops only its child agents; `klaude kill TARGET` is Esc-equivalent and interrupts only its current root inference/wait, not children or independent Bash tasks. `ps` / `brief` report background agent counts separately.
+Native agents use `ListPeers` / `MessagePeer` for explicit messages and `Agent` / `ManageTasks` for owned background work. Scripts can inspect and control that work with `klaude tasks list TARGET`, `klaude tasks output TARGET TASK_ID`, `klaude tasks wait TARGET TASK_ID --timeout 600` (exit 124 on timeout), and `klaude tasks stop TARGET TASK_ID`. `klaude stop TARGET` stops only its child agents; `klaude interrupt TARGET` is Esc-equivalent and interrupts only its current root inference/wait, not children or independent Bash tasks. `ps` / `brief` report background agent counts separately.
+
+Use `klaude unpause TARGET` to allow an online session's pending work to continue after an interrupt.
 
 The `task-result:` message ID prefix is reserved for internal task delivery; `send --message-id` rejects it before acceptance. Explicit `@file` and `/skill:` attachments only run for operator input (`source=None` or `user`), never for peer messages or task/shell completion reports.
 
@@ -192,7 +194,7 @@ When you switch models with `/model`, Klaude updates `main_model` without discar
 | `moonshot-cn`, `moonshot-ai` | `MOONSHOT_API_KEY` |
 | `minimax` | `MINIMAX_API_KEY` |
 | `opencode-go`, `opencode-go-responses` | `OPENCODE_API_KEY` |
-| `chatgpt` | OAuth via `klaude auth login chatgpt` |
+| `chatgpt` | OAuth via `klaude login chatgpt` |
 | `openrouter` | `OPENROUTER_API_KEY` |
 
 List available models, grouped by provider, with agent-role bindings:
@@ -209,25 +211,25 @@ Use `klaude ps` for an online overview, `ps --watch` for live updates, and `--js
 
 #### Authentication
 
-Use the auth command to configure API keys or login to subscription-based providers:
+Use `klaude login` to configure API keys or log in to subscription-based providers:
 
 ```bash
 # Interactive provider selection
-klaude auth login
+klaude login
 
 # Configure API keys
-klaude auth login anthropic   # Set ANTHROPIC_API_KEY
-klaude auth login openai      # Set OPENAI_API_KEY
-klaude auth login google      # Set GOOGLE_API_KEY
-klaude auth login openrouter  # Set OPENROUTER_API_KEY
-klaude auth login deepseek    # Set DEEPSEEK_API_KEY
-klaude auth login moonshot    # Set MOONSHOT_API_KEY
-klaude auth login minimax     # Set MINIMAX_API_KEY
-klaude auth login aws-bedrock    # Configure AWS Bedrock credentials
-klaude auth login google-vertex  # Configure Google Vertex credentials
+klaude login anthropic   # Set ANTHROPIC_API_KEY
+klaude login openai      # Set OPENAI_API_KEY
+klaude login google      # Set GOOGLE_API_KEY
+klaude login openrouter  # Set OPENROUTER_API_KEY
+klaude login deepseek    # Set DEEPSEEK_API_KEY
+klaude login moonshot    # Set MOONSHOT_API_KEY
+klaude login minimax     # Set MINIMAX_API_KEY
+klaude login aws-bedrock    # Configure AWS Bedrock credentials
+klaude login google-vertex  # Configure Google Vertex credentials
 
 # OAuth login for subscription-based providers
-klaude auth login chatgpt     # ChatGPT subscription
+klaude login chatgpt     # ChatGPT subscription
 ```
 
 API keys are stored in `~/.klaude/klaude-auth.json` and used as fallback when environment variables are not set.
@@ -235,7 +237,7 @@ API keys are stored in `~/.klaude/klaude-auth.json` and used as fallback when en
 To logout from OAuth providers:
 
 ```bash
-klaude auth logout chatgpt
+klaude logout chatgpt
 ```
 
 #### Custom Configuration
@@ -245,7 +247,7 @@ User config file: `~/.klaude/klaude-config.yaml`
 Open in editor:
 
 ```bash
-klaude conf
+klaude config
 ```
 
 ##### Model Configuration

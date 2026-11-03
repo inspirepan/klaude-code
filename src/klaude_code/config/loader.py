@@ -72,7 +72,7 @@ def format_config_validation_error(path: Path, exc: ValidationError) -> str:
         elif input_value is not None and not isinstance(input_value, (dict, list)):
             lines.append(f"    Got: {input_value!r}")
 
-    lines.extend(["", "Fix the file and try again, or run: klaude conf"])
+    lines.extend(["", "Fix the file and try again, or run: klaude config"])
     return "\n".join(lines)
 
 
@@ -150,7 +150,7 @@ def _load_user_config() -> _schema.UserConfig | None:
             f"\n"
             f"  • YAML parse error: {e}\n"
             f"\n"
-            f"Fix the file and try again, or run: klaude conf"
+            f"Fix the file and try again, or run: klaude config"
         )
         raise ConfigValidationError(_schema.config_path, message) from e
 
@@ -539,10 +539,10 @@ def print_no_available_models_hint() -> None:
     """Print helpful message when no models are available due to missing API keys."""
     log("No available models. Configure an API key using one of these methods:")
     log("")
-    log("Option 1: Use klaude auth login")
+    log("Option 1: Use klaude login")
     # Use first word of name for brevity
     names = [k.name.split()[0].lower() for k in SUPPORTED_API_KEYS]
-    log(f"  klaude auth login <provider>  (providers: {', '.join(names)})")
+    log(f"  klaude login <provider>  (providers: {', '.join(names)})")
     log("")
     log("Option 2: Set environment variables")
     max_len = max(len(k.env_var) for k in SUPPORTED_API_KEYS)

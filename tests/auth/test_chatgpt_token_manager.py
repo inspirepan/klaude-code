@@ -133,4 +133,4 @@ def test_refresh_failure_suggests_relogin(tmp_path: Path, monkeypatch: pytest.Mo
 
     message = str(exc_info.value)
     assert "refresh_token_invalidated" in message
-    assert "klaude auth login chatgpt" in message
+    assert "klaude login chatgpt" in message

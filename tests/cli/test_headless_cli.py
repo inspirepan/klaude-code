@@ -367,8 +367,8 @@ def test_order_rows_as_tree_places_children_under_parent() -> None:
     assert ordered == ["p1", "c1", "p2", "c2", "orphan"]
 
 
-@pytest.mark.parametrize("action", ["resume", "dismiss"])
-def test_session_control_is_explicit(monkeypatch: pytest.MonkeyPatch, action: str) -> None:
+@pytest.mark.parametrize("command,action", [("unpause", "resume"), ("dismiss", "dismiss")])
+def test_session_control_is_explicit(monkeypatch: pytest.MonkeyPatch, command: str, action: str) -> None:
     from klaude_code.cli.main import app
 
     calls: list[tuple[str, str, dict[str, Any] | None]] = []
@@ -380,7 +380,7 @@ def test_session_control_is_explicit(monkeypatch: pytest.MonkeyPatch, action: st
 
     monkeypatch.setattr(headless_cmd, "_api", api)
 
-    result = CliRunner().invoke(app, [action, "session-id", "--json"])
+    result = CliRunner().invoke(app, [command, "session-id", "--json"])
 
     assert result.exit_code == 0
     assert json.loads(result.output) == body

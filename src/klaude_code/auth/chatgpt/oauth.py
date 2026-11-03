@@ -246,9 +246,7 @@ class ChatGPTOAuth:
             if response.status_code != 200:
                 error_message = f"Token refresh failed: {response.text}"
                 if response.status_code in (400, 401):
-                    error_message += (
-                        "\nChatGPT session is no longer valid. Log in again with 'klaude auth login chatgpt'."
-                    )
+                    error_message += "\nChatGPT session is no longer valid. Log in again with 'klaude login chatgpt'."
                 raise ChatGPTTokenExpiredError(error_message)
 
             return self._state_from_token_response(

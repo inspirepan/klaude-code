@@ -1328,7 +1328,7 @@ class TestLoadConfig:
         with pytest.raises(ConfigValidationError, match="Invalid config file") as exc_info:
             load_config()
         assert "provider_list[0].protocol" in str(exc_info.value)
-        assert "klaude conf" in str(exc_info.value)
+        assert "klaude config" in str(exc_info.value)
 
     def test_load_config_suggests_typo_for_missing_field(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Missing required fields should hint at nearby typos like provoder_name."""
@@ -1367,7 +1367,7 @@ class TestLoadConfig:
 
         assert "Invalid config file: /tmp/klaude-config.yaml" in message
         assert "provider_name" in message
-        assert "klaude conf" in message
+        assert "klaude config" in message
 
     def test_load_config_caches_result(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """The cached instance is reused while the config files stay unchanged."""

@@ -1034,10 +1034,10 @@ def respond_command(
         typer.echo(f"answered {body.get('request_id')} ({body.get('response_status')})")
 
 
-# -- kill --
+# -- interrupt --
 
 
-def kill_command(
+def interrupt_command(
     targets: list[str] | None = TARGETS_ARGUMENT,
     group: str | None = typer.Option(None, "--group", help="Interrupt every session in this group"),
     all_: bool = typer.Option(False, "--all", help="Interrupt every running session"),
@@ -1046,7 +1046,7 @@ def kill_command(
 
     Stops only the current root inference/wait, not children or Bash tasks.
     --all explicitly selects all active sessions. Use stop TARGET for children.
-    The session is kept. Use `resume` to allow pending work to continue;
+    The session is kept. Use `unpause` to allow pending work to continue;
     restoring history or sending peer messages does not lift the pause.
     """
     target_list = _split_targets(targets or [])
@@ -1087,7 +1087,7 @@ def stop_command(
         typer.echo(f"stopped child agents of {_short_id(str(body.get('session_id', target)))}")
 
 
-def resume_command(
+def unpause_command(
     target: str = typer.Argument(..., metavar="TARGET"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
@@ -1096,7 +1096,7 @@ def resume_command(
     if json_:
         _print_json(body)
     else:
-        typer.echo(f"resumed {target}: {body.get('state')}")
+        typer.echo(f"unpaused {target}: {body.get('state')}")
 
 
 def dismiss_command(
@@ -1111,9 +1111,7 @@ def dismiss_command(
         typer.echo(f"dismissed error for {target}: {body.get('state')}")
 
 
-tasks_app = typer.Typer(
-    help="Query and control TARGET's owned background Agent/Bash tasks. Reads do not acknowledge model delivery."
-)
+tasks_app = typer.Typer(help="Inspect and control a session's background Agent and Bash tasks.")
 
 
 def _task_request(
@@ -1175,6 +1173,7 @@ def tasks_list_command(
     target: str = typer.Argument(...),
     json_: bool = typer.Option(False, "--json"),
 ) -> None:
+    """List a session's background tasks and their states."""
     _task_request(target, "list", None, json_=json_)
 
 
@@ -1186,6 +1185,7 @@ def tasks_output_command(
     limit: int = typer.Option(16384, "--limit", min=1, max=1048576),
     json_: bool = typer.Option(False, "--json"),
 ) -> None:
+    """Read a background task's output, with pagination."""
     _task_request(target, "output", task_id, offset=offset, limit=limit, json_=json_)
 
 
@@ -1200,6 +1200,7 @@ def tasks_wait_command(
     limit: int = typer.Option(16384, "--limit", min=1, max=1048576),
     json_: bool = typer.Option(False, "--json"),
 ) -> None:
+    """Wait for a background task and print its output."""
     _task_request(target, "wait", task_id, timeout=timeout, offset=offset, limit=limit, json_=json_)
 
 
@@ -1209,6 +1210,7 @@ def tasks_stop_command(
     task_id: str = typer.Argument(...),
     json_: bool = typer.Option(False, "--json"),
 ) -> None:
+    """Stop one background Agent or Bash task."""
     _task_request(target, "stop", task_id, json_=json_)
 
 
@@ -1220,8 +1222,8 @@ def register_headless_commands(app: typer.Typer) -> None:
     app.command("output")(output_command)
     app.command("send")(send_command)
     app.command("respond")(respond_command)
-    app.command("kill")(kill_command)
+    app.command("interrupt")(interrupt_command)
     app.command("stop")(stop_command)
-    app.command("resume")(resume_command)
+    app.command("unpause")(unpause_command)
     app.command("dismiss")(dismiss_command)
     app.add_typer(tasks_app, name="tasks")

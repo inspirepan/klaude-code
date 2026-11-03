@@ -95,7 +95,7 @@ def test_tasks_wait_timeout_uses_exit_124_without_stopping_task(monkeypatch: pyt
     assert json.loads(result.output)["tasks"][0]["status"] == "running"
 
 
-def test_stop_and_kill_have_separate_control_routes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_stop_and_interrupt_have_separate_control_routes(monkeypatch: pytest.MonkeyPatch) -> None:
     paths: list[str] = []
 
     def api(method: str, path: str, **kwargs: Any) -> dict[str, Any]:
@@ -104,5 +104,5 @@ def test_stop_and_kill_have_separate_control_routes(monkeypatch: pytest.MonkeyPa
 
     monkeypatch.setattr(headless_cmd, "_api", api)
     assert CliRunner().invoke(app, ["stop", "owner", "--children", "--json"]).exit_code == 0
-    assert CliRunner().invoke(app, ["kill", "owner"]).exit_code == 0
+    assert CliRunner().invoke(app, ["interrupt", "owner"]).exit_code == 0
     assert paths == ["/api/headless/sessions/owner/stop", "/api/headless/sessions/owner/interrupt"]

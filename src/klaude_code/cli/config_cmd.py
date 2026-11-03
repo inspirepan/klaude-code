@@ -63,5 +63,4 @@ def edit_config() -> None:
 
 def register_config_commands(app: typer.Typer) -> None:
     """Register config commands to the given Typer app."""
-    app.command("conf")(edit_config)
-    app.command("config", hidden=True)(edit_config)
+    app.command("config")(edit_config)

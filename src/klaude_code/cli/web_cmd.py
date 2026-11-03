@@ -9,6 +9,7 @@ def register_web_command(app: typer.Typer) -> None:
         port: int = typer.Option(8765, "--port", help="Loopback HTTP port"),
         no_open: bool = typer.Option(False, "--no-open", help="Do not open a browser"),
     ) -> None:
+        """Open a read-only viewer of saved history."""
         import webbrowser
 
         import uvicorn

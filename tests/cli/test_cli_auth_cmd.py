@@ -7,6 +7,27 @@ from typer.testing import CliRunner
 from klaude_code.cli import auth_cmd
 
 
+@pytest.mark.parametrize("selected", ["chatgpt", None])
+def test_cli_login_without_provider_uses_selector(monkeypatch: pytest.MonkeyPatch, selected: str | None) -> None:
+    selector_calls: list[bool] = []
+    login_calls: list[str] = []
+
+    def select_provider() -> str | None:
+        selector_calls.append(True)
+        return selected
+
+    monkeypatch.setattr("klaude_code.tui.command.auth_selector.select_provider", select_provider)
+    monkeypatch.setattr("klaude_code.app.auth_flow.execute_login", login_calls.append)
+
+    app = typer.Typer()
+    auth_cmd.register_auth_commands(app)
+    result = CliRunner().invoke(app, ["login"])
+
+    assert result.exit_code == 0
+    assert selector_calls == [True]
+    assert login_calls == ([] if selected is None else [selected])
+
+
 def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPatch) -> None:
     selector_calls: list[tuple[bool, bool, str]] = []
     logout_calls: list[str] = []
@@ -25,7 +46,7 @@ def test_cli_logout_without_provider_uses_selector(monkeypatch: pytest.MonkeyPat
 
     app = typer.Typer()
     auth_cmd.register_auth_commands(app)
-    result = CliRunner().invoke(app, ["auth", "logout"])
+    result = CliRunner().invoke(app, ["logout"])
 
     assert result.exit_code == 0
     assert selector_calls == [(True, True, "Select provider to logout:")]
@@ -49,7 +70,7 @@ def test_cli_logout_cancelled_when_selector_returns_none(monkeypatch: pytest.Mon
 
     app = typer.Typer()
     auth_cmd.register_auth_commands(app)
-    result = CliRunner().invoke(app, ["auth", "logout"])
+    result = CliRunner().invoke(app, ["logout"])
 
     assert result.exit_code == 0
     assert logout_calls == []
@@ -65,7 +86,7 @@ def test_cli_login_passes_provider(monkeypatch: pytest.MonkeyPatch) -> None:
 
     app = typer.Typer()
     auth_cmd.register_auth_commands(app)
-    result = CliRunner().invoke(app, ["auth", "login", "chatgpt"])
+    result = CliRunner().invoke(app, ["login", "chatgpt"])
 
     assert result.exit_code == 0
     assert login_calls == ["chatgpt"]
@@ -81,7 +102,7 @@ def test_cli_logout_passes_provider(monkeypatch: pytest.MonkeyPatch) -> None:
 
     app = typer.Typer()
     auth_cmd.register_auth_commands(app)
-    result = CliRunner().invoke(app, ["auth", "logout", "chatgpt"])
+    result = CliRunner().invoke(app, ["logout", "chatgpt"])
 
     assert result.exit_code == 0
     assert logout_calls == ["chatgpt"]

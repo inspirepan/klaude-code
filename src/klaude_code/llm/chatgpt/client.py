@@ -115,7 +115,7 @@ class ChatGPTClient(LLMClientABC):
         self._oauth = ChatGPTOAuth(self._token_manager)
 
         if not self._token_manager.is_logged_in():
-            raise ChatGPTNotLoggedInError("ChatGPT authentication required. Run 'klaude auth login chatgpt' first.")
+            raise ChatGPTNotLoggedInError("ChatGPT authentication required. Run 'klaude login chatgpt' first.")
 
         self.client = self._create_client()
 
@@ -123,7 +123,7 @@ class ChatGPTClient(LLMClientABC):
         """Create the OpenAI client with the stored OAuth access token."""
         state = self._token_manager.get_state()
         if state is None:
-            raise ChatGPTNotLoggedInError("Not signed in with ChatGPT. Run 'klaude auth login chatgpt' first.")
+            raise ChatGPTNotLoggedInError("Not signed in with ChatGPT. Run 'klaude login chatgpt' first.")
 
         return AsyncOpenAI(
             api_key=state.access_token,
@@ -141,7 +141,7 @@ class ChatGPTClient(LLMClientABC):
         """Ensure the token is valid, refreshing if needed."""
         state = self._token_manager.get_state()
         if state is None:
-            raise ChatGPTNotLoggedInError("Not signed in with ChatGPT. Run 'klaude auth login chatgpt' first.")
+            raise ChatGPTNotLoggedInError("Not signed in with ChatGPT. Run 'klaude login chatgpt' first.")
 
         if state.is_expired():
             self._oauth.refresh()

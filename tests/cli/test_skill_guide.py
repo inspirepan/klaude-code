@@ -101,6 +101,8 @@ def test_agent_guide_mentions_core_loop_and_inventory() -> None:
         "klaude wait",
         "klaude output",
         "klaude respond",
+        "klaude interrupt",
+        "klaude unpause",
         "--group",
         "Exit codes",
         "finder",
@@ -110,6 +112,8 @@ def test_agent_guide_mentions_core_loop_and_inventory() -> None:
         "trusted directories",
     ):
         assert needle in guide, f"agent guide is missing: {needle}"
+    assert "klaude kill" not in guide
+    assert "klaude resume" not in guide
 
 
 def test_skill_flag_prints_guide_without_runtime_or_tty(monkeypatch: pytest.MonkeyPatch) -> None:
