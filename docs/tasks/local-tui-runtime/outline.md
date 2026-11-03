@@ -176,6 +176,7 @@ klaude web：独立只读 Web server，持续刷新持久化历史
 1. 已验证
    - 移除内置 skills 后的全量非网络回归：3608 passed、1 skipped、4 deselected；skills/欢迎信息/升级/打包针对性回归 95 passed；此前 SIGKILL 执行锁/残留 endpoint 针对性验收 3 passed。
    - `make format`、`make lint` 通过；Web typecheck、157 项测试和 build 通过；`uv build --offline` 与分发包 Web 资源验证通过。
+   - 2.44.0 发布前 `make pre-push` 全部通过：3608 passed、1 skipped、4 deselected；格式无改动，Web/wheel/sdist 构建和资源校验通过。
    - 假模型 + 真实 Runtime/工具/IPC：异步 Agent、报告一次投递、历史恢复不重跑、子问题路由、暂停后恢复、wait 被 follow-up 解除、Esc/stop-children/StopAll 范围。
    - Headless 子 Agent 继承 `hold/auto/deny`；`auto` 不代答问题；自由文本回答可到达模型。
    - 真实独立 Headless：主回答结束后等待子 Agent 报告，报告处理后退出；TUI 不能抢占其会话；SIGTERM 停止所属 Shell 并撤销登记。

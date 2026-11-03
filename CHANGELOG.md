@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.44.0] - 2026-11-03
+
+### Added
+
+- TUI 与 Headless 使用独立进程，分别加载配置、持有所属任务，通过本地 IPC 发现和通信 (`d6bc59db`)
+- `klaude -r` 展示目录、最近回复与日期分组；活跃会话置灰禁选
+- `klaude --skill` 输出供外部 Agent 使用的 CLI 指南
+
+### Changed
+
+- `klaude web` 仅轮询落盘历史；退出 TUI 会保存历史并停止所属任务
+
+### Removed
+
+- 移除共享 WS/daemon、CLI attach/peek、`agents`、`/reload` 和 `/detach`；使用 `ps` 查看进程、`/exit` 退出
+- 移除内置 system skills、旧 skills 子模块及升级同步流程
+
+### Fixed
+
+- 完善 OSC 7501 状态上报与标题回退 (`e60e58b6`)
+- 修复 `/rewind` 预加载会话后切换漏发欢迎信息和历史回放
+
 ## [2.43.1] - 2026-10-31
 
 ### Added
@@ -2979,7 +3001,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - centralize constants into dedicated module (`06e26ec`)
 - simplify skill loading by consolidating directory management (`586edf2`)
 
-[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.43.1...HEAD
+[Unreleased]: https://github.com/inspirepan/klaude-code/compare/v2.44.0...HEAD
+[2.44.0]: https://github.com/inspirepan/klaude-code/compare/v2.43.1...v2.44.0
 [2.43.1]: https://github.com/inspirepan/klaude-code/compare/v2.43.0...v2.43.1
 [2.43.0]: https://github.com/inspirepan/klaude-code/compare/v2.42.0...v2.43.0
 [2.42.0]: https://github.com/inspirepan/klaude-code/compare/v2.41.0...v2.42.0
