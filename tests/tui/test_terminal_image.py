@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import io
 import os
 from pathlib import Path
@@ -97,16 +98,17 @@ def test_print_kitty_image_expands_rows_for_tall_image_readability(
     png_path = tmp_path / "tall.png"
     png_path.write_bytes(_png_bytes(width=303, height=1219))
 
-    # Readability boost is capped by the portrait width budget (80 * 0.6 = 48).
-    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=80) == ["c=48,r=97,C=1"]
+    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=80) == ["c=50,r=101,C=1"]
 
 
-def test_print_kitty_image_caps_portrait_width_to_ratio(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+@pytest.mark.parametrize("terminal_cols,expected_size", [(80, "c=80,r=89,C=1"), (120, "c=100,r=112,C=1")])
+def test_print_kitty_image_uses_full_width_budget_for_portrait(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, terminal_cols: int, expected_size: str
+) -> None:
     png_path = tmp_path / "screenshot.png"
-    # Phone-screenshot shape: without the portrait budget this rendered at c=100.
     png_path.write_bytes(_png_bytes(width=1080, height=2400))
 
-    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=120) == ["c=60,r=67,C=1"]
+    assert _rendered_size_params(monkeypatch, png_path, terminal_cols=terminal_cols) == [expected_size]
 
 
 def test_print_kitty_image_keeps_full_width_for_landscape(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -138,10 +140,10 @@ def test_print_kitty_image_reserves_tall_image_rows_before_following_text(
     output.write("following text")
 
     payload = output.getvalue()
-    assert "c=48,r=97,C=1" in payload
+    assert "c=50,r=101,C=1" in payload
     # C=1 prevents automatic movement; real newlines scroll beyond the pane's
     # bottom instead of clamping the cursor while the image covers later text.
-    assert payload.rsplit("\033\\", 1)[1] == "\n" * 98 + "following text"
+    assert payload.rsplit("\033\\", 1)[1] == "\n" * 102 + "following text"
     assert ("t=f" in payload) is via_file
 
 
@@ -198,8 +200,6 @@ def test_print_kitty_image_uses_file_transmission_when_supported(
     # The escape sequence carries a base64 path, not the image bytes.
     control_and_data = payload.split("\033_G", 1)[1].split("\033\\", 1)[0]
     encoded_path = control_and_data.split(";", 1)[1]
-    import base64
-
     tmp_file = Path(base64.standard_b64decode(encoded_path).decode("utf-8"))
     assert tmp_file.exists()
     assert tmp_file.read_bytes() == _png_bytes()
@@ -208,6 +208,8 @@ def test_print_kitty_image_uses_file_transmission_when_supported(
 
 def test_kitty_file_transmission_detection(monkeypatch: pytest.MonkeyPatch) -> None:
     detect = _REAL_FILE_TRANSMISSION_DETECTION
+    monkeypatch.delenv("HC_TERMINAL_ID", raising=False)
+    monkeypatch.delenv("HC_TERMINAL_SOCKET", raising=False)
     monkeypatch.delenv("SSH_TTY", raising=False)
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     monkeypatch.setenv("TERM_PROGRAM", "ghostty")
@@ -220,3 +222,25 @@ def test_kitty_file_transmission_detection(monkeypatch: pytest.MonkeyPatch) -> N
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     monkeypatch.setenv("TERM_PROGRAM", "WezTerm")
     assert not detect()
+
+
+@pytest.mark.parametrize("herdr_marker", ["HC_TERMINAL_ID", "HC_TERMINAL_SOCKET"])
+def test_print_kitty_image_uses_inline_transmission_in_herdr_app(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, herdr_marker: str
+) -> None:
+    for name in ("SSH_TTY", "SSH_CONNECTION", "HC_TERMINAL_ID", "HC_TERMINAL_SOCKET"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("TERM_PROGRAM", "ghostty")
+    monkeypatch.setenv("TERM", "xterm-ghostty")
+    monkeypatch.setenv(herdr_marker, "test-terminal")
+    monkeypatch.setattr(terminal_image, "_supports_kitty_file_transmission", _REAL_FILE_TRANSMISSION_DETECTION)
+    png_path = tmp_path / "photo.png"
+    data = _png_bytes()
+    png_path.write_bytes(data)
+
+    output = io.StringIO()
+    terminal_image.print_kitty_image(png_path, file=output)
+
+    payload = output.getvalue()
+    assert "t=f" not in payload
+    assert f";{base64.standard_b64encode(data).decode('ascii')}\033\\" in payload
