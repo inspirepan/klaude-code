@@ -1059,7 +1059,7 @@ class PromptToolkitInput(InputProviderABC):
 
         original_height = input_window.height
 
-        # Keep the idle prompt compact. Grow only with multiline input;
+        # Keep the idle prompt compact. Grow with input or placeholder text;
         # completions and selectors render below the input frame.
         base_rows = 1
 
@@ -1155,12 +1155,21 @@ class PromptToolkitInput(InputProviderABC):
         except Exception:
             text = ""
 
+        if not text:
+            text = to_plain_text(self._build_placeholder())
+
         prompt_width = max(get_cwidth(self._prompt_text), get_cwidth("  "))
         available = max(1, columns - prompt_width)
         rows = 0
         for line in text.split("\n"):
-            width = get_cwidth(line)
-            rows += max(1, (width + available - 1) // available)
+            rows += 1
+            column = 0
+            for char in line:
+                width = min(get_cwidth(char), available)
+                if column + width > available:
+                    rows += 1
+                    column = 0
+                column += width
         return max(1, rows)
 
     def _select_first_completion_on_open(self, buf) -> None:  # type: ignore[no-untyped-def]

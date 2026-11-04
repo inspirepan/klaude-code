@@ -7,7 +7,7 @@ equals the parent step's wire prefix and cache read hits ~100%.
 
 The model is instructed to reply with exactly ``[DONE]`` when it has nothing
 worth suggesting; we filter that plus a small set of low-quality patterns
-(evaluative, assistant-voice, multi-sentence, formatting).
+(evaluative, assistant-voice, formatting).
 """
 
 from __future__ import annotations
@@ -185,7 +185,6 @@ _ASSISTANT_VOICE_RE = re.compile(
     r"sure,|of course|certainly)",
     re.IGNORECASE,
 )
-_MULTI_SENTENCE_RE = re.compile(r"[.!?]\s+[A-Z]")
 _FORMATTING_RE = re.compile(r"[\n*]|\*\*")
 
 
@@ -201,13 +200,6 @@ def _normalize(raw: str) -> str | None:
 
 def _filter_reason(suggestion: str) -> str | None:
     """Return a filter reason for low-quality suggestions, or None to accept."""
-    word_count = len(suggestion.split())
-    if word_count > 12:
-        return "too_many_words"
-    if len(suggestion) >= 100:
-        return "too_long"
-    if _MULTI_SENTENCE_RE.search(suggestion):
-        return "multiple_sentences"
     if _FORMATTING_RE.search(suggestion):
         return "has_formatting"
     if _EVALUATIVE_RE.search(suggestion):

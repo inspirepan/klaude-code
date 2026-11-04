@@ -138,18 +138,6 @@ class TestFilterReason(unittest.TestCase):
         self.assertIsNone(_filter_reason("run the tests"))
         self.assertIsNone(_filter_reason("commit this"))
 
-    def test_rejects_too_many_words(self) -> None:
-        self.assertEqual(
-            _filter_reason("one two three four five six seven eight nine ten eleven twelve thirteen"),
-            "too_many_words",
-        )
-
-    def test_rejects_multiple_sentences(self) -> None:
-        self.assertEqual(
-            _filter_reason("do this. Then do that"),
-            "multiple_sentences",
-        )
-
     def test_rejects_formatting(self) -> None:
         self.assertEqual(_filter_reason("**do it**"), "has_formatting")
         self.assertEqual(_filter_reason("run\nthe tests"), "has_formatting")
@@ -165,6 +153,17 @@ class TestFilterReason(unittest.TestCase):
 
 
 class TestFinalizeResult(unittest.TestCase):
+    def test_preserves_complete_suggestion_with_scope_constraints(self) -> None:
+        raw = (
+            "Commit the documentation changes and the updated docs/AGENTS.md from this task. "
+            "Leave all unrelated changes out of the commit."
+        )
+
+        result = _finalize_result(raw)
+
+        self.assertEqual(result.suggestion, raw)
+        self.assertIsNone(result.drop_reason)
+
     def test_keeps_done_raw_for_logging(self) -> None:
         result = _finalize_result(" [DONE] ")
 

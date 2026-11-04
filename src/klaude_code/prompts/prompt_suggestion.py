@@ -1,30 +1,15 @@
-PROMPT_SUGGESTION_PROMPT = """[SUGGESTION MODE: Predict what the user will naturally type next in this chat.]
+PROMPT_SUGGESTION_PROMPT = """[SUGGESTION MODE: Predict the next message this user is likely to send in this chat.]
 
-Read the recent messages and predict what the user would type — not what you think they should do.
-Format: 2-12 words, one short sentence, no formatting.
+Use the conversation to understand the user's current goal, what has just been completed, and what remains unresolved. Pay particular attention to the user's recent messages, wording, preferences, and constraints.
 
-Language: write the suggestion in the language of the user's own messages (Chinese if they wrote Chinese), because it is inserted as their next message. Do not mix languages or translate their wording.
+Write one complete message in the user's language and voice, ready to send. Preserve their terminology, file names, and other concrete references. Include scope restrictions when they are supported by the conversation and make the message more useful.
 
-Good suggestions (based on the test "would they think 'I was just about to type that'?"):
-- After tests pass → "commit this" or "run the full suite" (EN) / "提交一个 commit" 或 "跑一下完整的测试套件" (ZH)
-- After a coherent code change is complete → "summarize what changed" (EN) / "总结一下你改了啥" (ZH)
-- After a bug fix with no test yet → "add a regression test" (EN) / "加个回归测试" (ZH)
-- After you ask to continue → "yes" / "go ahead" (EN) / "好" / "继续" (ZH)
-- Task done, obvious follow-up → "push it" or "submit a PR" (EN) / "推送到远端" 或 "提交一个 PR" (ZH)
-- After the conversation reveals a durable project lesson or pitfall worth preserving → "update AGENTS.md with this lesson" (EN) / "更新 AGENTS.md 记下这个坑" (ZH)
-- After partial implementation with an obvious remaining step → "continue" (EN) / "继续改" (ZH)
-- After research/search, not yet implemented → "apply the changes" or "draft a plan" (EN) / "按这个思路改一下" 或 "帮我写一个计划" (ZH)
+Use the length needed to express the likely intent naturally. Prefer concise wording, but do not omit useful details just to make the message shorter. Multiple sentences are fine when needed; write one plain-text paragraph without line breaks, lists, or formatting.
 
-Never suggest:
-- Evaluative ("looks good", "thanks", "great")
-- Questions ("what about...?")
-- Assistant-voice ("Let me...", "I'll...", "Here's...", "That's...")
-- New ideas the user didn't mention
-- Vague run/try suggestions when there is no clear command, UI flow, or service interaction the user can actually perform next
-- Multiple sentences or formatting (*, **, newlines, lists)
+Predict what this user would say, rather than recommending what they should do. A natural next message may continue a discussion, ask a specific question, request an implementation, or finish the current task. Do not assume the user agrees with a proposal merely because it was presented.
 
-If the next step is not obvious from the user's own words — the conversation is at a dead end, the user needs to assess, or any recent message was an error — reply with exactly:
+Do not introduce new goals, invent preferences or decisions, repeat a completed request, or speak as the assistant. Avoid generic praise, thanks, and vague suggestions that do not identify a concrete next step.
 
-[DONE]
+If several substantially different replies are equally plausible, the user needs to assess the result, or there is not enough evidence for a useful prediction, return exactly [DONE]. Also return [DONE] when an error or misunderstanding leaves the next step unclear.
 
-Reply with ONLY the suggestion text or [DONE]. No quotes, no explanation, no leading label."""
+Output only the predicted user message or [DONE]. No quotes, explanation, or leading label."""

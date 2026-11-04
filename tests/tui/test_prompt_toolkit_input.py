@@ -6,11 +6,18 @@ from typing import Any, cast
 from unittest.mock import Mock, patch
 
 import pytest
+from prompt_toolkit import PromptSession
+from prompt_toolkit.application.current import set_app
 from prompt_toolkit.buffer import Buffer, CompletionState
 from prompt_toolkit.completion import CompleteEvent, Completer, Completion, DummyCompleter
+from prompt_toolkit.data_structures import Size
 from prompt_toolkit.document import Document
+from prompt_toolkit.input import DummyInput
 from prompt_toolkit.layout.controls import BufferControl
+from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.processors import TransformationInput
+from prompt_toolkit.layout.screen import Screen, WritePosition
+from prompt_toolkit.output import DummyOutput
 from rich.text import Text
 
 from klaude_code.protocol.model_catalog import ModelCatalog, ModelCatalogEntry
@@ -874,6 +881,70 @@ def test_input_height_estimate_counts_newlines_and_soft_wraps() -> None:
     prompt_input._prompt_text = "❯ "
 
     assert prompt_input._estimate_input_visual_rows(columns=8) == 4
+
+
+@pytest.mark.parametrize(("columns", "expected_rows"), [(40, 3), (80, 2), (120, 1)])
+@pytest.mark.parametrize("suggestion", ["x" * 80, "提" * 40])
+def test_input_height_grows_with_suggestion_and_hint(columns: int, expected_rows: int, suggestion: str) -> None:
+    prompt_input = _build_input("")
+    prompt_input._prompt_text = "❯ "
+    prompt_input.set_prompt_suggestion(suggestion)
+    output = SimpleNamespace(get_size=lambda: SimpleNamespace(rows=24, columns=columns))
+
+    with patch("klaude_code.tui.input.prompt_toolkit.get_app", return_value=SimpleNamespace(output=output)):
+        assert prompt_input._estimate_input_visual_rows(columns) == expected_rows
+
+        prompt_input.set_prompt_suggestion(None)
+        assert prompt_input._estimate_input_visual_rows(columns) == 1
+
+
+@pytest.mark.parametrize(("text", "running"), [("my own draft", False), ("", True)])
+def test_hidden_suggestion_does_not_increase_input_height(text: str, running: bool) -> None:
+    prompt_input = _build_input(text)
+    prompt_input._agent_running = running
+    prompt_input.set_prompt_suggestion("x" * 200)
+
+    assert prompt_input._estimate_input_visual_rows(columns=80) == 1
+
+
+def test_long_chinese_suggestion_renders_fully_at_odd_column_width(monkeypatch: pytest.MonkeyPatch) -> None:
+    prompt_input: Any = _build_input("")
+    prompt_input._prompt_text = "❯ "
+    prompt_input.set_prompt_suggestion("提" * 106)
+    output = DummyOutput()
+    monkeypatch.setattr(output, "get_size", lambda: Size(rows=24, columns=81))
+    prompt_input._session = PromptSession(
+        "❯ ",
+        multiline=True,
+        prompt_continuation="  ",
+        placeholder=prompt_input._build_placeholder,
+        input=DummyInput(),
+        output=output,
+    )
+    app = prompt_input._session.app
+    window = next(
+        window
+        for window in app.layout.find_all_windows()
+        if isinstance(window.content, BufferControl) and window.content.buffer is prompt_input._session.default_buffer
+    )
+
+    with set_app(app):
+        prompt_input._patch_prompt_height_for_overlays()
+        height = window.height().preferred
+        assert height == 4
+        screen = Screen()
+        window.write_to_screen(
+            screen,
+            MouseHandlers(),
+            WritePosition(xpos=0, ypos=0, width=81, height=height),
+            parent_style="",
+            erase_bg=True,
+            z_index=None,
+        )
+
+    rendered = "".join(screen.data_buffer[row][col].char for row in range(height) for col in range(81))
+    assert rendered.count("提") == 106
+    assert rendered.rstrip().endswith("]")
 
 
 def test_input_window_max_height_accounts_for_bottom_layout() -> None:
