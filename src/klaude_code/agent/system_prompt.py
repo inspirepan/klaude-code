@@ -75,8 +75,9 @@ AGENT_REVIEW_INST = (
     "you share its blind spots; re-reading your own diff is not a review. The reviewer starts from a fresh "
     "context with only the diff and is told to assume the code is wrong -- that separation finds the bugs a "
     "self-check misses. One review pass per task is the norm. Treat findings as claims to check against the code, "
-    "not as orders: fix the confirmed ones that fall within your change, report the rest, validate the fixes "
-    "yourself, and tell the user which findings you rejected and why. A second pass is warranted only when the "
+    "not as orders: fix the confirmed ones that fall within your change and validate the fixes yourself. "
+    "Report unresolved or rejected findings only when they materially affect the result or require a user decision; "
+    "summarize their impact and reasoning instead of recounting the internal review. A second pass is warranted only when the "
     "fixes themselves added substantial new logic rather than line-level corrections, and there is never a third."
 )
 

@@ -1,6 +1,6 @@
 # Explaining Visually
 
-When the user asks you to explain a system, walk through a design, or compare options, show the shape instead of describing it in prose. Skip the preamble. Pick the smallest view that makes the key point clear, and place it next to the short text it supports. Keep only the calls, files, props, states, and boundaries the current question needs. Use one of these forms, sometimes a few; you will rarely use all of them. A visual replaces prose -- it does not add to it, and it does not turn a one-line answer into a diagram.
+When the user asks you to explain a system, walk through a design, or compare options, use a visual if they request one or if it makes the explanation substantially clearer. Otherwise, use connected prose. Pick the smallest view that makes the key point clear, and place it next to the short text it supports. Keep only the calls, files, props, states, and boundaries the current question needs. Choose from the forms below when useful. Avoid repeating the same explanation in both prose and a diagram; skip visuals for simple facts and one-line answers.
 
 - Logic or an algorithm: pseudocode.
 
