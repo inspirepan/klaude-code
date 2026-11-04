@@ -7,6 +7,7 @@ from importlib.resources import files
 from pathlib import Path
 
 from klaude_code.const import find_git_repo_root, find_jj_workspace_root
+from klaude_code.prompts.sub_agents import SUB_AGENT_RESULT_PROMPT
 from klaude_code.protocol import llm_param, model_id, tools
 from klaude_code.protocol.sub_agent import get_sub_agent_profile
 from klaude_code.protocol.system_prompt import (
@@ -236,7 +237,7 @@ def load_system_prompt(
         profile = get_sub_agent_profile(sub_agent_type)
         if not profile.use_main_prompt:
             base_prompt = load_prompt_by_path(profile.prompt_file)
-            return base_prompt + build_sub_agent_env_info(work_dir)
+            return base_prompt + "\n\n" + SUB_AGENT_RESULT_PROMPT + build_sub_agent_env_info(work_dir)
 
     # Main agent prompt path (also used by sub-agents with use_main_prompt=True)
     base_prompt = build_main_system_prompt(model_name, available_tools or [])
@@ -250,6 +251,7 @@ def load_system_prompt(
         + git_hygiene_prompt
         + conventions_prompt
         + visual_prompt
+        + ("\n\n" + SUB_AGENT_RESULT_PROMPT if sub_agent_type is not None else "")
         + f"\n\n{SYSTEM_PROMPT_DYNAMIC_BOUNDARY}"
         + dynamic_prompt
     )
