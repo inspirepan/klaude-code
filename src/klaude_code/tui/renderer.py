@@ -264,6 +264,7 @@ class TUICommandRenderer:
         status_sink: Callable[[tuple[PromptStatusLine, ...], str | None], None] | None = None,
         stream_sink: Callable[[tuple[str, ...], bool, str], None] | None = None,
         detail: TranscriptDetail | None = None,
+        task_directory: TaskDirectory | None = None,
     ) -> None:
         self.themes = get_theme(theme)
         self.console: Console = Console(theme=self.themes.app_theme)
@@ -316,7 +317,7 @@ class TUICommandRenderer:
 
         self._sessions: dict[str, _SessionStatus] = {}
         self._shell_calls_with_identity: set[tuple[str, str]] = set()
-        self._task_directory = TaskDirectory()
+        self._task_directory = task_directory if task_directory is not None else TaskDirectory()
         self._task_call_actions: dict[tuple[str, str], str] = {}
         self._displayed_message_calls: set[tuple[str, str]] = set()
         # Compact mode reports a sub-agent's file changes once, in the block of the run that made them.

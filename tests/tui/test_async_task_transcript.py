@@ -367,6 +367,90 @@ def test_child_sourced_and_notice_content_keeps_the_quote_gutter(
         assert "Interrupted by user" not in out and "Context Compacted" not in out
 
 
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [
+        ("main", "[main]"),
+        ("child-b", "[finder] Review the changes"),
+        ("external", "[peer] Existing conversation title"),
+        ("unknown-name", "unknown-name"),
+    ],
+)
+def test_sub_agent_message_status_uses_target_labels(
+    monkeypatch: pytest.MonkeyPatch, target: str, expected: str
+) -> None:
+    async def run() -> None:
+        patch_scrollback_writes(monkeypatch)
+        updates: list[tuple[PromptStatusLine, ...]] = []
+        display = TUIDisplay(on_status_update=lambda lines, _: updates.append(lines))
+        display.set_progress_ui_suspended(True)
+        try:
+            for event in [
+                _welcome(),
+                events.TaskStartEvent(session_id="main", model_id="test-model"),
+                events.TaskStartEvent(
+                    session_id="child-a",
+                    parent_session_id="main",
+                    sub_agent_state=SubAgentState(
+                        sub_agent_type="finder", sub_agent_desc="Find the panel", sub_agent_prompt=""
+                    ),
+                ),
+                events.TaskStartEvent(
+                    session_id="child-b",
+                    parent_session_id="main",
+                    sub_agent_state=SubAgentState(
+                        sub_agent_type="finder", sub_agent_desc="Review the changes", sub_agent_prompt=""
+                    ),
+                ),
+                events.ToolResultEvent(
+                    session_id="main",
+                    tool_call_id="peers",
+                    tool_name=tools.LIST_PEERS,
+                    status="success",
+                    result="Peers available",
+                    ui_extra=ControlUIExtra(
+                        data={
+                            "peers": [
+                                {
+                                    "session_id": "external",
+                                    "description": "Existing conversation title",
+                                    "state": "idle",
+                                    "work_dir": "/tmp",
+                                }
+                            ]
+                        }
+                    ),
+                ),
+                events.ToolCallEvent(
+                    session_id="child-a",
+                    tool_call_id="send",
+                    tool_name=tools.MESSAGE_PEER,
+                    arguments=json.dumps({"target": target, "body": "Summary\nMessage detail"}),
+                ),
+            ]:
+                await display.consume_envelope(make_envelope(event))
+            display.refresh_prompt_status()
+            assert any(f"Messaging Peer… → {expected}: Summary" in line.text for line in updates[-1])
+            await display.consume_envelope(
+                make_envelope(
+                    events.ToolResultEvent(
+                        session_id="child-a",
+                        tool_call_id="send",
+                        tool_name=tools.MESSAGE_PEER,
+                        status="success",
+                        result="Queued",
+                    )
+                )
+            )
+            display.refresh_prompt_status()
+            assert any(f"Message Peer → {expected}: Summary ✓" in line.text for line in updates[-1])
+            assert all("Message detail" not in line.text for line in updates[-1])
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+
+
 def test_status_bar_keeps_main_row_above_live_tail_and_children_below(monkeypatch: pytest.MonkeyPatch) -> None:
     async def run() -> None:
         patch_scrollback_writes(monkeypatch)

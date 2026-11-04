@@ -715,7 +715,7 @@ class _SubAgentToolActivity:
     arguments: str = ""
     status: str | None = None
 
-    def render(self) -> Text:
+    def render(self, message_target_label: Callable[[str], str] | None = None) -> Text:
         display_name = f"{get_tool_active_form(self.tool_name)}…" if self.status is None else None
         return c_tools.render_compact_tool_activity(
             self.tool_name,
@@ -723,6 +723,7 @@ class _SubAgentToolActivity:
             display_name=display_name,
             status=self.status,
             max_target_chars=None,
+            message_target_label=message_target_label,
         )
 
 
@@ -864,17 +865,22 @@ class _SessionState:
             self.tool_activities[tool_call_id] = activity
         activity.status = status
 
-    def compact_tool_activity_lines(self, max_lines: int = SUB_AGENT_TOOL_ACTIVITY_MAX_LINES) -> list[Text]:
+    def compact_tool_activity_lines(
+        self,
+        max_lines: int = SUB_AGENT_TOOL_ACTIVITY_MAX_LINES,
+        *,
+        message_target_label: Callable[[str], str] | None = None,
+    ) -> list[Text]:
         activities = list(self.tool_activities.values())
         if not activities:
             return [Text("Initializing…", style=ThemeKey.STATUS_HINT)]
         if len(activities) <= max_lines:
-            return [activity.render() for activity in activities]
+            return [activity.render(message_target_label) for activity in activities]
         visible_count = max_lines - 1
         hidden_count = len(activities) - visible_count
         return [
             Text(f"… (more {hidden_count} tools)", style=ThemeKey.STATUS_HINT),
-            *(activity.render() for activity in activities[-visible_count:]),
+            *(activity.render(message_target_label) for activity in activities[-visible_count:]),
         ]
 
     def expanded_status_activity_text(self) -> str | None:
@@ -999,7 +1005,13 @@ class DisplayStateMachine:
     # methods after the class body (see module-level assignment).
     _EVENT_HANDLERS: ClassVar[dict[type[events.Event], Callable[..., list[RenderCommand]]]] = {}
 
-    def __init__(self, detail: TranscriptDetail | None = None) -> None:
+    def __init__(
+        self,
+        detail: TranscriptDetail | None = None,
+        *,
+        message_target_label: Callable[[str], str] | None = None,
+    ) -> None:
+        self._message_target_label = message_target_label
         self._sessions: dict[str, _SessionState] = {}
         self._primary_session_id: str | None = None
         self._spinner = SpinnerStatusState()
@@ -1158,7 +1170,9 @@ class DisplayStateMachine:
                         session_id=session.session_id,
                         sub_agent_continuation=True,
                     )
-                    for activity in session.compact_tool_activity_lines(tool_line_limit)
+                    for activity in session.compact_tool_activity_lines(
+                        tool_line_limit, message_target_label=self._message_target_label
+                    )
                 )
             groups.append(group)
 

@@ -10,6 +10,7 @@ from klaude_code.control.event_tape import EventTape, apply_retractions
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events
 from klaude_code.tui.commands import PromptStatusLine
+from klaude_code.tui.components.background_tasks import TaskDirectory
 from klaude_code.tui.input.flicker_safe_stdout import write_scrollback_bulk
 from klaude_code.tui.machine import DisplayStateMachine, is_cancelled_task_result
 from klaude_code.tui.renderer import TUICommandRenderer
@@ -35,13 +36,17 @@ class TUIDisplay(DisplayABC):
         # One holder, shared: the machine decides which commands to emit and the
         # renderer decides how to draw them, and a mismatch paints a mixed transcript.
         self._detail = TranscriptDetail()
-        self._machine = DisplayStateMachine(detail=self._detail)
+        task_directory = TaskDirectory()
+        self._machine = DisplayStateMachine(
+            detail=self._detail, message_target_label=task_directory.message_target_label
+        )
         self._renderer = TUICommandRenderer(
             theme=theme,
             notifier=self._notifier,
             status_sink=on_status_update,
             stream_sink=on_stream_update,
             detail=self._detail,
+            task_directory=task_directory,
         )
         self._on_prompt_suggestion = on_prompt_suggestion
         self._interrupt_prompt_suggestion_session_id: str | None = None

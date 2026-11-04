@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 from rich.console import Console, ConsoleOptions, RenderableType, RenderResult
 from rich.measure import Measurement
 from rich.table import Table
@@ -76,10 +78,11 @@ def render_compact_tool_activity(
     include_truncation_mark: bool = True,
     summarize_bash: bool = True,
     shell_task: ShellTaskSnapshot | None = None,
+    message_target_label: Callable[[str], str] | None = None,
 ) -> Text:
     """Render one compact tool activity line."""
 
-    presentation = get_tool_call_presentation(tool_name, arguments)
+    presentation = get_tool_call_presentation(tool_name, arguments, message_target_label=message_target_label)
     line = Text(no_wrap=True, overflow="ellipsis")
     line.append(display_name or presentation.name, style=ThemeKey.TOOL_NAME)
     if tool_name == tools.MANAGE_SHELL:

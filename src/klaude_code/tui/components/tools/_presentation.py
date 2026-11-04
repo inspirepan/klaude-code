@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -105,14 +106,19 @@ def get_tool_active_form(tool_name: str) -> str:
     return definition.active_form if definition is not None else f"Calling {tool_name}"
 
 
-def get_tool_call_presentation(tool_name: str, arguments: str) -> ToolCallPresentation:
+def get_tool_call_presentation(
+    tool_name: str, arguments: str, *, message_target_label: Callable[[str], str] | None = None
+) -> ToolCallPresentation:
     """Return shared tool identity and compact subject semantics."""
     args = parse_tool_arguments(arguments)
     name = _tool_display_name(tool_name, args)
 
     if tool_name == tools.MESSAGE_PEER:
         body = str(args.get("body", "")).splitlines()
-        return ToolCallPresentation(name, f"→ {one_line(args.get('target', ''))}: {body[0][:160] if body else ''}")
+        target = one_line(args.get("target", ""))
+        if message_target_label is not None:
+            target = message_target_label(target)
+        return ToolCallPresentation(name, f"→ {target}: {body[0][:160] if body else ''}")
 
     if tool_name in {tools.MANAGE_SHELL, tools.MANAGE_TASKS}:
         action = one_line(args.get("action", "")).title()
