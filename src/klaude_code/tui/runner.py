@@ -658,12 +658,14 @@ async def _run_local_ui(
                 interrupt_pending
                 and busy
                 and interrupt_target_operation_id is not None
+                and client.active_operation_id() is not None
                 and client.active_operation_id() != interrupt_target_operation_id
             ):
                 # InterruptEvent and the queue's next TaskStart can arrive
                 # before this watcher runs. In that case there is no visible
                 # idle edge: the new operation identity is the authoritative
                 # boundary, and the old Esc must not keep the prompt latched.
+                # A cleared ID can precede idle status; retain its prefill.
                 interrupt_pending = False
                 interrupt_target_operation_id = None
                 local_turn_ops.clear()

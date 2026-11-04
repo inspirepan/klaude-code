@@ -608,7 +608,10 @@ def test_command_while_running_is_rejected_with_notice(monkeypatch: pytest.Monke
     assert any("cannot be queued" in n.content for n in notices)
 
 
-def test_esc_submits_interrupt_with_retraction_and_prefill(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("running_status_lags", [False, True])
+def test_esc_submits_interrupt_with_retraction_and_prefill(
+    monkeypatch: pytest.MonkeyPatch, running_status_lags: bool
+) -> None:
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
         client.set_active_operation("turn-1")
         # Let the watcher install the interrupt handler.
@@ -624,6 +627,12 @@ def test_esc_submits_interrupt_with_retraction_and_prefill(monkeypatch: pytest.M
         await asyncio.sleep(0.05)
         # Runtime winds down the turn and retracts the message.
         client.set_prefill("interrupted text")
+        if running_status_lags:
+            # InterruptEvent clears the operation before execution becomes idle.
+            client._active_operation_id = None
+            await _settle()
+            assert client.is_running()
+            assert provider.prefills == []
         client.set_running(False)
         # Give the watcher time to flip to idle and apply the prefill.
         for _ in range(100):
