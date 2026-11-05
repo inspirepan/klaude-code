@@ -1732,6 +1732,8 @@ class DisplayStateMachine:
 
     def _handle_UserMessageEvent(self, e: events.UserMessageEvent, *, s: _SessionState) -> list[RenderCommand]:
         cmds: list[RenderCommand] = []
+        if not self._visible(e, s):
+            return []
         if s.is_sub_agent and e.source not in {"peer_message", "task_completion"}:
             return []
         if not s.is_sub_agent and self._primary_session_id not in (None, e.session_id):
@@ -2319,6 +2321,8 @@ class DisplayStateMachine:
                 arguments=e.arguments,
             )
 
+        if not self._visible(e, s):
+            return cmds
         if not (self._compact and not s.is_sub_agent and (e.tool_name == tools.BASH or hidden_shell_wait)):
             shell_task = None
             if e.tool_name == tools.MANAGE_SHELL:

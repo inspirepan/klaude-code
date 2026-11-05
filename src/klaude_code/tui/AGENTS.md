@@ -152,7 +152,8 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   `± N files +a -r` total followed by per-file paths and line counts (each diff below them under ctrl-t). ctrl-t (`ToggleDiffDetailEvent`, `TranscriptDetail.diffs_expanded`)
   expands every diff without leaving compact mode; expanded mode never folds.
 - A call the agent made keeps its tool mark (`$ Shell`, `◈ Tasks`); input the
-  system fills back in later uses `MARK_CALLBACK` (`› Shell`, `› Task`, `› Message`).
+  system fills back in later uses `MARK_CALLBACK` (`› Shell`, `› Task`).
+  Peer messages use their own directional quote titles.
   Compact shell/task reports join the open tool block: no blank line before or
   after them (`_CALLBACK_SOURCES`), and a report subject is clipped to two lines.
 - The primary session changes only on `WelcomeEvent`. A TaskStart or user
@@ -181,8 +182,8 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
 - Every sub-agent line that does reach the transcript keeps the `▌` gutter:
   batch summaries, sourced peer messages, retry errors, interrupts, and
   compaction/handoff notices. Child tool calls/results, assistant text,
-  thinking, and shell completions never print in compact, except `MessagePeer`
-  calls and errors; successful send receipts stay hidden.
+  thinking, shell completions, and peer sends/receives never print in compact;
+  successful send receipts stay hidden.
 - Interaction request/resolved/cancelled events join by child session and
   request ID. The existing approval dialog remains the only approval surface.
   It cancels the task panel before `pause_for_external_input()` yields stdin;
@@ -212,16 +213,18 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   normal completion behavior.
 - Peer and task reports are sourced messages, not operator input cards. Render
   `peer_message` fields directly; never parse `<agent-message>` body text.
-  Peer messages render as a `Message` tool row naming the peer, with the body
-  in a result panel (`render_message`): `✉ … to X` in `PEER_MESSAGE_SENT` (blue)
-  and `› … from X` in `PEER_MESSAGE_RECEIVED` (purple), one color for mark,
-  border, and body. Compact shows six lines, expanded adds the whole body and
-  incoming metadata.
-  Message identities are `[main]` for the displayed root, `[type] description`
-  for its children, and `[peer] title` for external sessions. In compact, an
-  internal incoming message prints only `received from` when its stable message
-  ID matches an accepted send receipt whose call body already printed. Without
-  that match, keep the incoming body; expanded always keeps both bodies.
+  Peer messages render as quotes (`render_message`): left-aligned `↑ Send Message X`
+  or `↓ Receive Message X` titles. Arrows use `grey1`, action names use bold `TOOL_NAME`
+  (`grey1`), and conversation names use green `TOOL_PARAM`.
+  Body text uses `PEER_MESSAGE_BODY` (`grey2`) with a thin, muted `│` prefix.
+  Indent the quoted body two spaces further than its title.
+  Do not add a Panel border or horizontal rules. Compact shows only the main agent's sends and receives,
+  with at most two screen rows of body and an ellipsis on the last row when
+  clipped. Expanded keeps all sends/receives, the whole body and incoming metadata.
+  Message titles use `main` for the displayed root, task descriptions for its
+  children, and peer names or titles for external sessions, without type prefixes.
+  Status rows keep their existing typed labels. The main agent's
+  incoming messages always keep their body; expanded always keeps both bodies.
 - `TaskMetadataItem.background_task_id` identifies independent background costs.
   Replay it without synthesizing a parent turn finish, and deduplicate against
   typed task snapshots. Background completion never starts an assistant turn.

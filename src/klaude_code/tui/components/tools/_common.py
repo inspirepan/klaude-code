@@ -231,7 +231,7 @@ def render_result_panel(
     indent: int = TOOL_RESULT_INDENT,
     border_style: str = ThemeKey.LINES,
 ) -> RenderableType:
-    """The one box used for every block-level tool result (diffs, docs, search, messages)."""
+    """The one box used for every block-level tool result (diffs, docs, search)."""
     # Constrain, not fix: the panel still shrinks to short content, but one long
     # line (a deep path, say) can no longer stretch it across the whole terminal
     # and leave the rest of the box looking empty.

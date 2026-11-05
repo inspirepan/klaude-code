@@ -111,7 +111,6 @@ from klaude_code.tui.components import user_input as c_user_input
 from klaude_code.tui.components import welcome as c_welcome
 from klaude_code.tui.components.background_tasks import (
     TaskDirectory,
-    parse_peer_receipt,
     parse_task_response,
     render_agent_launch,
     render_collaboration_call,
@@ -319,7 +318,6 @@ class TUICommandRenderer:
         self._shell_calls_with_identity: set[tuple[str, str]] = set()
         self._task_directory = task_directory if task_directory is not None else TaskDirectory()
         self._task_call_actions: dict[tuple[str, str], str] = {}
-        self._displayed_message_calls: set[tuple[str, str]] = set()
         # Compact mode reports a sub-agent's file changes once, in the block of the run that made them.
         self._sub_agent_changes: dict[str, list[events.ToolResultEvent]] = {}
         # What the last scrollback write was, when it can absorb a repeat:
@@ -381,7 +379,6 @@ class TUICommandRenderer:
         self._shell_calls_with_identity.clear()
         self._task_directory.reset()
         self._task_call_actions.clear()
-        self._displayed_message_calls.clear()
         self._sub_agent_changes.clear()
         self._last_print_key = None
         self._sub_agent_color_index = 0
@@ -1152,7 +1149,6 @@ class TUICommandRenderer:
             self.print(
                 render_collaboration_call(e.tool_name, e.arguments, self._task_directory, detail=self._detail.current)
             )
-            self._displayed_message_calls.add((e.session_id, e.tool_call_id))
             return True
         renderable = c_tools.render_tool_call(e, shell_task=shell_task, task_directory=self._task_directory)
         if renderable is not None:
@@ -1167,19 +1163,12 @@ class TUICommandRenderer:
         return False
 
     def display_tool_call_result(self, e: events.ToolResultEvent, *, is_sub_agent: bool = False) -> bool:
-        if e.tool_name == tools.MESSAGE_PEER:
-            call_key = (e.session_id, e.tool_call_id)
-            displayed = call_key in self._displayed_message_calls
-            self._displayed_message_calls.discard(call_key)
-            if displayed and not e.is_error:
-                # Until the receipt binds the send to an ID, keep incoming bodies.
-                receipt = parse_peer_receipt(e.result, e.ui_extra)
-                if receipt is not None:
-                    self._task_directory.record_displayed_message(receipt, e.session_id)
+        if not self._visible(e):
+            return False
         shell_call_key = (e.session_id, e.tool_call_id)
         show_shell_task_identity = shell_call_key not in self._shell_calls_with_identity
         self._shell_calls_with_identity.discard(shell_call_key)
-        if self._compact and is_sub_agent and e.tool_name != tools.MESSAGE_PEER:
+        if self._compact and is_sub_agent:
             if e.tool_name in _SUB_AGENT_FILE_TOOLS and not e.is_error:
                 # Interleaved with the main agent's rows these read as noise; the
                 # run's block summarizes them (and shows the diffs under ctrl-t).
@@ -1564,6 +1553,8 @@ class TUICommandRenderer:
 
     def display_user_message(self, event: events.UserMessageEvent) -> bool:
         """Print a user turn or a sourced input; True when it continues the open tool block."""
+        if not self._visible(event):
+            return False
         if event.source == "task_completion" and self._compact:
             response = event.task_response or parse_task_response(event.content)
             if response is not None:

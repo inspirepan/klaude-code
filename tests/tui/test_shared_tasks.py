@@ -485,8 +485,9 @@ def test_stop_is_registered_for_immediate_completion() -> None:
     assert "all tasks" in next(info.summary for info in get_command_info_list() if info.name == "stop")
 
 
-def test_child_peer_message_is_not_hidden_with_ordinary_child_prompts() -> None:
-    machine = DisplayStateMachine()
+@pytest.mark.parametrize("detail", list(Detail))
+def test_child_peer_message_is_visible_only_when_expanded(detail: Detail) -> None:
+    machine = DisplayStateMachine(TranscriptDetail(detail))
     machine.transition(
         events.TaskStartEvent(
             session_id="child",
@@ -499,7 +500,7 @@ def test_child_peer_message_is_not_hidden_with_ordinary_child_prompts() -> None:
     commands = machine.transition(
         events.UserMessageEvent(session_id="child", source="peer_message", peer_message=peer, content=peer.input_text())
     )
-    assert any(isinstance(command, RenderUserMessage) for command in commands)
+    assert any(isinstance(command, RenderUserMessage) for command in commands) is (detail is Detail.FULL)
 
 
 def test_peer_and_task_reports_survive_history_and_tape_detail_toggle(
@@ -551,8 +552,8 @@ def test_peer_and_task_reports_survive_history_and_tape_detail_toggle(
                 make_envelope(events.ReplayHistoryEvent(session_id="main", events=history, updated_at=0))
             )
             compact = writes[-1][0]
-            # Compact mode shows the body in a panel under the header, without metadata.
-            assert "› Message from [peer] Alice" in compact and "│ first line" in compact and "│ full body" in compact
+            # Compact mode quotes the body under the header, without metadata.
+            assert "↓ Receive Message Alice" in compact and "│ first line" in compact and "│ full body" in compact
             assert "reply_to:" not in compact
             # With no live snapshot, the report itself builds the agent's batch block, once.
             assert compact.count("Agent inspect shared tasks ✓") == 1 and "task report body" in compact

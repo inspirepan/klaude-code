@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import pytest
 
-from klaude_code.protocol import events, message
+from klaude_code.protocol import events, message, tools
 from klaude_code.protocol.models import SubAgentState
+from klaude_code.protocol.peer import PeerMessage, PeerReceipt
+from klaude_code.tui.commands import RenderToolCall, RenderToolResult, RenderUserMessage
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.machine import DisplayStateMachine
 from klaude_code.tui.renderer import TUICommandRenderer
@@ -103,6 +105,59 @@ def test_compact_sub_agent_shows_only_retry_errors(can_retry: bool) -> None:
     assert is_visible(event, detail=Detail.COMPACT, is_sub_agent=False)
     assert is_visible(event, detail=Detail.FULL, is_sub_agent=True)
     assert is_visible(event, detail=Detail.FULL, is_sub_agent=False)
+
+
+@pytest.mark.parametrize("detail", list(Detail))
+@pytest.mark.parametrize("is_sub_agent", [False, True])
+@pytest.mark.parametrize("kind", ["send", "receive", "error", "receipt"])
+def test_peer_visibility_is_shared_by_machine_and_renderer(detail: Detail, is_sub_agent: bool, kind: str) -> None:
+    session_id = "child" if is_sub_agent else "main"
+    event: events.Event
+    if kind == "send":
+        event = events.ToolCallEvent(
+            session_id=session_id,
+            tool_call_id="send",
+            tool_name=tools.MESSAGE_PEER,
+            arguments='{"target":"peer","body":"peer body"}',
+        )
+    elif kind == "receive":
+        event = events.UserMessageEvent(
+            session_id=session_id,
+            source="peer_message",
+            content="x",
+            peer_message=PeerMessage(sender_session_id="peer", recipient=session_id, body="peer body"),
+        )
+    else:
+        event = events.ToolResultEvent(
+            session_id=session_id,
+            tool_call_id="send",
+            tool_name=tools.MESSAGE_PEER,
+            status="error" if kind == "error" else "success",
+            result="peer failure" if kind == "error" else PeerReceipt(message_id="m", target="peer").model_dump_json(),
+        )
+    visible = detail is Detail.FULL or not is_sub_agent
+    assert is_visible(event, detail=detail, is_sub_agent=is_sub_agent) is visible
+    machine = DisplayStateMachine(TranscriptDetail(detail))
+    machine.transition(events.TaskStartEvent(session_id="main"))
+    if is_sub_agent:
+        machine.transition(
+            events.TaskStartEvent(session_id="child", parent_session_id="main", sub_agent_state=_SUB_AGENT_STATE)
+        )
+    commands = machine.transition(event)
+    assert any(isinstance(cmd, (RenderToolCall, RenderToolResult, RenderUserMessage)) for cmd in commands) is visible
+    renderer = TUICommandRenderer()
+    renderer.set_transcript_detail(detail)
+    if is_sub_agent:
+        _register_sub_agent(renderer, "child")
+    with renderer.bulk_render_capture() as captured:
+        if isinstance(event, events.ToolCallEvent):
+            renderer.display_tool_call(event)
+        elif isinstance(event, events.ToolResultEvent):
+            renderer.display_tool_call_result(event, is_sub_agent=is_sub_agent)
+        else:
+            assert isinstance(event, events.UserMessageEvent)
+            renderer.display_user_message(event)
+    assert bool(captured.getvalue()) is (visible and (kind != "receipt" or detail is Detail.FULL))
 
 
 def test_table_entries_are_neither_empty_nor_total() -> None:

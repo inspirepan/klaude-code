@@ -104,7 +104,9 @@ def listed_event_types() -> frozenset[type[events.Event]]:
 def is_visible(event: events.Event, *, detail: Detail, is_sub_agent: bool) -> bool:
     """Whether `event` reaches the transcript at this detail level."""
     if isinstance(event, (events.ToolCallEvent, events.ToolResultEvent)) and event.tool_name == tools.MESSAGE_PEER:
-        return True
+        return not (detail.is_compact and is_sub_agent)
+    if isinstance(event, events.UserMessageEvent) and event.source == "peer_message":
+        return not (detail.is_compact and is_sub_agent)
     if isinstance(event, events.ToolResultEvent) and detail.is_compact and is_sub_agent:
         return event.tool_name in _COMPACT_SUB_AGENT_TOOL_RESULTS
     if isinstance(event, events.ErrorEvent) and detail.is_compact and is_sub_agent:

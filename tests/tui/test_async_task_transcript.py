@@ -21,6 +21,7 @@ from klaude_code.tui import machine as machine_module
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.prompt_status_bar import PromptBottomBar
+from klaude_code.tui.transcript_detail import Detail
 
 from .test_transcript_toggle import make_envelope, patch_scrollback_writes
 
@@ -192,9 +193,9 @@ def test_compact_transcript_reports_each_background_fact_once(
     # Repeated waits on one task collapse; a still-running result prints nothing.
     assert out.count("Waiting for Find the panel") == 1
     assert "· running" not in out and "interrupted" not in out
-    # Messages name the peer by its task, show one line, and hide the receipt.
-    assert "✉ Message to [finder] Find the panel" in out and "│ first line" in out and "│ second line" in out
-    assert "› Message from [finder] Find the panel" in out and "│ hello" in out and "queued" not in out
+    # Messages name the peer by its task, show two body rows, and hide the receipt.
+    assert "↑ Send Message Find the panel" in out and "│ first line" in out and "│ second line" in out
+    assert "↓ Receive Message Find the panel" in out and "│ hello" in out and "queued" not in out
     # One block per finished agent, with the type, the report head, and no IDs or cost tree.
     assert out.count("Finder Find the panel ✓") == 1
     assert "render_collaboration_result 已解析" in out and "第二点" in out and "第三点" not in out
@@ -355,14 +356,16 @@ def test_child_sourced_and_notice_content_keeps_the_quote_gutter(
     asyncio.run(run())
     out = capsys.readouterr().out
     lines = out.splitlines()
-    assert any(line.startswith("▌") and "› Message from [main]" in line for line in lines)
-    assert not any(not line.startswith("▌") and "› Message from [main]" in line for line in lines)
     if full:
+        assert any(line.startswith("▌") and "↓ Receive Message main" in line for line in lines)
+        assert not any(not line.startswith("▌") and "↓ Receive Message main" in line for line in lines)
+        assert any(line.startswith("▌") and "│ coordination" in line for line in lines)
         assert any(line.startswith("▌") and "Interrupted by user" in line for line in lines)
         assert not any(not line.startswith("▌") and "Interrupted by user" in line for line in lines)
         assert any(line.startswith("▌") and "Context Compacted" in line for line in lines)
         assert not any(not line.startswith("▌") and "Context Compacted" in line for line in lines)
     else:
+        assert "↓ Receive Message main" not in out and "coordination" not in out
         # Compact keeps child lifecycle notices out of the transcript entirely.
         assert "Interrupted by user" not in out and "Context Compacted" not in out
 
@@ -596,10 +599,10 @@ def test_snapshot_summary_is_display_only() -> None:
     assert "render_collaboration_result" in response.model_dump_json()
 
 
-@pytest.mark.parametrize("sender", ["main", "child-a"])
+@pytest.mark.parametrize("sender", ["main", "child-a", "child-b"])
 @pytest.mark.parametrize("receipt_first", [False, True])
 @pytest.mark.parametrize("show_call", [False, True])
-def test_peer_body_folds_only_after_a_displayed_send_is_identified(
+def test_peer_visibility_and_main_received_body_survive_toggle_refresh(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     sender: str,
@@ -609,7 +612,7 @@ def test_peer_body_folds_only_after_a_displayed_send_is_identified(
     async def run() -> None:
         writes = patch_scrollback_writes(monkeypatch)
         display = TUIDisplay()
-        recipient = "child-a" if sender == "main" else "main"
+        recipient = "main" if sender == "child-a" else "child-a"
         body = "unique coordination body"
         peer = PeerMessage(
             id="stable-message", sender_session_id=sender, sender_label="title", recipient=recipient, body=body
@@ -634,6 +637,13 @@ def test_peer_body_folds_only_after_a_displayed_send_is_identified(
                 parent_session_id="main",
                 sub_agent_state=SubAgentState(
                     sub_agent_type="finder", sub_agent_desc="Find the panel", sub_agent_prompt=""
+                ),
+            ),
+            events.TaskStartEvent(
+                session_id="child-b",
+                parent_session_id="main",
+                sub_agent_state=SubAgentState(
+                    sub_agent_type="finder", sub_agent_desc="Review the changes", sub_agent_prompt=""
                 ),
             ),
             events.ToolResultEvent(
@@ -662,19 +672,22 @@ def test_peer_body_folds_only_after_a_displayed_send_is_identified(
         script += [receipt, received] if receipt_first else [received, receipt]
         # Identical text with another ID is a separate message, never a match.
         script.append(received.model_copy(update={"peer_message": peer.model_copy(update={"id": "another-id"})}))
-        folded = show_call and receipt_first
-        expected_count = int(show_call) + (0 if folded else 1) + 1
+        expected_count = int(show_call) if sender == "main" else 2 if sender == "child-a" else 0
 
         def check_compact(output: str) -> None:
             assert output.count(body) == expected_count
-            assert ("Message received from" in output) is folded
+            assert "Message received from" not in output
             assert "queued" not in output and "not read" not in output
-            message_lines = [line for line in output.splitlines() if "Message" in line]
-            if show_call or sender == "child-a":
-                assert any("[finder] Find the panel" in line for line in message_lines)
-            child_direction = "received from" if folded and sender == "main" else "from" if sender == "main" else "to"
-            if show_call or sender == "main":
-                assert any(line.startswith("▌") and f"Message {child_direction}" in line for line in message_lines)
+            message_lines = [
+                line
+                for line in output.splitlines()
+                if "↑ Send Message Find the panel" in line or "↓ Receive Message Find the panel" in line
+            ]
+            if expected_count:
+                assert message_lines
+            assert not any(line.startswith("▌") for line in message_lines)
+            assert ("↑ Send Message Find the panel" in output) is (sender == "main" and show_call)
+            assert ("↓ Receive Message Find the panel" in output) is (sender == "child-a")
 
         try:
             for event in script:
@@ -685,6 +698,7 @@ def test_peer_body_folds_only_after_a_displayed_send_is_identified(
             await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
             expanded = writes[-1][0]
             assert expanded.count(body) == int(show_call) + 2
+            assert any(line.startswith("▌") and "↓ " in line for line in expanded.splitlines()) is (recipient != "main")
             assert "transport receipt, not read" in expanded and "stable-message" in expanded
             await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
             check_compact(writes[-1][0])
@@ -749,24 +763,24 @@ def test_listed_external_peer_keeps_its_title_and_received_body(
 
     asyncio.run(run())
     output = capsys.readouterr().out
-    assert "Message to [peer] Other conversation" in output
-    assert "Message from [peer] Other conversation" in output
+    assert "↑ Send Message Other conversation" in output
+    assert "↓ Receive Message Other conversation" in output
     assert output.count("same text") == 2 and "Message received from" not in output
 
 
 @pytest.mark.parametrize(
     ("target", "label"),
     [
-        ("aaaa000011", "[main]"),
-        ("aaaa00", "[main]"),
-        ("bbbb0000", "[main]"),  # An exact name takes precedence over ID prefixes.
-        ("alice", "[finder] Find the panel"),
-        ("bbbb000011", "[finder] Find the panel"),
-        (" BBBB00001 ", "[finder] Find the panel"),
+        ("aaaa000011", "main"),
+        ("aaaa00", "main"),
+        ("bbbb0000", "main"),  # An exact name takes precedence over ID prefixes.
+        ("alice", "Find the panel"),
+        ("bbbb000011", "Find the panel"),
+        (" BBBB00001 ", "Find the panel"),
         ("bbbb000", "bbbb000"),  # Ambiguous prefix: no asserted identity.
         ("duplicate", "duplicate"),
-        ("carol", "[peer] carol"),
-        ("cccc00001", "[peer] carol"),
+        ("carol", "carol"),
+        ("cccc00001", "carol"),
         ("cccc0000", "another agent"),
         ("not-listed", "not-listed"),
         ("", "another agent"),
@@ -804,47 +818,104 @@ def test_message_targets_resolve_names_and_unique_id_prefixes(target: str, label
     console.print(
         render_collaboration_call(tools.MESSAGE_PEER, json.dumps({"target": target, "body": "hello"}), directory)
     )
-    assert f"Message to {label}\n" in console.export_text()
+    output = console.export_text()
+    assert output.splitlines()[0].rstrip() == f"  ↑ Send Message {label}"
+    assert "[finder]" not in output and "[peer]" not in output
 
 
-def test_long_peer_message_shows_six_lines_in_compact_and_all_when_expanded() -> None:
+@pytest.mark.parametrize("width", [12, 32, 40, 80])
+@pytest.mark.parametrize(
+    "body", ["\n".join(f"line {index}" for index in range(1, 10)), "long body " * 60, "消息正文" * 60]
+)
+def test_peer_message_caps_actual_body_rows_under_left_aligned_title(width: int, body: str) -> None:
     from rich.console import Console
 
     from klaude_code.tui.components.background_tasks import render_message
     from klaude_code.tui.components.rich.theme import get_theme
     from klaude_code.tui.transcript_detail import Detail
 
-    body = "\n".join(f"line {index}" for index in range(1, 10))
-
     def plain(detail: Detail) -> str:
-        console = Console(width=80, record=True, force_terminal=False, theme=get_theme().app_theme)
-        console.print(render_message("›", "from", "peer", body, detail=detail))
+        console = Console(width=width, record=True, force_terminal=False, theme=get_theme().app_theme)
+        console.print(render_message("from", "peer", body, detail=detail))
         return console.export_text()
 
     compact = plain(Detail.COMPACT)
-    assert "line 6" in compact and "line 7" not in compact and "… 3 more lines · ctrl-o" in compact
-    assert "line 9" in plain(Detail.FULL)
+    rows = compact.splitlines()
+    body_rows = [line for line in rows if "│" in line]
+    assert len(rows) == 3 and len(body_rows) == 2
+    assert body_rows[-1].rstrip().endswith("…")
+    assert "more lines" not in compact
+    if width >= 32:
+        assert rows[0].rstrip() == "  ↓ Receive Message peer"
+    else:
+        assert rows[0].startswith("  ↓ ") and rows[0].rstrip().endswith("…")
+    assert all(row.startswith("    │ ") for row in body_rows)
+    assert not any(char in compact for char in "╭╮╰╯─")
+    expanded = plain(Detail.FULL)
+    assert len([line for line in expanded.splitlines() if "│" in line]) > 2
+    assert all("…" not in line for line in expanded.splitlines() if "│" in line)
+    if "\n" in body:
+        assert "line 9" in expanded
+    elif body.startswith("long"):
+        assert expanded.count("long") == body.count("long")
+    else:
+        assert "".join(line.removeprefix("    │ ").rstrip() for line in expanded.splitlines()[1:]) == body
 
 
-def test_peer_message_direction_colors_mark_border_and_body() -> None:
+@pytest.mark.parametrize("body", ["one row", "one row\nsecond row"])
+def test_short_peer_message_has_no_truncation_marker(body: str) -> None:
     from rich.console import Console
-    from rich.style import Style
 
-    from klaude_code.tui.components.background_tasks import MARK_MESSAGE, render_message
-    from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
-    from klaude_code.tui.components.tools._common import MARK_CALLBACK
+    from klaude_code.tui.components.background_tasks import render_message
+    from klaude_code.tui.components.rich.theme import get_theme
     from klaude_code.tui.transcript_detail import Detail
+
+    console = Console(width=80, record=True, force_terminal=False, theme=get_theme().app_theme)
+    console.print(render_message("from", "peer", body, detail=Detail.COMPACT))
+    output = console.export_text()
+    assert len([line for line in output.splitlines() if "│" in line]) == len(body.splitlines())
+    assert "…" not in output
+
+
+@pytest.mark.parametrize("direction", ["to", "from"])
+@pytest.mark.parametrize("detail", list(Detail))
+def test_peer_message_styles_tool_name_peer_gray_body_and_quote(direction: str, detail: Detail) -> None:
+    from rich.console import Console
+
+    from klaude_code.tui.components.background_tasks import (
+        TaskDirectory,
+        render_collaboration_call,
+        render_peer_message,
+    )
+    from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 
     console = Console(width=80, force_terminal=False, theme=get_theme().app_theme)
 
-    def styles(mark: str) -> tuple[set[Style | None], set[Style | None]]:
-        lines = console.render_lines(render_message(mark, "to", "peer", "hello there", detail=Detail.COMPACT))
-        segments = [segment for line in lines for segment in line]
-        border = {segment.style for segment in segments if segment.text.strip() in {"╭", "╰", "│"}}
-        body = {segment.style for segment in segments if "hello there" in segment.text}
-        return border, body
-
-    sent, received = console.get_style(ThemeKey.PEER_MESSAGE_SENT), console.get_style(ThemeKey.PEER_MESSAGE_RECEIVED)
-    assert sent != received
-    assert styles(MARK_MESSAGE) == ({sent}, {sent})
-    assert styles(MARK_CALLBACK) == ({received}, {received})
+    if direction == "to":
+        renderable = render_collaboration_call(
+            tools.MESSAGE_PEER, '{"target":"peer","body":"hello there"}', detail=detail
+        )
+    else:
+        renderable = render_peer_message(
+            events.UserMessageEvent(
+                session_id="main",
+                source="peer_message",
+                content="x",
+                peer_message=PeerMessage(sender_label="peer", recipient="main", body="hello there"),
+            ),
+            detail=detail,
+            directory=TaskDirectory(),
+        )
+    lines = console.render_lines(renderable)
+    segments = [segment for line in lines for segment in line]
+    peer = {segment.style for segment in lines[0] if "peer" in segment.text}
+    action = {segment.style for segment in lines[0] if "Message" in segment.text}
+    arrow = {segment.style for segment in lines[0] if "↑" in segment.text or "↓" in segment.text}
+    quote = {segment.style for segment in segments if segment.text.strip() == "│"}
+    body = {segment.style for segment in segments if "hello there" in segment.text}
+    assert peer == {console.get_style(ThemeKey.TOOL_PARAM)}
+    assert action == {console.get_style(ThemeKey.TOOL_NAME)}
+    assert arrow == {console.get_style(ThemeKey.METADATA)}
+    assert quote == {console.get_style(ThemeKey.LINES)}
+    assert body == {console.get_style(ThemeKey.PEER_MESSAGE_BODY)}
+    assert peer != quote and peer != body

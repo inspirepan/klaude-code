@@ -1,7 +1,9 @@
 from collections.abc import Iterable
+from typing import Literal
 
 from pydantic import BaseModel, ValidationError
 from rich.console import Group, RenderableType
+from rich.padding import Padding
 from rich.style import Style
 from rich.table import Table
 from rich.text import Text
@@ -13,6 +15,7 @@ from klaude_code.protocol.models.tool_ui import ControlUIExtra
 from klaude_code.protocol.peer import PeerInfo, PeerReceipt
 from klaude_code.tui.components.common import format_pascal_case, truncate_middle_lines
 from klaude_code.tui.components.rich.clip import MaxLines
+from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import (
     MARK_CALLBACK,
@@ -22,14 +25,12 @@ from klaude_code.tui.components.tools._common import (
     TOOL_SUBJECT_INDENT,
     AdaptiveIndent,
     ToolResultStatus,
-    render_result_panel,
     render_tool_call_tree,
 )
 from klaude_code.tui.components.tools._manage_shell import render_shell_callback
 from klaude_code.tui.components.tools._presentation import get_tool_call_presentation, one_line, parse_tool_arguments
 from klaude_code.tui.transcript_detail import Detail
 
-MARK_MESSAGE = "✉"
 _FAILURE_STATUSES = frozenset({"failed", "timed_out", "lost"})
 
 
@@ -50,7 +51,6 @@ class TaskDirectory:
         self._peer_names: dict[str, str | None] = {}
         self._main_session_id: str | None = None
         self._agent_types: dict[str, str] = {}
-        self._displayed_messages: dict[str, tuple[str, str]] = {}
         # Finished tasks already printed, so a report and a wait result for the
         # same finish do not both reach the transcript.
         self._reported: set[str] = set()
@@ -67,12 +67,10 @@ class TaskDirectory:
         self._reported.clear()
         self._reported_sessions.clear()
         self._summarized_sessions.clear()
-        self._displayed_messages.clear()
 
     def name_main(self, session_id: str) -> None:
         if self._main_session_id is not None and self._main_session_id != session_id:
             self._agent_types.clear()
-            self._displayed_messages.clear()
         self._main_session_id = session_id
 
     def name_child(self, session_id: str, agent_type: str, description: str) -> None:
@@ -82,42 +80,33 @@ class TaskDirectory:
     def is_internal(self, session_id: str | None) -> bool:
         return session_id is not None and (session_id == self._main_session_id or session_id in self._agent_types)
 
-    def message_label(self, session_id: str | None, fallback: str) -> str:
+    def message_label(self, session_id: str | None, fallback: str, *, include_type: bool = True) -> str:
         if session_id is not None and session_id == self._main_session_id:
-            return "[main]"
+            return "[main]" if include_type else "main"
+        if not include_type:
+            return self.session_label(session_id, fallback)
         if session_id is not None and session_id in self._agent_types:
             return f"[{self._agent_types[session_id]}] {self.session_label(session_id, fallback)}"
         return f"[peer] {self.session_label(session_id, fallback)}"
 
-    def message_target_label(self, target: str) -> str:
+    def message_target_label(self, target: str, *, include_type: bool = True) -> str:
         needle = target.strip()
         known_ids = self._session_labels.keys() | self._agent_types.keys() | self._peer_names.keys()
         if self._main_session_id is not None:
             known_ids.add(self._main_session_id)
         if needle in known_ids:
-            return self.message_label(needle, target)
+            return self.message_label(needle, target, include_type=include_type)
         matches = [session_id for session_id, name in self._peer_names.items() if name == needle]
         if not matches and needle:
             matches = [session_id for session_id in known_ids if session_id.lower().startswith(needle.lower())]
         if len(matches) == 1:
-            return self.message_label(matches[0], target)
+            return self.message_label(matches[0], target, include_type=include_type)
         return self.session_label(None, target)
 
     def name_peer(self, peer: PeerInfo) -> None:
         self._peer_names[peer.session_id] = peer.name
         if not self.is_internal(peer.session_id):
             self.name_session(peer.session_id, peer.name or peer.description)
-
-    def record_displayed_message(self, receipt: PeerReceipt, sender: str) -> None:
-        if receipt.accepted and self.is_internal(sender) and self.is_internal(receipt.target):
-            self._displayed_messages[receipt.message_id] = (sender, receipt.target)
-
-    def has_displayed_message(self, message_id: str, sender: str | None, recipient: str) -> bool:
-        return (
-            self.is_internal(sender)
-            and self.is_internal(recipient)
-            and self._displayed_messages.get(message_id) == (sender, recipient)
-        )
 
     def update(self, tasks: Iterable[BackgroundTaskSnapshot]) -> None:
         for task in tasks:
@@ -361,48 +350,31 @@ def render_task_control(event: events.TaskControlResultEvent, *, detail: Detail)
     return render_task_response(event.response, detail=detail)
 
 
-_COMPACT_MESSAGE_MAX_LINES = 6
+_COMPACT_MESSAGE_MAX_LINES = 2
 
 
-def render_message(mark: str, verb: str, peer: str, body: str, *, detail: Detail) -> RenderableType:
-    """A message between agents: a tool-style header naming the peer, the body in a panel.
-
-    Direction shows twice: the mark (`✉` sent, `›` filled back in) and one
-    color for mark, border, and body (blue sent, purple received). Compact
-    mode shows the first lines; ctrl-o shows it all.
-    """
-    color = ThemeKey.PEER_MESSAGE_SENT if mark == MARK_MESSAGE else ThemeKey.PEER_MESSAGE_RECEIVED
-    header = Text(overflow="ellipsis", no_wrap=True)
-    header.append(f"{verb} ", style=ThemeKey.METADATA)
+def render_message(direction: Literal["to", "from"], peer: str, body: str, *, detail: Detail) -> RenderableType:
+    """Quote the body under a tool-style action and human peer label."""
+    arrow = "↑" if direction == "to" else "↓"
+    action = "Send Message" if direction == "to" else "Receive Message"
+    header = Text(f"{arrow} ", style=ThemeKey.METADATA, overflow="ellipsis", no_wrap=True)
+    header.append(action, style=ThemeKey.TOOL_NAME)
+    header.append(" ")
     header.append(peer, style=ThemeKey.TOOL_PARAM)
-    lines = body.strip().splitlines() or [""]
-    shown = lines[:_COMPACT_MESSAGE_MAX_LINES] if detail.is_compact else lines
-    text: RenderableType = Text("\n".join(shown), style=color, overflow="fold")
+    text: RenderableType = Text(body.strip(), style=ThemeKey.PEER_MESSAGE_BODY, overflow="fold")
     if detail.is_compact:
         # Long lines wrap too; the cap counts rows on screen, not source lines.
         text = MaxLines(text, _COMPACT_MESSAGE_MAX_LINES, ellipsis_style=ThemeKey.TOOL_RESULT_TRUNCATED)
-    content: list[RenderableType] = [text]
-    if len(shown) < len(lines):
-        content.append(Text(f"… {len(lines) - len(shown)} more lines · ctrl-o", style=ThemeKey.TOOL_RESULT_TRUNCATED))
-    return Group(
-        render_tool_call_tree(mark=mark, tool_name="Message", details=header, mark_style=color),
-        render_result_panel(Group(*content), border_style=color),
-    )
+    quote = Padding(Quote(text, prefix="│ ", style=ThemeKey.LINES), (0, 0, 0, TOOL_GROUP_INDENT), expand=False)
+    return AdaptiveIndent(Group(header, quote), TOOL_GROUP_INDENT)
 
 
 def render_peer_message(event: events.UserMessageEvent, *, detail: Detail, directory: TaskDirectory) -> RenderableType:
     peer = event.peer_message
     if peer is None:
         return Text("Peer message metadata unavailable.", style=ThemeKey.METADATA_DIM)
-    sender = directory.message_label(peer.sender_session_id, peer.sender_label)
-    if detail.is_compact and directory.has_displayed_message(peer.id, peer.sender_session_id, event.session_id):
-        return render_tool_call_tree(
-            mark=MARK_CALLBACK,
-            tool_name="Message",
-            details=Text(f"received from {sender}", style=ThemeKey.TOOL_PARAM),
-            mark_style=ThemeKey.PEER_MESSAGE_RECEIVED,
-        )
-    row = render_message(MARK_CALLBACK, "from", sender, peer.body, detail=detail)
+    sender = directory.message_label(peer.sender_session_id, peer.sender_label, include_type=False)
+    row = render_message("from", sender, peer.body, detail=detail)
     if detail.is_compact:
         return row
     meta = Text(
@@ -530,8 +502,8 @@ def render_collaboration_call(
         return render_manage_tasks_call(arguments, directory)
     if tool_name == tools.MESSAGE_PEER:
         args = parse_tool_arguments(arguments)
-        target = directory.message_target_label(str(args.get("target", "")))
-        return render_message(MARK_MESSAGE, "to", target, str(args.get("body", "")), detail=detail)
+        target = directory.message_target_label(str(args.get("target", "")), include_type=False)
+        return render_message("to", target, str(args.get("body", "")), detail=detail)
     presentation = get_tool_call_presentation(tool_name, arguments)
     return render_tool_call_tree(
         mark=MARK_PLAN,

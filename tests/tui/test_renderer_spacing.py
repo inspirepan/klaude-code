@@ -9,7 +9,7 @@ from rich.console import Console
 
 from klaude_code.protocol import events, message, tools
 from klaude_code.protocol.models import DeveloperUIExtra, SkillActivatedUIItem, SubAgentState
-from klaude_code.protocol.peer import PeerMessage, PeerReceipt
+from klaude_code.protocol.peer import PeerMessage
 from klaude_code.tui.commands import (
     AppendAssistant,
     AppendThinking,
@@ -90,8 +90,7 @@ def test_child_tool_gutter_replaces_margin_at_all_widths(width: int, kind: str) 
 
 @pytest.mark.parametrize(
     ("kind", "child"),
-    [("launch", False)]
-    + [(kind, child) for kind in ["warning", "send", "receive", "receipt"] for child in [False, True]],
+    [("launch", False)] + [(kind, child) for kind in ["warning", "send", "receive"] for child in [False, True]],
 )
 def test_collaboration_and_warnings_continue_tool_block(kind: str, child: bool) -> None:
     renderer, output = _renderer_and_output()
@@ -153,12 +152,6 @@ def test_collaboration_and_warnings_continue_tool_block(kind: str, child: bool) 
         ]
     else:
         peer = PeerMessage(sender_session_id="peer", sender_label="peer", recipient=session_id, body="review ready")
-        if kind == "receipt":
-            renderer._task_directory.name_main(session_id)
-            renderer._task_directory.name_child("peer", "finder", "reviewer")
-            renderer._task_directory.record_displayed_message(
-                PeerReceipt(message_id=peer.id, target=session_id), "peer"
-            )
         middle = [
             RenderUserMessage(
                 events.UserMessageEvent(
@@ -176,11 +169,19 @@ def test_collaboration_and_warnings_continue_tool_block(kind: str, child: bool) 
     assert any("after.py" in line for line in lines)
     assert all(line.strip(" ▌") for line in lines), output.getvalue()
     for line in lines:
-        if any(label in line for label in ("Read ", "Message ")):
+        if "Read " in line:
             assert line.startswith("▌ " if child else "  ")
             assert line[2] not in {" ", "▌"}, line
-        if kind in {"send", "receive"} and "╭" in line:
-            assert line.index("╭") == 4, line
+        if kind in {"send", "receive"} and any(
+            mark in line for mark in ("↑ Send Message peer", "↓ Receive Message peer", "│ ")
+        ):
+            assert line.startswith("▌ " if child else "  ")
+            if "│ " in line:
+                assert line[2:5] == "  │", line
+            else:
+                assert line[2] in {"↑", "↓"}, line
+    if kind in {"send", "receive"}:
+        assert not any(char in output.getvalue() for char in "╭╮╰╯─")
 
 
 @pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
@@ -760,8 +761,9 @@ def test_sub_agent_block_flush_can_force_top_level_blank_line() -> None:
     assert not output.getvalue().endswith("▌ + Activated skill commit\n▌ \n")
 
 
-def test_sub_agent_message_panel_ends_without_gutter_only_line() -> None:
+def test_sub_agent_message_quote_ends_without_gutter_only_line() -> None:
     renderer, output = _renderer_and_output()
+    renderer.set_transcript_detail(Detail.FULL)
     session_id = "sub-1"
     renderer.register_session(
         session_id,
@@ -783,8 +785,8 @@ def test_sub_agent_message_panel_ends_without_gutter_only_line() -> None:
         )
     )
     rendered = output.getvalue()
-    assert "▌" in rendered and "Message to" in rendered and "hello" in rendered
-    assert rendered.endswith("╯\n")
+    assert "▌ ↑ Send Message main" in rendered
+    assert rendered.splitlines()[-1].rstrip() == "▌   │ hello"
     assert "▌ \n" not in rendered
 
 
