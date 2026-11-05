@@ -202,7 +202,7 @@ def test_compact_transcript_reports_each_background_fact_once(
     assert "Background task" not in out and "total cost" not in out
     assert "task-a" not in out and "child-a" not in out
     # A finished Bash task prints one tool-style row, once.
-    assert out.count("› Shell") == 1 and "Run the suite · failed · exit 1" in out
+    assert out.count("› Shell") == 1 and "Run the suite failed · exit 1" in " ".join(out.split())
 
 
 def test_single_agent_launch_uses_one_line(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:

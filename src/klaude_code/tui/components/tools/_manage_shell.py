@@ -5,6 +5,7 @@ from pydantic import TypeAdapter
 from rich.cells import cell_len, set_cell_size
 from rich.console import Console, ConsoleOptions, Group, RenderableType, RenderResult
 from rich.measure import Measurement
+from rich.table import Table
 from rich.text import Text
 
 from klaude_code.protocol.models import ShellTaskUIExtra, ToolResultUIExtra
@@ -12,6 +13,8 @@ from klaude_code.protocol.shell_task import ShellTaskOutput, ShellTaskSnapshot
 from klaude_code.tui.components.common import truncate_middle_lines
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import (
+    BASH_DESCRIPTION_COLUMN_WIDTH,
+    BASH_DESCRIPTION_MIN_TERMINAL_WIDTH,
     FULL_TOOL_RESULT_MAX_LINES,
     MARK_BASH,
     MARK_CALLBACK,
@@ -89,29 +92,39 @@ class _ClippedSubject:
         self.status = status
         self.max_lines = max_lines
 
-    def _line(self, width: int) -> Text:
+    def _line(self, width: int, terminal_width: int) -> RenderableType:
         what = self.what.copy()
+        if (
+            terminal_width >= BASH_DESCRIPTION_MIN_TERMINAL_WIDTH
+            and width >= BASH_DESCRIPTION_COLUMN_WIDTH + 2 + cell_len(self.status.plain)
+        ):
+            grid = Table.grid(padding=(0, 1))
+            grid.add_column(width=BASH_DESCRIPTION_COLUMN_WIDTH, no_wrap=True, overflow="ellipsis")
+            grid.add_column(overflow="fold")
+            grid.add_row(what, self.status)
+            return grid
         # Word wrapping wastes some of each row, so leave slack beyond the status.
-        budget = max(8, width * self.max_lines - cell_len(self.status.plain) - width // 4)
+        budget = max(8, width * self.max_lines - cell_len(self.status.plain) - 3 - width // 4)
         if cell_len(what.plain) > budget:
             what = Text(set_cell_size(what.plain, budget - 1) + "…", style=what.style)
         line = Text(overflow="fold")
         line.append_text(what)
+        line.append(" · ", style=self.status.style)
         line.append_text(self.status)
         return line
 
     def __rich_console__(self, console: Console, options: ConsoleOptions) -> RenderResult:
-        yield from console.render(self._line(options.max_width), options)
+        yield from console.render(self._line(options.max_width, console.width), options)
 
     def __rich_measure__(self, console: Console, options: ConsoleOptions) -> Measurement:
-        return Measurement.get(console, options, self._line(options.max_width))
+        return Measurement.get(console, options, self._line(options.max_width, console.width))
 
 
 def render_shell_callback(task: ShellTaskSnapshot) -> RenderableType:
     """A finished background shell reported back by the system: `› Shell  <what it did>  <status>`."""
     description = one_line(task.description)
     what = Text(description or one_line(task.command), style=ThemeKey.BASH_TOOL_DESCRIPTION)
-    status = Text(" · ", style=_task_status_style(task))
+    status = Text(style=_task_status_style(task))
     status.append_text(_render_task(task, show_identity=False))
     return ManageShellRow(_ClippedSubject(what, status), mark=MARK_CALLBACK)
 

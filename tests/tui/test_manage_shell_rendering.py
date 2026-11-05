@@ -3,6 +3,7 @@ import json
 from typing import Any, Literal
 
 import pytest
+from rich.cells import cell_len
 from rich.console import Console, RenderableType
 
 from klaude_code.protocol import events, tools
@@ -10,7 +11,7 @@ from klaude_code.protocol.models import ShellTaskUIExtra
 from klaude_code.protocol.shell_task import ShellTaskOutput, ShellTaskSnapshot
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 from klaude_code.tui.components.tools import FULL_TOOL_RESULT_MAX_LINES, render_tool_call, render_tool_result
-from klaude_code.tui.components.tools._manage_shell import extract_shell_task_ui_extra
+from klaude_code.tui.components.tools._manage_shell import extract_shell_task_ui_extra, render_shell_completion
 from klaude_code.tui.components.tools._presentation import (
     get_tool_active_form,
     get_tool_call_presentation,
@@ -169,6 +170,30 @@ def test_renderer_only_omits_identity_already_shown_in_call(has_snapshot: bool, 
         assert rendered.count("Run targeted tests") == 1
     assert "completed · exit 0" in rendered
     assert ("uv run pytest tests/tui -q" in rendered) == (not has_snapshot and detail == Detail.FULL)
+
+
+@pytest.mark.parametrize("description", ["Run tests", "检查测量场景载入错误", "Long description " * 5])
+@pytest.mark.parametrize("width", [80, 120])
+def test_shell_completion_status_aligns_with_bash_command(description: str, width: int) -> None:
+    task = _task(description=description, status="completed", exit_code=0)
+    bash = render_compact_tool_result(
+        tools.BASH,
+        json.dumps({"description": description, "command": "pytest"}),
+        "",
+        status="success",
+    )
+    bash_line = _render(bash, width=width).splitlines()[0]
+    shell_line = _render(render_shell_completion([task]), width=width).splitlines()[0]
+    assert cell_len(shell_line[: shell_line.index("completed")]) == cell_len(bash_line[: bash_line.index("pytest")])
+    assert "completed · exit 0" in shell_line
+
+
+@pytest.mark.parametrize("width", [53, 54])
+def test_shell_completion_falls_back_when_status_column_is_too_narrow(width: int) -> None:
+    task = _task(description="Run tests", status="completed", exit_code=0)
+    rendered = _render(render_shell_completion([task]), width=width)
+    assert len(rendered.splitlines()) <= 2
+    assert "completed · exit 0" in rendered
 
 
 @pytest.mark.parametrize(

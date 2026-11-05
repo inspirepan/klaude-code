@@ -54,6 +54,11 @@ BASH_OUTPUT_LEFT_PADDING = TOOL_SUBJECT_INDENT
 # Below this, the indent gives way rather than squeezing content to nothing.
 MIN_INDENTED_CONTENT_WIDTH = 8
 
+# Shared by Bash commands and shell completion statuses.
+BASH_DESCRIPTION_COLUMN_WIDTH = 32
+BASH_COMMAND_MIN_WIDTH = 8
+BASH_DESCRIPTION_MIN_TERMINAL_WIDTH = TOOL_SUBJECT_INDENT + BASH_DESCRIPTION_COLUMN_WIDTH + 1 + BASH_COMMAND_MIN_WIDTH
+
 ToolResultStatus = Literal["success", "error", "aborted"]
 
 

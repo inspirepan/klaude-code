@@ -112,7 +112,7 @@ def test_unsuccessful_completion_keeps_status_exit_reason_and_never_claims_succe
     task = _task(status=status, exit_code=exit_code, reason="Process no longer available")
     rendered = _render(_event([task]))
     _assert_notice(rendered)
-    assert f"Run targeted tests · {status}" in rendered
+    assert f"Run targeted tests {status}" in " ".join(rendered.split())
     assert "Process no longer available" in rendered
     if exit_code is not None:
         assert f"exit {exit_code}" in rendered
@@ -327,7 +327,7 @@ def test_batch_is_bounded_in_compact_mode_and_keeps_late_failure_visible() -> No
     tasks[-1] = _task(task_id="failure-long-id", description="Important failure", status="failed", exit_code=9)
     compact = _render(_event(tasks))
     _assert_notice(compact)
-    assert "Important failure · failed · exit 9" in compact
+    assert "Important failure failed · exit 9" in " ".join(compact.split())
     assert compact.count("Run suite") == 4
     assert "more 11 tasks" in compact
     assert len(compact.splitlines()) == 6

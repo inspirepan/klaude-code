@@ -11,6 +11,8 @@ from klaude_code.protocol.shell_task import ShellTaskSnapshot
 from klaude_code.tui.components.bash_syntax import summarize_bash_command
 from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.tools._common import (
+    BASH_DESCRIPTION_COLUMN_WIDTH,
+    BASH_DESCRIPTION_MIN_TERMINAL_WIDTH,
     MARK_BASH,
     MARK_EDIT,
     MARK_GENERIC,
@@ -21,7 +23,6 @@ from klaude_code.tui.components.tools._common import (
     MARK_WEB_FETCH,
     MARK_WEB_SEARCH,
     MARK_WRITE,
-    TOOL_SUBJECT_INDENT,
     render_tool_call_tree,
 )
 from klaude_code.tui.components.tools._manage_shell import (
@@ -34,12 +35,6 @@ from klaude_code.tui.components.tools._presentation import (
     one_line,
     parse_tool_arguments,
 )
-
-# Width of the Bash description column, in cells (~16 CJK glyphs). Fixed so the
-# command column starts at the same offset on every row.
-BASH_DESCRIPTION_COLUMN_WIDTH = 32
-BASH_COMMAND_MIN_WIDTH = 8
-BASH_DESCRIPTION_MIN_TERMINAL_WIDTH = TOOL_SUBJECT_INDENT + BASH_DESCRIPTION_COLUMN_WIDTH + 1 + BASH_COMMAND_MIN_WIDTH
 
 # Compact rows keep the same marks as their expanded tool calls, so a mixed
 # block reads as one vocabulary.
