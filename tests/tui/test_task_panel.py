@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import Callable
 from functools import partial
 from typing import Any, cast
 
@@ -12,7 +12,6 @@ from prompt_toolkit.input import create_pipe_input
 from prompt_toolkit.output import DummyOutput
 
 from klaude_code.protocol.background_task import TaskRequest, TaskResponse
-from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.peer import PeerReceipt
 from klaude_code.tui.client.base import RuntimeClient
 from klaude_code.tui.commands import PromptStatusLine
@@ -58,7 +57,7 @@ def test_busy_overlay_escape_preserves_live_draft_and_cursor_and_yields_to_appro
                     )
                 )
             )
-            inputs = cast(AsyncGenerator[UserInputPayload], prompt._iter_inputs_inner())
+            inputs = prompt._iter_inputs_inner()
             pending_input = asyncio.create_task(anext(inputs))
             await until(lambda: prompt._session.app.is_running)
             prompt._session.default_buffer.document = Document("current draft", 4)

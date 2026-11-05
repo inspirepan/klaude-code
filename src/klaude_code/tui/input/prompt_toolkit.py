@@ -33,6 +33,7 @@ from klaude_code.config import load_config
 from klaude_code.const import project_key_from_path
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.model_catalog import ModelCatalog
+from klaude_code.tui.command import has_interactive_command, is_exit_command
 from klaude_code.tui.command.types import CommandInfo
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.common import format_model_with_effort
@@ -298,6 +299,7 @@ class PromptToolkitInput(InputProviderABC):
         self._external_input_pause_count = 0
         self._external_input_resume_event = asyncio.Event()
         self._external_input_resume_event.set()
+        self._submitted_inputs: asyncio.Queue[UserInputPayload | BaseException | None] = asyncio.Queue()
 
         self._bottom_bar = PromptBottomBar(
             invalidate=self._invalidate_app,
@@ -314,6 +316,7 @@ class PromptToolkitInput(InputProviderABC):
         install_color_scheme_sequences()
 
         self._session = self._build_prompt_session(prompt)
+        self._session.default_buffer.accept_handler = self._accept_input
         terminal_input = self._session.app.input
         if program_status is not None and isinstance(terminal_input, Vt100Input):
             terminal_input.vt100_parser = ProgramStatusParser(
@@ -358,6 +361,7 @@ class PromptToolkitInput(InputProviderABC):
         triggers normal Runtime cleanup.
         """
         self._exit_requested = True
+        self._external_input_resume_event.set()
         self._cancel_model_catalog_request()
         if self._prompt_active:
             with contextlib.suppress(Exception):
@@ -390,7 +394,9 @@ class PromptToolkitInput(InputProviderABC):
                 self._next_prefill_text = None
                 return
         with contextlib.suppress(Exception):
-            self._session.app.exit(exception=_PromptPaused())
+            self._session.default_buffer.document = Document(text, cursor_position=len(text))
+            self._next_prefill_text = None
+            self._invalidate_app()
 
     def set_stream_lines(
         self,
@@ -1284,8 +1290,9 @@ class PromptToolkitInput(InputProviderABC):
             # finish — that delay was visible as an empty input area between a
             # follow-up submission and the next prompt being rendered.
             with flicker_safe_patch_stdout():
-                async for payload in self._iter_inputs_inner():
-                    yield payload
+                async with contextlib.aclosing(self._iter_inputs_inner()) as inputs:
+                    async for payload in inputs:
+                        yield payload
         finally:
             # Leaving the mode set would spray CSI ? 997 reports into the
             # shell on every later theme switch.
@@ -1295,7 +1302,55 @@ class PromptToolkitInput(InputProviderABC):
                     stream.write(COLOR_SCHEME_REPORT_DISABLE)
                     stream.flush()
 
-    async def _iter_inputs_inner(self) -> AsyncIterator[UserInputPayload]:
+    async def _iter_inputs_inner(self) -> AsyncGenerator[UserInputPayload]:
+        prompt_task = asyncio.create_task(self._run_prompt())
+        try:
+            while True:
+                submitted = await self._submitted_inputs.get()
+                if isinstance(submitted, BaseException):
+                    raise submitted
+                if submitted is None:
+                    await prompt_task
+                    if self._exit_requested:
+                        return
+                    # EOF/ctrl-c may submit an exit confirmation which the user cancels.
+                    prompt_task = asyncio.create_task(self._run_prompt())
+                    continue
+                if self._exit_requested:
+                    return
+                if self._post_prompt is not None:
+                    with contextlib.suppress(Exception):
+                        self._post_prompt()
+
+                line = expand_paste_markers(submitted.text)
+                line = convert_dropped_text(line, cwd=active_work_dir())
+                images = extract_images_from_text(line)
+                yield UserInputPayload(text=line, images=images or None, queued_edit=submitted.queued_edit)
+        finally:
+            prompt_task.cancel()
+            await asyncio.gather(prompt_task, return_exceptions=True)
+
+    def _accept_input(self, buffer: Buffer) -> bool:
+        stripped = buffer.text.strip()
+        if stripped.lower() in {"exit", ":q", "quit"} or is_exit_command(stripped) or has_interactive_command(stripped):
+            # Exit confirmation and interactive commands use standalone stdin readers.
+            self._session.app.exit(result=buffer.text)
+            return True
+        self._submitted_inputs.put_nowait(UserInputPayload(text=buffer.text, queued_edit=self._queued_edit_active))
+        self._prompt_suggestion = None
+        self._queued_edit_active = False
+        # Buffer.validate_and_handle saves history and resets only the editor.
+        return False
+
+    async def _run_prompt(self) -> None:
+        try:
+            await self._run_prompt_loop()
+        except (Exception, KeyboardInterrupt) as exc:
+            self._submitted_inputs.put_nowait(exc)
+        finally:
+            self._submitted_inputs.put_nowait(None)
+
+    async def _run_prompt_loop(self) -> None:
         while True:
             await self._external_input_resume_event.wait()
             if self._exit_requested:
@@ -1356,24 +1411,8 @@ class PromptToolkitInput(InputProviderABC):
                 return
             if prompt_paused:
                 continue
-            if self._post_prompt is not None:
-                with contextlib.suppress(Exception):
-                    self._post_prompt()
-
-            # Replace saved-paste markers with short file references.
-            line = expand_paste_markers(line)
-
-            # Convert drag-and-drop file:// URIs that may have bypassed bracketed paste.
-            line = convert_dropped_text(line, cwd=active_work_dir())
-
-            # Extract images referenced in the input text
-            images = extract_images_from_text(line)
-
-            yield UserInputPayload(
-                text=line,
-                images=images if images else None,
-                queued_edit=queued_edit,
-            )
+            self._submitted_inputs.put_nowait(UserInputPayload(text=line, queued_edit=queued_edit))
+            return
 
     # Note: Mouse support is intentionally disabled at the PromptSession
     # level so that terminals retain their native scrollback behavior.

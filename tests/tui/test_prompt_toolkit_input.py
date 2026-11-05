@@ -202,7 +202,7 @@ def test_prompt_suggestion_fills_restores_after_backspace_and_clears_on_submit(
             prompt = PromptToolkitInput()
             suggestion = "run tests"
             prompt.set_prompt_suggestion(suggestion)
-            inputs = cast(AsyncGenerator[UserInputPayload], prompt._iter_inputs_inner())
+            inputs = prompt._iter_inputs_inner()
             task = asyncio.create_task(anext(inputs))
 
             def suggestion_is_visible() -> bool:
@@ -250,6 +250,189 @@ def test_running_placeholder_prompts_for_steering() -> None:
     placeholder = prompt_input._build_placeholder()
 
     assert placeholder == [("class:placeholder", "   Steer the main agent")]
+
+
+async def _wait_until(predicate: Callable[[], bool]) -> None:
+    async with asyncio.timeout(3):
+        while not predicate():
+            await asyncio.sleep(0.01)
+
+
+def test_submissions_keep_application_running_and_reset_only_editor(monkeypatch: pytest.MonkeyPatch) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+
+    async def run() -> None:
+        with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+            started, ended = Mock(), Mock()
+            prompt = PromptToolkitInput(on_prompt_start=started, on_prompt_end=ended)
+            app = prompt._session.app
+            reset = Mock(wraps=app.renderer.reset)
+            monkeypatch.setattr(app.renderer, "reset", reset)
+            inputs = cast(AsyncGenerator[UserInputPayload], prompt.iter_inputs())
+            pending = asyncio.create_task(anext(inputs))
+            try:
+                await _wait_until(lambda: app.is_running)
+                reset_count = reset.call_count
+                prompt._mark_queued_edit_active("first")
+                prompt.set_prompt_suggestion("suggestion")
+                pipe.send_text("first\r")
+                first = await asyncio.wait_for(pending, 3)
+                assert first.text == "first" and first.queued_edit
+                assert app.is_running and not app.is_done
+                assert prompt._session.default_buffer.text == ""
+                assert prompt._get_prompt_suggestion() is None
+                ended.assert_not_called()
+
+                # The runner can await work while the same application accepts more input.
+                pipe.send_text("second\r")
+                await _wait_until(lambda: "second" in prompt._session.history.get_strings())
+                second = await asyncio.wait_for(anext(inputs), 3)
+                assert second.text == "second" and not second.queued_edit
+                assert prompt._session.default_buffer.text == ""
+                assert reset.call_count == reset_count
+                started.assert_called_once()
+                ended.assert_not_called()
+
+                await _wait_until(lambda: "second" in prompt._session.default_buffer._working_lines)
+                pipe.send_text("\x1b[A")
+                await _wait_until(lambda: prompt._session.default_buffer.text == "second")
+                pipe.send_text("\r")
+                assert (await asyncio.wait_for(anext(inputs), 3)).text == "second"
+                prompt.set_next_prefill("retry me")
+                assert prompt._session.default_buffer.document == Document("retry me", 8)
+                assert prompt._next_prefill_text is None
+                assert reset.call_count == reset_count
+            finally:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+                await inputs.aclose()
+                await prompt.stop()
+            assert not app.is_running
+            ended.assert_called_once()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("exit_while_paused", [False, True])
+def test_pause_after_submission_restores_draft_once_and_host_exit_finishes(
+    monkeypatch: pytest.MonkeyPatch, exit_while_paused: bool
+) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+
+    async def run() -> None:
+        with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+            prompt = PromptToolkitInput()
+            app = prompt._session.app
+            inputs = prompt._iter_inputs_inner()
+            pending = asyncio.create_task(anext(inputs))
+            try:
+                await _wait_until(lambda: app.is_running)
+                pipe.send_text("first\r")
+                assert (await asyncio.wait_for(pending, 3)).text == "first"
+                prompt.set_agent_running(True)
+                prompt._session.default_buffer.document = Document("draft", 2)
+                prompt._mark_queued_edit_active("draft")
+                prompt.set_prompt_suggestion("suggestion")
+                # Pause must complete even while the input generator is suspended at yield.
+                resume = await asyncio.wait_for(prompt.pause_for_external_input(), 3)
+                resume_nested = await prompt.pause_for_external_input()
+                assert not app.is_running
+                resume_nested()
+                await asyncio.sleep(0)
+                assert not app.is_running
+                if exit_while_paused:
+                    prompt.request_exit()
+                    with pytest.raises(StopAsyncIteration):
+                        await asyncio.wait_for(anext(inputs), 3)
+                    resume()
+                else:
+                    resume()
+                    await _wait_until(lambda: app.is_running)
+                    assert prompt._session.default_buffer.document == Document("draft", 2)
+                    assert prompt._resumed_buffer_text is None
+                    assert prompt._resumed_cursor_position is None
+                    assert prompt._get_prompt_suggestion() == "suggestion"
+                    pipe.send_text("\r")
+                    payload = await asyncio.wait_for(anext(inputs), 3)
+                    assert payload.text == "draft" and payload.queued_edit
+                    assert prompt._get_prompt_suggestion() is None
+                    assert prompt._session.default_buffer.text == ""
+                    prompt.request_exit()
+                    with pytest.raises(StopAsyncIteration):
+                        await asyncio.wait_for(anext(inputs), 3)
+                assert not app.is_running
+            finally:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+                await inputs.aclose()
+                await prompt.stop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "exit\r",
+        "quit\r",
+        ":q\r",
+        "/exit\r",
+        "\x03",
+        "\x04",
+        "/model\r",
+        "/login\r",
+        "/logout\r",
+        "/copy\r",
+        "/fork-session\r",
+        "/rewind\r",
+        "/manage-providers\r",
+    ],
+)
+@pytest.mark.parametrize("exit_as_input", [False, True])
+def test_exit_releases_stdin_and_can_restart_after_cancelled_confirmation(
+    monkeypatch: pytest.MonkeyPatch, key: str, exit_as_input: bool
+) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+
+    async def run() -> None:
+        with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+            prompt = PromptToolkitInput(exit_as_input=exit_as_input)
+            app = prompt._session.app
+            inputs = prompt._iter_inputs_inner()
+            pending = asyncio.create_task(anext(inputs))
+            try:
+                await _wait_until(lambda: app.is_running)
+                pipe.send_text("first\r")
+                await asyncio.wait_for(pending, 3)
+                pipe.send_text(key)
+                await _wait_until(lambda: not app.is_running)
+                if not exit_as_input and key in {"\x03", "\x04"}:
+                    with pytest.raises(KeyboardInterrupt if key == "\x03" else EOFError):
+                        await anext(inputs)
+                else:
+                    payload = await asyncio.wait_for(anext(inputs), 3)
+                    assert payload.text == (key.rstrip("\r") if len(key) > 1 else "exit")
+                    assert not app.is_running
+                    pending = asyncio.create_task(anext(inputs))
+                    await _wait_until(lambda: app.is_running)
+                    pipe.send_text("continue\r")
+                    assert (await asyncio.wait_for(pending, 3)).text == "continue"
+            finally:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+                await inputs.aclose()
+                await prompt.stop()
+
+    asyncio.run(run())
 
 
 def test_running_prompt_uses_cyan_style() -> None:
