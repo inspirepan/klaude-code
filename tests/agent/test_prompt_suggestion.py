@@ -18,7 +18,7 @@ from klaude_code.protocol.models.common import StopReason
 from klaude_code.session.session import Session
 
 
-def test_runtime_skips_prompt_suggestion_when_follow_up_queue_pending(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_runtime_skips_prompt_suggestion_when_steering_queue_pending(monkeypatch: pytest.MonkeyPatch) -> None:
     handler = object.__new__(AgentOperationHandler)
     handler._prompt_suggestion_tasks = {}  # pyright: ignore[reportPrivateUsage]
 
@@ -29,7 +29,7 @@ def test_runtime_skips_prompt_suggestion_when_follow_up_queue_pending(monkeypatc
 
     agent = SimpleNamespace(
         session=SimpleNamespace(id="s1", sub_agent_state=None, parent_session_id=None),
-        follow_up_count=lambda: 1,
+        steering_count=lambda: 1,
     )
 
     handler._schedule_prompt_suggestion(agent)  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType]

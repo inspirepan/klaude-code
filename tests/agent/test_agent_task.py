@@ -54,9 +54,9 @@ def test_steering_batches_fifo_after_complete_step(
             assert [
                 message.join_text_parts(item.parts) for item in param.input if isinstance(item, message.UserMessage)
             ] == ["initial"]
-            agent.follow_up(message.UserInputPayload(text="first", source="user"))
-            agent.follow_up(message.UserInputPayload(text="second"))
-            queued_ids.extend(item.id for item in harness.session.follow_up_queue)
+            agent.steer(message.UserInputPayload(text="first", source="user"))
+            agent.steer(message.UserInputPayload(text="second"))
+            queued_ids.extend(item.id for item in harness.session.steering_queue)
             if with_tools:
                 return [_tool_call_assistant_message([("echo", "a", '{"text":"a"}'), ("echo", "b", '{"text":"b"}')])]
             return [_text_assistant_message("original final")]
@@ -83,7 +83,7 @@ def test_steering_batches_fifo_after_complete_step(
         finishes = [event for event in collected if isinstance(event, events.TaskFinishEvent)]
         assert len(finishes) == 1 and finishes[0].task_result == "steered final"
         assert not agent.pending_input_activity.is_set()
-        assert Session.load(harness.session.id, tmp_path).follow_up_queue == []
+        assert Session.load(harness.session.id, tmp_path).steering_queue == []
 
     arun(_test())
 
@@ -101,13 +101,13 @@ def test_steering_history_flush_precedes_ack_and_restore_deduplicates(
         agent = Agent(harness.session, profile)
         image_path = tmp_path / "input.png"
         Image.new("RGB", (2, 2), color="red").save(image_path)
-        agent.follow_up(
+        agent.steer(
             message.UserInputPayload(
                 text="image", source="user", images=[message.ImageFilePart(file_path=str(image_path))]
             )
         )
-        agent.follow_up(message.UserInputPayload(text="second"))
-        ids = [item.id for item in harness.session.follow_up_queue]
+        agent.steer(message.UserInputPayload(text="second"))
+        ids = [item.id for item in harness.session.steering_queue]
         flushed = asyncio.Event()
         release = asyncio.Event()
         original_flush = Session.wait_for_flush
@@ -126,12 +126,12 @@ def test_steering_history_flush_precedes_ack_and_restore_deduplicates(
 
         task = asyncio.create_task(inject())
         await asyncio.wait_for(flushed.wait(), timeout=5)
-        assert [item.id for item in Session.load_meta(harness.session.id, tmp_path).follow_up_queue] == ids
-        assert [item.text for item in agent.follow_up_snapshot()] == ["image", "second"]
+        assert [item.id for item in Session.load_meta(harness.session.id, tmp_path).steering_queue] == ids
+        assert [item.text for item in agent.steering_snapshot()] == ["image", "second"]
         # New enqueue and withdrawal must not delete the admitting batch.
-        agent.follow_up(message.UserInputPayload(text="withdraw me"))
-        assert [item.text for item in agent.pop_all_follow_up()] == ["withdraw me"]
-        assert [item.id for item in Session.load_meta(harness.session.id, tmp_path).follow_up_queue] == ids
+        agent.steer(message.UserInputPayload(text="withdraw me"))
+        assert [item.text for item in agent.pop_all_steering()] == ["withdraw me"]
+        assert [item.id for item in Session.load_meta(harness.session.id, tmp_path).steering_queue] == ids
         if cancel:
             task.cancel()
             with pytest.raises(asyncio.CancelledError):
@@ -145,7 +145,7 @@ def test_steering_history_flush_precedes_ack_and_restore_deduplicates(
         monkeypatch.setattr(Session, "wait_for_flush", original_flush)
         restored_session = Session.load(harness.session.id, tmp_path) if restart else harness.session
         restored = Agent(restored_session, profile) if restart else agent
-        restored.follow_up(message.UserInputPayload(text="after restart"))
+        restored.steer(message.UserInputPayload(text="after restart"))
         emitted = [event async for event in restored.inject_pending_inputs()]
         assert [event.content for event in emitted if isinstance(event, events.UserMessageEvent)] == (
             ["after restart"] if restart else ["image", "second", "after restart"]
@@ -161,7 +161,7 @@ def test_steering_history_flush_precedes_ack_and_restore_deduplicates(
         assert frozen.frozen and frozen.file_path != str(image_path)
         assert Path(frozen.file_path).read_bytes() == image_path.read_bytes()
         assert users[0].source == "user"
-        assert restored_session.follow_up_queue == []
+        assert restored_session.steering_queue == []
 
     arun(_test())
 
@@ -176,8 +176,8 @@ def test_operator_queue_metadata_failure_rolls_back_and_retries(
             harness.session, AgentProfile(llm_client=harness.fake_llm, system_prompt="test", tools=[], attachments=[])
         )
         if operation != "fresh_enqueue":
-            agent.follow_up(message.UserInputPayload(text="original"))
-        before = agent.follow_up_records()
+            agent.steer(message.UserInputPayload(text="original"))
+        before = agent.steering_records()
         original = session_store._write_json_dict_atomic
         failed = True
 
@@ -190,9 +190,9 @@ def test_operator_queue_metadata_failure_rolls_back_and_retries(
 
         async def change() -> None:
             if operation in {"fresh_enqueue", "enqueue"}:
-                agent.follow_up(message.UserInputPayload(text="new"))
+                agent.steer(message.UserInputPayload(text="new"))
             elif operation == "withdraw":
-                agent.pop_all_follow_up()
+                agent.pop_all_steering()
             else:
                 async for _ in agent.inject_pending_inputs():
                     pass
@@ -200,15 +200,15 @@ def test_operator_queue_metadata_failure_rolls_back_and_retries(
         for _ in range(2):
             with pytest.raises(OSError):
                 await change()
-            assert agent.follow_up_records() == before
-            assert agent.session.follow_up_queue == list(before)
+            assert agent.steering_records() == before
+            assert agent.session.steering_queue == list(before)
             assert agent.pending_input_activity.is_set() == bool(before)
-            assert Session.load_meta(agent.session.id, tmp_path).follow_up_queue == list(before)
+            assert Session.load_meta(agent.session.id, tmp_path).steering_queue == list(before)
         failed = False
         await change()
         expected = ["new"] if operation == "fresh_enqueue" else ["original", "new"] if operation == "enqueue" else []
-        assert [item.text for item in agent.follow_up_snapshot()] == expected
-        assert [item.input.text for item in Session.load_meta(agent.session.id, tmp_path).follow_up_queue] == expected
+        assert [item.text for item in agent.steering_snapshot()] == expected
+        assert [item.input.text for item in Session.load_meta(agent.session.id, tmp_path).steering_queue] == expected
         if operation == "admit":
             loaded = Session.load(agent.session.id, tmp_path)
             assert sum(isinstance(item, message.UserMessage) for item in loaded.conversation_history) == 1
@@ -228,9 +228,9 @@ def test_steering_writer_failure_retains_batch_and_retry_reaches_disk(
             harness.session,
             AgentProfile(llm_client=harness.fake_llm, system_prompt="test", tools=[], attachments=[]),
         )
-        agent.follow_up(message.UserInputPayload(text="first"))
-        agent.follow_up(message.UserInputPayload(text="second"))
-        ids = [item.id for item in harness.session.follow_up_queue]
+        agent.steer(message.UserInputPayload(text="first"))
+        agent.steer(message.UserInputPayload(text="second"))
+        ids = [item.id for item in harness.session.steering_queue]
         original_write = session_store.JsonlSessionWriter._write_batch_sync
         original_meta_write = session_store._write_json_dict_atomic  # pyright: ignore[reportPrivateUsage]
         batches: list[list[str | None]] = []
@@ -260,9 +260,9 @@ def test_steering_writer_failure_retains_batch_and_retry_reaches_disk(
         with pytest.raises(OSError, match="writer failed"):
             _ = [event async for event in agent.inject_pending_inputs()]
         assert batches == [ids]
-        assert [item.text for item in agent.follow_up_snapshot()] == ["first", "second"]
+        assert [item.text for item in agent.steering_snapshot()] == ["first", "second"]
         assert agent.pending_input_activity.is_set()
-        assert [item.id for item in Session.load_meta(harness.session.id, tmp_path).follow_up_queue] == ids
+        assert [item.id for item in Session.load_meta(harness.session.id, tmp_path).steering_queue] == ids
 
         if restart:
             agent = Agent(Session.load(harness.session.id, tmp_path), agent.profile)
@@ -287,7 +287,7 @@ def test_steering_writer_failure_retains_batch_and_retry_reaches_disk(
             for item in loaded.conversation_history
             if isinstance(item, message.UserMessage)
         ] == [{ids[0]: "first", ids[1]: "second", fresh.id: "ordinary new input"}[item_id] for item_id in disk_ids]
-        assert loaded.follow_up_queue == []
+        assert loaded.steering_queue == []
         assert not agent.pending_input_activity.is_set()
         assert Session.paths(tmp_path).events_file(loaded.id).read_text().count("\n") == len(disk_ids)
         assert [agent.session.line_index_of(i) for i in range(len(users))] == [
@@ -329,9 +329,9 @@ def test_restored_admission_loads_all_references_without_scanning_stale_history(
         )
         await harness.session.wait_for_flush()
         agent = Agent(harness.session, profile)
-        agent.follow_up(message.UserInputPayload(text="@recent.txt /skill:recent"))
-        agent.follow_up(message.UserInputPayload(text="last without references"))
-        queued = harness.session.follow_up_queue
+        agent.steer(message.UserInputPayload(text="@recent.txt /skill:recent"))
+        agent.steer(message.UserInputPayload(text="last without references"))
+        queued = harness.session.steering_queue
         # Simulate a crash after history reached disk but before queue ack.
         harness.session.append_history(
             [
@@ -404,7 +404,7 @@ def test_repeated_external_file_transitions_reach_each_request(tmp_path: Path, m
             request_count += 1
             if request_count < 4:
                 file_path.write_text("B\n" if request_count % 2 else "A\n")
-                agent.follow_up(message.UserInputPayload(text="continue"))
+                agent.steer(message.UserInputPayload(text="continue"))
             return [_text_assistant_message("done")]
 
         for _ in range(4):
@@ -457,9 +457,9 @@ def test_steering_is_checked_before_first_compacted_and_retried_requests(
             if batch_queued:
                 return
             batch_queued = True
-            agent.follow_up(message.UserInputPayload(text="pending @steering.txt /skill:steer"))
-            agent.follow_up(message.UserInputPayload(text="duplicate @./steering.txt /skill:steer"))
-            agent.follow_up(message.UserInputPayload(text="last message without references"))
+            agent.steer(message.UserInputPayload(text="pending @steering.txt /skill:steer"))
+            agent.steer(message.UserInputPayload(text="duplicate @./steering.txt /skill:steer"))
+            agent.steer(message.UserInputPayload(text="last message without references"))
 
         if boundary == "first":
             enqueue_batch()
@@ -560,8 +560,8 @@ def test_steering_reloads_recent_batch_references_after_compaction(
                 message.UserMessage(parts=message.text_parts_from_str("initial")),
             ]
         )
-        agent.follow_up(message.UserInputPayload(text="@recent.txt /skill:recent"))
-        agent.follow_up(message.UserInputPayload(text="last without references"))
+        agent.steer(message.UserInputPayload(text="@recent.txt /skill:recent"))
+        agent.steer(message.UserInputPayload(text="last without references"))
 
         async def compact(**_: Any) -> CompactionResult:
             # Drop the user messages and attachments: only the recent admission

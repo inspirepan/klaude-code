@@ -30,7 +30,7 @@ class SessionInfoSnapshot:
     effort: str | None = None
     work_dir: str | None = None
     title: str | None = None
-    follow_ups: tuple[str, ...] = field(default_factory=tuple)
+    steering: tuple[str, ...] = field(default_factory=tuple)
     is_replay_snapshot: bool = False
     replay_through_event_seq: int = 0
 
@@ -79,7 +79,7 @@ class RuntimeClient(Protocol):
         """Inject a display-only event into this client's display feed."""
         ...
 
-    async def dequeue_follow_ups(self) -> tuple[str, ...]: ...
+    async def dequeue_steering(self) -> tuple[str, ...]: ...
 
     async def get_model_catalog(self) -> ModelCatalog:
         """Read currently available models from this process configuration."""
@@ -99,14 +99,14 @@ class RuntimeClient(Protocol):
 
     def active_operation_id(self) -> str | None: ...
 
-    def follow_up_texts(self) -> tuple[str, ...]: ...
+    def steering_texts(self) -> tuple[str, ...]: ...
 
-    def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
+    def optimistically_append_steering(self, texts: Sequence[str]) -> None:
         """Show newly queued texts in the mirror immediately; the runtime's
-        FollowUpQueueUpdatedEvent reconciles the authoritative list."""
+        SteeringQueueUpdatedEvent reconciles the authoritative list."""
         ...
 
-    def remove_optimistic_follow_up(self, text: str) -> None:
+    def remove_optimistic_steering(self, text: str) -> None:
         """Roll back one optimistic entry whose runtime submit failed."""
         ...
 
@@ -115,7 +115,7 @@ class RuntimeClient(Protocol):
     def consume_interrupt_prefill(self) -> str | None: ...
 
     def state_changed_event(self) -> asyncio.Event:
-        """Set whenever running state or the follow-up queue changes."""
+        """Set whenever running state or the steering queue changes."""
         ...
 
     # -- interactions --

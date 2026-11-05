@@ -50,10 +50,10 @@ def test_completion_origin_round_trips_payload_queue_history_and_event(
 
     async def persist_queue() -> None:
         session = Session.create(work_dir=tmp_path)
-        session.set_follow_up_queue([queued])
+        session.set_steering_queue([queued])
         await session.wait_for_flush()
         loaded = Session.load(session.id, work_dir=tmp_path)
-        assert loaded.follow_up_queue == [queued]
+        assert loaded.steering_queue == [queued]
 
     asyncio.run(persist_queue())
 

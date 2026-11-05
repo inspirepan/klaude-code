@@ -51,7 +51,7 @@ class FakeRuntimeClient:
         self._info = SessionInfoSnapshot(session_id=session_id, work_dir="/nonexistent-work-dir")
         self._running = False
         self._active_operation_id: str | None = None
-        self._follow_ups: list[str] = []
+        self._steering: list[str] = []
         self._state_changed = asyncio.Event()
         self.interaction_closed = Event()
         self._interaction_queue: asyncio.Queue[events.UserInteractionRequestEvent] = asyncio.Queue()
@@ -125,9 +125,9 @@ class FakeRuntimeClient:
         if self.hold_run_ops and isinstance(operation, op.RunAgentOperation):
             # Simulate an operation whose finish trails (task wind-down).
             self._blocked_ops.setdefault(operation.id, asyncio.Event())
-        if isinstance(operation, op.FollowUpAgentOperation):
-            self._follow_ups.append(operation.input.text)
-            self._info.follow_ups = tuple(self._follow_ups)
+        if isinstance(operation, op.SteerAgentOperation):
+            self._steering.append(operation.input.text)
+            self._info.steering = tuple(self._steering)
             self._state_changed.set()
         return operation.id
 
@@ -146,11 +146,11 @@ class FakeRuntimeClient:
     async def emit_local_event(self, event: events.Event) -> None:
         self.local_events.append(event)
 
-    async def dequeue_follow_ups(self) -> tuple[str, ...]:
+    async def dequeue_steering(self) -> tuple[str, ...]:
         self.dequeue_calls += 1
-        texts = tuple(self._follow_ups)
-        self._follow_ups.clear()
-        self._info.follow_ups = ()
+        texts = tuple(self._steering)
+        self._steering.clear()
+        self._info.steering = ()
         self._state_changed.set()
         return texts
 
@@ -167,20 +167,20 @@ class FakeRuntimeClient:
     def active_operation_id(self) -> str | None:
         return self._active_operation_id
 
-    def follow_up_texts(self) -> tuple[str, ...]:
-        return self._info.follow_ups
+    def steering_texts(self) -> tuple[str, ...]:
+        return self._info.steering
 
-    def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
-        self._info.follow_ups = (*self._info.follow_ups, *texts)
+    def optimistically_append_steering(self, texts: Sequence[str]) -> None:
+        self._info.steering = (*self._info.steering, *texts)
         self._state_changed.set()
 
-    def remove_optimistic_follow_up(self, text: str) -> None:
-        follow_ups = list(self._info.follow_ups)
-        for idx in range(len(follow_ups) - 1, -1, -1):
-            if follow_ups[idx] == text:
-                del follow_ups[idx]
+    def remove_optimistic_steering(self, text: str) -> None:
+        steering = list(self._info.steering)
+        for idx in range(len(steering) - 1, -1, -1):
+            if steering[idx] == text:
+                del steering[idx]
                 break
-        self._info.follow_ups = tuple(follow_ups)
+        self._info.steering = tuple(steering)
         self._state_changed.set()
 
     def session_info(self) -> SessionInfoSnapshot:
@@ -502,7 +502,7 @@ def test_plain_message_echoes_and_starts_turn(monkeypatch: pytest.MonkeyPatch) -
     assert run_ops[0].input.text == "hello world"
 
 
-def test_input_while_running_queues_follow_up(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_input_while_running_queues_steering(monkeypatch: pytest.MonkeyPatch) -> None:
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
         client.set_running(True)
         await _settle()
@@ -512,9 +512,9 @@ def test_input_while_running_queues_follow_up(monkeypatch: pytest.MonkeyPatch) -
 
     client = run_scenario(monkeypatch, script)
 
-    follow_ups = client.ops_of(op.FollowUpAgentOperation)
-    assert len(follow_ups) == 1
-    assert follow_ups[0].input.text == "queued message"
+    steering = client.ops_of(op.SteerAgentOperation)
+    assert len(steering) == 1
+    assert steering[0].input.text == "queued message"
     # No echo and no run op: the Runtime echoes queued messages when drained.
     assert client.emitted_user_messages == []
     assert client.ops_of(op.RunAgentOperation) == []
@@ -547,7 +547,7 @@ def test_tasks_and_stop_immediately_while_busy_and_exit_closes_runtime(
     ]
     assert [request.action for request in client.task_requests] == ["list"]
     assert len(client.ops_of(op.StopAllTasksOperation)) == 1
-    assert client.ops_of(op.FollowUpAgentOperation) == []
+    assert client.ops_of(op.SteerAgentOperation) == []
     assert client.ops_of(op.RunAgentOperation) == []
     assert client.ops_of(op.InterruptOperation) == []
     assert client.emitted_user_messages == []
@@ -568,7 +568,7 @@ def test_stop_while_idle_does_not_start_or_echo_a_turn(monkeypatch: pytest.Monke
 
     client = run_scenario(monkeypatch, script)
     assert len(client.ops_of(op.StopAllTasksOperation)) == 1
-    assert not client.ops_of(op.RunAgentOperation) and not client.ops_of(op.FollowUpAgentOperation)
+    assert not client.ops_of(op.RunAgentOperation) and not client.ops_of(op.SteerAgentOperation)
     assert not client.emitted_user_messages
 
 
@@ -586,10 +586,10 @@ def test_skill_invocation_while_running_queues_as_text(monkeypatch: pytest.Monke
 
     client = run_scenario(monkeypatch, script)
 
-    follow_ups = client.ops_of(op.FollowUpAgentOperation)
-    assert len(follow_ups) == 1
+    steering = client.ops_of(op.SteerAgentOperation)
+    assert len(steering) == 1
     # Queued verbatim: the skill token is resolved by the Runtime at drain time.
-    assert follow_ups[0].input.text == "/skill:commit 提交"
+    assert steering[0].input.text == "/skill:commit 提交"
     notices = [e for e in client.local_events if isinstance(e, events.NoticeEvent)]
     assert not any("cannot be queued" in n.content for n in notices)
 
@@ -604,7 +604,7 @@ def test_command_while_running_is_rejected_with_notice(monkeypatch: pytest.Monke
 
     client = run_scenario(monkeypatch, script)
 
-    assert client.ops_of(op.FollowUpAgentOperation) == []
+    assert client.ops_of(op.SteerAgentOperation) == []
     notices = [e for e in client.local_events if isinstance(e, events.NoticeEvent)]
     assert any("cannot be queued" in n.content for n in notices)
 
@@ -740,7 +740,7 @@ def test_exit_closes_runtime_without_queueing(monkeypatch: pytest.MonkeyPatch, e
     assert client.closed is True
     assert not client.is_running()
     assert client.submitted == []
-    assert client.follow_up_texts() == ()
+    assert client.steering_texts() == ()
     assert client.emitted_user_messages == []
     assert client.local_events == []
 
@@ -753,11 +753,11 @@ def test_idle_queue_edit_splits_first_runs_rest_queue(monkeypatch: pytest.Monkey
     client = run_scenario(monkeypatch, script)
 
     run_ops = client.ops_of(op.RunAgentOperation)
-    follow_ups = client.ops_of(op.FollowUpAgentOperation)
+    steering = client.ops_of(op.SteerAgentOperation)
     assert len(run_ops) == 1
     assert run_ops[0].input.text == "first message"
-    assert len(follow_ups) == 1
-    assert follow_ups[0].input.text == "second message"
+    assert len(steering) == 1
+    assert steering[0].input.text == "second message"
 
 
 def test_bash_input_submits_run_bash(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -867,7 +867,7 @@ def test_esc_then_type_waits_for_wind_down_then_runs(monkeypatch: pytest.MonkeyP
     assert len(run_ops) == 1
     assert run_ops[0].input.text == "corrected instruction"
     # The corrected input started a fresh turn instead of being queued.
-    assert client.ops_of(op.FollowUpAgentOperation) == []
+    assert client.ops_of(op.SteerAgentOperation) == []
 
 
 def test_esc_prefill_lands_before_interrupted_op_finishes(monkeypatch: pytest.MonkeyPatch) -> None:

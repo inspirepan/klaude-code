@@ -88,7 +88,7 @@ def create_key_bindings(
         dequeue_pending_messages: Pops all queued messages from the Runtime and
             returns the confirmed texts (empty when the drain got there first).
         has_pending_messages: Returns True while queued messages are available.
-        is_agent_running: Returns True while Tab can switch between follow-up and `/btw` input.
+        is_agent_running: Returns True while Tab can switch between steering and `/btw` input.
         request_interrupt: Requests interruption of the currently running agent task.
         is_interrupt_available: Returns True while Escape can interrupt a task.
         on_color_scheme_change: Called with "dark"/"light" when the terminal
@@ -552,7 +552,7 @@ def create_key_bindings(
 
     @kb.add("tab", filter=enabled & ~has_completions & agent_running, eager=True)
     def _(event: KeyPressEvent) -> None:
-        """Switch running input between queued follow-up and `/btw` mode."""
+        """Switch running input between queued steering and `/btw` mode."""
         buf = event.current_buffer
         prefix = "/btw "
         text = buf.text

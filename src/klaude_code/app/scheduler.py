@@ -1,7 +1,7 @@
 """Headless run management: concurrency slots, run queue, and activity tracking.
 
 `klaude run` and later headless turns pass through one persistent slot queue.
-Interactive sessions use the same follow-up drain but do not consume headless
+Interactive sessions use the same steering drain but do not consume headless
 slots.
 """
 
@@ -93,7 +93,7 @@ class SessionActivityTracker:
       ``can_retry=True`` errors continue the task loop, and TaskFinishEvent is
       only reached once that loop completes — every fatal path returns or
       raises before it. A mid-turn error the agent recovered from must not
-      leave the session looking failed: that latched the follow-up queue for
+      leave the session looking failed: that latched the steering queue for
       the rest of the session over a transient connection blip.
     """
 
@@ -127,7 +127,7 @@ class SessionActivityTracker:
         if isinstance(event, events.InterruptEvent):
             entry = self._entry(session_id)
             # An Esc that resumes the queue is not a stop: leaving the flag
-            # set would block the follow-up drain this interrupt asked for.
+            # set would block the steering drain this interrupt asked for.
             entry.interrupted = not event.resume_follow_ups
             entry.current_tool_call = None
             entry.finished_at = time.time()
@@ -190,7 +190,7 @@ class QueuedRun:
     session_id: str
     queued: QueuedUserInput
     work_dir: Path
-    kind: Literal["turn", "follow_up"] = "turn"
+    kind: Literal["turn", "steering"] = "turn"
 
 
 class HeadlessRuntime:
@@ -236,7 +236,7 @@ class HeadlessRuntime:
         self._restored_facts: dict[str, SessionRuntimeFacts] = {}
         self._last_status: dict[str, SessionStatus] = {}
         self._durable_pending: set[str] = set()
-        self._restoring_follow_ups: set[str] = set()
+        self._restoring_steering: set[str] = set()
         self._resumed_result_owners: set[str] = set()
         self._restored_pending_agents: set[str] = set()
 
@@ -251,7 +251,7 @@ class HeadlessRuntime:
         self._consumer_task = asyncio.create_task(self._consume_events(event_bus))
 
     def restore(self, summaries: list[SessionSummary], *, schedule: bool = True) -> None:
-        """Restore durable queued turns, follow-ups, and failed state."""
+        """Restore durable queued turns, steering messages, and failed state."""
         restored: list[QueuedRun] = []
         for summary in summaries:
             work_dir = Path(summary.work_dir)
@@ -278,7 +278,7 @@ class HeadlessRuntime:
                 session.runtime.control = SessionControl(paused=True, reason="process_restart")
                 session.persist_runtime()
             self._restored_facts[summary.id] = session.runtime
-            if session.headless_queued_turn or session.follow_up_queue:
+            if session.headless_queued_turn or session.steering_queue:
                 self._durable_pending.add(summary.id)
             if session.runtime.control.paused:
                 self._wake_paused.add(summary.id)
@@ -301,12 +301,12 @@ class HeadlessRuntime:
                             work_dir=work_dir,
                         )
                     )
-            while session.follow_up_queue and session.runtime.completed_input_id == session.follow_up_queue[0].id:
-                session.set_follow_up_queue(session.follow_up_queue[1:])
+            while session.steering_queue and session.runtime.completed_input_id == session.steering_queue[0].id:
+                session.set_steering_queue(session.steering_queue[1:])
             if (
                 schedule
                 and session.headless_queued_turn is None
-                and session.follow_up_queue
+                and session.steering_queue
                 and not session.runtime.control.paused
                 and session.runtime.error is None
             ):
@@ -314,15 +314,15 @@ class HeadlessRuntime:
                     restored.append(
                         QueuedRun(
                             session_id=summary.id,
-                            queued=session.follow_up_queue[0],
+                            queued=session.steering_queue[0],
                             work_dir=work_dir,
-                            kind="follow_up",
+                            kind="steering",
                         )
                     )
                 else:
-                    self._restoring_follow_ups.add(summary.id)
+                    self._restoring_steering.add(summary.id)
                     task = asyncio.create_task(
-                        self._restore_interactive_follow_ups(summary.id, work_dir), context=detached_context()
+                        self._restore_interactive_steering(summary.id, work_dir), context=detached_context()
                     )
                     self._watch_tasks.add(task)
                     task.add_done_callback(self._watch_tasks.discard)
@@ -330,10 +330,10 @@ class HeadlessRuntime:
             self._enqueue(entry)
         self._pump()
 
-    async def _restore_interactive_follow_ups(self, session_id: str, work_dir: Path) -> None:
+    async def _restore_interactive_steering(self, session_id: str, work_dir: Path) -> None:
         try:
             await self._ensure_agent(session_id, work_dir)
-            self._schedule_follow_up_drain(session_id)
+            self._schedule_steering_drain(session_id)
         except Exception as exc:
             log_info(
                 f"[headless] could not restore queued input for {session_id[:8]}: {exc}",
@@ -341,7 +341,7 @@ class HeadlessRuntime:
             )
             await self._persist_failed(session_id, failed=True)
         finally:
-            self._restoring_follow_ups.discard(session_id)
+            self._restoring_steering.discard(session_id)
             await self.publish_statuses(session_id)
 
     def _status_session(self, session_id: str) -> Session | None:
@@ -370,8 +370,8 @@ class HeadlessRuntime:
         agent = actor.get_agent() if actor is not None else None
         queue = (
             session_id in self._queued_by_id
-            or session_id in self._restoring_follow_ups
-            or bool(agent is not None and agent.peek_next_follow_up())
+            or session_id in self._restoring_steering
+            or bool(agent is not None and agent.peek_next_steering())
         )
         if tasks is None:
             tasks = self._runtime.task_manager.session_tasks_snapshot(session_id)
@@ -455,7 +455,7 @@ class HeadlessRuntime:
     def _durable_queue(self, session_id: str) -> bool:
         session = self._status_session(session_id)
         if session is not None:
-            return bool(session.headless_queued_turn or session.follow_up_queue)
+            return bool(session.headless_queued_turn or session.steering_queue)
         return session_id in self._durable_pending
 
     async def publish_statuses(self, session_id: str) -> None:
@@ -523,7 +523,7 @@ class HeadlessRuntime:
         ) and self._turn_starting.get(event.session_id) == event.operation_id:
             self._turn_starting.pop(event.session_id, None)
         if isinstance(event, events.TaskFinishEvent) and not self.tracker.is_interrupted(event.session_id):
-            self._schedule_follow_up_drain(event.session_id)
+            self._schedule_steering_drain(event.session_id)
             # A report that landed after the turn's last boundary still needs a turn.
             if not events.is_cancelled_task_result(event.task_result):
                 self._schedule_task_result_wake(event.session_id)
@@ -541,19 +541,19 @@ class HeadlessRuntime:
         # TUI Esc mid-queue: the interrupted turn ends without a
         # drain-triggering TaskFinish, so continue the queue here.
         if isinstance(event, events.InterruptEvent) and event.resume_follow_ups:
-            self._schedule_follow_up_drain(event.session_id)
-        # A follow-up queued onto an already-idle session (submit
+            self._schedule_steering_drain(event.session_id)
+        # A steering message queued onto an already-idle session (submit
         # raced the turn end) has no TaskFinish coming; drain now.
-        if isinstance(event, events.FollowUpQueueUpdatedEvent) and event.texts:
-            self._schedule_follow_up_drain(event.session_id)
+        if isinstance(event, events.SteeringQueueUpdatedEvent) and event.texts:
+            self._schedule_steering_drain(event.session_id)
         # Background operations (away summary, compaction, ...) hold
         # the actor busy without any TaskFinish. A drain that gave up
         # waiting on them must be re-armed when they complete, or a
         # message queued during the window sits pending forever. A failed
         # operation frees the actor the same way; the failed/stopped
-        # latches in _schedule_follow_up_drain keep error loops out.
+        # latches in _schedule_steering_drain keep error loops out.
         if isinstance(event, events.OperationFinishedEvent) and event.status in ("completed", "failed"):
-            self._schedule_follow_up_drain(event.session_id)
+            self._schedule_steering_drain(event.session_id)
             # TaskFinish can precede the actor going idle; by now it is, so retry the wake.
             self._schedule_task_result_wake(event.session_id)
         if isinstance(
@@ -570,7 +570,7 @@ class HeadlessRuntime:
             | events.UserInteractionResolvedEvent
             | events.UserInteractionCancelledEvent
             | events.BackgroundTasksUpdatedEvent
-            | events.FollowUpQueueUpdatedEvent,
+            | events.SteeringQueueUpdatedEvent,
         ):
             await self.publish_statuses(event.session_id)
 
@@ -635,8 +635,8 @@ class HeadlessRuntime:
                 or self.turn_start_pending(session_id)
                 or session_id in self._queued_by_id
                 or session_id in self._running
-                # Queued follow-ups the drain will run carry the reports too; capped peer ones will not.
-                or (agent.peek_next_follow_up() is not None and not self._peer_turn_capped(agent))
+                # Queued steering messages the drain will run carry the reports too; capped peer ones will not.
+                or (agent.peek_next_steering() is not None and not self._peer_turn_capped(agent))
             ):
                 return
             manager = self._runtime.task_manager
@@ -662,13 +662,13 @@ class HeadlessRuntime:
                 self.clear_turn_starting(session_id, operation.id)
                 raise
 
-    def nudge_follow_up_drain(self, session_id: str) -> None:
+    def nudge_steering_drain(self, session_id: str) -> None:
         """Kick the drain for a session that may hold a persisted queue.
 
         Re-arm permitted work after actor rehydration without treating history restoration
         as operator input. Paused and failed queues remain blocked.
         """
-        self._schedule_follow_up_drain(session_id)
+        self._schedule_steering_drain(session_id)
 
     def mark_session_active(self, session_id: str) -> None:
         """Lift the kill/failed latches without scheduling a drain.
@@ -689,7 +689,7 @@ class HeadlessRuntime:
             agent.session.resume()
             self._restored_facts[session_id] = agent.session.runtime
 
-    def _schedule_follow_up_drain(self, session_id: str, *, revive: bool = False) -> None:
+    def _schedule_steering_drain(self, session_id: str, *, revive: bool = False) -> None:
         if revive:
             self.mark_session_active(session_id)
         if self.continuation(session_id).blocked_by:
@@ -699,26 +699,26 @@ class HeadlessRuntime:
         actor = self._runtime.session_registry.get_session_actor(session_id)
         agent = actor.get_agent() if actor is not None else None
         if actor is not None and agent is not None and agent.session.spawn_kind == "headless":
-            queued = agent.peek_next_follow_up_record()
+            queued = agent.peek_next_steering_record()
             if queued is not None:
                 self._enqueue(
                     QueuedRun(
                         session_id=session_id,
                         queued=queued,
                         work_dir=agent.session.work_dir,
-                        kind="follow_up",
+                        kind="steering",
                     )
                 )
                 self._pump()
             return
         # The drain runs another session's turn; never under the trigger's event IDs.
-        task = asyncio.create_task(self._drain_follow_up_logged(session_id), context=detached_context())
+        task = asyncio.create_task(self._drain_steering_logged(session_id), context=detached_context())
         self._watch_tasks.add(task)
         task.add_done_callback(self._watch_tasks.discard)
 
-    async def _drain_follow_up_logged(self, session_id: str) -> None:
+    async def _drain_steering_logged(self, session_id: str) -> None:
         try:
-            await self._drain_follow_up(session_id)
+            await self._drain_steering(session_id)
         except Exception as exc:
             # A drained turn that errors raises out of _start_turn; without
             # this the exception dies unobserved in the fire-and-forget task.
@@ -736,14 +736,14 @@ class HeadlessRuntime:
         """
         actor = self._runtime.session_registry.get_session_actor(session_id)
         agent = actor.get_agent() if actor is not None else None
-        if agent is None or agent.peek_next_follow_up() is None:
+        if agent is None or agent.peek_next_steering() is None:
             return
         if session_id in self._drain_latch_noticed:
             return
         self._drain_latch_noticed.add(session_id)
         reason = "session was stopped" if session_id in self._stopped_sessions else "last turn failed"
         log_info(
-            f"[headless] follow-up queue latched ({reason}), {agent.follow_up_count()} pending: {session_id[:8]}",
+            f"[headless] follow-up queue latched ({reason}), {agent.steering_count()} pending: {session_id[:8]}",
             debug_type=DebugType.EXECUTION,
         )
         notice = events.NoticeEvent(
@@ -755,8 +755,8 @@ class HeadlessRuntime:
         self._watch_tasks.add(task)
         task.add_done_callback(self._watch_tasks.discard)
 
-    async def _drain_follow_up(self, session_id: str) -> None:
-        """Drain queued follow-up turns on a locally owned session.
+    async def _drain_steering(self, session_id: str) -> None:
+        """Drain queued steering turns on a locally owned session.
 
         The queue continues here for interactive and headless sessions alike. A
         per-session lock serializes drains: without it two triggers could pop
@@ -798,21 +798,21 @@ class HeadlessRuntime:
                         f"[headless] drain skip (turn starting): {session_id[:8]}", debug_type=DebugType.EXECUTION
                     )
                     return
-                if agent.peek_next_follow_up() is None:
+                if agent.peek_next_steering() is None:
                     return
 
-                if not await self._run_one_follow_up(agent):
+                if not await self._run_one_steering(agent):
                     return
 
-    async def _run_headless_follow_up(self, entry: QueuedRun) -> None:
+    async def _run_headless_steering(self, entry: QueuedRun) -> None:
         agent = await self._ensure_agent(entry.session_id, entry.work_dir)
         if not self.continuation(entry.session_id).blocked_by:
-            await self._run_one_follow_up(agent)
+            await self._run_one_steering(agent)
 
-    async def _run_one_follow_up(self, agent: Any) -> bool:
+    async def _run_one_steering(self, agent: Any) -> bool:
         """Reserve a run; the task admits the whole pending batch at its first boundary."""
         session_id = agent.session.id
-        queued: QueuedUserInput | None = agent.peek_next_follow_up_record()
+        queued: QueuedUserInput | None = agent.peek_next_steering_record()
         if queued is None:
             return False
         if self.continuation(session_id).blocked_by:
@@ -827,7 +827,7 @@ class HeadlessRuntime:
             agent = actor.get_agent() if actor is not None else None
             if agent is None or self.tracker.is_interrupted(session_id):
                 return False
-            queued = agent.peek_next_follow_up_record()
+            queued = agent.peek_next_steering_record()
             if queued is None:
                 return False
         await self._start_turn(session_id, queued.input, turn_id=queued.id, queued_input=True)
@@ -842,7 +842,7 @@ class HeadlessRuntime:
         """Whether the queue holds only agent messages and their turn budget is spent."""
         if agent.session.runtime.peer_turns < PEER_TURNS_WITHOUT_USER_LIMIT:
             return False
-        records: tuple[QueuedUserInput, ...] = agent.follow_up_records()
+        records: tuple[QueuedUserInput, ...] = agent.steering_records()
         return (
             bool(records)
             and all(_is_agent_peer_input(record.input) for record in records)
@@ -857,7 +857,7 @@ class HeadlessRuntime:
         user's next message.
         """
         session_id = agent.session.id
-        records: tuple[QueuedUserInput, ...] = agent.follow_up_records()
+        records: tuple[QueuedUserInput, ...] = agent.steering_records()
         if not records or not all(_is_agent_peer_input(record.input) for record in records):
             return True
         turns = agent.session.runtime.peer_turns
@@ -918,8 +918,8 @@ class HeadlessRuntime:
     def queued_session_ids(self) -> list[str]:
         return [entry.session_id for entry in self._queue]
 
-    def has_live_follow_ups(self, session_id: str) -> bool:
-        """True when queued follow-ups will start a turn on their own.
+    def has_live_steering(self, session_id: str) -> bool:
+        """True when queued steering messages will start a turn on their own.
 
         A latched queue (stopped session, failed turn) waits for the user, so
         it does not make the session busy.
@@ -949,7 +949,7 @@ class HeadlessRuntime:
         prompt: UserInputPayload,
         work_dir: Path,
     ) -> str:
-        """Persist and schedule an idle turn, or append behind existing follow-ups."""
+        """Persist and schedule an idle turn, or append behind existing steering messages."""
         lock = self._scheduling_locks.setdefault(session_id, asyncio.Lock())
         async with lock:
             handoff = self._launch_handoffs.get(session_id)
@@ -977,9 +977,9 @@ class HeadlessRuntime:
             if peer.recipient in self._running and handoff is not None:
                 await asyncio.shield(handoff)
             agent = await self._ensure_agent(peer.recipient, work_dir)
-            if any(item.id == peer.id and item.input.peer_message != peer for item in agent.follow_up_records()):
+            if any(item.id == peer.id and item.input.peer_message != peer for item in agent.steering_records()):
                 raise ValueError("Peer message ID already belongs to different content or sender")
-            pending = agent.follow_up_snapshot()
+            pending = agent.steering_snapshot()
             history = agent.session.conversation_history
             if any(
                 isinstance(item, message.UserMessage) and item.id == peer.id and item.peer_message != peer
@@ -994,9 +994,9 @@ class HeadlessRuntime:
                         raise ValueError("Peer message ID already belongs to different content or sender")
                     await asyncio.shield(agent.session.wait_for_flush())
                     if expected_operation_id is None and any(
-                        item.peer_message == peer for item in agent.follow_up_snapshot()
+                        item.peer_message == peer for item in agent.steering_snapshot()
                     ):
-                        self._schedule_follow_up_drain(peer.recipient)
+                        self._schedule_steering_drain(peer.recipient)
                     return PeerReceipt(message_id=peer.id, target=peer.recipient)
 
             # Rewound/retracted inputs still reserve their transport IDs.
@@ -1007,7 +1007,7 @@ class HeadlessRuntime:
                 if previous_input.peer_message != peer:
                     raise ValueError("Peer message ID already belongs to different content or sender")
                 return PeerReceipt(message_id=peer.id, target=peer.recipient)
-            pending = agent.follow_up_snapshot()
+            pending = agent.steering_snapshot()
             peer_pending = [item for item in pending if item.source == "peer_message"]
             if len(peer_pending) >= 50:
                 raise ValueError("Peer queue is full (50 pending messages); batch or wait")
@@ -1036,14 +1036,14 @@ class HeadlessRuntime:
             from_parent = (
                 peer.sender_session_id is not None and peer.sender_session_id == agent.session.parent_session_id
             )
-            agent.follow_up(
+            agent.steer(
                 UserInputPayload(
                     text=peer.input_text(from_parent=from_parent), source="peer_message", peer_message=peer
                 )
             )
             recent[key] = [*entries, (now, peer.body)]
             await asyncio.shield(agent.session.wait_for_flush())
-            self._schedule_follow_up_drain(peer.recipient)
+            self._schedule_steering_drain(peer.recipient)
             return PeerReceipt(message_id=peer.id, target=peer.recipient)
 
     async def _send_locked(
@@ -1080,15 +1080,13 @@ class HeadlessRuntime:
             or (actor is not None and not actor.snapshot().is_idle)
             or bool(self.continuation(session_id).blocked_by)
         )
-        has_follow_ups = agent is not None and agent.peek_next_follow_up() is not None
+        has_steering = agent is not None and agent.peek_next_steering() is not None
         session = agent.session if agent is not None else Session.load_meta(session_id, work_dir=work_dir)
         if session.spawn_kind != "headless":
-            if busy or has_follow_ups:
-                operation_id = await self._runtime.submit(
-                    op.FollowUpAgentOperation(session_id=session_id, input=prompt)
-                )
+            if busy or has_steering:
+                operation_id = await self._runtime.submit(op.SteerAgentOperation(session_id=session_id, input=prompt))
                 await self._runtime.wait_for(operation_id)
-                self._schedule_follow_up_drain(session_id)
+                self._schedule_steering_drain(session_id)
                 return "queued"
             await self._ensure_agent(session_id, work_dir)
             await self._runtime.emit_event(
@@ -1109,10 +1107,10 @@ class HeadlessRuntime:
                 self.clear_turn_starting(session_id, run.id)
                 raise
             return "started"
-        if busy or has_follow_ups:
-            operation_id = await self._runtime.submit(op.FollowUpAgentOperation(session_id=session_id, input=prompt))
+        if busy or has_steering:
+            operation_id = await self._runtime.submit(op.SteerAgentOperation(session_id=session_id, input=prompt))
             await self._runtime.wait_for(operation_id)
-            self._schedule_follow_up_drain(session_id)
+            self._schedule_steering_drain(session_id)
             return "queued"
         entry = QueuedRun(session_id=session_id, queued=QueuedUserInput(input=prompt), work_dir=work_dir)
         await asyncio.to_thread(
@@ -1166,17 +1164,17 @@ class HeadlessRuntime:
                     session.headless_queued_turn = None
                 cancelled = True
             if agent is not None:
-                if agent.peek_next_follow_up() is not None:
+                if agent.peek_next_steering() is not None:
                     cancelled = True
-                agent.pop_all_follow_up()
+                agent.pop_all_steering()
                 await self._runtime.emit_event(
-                    events.FollowUpQueueUpdatedEvent(
-                        session_id=session_id, texts=[item.text for item in agent.follow_up_snapshot()]
+                    events.SteeringQueueUpdatedEvent(
+                        session_id=session_id, texts=[item.text for item in agent.steering_snapshot()]
                     )
                 )
-            elif session.follow_up_queue:
+            elif session.steering_queue:
                 cancelled = True
-                session.set_follow_up_queue([])
+                session.set_steering_queue([])
             if session_id in self._running or (actor is not None and not actor.snapshot().is_idle):
                 self._stopped_sessions.add(session_id)
             return cancelled
@@ -1187,7 +1185,7 @@ class HeadlessRuntime:
             return False
         with contextlib.suppress(ValueError):
             self._queue.remove(entry)
-        if entry.kind != "follow_up":
+        if entry.kind != "steering":
             await asyncio.to_thread(
                 Session.persist_headless_queued_turn,
                 session_id,
@@ -1198,9 +1196,9 @@ class HeadlessRuntime:
             actor = self._runtime.session_registry.get_session_actor(session_id)
             agent = actor.get_agent() if actor is not None else None
             if agent is not None:
-                agent.pop_all_follow_up()
+                agent.pop_all_steering()
             else:
-                Session.load_meta(session_id, work_dir=entry.work_dir).set_follow_up_queue([])
+                Session.load_meta(session_id, work_dir=entry.work_dir).set_steering_queue([])
         if session_id in self._running:
             self._stopped_sessions.add(session_id)
         return True
@@ -1216,8 +1214,8 @@ class HeadlessRuntime:
                     Session.persist_headless_queued_turn(session_id, entry.work_dir, expected_turn_id=entry.queued.id)
                     agent.session.headless_queued_turn = None
                 return
-            if entry.kind == "follow_up":
-                await self._run_headless_follow_up(entry)
+            if entry.kind == "steering":
+                await self._run_headless_steering(entry)
                 return
             await self._start_turn(
                 session_id,
@@ -1242,7 +1240,7 @@ class HeadlessRuntime:
             self._running.discard(session_id)
             actor = self._runtime.session_registry.get_session_actor(session_id)
             agent = actor.get_agent() if actor is not None else None
-            queued = agent.peek_next_follow_up_record() if agent is not None else None
+            queued = agent.peek_next_steering_record() if agent is not None else None
             if self.continuation(session_id).blocked_by:
                 queued = None
             if queued is not None:
@@ -1251,7 +1249,7 @@ class HeadlessRuntime:
                         session_id=session_id,
                         queued=queued,
                         work_dir=entry.work_dir,
-                        kind="follow_up",
+                        kind="steering",
                     )
                 )
             self._pump()
@@ -1400,8 +1398,8 @@ class HeadlessRuntime:
                 self._enqueue(QueuedRun(session_id=session_id, queued=queued, work_dir=work_dir))
                 self._pump()
             else:
-                if agent.peek_next_follow_up() is not None:
-                    self._schedule_follow_up_drain(session_id)
+                if agent.peek_next_steering() is not None:
+                    self._schedule_steering_drain(session_id)
                 self._schedule_task_result_wake(session_id)
         else:
             agent.session.runtime.error = None

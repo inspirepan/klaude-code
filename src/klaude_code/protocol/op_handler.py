@@ -19,7 +19,6 @@ if TYPE_CHECKING:
         CloseSessionOperation,
         CompactSessionOperation,
         ContinueAgentOperation,
-        FollowUpAgentOperation,
         ForkAndSwitchSessionOperation,
         GenerateAwaySummaryOperation,
         GetContextUsageOperation,
@@ -33,6 +32,7 @@ if TYPE_CHECKING:
         RewindWithSummaryOperation,
         RunAgentOperation,
         RunBashOperation,
+        SteerAgentOperation,
         StopAllTasksOperation,
         StopSubAgentsOperation,
         UserInteractionRespondOperation,
@@ -56,8 +56,8 @@ class OperationHandler(Protocol):
         """Handle a run agent operation."""
         ...
 
-    async def handle_follow_up_agent(self, operation: FollowUpAgentOperation) -> None:
-        """Handle a follow-up agent operation."""
+    async def handle_steer_agent(self, operation: SteerAgentOperation) -> None:
+        """Handle a steering agent operation."""
         ...
 
     async def handle_run_bash(self, operation: RunBashOperation) -> None:

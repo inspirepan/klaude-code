@@ -1,7 +1,7 @@
 """Bottom-bar UI rendered below the REPL prompt.
 
 Owns the stacked surfaces that appear while an agent is running: the
-scrollback gap, status spinner lines, stream tail, and queued follow-ups.
+scrollback gap, status spinner lines, stream tail, and queued steering messages.
 ``PromptToolkitInput`` keeps responsibility for the prompt session, pickers,
 and clipboard watcher; this module owns everything that renders below the
 input.

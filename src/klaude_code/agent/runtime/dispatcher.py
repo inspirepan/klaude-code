@@ -229,8 +229,8 @@ class OperationDispatcher:
     async def handle_run_agent(self, operation: op.RunAgentOperation) -> None:
         await self._agent_operation_handler.run_agent(operation)
 
-    async def handle_follow_up_agent(self, operation: op.FollowUpAgentOperation) -> None:
-        await self._agent_operation_handler.follow_up_agent(operation)
+    async def handle_steer_agent(self, operation: op.SteerAgentOperation) -> None:
+        await self._agent_operation_handler.steer_agent(operation)
 
     async def handle_run_bash(self, operation: op.RunBashOperation) -> None:
         await self._agent_operation_handler.run_bash(operation)
@@ -386,7 +386,7 @@ class OperationDispatcher:
             operation.session_id,
             expected_operation_id=operation.expected_operation_id,
             retract_unanswered_input=operation.retract_unanswered_input,
-            resume_follow_ups=operation.resume_follow_ups,
+            resume_steering=operation.resume_follow_ups,
         )
         await self._emit_interaction_cancelled_events(cancelled_requests, reason="interrupt")
 
@@ -433,10 +433,10 @@ class OperationDispatcher:
             child.cancel_queued_runs()
             if not child.snapshot().is_idle:
                 await self.handle_interrupt(op.InterruptOperation(session_id=child.session_id))
-            if child_agent.follow_up_count():
-                child_agent.pop_all_follow_up()
+            if child_agent.steering_count():
+                child_agent.pop_all_steering()
                 await child_agent.session.wait_for_flush()
-                await self.emit_event(events.FollowUpQueueUpdatedEvent(session_id=child.session_id, texts=[]))
+                await self.emit_event(events.SteeringQueueUpdatedEvent(session_id=child.session_id, texts=[]))
 
     async def handle_stop_all_tasks(self, operation: op.StopAllTasksOperation) -> None:
         actor = self._ports.get_session_actor(operation.session_id)
@@ -478,10 +478,10 @@ class OperationDispatcher:
                         failures.append(RuntimeError(f"Session {session_id}: tasks did not stop after interrupt"))
                     agent = owner.get_agent()
                     if agent is not None:
-                        agent.pop_all_follow_up()
+                        agent.pop_all_steering()
                         await attempt(agent.session.wait_for_flush())
                         await attempt(
-                            self.emit_event(events.FollowUpQueueUpdatedEvent(session_id=session_id, texts=[]))
+                            self.emit_event(events.SteeringQueueUpdatedEvent(session_id=session_id, texts=[]))
                         )
                         await attempt(self.task_manager.stop_all_tasks(session_id, agent.session.work_dir))
                     # Accepted launches can finish creating actors while the root unwinds.

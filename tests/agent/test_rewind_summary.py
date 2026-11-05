@@ -248,7 +248,7 @@ def test_rewind_op_forks_appends_entry_and_emits_ready(
             return type(
                 "FakeAgent",
                 (),
-                {"session": target, "profile": object(), "follow_up_count": staticmethod(lambda: 0)},
+                {"session": target, "profile": object(), "steering_count": staticmethod(lambda: 0)},
             )()
 
         async def _ensure_agent(_session_id: str, **_kwargs: Any) -> Any:
@@ -339,7 +339,7 @@ def test_rewind_op_rejects_non_user_pivot(tmp_path: Path, isolated_home: Path, m
             return type(
                 "FakeAgent",
                 (),
-                {"session": session, "profile": object(), "follow_up_count": staticmethod(lambda: 0)},
+                {"session": session, "profile": object(), "steering_count": staticmethod(lambda: 0)},
             )()
 
         monkeypatch.setattr(handler, "ensure_agent", _ensure_agent)

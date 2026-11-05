@@ -79,7 +79,7 @@ def test_status_event_recomputes_only_session_and_ancestors(tmp_path: Path, monk
     snapshots: list[str] = []
     for session_id, parent_id in (("root", None), ("parent", "root"), ("child", "parent"), ("unrelated", None)):
         session = Session(id=session_id, work_dir=tmp_path, parent_session_id=parent_id)
-        agent = SimpleNamespace(session=session, peek_next_follow_up=lambda: None)
+        agent = SimpleNamespace(session=session, peek_next_steering=lambda: None)
         actors[session_id] = SimpleNamespace(
             session_id=session_id,
             get_agent=lambda agent=agent: agent,
@@ -215,7 +215,7 @@ class TestAutonomyAttachment:
         assert asyncio.run(autonomy_attachment(session)) is not None
 
 
-def test_runtime_rebuild_restores_queued_follow_up_and_failed(
+def test_runtime_rebuild_restores_queued_steering_and_failed(
     isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del isolated_home
@@ -228,10 +228,10 @@ def test_runtime_rebuild_restores_queued_follow_up_and_failed(
     monkeypatch.setattr(first_runtime, "_pump", lambda: None)
     asyncio.run(first_runtime.spawn(session_id=queued.id, prompt=UserInputPayload(text="durable"), work_dir=tmp_path))
 
-    follow_up = Session.create(work_dir=tmp_path)
-    follow_up.spawn_kind = "headless"
-    follow_up.ensure_meta_exists()
-    follow_up.set_follow_up_queue(
+    steering = Session.create(work_dir=tmp_path)
+    steering.spawn_kind = "headless"
+    steering.ensure_meta_exists()
+    steering.set_steering_queue(
         [
             QueuedUserInput(input=UserInputPayload(text="one"), enqueued_at=2.0),
             QueuedUserInput(input=UserInputPayload(text="two"), enqueued_at=3.0),
@@ -250,18 +250,18 @@ def test_runtime_rebuild_restores_queued_follow_up_and_failed(
             work_dir=str(tmp_path),
             created_at=float(index + 1),
         )
-        for index, session in enumerate((queued, follow_up, failed))
+        for index, session in enumerate((queued, steering, failed))
     ]
     rebuilt = HeadlessRuntime(runtime, max_running=1)
     monkeypatch.setattr(rebuilt, "_pump", lambda: None)
     rebuilt.restore(cast(list[SessionSummary], summaries))
 
-    assert set(rebuilt.queued_session_ids()) == {queued.id, follow_up.id}
+    assert set(rebuilt.queued_session_ids()) == {queued.id, steering.id}
     restored_queued = Session.load_meta(queued.id, work_dir=tmp_path)
     assert restored_queued.headless_queued_turn is not None
     assert restored_queued.headless_queued_turn.input == UserInputPayload(text="durable")
-    restored_follow_up = Session.load_meta(follow_up.id, work_dir=tmp_path)
-    assert [item.input.text for item in restored_follow_up.follow_up_queue] == ["one", "two"]
+    restored_steering = Session.load_meta(steering.id, work_dir=tmp_path)
+    assert [item.input.text for item in restored_steering.steering_queue] == ["one", "two"]
     assert rebuilt.tracker.is_failed(failed.id)
 
 
@@ -506,7 +506,7 @@ def test_restore_started_or_unknown_turn_preserves_input_but_requires_explicit_r
         assert loaded.runtime.control.reason == "execution_state_unknown"
 
 
-def test_cancelled_follow_up_stays_queued_until_turn_confirmation(
+def test_cancelled_steering_stays_queued_until_turn_confirmation(
     isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del isolated_home
@@ -515,47 +515,47 @@ def test_cancelled_follow_up_stays_queued_until_turn_confirmation(
         queued = QueuedUserInput(id="follow-up", input=UserInputPayload(text="do not lose"), enqueued_at=1.0)
         session = Session.create(work_dir=tmp_path)
         session.spawn_kind = "headless"
-        session.follow_up_queue = [queued]
+        session.steering_queue = [queued]
         session.ensure_meta_exists()
 
         class FakeAgent:
             def __init__(self) -> None:
                 self.session = session
-                self.queue = list(session.follow_up_queue)
+                self.queue = list(session.steering_queue)
                 self.in_flight: QueuedUserInput | None = None
 
-            def peek_next_follow_up_record(self) -> QueuedUserInput | None:
+            def peek_next_steering_record(self) -> QueuedUserInput | None:
                 return self.queue[0] if self.queue else None
 
-            def peek_next_follow_up(self) -> UserInputPayload | None:
+            def peek_next_steering(self) -> UserInputPayload | None:
                 return self.queue[0].input if self.queue else None
 
-            def follow_up_records(self) -> tuple[QueuedUserInput, ...]:
+            def steering_records(self) -> tuple[QueuedUserInput, ...]:
                 return tuple(self.queue)
 
-            def begin_follow_up(self, item_id: str) -> bool:
+            def begin_steering(self, item_id: str) -> bool:
                 if not self.queue or self.queue[0].id != item_id:
                     return False
                 self.in_flight = self.queue.pop(0)
                 return True
 
-            def acknowledge_follow_up(self, item_id: str, *, next_enqueued_at: float | None = None) -> bool:
+            def acknowledge_steering(self, item_id: str, *, next_enqueued_at: float | None = None) -> bool:
                 del next_enqueued_at
                 if self.in_flight is None or self.in_flight.id != item_id:
                     return False
                 self.in_flight = None
-                self.session.set_follow_up_queue(self.queue)
+                self.session.set_steering_queue(self.queue)
                 return True
 
-            def abort_follow_up(self, item_id: str) -> bool:
+            def abort_steering(self, item_id: str) -> bool:
                 if self.in_flight is None or self.in_flight.id != item_id:
                     return False
                 self.queue.insert(0, self.in_flight)
                 self.in_flight = None
-                self.session.set_follow_up_queue(self.queue)
+                self.session.set_steering_queue(self.queue)
                 return True
 
-            def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+            def steering_snapshot(self) -> tuple[UserInputPayload, ...]:
                 return tuple(item.input for item in self.queue)
 
         agent = FakeAgent()
@@ -582,20 +582,20 @@ def test_cancelled_follow_up_stays_queued_until_turn_confirmation(
         )
         runtime = HeadlessRuntime(runtime_facade)
         monkeypatch.setattr(runtime, "_should_compact_before_run", lambda _agent: False)
-        task = asyncio.create_task(runtime._run_one_follow_up(agent))  # pyright: ignore[reportPrivateUsage]
+        task = asyncio.create_task(runtime._run_one_steering(agent))  # pyright: ignore[reportPrivateUsage]
         await asyncio.sleep(0)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
 
         restored = Session.load_meta(session.id, tmp_path)
-        assert [item.id for item in restored.follow_up_queue] == [queued.id]
+        assert [item.id for item in restored.steering_queue] == [queued.id]
         assert [item.id for item in agent.queue] == [queued.id]
 
     asyncio.run(_test())
 
 
-def test_restore_acknowledges_persisted_follow_up_and_keeps_next(
+def test_restore_acknowledges_persisted_steering_and_keeps_next(
     isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     del isolated_home
@@ -605,7 +605,7 @@ def test_restore_acknowledges_persisted_follow_up_and_keeps_next(
         second = QueuedUserInput(id="second", input=UserInputPayload(text="second"), enqueued_at=2.0)
         session = Session.create(work_dir=tmp_path)
         session.spawn_kind = "headless"
-        session.follow_up_queue = [first, second]
+        session.steering_queue = [first, second]
         session.ensure_meta_exists()
         session.append_history([message.UserMessage(id=first.id, parts=message.text_parts_from_str("first"))])
         await session.wait_for_flush()
@@ -632,11 +632,11 @@ def test_restore_acknowledges_persisted_follow_up_and_keeps_next(
     )
 
     restored = Session.load_meta(session.id, tmp_path)
-    assert [item.id for item in restored.follow_up_queue] == ["second"]
+    assert [item.id for item in restored.steering_queue] == ["second"]
     assert runtime.queued_session_ids() == [session.id]
 
 
-def test_headless_follow_ups_are_fifo_and_fair(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_headless_steering_are_fifo_and_fair(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     async def _test() -> None:
         records = {
             "first": [
@@ -650,12 +650,12 @@ def test_headless_follow_ups_are_fifo_and_fair(monkeypatch: pytest.MonkeyPatch, 
             def __init__(self, session_id: str) -> None:
                 self.session = Session(id=session_id, work_dir=tmp_path)
 
-            def peek_next_follow_up_record(self) -> QueuedUserInput | None:
+            def peek_next_steering_record(self) -> QueuedUserInput | None:
                 queue = records[self.session.id]
                 return queue[0] if queue else None
 
-            def peek_next_follow_up(self) -> UserInputPayload | None:
-                queued = self.peek_next_follow_up_record()
+            def peek_next_steering(self) -> UserInputPayload | None:
+                queued = self.peek_next_steering_record()
                 return queued.input if queued is not None else None
 
         agents = {session_id: FakeAgent(session_id) for session_id in records}
@@ -672,12 +672,12 @@ def test_headless_follow_ups_are_fifo_and_fair(monkeypatch: pytest.MonkeyPatch, 
             queue = records[entry.session_id]
             execution_order.append(queue.pop(0).id)
 
-        monkeypatch.setattr(runtime, "_run_headless_follow_up", _run_one)
+        monkeypatch.setattr(runtime, "_run_headless_steering", _run_one)
         runtime._enqueue(  # pyright: ignore[reportPrivateUsage]
-            cast(Any, SimpleNamespace(session_id="first", prompt=None, work_dir=tmp_path, kind="follow_up"))
+            cast(Any, SimpleNamespace(session_id="first", prompt=None, work_dir=tmp_path, kind="steering"))
         )
         runtime._enqueue(  # pyright: ignore[reportPrivateUsage]
-            cast(Any, SimpleNamespace(session_id="second", prompt=None, work_dir=tmp_path, kind="follow_up"))
+            cast(Any, SimpleNamespace(session_id="second", prompt=None, work_dir=tmp_path, kind="steering"))
         )
         runtime._pump()  # pyright: ignore[reportPrivateUsage]
         while runtime._running or runtime.queued_session_ids():  # pyright: ignore[reportPrivateUsage]
@@ -707,16 +707,16 @@ def test_send_waits_for_launch_initialization_handoff(
             def __init__(self) -> None:
                 self.session = session
 
-            def peek_next_follow_up(self) -> UserInputPayload | None:
-                queue = self.session.follow_up_queue
+            def peek_next_steering(self) -> UserInputPayload | None:
+                queue = self.session.steering_queue
                 return queue[0].input if queue else None
 
-            def peek_next_follow_up_record(self) -> QueuedUserInput | None:
-                queue = self.session.follow_up_queue
+            def peek_next_steering_record(self) -> QueuedUserInput | None:
+                queue = self.session.steering_queue
                 return queue[0] if queue else None
 
-            def follow_up(self, prompt: UserInputPayload) -> None:
-                self.session.set_follow_up_queue([*self.session.follow_up_queue, QueuedUserInput(input=prompt)])
+            def steer(self, prompt: UserInputPayload) -> None:
+                self.session.set_steering_queue([*self.session.steering_queue, QueuedUserInput(input=prompt)])
 
         actor = SimpleNamespace(
             get_agent=lambda: agent,
@@ -735,8 +735,8 @@ def test_send_waits_for_launch_initialization_handoff(
             if isinstance(operation, op.RunAgentOperation):
                 run_operation_id = operation.id
             else:
-                assert isinstance(operation, op.FollowUpAgentOperation)
-                agent.follow_up(operation.input)
+                assert isinstance(operation, op.SteerAgentOperation)
+                agent.steer(operation.input)
             return cast(str, operation.id)
 
         async def _wait_for(operation_id: str) -> None:
@@ -757,7 +757,7 @@ def test_send_waits_for_launch_initialization_handoff(
             ),
         )
         runtime = HeadlessRuntime(facade)
-        monkeypatch.setattr(runtime, "_schedule_follow_up_drain", lambda _session_id: None)
+        monkeypatch.setattr(runtime, "_schedule_steering_drain", lambda _session_id: None)
         runtime._enqueue(  # pyright: ignore[reportPrivateUsage]
             QueuedRun(session.id, QueuedUserInput(input=UserInputPayload(text="first")), tmp_path)
         )
@@ -772,7 +772,7 @@ def test_send_waits_for_launch_initialization_handoff(
         finish_init.set()
 
         assert await asyncio.wait_for(send_task, timeout=1) == "queued"
-        assert [item.input.text for item in Session.load_meta(session.id, tmp_path).follow_up_queue] == ["second"]
+        assert [item.input.text for item in Session.load_meta(session.id, tmp_path).steering_queue] == ["second"]
         finish_turn.set()
         await runtime.aclose()
 
@@ -791,23 +791,23 @@ def test_concurrent_idle_sends_preserve_both_turns(isolated_home: Path, tmp_path
             def __init__(self) -> None:
                 self.session = session
 
-            def peek_next_follow_up(self) -> UserInputPayload | None:
-                queue = self.session.follow_up_queue
+            def peek_next_steering(self) -> UserInputPayload | None:
+                queue = self.session.steering_queue
                 return queue[0].input if queue else None
 
-            def peek_next_follow_up_record(self) -> QueuedUserInput | None:
-                queue = self.session.follow_up_queue
+            def peek_next_steering_record(self) -> QueuedUserInput | None:
+                queue = self.session.steering_queue
                 return queue[0] if queue else None
 
-            def follow_up(self, prompt: UserInputPayload) -> None:
-                self.session.set_follow_up_queue([*self.session.follow_up_queue, QueuedUserInput(input=prompt)])
+            def steer(self, prompt: UserInputPayload) -> None:
+                self.session.set_steering_queue([*self.session.steering_queue, QueuedUserInput(input=prompt)])
 
         agent = FakeAgent()
         actor = SimpleNamespace(get_agent=lambda: agent, snapshot=lambda: SimpleNamespace(is_idle=True))
 
         async def _submit(operation: Any) -> str:
-            assert isinstance(operation, op.FollowUpAgentOperation)
-            agent.follow_up(operation.input)
+            assert isinstance(operation, op.SteerAgentOperation)
+            agent.steer(operation.input)
             return operation.id
 
         facade = cast(
@@ -833,7 +833,7 @@ def test_concurrent_idle_sends_preserve_both_turns(isolated_home: Path, tmp_path
         queued = Session.load_meta(session.id, tmp_path)
         assert queued.headless_queued_turn is not None
         assert queued.headless_queued_turn.input == UserInputPayload(text="first")
-        assert [item.input.text for item in queued.follow_up_queue] == ["second"]
+        assert [item.input.text for item in queued.steering_queue] == ["second"]
         await runtime.aclose()
 
     asyncio.run(_test())
@@ -945,14 +945,14 @@ def test_steer_queues_without_interrupting_or_releasing_running_slot(
         session.spawn_kind = "headless"
         session.ensure_meta_exists()
         queue: list[UserInputPayload] = []
-        agent = SimpleNamespace(session=session, peek_next_follow_up=lambda: queue[0] if queue else None)
+        agent = SimpleNamespace(session=session, peek_next_steering=lambda: queue[0] if queue else None)
         actor = SimpleNamespace(
             get_agent=lambda: agent,
             snapshot=lambda: SimpleNamespace(is_idle=False),
         )
 
         async def _submit(operation: Any) -> str:
-            assert isinstance(operation, op.FollowUpAgentOperation)
+            assert isinstance(operation, op.SteerAgentOperation)
             queue.append(operation.input)
             return cast(str, operation.id)
 
@@ -970,7 +970,7 @@ def test_steer_queues_without_interrupting_or_releasing_running_slot(
         runtime = HeadlessRuntime(facade, max_running=1)
         runtime._running.add(session.id)  # pyright: ignore[reportPrivateUsage]
 
-        monkeypatch.setattr(runtime, "_schedule_follow_up_drain", lambda _id: None)
+        monkeypatch.setattr(runtime, "_schedule_steering_drain", lambda _id: None)
         assert (
             await runtime.steer(
                 session_id=session.id,
@@ -997,16 +997,16 @@ def test_consecutive_steers_preserve_queued_turn_when_slots_are_full(
         session.spawn_kind = "headless"
         session.ensure_meta_exists()
         queue: list[UserInputPayload] = []
-        agent = SimpleNamespace(session=session, peek_next_follow_up=lambda: queue[0] if queue else None)
+        agent = SimpleNamespace(session=session, peek_next_steering=lambda: queue[0] if queue else None)
         actor = SimpleNamespace(
             get_agent=lambda: agent,
             snapshot=lambda: SimpleNamespace(is_idle=True),
         )
 
         async def _submit(operation: Any) -> str:
-            assert isinstance(operation, op.FollowUpAgentOperation)
+            assert isinstance(operation, op.SteerAgentOperation)
             queue.append(operation.input)
-            session.set_follow_up_queue([QueuedUserInput(input=item) for item in queue])
+            session.set_steering_queue([QueuedUserInput(input=item) for item in queue])
             return cast(str, operation.id)
 
         facade = cast(
@@ -1022,7 +1022,7 @@ def test_consecutive_steers_preserve_queued_turn_when_slots_are_full(
         )
         runtime = HeadlessRuntime(facade, max_running=1)
         runtime._running.add("slot-blocker")  # pyright: ignore[reportPrivateUsage]
-        monkeypatch.setattr(runtime, "_schedule_follow_up_drain", lambda _id: None)
+        monkeypatch.setattr(runtime, "_schedule_steering_drain", lambda _id: None)
 
         assert (
             await runtime.steer(
@@ -1045,7 +1045,7 @@ def test_consecutive_steers_preserve_queued_turn_when_slots_are_full(
         restored = Session.load_meta(session.id, work_dir=tmp_path)
         assert restored.headless_queued_turn is not None
         assert restored.headless_queued_turn.input == UserInputPayload(text="first direction")
-        assert [item.input.text for item in restored.follow_up_queue] == ["latest direction"]
+        assert [item.input.text for item in restored.steering_queue] == ["latest direction"]
         await runtime.aclose()
 
     asyncio.run(_test())
@@ -1105,10 +1105,10 @@ def test_latched_queue_notifies_once_and_revives_on_activity(tmp_path: Path) -> 
         def __init__(self) -> None:
             self.session = Session(id="s1", work_dir=tmp_path)
 
-        def peek_next_follow_up(self) -> UserInputPayload:
+        def peek_next_steering(self) -> UserInputPayload:
             return UserInputPayload(text="queued")
 
-        def follow_up_count(self) -> int:
+        def steering_count(self) -> int:
             return 1
 
     actor = SimpleNamespace(get_agent=lambda: FakeAgent())
@@ -1130,8 +1130,8 @@ def test_latched_queue_notifies_once_and_revives_on_activity(tmp_path: Path) -> 
         from klaude_code.protocol import events
 
         hr.tracker.restore_failed("s1")
-        hr._schedule_follow_up_drain("s1")  # pyright: ignore[reportPrivateUsage]
-        hr._schedule_follow_up_drain("s1")  # pyright: ignore[reportPrivateUsage]
+        hr._schedule_steering_drain("s1")  # pyright: ignore[reportPrivateUsage]
+        hr._schedule_steering_drain("s1")  # pyright: ignore[reportPrivateUsage]
         await asyncio.sleep(0)
         notices = [e for e in emitted if isinstance(e, events.NoticeEvent)]
         assert len(notices) == 1
@@ -1142,7 +1142,7 @@ def test_latched_queue_notifies_once_and_revives_on_activity(tmp_path: Path) -> 
 
         # A fresh latch episode notifies again.
         hr.tracker.restore_failed("s1")
-        hr._schedule_follow_up_drain("s1")  # pyright: ignore[reportPrivateUsage]
+        hr._schedule_steering_drain("s1")  # pyright: ignore[reportPrivateUsage]
         await asyncio.sleep(0)
         notices = [e for e in emitted if isinstance(e, events.NoticeEvent)]
         assert len(notices) == 2

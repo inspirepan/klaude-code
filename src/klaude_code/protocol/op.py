@@ -27,7 +27,7 @@ class OperationType(Enum):
     """Enumeration of supported operation types."""
 
     RUN_AGENT = "run_agent"
-    FOLLOW_UP_AGENT = "follow_up_agent"
+    STEER_AGENT = "follow_up_agent"  # Historical wire value for steering.
     RUN_BASH = "run_bash"
     MANAGE_SHELL = "manage_shell"
     MANAGE_TASKS = "manage_tasks"
@@ -78,15 +78,15 @@ class RunAgentOperation(Operation):
         await handler.handle_run_agent(self)
 
 
-class FollowUpAgentOperation(Operation):
+class SteerAgentOperation(Operation):
     """Queue user input for admission at the next safe step boundary."""
 
-    type: OperationType = OperationType.FOLLOW_UP_AGENT
+    type: OperationType = OperationType.STEER_AGENT
     session_id: str
     input: UserInputPayload
 
     async def execute(self, handler: OperationHandler) -> None:
-        await handler.handle_follow_up_agent(self)
+        await handler.handle_steer_agent(self)
 
 
 class RunBashOperation(Operation):
@@ -317,10 +317,10 @@ class InterruptOperation(Operation):
     # their input box (TUI Esc) should set this — otherwise the message would
     # silently vanish.
     retract_unanswered_input: bool = False
-    # Keep draining queued follow-ups after the interrupt settles. TUI Esc
+    # Keep draining queued steering messages after the interrupt settles. TUI Esc
     # sets this (an Esc mid-queue moves on to the next queued message);
     # headless `interrupt` leaves it False — the session must stay stopped.
-    resume_follow_ups: bool = False
+    resume_follow_ups: bool = False  # Historical wire field name for steering.
 
     async def execute(self, handler: OperationHandler) -> None:
         """Execute interrupt by cancelling active tasks."""

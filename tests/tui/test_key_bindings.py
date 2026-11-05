@@ -166,7 +166,7 @@ def test_tab_toggles_btw_prefix_while_agent_runs() -> None:
     binding = next(
         binding
         for binding in bindings.get_bindings_for_keys((Keys.ControlI,))
-        if binding.handler.__doc__ and "queued follow-up" in binding.handler.__doc__
+        if binding.handler.__doc__ and "queued steering" in binding.handler.__doc__
     )
 
     binding.handler(event)

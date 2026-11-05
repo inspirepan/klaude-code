@@ -94,7 +94,7 @@ def test_headless_process_finishes_owned_shell_and_offline_queries_work(tmp_path
         status, body = request("POST", f"/api/headless/sessions/{session_id}/send", json_body={"text": "offline"})
         assert status == 400 and "offline" in body["detail"]
         session = Session.load(session_id, work_dir=tmp_path)
-        assert not session.follow_up_queue
+        assert not session.steering_queue
         tasks = list((isolated_home / ".klaude" / "projects").glob("*/sessions/*/shell_tasks/*.json"))
         assert len(tasks) == 1
         assert json.loads(tasks[0].read_text())["status"] == "completed"

@@ -31,7 +31,7 @@ from klaude_code.session.search import SearchScan, scan_search
 # an older snapshot, so the on-disk value wins when the batch lands.
 _RUNTIME_META_KEYS = (
     "runtime",
-    "follow_up_queue",
+    "follow_up_queue",  # Historical on-disk key for the steering queue.
     "headless_queued_turn",
     # Read-only compatibility keys for the unshipped WIP format.
     "headless_queued_prompt",
@@ -39,7 +39,7 @@ _RUNTIME_META_KEYS = (
     "headless_queued_at",
 )
 _DELETE_WINS_META_KEYS = (
-    "follow_up_queue",
+    "follow_up_queue",  # Historical on-disk key for the steering queue.
     "headless_queued_turn",
     "headless_queued_prompt",
     "headless_queued_turn_id",
@@ -580,7 +580,7 @@ def build_meta_snapshot(
     model_thinking: llm_param.Thinking | None,
     model_from_role: bool = False,
     prompt_cache_key: str | None = None,
-    follow_up_queue: Sequence[message.QueuedUserInput] = (),
+    steering_queue: Sequence[message.QueuedUserInput] = (),
     headless_queued_turn: message.QueuedUserInput | None = None,
     runtime: SessionRuntimeFacts | None = None,
     model_effort: str | None = None,
@@ -592,7 +592,7 @@ def build_meta_snapshot(
     parent_session_id: str | None = None,
     vanilla: bool = False,
 ) -> dict[str, Any]:
-    follow_up_queue_payload = [item.model_dump(mode="json", exclude_none=True) for item in follow_up_queue]
+    steering_queue_payload = [item.model_dump(mode="json", exclude_none=True) for item in steering_queue]
     # sub_agent_state is no longer persisted: sub-agent identity lives in
     # parent_session_id/agent_type, display state is rebuilt from the parent's
     # SpawnSubAgentEntry. Legacy metas keep being parsed for read compat.
@@ -620,7 +620,7 @@ def build_meta_snapshot(
         "model_effort": model_effort,
         "model_effort_recorded": True,
         "prompt_cache_key": prompt_cache_key,
-        "follow_up_queue": follow_up_queue_payload or None,
+        "follow_up_queue": steering_queue_payload or None,  # Historical on-disk key.
         "headless_queued_turn": headless_queued_turn.model_dump(mode="json", exclude_none=True)
         if headless_queued_turn is not None
         else None,

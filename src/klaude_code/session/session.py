@@ -84,7 +84,7 @@ class Session(BaseModel):
     file_change_summary: FileChangeSummary = Field(default_factory=FileChangeSummary)
     background_task_ids: set[str] = Field(default_factory=set)
     todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
-    follow_up_queue: list[message.QueuedUserInput] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    steering_queue: list[message.QueuedUserInput] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     headless_queued_turn: message.QueuedUserInput | None = None
     runtime: SessionRuntimeFacts = Field(default_factory=SessionRuntimeFacts)
     model_name: str | None = None
@@ -239,7 +239,7 @@ class Session(BaseModel):
             model_thinking=meta.model_thinking,
             model_effort=meta.model_effort,
             prompt_cache_key=meta.prompt_cache_key,
-            follow_up_queue=meta.follow_up_queue,
+            steering_queue=meta.steering_queue,
             headless_queued_turn=meta.headless_queued_turn,
             runtime=meta.runtime,
             name=meta.name,
@@ -411,7 +411,7 @@ class Session(BaseModel):
             model_thinking=self.model_thinking,
             model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
-            follow_up_queue=self.follow_up_queue,
+            steering_queue=self.steering_queue,
             headless_queued_turn=self.headless_queued_turn,
             runtime=self.runtime,
             name=self.name,
@@ -445,10 +445,11 @@ class Session(BaseModel):
                 self._settle_idempotent_flushes(flush)
                 self._background_task_flush = None
 
-    def set_follow_up_queue(self, items: Sequence[message.QueuedUserInput]) -> None:
-        previous = self.follow_up_queue
-        self.follow_up_queue = [item.model_copy(deep=True) for item in items]
-        payload = [item.model_dump(mode="json", exclude_none=True) for item in self.follow_up_queue]
+    def set_steering_queue(self, items: Sequence[message.QueuedUserInput]) -> None:
+        previous = self.steering_queue
+        self.steering_queue = [item.model_copy(deep=True) for item in items]
+        payload = [item.model_dump(mode="json", exclude_none=True) for item in self.steering_queue]
+        # Keep the steering queue's historical on-disk key.
         updates = {"follow_up_queue": payload or None}
         try:
             if not self._store.update_meta(self.id, updates, raise_on_error=True):
@@ -456,7 +457,7 @@ class Session(BaseModel):
                 if not self._store.update_meta(self.id, updates, raise_on_error=True):
                     raise OSError(f"Could not persist follow-up queue for session {self.id}")
         except BaseException:
-            self.follow_up_queue = previous
+            self.steering_queue = previous
             raise
 
     def update_title(self, title: str | None) -> bool:
@@ -489,7 +490,7 @@ class Session(BaseModel):
             model_thinking=self.model_thinking,
             model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
-            follow_up_queue=self.follow_up_queue,
+            steering_queue=self.steering_queue,
             headless_queued_turn=self.headless_queued_turn,
             runtime=self.runtime,
             name=self.name,
@@ -508,7 +509,7 @@ class Session(BaseModel):
         Storage stays append-only: the message is removed in memory and a
         ``RetractEntry`` marker is persisted; loading replays the marker via
         ``rebuild_loaded_history``. ``text`` must match the message exactly —
-        a mismatch means the anchor drifted (e.g. a queued follow-up landed)
+        a mismatch means the anchor drifted (e.g. a queued steering message landed)
         and retracting would lose the wrong message, so nothing happens.
         """
         for idx in range(len(self.conversation_history) - 1, -1, -1):

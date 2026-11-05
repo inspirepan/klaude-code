@@ -257,7 +257,7 @@ class LocalRuntimeClient(DisplayABC):
             self._info.effort = llm.effective_effort
             self._info.work_dir = str(session.work_dir)
             self._info.title = session.title
-            self._info.follow_ups = tuple(item.text for item in agent.follow_up_snapshot())
+            self._info.steering = tuple(item.text for item in agent.steering_snapshot())
         if self._scheduler is not None:
             self._info.status = self._scheduler.session_status(self.session_id)
             self._info.state = self._info.status.category
@@ -294,14 +294,14 @@ class LocalRuntimeClient(DisplayABC):
     async def emit_local_event(self, event: events.Event) -> None:
         await self.components.event_bus.publish(event)
 
-    async def dequeue_follow_ups(self) -> tuple[str, ...]:
+    async def dequeue_steering(self) -> tuple[str, ...]:
         actor = self.components.runtime.session_registry.get_session_actor(self.session_id)
         agent = actor.get_agent() if actor is not None else None
         if agent is None:
             return ()
-        texts = tuple(item.text for item in agent.pop_all_follow_up())
+        texts = tuple(item.text for item in agent.pop_all_steering())
         await agent.session.wait_for_flush()
-        await self.components.event_bus.publish(events.FollowUpQueueUpdatedEvent(session_id=self.session_id, texts=[]))
+        await self.components.event_bus.publish(events.SteeringQueueUpdatedEvent(session_id=self.session_id, texts=[]))
         return texts
 
     async def get_model_catalog(self) -> ModelCatalog:
@@ -341,20 +341,20 @@ class LocalRuntimeClient(DisplayABC):
     def active_operation_id(self) -> str | None:
         return self._active_operation_id
 
-    def follow_up_texts(self) -> tuple[str, ...]:
-        return self._info.follow_ups
+    def steering_texts(self) -> tuple[str, ...]:
+        return self._info.steering
 
-    def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
-        self._info.follow_ups = (*self._info.follow_ups, *texts)
+    def optimistically_append_steering(self, texts: Sequence[str]) -> None:
+        self._info.steering = (*self._info.steering, *texts)
         self._state_changed.set()
 
-    def remove_optimistic_follow_up(self, text: str) -> None:
-        texts = list(self._info.follow_ups)
+    def remove_optimistic_steering(self, text: str) -> None:
+        texts = list(self._info.steering)
         for i in range(len(texts) - 1, -1, -1):
             if texts[i] == text:
                 del texts[i]
                 break
-        self._info.follow_ups = tuple(texts)
+        self._info.steering = tuple(texts)
         self._state_changed.set()
 
     def session_info(self) -> SessionInfoSnapshot:

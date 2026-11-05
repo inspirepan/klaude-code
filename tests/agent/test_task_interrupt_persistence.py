@@ -366,7 +366,7 @@ def test_agent_retracts_a_message_with_images_and_prefill_keeps_the_markers(
     arun(_test())
 
 
-def test_agent_retraction_skipped_when_follow_ups_are_queued(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_agent_retraction_skipped_when_steering_are_queued(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The TUI drops the prefill when queued messages run next; retracting
     would then lose the message entirely, so it must stay in history."""
     project_dir = tmp_path / "test_project"
@@ -377,7 +377,7 @@ def test_agent_retraction_skipped_when_follow_ups_are_queued(tmp_path: Path, mon
         session = Session.create(work_dir=project_dir)
         session.append_history([message.UserMessage(parts=message.text_parts_from_str("retry me"))])
         agent = _make_agent(session)
-        agent.follow_up(message.UserInputPayload(text="queued"))
+        agent.steer(message.UserInputPayload(text="queued"))
         agent._last_interrupt_prefill_text = "retry me"  # pyright: ignore[reportPrivateUsage]
 
         assert agent.retract_interrupted_user_message() is None

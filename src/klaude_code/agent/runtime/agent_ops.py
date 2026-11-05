@@ -858,7 +858,7 @@ class AgentOperationHandler:
         # session is the only one that benefits from a suggestion.
         if agent.session.sub_agent_state is not None or agent.session.parent_session_id is not None:
             return
-        if agent.follow_up_count() > 0:
+        if agent.steering_count() > 0:
             log_debug(
                 f"[PromptSuggestion] skip session={session_id} reason=follow-up queue pending",
                 debug_type=DebugType.EXECUTION,
@@ -943,7 +943,7 @@ class AgentOperationHandler:
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
-        if operation.queued_input and agent.follow_up_count() == 0:
+        if operation.queued_input and agent.steering_count() == 0:
             return
         # New user turn invalidates any pending suggestion for this session.
         self._cancel_prompt_suggestion(operation.session_id)
@@ -1006,14 +1006,14 @@ class AgentOperationHandler:
             session_id=operation.session_id,
         )
 
-    async def follow_up_agent(self, operation: op.FollowUpAgentOperation) -> None:
+    async def steer_agent(self, operation: op.SteerAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
-        agent.follow_up(operation.input)
+        agent.steer(operation.input)
         self._cancel_prompt_suggestion(operation.session_id)
         self._cancel_auto_away_summary(operation.session_id)
         await self._emit_event(
-            events.FollowUpQueueUpdatedEvent(
-                session_id=operation.session_id, texts=[item.text for item in agent.follow_up_snapshot()]
+            events.SteeringQueueUpdatedEvent(
+                session_id=operation.session_id, texts=[item.text for item in agent.steering_snapshot()]
             )
         )
 
@@ -1499,11 +1499,11 @@ class AgentOperationHandler:
         session_id = operation.session_id
         session = agent.session
         pivot_index = operation.pivot_index
-        # Reject up front: queued follow-ups would start draining on this
+        # Reject up front: queued steering messages would start draining on this
         # session the moment the rewind op finishes — right as the client
         # switches away — and a mid-summary queue drain would mutate the
         # history the summary request reads.
-        if agent.follow_up_count() > 0:
+        if agent.steering_count() > 0:
             await self._emit_event(
                 events.NoticeEvent(
                     session_id=session_id,
@@ -1584,7 +1584,7 @@ class AgentOperationHandler:
         )
         await new_session.wait_for_flush()
 
-        if agent.follow_up_count() > 0:
+        if agent.steering_count() > 0:
             await self._emit_event(
                 events.NoticeEvent(
                     session_id=session_id,
@@ -1652,7 +1652,7 @@ class AgentOperationHandler:
         *,
         expected_operation_id: str | None = None,
         retract_unanswered_input: bool = False,
-        resume_follow_ups: bool = False,
+        resume_steering: bool = False,
     ) -> bool:
         runtime = self._get_session_actor(session_id)
         if runtime is None:
@@ -1675,7 +1675,7 @@ class AgentOperationHandler:
         retracted_text: str | None = None
         if agent is not None:
             agent.session.finish_turn("interrupted", reason="user_interrupt")
-            if not resume_follow_ups:
+            if not resume_steering:
                 agent.session.runtime.control = SessionControl(paused=True, reason="user_interrupt")
                 agent.session.persist_runtime()
             for evt in agent.on_interrupt():
@@ -1685,7 +1685,7 @@ class AgentOperationHandler:
                 retracted_text = agent.retract_interrupted_user_message()
 
         await self._emit_event(
-            events.InterruptEvent(session_id=session_id, show_notice=show_notice, resume_follow_ups=resume_follow_ups)
+            events.InterruptEvent(session_id=session_id, show_notice=show_notice, resume_follow_ups=resume_steering)
         )
         if retracted_text is not None:
             # After InterruptEvent so the display's tape filter can hide the

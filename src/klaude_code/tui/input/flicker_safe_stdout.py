@@ -621,7 +621,7 @@ class FlickerSafeStdoutProxy(StdoutProxy):
         the resulting ``synchronized_in_terminal`` coroutines have
         completed.
 
-        Used at sync points (e.g. before emitting a queued follow-up
+        Used at sync points (e.g. before emitting a queued steering message's
         ``UserMessageEvent``) to guarantee that the previous task's
         scrollback content is fully painted before the next event lands.
 

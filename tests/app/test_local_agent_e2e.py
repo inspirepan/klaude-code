@@ -250,7 +250,7 @@ def test_child_question_routes_through_root_and_paused_reports_wait_for_resume(
             await eventually(lambda: len(reports(owner)) == 1 and not owner.has_running_tasks())
             assert len(inputs) == 3
             assert any(isinstance(item, message.UserMessage) and item.source == "peer_message" for item in inputs[-1])
-            assert owner.command_agent().follow_up_count() == 0
+            assert owner.command_agent().steering_count() == 0
 
     asyncio.run(run())
 
@@ -330,7 +330,7 @@ def test_native_task_wait_steering_interrupt_and_stop_keep_other_owner_running(
             assert child_actor is not None
             original_child = child_actor.snapshot().active_root_task
             await owner.submit_and_wait(
-                op.FollowUpAgentOperation(
+                op.SteerAgentOperation(
                     session_id=owner.session_id, input=message.UserInputPayload(text="change direction")
                 )
             )
@@ -418,13 +418,13 @@ def test_busy_peer_delivery_is_safe_boundary_data_and_idle_peer_turns_are_capped
                     )
             await asyncio.sleep(0.1)
             assert len(requests) == 5
-            assert target.command_agent().follow_up_count() == 1
+            assert target.command_agent().steering_count() == 1
             await target.submit_and_wait(
                 op.RunAgentOperation(
                     session_id=target.session_id, input=message.UserInputPayload(text="operator returns")
                 )
             )
-            assert len(requests) == 6 and target.command_agent().follow_up_count() == 0
+            assert len(requests) == 6 and target.command_agent().steering_count() == 0
 
     asyncio.run(run())
 
@@ -451,7 +451,7 @@ def test_native_discovery_cannot_send_outside_directory_and_reserved_ids_are_rej
                         },
                     }
                 )
-            assert source.command_agent().follow_up_count() == 0
+            assert source.command_agent().steering_count() == 0
 
     asyncio.run(run())
 
@@ -467,7 +467,7 @@ def test_peer_limits_and_durable_dedup_survive_admission_and_retraction(
             target = await env.create()
             scheduler = target._scheduler
             assert scheduler is not None
-            monkeypatch.setattr(scheduler, "_schedule_follow_up_drain", lambda *_a: None)
+            monkeypatch.setattr(scheduler, "_schedule_steering_drain", lambda *_a: None)
             first = PeerMessage(id="stable", sender_session_id="a", recipient=target.session_id, body="one")
             receipt = await scheduler.deliver_peer(first, env.directory)
             assert await scheduler.deliver_peer(first, env.directory) == receipt
@@ -496,8 +496,8 @@ def test_peer_limits_and_durable_dedup_survive_admission_and_retraction(
                     PeerMessage(sender_session_id="extra", recipient=target.session_id, body="overflow"), env.directory
                 )
             agent = target.command_agent()
-            assert agent.follow_up_count() == 50
-            assert len(Session.load(target.session_id, work_dir=env.directory).follow_up_queue) == 50
+            assert agent.steering_count() == 50
+            assert len(Session.load(target.session_id, work_dir=env.directory).steering_queue) == 50
             original_flush = Session.wait_for_flush
             fail_once = True
 
@@ -512,10 +512,10 @@ def test_peer_limits_and_durable_dedup_survive_admission_and_retraction(
             with pytest.raises(OSError, match="flush failed"):
                 async for _event in agent.inject_pending_inputs():
                     pass
-            assert agent.follow_up_count() == 50
+            assert agent.steering_count() == 50
             async for _event in agent.inject_pending_inputs():
                 pass
-            assert agent.follow_up_count() == 0
+            assert agent.steering_count() == 0
             assert await scheduler.deliver_peer(first, env.directory) == receipt
             loaded = Session.load(target.session_id, work_dir=env.directory)
             assert (
@@ -525,7 +525,7 @@ def test_peer_limits_and_durable_dedup_survive_admission_and_retraction(
                 )
                 == 1
             )
-            assert not loaded.follow_up_queue
+            assert not loaded.steering_queue
             first_index = next(
                 index
                 for index, item in enumerate(agent.session.conversation_history)
@@ -544,7 +544,7 @@ def test_peer_limits_and_durable_dedup_survive_admission_and_retraction(
             )
             target.components.runtime.session_registry.get_session_actor(target.session_id).set_agent(restored)
             assert await scheduler.deliver_peer(first, env.directory) == receipt
-            assert restored.follow_up_count() == 0
+            assert restored.steering_count() == 0
 
     asyncio.run(run())
 
@@ -560,7 +560,7 @@ def test_ipc_does_not_ack_failed_metadata_write_and_retry_is_durable(
             target = await env.create()
             await target.submit_and_wait(op.InterruptOperation(session_id=target.session_id))
             assert target._scheduler is not None and target._endpoint is not None
-            monkeypatch.setattr(target._scheduler, "_schedule_follow_up_drain", lambda *_a: None)
+            monkeypatch.setattr(target._scheduler, "_schedule_steering_drain", lambda *_a: None)
             original = store._write_json_dict_atomic
             failed = True
 
@@ -574,8 +574,8 @@ def test_ipc_does_not_ack_failed_metadata_write_and_retry_is_durable(
             for _ in range(2):
                 with pytest.raises(ValueError, match="atomic metadata failure"):
                     await call_endpoint(target._endpoint.record, "deliver", message=peer.model_dump(mode="json"))
-                assert not target.command_agent().follow_up_records()
-                assert not Session.load_meta(target.session_id, env.directory).follow_up_queue
+                assert not target.command_agent().steering_records()
+                assert not Session.load_meta(target.session_id, env.directory).steering_queue
             failed = False
             receipt = await call_endpoint(target._endpoint.record, "deliver", message=peer.model_dump(mode="json"))
             assert receipt["accepted"]
@@ -583,13 +583,13 @@ def test_ipc_does_not_ack_failed_metadata_write_and_retry_is_durable(
             await target.close()
             resumed = await env.create(session_id=session_id)
             assert resumed._scheduler is not None and resumed._endpoint is not None
-            monkeypatch.setattr(resumed._scheduler, "_schedule_follow_up_drain", lambda *_a: None)
-            assert len(resumed.command_agent().follow_up_records()) == 1
+            monkeypatch.setattr(resumed._scheduler, "_schedule_steering_drain", lambda *_a: None)
+            assert len(resumed.command_agent().steering_records()) == 1
             assert (
                 await call_endpoint(resumed._endpoint.record, "deliver", message=peer.model_dump(mode="json"))
                 == receipt
             )
-            assert len(resumed.command_agent().follow_up_records()) == 1
+            assert len(resumed.command_agent().steering_records()) == 1
 
     asyncio.run(run())
 
@@ -644,13 +644,13 @@ def test_task_panel_message_requires_owned_running_operation(local_group, monkey
             receipt = await owner.send_task_message(own.ref.task_id, "operator direction")
             assert receipt.mode == "queued"
             child_actor = owner.components.runtime.session_registry.get_session_actor(own.ref.session_id or "")
-            assert child_actor is not None and child_actor.get_agent().follow_up_count() == 1
+            assert child_actor is not None and child_actor.get_agent().steering_count() == 1
             await owner.submit_and_wait(op.StopSubAgentsOperation(session_id=owner.session_id))
-            after_stop = child_actor.get_agent().follow_up_count()
+            after_stop = child_actor.get_agent().steering_count()
             monkeypatch.setattr(owner, "manage_tasks", AsyncMock(return_value=own_tasks))
             with pytest.raises(ValueError, match="no longer running"):
                 await owner.send_task_message(own.ref.task_id, "stale selection")
-            assert child_actor.get_agent().follow_up_count() == after_stop
+            assert child_actor.get_agent().steering_count() == after_stop
             assert (await peer.manage_tasks(TaskRequest(action="list"))).tasks[0].status == "running"
             release.set()
 

@@ -40,7 +40,7 @@ class LoadedSessionMeta:
     model_thinking: llm_param.Thinking | None
     model_effort: str | None
     prompt_cache_key: str | None
-    follow_up_queue: list[message.QueuedUserInput]
+    steering_queue: list[message.QueuedUserInput]
     headless_queued_turn: message.QueuedUserInput | None
     runtime: SessionRuntimeFacts
     name: str | None
@@ -99,7 +99,7 @@ def _parse_todos(raw: object) -> list[TodoItem]:
     return todos
 
 
-def _parse_follow_up_queue(raw: object, *, fallback_enqueued_at: float) -> list[message.QueuedUserInput]:
+def _parse_steering_queue(raw: object, *, fallback_enqueued_at: float) -> list[message.QueuedUserInput]:
     inputs: list[message.QueuedUserInput] = []
     if not isinstance(raw, list):
         return inputs
@@ -228,7 +228,8 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         model_thinking=model_thinking,
         model_effort=model_effort,
         prompt_cache_key=raw.get("prompt_cache_key") if isinstance(raw.get("prompt_cache_key"), str) else None,
-        follow_up_queue=_parse_follow_up_queue(raw.get("follow_up_queue"), fallback_enqueued_at=updated_at),
+        # Keep the steering queue's historical on-disk key.
+        steering_queue=_parse_steering_queue(raw.get("follow_up_queue"), fallback_enqueued_at=updated_at),
         headless_queued_turn=_parse_headless_queued_turn(raw, fallback_enqueued_at=updated_at),
         runtime=runtime,
         name=_parse_optional_str(raw.get("name")),

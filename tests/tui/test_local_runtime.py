@@ -218,7 +218,7 @@ def test_restore_interrupted_turn_preserves_queue_without_execution(fake_llm: Fa
         saved.ensure_meta_exists()
         saved.runtime.active_turn = SessionActiveTurn(id="interrupted-turn", started=True)
         saved.persist_runtime()
-        saved.set_follow_up_queue([QueuedUserInput(input=UserInputPayload(text="pending input"))])
+        saved.set_steering_queue([QueuedUserInput(input=UserInputPayload(text="pending input"))])
 
         async def consume(_envelope: events.EventEnvelope) -> None:
             pass
@@ -232,7 +232,7 @@ def test_restore_interrupted_turn_preserves_queue_without_execution(fake_llm: Fa
             assert session.runtime.active_turn is None
             assert session.runtime.last_turn is not None and session.runtime.last_turn.result == "interrupted"
             assert session.runtime.control.paused
-            assert client.follow_up_texts() == ("pending input",)
+            assert client.steering_texts() == ("pending input",)
             assert fake_llm.call_count == 0
         finally:
             await client.close()

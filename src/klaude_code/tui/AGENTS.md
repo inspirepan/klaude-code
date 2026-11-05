@@ -13,7 +13,7 @@
 ## Current Interactive TUI Architecture
 
 Normal CLI startup and history resume use `run_local()` with
-`LocalRuntimeClient`. The process owns its Runtime, follow-up scheduler,
+`LocalRuntimeClient`. The process owns its Runtime, steering scheduler,
 interactions, child agents and shells. Running tasks require exit confirmation;
 confirmed exit stops owned work and flushes history. `/new`, `/fork-session`
 and `/rewind` reject a switch while owned tasks run. `/exit` saves history and closes this process; `/detach` and `/reload` are removed.
@@ -25,7 +25,7 @@ During interactive `run_local()` sessions, prompt-toolkit owns the bottom
 dynamic UI in both busy and idle states:
 
 - Rich prints stable scrollback content above the prompt.
-- prompt-toolkit renders live output, running status, queued follow-up block,
+- prompt-toolkit renders live output, running status, queued steering block,
   and input editor in one bottom layout.
 - Allocate bottom rows from one terminal-height budget, reserving the editor,
   footer, completion panel and picker before fitting status and queue previews.
@@ -193,10 +193,10 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   `send_task_message()` rechecks the task and sends external peer data with
   `expected_operation_id`; the local scheduler checks that operation immediately
   before enqueue. Labels confer no operator identity. A receipt is queued, not
-  read; normal safe-boundary peer/follow-up semantics still apply after enqueue.
+  read; normal safe-boundary peer/steering semantics still apply after enqueue.
 - `/stop` submits `StopAllTasksOperation` immediately, even while busy. It stops
   the root, owned descendant agents, background Bash, side questions, and queued
-  follow-ups. Peers and other owners are unchanged; Esc interrupts only the root.
+  steering messages. Peers and other owners are unchanged; Esc interrupts only the root.
   Render its actual `OperationFinishedEvent` outcome, never an optimistic success.
 - `/tasks list/output/wait/stop` submits `ManageTasksOperation(TaskRequest)`.
   `TaskControlResultEvent` carries the typed response or error through the normal
@@ -229,16 +229,16 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   Replay it without synthesizing a parent turn finish, and deduplicate against
   typed task snapshots. Background completion never starts an assistant turn.
 
-### Queued follow-up input flow
+### Queued steering input flow
 
-- Busy-time Enter submits a `FollowUpAgentOperation` instead of interrupting or
+- Busy-time Enter submits a `SteerAgentOperation` instead of interrupting or
   starting another task.
 - Queued messages are stored on `Agent` and are not immediately written to
   session history or emitted as normal user turns.
 - The queue panel is prompt-toolkit dynamic UI, not scrollback. Do not emit
   queued-message `NoticeEvent`s for the queue panel.
 - At safe step boundaries, the current task admits a FIFO batch of queued
-  follow-ups before its next request, including retries and final responses.
+  steering messages before its next request, including retries and final responses.
   Each batch reaches history in one confirmed write before its durable queue
   copy is cleared and its messages are rendered as normal user turns.
 - Plain `Up` on an empty editor with queued messages dequeues all queued

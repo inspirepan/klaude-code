@@ -1288,7 +1288,7 @@ class PromptToolkitInput(InputProviderABC):
             # joins its background flush thread, which can block up to
             # ``sleep_between_writes`` seconds waiting for the throttle sleep to
             # finish — that delay was visible as an empty input area between a
-            # follow-up submission and the next prompt being rendered.
+            # steering submission and the next prompt being rendered.
             with flicker_safe_patch_stdout():
                 async with contextlib.aclosing(self._iter_inputs_inner()) as inputs:
                     async for payload in inputs:

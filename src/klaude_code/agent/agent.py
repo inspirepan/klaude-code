@@ -52,9 +52,9 @@ class Agent:
         self.profile: AgentProfile = profile
         self.compact_llm_client: LLMClientABC | None = compact_llm_client
         self._current_task: TaskExecutor | None = None
-        self._follow_up_queue: list[QueuedUserInput] = list(session.follow_up_queue)
+        self._steering_queue: list[QueuedUserInput] = list(session.steering_queue)
         self.pending_input_activity = asyncio.Event()
-        if self._follow_up_queue:
+        if self._steering_queue:
             self.pending_input_activity.set()
         self._admitting_inputs: tuple[QueuedUserInput, ...] = ()
         # IDs only: history remains the source for an echo delayed by cancellation.
@@ -84,7 +84,7 @@ class Agent:
         Only valid right after ``on_interrupt`` armed the prefill text (the
         turn produced no visible output). The prefill stays armed — the
         frontend that requested retraction restores it into its input box.
-        Skipped when follow-ups are queued: the TUI drops the prefill in that
+        Skipped when steering messages are queued: the TUI drops the prefill in that
         case, so keeping the message in history is the only lossless choice.
         """
         text = self._last_interrupt_prefill_text
@@ -92,13 +92,13 @@ class Agent:
             return None
         if self.session.sub_agent_state is not None:
             return None
-        if self.follow_up_count():
+        if self.steering_count():
             return None
         if not self.session.retract_last_user_message(text):
             return None
         return text
 
-    def follow_up(self, user_input: UserInputPayload) -> int:
+    def steer(self, user_input: UserInputPayload) -> int:
         """Queue a user message for the next safe step boundary."""
 
         peer = user_input.peer_message
@@ -107,15 +107,15 @@ class Agent:
         queued = (
             QueuedUserInput(id=peer.id, input=user_input) if peer is not None else QueuedUserInput(input=user_input)
         )
-        for item in self._durable_follow_up_queue():
+        for item in self._durable_steering_queue():
             if item.id == queued.id:
                 if peer is None or item.input.peer_message != peer:
                     raise ValueError("Input ID already belongs to different content or sender")
-                return self.follow_up_count()
-        self.session.set_follow_up_queue([*self._durable_follow_up_queue(), queued])
-        self._follow_up_queue.append(queued)
+                return self.steering_count()
+        self.session.set_steering_queue([*self._durable_steering_queue(), queued])
+        self._steering_queue.append(queued)
         self.pending_input_activity.set()
-        return self.follow_up_count()
+        return self.steering_count()
 
     def signal_task_result(self) -> None:
         """A finished background task is pending input: end any wait now."""
@@ -123,19 +123,19 @@ class Agent:
 
     async def inject_pending_inputs(self) -> AsyncGenerator[events.Event]:
         """Persist a FIFO snapshot before acknowledging its durable queue copy."""
-        for queued in self._follow_up_queue:
+        for queued in self._steering_queue:
             validate_external_message_id(queued.id)
-        if not self._follow_up_queue and not self._admitting_inputs:
+        if not self._steering_queue and not self._admitting_inputs:
             # Lower before injecting: a task that finishes during the injection
             # below raises it again, so a later wait still ends at once.
             self.pending_input_activity.clear()
         async for event in self._inject_task_results():
             yield event
-        pending = tuple(self._follow_up_queue)
+        pending = tuple(self._steering_queue)
         if not pending:
             return
         self._admitting_inputs = pending
-        self._follow_up_queue.clear()
+        self._steering_queue.clear()
         existing = {
             item.id: item for item in self.session.conversation_history if isinstance(item, message.UserMessage)
         }
@@ -169,15 +169,15 @@ class Agent:
             self.session.append_history(batch, deduplicate_user_inputs=True)
             # Do not let cancellation cancel the shared writer's flush future.
             await asyncio.shield(self.session.wait_for_flush())
-            self.session.set_follow_up_queue(list(self._follow_up_queue))
+            self.session.set_steering_queue(list(self._steering_queue))
         except BaseException:
-            self._follow_up_queue[:0] = pending
+            self._steering_queue[:0] = pending
             self._admitting_inputs = ()
             raise
         self._admitting_inputs = ()
         if self._current_task is not None:
             self._current_task.include_attachment_inputs(batch)
-        if not self._follow_up_queue:
+        if not self._steering_queue:
             self.pending_input_activity.clear()
         for item in injected:
             self._unannounced_input_ids.discard(item.id)
@@ -191,8 +191,8 @@ class Agent:
                 shell_tasks=item.shell_tasks,
                 task_response=item.task_response,
             )
-        yield events.FollowUpQueueUpdatedEvent(
-            session_id=self.session.id, texts=[item.text for item in self.follow_up_snapshot()]
+        yield events.SteeringQueueUpdatedEvent(
+            session_id=self.session.id, texts=[item.text for item in self.steering_snapshot()]
         )
 
     async def _inject_task_results(self) -> AsyncGenerator[events.Event]:
@@ -257,40 +257,40 @@ class Agent:
                 session_id=self.session.id, content=text, source="task_completion", task_response=response
             )
 
-    def _durable_follow_up_queue(self) -> list[QueuedUserInput]:
+    def _durable_steering_queue(self) -> list[QueuedUserInput]:
         """Include the admitting batch until its history flush succeeds."""
-        return [*self._admitting_inputs, *self._follow_up_queue]
+        return [*self._admitting_inputs, *self._steering_queue]
 
-    def follow_up_count(self) -> int:
-        return len(self._admitting_inputs) + len(self._follow_up_queue)
+    def steering_count(self) -> int:
+        return len(self._admitting_inputs) + len(self._steering_queue)
 
-    def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
-        return tuple(item.input for item in self._durable_follow_up_queue())
+    def steering_snapshot(self) -> tuple[UserInputPayload, ...]:
+        return tuple(item.input for item in self._durable_steering_queue())
 
-    def follow_up_records(self) -> tuple[QueuedUserInput, ...]:
-        return tuple(self._durable_follow_up_queue())
+    def steering_records(self) -> tuple[QueuedUserInput, ...]:
+        return tuple(self._durable_steering_queue())
 
-    def pop_all_follow_up(self) -> tuple[UserInputPayload, ...]:
-        messages = tuple(item.input for item in self._follow_up_queue)
-        self.session.set_follow_up_queue(self._admitting_inputs)
-        self._follow_up_queue.clear()
+    def pop_all_steering(self) -> tuple[UserInputPayload, ...]:
+        messages = tuple(item.input for item in self._steering_queue)
+        self.session.set_steering_queue(self._admitting_inputs)
+        self._steering_queue.clear()
         if not self._admitting_inputs:
             self.pending_input_activity.clear()
         return messages
 
-    def peek_next_follow_up(self) -> UserInputPayload | None:
+    def peek_next_steering(self) -> UserInputPayload | None:
         if self._admitting_inputs:
             return self._admitting_inputs[0].input
-        if not self._follow_up_queue:
+        if not self._steering_queue:
             return None
-        return self._follow_up_queue[0].input
+        return self._steering_queue[0].input
 
-    def peek_next_follow_up_record(self) -> QueuedUserInput | None:
+    def peek_next_steering_record(self) -> QueuedUserInput | None:
         if self._admitting_inputs:
             return self._admitting_inputs[0]
-        if not self._follow_up_queue:
+        if not self._steering_queue:
             return None
-        return self._follow_up_queue[0]
+        return self._steering_queue[0]
 
     def on_interrupt(self) -> Iterable[events.Event]:
         """Handle an interrupt by emitting best-effort cleanup events.

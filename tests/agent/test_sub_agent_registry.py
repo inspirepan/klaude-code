@@ -631,9 +631,7 @@ def test_default_async_parent_interrupt_and_stop_owned_children(
                     ):
                         break
             await facade.submit_and_wait(
-                op.FollowUpAgentOperation(
-                    session_id=session.id, input=message.UserInputPayload(text="change direction")
-                )
+                op.SteerAgentOperation(session_id=session.id, input=message.UserInputPayload(text="change direction"))
             )
             await asyncio.wait_for(facade.wait_for(wait_run.id), 3)
             waits = [

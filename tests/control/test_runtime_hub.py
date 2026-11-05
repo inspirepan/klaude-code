@@ -1019,16 +1019,16 @@ def test_child_stop_preserves_queued_bash_and_side_questions_but_all_stop_reject
             actor = hub.get_session_actor("s1")
             assert actor is not None
             run = op.RunAgentOperation(session_id="s1", input=UserInputPayload(text="run"))
-            follow_up = op.FollowUpAgentOperation(session_id="s1", input=UserInputPayload(text="follow-up"))
+            steering = op.SteerAgentOperation(session_id="s1", input=UserInputPayload(text="follow-up"))
             bash = op.RunBashOperation(session_id="s1", command="true")
             question = op.AskSideQuestionOperation(session_id="s1", question="why?")
-            for operation in (run, follow_up, bash, question):
+            for operation in (run, steering, bash, question):
                 await hub.submit(operation)
             actor.cancel_queued_runs()
             release.set()
             await actor.control_mailbox.join()
             await actor.normal_mailbox.join()
-            assert set(rejected) == {run.id, follow_up.id}
+            assert set(rejected) == {run.id, steering.id}
             assert handled == [blocker.id, bash.id, question.id]
 
             delayed = op.AskSideQuestionOperation(session_id="s1", question="late enqueue")

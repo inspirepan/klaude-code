@@ -13,7 +13,7 @@ from klaude_code.session.session import Session
 def test_queued_run_does_not_resurrect_withdrawn_input(tmp_path: Path) -> None:
     async def _test() -> None:
         session = Session.create(work_dir=tmp_path)
-        agent = cast(Any, type("FakeAgent", (), {"session": session, "follow_up_count": lambda _: 0})())
+        agent = cast(Any, type("FakeAgent", (), {"session": session, "steering_count": lambda _: 0})())
         handler = cast(Any, object.__new__(AgentOperationHandler))
 
         async def ensure_agent(_session_id: str) -> Any:

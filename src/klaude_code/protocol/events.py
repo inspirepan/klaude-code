@@ -47,7 +47,6 @@ __all__ = [
     "Event",
     "EventEnvelope",
     "FallbackModelConfigWarnEvent",
-    "FollowUpQueueUpdatedEvent",
     "ForkCacheHitRateEvent",
     "InterruptEvent",
     "ModelChangedEvent",
@@ -70,6 +69,7 @@ __all__ = [
     "SideQuestionEvent",
     "SideQuestionFailedEvent",
     "SideQuestionStartEvent",
+    "SteeringQueueUpdatedEvent",
     "StepEndEvent",
     "StepStartEvent",
     "SubAgentModelChangedEvent",
@@ -559,13 +559,14 @@ class ErrorEvent(Event):
 
 class InterruptEvent(Event):
     show_notice: bool = True
+    # Historical wire field name for resuming the steering queue.
     # Mirrors InterruptOperation.resume_follow_ups: the queue drain may
     # continue after this interrupt (TUI Esc) instead of stopping (kill).
     resume_follow_ups: bool = False
 
 
-class FollowUpQueueUpdatedEvent(Event):
-    """The session's queued follow-up messages changed (enqueue/pop/drain).
+class SteeringQueueUpdatedEvent(Event):
+    """The session's queued steering messages changed (enqueue/pop/drain).
 
     Lets the TUI mirror the Runtime-held queue for their pending
     message UI without polling.
@@ -714,6 +715,9 @@ class UserInteractionCancelledEvent(Event):
 def _event_type_name_from_class_name(class_name: str) -> str:
     if class_name == "ShellTasksUpdatedEvent":
         return "shell_tasks_updated"
+    if class_name == "SteeringQueueUpdatedEvent":
+        # Keep the published event discriminator's historical name.
+        return "follow.up.queue.updated"
     event_name = class_name[:-5] if class_name.endswith("Event") else class_name
     words = re.findall(r"[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+", event_name)
     if not words:

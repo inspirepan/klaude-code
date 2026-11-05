@@ -73,7 +73,7 @@ def _worker(connection: Connection, work_dir: str, home: str, identity: str) -> 
                         receipt = await endpoint.send_peer(client.session_id, command[1], command[2], None)
                         connection.send(receipt.model_dump())
                     elif command[0] == "queue":
-                        connection.send([item.model_dump() for item in agent.follow_up_snapshot()])
+                        connection.send([item.model_dump() for item in agent.steering_snapshot()])
                     elif command[0] == "environment":
                         catalog = await client.get_model_catalog()
                         shell = await asyncio.create_subprocess_exec(

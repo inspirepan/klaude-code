@@ -233,7 +233,7 @@ def test_injected_task_report_cannot_authorize_attachments(
             assert await at_file_reader_attachment(session) is None
             assert await skill_attachment(session) is None
             assert not resolved
-            agent.follow_up(message.UserInputPayload(text=report))
+            agent.steer(message.UserInputPayload(text=report))
             _ = [event async for event in agent.run_task(message.UserInputPayload(text=""))]
             assert resolved == ["demo"]
             assert str(secret) in agent.session.file_tracker and str(skill_path) in agent.session.file_tracker
@@ -650,16 +650,16 @@ def test_stop_invalidates_queued_runs_but_allows_explicit_new_run() -> None:
         actor = SessionActor(session_id="child", handle_operation=handle, reject_operation=reject)
         try:
             old = op.RunAgentOperation(session_id="child", input=message.UserInputPayload(text="old side effect"))
-            followup = op.FollowUpAgentOperation(
+            steering = op.SteerAgentOperation(
                 session_id="child", input=message.UserInputPayload(text="old queued input")
             )
             await actor.enqueue(old)
-            await actor.enqueue(followup)
+            await actor.enqueue(steering)
             actor.cancel_queued_runs()
             resumed = op.RunAgentOperation(session_id="child", input=message.UserInputPayload(text="explicit new run"))
             await actor.enqueue(resumed)
             await asyncio.wait_for(asyncio.gather(actor.control_mailbox.join(), actor.normal_mailbox.join()), 1)
-            assert set(rejected) == {old.id, followup.id}
+            assert set(rejected) == {old.id, steering.id}
             assert applied == [resumed.id]
         finally:
             await actor.stop()
