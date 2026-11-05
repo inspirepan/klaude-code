@@ -460,9 +460,14 @@ def test_developer_and_tool_group_is_continuous_until_next_standard_block() -> N
     assert lines[second_developer + 1 : notice] == [""]
 
 
-def test_multiline_error_continuation_uses_single_grid_indent() -> None:
+@pytest.mark.parametrize("child", [False, True])
+def test_multiline_error_continuation_uses_single_grid_indent(child: bool) -> None:
     renderer, output = _renderer_and_output()
-    session_id = "main"
+    session_id = "child" if child else "main"
+    if child:
+        renderer.register_session(
+            session_id, SubAgentState(sub_agent_type="finder", sub_agent_desc="review", sub_agent_prompt="")
+        )
 
     asyncio.run(
         renderer.execute(
@@ -484,10 +489,34 @@ def test_multiline_error_continuation_uses_single_grid_indent() -> None:
 
     rendered = output.getvalue()
     lines = rendered.splitlines()
-    assert lines[0].rstrip() == "✘ Prompt cache break detected: likely server-side"
-    assert lines[1].rstrip() == "  Cached tokens: 5,120 -> 0 (drop: 5,120)"
-    assert lines[2].rstrip() == "  Report: /tmp/cache-break.txt"
-    assert not lines[2].startswith("    Report:")
+    prefix = "▌ " if child else "  "
+    assert lines[0].rstrip() == prefix + "✘ Prompt cache break detected: likely server-side"
+    assert lines[1].rstrip() == prefix + "  Cached tokens: 5,120 -> 0 (drop: 5,120)"
+    assert lines[2].rstrip() == prefix + "  Report: /tmp/cache-break.txt"
+
+
+@pytest.mark.parametrize("child", [False, True])
+def test_wrapped_retry_aligns_with_tool_indent(child: bool) -> None:
+    renderer, output = _renderer_and_output()
+    renderer.console.width = 40
+    session_id = "child" if child else "main"
+    if child:
+        renderer.register_session(
+            session_id, SubAgentState(sub_agent_type="finder", sub_agent_desc="review", sub_agent_prompt="")
+        )
+    renderer.display_error(
+        events.ErrorEvent(
+            session_id=session_id,
+            error_message="Retrying 1/5 in 1.0s - upstream connect error before headers: connection timeout",
+            can_retry=True,
+        )
+    )
+    lines = output.getvalue().splitlines()
+    prefix = "▌ " if child else "  "
+    assert lines[0].startswith(prefix + "✘ Retrying")
+    assert len(lines) > 1
+    assert all(line.startswith(prefix + "  ") for line in lines[1:])
+    assert "connection timeout" in " ".join(line.strip(" ▌") for line in lines)
 
 
 def test_developer_messages_stay_grouped_until_step_boundary() -> None:

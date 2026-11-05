@@ -1743,11 +1743,14 @@ class TUICommandRenderer:
         if not self._visible(event):
             return
         message = event.compact_message if self._compact and event.compact_message else event.error_message
+        content = c_errors.render_error(Text(message), can_retry=event.can_retry)
+        if event.can_retry:
+            content = c_tools.AdaptiveIndent(content, c_tools.TOOL_GROUP_INDENT)
         if event.session_id:
             with self.session_print_context(event.session_id):
-                self.print(c_errors.render_error(Text(message), can_retry=event.can_retry))
+                self.print(content)
         else:
-            self.print(c_errors.render_error(Text(message), can_retry=event.can_retry))
+            self.print(content)
         if not event.can_retry:
             self.print()
 
