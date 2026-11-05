@@ -14,6 +14,7 @@ from prompt_toolkit.data_structures import Size
 from prompt_toolkit.document import Document
 from prompt_toolkit.input import DummyInput
 from prompt_toolkit.layout.controls import BufferControl
+from prompt_toolkit.layout.dimension import to_dimension
 from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.processors import TransformationInput
 from prompt_toolkit.layout.screen import Screen, WritePosition
@@ -928,23 +929,29 @@ def test_long_chinese_suggestion_renders_fully_at_odd_column_width(monkeypatch: 
         if isinstance(window.content, BufferControl) and window.content.buffer is prompt_input._session.default_buffer
     )
 
-    with set_app(app):
-        prompt_input._patch_prompt_height_for_overlays()
-        height = window.height().preferred
-        assert height == 4
-        screen = Screen()
-        window.write_to_screen(
-            screen,
-            MouseHandlers(),
-            WritePosition(xpos=0, ypos=0, width=81, height=height),
-            parent_style="",
-            erase_bg=True,
-            z_index=None,
-        )
+    async def run() -> None:
+        with set_app(app):
+            try:
+                prompt_input._patch_prompt_height_for_overlays()
+                height = to_dimension(window.height).preferred
+                assert height == 4
+                screen = Screen()
+                window.write_to_screen(
+                    screen,
+                    MouseHandlers(),
+                    WritePosition(xpos=0, ypos=0, width=81, height=height),
+                    parent_style="",
+                    erase_bg=True,
+                    z_index=None,
+                )
 
-    rendered = "".join(screen.data_buffer[row][col].char for row in range(height) for col in range(81))
-    assert rendered.count("提") == 106
-    assert rendered.rstrip().endswith("]")
+                rendered = "".join(screen.data_buffer[row][col].char for row in range(height) for col in range(81))
+                assert rendered.count("提") == 106
+                assert rendered.rstrip().endswith("]")
+            finally:
+                await app.cancel_and_wait_for_background_tasks()
+
+    asyncio.run(run())
 
 
 def test_input_window_max_height_accounts_for_bottom_layout() -> None:
