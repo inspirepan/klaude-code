@@ -27,6 +27,7 @@ if TYPE_CHECKING:
         InterruptOperation,
         ManageShellOperation,
         ManageTasksOperation,
+        QueueFollowUpOperation,
         RequestModelOperation,
         RequestSubAgentModelOperation,
         RewindWithSummaryOperation,
@@ -59,6 +60,8 @@ class OperationHandler(Protocol):
     async def handle_steer_agent(self, operation: SteerAgentOperation) -> None:
         """Handle a steering agent operation."""
         ...
+
+    async def handle_queue_follow_up(self, operation: QueueFollowUpOperation) -> None: ...
 
     async def handle_run_bash(self, operation: RunBashOperation) -> None:
         """Handle a bash-mode command execution operation."""

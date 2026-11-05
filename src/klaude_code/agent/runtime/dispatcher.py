@@ -232,6 +232,9 @@ class OperationDispatcher:
     async def handle_steer_agent(self, operation: op.SteerAgentOperation) -> None:
         await self._agent_operation_handler.steer_agent(operation)
 
+    async def handle_queue_follow_up(self, operation: op.QueueFollowUpOperation) -> None:
+        await self._agent_operation_handler.queue_follow_up(operation)
+
     async def handle_run_bash(self, operation: op.RunBashOperation) -> None:
         await self._agent_operation_handler.run_bash(operation)
 
@@ -437,6 +440,9 @@ class OperationDispatcher:
                 child_agent.pop_all_steering()
                 await child_agent.session.wait_for_flush()
                 await self.emit_event(events.SteeringQueueUpdatedEvent(session_id=child.session_id, texts=[]))
+            if child_agent.follow_up_count():
+                child_agent.pop_all_follow_up()
+                await self.emit_event(events.FollowUpQueueChangedEvent(session_id=child.session_id, texts=[]))
 
     async def handle_stop_all_tasks(self, operation: op.StopAllTasksOperation) -> None:
         actor = self._ports.get_session_actor(operation.session_id)
@@ -479,9 +485,13 @@ class OperationDispatcher:
                     agent = owner.get_agent()
                     if agent is not None:
                         agent.pop_all_steering()
+                        agent.pop_all_follow_up()
                         await attempt(agent.session.wait_for_flush())
                         await attempt(
                             self.emit_event(events.SteeringQueueUpdatedEvent(session_id=session_id, texts=[]))
+                        )
+                        await attempt(
+                            self.emit_event(events.FollowUpQueueChangedEvent(session_id=session_id, texts=[]))
                         )
                         await attempt(self.task_manager.stop_all_tasks(session_id, agent.session.work_dir))
                     # Accepted launches can finish creating actors while the root unwinds.

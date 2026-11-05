@@ -62,6 +62,122 @@ def test_local_turn_replay_and_shutdown(fake_llm: FakeLLMClient, tmp_path: Path)
     asyncio.run(run())
 
 
+def test_dequeue_pending_messages_flushes_both_queues_and_updates_mirrors(
+    fake_llm: FakeLLMClient, tmp_path: Path
+) -> None:
+    async def run() -> None:
+        received: list[events.Event] = []
+
+        async def consume(envelope: events.EventEnvelope) -> None:
+            received.append(envelope.event)
+
+        client = LocalRuntimeClient(None, on_envelope=consume, work_dir=tmp_path, vanilla=True)
+        await client.start()
+        client.start_display()
+        fake_llm.enqueue(message.AssistantTextDelta(content="slow"), delay_s=60)
+        try:
+            await client.submit(
+                op.RunAgentOperation(session_id=client.session_id, input=UserInputPayload(text="already running"))
+            )
+            async with asyncio.timeout(3):
+                while not fake_llm.call_count:
+                    await asyncio.sleep(0.01)
+            for index in range(2):
+                await client.submit_and_wait(
+                    op.QueueFollowUpOperation(
+                        session_id=client.session_id,
+                        input=UserInputPayload(text=f"follow {index}", delivery="follow_up"),
+                    )
+                )
+                await client.submit_and_wait(
+                    op.SteerAgentOperation(session_id=client.session_id, input=UserInputPayload(text=f"steer {index}"))
+                )
+            session = client.command_agent().session
+            await session.wait_for_flush()
+            await client.wait_for_display_idle()
+            assert client.steering_texts() == ("steer 0", "steer 1")
+            assert client.follow_up_texts() == ("follow 0", "follow 1")
+            saved = Session.load(client.session_id, work_dir=tmp_path)
+            assert len(saved.steering_queue) == len(saved.follow_up_queue) == 2
+            received.clear()
+
+            assert await client.dequeue_pending_messages() == ("steer 0", "steer 1", "follow 0", "follow 1")
+            saved = Session.load(client.session_id, work_dir=tmp_path)
+            assert saved.steering_queue == saved.follow_up_queue == []
+            assert session.steering_queue == session.follow_up_queue == []
+            await client.wait_for_display_idle()
+            assert client.steering_texts() == client.follow_up_texts() == ()
+            updates = [
+                event
+                for event in received
+                if isinstance(event, (events.SteeringQueueUpdatedEvent, events.FollowUpQueueChangedEvent))
+            ]
+            assert [(type(event), event.session_id, event.texts) for event in updates] == [
+                (events.SteeringQueueUpdatedEvent, client.session_id, []),
+                (events.FollowUpQueueChangedEvent, client.session_id, []),
+            ]
+            assert client.is_running()
+            assert await client.dequeue_pending_messages() == ()
+        finally:
+            await client.close()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("follow_up", [False, True])
+def test_dequeue_pending_messages_excludes_admitting_input(
+    fake_llm: FakeLLMClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, follow_up: bool
+) -> None:
+    from klaude_code.agent import agent as agent_module
+
+    async def run() -> None:
+        async def consume(_envelope: events.EventEnvelope) -> None:
+            pass
+
+        client = LocalRuntimeClient(None, on_envelope=consume, work_dir=tmp_path, vanilla=True)
+        await client.start()
+        client.start_display()
+        agent = client.command_agent()
+        admitting = asyncio.Event()
+        release = asyncio.Event()
+        original_freeze = agent_module.freeze_user_input_for_history
+
+        async def freeze(user_input: UserInputPayload, *, images_dir: Path) -> UserInputPayload:
+            admitting.set()
+            await release.wait()
+            return await original_freeze(user_input, images_dir=images_dir)
+
+        monkeypatch.setattr(agent_module, "freeze_user_input_for_history", freeze)
+        enqueue = agent.follow_up if follow_up else agent.steer
+        enqueue(UserInputPayload(text="already admitting"))
+
+        async def inject() -> None:
+            stream = agent.inject_follow_up() if follow_up else agent.inject_pending_inputs()
+            async for _event in stream:
+                pass
+
+        task = asyncio.create_task(inject())
+        try:
+            await asyncio.wait_for(admitting.wait(), 3)
+            agent.steer(UserInputPayload(text="pending steer"))
+            agent.follow_up(UserInputPayload(text="pending follow"))
+            assert await client.dequeue_pending_messages() == ("pending steer", "pending follow")
+            await client.wait_for_display_idle()
+            expected_steering = () if follow_up else ("already admitting",)
+            expected_follow_ups = ("already admitting",) if follow_up else ()
+            assert client.steering_texts() == expected_steering
+            assert client.follow_up_texts() == expected_follow_ups
+            saved = Session.load(client.session_id, work_dir=tmp_path)
+            assert tuple(item.input.text for item in saved.steering_queue) == expected_steering
+            assert tuple(item.input.text for item in saved.follow_up_queue) == expected_follow_ups
+        finally:
+            release.set()
+            await asyncio.wait_for(task, 3)
+            await client.close()
+
+    asyncio.run(run())
+
+
 def test_second_executor_rejected_and_lease_released(fake_llm: FakeLLMClient, tmp_path: Path) -> None:
     async def run() -> None:
         async def consume(_envelope: events.EventEnvelope) -> None:
@@ -219,6 +335,7 @@ def test_restore_interrupted_turn_preserves_queue_without_execution(fake_llm: Fa
         saved.runtime.active_turn = SessionActiveTurn(id="interrupted-turn", started=True)
         saved.persist_runtime()
         saved.set_steering_queue([QueuedUserInput(input=UserInputPayload(text="pending input"))])
+        saved.set_follow_up_queue([QueuedUserInput(input=UserInputPayload(text="pending follow-up"))])
 
         async def consume(_envelope: events.EventEnvelope) -> None:
             pass
@@ -233,6 +350,16 @@ def test_restore_interrupted_turn_preserves_queue_without_execution(fake_llm: Fa
             assert session.runtime.last_turn is not None and session.runtime.last_turn.result == "interrupted"
             assert session.runtime.control.paused
             assert client.steering_texts() == ("pending input",)
+            assert client.follow_up_texts() == ("pending follow-up",)
+            client.optimistically_append_follow_ups(["duplicate", "retained", "duplicate"])
+            client.remove_optimistic_follow_up("duplicate")
+            assert client.follow_up_texts() == ("pending follow-up", "duplicate", "retained")
+            assert client.steering_texts() == ("pending input",)
+            await client.emit_local_event(
+                events.FollowUpQueueChangedEvent(session_id=client.session_id, texts=["pending follow-up"])
+            )
+            await client.wait_for_display_idle()
+            assert client.follow_up_texts() == ("pending follow-up",)
             assert fake_llm.call_count == 0
         finally:
             await client.close()

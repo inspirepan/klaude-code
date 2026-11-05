@@ -47,6 +47,7 @@ __all__ = [
     "Event",
     "EventEnvelope",
     "FallbackModelConfigWarnEvent",
+    "FollowUpQueueChangedEvent",
     "ForkCacheHitRateEvent",
     "InterruptEvent",
     "ModelChangedEvent",
@@ -571,6 +572,12 @@ class SteeringQueueUpdatedEvent(Event):
     Lets the TUI mirror the Runtime-held queue for their pending
     message UI without polling.
     """
+
+    texts: list[str] = Field(default_factory=list)
+
+
+class FollowUpQueueChangedEvent(Event):
+    """The session's pending natural-end inputs changed."""
 
     texts: list[str] = Field(default_factory=list)
 

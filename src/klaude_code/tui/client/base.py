@@ -31,6 +31,7 @@ class SessionInfoSnapshot:
     work_dir: str | None = None
     title: str | None = None
     steering: tuple[str, ...] = field(default_factory=tuple)
+    follow_ups: tuple[str, ...] = field(default_factory=tuple)
     is_replay_snapshot: bool = False
     replay_through_event_seq: int = 0
 
@@ -79,7 +80,7 @@ class RuntimeClient(Protocol):
         """Inject a display-only event into this client's display feed."""
         ...
 
-    async def dequeue_steering(self) -> tuple[str, ...]: ...
+    async def dequeue_pending_messages(self) -> tuple[str, ...]: ...
 
     async def get_model_catalog(self) -> ModelCatalog:
         """Read currently available models from this process configuration."""
@@ -101,6 +102,12 @@ class RuntimeClient(Protocol):
 
     def steering_texts(self) -> tuple[str, ...]: ...
 
+    def follow_up_texts(self) -> tuple[str, ...]: ...
+
+    def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None: ...
+
+    def remove_optimistic_follow_up(self, text: str) -> None: ...
+
     def optimistically_append_steering(self, texts: Sequence[str]) -> None:
         """Show newly queued texts in the mirror immediately; the runtime's
         SteeringQueueUpdatedEvent reconciles the authoritative list."""
@@ -115,7 +122,7 @@ class RuntimeClient(Protocol):
     def consume_interrupt_prefill(self) -> str | None: ...
 
     def state_changed_event(self) -> asyncio.Event:
-        """Set whenever running state or the steering queue changes."""
+        """Set whenever running state or either input queue changes."""
         ...
 
     # -- interactions --

@@ -858,7 +858,7 @@ class AgentOperationHandler:
         # session is the only one that benefits from a suggestion.
         if agent.session.sub_agent_state is not None or agent.session.parent_session_id is not None:
             return
-        if agent.steering_count() > 0:
+        if agent.steering_count() > 0 or agent.follow_up_count() > 0:
             log_debug(
                 f"[PromptSuggestion] skip session={session_id} reason=follow-up queue pending",
                 debug_type=DebugType.EXECUTION,
@@ -943,8 +943,11 @@ class AgentOperationHandler:
 
     async def run_agent(self, operation: op.RunAgentOperation) -> None:
         agent = await self.ensure_agent(operation.session_id)
-        if operation.queued_input and agent.steering_count() == 0:
+        if operation.queued_input and agent.steering_count() == 0 and agent.follow_up_count() == 0:
             return
+        if operation.queued_input and agent.steering_count() == 0:
+            async for event in agent.inject_follow_up():
+                await self._emit_event(event)
         # New user turn invalidates any pending suggestion for this session.
         self._cancel_prompt_suggestion(operation.session_id)
         self._cancel_auto_away_summary(operation.session_id)
@@ -1014,6 +1017,17 @@ class AgentOperationHandler:
         await self._emit_event(
             events.SteeringQueueUpdatedEvent(
                 session_id=operation.session_id, texts=[item.text for item in agent.steering_snapshot()]
+            )
+        )
+
+    async def queue_follow_up(self, operation: op.QueueFollowUpOperation) -> None:
+        agent = await self.ensure_agent(operation.session_id)
+        agent.follow_up(operation.input)
+        self._cancel_prompt_suggestion(operation.session_id)
+        self._cancel_auto_away_summary(operation.session_id)
+        await self._emit_event(
+            events.FollowUpQueueChangedEvent(
+                session_id=operation.session_id, texts=[item.text for item in agent.follow_up_snapshot()]
             )
         )
 
@@ -1503,7 +1517,7 @@ class AgentOperationHandler:
         # session the moment the rewind op finishes — right as the client
         # switches away — and a mid-summary queue drain would mutate the
         # history the summary request reads.
-        if agent.steering_count() > 0:
+        if agent.steering_count() > 0 or agent.follow_up_count() > 0:
             await self._emit_event(
                 events.NoticeEvent(
                     session_id=session_id,
@@ -1584,7 +1598,7 @@ class AgentOperationHandler:
         )
         await new_session.wait_for_flush()
 
-        if agent.steering_count() > 0:
+        if agent.steering_count() > 0 or agent.follow_up_count() > 0:
             await self._emit_event(
                 events.NoticeEvent(
                     session_id=session_id,

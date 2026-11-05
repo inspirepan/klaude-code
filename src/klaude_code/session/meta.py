@@ -41,6 +41,7 @@ class LoadedSessionMeta:
     model_effort: str | None
     prompt_cache_key: str | None
     steering_queue: list[message.QueuedUserInput]
+    follow_up_queue: list[message.QueuedUserInput]
     headless_queued_turn: message.QueuedUserInput | None
     runtime: SessionRuntimeFacts
     name: str | None
@@ -230,6 +231,7 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         prompt_cache_key=raw.get("prompt_cache_key") if isinstance(raw.get("prompt_cache_key"), str) else None,
         # Keep the steering queue's historical on-disk key.
         steering_queue=_parse_steering_queue(raw.get("follow_up_queue"), fallback_enqueued_at=updated_at),
+        follow_up_queue=_parse_steering_queue(raw.get("pending_follow_ups"), fallback_enqueued_at=updated_at),
         headless_queued_turn=_parse_headless_queued_turn(raw, fallback_enqueued_at=updated_at),
         runtime=runtime,
         name=_parse_optional_str(raw.get("name")),

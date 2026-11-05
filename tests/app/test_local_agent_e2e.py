@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -15,7 +15,7 @@ from klaude_code.agent.runtime.agent_ops import AgentOperationHandler
 from klaude_code.agent.runtime.llm import LLMClients
 from klaude_code.app.peer_endpoint import call_endpoint
 from klaude_code.config import Config
-from klaude_code.protocol import events, llm_param, message, op, tools
+from klaude_code.protocol import events, llm_param, message, op, tools, user_interaction
 from klaude_code.protocol.background_task import TaskRequest
 from klaude_code.protocol.peer import PeerMessage
 from klaude_code.tui.client.local import LocalRuntimeClient
@@ -330,6 +330,13 @@ def test_native_task_wait_steering_interrupt_and_stop_keep_other_owner_running(
             assert child_actor is not None
             original_child = child_actor.snapshot().active_root_task
             await owner.submit_and_wait(
+                op.QueueFollowUpOperation(
+                    session_id=owner.session_id, input=message.UserInputPayload(text="after the current task")
+                )
+            )
+            await asyncio.sleep(0.05)
+            assert len(parent_inputs) == 2 and not resumed.is_set()
+            await owner.submit_and_wait(
                 op.SteerAgentOperation(
                     session_id=owner.session_id, input=message.UserInputPayload(text="change direction")
                 )
@@ -351,6 +358,12 @@ def test_native_task_wait_steering_interrupt_and_stop_keep_other_owner_running(
                 op.InterruptOperation(session_id=owner.session_id, expected_operation_id=root_op.id)
             )
             await owner.wait_for(root_op.id)
+            assert parent.follow_up_count() == 1
+            await owner.submit_and_wait(
+                op.SteerAgentOperation(
+                    session_id=owner.session_id, input=message.UserInputPayload(text="pending steering")
+                )
+            )
             assert not child_cancelled.is_set()
             assert runtime.shell_task_manager.has_running_tasks()
             assert owner._endpoint is not None
@@ -358,6 +371,7 @@ def test_native_task_wait_steering_interrupt_and_stop_keep_other_owner_running(
             assert child_cancelled.is_set() and child_actor.snapshot().is_idle
             assert (await runtime.shell_task_manager.list_tasks(owner.session_id))[0].status == "running"
             await owner.submit_and_wait(op.StopAllTasksOperation(session_id=owner.session_id))
+            assert parent.steering_count() == parent.follow_up_count() == 0
             assert (await runtime.shell_task_manager.list_tasks(owner.session_id))[0].status == "stopped"
             assert not peer_cancelled.is_set() and peer.is_running()
             assert not await runtime.task_manager.pending_results(owner.session_id, env.directory)
@@ -367,6 +381,232 @@ def test_native_task_wait_steering_interrupt_and_stop_keep_other_owner_running(
             }
             release.set()
             await peer.wait_for(peer_op.id)
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("headless", [False, True])
+def test_cancelled_question_retains_follow_up_without_blocking_later_steering(
+    local_group, monkeypatch: pytest.MonkeyPatch, headless: bool
+) -> None:
+    async def run() -> None:
+        async with local_group() as env:
+            owner = await env.create()
+            agent = owner.command_agent()
+            if headless:
+                agent.session.spawn_kind = "headless"
+                agent.session.ensure_meta_exists()
+            inputs: list[list[str]] = []
+
+            async def scripted(param: llm_param.LLMCallParameter) -> ScriptedLLMStream:
+                inputs.append(
+                    [
+                        message.join_text_parts(item.parts)
+                        for item in param.input
+                        if isinstance(item, message.UserMessage)
+                    ]
+                )
+                if len(inputs) == 1:
+                    return tool(
+                        tools.ASK_USER_QUESTION,
+                        {
+                            "questions": [
+                                {
+                                    "header": "Pick",
+                                    "question": "Which?",
+                                    "multiSelect": False,
+                                    "options": [
+                                        {"label": "A", "description": "first"},
+                                        {"label": "B", "description": "second"},
+                                    ],
+                                }
+                            ]
+                        },
+                        "question",
+                    )
+                return reply("done")
+
+            monkeypatch.setattr(env.fake, "call", scripted)
+            initial = op.RunAgentOperation(session_id=owner.session_id, input=message.UserInputPayload(text="initial"))
+            await owner.submit(initial)
+            request = await asyncio.wait_for(owner.interaction_requests().get(), 5)
+            await owner.submit_and_wait(
+                op.QueueFollowUpOperation(session_id=owner.session_id, input=message.UserInputPayload(text="later"))
+            )
+            await owner.submit_and_wait(
+                op.UserInteractionRespondOperation(
+                    session_id=request.session_id,
+                    request_id=request.request_id,
+                    response=user_interaction.UserInteractionResponse(status="cancelled", payload=None),
+                )
+            )
+            await owner.wait_for(initial.id)
+            await asyncio.sleep(0.1)
+            assert inputs == [["initial"]] and agent.follow_up_count() == 1
+            assert owner._scheduler is not None
+            assert not owner._scheduler.has_live_steering(owner.session_id)
+            await owner.submit_and_wait(
+                op.SteerAgentOperation(session_id=owner.session_id, input=message.UserInputPayload(text="steering"))
+            )
+            await eventually(lambda: len(inputs) == 3 and not owner.has_running_tasks())
+            assert inputs == [["initial"], ["initial", "steering"], ["initial", "steering", "later"]]
+            assert agent.follow_up_count() == agent.steering_count() == 0
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("resume_steering", [False, True])
+def test_interrupt_retains_follow_up_until_user_resumes(
+    local_group, monkeypatch: pytest.MonkeyPatch, resume_steering: bool
+) -> None:
+    async def run() -> None:
+        async with local_group() as env:
+            owner = await env.create()
+            agent = owner.command_agent()
+            started = asyncio.Event()
+            inputs: list[list[str]] = []
+
+            async def scripted(param: llm_param.LLMCallParameter) -> ScriptedLLMStream:
+                inputs.append(
+                    [
+                        message.join_text_parts(item.parts)
+                        for item in param.input
+                        if isinstance(item, message.UserMessage)
+                    ]
+                )
+                if len(inputs) == 1:
+                    started.set()
+                    await asyncio.Event().wait()
+                return reply("done")
+
+            monkeypatch.setattr(env.fake, "call", scripted)
+            initial = op.RunAgentOperation(session_id=owner.session_id, input=message.UserInputPayload(text="initial"))
+            await owner.submit(initial)
+            await asyncio.wait_for(started.wait(), 5)
+            await owner.submit_and_wait(
+                op.QueueFollowUpOperation(session_id=owner.session_id, input=message.UserInputPayload(text="later"))
+            )
+            await owner.submit_and_wait(
+                op.InterruptOperation(
+                    session_id=owner.session_id,
+                    expected_operation_id=initial.id,
+                    retract_unanswered_input=True,
+                    resume_follow_ups=resume_steering,
+                )
+            )
+            await owner.wait_for(initial.id)
+            await asyncio.sleep(0.1)
+            assert inputs == [["initial"]] and agent.follow_up_count() == 1
+            await owner.submit_and_wait(
+                op.RunAgentOperation(session_id=owner.session_id, input=message.UserInputPayload(text="resume"))
+            )
+            await eventually(lambda: len(inputs) == 3 and not owner.has_running_tasks())
+            assert inputs == [["initial"], ["initial", "resume"], ["initial", "resume", "later"]]
+            assert agent.follow_up_count() == agent.steering_count() == 0
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("headless", [False, True])
+def test_idle_follow_up_operation_drains_and_remaining_inputs_share_one_run(
+    local_group, monkeypatch: pytest.MonkeyPatch, headless: bool
+) -> None:
+    async def run() -> None:
+        async with local_group() as env:
+            owner = await env.create()
+            agent = owner.command_agent()
+            if headless:
+                agent.session.spawn_kind = "headless"
+                agent.session.ensure_meta_exists()
+            started, release = asyncio.Event(), asyncio.Event()
+            inputs: list[list[str]] = []
+
+            async def scripted(param: llm_param.LLMCallParameter) -> ScriptedLLMStream:
+                inputs.append(
+                    [
+                        message.join_text_parts(item.parts)
+                        for item in param.input
+                        if isinstance(item, message.UserMessage)
+                    ]
+                )
+                if len(inputs) == 1:
+                    started.set()
+                    await release.wait()
+                return reply("done")
+
+            monkeypatch.setattr(env.fake, "call", scripted)
+            await owner.submit_and_wait(
+                op.QueueFollowUpOperation(session_id=owner.session_id, input=message.UserInputPayload(text="first"))
+            )
+            await asyncio.wait_for(started.wait(), 5)
+            await owner.submit_and_wait(
+                op.QueueFollowUpOperation(session_id=owner.session_id, input=message.UserInputPayload(text="second"))
+            )
+            assert inputs == [["first"]]
+            release.set()
+            await eventually(lambda: len(inputs) == 2 and not owner.has_running_tasks())
+            await owner.wait_for_display_idle()
+            assert inputs == [["first"], ["first", "second"]]
+            assert agent.follow_up_count() == 0
+            captured = [envelope.event for envelope in env.events[owner.session_id]]
+            assert len([event for event in captured if isinstance(event, events.TaskStartEvent)]) == 1
+            assert len([event for event in captured if isinstance(event, events.TaskFinishEvent)]) == 1
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("headless", [False, True])
+def test_follow_up_submitted_after_natural_end_check_drains_after_teardown(
+    local_group, monkeypatch: pytest.MonkeyPatch, headless: bool
+) -> None:
+    async def run() -> None:
+        async with local_group() as env:
+            owner = await env.create()
+            agent = owner.command_agent()
+            if headless:
+                agent.session.spawn_kind = "headless"
+                agent.session.ensure_meta_exists()
+            original_run = agent.run_task
+            queued = False
+            inputs: list[list[str]] = []
+
+            async def scripted(param: llm_param.LLMCallParameter) -> ScriptedLLMStream:
+                inputs.append(
+                    [
+                        message.join_text_parts(item.parts)
+                        for item in param.input
+                        if isinstance(item, message.UserMessage)
+                    ]
+                )
+                return reply("done")
+
+            async def run_with_late_input(
+                payload: message.UserInputPayload, **kwargs: Any
+            ) -> AsyncGenerator[events.Event]:
+                nonlocal queued
+                async for event in original_run(payload, **kwargs):
+                    if isinstance(event, events.TaskFinishEvent) and not queued:
+                        queued = True
+                        for text in ("late one", "late two"):
+                            await owner.submit_and_wait(
+                                op.QueueFollowUpOperation(
+                                    session_id=owner.session_id, input=message.UserInputPayload(text=text)
+                                )
+                            )
+                        assert inputs == [["initial"]]
+                    yield event
+
+            monkeypatch.setattr(env.fake, "call", scripted)
+            monkeypatch.setattr(agent, "run_task", run_with_late_input)
+            initial = op.RunAgentOperation(session_id=owner.session_id, input=message.UserInputPayload(text="initial"))
+            await owner.submit_and_wait(initial)
+            await eventually(lambda: len(inputs) == 3 and not owner.has_running_tasks())
+            await owner.wait_for_display_idle()
+            assert inputs == [["initial"], ["initial", "late one"], ["initial", "late one", "late two"]]
+            assert agent.follow_up_count() == 0
+            captured = [envelope.event for envelope in env.events[owner.session_id]]
+            assert len([event for event in captured if isinstance(event, events.TaskStartEvent)]) == 2
+            assert len([event for event in captured if isinstance(event, events.TaskFinishEvent)]) == 2
 
     asyncio.run(run())
 

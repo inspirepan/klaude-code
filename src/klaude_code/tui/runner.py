@@ -68,7 +68,7 @@ def _split_queue_edit_payload(user_input: UserInputPayload) -> tuple[UserInputPa
     parts = split_queued_message_edit_text(user_input.text)
     if len(parts) == 1:
         return (user_input,)
-    return tuple(UserInputPayload(text=text) for text in parts)
+    return tuple(UserInputPayload(text=text, delivery=user_input.delivery) for text in parts)
 
 
 def _is_exit_input(text: str) -> bool:
@@ -398,6 +398,7 @@ async def _run_local_ui(
             tui_display.set_model_name(model_name)
         if input_provider is not None:
             input_provider.set_pending_messages(info.steering)
+            input_provider.set_pending_follow_ups(info.follow_ups)
             input_provider.set_startup_loading_title(info.title)
 
     def _report_program_status(envelope: events.EventEnvelope) -> None:
@@ -544,11 +545,12 @@ async def _run_local_ui(
         # still list a message whose turn the drain already started; filling
         # the buffer from the mirror would resubmit a running message.
         try:
-            texts = await client.dequeue_steering()
+            texts = await client.dequeue_pending_messages()
         except Exception:
             texts = ()
         if input_provider is not None:
             input_provider.set_pending_messages(client.steering_texts())
+            input_provider.set_pending_follow_ups(client.follow_up_texts())
         return texts
 
     def _on_prompt_start() -> None:
@@ -653,6 +655,7 @@ async def _run_local_ui(
             await state_changed.wait()
             state_changed.clear()
             input_provider.set_pending_messages(client.steering_texts())
+            input_provider.set_pending_follow_ups(client.follow_up_texts())
             busy = _agent_busy()
             if (
                 interrupt_pending
@@ -700,6 +703,7 @@ async def _run_local_ui(
                 interrupt_pending = False
                 interrupt_target_operation_id = None
                 input_provider.set_pending_messages(client.steering_texts())
+                input_provider.set_pending_follow_ups(client.follow_up_texts())
                 # Clear the running flag BEFORE applying the prefill:
                 # set_next_prefill only restarts the prompt when the agent is
                 # idle — applied the other way round, the retracted text sat
@@ -788,26 +792,40 @@ async def _run_local_ui(
         await client.submit(run_op)
         _track_foreground_op(run_op.id)
 
-    def _queue_steering(payloads: list[UserInputPayload]) -> None:
-        # Optimistic: mirror + queue UI update now; the Runtime confirm
-        # (SteeringQueueUpdatedEvent) reconciles. Awaiting the round trip in
+    def _queue_input(payloads: list[UserInputPayload]) -> None:
+        # Optimistic: mirror + queue UI update now; the Runtime's queue
+        # event reconciles. Awaiting the round trip in
         # the input loop kept the prompt — and the whole bottom bar — torn
         # down until the Runtime replied: a visible blink on every queued
         # submission.
-        client.optimistically_append_steering([p.text for p in payloads])
+        follow_up = payloads[0].delivery == "follow_up"
+        if follow_up:
+            client.optimistically_append_follow_ups([p.text for p in payloads])
+        else:
+            client.optimistically_append_steering([p.text for p in payloads])
         input_provider.set_pending_messages(client.steering_texts())
+        input_provider.set_pending_follow_ups(client.follow_up_texts())
 
         async def _submit_queued() -> None:
             for payload in payloads:
                 try:
-                    await client.submit_and_wait(op.SteerAgentOperation(session_id=client.session_id, input=payload))
+                    operation = (
+                        op.QueueFollowUpOperation(session_id=client.session_id, input=payload)
+                        if follow_up
+                        else op.SteerAgentOperation(session_id=client.session_id, input=payload)
+                    )
+                    await client.submit_and_wait(operation)
                 except Exception:
                     # A swallowed failure left the mirror showing a message
                     # the Runtime never accepted: the queue looked pending
                     # forever and the text was silently lost. Roll back and
                     # hand the text back to the user instead.
-                    client.remove_optimistic_steering(payload.text)
+                    if follow_up:
+                        client.remove_optimistic_follow_up(payload.text)
+                    else:
+                        client.remove_optimistic_steering(payload.text)
                     input_provider.set_pending_messages(client.steering_texts())
+                    input_provider.set_pending_follow_ups(client.follow_up_texts())
                     preview = payload.text if len(payload.text) <= 120 else payload.text[:119] + "…"
                     with contextlib.suppress(Exception):
                         await _emit_local_notice(f"Message could not be queued: {preview}")
@@ -1024,14 +1042,14 @@ async def _run_local_ui(
                         if _requires_client_dispatch(user_input.text):
                             await _emit_local_notice("This command cannot be queued; press esc to interrupt first.")
                             continue
-                        _queue_steering(list(_split_queue_edit_payload(user_input)))
+                        _queue_input(list(_split_queue_edit_payload(user_input)))
                         continue
 
                     payloads = _split_queue_edit_payload(user_input)
                     first, rest = payloads[0], payloads[1:]
                     await _submit_idle_input(first)
                     if rest:
-                        _queue_steering(rest)
+                        _queue_input(rest)
                 except (ValueError, RuntimeError) as exc:
                     await _emit_local_notice(f"Command failed: {exc}")
 

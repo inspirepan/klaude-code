@@ -474,10 +474,11 @@ class UserInputPayload(BaseModel):
     source: Literal["user", "shell_completion", "task_completion", "peer_message"] | None = None
     shell_tasks: list[ShellTaskSnapshot] | None = None
     queued_edit: bool = Field(default=False, exclude=True)
+    delivery: Literal["steering", "follow_up"] = Field(default="steering", exclude=True)
 
 
 class QueuedUserInput(BaseModel):
-    """A durable user input waiting for a safe step boundary."""
+    """A durable user input waiting for its queue's delivery boundary."""
 
     id: str = Field(default_factory=lambda: uuid4().hex)
     input: UserInputPayload

@@ -172,6 +172,16 @@ class SessionActivityTracker:
 PEER_TURNS_WITHOUT_USER_LIMIT = 3
 
 
+def _next_queued_input(agent: Any) -> QueuedUserInput | None:
+    steering = agent.peek_next_steering_record()
+    if steering is not None:
+        return steering
+    last_turn = agent.session.runtime.last_turn
+    if last_turn is not None and last_turn.result == "interrupted":
+        return None
+    return next(iter(agent.session.follow_up_queue), None)
+
+
 def _is_agent_peer_input(user_input: UserInputPayload) -> bool:
     return (
         user_input.source == "peer_message"
@@ -278,7 +288,7 @@ class HeadlessRuntime:
                 session.runtime.control = SessionControl(paused=True, reason="process_restart")
                 session.persist_runtime()
             self._restored_facts[summary.id] = session.runtime
-            if session.headless_queued_turn or session.steering_queue:
+            if session.headless_queued_turn or session.steering_queue or session.follow_up_queue:
                 self._durable_pending.add(summary.id)
             if session.runtime.control.paused:
                 self._wake_paused.add(summary.id)
@@ -306,7 +316,7 @@ class HeadlessRuntime:
             if (
                 schedule
                 and session.headless_queued_turn is None
-                and session.steering_queue
+                and (session.steering_queue or session.follow_up_queue)
                 and not session.runtime.control.paused
                 and session.runtime.error is None
             ):
@@ -314,7 +324,7 @@ class HeadlessRuntime:
                     restored.append(
                         QueuedRun(
                             session_id=summary.id,
-                            queued=session.steering_queue[0],
+                            queued=(session.steering_queue or session.follow_up_queue)[0],
                             work_dir=work_dir,
                             kind="steering",
                         )
@@ -372,6 +382,7 @@ class HeadlessRuntime:
             session_id in self._queued_by_id
             or session_id in self._restoring_steering
             or bool(agent is not None and agent.peek_next_steering())
+            or bool(agent is not None and agent.session.follow_up_queue and _next_queued_input(agent) is not None)
         )
         if tasks is None:
             tasks = self._runtime.task_manager.session_tasks_snapshot(session_id)
@@ -455,7 +466,7 @@ class HeadlessRuntime:
     def _durable_queue(self, session_id: str) -> bool:
         session = self._status_session(session_id)
         if session is not None:
-            return bool(session.headless_queued_turn or session.steering_queue)
+            return bool(session.headless_queued_turn or session.steering_queue or session.follow_up_queue)
         return session_id in self._durable_pending
 
     async def publish_statuses(self, session_id: str) -> None:
@@ -544,7 +555,7 @@ class HeadlessRuntime:
             self._schedule_steering_drain(event.session_id)
         # A steering message queued onto an already-idle session (submit
         # raced the turn end) has no TaskFinish coming; drain now.
-        if isinstance(event, events.SteeringQueueUpdatedEvent) and event.texts:
+        if isinstance(event, events.SteeringQueueUpdatedEvent | events.FollowUpQueueChangedEvent) and event.texts:
             self._schedule_steering_drain(event.session_id)
         # Background operations (away summary, compaction, ...) hold
         # the actor busy without any TaskFinish. A drain that gave up
@@ -570,7 +581,8 @@ class HeadlessRuntime:
             | events.UserInteractionResolvedEvent
             | events.UserInteractionCancelledEvent
             | events.BackgroundTasksUpdatedEvent
-            | events.SteeringQueueUpdatedEvent,
+            | events.SteeringQueueUpdatedEvent
+            | events.FollowUpQueueChangedEvent,
         ):
             await self.publish_statuses(event.session_id)
 
@@ -637,6 +649,7 @@ class HeadlessRuntime:
                 or session_id in self._running
                 # Queued steering messages the drain will run carry the reports too; capped peer ones will not.
                 or (agent.peek_next_steering() is not None and not self._peer_turn_capped(agent))
+                or bool(agent.session.follow_up_queue)
             ):
                 return
             manager = self._runtime.task_manager
@@ -699,7 +712,9 @@ class HeadlessRuntime:
         actor = self._runtime.session_registry.get_session_actor(session_id)
         agent = actor.get_agent() if actor is not None else None
         if actor is not None and agent is not None and agent.session.spawn_kind == "headless":
-            queued = agent.peek_next_steering_record()
+            if not actor.snapshot().is_idle:
+                return
+            queued = _next_queued_input(agent)
             if queued is not None:
                 self._enqueue(
                     QueuedRun(
@@ -736,7 +751,7 @@ class HeadlessRuntime:
         """
         actor = self._runtime.session_registry.get_session_actor(session_id)
         agent = actor.get_agent() if actor is not None else None
-        if agent is None or agent.peek_next_steering() is None:
+        if agent is None or (agent.peek_next_steering() is None and not agent.session.follow_up_queue):
             return
         if session_id in self._drain_latch_noticed:
             return
@@ -798,7 +813,7 @@ class HeadlessRuntime:
                         f"[headless] drain skip (turn starting): {session_id[:8]}", debug_type=DebugType.EXECUTION
                     )
                     return
-                if agent.peek_next_steering() is None:
+                if _next_queued_input(agent) is None:
                     return
 
                 if not await self._run_one_steering(agent):
@@ -812,7 +827,7 @@ class HeadlessRuntime:
     async def _run_one_steering(self, agent: Any) -> bool:
         """Reserve a run; the task admits the whole pending batch at its first boundary."""
         session_id = agent.session.id
-        queued: QueuedUserInput | None = agent.peek_next_steering_record()
+        queued = _next_queued_input(agent)
         if queued is None:
             return False
         if self.continuation(session_id).blocked_by:
@@ -827,7 +842,7 @@ class HeadlessRuntime:
             agent = actor.get_agent() if actor is not None else None
             if agent is None or self.tracker.is_interrupted(session_id):
                 return False
-            queued = agent.peek_next_steering_record()
+            queued = _next_queued_input(agent)
             if queued is None:
                 return False
         await self._start_turn(session_id, queued.input, turn_id=queued.id, queued_input=True)
@@ -1164,17 +1179,21 @@ class HeadlessRuntime:
                     session.headless_queued_turn = None
                 cancelled = True
             if agent is not None:
-                if agent.peek_next_steering() is not None:
+                if agent.peek_next_steering() is not None or agent.session.follow_up_queue:
                     cancelled = True
                 agent.pop_all_steering()
+                agent.pop_all_follow_up()
+                await self._runtime.emit_event(events.FollowUpQueueChangedEvent(session_id=session_id, texts=[]))
                 await self._runtime.emit_event(
                     events.SteeringQueueUpdatedEvent(
                         session_id=session_id, texts=[item.text for item in agent.steering_snapshot()]
                     )
                 )
-            elif session.steering_queue:
-                cancelled = True
+            else:
+                if session.steering_queue or session.follow_up_queue:
+                    cancelled = True
                 session.set_steering_queue([])
+                session.set_follow_up_queue([])
             if session_id in self._running or (actor is not None and not actor.snapshot().is_idle):
                 self._stopped_sessions.add(session_id)
             return cancelled
@@ -1197,8 +1216,11 @@ class HeadlessRuntime:
             agent = actor.get_agent() if actor is not None else None
             if agent is not None:
                 agent.pop_all_steering()
+                agent.pop_all_follow_up()
             else:
-                Session.load_meta(session_id, work_dir=entry.work_dir).set_steering_queue([])
+                session = Session.load_meta(session_id, work_dir=entry.work_dir)
+                session.set_steering_queue([])
+                session.set_follow_up_queue([])
         if session_id in self._running:
             self._stopped_sessions.add(session_id)
         return True
@@ -1240,7 +1262,7 @@ class HeadlessRuntime:
             self._running.discard(session_id)
             actor = self._runtime.session_registry.get_session_actor(session_id)
             agent = actor.get_agent() if actor is not None else None
-            queued = agent.peek_next_steering_record() if agent is not None else None
+            queued = _next_queued_input(agent) if agent is not None else None
             if self.continuation(session_id).blocked_by:
                 queued = None
             if queued is not None:
@@ -1398,7 +1420,7 @@ class HeadlessRuntime:
                 self._enqueue(QueuedRun(session_id=session_id, queued=queued, work_dir=work_dir))
                 self._pump()
             else:
-                if agent.peek_next_steering() is not None:
+                if agent.peek_next_steering() is not None or agent.session.follow_up_queue:
                     self._schedule_steering_drain(session_id)
                 self._schedule_task_result_wake(session_id)
         else:

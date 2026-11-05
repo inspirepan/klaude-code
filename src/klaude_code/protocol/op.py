@@ -28,6 +28,7 @@ class OperationType(Enum):
 
     RUN_AGENT = "run_agent"
     STEER_AGENT = "follow_up_agent"  # Historical wire value for steering.
+    QUEUE_FOLLOW_UP = "queue_follow_up"
     RUN_BASH = "run_bash"
     MANAGE_SHELL = "manage_shell"
     MANAGE_TASKS = "manage_tasks"
@@ -87,6 +88,17 @@ class SteerAgentOperation(Operation):
 
     async def execute(self, handler: OperationHandler) -> None:
         await handler.handle_steer_agent(self)
+
+
+class QueueFollowUpOperation(Operation):
+    """Queue user input until the running task would naturally finish."""
+
+    type: OperationType = OperationType.QUEUE_FOLLOW_UP
+    session_id: str
+    input: UserInputPayload
+
+    async def execute(self, handler: OperationHandler) -> None:
+        await handler.handle_queue_follow_up(self)
 
 
 class RunBashOperation(Operation):

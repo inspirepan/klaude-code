@@ -30,6 +30,7 @@ from klaude_code.session.search import SearchScan, scan_search
 # Meta keys owned by direct update_meta writes: a queued history batch carries
 # an older snapshot, so the on-disk value wins when the batch lands.
 _RUNTIME_META_KEYS = (
+    "pending_follow_ups",
     "runtime",
     "follow_up_queue",  # Historical on-disk key for the steering queue.
     "headless_queued_turn",
@@ -39,6 +40,7 @@ _RUNTIME_META_KEYS = (
     "headless_queued_at",
 )
 _DELETE_WINS_META_KEYS = (
+    "pending_follow_ups",
     "follow_up_queue",  # Historical on-disk key for the steering queue.
     "headless_queued_turn",
     "headless_queued_prompt",
@@ -581,6 +583,7 @@ def build_meta_snapshot(
     model_from_role: bool = False,
     prompt_cache_key: str | None = None,
     steering_queue: Sequence[message.QueuedUserInput] = (),
+    follow_up_queue: Sequence[message.QueuedUserInput] = (),
     headless_queued_turn: message.QueuedUserInput | None = None,
     runtime: SessionRuntimeFacts | None = None,
     model_effort: str | None = None,
@@ -621,6 +624,7 @@ def build_meta_snapshot(
         "model_effort_recorded": True,
         "prompt_cache_key": prompt_cache_key,
         "follow_up_queue": steering_queue_payload or None,  # Historical on-disk key.
+        "pending_follow_ups": [item.model_dump(mode="json", exclude_none=True) for item in follow_up_queue] or None,
         "headless_queued_turn": headless_queued_turn.model_dump(mode="json", exclude_none=True)
         if headless_queued_turn is not None
         else None,

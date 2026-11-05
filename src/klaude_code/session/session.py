@@ -85,6 +85,7 @@ class Session(BaseModel):
     background_task_ids: set[str] = Field(default_factory=set)
     todos: list[TodoItem] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
     steering_queue: list[message.QueuedUserInput] = Field(default_factory=list)  # pyright: ignore[reportUnknownVariableType]
+    follow_up_queue: list[message.QueuedUserInput] = Field(default_factory=list)
     headless_queued_turn: message.QueuedUserInput | None = None
     runtime: SessionRuntimeFacts = Field(default_factory=SessionRuntimeFacts)
     model_name: str | None = None
@@ -240,6 +241,7 @@ class Session(BaseModel):
             model_effort=meta.model_effort,
             prompt_cache_key=meta.prompt_cache_key,
             steering_queue=meta.steering_queue,
+            follow_up_queue=meta.follow_up_queue,
             headless_queued_turn=meta.headless_queued_turn,
             runtime=meta.runtime,
             name=meta.name,
@@ -412,6 +414,7 @@ class Session(BaseModel):
             model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
             steering_queue=self.steering_queue,
+            follow_up_queue=self.follow_up_queue,
             headless_queued_turn=self.headless_queued_turn,
             runtime=self.runtime,
             name=self.name,
@@ -460,6 +463,22 @@ class Session(BaseModel):
             self.steering_queue = previous
             raise
 
+    def set_follow_up_queue(self, items: Sequence[message.QueuedUserInput]) -> None:
+        previous = self.follow_up_queue
+        self.follow_up_queue = [item.model_copy(deep=True) for item in items]
+        updates = {
+            "pending_follow_ups": [item.model_dump(mode="json", exclude_none=True) for item in self.follow_up_queue]
+            or None
+        }
+        try:
+            if not self._store.update_meta(self.id, updates, raise_on_error=True):
+                self.ensure_meta_exists()
+                if not self._store.update_meta(self.id, updates, raise_on_error=True):
+                    raise OSError(f"Could not persist follow-up queue for session {self.id}")
+        except BaseException:
+            self.follow_up_queue = previous
+            raise
+
     def update_title(self, title: str | None) -> bool:
         normalized = title.strip() if isinstance(title, str) else None
         if normalized == "":
@@ -491,6 +510,7 @@ class Session(BaseModel):
             model_effort=self.model_effort,
             prompt_cache_key=self.prompt_cache_key,
             steering_queue=self.steering_queue,
+            follow_up_queue=self.follow_up_queue,
             headless_queued_turn=self.headless_queued_turn,
             runtime=self.runtime,
             name=self.name,

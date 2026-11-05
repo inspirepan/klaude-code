@@ -1,7 +1,7 @@
 """Bottom-bar UI rendered below the REPL prompt.
 
 Owns the stacked surfaces that appear while an agent is running: the
-scrollback gap, status spinner lines, stream tail, and queued steering messages.
+scrollback gap, status spinner lines, stream tail, and queued steering/follow-ups.
 ``PromptToolkitInput`` keeps responsibility for the prompt session, pickers,
 and clipboard watcher; this module owns everything that renders below the
 input.
@@ -75,6 +75,7 @@ class PromptBottomBar:
         self._startup_loading_title: str | None = None
         self._agent_running = False
         self._pending_messages: tuple[str, ...] = ()
+        self._pending_follow_ups: tuple[str, ...] = ()
 
         self._status_spinner_task: asyncio.Task[None] | None = None
         self._status_spinner_frame: int = 0
@@ -165,7 +166,14 @@ class PromptBottomBar:
 
     @property
     def has_pending_messages(self) -> bool:
-        return bool(self._pending_messages)
+        return bool(self._pending_messages or self._pending_follow_ups)
+
+    def set_pending_follow_ups(self, messages: tuple[str, ...]) -> None:
+        messages = tuple(message for message in messages if message.strip())
+        if messages == self._pending_follow_ups:
+            return
+        self._pending_follow_ups = messages
+        self._invalidate()
 
     @property
     def running_separator_label(self) -> str | None:
@@ -180,6 +188,7 @@ class PromptBottomBar:
         return self._layout().rows
 
     def _layout(self) -> _BarLayout:
+        pending_count = len(self._pending_messages) + len(self._pending_follow_ups)
         head_lines = self._status_head_lines()
         tail_lines = self._status_tail_lines()
         remaining = self._available_rows() if self._available_rows is not None else None
@@ -189,21 +198,21 @@ class PromptBottomBar:
                 head=max(1, len(head_lines)),
                 stream=len(self._stream_lines),
                 tail=len(tail_lines),
-                queue_gap=int(bool(self._pending_messages)),
-                queue=len(self._pending_messages) + 1 if self._pending_messages else 0,
+                queue_gap=int(bool(pending_count)),
+                queue=pending_count + 1 if pending_count else 0,
             )
 
         remaining = max(0, remaining)
         # The editor is budgeted by the parent. Keep its main status row first;
         # on the smallest terminals the cosmetic scrollback gap yields.
-        queue_minimum = int(bool(self._pending_messages) and remaining > 1)
+        queue_minimum = int(bool(pending_count) and remaining > 1)
         head = min(remaining - queue_minimum, max(1, min(len(head_lines), 3)))
         remaining -= head
-        queue = int(bool(self._pending_messages) and remaining > 0)
+        queue = int(bool(pending_count) and remaining > 0)
         remaining -= queue
         gap = int(remaining > 0)
         remaining -= gap
-        queue_gap = int(bool(self._pending_messages) and remaining > 0)
+        queue_gap = int(bool(pending_count) and remaining > 0)
         remaining -= queue_gap
 
         # Queue entries are previews. Keep the live status and stream before
@@ -212,7 +221,7 @@ class PromptBottomBar:
         remaining -= tail
         stream = min(len(self._stream_lines), remaining)
         remaining -= stream
-        queue += min(len(self._pending_messages), remaining)
+        queue += min(pending_count, remaining)
         return _BarLayout(gap=gap, head=head, stream=stream, tail=tail, queue_gap=queue_gap, queue=queue)
 
     # ---- layout integration ---------------------------------------------
@@ -371,16 +380,30 @@ class PromptBottomBar:
         return fragments
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
-        count = len(self._pending_messages)
+        count = len(self._pending_messages) + len(self._pending_follow_ups)
         visible_count = max(0, self._layout().queue - 1)
-        header = f"Steering ({count} pending) · next safe step · ↑ to edit."
+        headers: list[str] = []
+        if self._pending_messages:
+            headers.append(f"Steering ({len(self._pending_messages)} pending)")
+        if self._pending_follow_ups:
+            headers.append(f"Follow-up ({len(self._pending_follow_ups)} pending)")
+        header = " · ".join(headers)
+        if self._pending_messages:
+            if not self._pending_follow_ups:
+                header += " · next safe step"
+        else:
+            header += " · at task end"
+        header += " · ↑ to edit queued messages"
         if visible_count < count:
             header += f" · {count - visible_count} more"
         fragments: StyleAndTextTuples = [(CLASS_META, header)]
-        for index, message in enumerate(self._pending_messages[:visible_count], start=1):
+        messages = [("steering", message) for message in self._pending_messages]
+        messages.extend(("follow-up", message) for message in self._pending_follow_ups)
+        for index, (delivery, message) in enumerate(messages[:visible_count], start=1):
             preview = " ".join(message.split())
             fragments.append(("", "\n"))
-            fragments.append((CLASS_META, f"  {index}. "))
+            label = f"{delivery}: " if self._pending_follow_ups else ""
+            fragments.append((CLASS_META, f"  {index}. {label}"))
             fragments.append((CLASS_USER_INPUT, preview))
         return fragments
 

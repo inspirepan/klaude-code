@@ -28,7 +28,6 @@ from klaude_code.tui.input.drag_drop import convert_dropped_text
 from klaude_code.tui.input.paste import store_paste
 from klaude_code.tui.workspace import active_work_dir
 
-QUEUED_MESSAGE_EDIT_SEPARATOR = "\n--- split ---\n"
 _QUEUED_MESSAGE_SEPARATOR_RE = re.compile(r"(?im)^\s*---(?:\s+split)?\s*---\s*$|^\s*---\s*$")
 _EXPLICIT_QUEUED_MESSAGE_SEPARATOR_RE = re.compile(r"(?im)^\s*---\s+split\s*---\s*$")
 
@@ -76,6 +75,7 @@ def create_key_bindings(
     request_toggle_diffs: Callable[[], None] | None = None,
     on_color_scheme_change: Callable[[str], None] | None = None,
     paste_dir: Path | None = None,
+    set_follow_up_submission: Callable[[bool], None] | None = None,
 ) -> KeyBindings:
     """Create REPL key bindings with injected dependencies.
 
@@ -173,9 +173,8 @@ def create_key_bindings(
             # Fill from the Runtime-confirmed pop, not the local mirror: the
             # drain may have already started the queue head as a turn, and a
             # stale mirror would put an already-running message back in the
-            # buffer for a duplicate submit. The confirm is a local-socket
-            # round trip (milliseconds); an empty confirm means nothing to
-            # edit — the message is running and stays out of the buffer.
+            # buffer for a duplicate submit. An empty confirm means nothing
+            # remains queued for editing.
             messages = await dequeue_pending_messages()
             if not messages:
                 return
@@ -198,7 +197,7 @@ def create_key_bindings(
         """Return True when incoming key data should insert a newline.
 
         Different terminals and editor-integrated terminals can emit different
-        sequences for shift-enter/alt-enter. We treat these as "insert newline"
+        sequences for shift-enter. We treat these as "insert newline"
         instead of "submit".
         """
 
@@ -211,15 +210,13 @@ def create_key_bindings(
 
         # Known escape sequences observed in some terminals.
         if data in {
-            "\x1b\r",  # alt-enter (ESC + CR)
             "\x1b[13;2~",  # shift-enter (some terminals)
             "\x1b[27;2;13~",  # shift-enter (xterm "CSI 27" modified keys)
             "\\\r",  # Backslash+Enter sentinel (some editor terminals)
         }:
             return True
 
-        # Any payload that contains both ESC and CR.
-        return len(data) > 1 and "\x1b" in data and "\r" in data
+        return bool(re.fullmatch(r"\x1b\[13;2(?::[12])?u", data))
 
     def _insert_newline(event: KeyPressEvent, *, strip_trailing_backslash: bool = False) -> None:
         buf = event.current_buffer
@@ -515,11 +512,11 @@ def create_key_bindings(
         with contextlib.suppress(Exception):
             buf.insert_text(data)  # type: ignore[reportUnknownMemberType]
 
-    @kb.add("escape", "enter", filter=enabled)
+    @kb.add("escape", "enter", filter=enabled & ~is_searching)
     def _(event: KeyPressEvent) -> None:
-        """alt-enter inserts a newline."""
+        """Submit a follow-up through the normal input validation flow."""
 
-        _insert_newline(event)
+        _submit(event, follow_up=True)
 
     @kb.add("escape", "[", "1", "3", ";", "2", "~", filter=enabled)
     def _(event: KeyPressEvent) -> None:
@@ -537,6 +534,7 @@ def create_key_bindings(
     if get_prompt_suggestion is not None:
 
         @kb.add("enter", filter=enabled & ~is_searching & _has_suggestion, eager=True)
+        @kb.add("escape", "enter", filter=enabled & ~is_searching & _has_suggestion, eager=True)
         @kb.add("tab", filter=enabled & ~has_completions & _has_suggestion, eager=True)
         def _(event: KeyPressEvent) -> None:
             """Fill the empty buffer, keeping the suggestion until submission."""
@@ -566,7 +564,7 @@ def create_key_bindings(
         event.app.invalidate()  # type: ignore[reportUnknownMemberType]
 
     @kb.add("enter", filter=enabled & ~is_searching)
-    def _(event: KeyPressEvent) -> None:
+    def _submit(event: KeyPressEvent, *, follow_up: bool = False) -> None:
         nonlocal swallow_next_control_j
 
         buf = event.current_buffer
@@ -600,13 +598,14 @@ def create_key_bindings(
                 return
 
         data = getattr(event, "data", "")
+        follow_up = follow_up or data == "\x1b\r"
         if isinstance(data, str) and _data_requests_newline(data):
             _insert_newline(event)
             return
 
         # VS Code-family terminals often implement shift-enter via a "\\" sentinel
         # before Enter. Only enable this heuristic under TERM_PROGRAM=vscode.
-        if term_program == "vscode":
+        if term_program == "vscode" and not follow_up:
             try:
                 if doc.text_before_cursor.endswith("\\"):  # type: ignore[reportUnknownMemberType]
                     swallow_next_control_j = True
@@ -646,7 +645,13 @@ def create_key_bindings(
             return
 
         # No need to persist manifest anymore - iter_inputs will handle image extraction
-        buf.validate_and_handle()
+        if set_follow_up_submission is not None:
+            set_follow_up_submission(follow_up)
+        try:
+            buf.validate_and_handle()
+        finally:
+            if set_follow_up_submission is not None:
+                set_follow_up_submission(False)
 
     @kb.add("tab", filter=enabled & has_completions)
     def _(event: KeyPressEvent) -> None:
@@ -895,7 +900,6 @@ def create_key_bindings(
         & ~has_completions
         & Condition(lambda: request_interrupt is not None)
         & Condition(lambda: is_interrupt_available is None or is_interrupt_available()),
-        eager=True,
     )
     def _(event: KeyPressEvent) -> None:
         """Escape interrupts the currently running agent task."""
@@ -910,7 +914,7 @@ def merge_dequeued_messages(messages: tuple[str, ...], current_text: str) -> str
     parts = [message for message in messages if message]
     if current_text:
         parts.append(current_text)
-    return QUEUED_MESSAGE_EDIT_SEPARATOR.join(parts)
+    return "\n\n".join(parts)
 
 
 def split_queued_message_edit_text(text: str) -> tuple[str, ...]:

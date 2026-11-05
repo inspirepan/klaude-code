@@ -8,9 +8,13 @@ REPL input handling: key bindings, paste/drag-drop conversion, and image attachm
 User Input (keyboard/paste/drag)
     -> key_bindings.py (event dispatch)
     -> [convert/fold] -> buffer text with markers
-    -> Enter submit -> expand markers, write history
+    -> Enter (steering) / Alt+Enter (follow-up) -> expand markers, write history
     -> iter_inputs() -> extract images -> UserInputPayload
 ```
+
+Both submit keys use the same validation and command flow. The delivery marker
+is captured for one payload and reset immediately; queue-edit splits preserve it.
+Shift+Enter, ctrl-j, and existing backslash handling still insert newlines.
 
 ## Marker Syntax
 

@@ -245,6 +245,7 @@ class TaskExecutionContext:
     compact_llm_client: LLMClientABC | None = None
     apply_llm_client_change: Callable[[LLMClientABC], AgentProfile] | None = None
     inject_pending_inputs: Callable[[], AsyncGenerator[events.Event]] | None = None
+    inject_follow_up: Callable[[], AsyncGenerator[events.Event]] | None = None
 
 
 def _build_task_file_change_summary(
@@ -985,6 +986,15 @@ class TaskExecutor:
                         [message.UserMessage(parts=[message.TextPart(text=EMPTY_RESPONSE_CONTINUATION_PROMPT)])]
                     )
                     continue
+                if step is not None and step.continue_agent:
+                    if ctx.inject_follow_up is not None:
+                        async for event in ctx.inject_follow_up():
+                            if isinstance(event, events.UserMessageEvent):
+                                injected_input = True
+                            yield event
+                    if injected_input:
+                        empty_response_retries = 0
+                        continue
                 break
             empty_response_retries = 0
 

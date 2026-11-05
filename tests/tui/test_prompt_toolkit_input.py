@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
+from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
 from typing import Any, cast
@@ -21,7 +22,7 @@ from prompt_toolkit.layout.screen import Screen, WritePosition
 from prompt_toolkit.output import DummyOutput
 from rich.text import Text
 
-from klaude_code.protocol.message import UserInputPayload
+from klaude_code.protocol.message import ImageFilePart, UserInputPayload
 from klaude_code.protocol.model_catalog import ModelCatalog, ModelCatalogEntry
 from klaude_code.tui.commands import DynamicSeparatorText, PromptStatusLine, SpinnerStatusLine
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
@@ -67,6 +68,8 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._completion_panel_snapshot_cache = None
     prompt_input._bottom_bar = PromptBottomBar(invalidate=invalidate)
     prompt_input._queued_edit_active = False
+    prompt_input._follow_up_submission = False
+    prompt_input._prompt_result_follow_up = False
     prompt_input._agent_running = False
     prompt_input._prompt_active = False
     prompt_input._prompt_pause_waiter = None
@@ -180,7 +183,9 @@ def test_placeholder_shows_prompt_suggestion_accept_hint() -> None:
     assert any("[enter/tab to edit]" in text for _style, text, *_ in placeholder)
 
 
-@pytest.mark.parametrize("key", ["\r", "\t"], ids=["enter", "tab"])
+@pytest.mark.parametrize(
+    "key", ["\r", "\t", "\x1b\r", "\x1b[13;3u"], ids=["enter", "tab", "alt-enter", "kitty-alt-enter"]
+)
 def test_prompt_suggestion_fills_restores_after_backspace_and_clears_on_submit(
     key: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -256,6 +261,189 @@ async def _wait_until(predicate: Callable[[], bool]) -> None:
     async with asyncio.timeout(3):
         while not predicate():
             await asyncio.sleep(0.01)
+
+
+@pytest.mark.parametrize("key", ["\x1b\r", "\x1b[13;3u", "\x1b[13;3:1u", "\r"])
+def test_enter_delivery_preserves_input_processing_and_resets(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, key: str
+) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    from klaude_code.tui.input import paste
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+    monkeypatch.setattr(paste, "paste_state", paste.PasteBufferState())
+    image = tmp_path / "test.png"
+    image.write_bytes(b"image")
+    marker = store_paste("x" * 2100, paste_dir=tmp_path)
+    assert marker is not None
+    text = f"review {marker} [image {image}]"
+    expected = paste.expand_paste_markers_for_history(text)
+
+    async def run() -> None:
+        with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+            interrupt = Mock()
+            prompt = PromptToolkitInput(request_interrupt=interrupt)
+            prompt.set_agent_running(True)
+            inputs = prompt._iter_inputs_inner()
+            pending = asyncio.create_task(anext(inputs))
+            try:
+                await _wait_until(lambda: prompt._session.app.is_running)
+                prompt._mark_queued_edit_active(text)
+                pipe.send_text(text + key)
+                payload = await asyncio.wait_for(pending, 3)
+                assert payload.text == expected
+                assert payload.images and isinstance(payload.images[0], ImageFilePart)
+                assert payload.images[0].file_path == str(image)
+                assert payload.queued_edit
+                assert payload.delivery == ("steering" if key == "\r" else "follow_up")
+                interrupt.assert_not_called()
+
+                pipe.send_text("next\r")
+                payload = await asyncio.wait_for(anext(inputs), 3)
+                assert payload.text == "next" and payload.delivery == "steering"
+                assert not payload.queued_edit
+                pipe.send_text("\x1b")
+                await _wait_until(lambda: interrupt.call_count == 1)
+            finally:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+                await inputs.aclose()
+                await prompt.stop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("retrieve_key", ["\x1b[A", "\x1b\x1b[A"])
+@pytest.mark.parametrize(
+    ("steering", "submit_key", "delivery"),
+    [((), "\r", "steering"), (("steer one", "steer two"), "\x1b\r", "follow_up")],
+)
+def test_queue_retrieval_edits_all_messages_and_resubmits_with_selected_delivery(
+    monkeypatch: pytest.MonkeyPatch,
+    retrieve_key: str,
+    steering: tuple[str, ...],
+    submit_key: str,
+    delivery: str,
+) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+
+    async def run() -> None:
+        with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+            interrupt = Mock()
+            prompt = PromptToolkitInput(request_interrupt=interrupt)
+            prompt.set_agent_running(True)
+            follow_ups = ("follow one", "follow two")
+            prompt.set_pending_messages(steering)
+            prompt.set_pending_follow_ups(follow_ups)
+            calls = 0
+
+            async def dequeue() -> tuple[str, ...]:
+                nonlocal calls
+                calls += 1
+                prompt.set_pending_messages(())
+                prompt.set_pending_follow_ups(())
+                return (*steering, *follow_ups)
+
+            prompt.set_dequeue_pending_messages(dequeue)
+            inputs = prompt._iter_inputs_inner()
+            pending = asyncio.create_task(anext(inputs))
+            try:
+                await _wait_until(lambda: prompt._session.app.is_running)
+                pipe.send_text("\x1b")
+                await _wait_until(lambda: interrupt.call_count == 1)
+                assert calls == 0
+                assert prompt._session.default_buffer.text == ""
+                assert prompt._bottom_bar.has_pending_messages
+
+                pipe.send_text(retrieve_key)
+                expected = "\n\n".join((*steering, *follow_ups))
+                await _wait_until(lambda: prompt._session.default_buffer.text == expected)
+                assert calls == 1
+                assert not prompt._bottom_bar.has_pending_messages
+                pipe.send_text(" edited" + submit_key)
+                payload = await asyncio.wait_for(pending, 3)
+                assert payload.text == expected + " edited"
+                assert payload.delivery == delivery
+                assert payload.queued_edit
+                assert split_queued_message_edit_text(payload.text) == (payload.text,)
+                assert calls == 1
+                interrupt.assert_called_once()
+            finally:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+                await inputs.aclose()
+                await prompt.stop()
+
+    asyncio.run(run())
+
+
+def test_alt_up_prepends_queued_messages_to_existing_draft(monkeypatch: pytest.MonkeyPatch) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+
+    async def run() -> None:
+        with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+            prompt = PromptToolkitInput()
+            prompt.set_pending_messages(("steer",))
+            prompt.set_pending_follow_ups(("follow",))
+
+            async def dequeue() -> tuple[str, ...]:
+                prompt.set_pending_messages(())
+                prompt.set_pending_follow_ups(())
+                return ("steer", "follow")
+
+            prompt.set_dequeue_pending_messages(dequeue)
+            inputs = prompt._iter_inputs_inner()
+            pending = asyncio.create_task(anext(inputs))
+            try:
+                await _wait_until(lambda: prompt._session.app.is_running)
+                pipe.send_text("draft\x1b\x1b[A")
+                expected = "steer\n\nfollow\n\ndraft"
+                await _wait_until(lambda: prompt._session.default_buffer.text == expected)
+                pipe.send_text("\r")
+                payload = await asyncio.wait_for(pending, 3)
+                assert payload.text == expected
+                assert payload.queued_edit and payload.delivery == "steering"
+            finally:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+                await inputs.aclose()
+                await prompt.stop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("key", ["\n", "\x1b[13;2u", "\x1b[13;2~"])
+def test_newline_keys_still_insert_newline(monkeypatch: pytest.MonkeyPatch, key: str) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+
+    async def run() -> None:
+        with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+            prompt = PromptToolkitInput()
+            inputs = prompt._iter_inputs_inner()
+            pending = asyncio.create_task(anext(inputs))
+            try:
+                await _wait_until(lambda: prompt._session.app.is_running)
+                pipe.send_text("first" + key + "second\r")
+                payload = await asyncio.wait_for(pending, 3)
+                assert payload.text == "first\nsecond" and payload.delivery == "steering"
+            finally:
+                pending.cancel()
+                await asyncio.gather(pending, return_exceptions=True)
+                await inputs.aclose()
+                await prompt.stop()
+
+    asyncio.run(run())
 
 
 def test_submissions_keep_application_running_and_reset_only_editor(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -726,13 +914,15 @@ def test_bottom_line_updates_skip_unchanged_invalidations() -> None:
 
 def test_input_footer_renders_interrupt_hint_after_context() -> None:
     prompt_input: Any = _build_input("")
+    prompt_input._agent_running = True
     prompt_input._bottom_bar._running_separator_label = "1m51s · esc to interrupt"
 
     assert prompt_input._get_input_footer_height() == 2
-    assert prompt_input._get_input_footer_fragments()[-3:] == [
+    assert prompt_input._get_input_footer_fragments()[-4:] == [
         ("class:meta", " · "),
         ("class:meta", "1m51s · esc to interrupt"),
         ("class:meta", " · tab to ask /btw"),
+        ("class:meta", " · alt-enter to follow up at task end"),
     ]
 
     prompt_input._agent_running = True
@@ -1239,16 +1429,18 @@ def test_picker_reserved_rows_grow_with_multiline_input() -> None:
 
 def test_input_footer_renders_metadata_below_context_line() -> None:
     prompt_input: Any = _build_input("")
+    prompt_input._agent_running = True
     prompt_input.set_status_lines(
         (_status("Loading…"), _metadata("in 15.3k · cache 28.2k")),
         separator_text="11s · esc to interrupt",
     )
 
     assert prompt_input._get_input_footer_height() == 2
-    assert prompt_input._get_input_footer_fragments()[-5:] == [
+    assert prompt_input._get_input_footer_fragments()[-6:] == [
         ("class:meta", " · "),
         ("class:meta", "11s · esc to interrupt"),
         ("class:meta", " · tab to ask /btw"),
+        ("class:meta", " · alt-enter to follow up at task end"),
         ("", "\n"),
         ("class:metadata.footer", "  in 15.3k · cache 28.2k"),
     ]
@@ -1488,7 +1680,7 @@ def test_pending_messages_render_above_prompt() -> None:
     # no trailing blank between the queue and the input rule.
     assert bar.reserved_layout_rows() == 6
     assert bar._get_pending_message_fragments() == [
-        ("class:meta", "Steering (2 pending) · next safe step · ↑ to edit."),
+        ("class:meta", "Steering (2 pending) · next safe step · ↑ to edit queued messages"),
         ("", "\n"),
         ("class:meta", "  1. "),
         ("class:user.input", "first queued"),
@@ -1498,10 +1690,35 @@ def test_pending_messages_render_above_prompt() -> None:
     ]
 
 
+@pytest.mark.parametrize("budget", [2, 5, 8])
+def test_follow_up_and_steering_share_queue_budget(budget: int) -> None:
+    bar = PromptBottomBar(invalidate=lambda: None, available_rows=lambda: budget)
+    bar.set_pending_messages(("steer now",))
+    bar.set_pending_follow_ups(("follow later", "another follow-up"))
+    rendered = "".join(text for _style, text, *_ in bar._get_pending_message_fragments())
+    assert "Steering (1 pending)" in rendered and "Follow-up (2 pending)" in rendered
+    assert "↑ to edit queued messages" in rendered
+    assert bar.reserved_layout_rows() <= budget
+    assert len(rendered.splitlines()) <= bar._layout().queue
+    omitted = 3 - max(0, bar._layout().queue - 1)
+    if omitted:
+        assert f"{omitted} more" in rendered
+    else:
+        assert "steering: steer now" in rendered and "follow-up: follow later" in rendered
+
+    bar.set_pending_messages(())
+    assert bar.has_pending_messages
+    rendered = "".join(text for _style, text, *_ in bar._get_pending_message_fragments())
+    assert "Follow-up (2 pending)" in rendered
+    assert "↑ to edit queued messages" in rendered
+    bar.set_pending_follow_ups(())
+    assert not bar.has_pending_messages
+
+
 def test_merge_dequeued_messages_keeps_queue_before_current_editor_text() -> None:
-    assert merge_dequeued_messages(("first", "second"), "current") == (
-        "first\n--- split ---\nsecond\n--- split ---\ncurrent"
-    )
+    merged = merge_dequeued_messages(("first", "second"), "current")
+    assert merged == "first\n\nsecond\n\ncurrent"
+    assert split_queued_message_edit_text(merged) == (merged,)
     assert merge_dequeued_messages(("first", ""), "") == "first"
 
 
@@ -1680,6 +1897,7 @@ def test_24_row_renderer_keeps_editor_with_large_status_and_queue(monkeypatch: p
     prompt.set_status_lines(tuple(_status(f"agent {i}") for i in range(6)))
     prompt.set_stream_lines(("live 1", "live 2", "live 3"))
     prompt.set_pending_messages(tuple(f"queued {i}" for i in range(20)))
+    prompt.set_pending_follow_ups(("deferred",))
 
     try:
         with set_app(app):
@@ -1694,6 +1912,7 @@ def test_24_row_renderer_keeps_editor_with_large_status_and_queue(monkeypatch: p
         assert "Window too small" not in text
         assert "agent 0" in text
         assert "Steering (20 pending)" in text
+        assert "Follow-up (1 pending)" in text
         assert "more" in text
         assert "draft" in text if draft else USER_MESSAGE_MARK in text
     finally:

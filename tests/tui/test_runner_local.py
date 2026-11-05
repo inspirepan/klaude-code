@@ -13,7 +13,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable, Sequence
 from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 
 import pytest
 
@@ -146,11 +146,12 @@ class FakeRuntimeClient:
     async def emit_local_event(self, event: events.Event) -> None:
         self.local_events.append(event)
 
-    async def dequeue_steering(self) -> tuple[str, ...]:
+    async def dequeue_pending_messages(self) -> tuple[str, ...]:
         self.dequeue_calls += 1
-        texts = tuple(self._steering)
+        texts = (*self._steering, *self._info.follow_ups)
         self._steering.clear()
         self._info.steering = ()
+        self._info.follow_ups = ()
         self._state_changed.set()
         return texts
 
@@ -169,6 +170,22 @@ class FakeRuntimeClient:
 
     def steering_texts(self) -> tuple[str, ...]:
         return self._info.steering
+
+    def follow_up_texts(self) -> tuple[str, ...]:
+        return self._info.follow_ups
+
+    def optimistically_append_follow_ups(self, texts: Sequence[str]) -> None:
+        self._info.follow_ups = (*self._info.follow_ups, *texts)
+        self._state_changed.set()
+
+    def remove_optimistic_follow_up(self, text: str) -> None:
+        texts = list(self._info.follow_ups)
+        for index in range(len(texts) - 1, -1, -1):
+            if texts[index] == text:
+                del texts[index]
+                break
+        self._info.follow_ups = tuple(texts)
+        self._state_changed.set()
 
     def optimistically_append_steering(self, texts: Sequence[str]) -> None:
         self._info.steering = (*self._info.steering, *texts)
@@ -247,6 +264,9 @@ class FakeInputProvider:
 
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
         self.pending_messages.append(messages)
+
+    def set_pending_follow_ups(self, messages: tuple[str, ...]) -> None:
+        self.pending_follow_ups = messages
 
     def set_next_prefill(self, text: str | None) -> None:
         self.prefills.append(text)
@@ -489,9 +509,12 @@ def test_prompt_model_catalog_callback_uses_local_client_and_reports_failures(
         assert "catalog unavailable" in notices[0].content
 
 
-def test_plain_message_echoes_and_starts_turn(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("delivery", ["steering", "follow_up"])
+def test_plain_message_echoes_and_starts_turn(
+    monkeypatch: pytest.MonkeyPatch, delivery: Literal["steering", "follow_up"]
+) -> None:
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
-        yield UserInputPayload(text="hello world")
+        yield UserInputPayload(text="hello world", delivery=delivery)
         await _settle()
 
     client = run_scenario(monkeypatch, script)
@@ -500,6 +523,8 @@ def test_plain_message_echoes_and_starts_turn(monkeypatch: pytest.MonkeyPatch) -
     run_ops = client.ops_of(op.RunAgentOperation)
     assert len(run_ops) == 1
     assert run_ops[0].input.text == "hello world"
+    assert run_ops[0].input.delivery == delivery
+    assert not client.ops_of(op.QueueFollowUpOperation)
 
 
 def test_input_while_running_queues_steering(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -520,8 +545,62 @@ def test_input_while_running_queues_steering(monkeypatch: pytest.MonkeyPatch) ->
     assert client.ops_of(op.RunAgentOperation) == []
 
 
+def test_follow_up_while_running_uses_separate_queue_and_preserves_split_delivery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client.set_running(True)
+        await _settle()
+        yield UserInputPayload(text="steer now")
+        await _settle()
+        yield UserInputPayload(text="later one\n--- split ---\nlater two", delivery="follow_up", queued_edit=True)
+        await _settle()
+        provider = FakeInputProvider.instance
+        assert provider is not None
+        assert provider.pending_follow_ups == ("later one", "later two")
+        assert await provider.dequeue_fn() == ("steer now", "later one", "later two")
+        assert client.steering_texts() == client.follow_up_texts() == ()
+        assert provider.pending_messages[-1] == provider.pending_follow_ups == ()
+        client.set_running(False)
+
+    client = run_scenario(monkeypatch, script)
+    queued = client.ops_of(op.QueueFollowUpOperation)
+    assert [operation.input.text for operation in queued] == ["later one", "later two"]
+    assert all(operation.input.delivery == "follow_up" for operation in queued)
+    assert len(client.ops_of(op.SteerAgentOperation)) == 1
+    assert not client.ops_of(op.RunAgentOperation) and not client.emitted_user_messages
+
+
+def test_failed_follow_up_submission_rolls_back_its_mirror_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    original = FakeRuntimeClient.submit_and_wait
+
+    async def submit(self: FakeRuntimeClient, operation: op.Operation) -> None:
+        if isinstance(operation, op.QueueFollowUpOperation):
+            raise RuntimeError("queue rejected")
+        await original(self, operation)
+
+    monkeypatch.setattr(FakeRuntimeClient, "submit_and_wait", submit)
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client.set_running(True)
+        await _settle()
+        yield UserInputPayload(text="steer now")
+        await _settle()
+        yield UserInputPayload(text="later", delivery="follow_up")
+        await _settle()
+        assert client.follow_up_texts() == ()
+        assert client.steering_texts() == ("steer now",)
+        provider = FakeInputProvider.instance
+        assert provider is not None and provider.pending_follow_ups == ()
+        client.set_running(False)
+
+    client = run_scenario(monkeypatch, script)
+    assert any(isinstance(event, events.NoticeEvent) and "later" in event.content for event in client.local_events)
+
+
+@pytest.mark.parametrize("delivery", ["steering", "follow_up"])
 def test_tasks_and_stop_immediately_while_busy_and_exit_closes_runtime(
-    monkeypatch: pytest.MonkeyPatch, isolated_home: Path
+    monkeypatch: pytest.MonkeyPatch, isolated_home: Path, delivery: Literal["steering", "follow_up"]
 ) -> None:
     del isolated_home
     monkeypatch.setattr(
@@ -534,7 +613,7 @@ def test_tasks_and_stop_immediately_while_busy_and_exit_closes_runtime(
         client.set_running(True)
         await _settle()
         for text in ["/tasks", "/tasks output shell-1 0 512", "/tasks stop shell-1", "/tasks wait agent-1", "/stop"]:
-            yield UserInputPayload(text=text)
+            yield UserInputPayload(text=text, delivery=delivery)
             await _settle()
             assert client.is_running()
         yield UserInputPayload(text="exit")
@@ -548,6 +627,7 @@ def test_tasks_and_stop_immediately_while_busy_and_exit_closes_runtime(
     assert [request.action for request in client.task_requests] == ["list"]
     assert len(client.ops_of(op.StopAllTasksOperation)) == 1
     assert client.ops_of(op.SteerAgentOperation) == []
+    assert client.ops_of(op.QueueFollowUpOperation) == []
     assert client.ops_of(op.RunAgentOperation) == []
     assert client.ops_of(op.InterruptOperation) == []
     assert client.emitted_user_messages == []
@@ -594,19 +674,43 @@ def test_skill_invocation_while_running_queues_as_text(monkeypatch: pytest.Monke
     assert not any("cannot be queued" in n.content for n in notices)
 
 
-def test_command_while_running_is_rejected_with_notice(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("delivery", ["steering", "follow_up"])
+def test_command_while_running_is_rejected_with_notice(
+    monkeypatch: pytest.MonkeyPatch, delivery: Literal["steering", "follow_up"]
+) -> None:
     async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
         client.set_running(True)
         await _settle()
-        yield UserInputPayload(text="/compact")
+        yield UserInputPayload(text="/compact", delivery=delivery)
         await _settle()
         client.set_running(False)
 
     client = run_scenario(monkeypatch, script)
 
     assert client.ops_of(op.SteerAgentOperation) == []
+    assert client.ops_of(op.QueueFollowUpOperation) == []
     notices = [e for e in client.local_events if isinstance(e, events.NoticeEvent)]
     assert any("cannot be queued" in n.content for n in notices)
+
+
+def test_follow_up_btw_still_dispatches_side_question_while_busy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        FakeRuntimeClient,
+        "command_agent",
+        lambda self: SimpleNamespace(session=SimpleNamespace(id=self.session_id)),
+    )
+
+    async def script(client: FakeRuntimeClient) -> AsyncGenerator[UserInputPayload]:
+        client.set_running(True)
+        await _settle()
+        yield UserInputPayload(text="/btw why?", delivery="follow_up")
+        await _settle()
+        client.set_running(False)
+
+    client = run_scenario(monkeypatch, script)
+    assert [operation.question for operation in client.ops_of(op.AskSideQuestionOperation)] == ["why?"]
+    assert not client.ops_of(op.QueueFollowUpOperation) and not client.ops_of(op.SteerAgentOperation)
+    assert not client.ops_of(op.RunAgentOperation) and not client.emitted_user_messages
 
 
 @pytest.mark.parametrize("running_status_lags", [False, True])
@@ -825,10 +929,14 @@ def test_dequeue_pending_messages_returns_runtime_confirmed_pop(monkeypatch: pyt
         await _settle()
         yield UserInputPayload(text="msg one")
         await _settle()
+        yield UserInputPayload(text="msg later", delivery="follow_up")
+        await _settle()
         provider = FakeInputProvider.instance
         assert provider is not None
         texts = await provider.dequeue_fn()
-        assert texts == ("msg one",)
+        assert texts == ("msg one", "msg later")
+        assert client.steering_texts() == client.follow_up_texts() == ()
+        assert provider.pending_messages[-1] == provider.pending_follow_ups == ()
         await _settle()
         await asyncio.sleep(0.05)
         client.set_running(False)

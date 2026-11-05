@@ -25,7 +25,7 @@ During interactive `run_local()` sessions, prompt-toolkit owns the bottom
 dynamic UI in both busy and idle states:
 
 - Rich prints stable scrollback content above the prompt.
-- prompt-toolkit renders live output, running status, queued steering block,
+- prompt-toolkit renders live output, running status, queued steering/follow-up block,
   and input editor in one bottom layout.
 - Allocate bottom rows from one terminal-height budget, reserving the editor,
   footer, completion panel and picker before fitting status and queue previews.
@@ -229,10 +229,19 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   Replay it without synthesizing a parent turn finish, and deduplicate against
   typed task snapshots. Background completion never starts an assistant turn.
 
-### Queued steering input flow
+### Queued steering and follow-up input flow
 
 - Busy-time Enter submits a `SteerAgentOperation` instead of interrupting or
   starting another task.
+- Alt+Enter submits through the same input validation and command dispatch with
+  `delivery="follow_up"`. While busy it submits `QueueFollowUpOperation`; while
+  idle it starts a normal task. Follow-ups enter the same run when it would end.
+- Legacy ESC+CR and kitty CSI-u Alt+Enter both submit follow-ups without firing
+  Escape interrupt. Shift+Enter, ctrl-j, and existing backslash handling keep
+  their newline behavior. Submission delivery resets after each validation.
+- Follow-ups have a separate client snapshot/mirror and share the steering
+  panel's height budget. Its header identifies each queue; the busy submit hint
+  explains follow-up consumption at task end.
 - Queued messages are stored on `Agent` and are not immediately written to
   session history or emitted as normal user turns.
 - The queue panel is prompt-toolkit dynamic UI, not scrollback. Do not emit
@@ -241,12 +250,12 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   steering messages before its next request, including retries and final responses.
   Each batch reaches history in one confirmed write before its durable queue
   copy is cleared and its messages are rendered as normal user turns.
-- Plain `Up` on an empty editor with queued messages dequeues all queued
-  messages at once, clears the queue, and writes them back into the editor
-  separated by standalone `--- split ---` lines. Queue-edit parsing also
-  accepts standalone `---` lines. `alt-up` / `Esc Up` keeps the same dequeue
-  behavior as a fallback. Plain `Up` remains history navigation when the queue
-  is empty.
+- Plain `Up` on an empty editor and `alt-up` / `Esc Up` dequeue both queues
+  at once. Steering comes first, then follow-ups, joined with blank lines
+  before any existing editor text. Enter or Alt+Enter selects the new delivery.
+  Explicit `--- split ---` and standalone `---` queue-edit separators remain
+  supported. The hint says `↑ to edit queued messages`. Plain `Up` remains
+  history navigation when both queues are empty. Escape still interrupts.
 
 ### `/btw` side question flow
 

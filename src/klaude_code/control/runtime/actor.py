@@ -136,7 +136,10 @@ class SessionActor:
 
     def prepare_operation(self, operation: op.Operation) -> None:
         """Capture admission before publishing acceptance can yield to a stop."""
-        if isinstance(operation, op.RunAgentOperation | op.ContinueAgentOperation | op.SteerAgentOperation):
+        if isinstance(
+            operation,
+            op.RunAgentOperation | op.ContinueAgentOperation | op.SteerAgentOperation | op.QueueFollowUpOperation,
+        ):
             self._queued_run_generations.setdefault(operation.id, self._run_generation)
         if _starts_session_work(operation):
             self._queued_work_generations.setdefault(operation.id, self._work_generation)
@@ -560,7 +563,11 @@ def _is_root_operation(operation: op.Operation) -> bool:
 
 def _starts_session_work(operation: op.Operation) -> bool:
     return _is_root_operation(operation) or isinstance(
-        operation, op.SteerAgentOperation | op.AskSideQuestionOperation | op.GenerateAwaySummaryOperation
+        operation,
+        op.SteerAgentOperation
+        | op.QueueFollowUpOperation
+        | op.AskSideQuestionOperation
+        | op.GenerateAwaySummaryOperation,
     )
 
 
@@ -568,6 +575,7 @@ def _is_control_operation(operation: op.Operation) -> bool:
     return isinstance(
         operation,
         op.SteerAgentOperation
+        | op.QueueFollowUpOperation
         | op.ManageShellOperation
         | op.ManageTasksOperation
         | op.InterruptOperation

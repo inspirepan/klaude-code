@@ -292,6 +292,8 @@ class PromptToolkitInput(InputProviderABC):
             tuple[tuple[int, int, int | None, str], tuple[list[Completion], int | None]] | None
         ) = None
         self._queued_edit_active = False
+        self._follow_up_submission = False
+        self._prompt_result_follow_up = False
         self._agent_running = False
         self._prompt_active = False
         self._exit_requested = False
@@ -425,6 +427,12 @@ class PromptToolkitInput(InputProviderABC):
     def set_pending_messages(self, messages: tuple[str, ...]) -> None:
         self._bottom_bar.set_pending_messages(messages)
 
+    def set_pending_follow_ups(self, messages: tuple[str, ...]) -> None:
+        self._bottom_bar.set_pending_follow_ups(messages)
+
+    def _set_follow_up_submission(self, follow_up: bool) -> None:
+        self._follow_up_submission = follow_up
+
     def set_agent_running(self, running: bool) -> None:
         if self._agent_running == running:
             return
@@ -532,6 +540,7 @@ class PromptToolkitInput(InputProviderABC):
             dequeue_pending_messages=self._dequeue_pending_messages_confirmed,
             mark_dequeued_messages_for_edit=self._mark_queued_edit_active,
             has_pending_messages=lambda: self._bottom_bar.has_pending_messages,
+            set_follow_up_submission=self._set_follow_up_submission,
             is_agent_running=self._is_agent_running,
             request_interrupt=lambda: self._request_interrupt() if self._request_interrupt is not None else None,
             is_interrupt_available=lambda: self._request_interrupt is not None,
@@ -787,6 +796,7 @@ class PromptToolkitInput(InputProviderABC):
         # Make the Escape key feel responsive
         with contextlib.suppress(Exception):
             self._session.app.ttimeoutlen = 0.05
+            self._session.app.timeoutlen = 0.05
 
         # Pace redraws so the invalidate storm while an agent streams
         # (spinner frames + stream tail + status lines each call invalidate)
@@ -882,6 +892,9 @@ class PromptToolkitInput(InputProviderABC):
         if status_hint:
             mode_hint = "tab to steer the agent" if self._is_btw_mode_active() else "tab to ask /btw"
             fragments.extend([(CLASS_META, " · "), (CLASS_META, status_hint), (CLASS_META, f" · {mode_hint}")])
+        if not self._is_btw_mode_active():
+            submit_hint = "alt-enter to follow up at task end" if self._agent_running else "enter/alt-enter to send"
+            fragments.append((CLASS_META, f" · {submit_hint}"))
         for line in self._bottom_bar.metadata_footer_lines:
             fragments.extend([("", "\n"), (CLASS_METADATA_FOOTER, f"  {line}")])
         return fragments
@@ -1325,7 +1338,9 @@ class PromptToolkitInput(InputProviderABC):
                 line = expand_paste_markers(submitted.text)
                 line = convert_dropped_text(line, cwd=active_work_dir())
                 images = extract_images_from_text(line)
-                yield UserInputPayload(text=line, images=images or None, queued_edit=submitted.queued_edit)
+                yield UserInputPayload(
+                    text=line, images=images or None, queued_edit=submitted.queued_edit, delivery=submitted.delivery
+                )
         finally:
             prompt_task.cancel()
             await asyncio.gather(prompt_task, return_exceptions=True)
@@ -1334,9 +1349,16 @@ class PromptToolkitInput(InputProviderABC):
         stripped = buffer.text.strip()
         if stripped.lower() in {"exit", ":q", "quit"} or is_exit_command(stripped) or has_interactive_command(stripped):
             # Exit confirmation and interactive commands use standalone stdin readers.
+            self._prompt_result_follow_up = self._follow_up_submission
             self._session.app.exit(result=buffer.text)
             return True
-        self._submitted_inputs.put_nowait(UserInputPayload(text=buffer.text, queued_edit=self._queued_edit_active))
+        self._submitted_inputs.put_nowait(
+            UserInputPayload(
+                text=buffer.text,
+                queued_edit=self._queued_edit_active,
+                delivery="follow_up" if self._follow_up_submission else "steering",
+            )
+        )
         self._prompt_suggestion = None
         self._queued_edit_active = False
         # Buffer.validate_and_handle saves history and resets only the editor.
@@ -1411,7 +1433,10 @@ class PromptToolkitInput(InputProviderABC):
                 return
             if prompt_paused:
                 continue
-            self._submitted_inputs.put_nowait(UserInputPayload(text=line, queued_edit=queued_edit))
+            follow_up, self._prompt_result_follow_up = self._prompt_result_follow_up, False
+            self._submitted_inputs.put_nowait(
+                UserInputPayload(text=line, queued_edit=queued_edit, delivery="follow_up" if follow_up else "steering")
+            )
             return
 
     # Note: Mouse support is intentionally disabled at the PromptSession

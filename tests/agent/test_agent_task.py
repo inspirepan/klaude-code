@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import subprocess
-from collections.abc import Coroutine
+from collections.abc import Callable, Coroutine
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -31,6 +31,171 @@ from klaude_code.skill.loader import Skill
 from klaude_code.tool.core.abc import ToolABC
 from klaude_code.tool.core.context import ToolContext, build_todo_context
 from tests.agent.agent_harness import ScriptedLLMStream, create_harness
+
+
+def test_follow_ups_wait_for_natural_end_and_continue_the_same_task(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        profile = AgentProfile(
+            llm_client=harness.fake_llm, system_prompt="test", attachments=[], tools=[MockEchoTool.schema()]
+        )
+        monkeypatch.setattr("klaude_code.agent.agent.get_registry", lambda: {"echo": MockEchoTool})
+        agent = Agent(harness.session, profile)
+        harness.session.append_history([message.UserMessage(parts=message.text_parts_from_str("initial"))])
+
+        def first_request(_param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            agent.follow_up(message.UserInputPayload(text="follow one"))
+            agent.follow_up(message.UserInputPayload(text="follow two"))
+            assert not agent.pending_input_activity.is_set()
+            agent.steer(message.UserInputPayload(text="steering"))
+            assert agent.pending_input_activity.is_set()
+            return [_tool_call_assistant_message([("echo", "a", '{"text":"a"}')])]
+
+        def request(
+            expected: list[str], *, tool: bool = False
+        ) -> Callable[[llm_param.LLMCallParameter], list[message.LLMStreamItem]]:
+            def respond(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+                assert [
+                    message.join_text_parts(item.parts) for item in param.input if isinstance(item, message.UserMessage)
+                ] == expected
+                if tool:
+                    return [_tool_call_assistant_message([("echo", "b", '{"text":"b"}')])]
+                return [_text_assistant_message("finished " + expected[-1])]
+
+            return respond
+
+        harness.fake_llm.enqueue_factory(first_request)
+        harness.fake_llm.enqueue_factory(request(["initial", "steering"], tool=True))
+        harness.fake_llm.enqueue_factory(request(["initial", "steering"]))
+        harness.fake_llm.enqueue_factory(request(["initial", "steering", "follow one"]))
+        harness.fake_llm.enqueue_factory(request(["initial", "steering", "follow one", "follow two"]))
+        collected = [event async for event in agent.run_task(message.UserInputPayload(text="initial"))]
+        assert [event.content for event in collected if isinstance(event, events.UserMessageEvent)] == [
+            "steering",
+            "follow one",
+            "follow two",
+        ]
+        assert len([event for event in collected if isinstance(event, events.TaskStartEvent)]) == 1
+        finishes = [event for event in collected if isinstance(event, events.TaskFinishEvent)]
+        assert len(finishes) == 1 and finishes[0].task_result == "finished follow two"
+        assert agent.follow_up_count() == 0
+        assert Session.load(harness.session.id, tmp_path).follow_up_queue == []
+
+    arun(_test())
+
+
+@pytest.mark.parametrize("ending", ["error", "retry_exhausted", "interrupt"])
+def test_follow_ups_remain_queued_when_task_does_not_end_naturally(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ending: str
+) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        agent = Agent(
+            harness.session, AgentProfile(llm_client=harness.fake_llm, system_prompt="test", tools=[], attachments=[])
+        )
+        agent.follow_up(message.UserInputPayload(text="later"))
+        monkeypatch.setattr(task_module, "MAX_FAILED_STEP_RETRIES", 0)
+        monkeypatch.setattr(task_module, "MAX_EMPTY_RESPONSE_RETRIES", 0)
+
+        def respond(_param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            if ending == "interrupt":
+                raise asyncio.CancelledError
+            error = (
+                "invalid assistant message: content or tool_calls must be set" if ending == "error" else "bad request"
+            )
+            return [message.StreamErrorItem(error=error)]
+
+        harness.fake_llm.enqueue_factory(respond)
+        if ending == "interrupt":
+            with pytest.raises(asyncio.CancelledError):
+                _ = [event async for event in agent.run_task(message.UserInputPayload(text="initial"))]
+        else:
+            collected = [event async for event in agent.run_task(message.UserInputPayload(text="initial"))]
+            assert any(isinstance(event, events.ErrorEvent) and not event.can_retry for event in collected)
+            assert not any(isinstance(event, events.TaskFinishEvent) for event in collected)
+        assert [item.text for item in agent.follow_up_snapshot()] == ["later"]
+        assert not any(isinstance(item, message.UserMessage) for item in harness.session.conversation_history)
+        assert [item.input.text for item in Session.load_meta(harness.session.id, tmp_path).follow_up_queue] == [
+            "later"
+        ]
+
+    arun(_test())
+
+
+def test_follow_up_waits_for_empty_response_continuations(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        agent = Agent(
+            harness.session, AgentProfile(llm_client=harness.fake_llm, system_prompt="test", tools=[], attachments=[])
+        )
+        agent.follow_up(message.UserInputPayload(text="later"))
+        monkeypatch.setattr(task_module, "MAX_EMPTY_RESPONSE_RETRIES", 1)
+
+        def empty(param: llm_param.LLMCallParameter) -> list[message.LLMStreamItem]:
+            assert not any(
+                isinstance(item, message.UserMessage) and message.join_text_parts(item.parts) == "later"
+                for item in param.input
+            )
+            return [message.AssistantMessage(parts=[])]
+
+        harness.fake_llm.enqueue_factory(empty)
+        harness.fake_llm.enqueue_factory(empty)
+        harness.fake_llm.enqueue(_text_assistant_message("follow-up answer"))
+        collected = [event async for event in agent.run_task(message.UserInputPayload(text="initial"))]
+        assert len([event for event in collected if isinstance(event, events.ErrorEvent)]) == 1
+        assert [event.content for event in collected if isinstance(event, events.UserMessageEvent)] == ["later"]
+        assert len([event for event in collected if isinstance(event, events.TaskStartEvent)]) == 1
+        assert len([event for event in collected if isinstance(event, events.TaskFinishEvent)]) == 1
+
+    arun(_test())
+
+
+@pytest.mark.parametrize("restart", [False, True])
+def test_follow_up_flush_precedes_ack_and_restores_separately_from_steering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, restart: bool
+) -> None:
+    async def _test() -> None:
+        harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
+        profile = AgentProfile(llm_client=harness.fake_llm, system_prompt="test", tools=[], attachments=[])
+        agent = Agent(harness.session, profile)
+        agent.steer(message.UserInputPayload(text="steering"))
+        agent.follow_up(message.UserInputPayload(text="one"))
+        agent.follow_up(message.UserInputPayload(text="two"))
+        original_flush = Session.wait_for_flush
+
+        async def crash_after_flush(session: Session) -> None:
+            await original_flush(session)
+            raise asyncio.CancelledError
+
+        monkeypatch.setattr(Session, "wait_for_flush", crash_after_flush)
+        with pytest.raises(asyncio.CancelledError):
+            _ = [event async for event in agent.inject_follow_up()]
+        saved = Session.load(harness.session.id, tmp_path)
+        assert [item.input.text for item in saved.steering_queue] == ["steering"]
+        assert [item.input.text for item in saved.follow_up_queue] == ["one", "two"]
+        assert [
+            message.join_text_parts(item.parts)
+            for item in saved.conversation_history
+            if isinstance(item, message.UserMessage)
+        ] == ["one"]
+        monkeypatch.setattr(Session, "wait_for_flush", original_flush)
+        restored = Agent(saved, profile) if restart else agent
+        _ = [event async for event in restored.inject_follow_up()]
+        assert [item.text for item in restored.follow_up_snapshot()] == ["two"]
+        _ = [event async for event in restored.inject_follow_up()]
+        await restored.session.wait_for_flush()
+        saved = Session.load(harness.session.id, tmp_path)
+        assert [
+            message.join_text_parts(item.parts)
+            for item in saved.conversation_history
+            if isinstance(item, message.UserMessage)
+        ] == ["one", "two"]
+        assert [item.input.text for item in saved.steering_queue] == ["steering"]
+        assert saved.follow_up_queue == []
+
+    arun(_test())
 
 
 @pytest.mark.parametrize("with_tools", [False, True])
@@ -167,17 +332,23 @@ def test_steering_history_flush_precedes_ack_and_restore_deduplicates(
 
 
 @pytest.mark.parametrize("operation", ["fresh_enqueue", "enqueue", "withdraw", "admit"])
+@pytest.mark.parametrize("follow_up", [False, True])
 def test_operator_queue_metadata_failure_rolls_back_and_retries(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str, follow_up: bool
 ) -> None:
     async def _test() -> None:
         harness = await create_harness(work_dir=tmp_path, monkeypatch=monkeypatch)
         agent = Agent(
             harness.session, AgentProfile(llm_client=harness.fake_llm, system_prompt="test", tools=[], attachments=[])
         )
+        enqueue = agent.follow_up if follow_up else agent.steer
+        snapshot = agent.follow_up_snapshot if follow_up else agent.steering_snapshot
+        withdraw = agent.pop_all_follow_up if follow_up else agent.pop_all_steering
+        inject = agent.inject_follow_up if follow_up else agent.inject_pending_inputs
+        queue_attr = "follow_up_queue" if follow_up else "steering_queue"
         if operation != "fresh_enqueue":
-            agent.steer(message.UserInputPayload(text="original"))
-        before = agent.steering_records()
+            enqueue(message.UserInputPayload(text="original"))
+        before = list(getattr(agent.session, queue_attr))
         original = session_store._write_json_dict_atomic
         failed = True
 
@@ -190,25 +361,27 @@ def test_operator_queue_metadata_failure_rolls_back_and_retries(
 
         async def change() -> None:
             if operation in {"fresh_enqueue", "enqueue"}:
-                agent.steer(message.UserInputPayload(text="new"))
+                enqueue(message.UserInputPayload(text="new"))
             elif operation == "withdraw":
-                agent.pop_all_steering()
+                withdraw()
             else:
-                async for _ in agent.inject_pending_inputs():
+                async for _ in inject():
                     pass
 
         for _ in range(2):
             with pytest.raises(OSError):
                 await change()
-            assert agent.steering_records() == before
-            assert agent.session.steering_queue == list(before)
-            assert agent.pending_input_activity.is_set() == bool(before)
-            assert Session.load_meta(agent.session.id, tmp_path).steering_queue == list(before)
+            assert snapshot() == tuple(item.input for item in before)
+            assert getattr(agent.session, queue_attr) == before
+            assert agent.pending_input_activity.is_set() == (bool(before) and not follow_up)
+            assert getattr(Session.load_meta(agent.session.id, tmp_path), queue_attr) == before
         failed = False
         await change()
         expected = ["new"] if operation == "fresh_enqueue" else ["original", "new"] if operation == "enqueue" else []
-        assert [item.text for item in agent.steering_snapshot()] == expected
-        assert [item.input.text for item in Session.load_meta(agent.session.id, tmp_path).steering_queue] == expected
+        assert [item.text for item in snapshot()] == expected
+        assert [
+            item.input.text for item in getattr(Session.load_meta(agent.session.id, tmp_path), queue_attr)
+        ] == expected
         if operation == "admit":
             loaded = Session.load(agent.session.id, tmp_path)
             assert sum(isinstance(item, message.UserMessage) for item in loaded.conversation_history) == 1

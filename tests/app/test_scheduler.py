@@ -215,8 +215,9 @@ class TestAutonomyAttachment:
         assert asyncio.run(autonomy_attachment(session)) is not None
 
 
+@pytest.mark.parametrize("follow_up", [False, True])
 def test_runtime_rebuild_restores_queued_steering_and_failed(
-    isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    isolated_home: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, follow_up: bool
 ) -> None:
     del isolated_home
     runtime = cast(Any, SimpleNamespace(task_manager=_empty_task_manager(), session_registry=SimpleNamespace()))
@@ -231,17 +232,28 @@ def test_runtime_rebuild_restores_queued_steering_and_failed(
     steering = Session.create(work_dir=tmp_path)
     steering.spawn_kind = "headless"
     steering.ensure_meta_exists()
-    steering.set_steering_queue(
+    set_queue = steering.set_follow_up_queue if follow_up else steering.set_steering_queue
+    set_queue(
         [
             QueuedUserInput(input=UserInputPayload(text="one"), enqueued_at=2.0),
             QueuedUserInput(input=UserInputPayload(text="two"), enqueued_at=3.0),
         ]
     )
+    if follow_up:
+        steering.runtime.completed_input_id = steering.follow_up_queue[0].id
+        steering.persist_runtime()
 
     failed = Session.create(work_dir=tmp_path)
     failed.spawn_kind = "headless"
     failed.ensure_meta_exists()
     Session.persist_headless_failed(failed.id, tmp_path, failed=True)
+    failed.set_follow_up_queue([QueuedUserInput(input=UserInputPayload(text="failed pending"))])
+
+    paused = Session.create(work_dir=tmp_path)
+    paused.spawn_kind = "headless"
+    paused.runtime.control.paused = True
+    paused.persist_runtime()
+    paused.set_follow_up_queue([QueuedUserInput(input=UserInputPayload(text="paused pending"))])
 
     summaries = [
         SimpleNamespace(
@@ -250,7 +262,7 @@ def test_runtime_rebuild_restores_queued_steering_and_failed(
             work_dir=str(tmp_path),
             created_at=float(index + 1),
         )
-        for index, session in enumerate((queued, steering, failed))
+        for index, session in enumerate((queued, steering, failed, paused))
     ]
     rebuilt = HeadlessRuntime(runtime, max_running=1)
     monkeypatch.setattr(rebuilt, "_pump", lambda: None)
@@ -261,8 +273,10 @@ def test_runtime_rebuild_restores_queued_steering_and_failed(
     assert restored_queued.headless_queued_turn is not None
     assert restored_queued.headless_queued_turn.input == UserInputPayload(text="durable")
     restored_steering = Session.load_meta(steering.id, work_dir=tmp_path)
-    assert [item.input.text for item in restored_steering.steering_queue] == ["one", "two"]
+    restored_queue = restored_steering.follow_up_queue if follow_up else restored_steering.steering_queue
+    assert [item.input.text for item in restored_queue] == ["one", "two"]
     assert rebuilt.tracker.is_failed(failed.id)
+    assert Session.load_meta(paused.id, tmp_path).runtime.control.paused
 
 
 def test_cancel_before_history_confirmation_keeps_durable_turn(

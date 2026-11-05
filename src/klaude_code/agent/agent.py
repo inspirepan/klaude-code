@@ -53,6 +53,8 @@ class Agent:
         self.compact_llm_client: LLMClientABC | None = compact_llm_client
         self._current_task: TaskExecutor | None = None
         self._steering_queue: list[QueuedUserInput] = list(session.steering_queue)
+        self._follow_up_queue: list[QueuedUserInput] = list(session.follow_up_queue)
+        self._admitting_follow_ups: tuple[QueuedUserInput, ...] = ()
         self.pending_input_activity = asyncio.Event()
         if self._steering_queue:
             self.pending_input_activity.set()
@@ -84,7 +86,7 @@ class Agent:
         Only valid right after ``on_interrupt`` armed the prefill text (the
         turn produced no visible output). The prefill stays armed — the
         frontend that requested retraction restores it into its input box.
-        Skipped when steering messages are queued: the TUI drops the prefill in that
+        Skipped when messages are queued: the TUI drops the prefill in that
         case, so keeping the message in history is the only lossless choice.
         """
         text = self._last_interrupt_prefill_text
@@ -92,7 +94,7 @@ class Agent:
             return None
         if self.session.sub_agent_state is not None:
             return None
-        if self.steering_count():
+        if self.steering_count() or self.follow_up_count():
             return None
         if not self.session.retract_last_user_message(text):
             return None
@@ -121,6 +123,24 @@ class Agent:
         """A finished background task is pending input: end any wait now."""
         self.pending_input_activity.set()
 
+    def follow_up(self, user_input: UserInputPayload) -> int:
+        queued = QueuedUserInput(input=user_input)
+        self.session.set_follow_up_queue([*self._admitting_follow_ups, *self._follow_up_queue, queued])
+        self._follow_up_queue.append(queued)
+        return self.follow_up_count()
+
+    def follow_up_count(self) -> int:
+        return len(self._admitting_follow_ups) + len(self._follow_up_queue)
+
+    def follow_up_snapshot(self) -> tuple[UserInputPayload, ...]:
+        return tuple(item.input for item in (*self._admitting_follow_ups, *self._follow_up_queue))
+
+    def pop_all_follow_up(self) -> tuple[UserInputPayload, ...]:
+        inputs = tuple(item.input for item in self._follow_up_queue)
+        self.session.set_follow_up_queue(self._admitting_follow_ups)
+        self._follow_up_queue.clear()
+        return inputs
+
     async def inject_pending_inputs(self) -> AsyncGenerator[events.Event]:
         """Persist a FIFO snapshot before acknowledging its durable queue copy."""
         for queued in self._steering_queue:
@@ -131,11 +151,24 @@ class Agent:
             self.pending_input_activity.clear()
         async for event in self._inject_task_results():
             yield event
-        pending = tuple(self._steering_queue)
+        async for event in self._inject_queued_inputs(follow_up=False):
+            yield event
+
+    async def inject_follow_up(self) -> AsyncGenerator[events.Event]:
+        async for event in self._inject_queued_inputs(follow_up=True):
+            yield event
+
+    async def _inject_queued_inputs(self, *, follow_up: bool) -> AsyncGenerator[events.Event]:
+        queue = self._follow_up_queue if follow_up else self._steering_queue
+        set_queue = self.session.set_follow_up_queue if follow_up else self.session.set_steering_queue
+        pending = tuple(queue[:1] if follow_up else queue)
         if not pending:
             return
-        self._admitting_inputs = pending
-        self._steering_queue.clear()
+        if follow_up:
+            self._admitting_follow_ups = pending
+        else:
+            self._admitting_inputs = pending
+        del queue[: len(pending)]
         existing = {
             item.id: item for item in self.session.conversation_history if isinstance(item, message.UserMessage)
         }
@@ -169,15 +202,21 @@ class Agent:
             self.session.append_history(batch, deduplicate_user_inputs=True)
             # Do not let cancellation cancel the shared writer's flush future.
             await asyncio.shield(self.session.wait_for_flush())
-            self.session.set_steering_queue(list(self._steering_queue))
+            set_queue(list(queue))
         except BaseException:
-            self._steering_queue[:0] = pending
-            self._admitting_inputs = ()
+            queue[:0] = pending
+            if follow_up:
+                self._admitting_follow_ups = ()
+            else:
+                self._admitting_inputs = ()
             raise
-        self._admitting_inputs = ()
+        if follow_up:
+            self._admitting_follow_ups = ()
+        else:
+            self._admitting_inputs = ()
         if self._current_task is not None:
             self._current_task.include_attachment_inputs(batch)
-        if not self._steering_queue:
+        if not follow_up and not self._steering_queue:
             self.pending_input_activity.clear()
         for item in injected:
             self._unannounced_input_ids.discard(item.id)
@@ -191,9 +230,14 @@ class Agent:
                 shell_tasks=item.shell_tasks,
                 task_response=item.task_response,
             )
-        yield events.SteeringQueueUpdatedEvent(
-            session_id=self.session.id, texts=[item.text for item in self.steering_snapshot()]
-        )
+        if follow_up:
+            yield events.FollowUpQueueChangedEvent(
+                session_id=self.session.id, texts=[item.text for item in self.follow_up_snapshot()]
+            )
+        else:
+            yield events.SteeringQueueUpdatedEvent(
+                session_id=self.session.id, texts=[item.text for item in self.steering_snapshot()]
+            )
 
     async def _inject_task_results(self) -> AsyncGenerator[events.Event]:
         manager = self.task_manager
@@ -345,6 +389,7 @@ class Agent:
             compact_llm_client=self.compact_llm_client,
             apply_llm_client_change=self._apply_llm_client_change,
             inject_pending_inputs=self.inject_pending_inputs,
+            inject_follow_up=self.inject_follow_up,
         )
 
         task = TaskExecutor(context)
