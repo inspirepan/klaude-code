@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import datetime
 from pathlib import Path
 
 import pytest
 from rich.console import Console
 
+from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
+from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PREFIX
 from klaude_code.protocol import events, message, tools
 from klaude_code.protocol.background_task import (
     BackgroundTaskResult,
@@ -564,6 +567,108 @@ def test_peer_and_task_reports_survive_history_and_tape_detail_toggle(
             await display.consume_envelope(make_envelope(events.RefreshDisplayEvent(session_id="main")))
             assert "full body" in writes[-1][0]
             assert writes[-1][0].count("• child-model") == 1
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("fork_session", [False, True])
+def test_fork_context_replay_renders_only_its_own_results(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fork_session: bool
+) -> None:
+    async def run() -> None:
+        writes = patch_scrollback_writes(monkeypatch)
+        parent = Session(id="main", work_dir=tmp_path, created_at=100)
+        parent.append_history(
+            [
+                message.UserMessage(
+                    parts=message.text_parts_from_str("parent task"), created_at=datetime.fromtimestamp(100)
+                ),
+                message.AssistantMessage(
+                    parts=message.text_parts_from_str("parent-only-result"), created_at=datetime.fromtimestamp(101)
+                ),
+                TaskMetadataItem(created_at=datetime.fromtimestamp(102)),
+            ]
+        )
+        child = parent.fork(new_id="child")
+        child.parent_session_id = parent.id
+        child.created_at = 103
+        child.append_history(
+            [
+                message.UserMessage(
+                    parts=message.text_parts_from_str(
+                        f"<system-reminder>{FORK_CONTEXT_GENERAL_PREFIX}</system-reminder>"
+                    ),
+                    created_at=datetime.fromtimestamp(104),
+                ),
+                message.UserMessage(
+                    parts=message.text_parts_from_str("child task"), created_at=datetime.fromtimestamp(105)
+                ),
+                message.AssistantMessage(
+                    parts=message.text_parts_from_str("child still working"), created_at=datetime.fromtimestamp(106)
+                ),
+                message.UserMessage(
+                    source="peer_message",
+                    parts=message.text_parts_from_str("mid-turn update"),
+                    created_at=datetime.fromtimestamp(107),
+                ),
+                message.UserMessage(
+                    parts=message.text_parts_from_str(EMPTY_RESPONSE_CONTINUATION_PROMPT),
+                    created_at=datetime.fromtimestamp(108),
+                ),
+                message.AssistantMessage(
+                    parts=message.text_parts_from_str("child-own-result"), created_at=datetime.fromtimestamp(109)
+                ),
+                TaskMetadataItem(created_at=datetime.fromtimestamp(110)),
+                message.UserMessage(
+                    source="peer_message",
+                    parts=message.text_parts_from_str("follow-up task"),
+                    created_at=datetime.fromtimestamp(111),
+                ),
+                message.AssistantMessage(
+                    parts=message.text_parts_from_str("child-follow-up-result"), created_at=datetime.fromtimestamp(112)
+                ),
+                TaskMetadataItem(created_at=datetime.fromtimestamp(113)),
+            ]
+        )
+        parent.append_history(
+            [
+                message.SpawnSubAgentEntry(
+                    session_id=child.id,
+                    sub_agent_type="general-purpose-fork-context",
+                    sub_agent_desc="forked work",
+                    fork_context=True,
+                    created_at=datetime.fromtimestamp(103),
+                )
+            ]
+        )
+        await child.wait_for_flush()
+        await parent.wait_for_flush()
+        if fork_session:
+            parent = parent.fork(new_id="forked-main")
+            await parent.wait_for_flush()
+        parent = Session.load(parent.id, work_dir=tmp_path)
+        display = TUIDisplay()
+        try:
+            await display.consume_envelope(make_envelope(_welcome(parent.id)))
+            await display.consume_envelope(
+                make_envelope(
+                    events.ReplayHistoryEvent(
+                        session_id=parent.id, events=list(parent.get_history_item()), updated_at=parent.updated_at
+                    )
+                )
+            )
+            compact = writes[-1][0]
+            assert compact.count("GeneralPurposeForkContext forked work ✓") == 2
+            for text in ("parent-only-result", "child-own-result", "child-follow-up-result"):
+                assert compact.count(text) == 1
+            await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id=parent.id)))
+            expanded = writes[-1][0]
+            for text in ("parent-only-result", "child-own-result", "child-follow-up-result"):
+                assert expanded.count(text) == 1
+            await display.consume_envelope(make_envelope(events.RefreshDisplayEvent(session_id=parent.id)))
+            assert writes[-1][0] == expanded
         finally:
             await display.stop()
 

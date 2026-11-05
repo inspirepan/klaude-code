@@ -51,18 +51,28 @@ SUB_AGENT_RESULT_PROMPT = (
 # Fork-context identity prompts (injected into forked sub-agent sessions)
 # ---------------------------------------------------------------------------
 
-FORK_CONTEXT_WITH_ROLE_PROMPT = (
+FORK_CONTEXT_WITH_ROLE_PREFIX = (
     "You are no longer the main coding agent. "
     "You are now acting as a specialized sub-agent. "
     "The conversation history above was forked from the parent session "
     "-- use it as background context only. "
-    "Do NOT use the Agent tool to spawn sub-agents; search directly.\n\n" + SUB_AGENT_RESULT_PROMPT + "\n\n"
 )
 
-FORK_CONTEXT_GENERAL_PROMPT = (
+FORK_CONTEXT_WITH_ROLE_PROMPT = (
+    FORK_CONTEXT_WITH_ROLE_PREFIX
+    + "Do NOT use the Agent tool to spawn sub-agents; search directly.\n\n"
+    + SUB_AGENT_RESULT_PROMPT
+    + "\n\n"
+)
+
+FORK_CONTEXT_GENERAL_PREFIX = (
     "You are a newly spawned agent with the full conversation context "
     "from the parent session. Treat the next user message as your new task, "
     "and use the conversation history as background context. "
-    "Do NOT use the Agent tool to spawn sub-agents: search directly, and leave reviewing your diff "
+)
+
+FORK_CONTEXT_GENERAL_PROMPT = (
+    FORK_CONTEXT_GENERAL_PREFIX
+    + "Do NOT use the Agent tool to spawn sub-agents: search directly, and leave reviewing your diff "
     "to the parent agent.\n\n" + SUB_AGENT_RESULT_PROMPT
 )

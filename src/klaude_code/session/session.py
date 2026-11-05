@@ -39,7 +39,7 @@ from klaude_code.session.history import (
     scan_history,
     update_last_request_usage,
 )
-from klaude_code.session.ledger import is_auto_user_message
+from klaude_code.session.ledger import is_auto_user_message, is_fork_context_message
 from klaude_code.session.meta import parse_session_meta, read_json_dict
 from klaude_code.session.store import JsonlSessionStore, UserInputFlushResult, build_meta_snapshot
 from klaude_code.session.store_registry import get_store_for_path
@@ -51,12 +51,21 @@ def _is_user_input(item: message.HistoryEvent) -> bool:
     return isinstance(item, message.UserMessage) and item.source in (None, "user") and not is_auto_user_message(item)
 
 
-def _first_prompt_text(history: Sequence[message.HistoryEvent]) -> str:
+def _fork_context_history(history: list[message.HistoryEvent]) -> list[message.HistoryEvent]:
+    # Nested forks can inherit earlier identity reminders; the last one is their own.
+    for index in range(len(history) - 1, -1, -1):
+        item = history[index]
+        if isinstance(item, message.UserMessage) and is_fork_context_message(item):
+            return history[index:]
+    return history
+
+
+def _first_prompt_text(history: list[message.HistoryEvent]) -> str:
     """The spawning prompt of a sub-agent session: its first real user message.
 
     Skips the fork-context system reminder a forked child is seeded with.
     """
-    for item in history:
+    for item in _fork_context_history(history):
         if not isinstance(item, message.UserMessage):
             continue
         text = message.join_text_parts(item.parts)
@@ -807,6 +816,8 @@ class Session(BaseModel):
         task_finish_pending = False
         prev_step_interrupted = False
         history = self.conversation_history
+        if self.parent_session_id is not None or self.sub_agent_state is not None:
+            history = _fork_context_history(history)
         history_len = len(history)
         # Compaction limits the LLM context, not the visible transcript.
         # Replay all active history.
@@ -865,7 +876,12 @@ class Session(BaseModel):
 
             # Emit task boundary before user message to produce inter-step separators during replay
             if isinstance(it, message.UserMessage) and it.source != "task_completion":
-                if had_any_step:
+                # Callbacks and retry reminders can arrive inside a running turn.
+                # A completed or interrupted turn can instead be woken by them.
+                starts_turn = (
+                    _is_user_input(it) or it.source == "bash_mode" or not task_finish_pending or prev_step_interrupted
+                )
+                if had_any_step and starts_turn:
                     yield from _flush_task_finish(msg_ts)
                     yield events.TaskStartEvent(
                         session_id=self.id,
@@ -882,7 +898,8 @@ class Session(BaseModel):
                 # turn — a dangling TaskStart that revives the spinner
                 # ("Loading…") on every tape rebuild (resize/ctrl-o) of an
                 # idle session.
-                prev_step_interrupted = False
+                if starts_turn:
+                    prev_step_interrupted = False
 
             if self.need_step_start(prev_item, it):
                 yield events.StepStartEvent(session_id=self.id, timestamp=msg_ts)
@@ -1188,6 +1205,11 @@ class Session(BaseModel):
         try:
             sub_session = Session.load(session_id, work_dir=sub_work_dir)
         except (OSError, json.JSONDecodeError, ValueError):
+            return
+        # Child forks inherit references to agents they do not own. Top-level
+        # forks still replay their full transcript; missing legacy parent IDs
+        # retain their existing replay behavior.
+        if self.parent_session_id is not None and sub_session.parent_session_id not in (None, self.id):
             return
         if sub_session.sub_agent_state is None and entry is not None:
             # Meta no longer stores the display state; rebuild it from the

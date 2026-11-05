@@ -19,17 +19,17 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT, STREAM_ERROR_CONTINUATION_REMINDER
-from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PROMPT, FORK_CONTEXT_WITH_ROLE_PROMPT
+from klaude_code.prompts.sub_agents import FORK_CONTEXT_GENERAL_PREFIX, FORK_CONTEXT_WITH_ROLE_PREFIX
 from klaude_code.protocol import message
 
 # ``agent/step.py`` wraps the partial output in <assistant>...</assistant> and
 # appends the reminder, so only the tail is a fixed string.
 _STREAM_ERROR_PREFIX = "<assistant>"
 # ``agent/runtime/sub_agent.py`` wraps either fork-context prompt in a system
-# reminder; the role variant is a prefix (the role prompt follows it).
+# reminder. Match the stable identity text, including before result guidance was added.
 _FORK_CONTEXT_PREFIXES = (
-    f"<system-reminder>{FORK_CONTEXT_WITH_ROLE_PROMPT}",
-    f"<system-reminder>{FORK_CONTEXT_GENERAL_PROMPT}",
+    f"<system-reminder>{FORK_CONTEXT_WITH_ROLE_PREFIX}",
+    f"<system-reminder>{FORK_CONTEXT_GENERAL_PREFIX}",
 )
 
 
@@ -62,6 +62,13 @@ class TurnOrdinals:
         return self.by_line.get(line_index, _UNPLACED)
 
 
+def is_fork_context_message(item: message.UserMessage) -> bool:
+    """Recognize current and legacy fork identity reminders."""
+    return item.source in (None, "user") and message.join_text_parts(item.parts).strip().startswith(
+        _FORK_CONTEXT_PREFIXES
+    )
+
+
 def is_auto_user_message(item: message.UserMessage) -> bool:
     """True when the runtime, not a person, produced this user message."""
     if item.source == "bash_mode":
@@ -73,7 +80,7 @@ def is_auto_user_message(item: message.UserMessage) -> bool:
         return True
     if text.startswith(_STREAM_ERROR_PREFIX) and text.endswith(STREAM_ERROR_CONTINUATION_REMINDER):
         return True
-    return text.startswith(_FORK_CONTEXT_PREFIXES)
+    return is_fork_context_message(item)
 
 
 def scan_turn_ordinals(rows: Iterable[tuple[int, message.HistoryEvent | None]]) -> TurnOrdinals:
@@ -107,5 +114,6 @@ __all__ = [
     "LineOrdinal",
     "TurnOrdinals",
     "is_auto_user_message",
+    "is_fork_context_message",
     "scan_turn_ordinals",
 ]
