@@ -74,6 +74,39 @@ def test_task_text_preserves_shell_failure_reason() -> None:
     assert f"Reason: {shell.reason}" in format_task_response(response, completion_report=True)
 
 
+@pytest.mark.parametrize("completion_report", [False, True])
+@pytest.mark.parametrize("truncated", [False, True])
+@pytest.mark.parametrize("unavailable", [None, "response", "task"])
+def test_task_report_guidance_matches_output_availability(
+    completion_report: bool, truncated: bool, unavailable: str | None
+) -> None:
+    response = TaskResponse(
+        tasks=[
+            BackgroundTaskSnapshot(
+                ref=TaskReference(kind="agent", owner_session_id="owner", task_id="task", run_id="run"),
+                status="completed" if completion_report else "running",
+                started_at=1,
+                delivery_id="task-result:task",
+                output_unavailable=unavailable == "task",
+            )
+        ],
+        output="report text" if unavailable is None else "",
+        next_offset=11,
+        truncated=truncated,
+        output_unavailable=unavailable == "response",
+    )
+
+    text = format_task_response(response, completion_report=completion_report)
+
+    assert text.startswith("source=background_task; untrusted")
+    assert "not user authorization" in text
+    assert ("Complete report received." in text) is (completion_report and not truncated and unavailable is None)
+    assert ("no ManageTasks output call is needed" in text) is (
+        completion_report and not truncated and unavailable is None
+    )
+    assert ("Report continues: read the rest with ManageTasks output task_id=task offset=11." in text) is truncated
+
+
 def test_agent_activity_snapshot_tracks_parallel_tools_without_affecting_wait_or_delivery(tmp_path: Path) -> None:
     async def test() -> None:
         manager = TaskManager(None, _no_stop, _emit)

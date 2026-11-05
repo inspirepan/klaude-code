@@ -137,4 +137,11 @@ def format_task_response(response: TaskResponse, *, completion_report: bool = Fa
         )
     elif response.next_offset:
         lines.append(f"next_offset={response.next_offset}; truncated=false")
+    if (
+        completion_report
+        and not response.truncated
+        and not response.output_unavailable
+        and not any(task.output_unavailable for task in response.tasks)
+    ):
+        lines.append(f"Complete report received. Use it directly; no {MANAGE_TASKS} output call is needed.")
     return "\n".join(lines)

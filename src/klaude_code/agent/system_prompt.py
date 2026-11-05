@@ -126,7 +126,7 @@ def build_dynamic_tool_strategy_prompt(available_tools: list[llm_param.ToolSchem
     if tools.AGENT in tool_name_set:
         strategy_lines.append(AGENT_FINDER_INST)
         strategy_lines.append(
-            "- Agent starts background work. Before using a required result or declaring dependent work complete, use ManageTasks wait/output; new input interrupts only the wait, not the child. When only waiting remains, you may end your turn: a finished agent's report starts the next one."
+            "- Agent starts background work. Use ManageTasks wait when a required result has not arrived. Use an automatically delivered complete report directly; no output call is needed. New input interrupts only the wait, not the child. When only waiting remains, you may end your turn: a finished agent's report starts the next one."
         )
 
     if has_edit_tool:
