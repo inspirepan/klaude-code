@@ -66,7 +66,6 @@ def create_key_bindings(
     input_enabled: Filter | None = None,
     open_model_picker: Callable[[], None] | None = None,
     get_prompt_suggestion: Callable[[], str | None] | None = None,
-    consume_prompt_suggestion: Callable[[], str | None] | None = None,
     dequeue_pending_messages: Callable[[], Awaitable[tuple[str, ...]]] | None = None,
     mark_dequeued_messages_for_edit: Callable[[str], None] | None = None,
     has_pending_messages: Callable[[], bool] | None = None,
@@ -86,8 +85,6 @@ def create_key_bindings(
         skill_token_pattern: Pattern to match skill tokens for completion refresh
         get_prompt_suggestion: Returns the currently active predicted-next-prompt,
             or None when there is nothing to suggest.
-        consume_prompt_suggestion: Returns and clears the suggestion in one step
-            (used when the user accepts it, so it can't be accepted twice).
         dequeue_pending_messages: Pops all queued messages from the Runtime and
             returns the confirmed texts (empty when the drain got there first).
         has_pending_messages: Returns True while queued messages are available.
@@ -537,25 +534,13 @@ def create_key_bindings(
         and not get_app().current_buffer.text
     )
 
-    if get_prompt_suggestion is not None and consume_prompt_suggestion is not None:
+    if get_prompt_suggestion is not None:
 
         @kb.add("enter", filter=enabled & ~is_searching & _has_suggestion, eager=True)
-        def _(event: KeyPressEvent) -> None:
-            """Empty buffer + suggestion: submit the suggestion as-is."""
-            suggestion = consume_prompt_suggestion()
-            if not suggestion:
-                return
-            buf = event.current_buffer
-            with contextlib.suppress(Exception):
-                buf.text = suggestion  # type: ignore[reportUnknownMemberType]
-                buf.cursor_position = len(suggestion)  # type: ignore[reportUnknownMemberType]
-            with contextlib.suppress(Exception):
-                buf.validate_and_handle()  # type: ignore[reportUnknownMemberType]
-
         @kb.add("tab", filter=enabled & ~has_completions & _has_suggestion, eager=True)
         def _(event: KeyPressEvent) -> None:
-            """Empty buffer + suggestion: insert suggestion into buffer for editing."""
-            suggestion = consume_prompt_suggestion()
+            """Fill the empty buffer, keeping the suggestion until submission."""
+            suggestion = get_prompt_suggestion()
             if not suggestion:
                 return
             buf = event.current_buffer

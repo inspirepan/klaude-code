@@ -492,8 +492,8 @@ class PromptToolkitInput(InputProviderABC):
         """Update the predicted-next-prompt state and repaint the placeholder.
 
         When ``text`` is set and the buffer is empty, the placeholder shows the
-        suggestion and pressing Enter submits it / Tab fills the buffer for
-        editing (see ``key_bindings.py``).
+        suggestion and pressing Enter or Tab fills the buffer for editing
+        (see ``key_bindings.py``). Clearing the buffer shows the suggestion again.
         """
         normalized = text.strip() if isinstance(text, str) else None
         self._prompt_suggestion = normalized or None
@@ -502,11 +502,6 @@ class PromptToolkitInput(InputProviderABC):
 
     def _get_prompt_suggestion(self) -> str | None:
         return self._prompt_suggestion
-
-    def _consume_prompt_suggestion(self) -> str | None:
-        suggestion = self._prompt_suggestion
-        self._prompt_suggestion = None
-        return suggestion
 
     def _build_prompt_session(self, prompt: str) -> PromptSession[str]:
         """Build the prompt_toolkit PromptSession with key bindings and styles."""
@@ -528,7 +523,6 @@ class PromptToolkitInput(InputProviderABC):
             input_enabled=input_enabled,
             open_model_picker=self._open_model_picker,
             get_prompt_suggestion=self._get_prompt_suggestion,
-            consume_prompt_suggestion=self._consume_prompt_suggestion,
             dequeue_pending_messages=self._dequeue_pending_messages_confirmed,
             mark_dequeued_messages_for_edit=self._mark_queued_edit_active,
             has_pending_messages=lambda: self._bottom_bar.has_pending_messages,
@@ -587,7 +581,7 @@ class PromptToolkitInput(InputProviderABC):
             return FormattedText([("class:placeholder", text)])
 
         if self._prompt_suggestion:
-            hint = "[enter send · tab edit]"
+            hint = "[enter/tab to edit]"
             suggestion = self._prompt_suggestion
             try:
                 cols = get_app().output.get_size().columns
@@ -1350,8 +1344,7 @@ class PromptToolkitInput(InputProviderABC):
                 self._prompt_pause_waiter = None
                 if pause_waiter is not None and not pause_waiter.done():
                     pause_waiter.set_result(None)
-                # A submission (Enter on non-empty buffer, suggestion acceptance,
-                # or anything else) invalidates the pending suggestion. Runtime
+                # A submission invalidates the pending suggestion. Runtime
                 # will push a fresh one after the next task finishes.
                 if not prompt_paused:
                     self._prompt_suggestion = None

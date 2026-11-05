@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import AsyncGenerator, Awaitable, Callable, Iterator
 from threading import Event
 from types import SimpleNamespace
 from typing import Any, cast
@@ -21,6 +21,7 @@ from prompt_toolkit.layout.screen import Screen, WritePosition
 from prompt_toolkit.output import DummyOutput
 from rich.text import Text
 
+from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.model_catalog import ModelCatalog, ModelCatalogEntry
 from klaude_code.tui.commands import DynamicSeparatorText, PromptStatusLine, SpinnerStatusLine
 from klaude_code.tui.components.user_input import USER_MESSAGE_MARK
@@ -176,7 +177,69 @@ def test_placeholder_shows_prompt_suggestion_accept_hint() -> None:
     placeholder = prompt_input._build_placeholder()
 
     assert ("class:prompt-suggestion", "run tests") in placeholder
-    assert any("[enter send · tab edit]" in text for _style, text, *_ in placeholder)
+    assert any("[enter/tab to edit]" in text for _style, text, *_ in placeholder)
+
+
+@pytest.mark.parametrize("key", ["\r", "\t"], ids=["enter", "tab"])
+def test_prompt_suggestion_fills_restores_after_backspace_and_clears_on_submit(
+    key: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+
+    monkeypatch.setenv("TERM", "xterm-256color")
+
+    async def run() -> None:
+        async def eventually(predicate: Callable[[], bool]) -> None:
+            async with asyncio.timeout(3):
+                while not predicate():
+                    if task.done():
+                        task.result()
+                        pytest.fail("Input finished before the expected state")
+                    await asyncio.sleep(0.01)
+
+        with create_pipe_input() as pipe, create_app_session(input=pipe, output=DummyOutput()):
+            prompt = PromptToolkitInput()
+            suggestion = "run tests"
+            prompt.set_prompt_suggestion(suggestion)
+            inputs = cast(AsyncGenerator[UserInputPayload], prompt._iter_inputs_inner())
+            task = asyncio.create_task(anext(inputs))
+
+            def suggestion_is_visible() -> bool:
+                screen = prompt._session.app.renderer._last_screen
+                if screen is None:
+                    return False
+                return any(
+                    suggestion in "".join(cells[column].char for column in range(80))
+                    for cells in screen.data_buffer.values()
+                )
+
+            try:
+                await eventually(suggestion_is_visible)
+                pipe.send_text(key)
+                await eventually(lambda: prompt._session.default_buffer.text == suggestion)
+                assert not task.done()
+                assert prompt._session.default_buffer.cursor_position == len(suggestion)
+
+                pipe.send_text("\x7f" * len(suggestion))
+                await eventually(lambda: prompt._session.default_buffer.text == "" and suggestion_is_visible())
+                assert not task.done()
+
+                pipe.send_text(key)
+                await eventually(lambda: prompt._session.default_buffer.text == suggestion)
+                assert not task.done()
+
+                pipe.send_text("\r")
+                payload = await asyncio.wait_for(task, 3)
+                assert payload.text == suggestion
+                assert prompt._get_prompt_suggestion() is None
+            finally:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+                await inputs.aclose()
+                await prompt.stop()
+
+    asyncio.run(run())
 
 
 def test_running_placeholder_prompts_for_steering() -> None:
@@ -911,7 +974,7 @@ def test_hidden_suggestion_does_not_increase_input_height(text: str, running: bo
 def test_long_chinese_suggestion_renders_fully_at_odd_column_width(monkeypatch: pytest.MonkeyPatch) -> None:
     prompt_input: Any = _build_input("")
     prompt_input._prompt_text = "❯ "
-    prompt_input.set_prompt_suggestion("提" * 106)
+    prompt_input.set_prompt_suggestion("提" * 109)
     output = DummyOutput()
     monkeypatch.setattr(output, "get_size", lambda: Size(rows=24, columns=81))
     prompt_input._session = PromptSession(
@@ -946,7 +1009,7 @@ def test_long_chinese_suggestion_renders_fully_at_odd_column_width(monkeypatch: 
                 )
 
                 rendered = "".join(screen.data_buffer[row][col].char for row in range(height) for col in range(81))
-                assert rendered.count("提") == 106
+                assert rendered.count("提") == 109
                 assert rendered.rstrip().endswith("]")
             finally:
                 await app.cancel_and_wait_for_background_tasks()
