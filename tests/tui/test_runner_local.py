@@ -23,6 +23,7 @@ from klaude_code.protocol.background_task import TaskRequest, TaskResponse
 from klaude_code.protocol.message import UserInputPayload
 from klaude_code.protocol.model_catalog import ModelCatalog, ModelCatalogEntry
 from klaude_code.tui.client.base import SessionInfoSnapshot
+from klaude_code.tui.terminal.selector import SelectItem, _build_choices_tokens
 
 # -- fakes ------------------------------------------------------------------
 
@@ -984,7 +985,11 @@ def test_local_exit_confirms_owned_background_tasks(monkeypatch: pytest.MonkeyPa
     choices: list[bool] = []
     reached_after_cancel = []
 
-    def choose(**_kwargs: Any) -> bool:
+    def choose(*, items: list[SelectItem[bool]], use_search_filter: bool, **_kwargs: Any) -> bool:
+        assert use_search_filter is False
+        tokens = _build_choices_tokens(items, list(range(len(items))), 0, "→")
+        lines = "".join(text for _, text in tokens).splitlines()
+        assert [line.strip() for line in lines] == ["→ Keep working", "Stop tasks and exit"]
         choices.append(confirm)
         return confirm
 

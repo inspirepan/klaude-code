@@ -987,12 +987,13 @@ async def _run_local_ui(
                             message="Stop running tasks, save this session, and exit?",
                             items=[
                                 SelectItem[bool](
-                                    title=[("class:msg", "Keep working")], value=False, search_text="keep"
+                                    title=[("class:msg", "Keep working\n")], value=False, search_text="keep"
                                 ),
                                 SelectItem[bool](
-                                    title=[("class:msg", "Stop tasks and exit")], value=True, search_text="stop"
+                                    title=[("class:msg", "Stop tasks and exit\n")], value=True, search_text="stop"
                                 ),
                             ],
+                            use_search_filter=False,
                             initial_value=False,
                             style=DEFAULT_PICKER_STYLE(),
                         )
