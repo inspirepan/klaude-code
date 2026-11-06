@@ -7,10 +7,11 @@ from typing import Any, override
 
 from klaude_code.app.ports import DisplayABC
 from klaude_code.control.event_tape import EventTape, apply_retractions
-from klaude_code.log import DebugType, log_debug
+from klaude_code.log import DebugType, is_debug_enabled, log_debug
 from klaude_code.protocol import events
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.background_tasks import TaskDirectory
+from klaude_code.tui.diagnostics import LoopStallSampler, diagnostic_phase, log_event_stage
 from klaude_code.tui.input.flicker_safe_stdout import write_scrollback_bulk
 from klaude_code.tui.machine import DisplayStateMachine, is_cancelled_task_result
 from klaude_code.tui.renderer import TUICommandRenderer
@@ -118,12 +119,14 @@ class TUIDisplay(DisplayABC):
     async def consume_envelope(self, envelope: events.EventEnvelope) -> None:
         previous, release = self._reserve_display_operation()
         try:
+            log_event_stage("display.wait", envelope)
             if previous is not None:
                 await asyncio.shield(previous)
             async with self._display_lock:
                 if self._stopped:
                     return
-                await self._consume_envelope_locked(envelope)
+                with diagnostic_phase("display.consume", envelope.session_id, envelope=envelope):
+                    await self._consume_envelope_locked(envelope)
         finally:
             release()
 
@@ -284,7 +287,7 @@ class TUIDisplay(DisplayABC):
 
     @staticmethod
     async def _watch_event_loop_stalls(*, interval: float = 0.5, threshold: float = 1.0) -> None:
-        """Log (after recovery) when the event loop stops running for a while.
+        """Log loop stalls after recovery and sample the blocked stack in debug mode.
 
         A stall here means something synchronous held the loop — typically a
         blocking fd-1 write into a terminal that stopped draining the pty.
@@ -294,16 +297,25 @@ class TUIDisplay(DisplayABC):
 
         loop = asyncio.get_running_loop()
         last = loop.time()
-        while True:
-            await asyncio.sleep(interval)
-            now = loop.time()
-            gap = now - last - interval
-            if gap > threshold:
-                log_debug(
-                    f"[watchdog] event loop stalled for {gap:.1f}s",
-                    debug_type=DebugType.EXECUTION,
-                )
-            last = now
+        sampler = LoopStallSampler(interval=interval, threshold=threshold) if is_debug_enabled() else None
+        if sampler is not None:
+            sampler.start()
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                now = loop.time()
+                if sampler is not None:
+                    sampler.beat()
+                gap = now - last - interval
+                if gap > threshold:
+                    log_debug(
+                        f"[watchdog] event loop stalled for {gap:.1f}s",
+                        debug_type=DebugType.EXECUTION,
+                    )
+                last = now
+        finally:
+            if sampler is not None:
+                sampler.close()
 
     @override
     async def stop(self) -> None:

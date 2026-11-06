@@ -26,6 +26,7 @@ from klaude_code.protocol.peer import PeerMessage, PeerReceipt
 from klaude_code.session.session import Session
 from klaude_code.session.store_registry import get_store_for_path
 from klaude_code.tui.client.base import SessionInfoSnapshot
+from klaude_code.tui.diagnostics import diagnostic_phase, log_event_stage
 from klaude_code.tui.workspace import active_work_dir
 
 
@@ -75,13 +76,17 @@ class LocalRuntimeClient(DisplayABC):
         # initialize_app_components also starts this display bridge.
         if self._components is not None:
             return
-        self._components = await initialize_app_components(init_config=self._init_config, display=self)
+        with diagnostic_phase("local.initialize_components", self.session_id):
+            self._components = await initialize_app_components(init_config=self._init_config, display=self)
         try:
-            self._scheduler = HeadlessRuntime(self.components.runtime)
-            self._scheduler.start(self.components.event_bus)
-            await self._initialize_session()
-            self._endpoint = PeerEndpoint(self.components.runtime, self._scheduler)
-            await self._endpoint.start()
+            with diagnostic_phase("local.start_scheduler", self.session_id):
+                self._scheduler = HeadlessRuntime(self.components.runtime)
+                self._scheduler.start(self.components.event_bus)
+            with diagnostic_phase("local.initialize_session", self.session_id):
+                await self._initialize_session()
+            with diagnostic_phase("local.start_peer", self.session_id):
+                self._endpoint = PeerEndpoint(self.components.runtime, self._scheduler)
+                await self._endpoint.start()
         except BaseException:
             await self.close()
             raise
@@ -195,6 +200,7 @@ class LocalRuntimeClient(DisplayABC):
         while True:
             envelope = await self._display_queue.get()
             try:
+                log_event_stage("local.display_dequeued", envelope)
                 await self._on_envelope(envelope)
             except Exception as exc:
                 log_debug(f"Local display consumer failed: {exc}")
@@ -212,6 +218,7 @@ class LocalRuntimeClient(DisplayABC):
 
     async def consume_envelope(self, envelope: events.EventEnvelope) -> None:
         event = envelope.event
+        log_event_stage("local.consume", envelope)
         if not self._replay_complete.is_set():
             self._info.replay_through_event_seq = max(self._info.replay_through_event_seq, envelope.event_seq)
         if self._endpoint is not None:
@@ -230,7 +237,8 @@ class LocalRuntimeClient(DisplayABC):
                 self._active_operation_id = None
             elif isinstance(event, events.UserMessageRetractedEvent) and envelope.operation_id in self._my_operations:
                 self._interrupt_prefill = event.content
-            self._refresh_info()
+            with diagnostic_phase("local.refresh_info", event.session_id, envelope=envelope, slow_only=True):
+                self._refresh_info()
         if self._endpoint is not None and isinstance(
             event,
             events.SessionStatusEvent
@@ -238,7 +246,9 @@ class LocalRuntimeClient(DisplayABC):
             | events.TaskStartEvent
             | events.SessionTitleChangedEvent,
         ):
-            self._endpoint.refresh()
+            with diagnostic_phase("local.refresh_peer", event.session_id, envelope=envelope, slow_only=True):
+                self._endpoint.refresh()
+        log_event_stage("local.display_enqueue", envelope)
         await self._display_queue.put(envelope)
 
     def _refresh_info(self) -> None:

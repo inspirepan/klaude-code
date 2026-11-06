@@ -38,6 +38,7 @@ from klaude_code.tui.command.command_abc import CommandResult
 from klaude_code.tui.command.registry import command_switches_session
 from klaude_code.tui.commands import PromptStatusLine
 from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
+from klaude_code.tui.diagnostics import diagnostic_phase
 from klaude_code.tui.display import TUIDisplay
 from klaude_code.tui.input.flicker_safe_stdout import settle_flicker_safe_stdout
 from klaude_code.tui.input.key_bindings import has_explicit_queued_message_separator, split_queued_message_edit_text
@@ -918,9 +919,10 @@ async def _run_local_ui(
             text = "!" + text[1:]
             user_input = UserInputPayload(text=text, images=user_input.images)
 
-        await client.emit_user_message(
-            events.UserMessageEvent(content=user_input.text, session_id=client.session_id, images=user_input.images)
-        )
+        with diagnostic_phase("input.publish", client.session_id):
+            await client.emit_user_message(
+                events.UserMessageEvent(content=user_input.text, session_id=client.session_id, images=user_input.images)
+            )
 
         if text.startswith("!"):
             command = text[1:].lstrip(" \t")
@@ -973,7 +975,8 @@ async def _run_local_ui(
             await _display_idle_bounded()
             return
 
-        await _submit_turn(op.RunAgentOperation(session_id=client.session_id, input=user_input))
+        with diagnostic_phase("input.submit", client.session_id):
+            await _submit_turn(op.RunAgentOperation(session_id=client.session_id, input=user_input))
 
     # -- main --
 

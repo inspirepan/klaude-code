@@ -1,6 +1,7 @@
 """LLM client for the OpenAI Responses API with a ChatGPT subscription."""
 
 import asyncio
+import threading
 from typing import Any, cast, override
 
 import httpx
@@ -111,6 +112,7 @@ class ChatGPTClient(LLMClientABC):
 
     def __init__(self, config: llm_param.LLMConfigParameter):
         super().__init__(config)
+        self._token_lock = threading.Lock()
         self._token_manager = ChatGPTTokenManager()
         self._oauth = ChatGPTOAuth(self._token_manager)
 
@@ -139,13 +141,14 @@ class ChatGPTClient(LLMClientABC):
 
     def _ensure_valid_token(self) -> None:
         """Ensure the token is valid, refreshing if needed."""
-        state = self._token_manager.get_state()
-        if state is None:
-            raise ChatGPTNotLoggedInError("Not signed in with ChatGPT. Run 'klaude login chatgpt' first.")
+        with self._token_lock:
+            state = self._token_manager.get_state()
+            if state is None:
+                raise ChatGPTNotLoggedInError("Not signed in with ChatGPT. Run 'klaude login chatgpt' first.")
 
-        if state.is_expired():
-            self._oauth.refresh()
-            self.client = self._create_client()
+            if state.is_expired():
+                self._oauth.refresh()
+                self.client = self._create_client()
 
     @classmethod
     @override
@@ -154,7 +157,7 @@ class ChatGPTClient(LLMClientABC):
 
     @override
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
-        self._ensure_valid_token()
+        await asyncio.to_thread(self._ensure_valid_token)
 
         param = apply_config_defaults(param, self.get_llm_config())
 

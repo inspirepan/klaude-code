@@ -1,5 +1,7 @@
 """xAI Responses API client using Grok Build OAuth."""
 
+import asyncio
+import threading
 from typing import override
 
 from openai import AsyncOpenAI
@@ -24,6 +26,7 @@ class XaiOAuthClient(ResponsesClient):
     """Responses API client for xAI OAuth subscriptions."""
 
     def __init__(self, config: llm_param.LLMConfigParameter):
+        self._token_lock = threading.Lock()
         self._token_manager = XaiTokenManager()
         self._oauth = XaiOAuth(self._token_manager)
         if not self._token_manager.is_logged_in():
@@ -47,12 +50,13 @@ class XaiOAuthClient(ResponsesClient):
 
     def _ensure_valid_token(self) -> None:
         """Refresh an expired OAuth token before making an API request."""
-        state = self._token_manager.get_state()
-        if state is None:
-            raise XaiNotLoggedInError("Not logged in to xAI. Run 'klaude login xai' first.")
-        if state.is_expired():
-            self._oauth.refresh()
-            self.client = self._create_client(self._config)
+        with self._token_lock:
+            state = self._token_manager.get_state()
+            if state is None:
+                raise XaiNotLoggedInError("Not logged in to xAI. Run 'klaude login xai' first.")
+            if state.is_expired():
+                self._oauth.refresh()
+                self.client = self._create_client(self._config)
 
     def _build_payload(self, param: llm_param.LLMCallParameter) -> ResponseCreateParamsBase:
         payload = super()._build_payload(param)
@@ -69,5 +73,5 @@ class XaiOAuthClient(ResponsesClient):
 
     @override
     async def call(self, param: llm_param.LLMCallParameter) -> LLMStreamABC:
-        self._ensure_valid_token()
+        await asyncio.to_thread(self._ensure_valid_token)
         return await super().call(param)
