@@ -245,6 +245,43 @@ def test_python_scan_bounds_work_by_entry_count(tmp_path: Path) -> None:
     assert truncated
 
 
+@pytest.mark.parametrize(
+    "fragment",
+    [
+        "optional-skills/autonomous-ai-agents/grok/SKILL.md",
+        "optional-skills/autonomous-ai-agents/grok/",
+        "optional-skills/autonomous-ai-agents/grok/skmd",
+    ],
+)
+def test_python_scan_searches_typed_directory_before_root_budget(tmp_path: Path, fragment: str) -> None:
+    target = tmp_path / "optional-skills/autonomous-ai-agents/grok/SKILL.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("", encoding="utf-8")
+    completer = _AtFilesCompleter()
+    completer._filesystem_scan_max_entries = 2
+
+    results, truncated = completer._python_paths_for_keyword(tmp_path, fragment.lower(), max_results=60)
+
+    assert target.relative_to(tmp_path).as_posix() in results
+    assert truncated
+
+
+@pytest.mark.parametrize("fragment", ["src/target", "sr/target"])
+def test_python_scan_directory_hint_preserves_global_fuzzy_matches(tmp_path: Path, fragment: str) -> None:
+    paths = ["src/target.py", "source/target.py", "src/nested/target.py"]
+    for path in paths:
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("", encoding="utf-8")
+    completer = _AtFilesCompleter()
+
+    results, truncated = completer._python_paths_for_keyword(tmp_path, fragment, max_results=60)
+
+    assert set(results) == set(paths)
+    assert len(results) == len(paths)
+    assert not truncated
+
+
 def test_filter_and_format_preserves_relevance_order(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Visible paths stay ahead of hidden/test paths, then favor basename hits."""
 

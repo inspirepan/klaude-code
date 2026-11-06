@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -50,8 +49,6 @@ def test_ctrl_o_requests_transcript_toggle() -> None:
     calls: list[None] = []
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
         request_toggle_transcript=lambda: calls.append(None),
     )
 

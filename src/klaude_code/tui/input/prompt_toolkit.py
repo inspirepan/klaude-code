@@ -103,20 +103,34 @@ class _PromptPaused(Exception):
 
 
 class _TrackedThreadedCompleter(ThreadedCompleter):
-    def __init__(self, completer: Completer, on_empty: Callable[[Document], None]) -> None:
+    def __init__(
+        self,
+        completer: Completer,
+        on_empty: Callable[[Document], None],
+        on_done: Callable[[Document, bool], None] | None = None,
+    ) -> None:
         super().__init__(completer)
         self._on_empty = on_empty
+        self._on_done = on_done
 
     @override
     async def get_completions_async(
         self, document: Document, complete_event: CompleteEvent
     ) -> AsyncGenerator[Completion]:
-        found = False
-        async for completion in super().get_completions_async(document, complete_event):
-            found = True
-            yield completion
-        if not found:
-            self._on_empty(document)
+        completed = False
+        try:
+            found = False
+            async with contextlib.aclosing(super().get_completions_async(document, complete_event)) as completions:
+                async for completion in completions:
+                    found = True
+                    yield completion
+            if not found:
+                self._on_empty(document)
+            completed = True
+        finally:
+            if self._on_done is not None:
+                # Let Buffer release its single-completer guard before retrying.
+                asyncio.get_running_loop().call_soon(self._on_done, document, completed)
 
 
 class _BtwPlaceholderProcessor(Processor):
@@ -288,6 +302,8 @@ class PromptToolkitInput(InputProviderABC):
         self._last_completion_panel_selected_index: int | None = None
         self._last_completion_panel_context_key: str | None = None
         self._empty_completion_document: Document | None = None
+        self._pending_completion_document: Document | None = None
+        self._completion_task: asyncio.Task[None] | None = None
         self._completion_panel_snapshot_cache: (
             tuple[tuple[int, int, int | None, str], tuple[list[Completion], int | None]] | None
         ) = None
@@ -532,8 +548,6 @@ class PromptToolkitInput(InputProviderABC):
 
         kb = create_key_bindings(
             capture_clipboard_tag=capture_clipboard_tag,
-            at_token_pattern=AT_TOKEN_PATTERN,
-            skill_token_pattern=SKILL_TOKEN_PATTERN,
             input_enabled=input_enabled,
             open_model_picker=self._open_model_picker,
             get_prompt_suggestion=self._get_prompt_suggestion,
@@ -549,6 +563,17 @@ class PromptToolkitInput(InputProviderABC):
             on_color_scheme_change=self._handle_color_scheme_change if self._on_color_scheme_change else None,
         )
 
+        @kb.add("escape", filter=input_enabled & Condition(self._is_completion_active))
+        def _dismiss_completion(_event: object) -> None:
+            self._session.default_buffer.cancel_completion()
+            self._pending_completion_document = None
+            if self._completion_task is not None:
+                self._completion_task.cancel()
+                self._completion_task = None
+            self._empty_completion_document = None
+            self._last_completion_panel_completions = ()
+            self._completion_panel_snapshot_cache = None
+
         return PromptSession(
             # Use a stable prompt string; we override the style dynamically in prompt_async.
             [(INPUT_PROMPT_STYLE, prompt)],
@@ -559,8 +584,9 @@ class PromptToolkitInput(InputProviderABC):
             completer=_TrackedThreadedCompleter(
                 create_repl_completer(command_info_provider=self._command_info_provider),
                 self._remember_empty_completion,
+                self._completion_finished,
             ),
-            complete_while_typing=True,
+            complete_while_typing=False,
             # Avoid reserving extra rows for completion menus in non-fullscreen mode.
             reserve_space_for_menu=0,
             erase_when_done=True,
@@ -821,7 +847,7 @@ class PromptToolkitInput(InputProviderABC):
 
         # Ensure completion menu has default selection
         self._session.default_buffer.on_completions_changed += self._select_first_completion_on_open  # pyright: ignore[reportUnknownMemberType]
-        self._session.default_buffer.on_text_changed += self._clear_empty_completion
+        self._session.default_buffer.on_text_changed += self._refresh_completion
         self._session.default_buffer.on_cursor_position_changed += self._clear_empty_completion
 
         self._install_bottom_windows()
@@ -925,6 +951,7 @@ class PromptToolkitInput(InputProviderABC):
             return (
                 self._session.default_buffer.complete_state is not None
                 or self._empty_completion_document == self._session.default_buffer.document
+                or self._pending_completion_document == self._session.default_buffer.document
             ) and self._current_completion_context() is not None
         except Exception:
             return False
@@ -941,7 +968,7 @@ class PromptToolkitInput(InputProviderABC):
             text_before = self._session.default_buffer.document.text_before_cursor
         except Exception:
             return [], None
-        if state is None:
+        if state is None and self._pending_completion_document != self._session.default_buffer.document:
             return [], None
         # This snapshot is requested several times per rendered frame
         # (visibility filter, window height, fragments, reserved input rows),
@@ -950,7 +977,12 @@ class PromptToolkitInput(InputProviderABC):
         # distinct UI state pays the cost once. The completion count is part
         # of the key because ThreadedCompleter appends to the same
         # CompletionState in place while results stream in.
-        cache_key = (id(state), len(state.completions), getattr(state, "complete_index", None), text_before)
+        cache_key = (
+            id(state),
+            len(state.completions) if state else 0,
+            getattr(state, "complete_index", None),
+            text_before,
+        )
         cached_snapshot = self._completion_panel_snapshot_cache
         if cached_snapshot is not None and cached_snapshot[0] == cache_key:
             return cached_snapshot[1]
@@ -958,8 +990,8 @@ class PromptToolkitInput(InputProviderABC):
         self._completion_panel_snapshot_cache = (cache_key, snapshot)
         return snapshot
 
-    def _compute_completion_panel_snapshot(self, state: CompletionState) -> tuple[list[Completion], int | None]:
-        if state.completions:
+    def _compute_completion_panel_snapshot(self, state: CompletionState | None) -> tuple[list[Completion], int | None]:
+        if state is not None and state.completions:
             completions = list(state.completions)
             context = self._current_completion_context()
             if context is not None:
@@ -1207,9 +1239,51 @@ class PromptToolkitInput(InputProviderABC):
         if state is not None and state.original_document == document and buffer.document == document:
             # prompt_toolkit clears empty states after the final callback.
             self._empty_completion_document = document
+            self._last_completion_panel_completions = ()
+            self._completion_panel_snapshot_cache = None
 
-    def _clear_empty_completion(self, _buffer: Buffer) -> None:
+    def _refresh_completion(self, buffer: Buffer) -> None:
         self._empty_completion_document = None
+        if self._current_completion_context() is None:
+            self._pending_completion_document = None
+            self._clear_empty_completion(buffer)
+            return
+        self._pending_completion_document = buffer.document
+        if self._completion_task is not None and not self._completion_task.done():
+            return
+
+        async def complete() -> None:
+            if self._pending_completion_document == buffer.document and self._current_completion_context() is not None:
+                await buffer._async_completer(complete_event=CompleteEvent(completion_requested=True))
+
+        self._completion_task = self._session.app.create_background_task(complete())
+
+    def _completion_finished(self, document: Document, completed: bool) -> None:
+        buffer = self._session.default_buffer
+        pending = self._pending_completion_document
+        if pending is None:
+            return
+        if (
+            pending != buffer.document
+            or self._current_completion_context() is None
+            or (pending == document and completed)
+        ):
+            self._pending_completion_document = None
+        elif buffer.complete_state is None:
+            self._refresh_completion(buffer)
+
+    def _clear_empty_completion(self, buffer: Buffer) -> None:
+        # Text edits also fire a cursor event for the same document.
+        if self._pending_completion_document == buffer.document:
+            return
+        self._empty_completion_document = None
+        self._pending_completion_document = None
+        if self._completion_task is not None:
+            self._completion_task.cancel()
+            self._completion_task = None
+        if self._current_completion_context() is None:
+            self._last_completion_panel_completions = ()
+            self._completion_panel_snapshot_cache = None
 
     def _mark_queued_edit_active(self, _text: str) -> None:
         self._queued_edit_active = True

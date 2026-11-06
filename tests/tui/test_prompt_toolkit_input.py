@@ -65,6 +65,8 @@ def _build_input(text: str, *, invalidations: SimpleNamespace | None = None) -> 
     prompt_input._last_completion_panel_selected_index = None
     prompt_input._last_completion_panel_context_key = None
     prompt_input._empty_completion_document = None
+    prompt_input._pending_completion_document = None
+    prompt_input._completion_task = None
     prompt_input._completion_panel_snapshot_cache = None
     prompt_input._bottom_bar = PromptBottomBar(invalidate=invalidate)
     prompt_input._queued_edit_active = False
@@ -1302,6 +1304,218 @@ def test_cancelled_loading_does_not_leave_no_match() -> None:
             await task
         assert not prompt_input._is_completion_panel_visible()
         assert prompt_input._empty_completion_document is None
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("prefix", ["@", "/", "use /"])
+@pytest.mark.parametrize("outcome", ["results", "stale-empty", "empty", "escape", "leave", "move"])
+@pytest.mark.parametrize("edit", ["backspace", "insert"])
+def test_repeated_edits_keep_panel_and_complete_latest_request(
+    monkeypatch: pytest.MonkeyPatch, outcome: str, prefix: str, edit: str
+) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.key_binding.key_processor import KeyPressEvent
+    from prompt_toolkit.keys import Keys
+
+    started = Event()
+    release = Event()
+    latest_started = Event()
+    latest_release = Event()
+    requests: list[str] = []
+    initial, blocked, intermediate, latest = (
+        ("abcd", "abc", "ab", "a") if edit == "backspace" else ("a", "ab", "abc", "abcd")
+    )
+    latest_label = "another.py" if edit == "backspace" else "abcde.py"
+
+    class SlowCompleter(Completer):
+        def get_completions(self, document: Document, complete_event: CompleteEvent) -> Iterator[Completion]:
+            requests.append(document.text)
+            if document.text == f"{prefix}{blocked}":
+                started.set()
+                release.wait(timeout=5)
+                if outcome == "stale-empty":
+                    return
+            elif document.text == f"{prefix}{latest}":
+                latest_started.set()
+                latest_release.wait(timeout=5)
+                if outcome == "empty":
+                    return
+                yield Completion(f"@{latest_label} ", display=latest_label, start_position=-len(document.text))
+            yield Completion("@abcd.py ", display="abcd.py", start_position=-len(document.text))
+
+    monkeypatch.setattr("klaude_code.tui.input.prompt_toolkit.create_repl_completer", lambda **_kwargs: SlowCompleter())
+
+    async def run() -> None:
+        async def eventually(predicate: Callable[[], bool]) -> None:
+            async with asyncio.timeout(5):
+                while not predicate():
+                    await asyncio.sleep(0.001)
+
+        with create_app_session(input=DummyInput(), output=DummyOutput()):
+            prompt = PromptToolkitInput()
+            buffer = prompt._session.default_buffer
+            app = prompt._session.app
+            bindings = app.key_bindings
+            assert bindings is not None
+
+            def press(key: Keys) -> None:
+                binding = next(
+                    binding for binding in reversed(bindings.get_bindings_for_keys((key,))) if binding.filter()
+                )
+                binding.handler(cast(KeyPressEvent, SimpleNamespace(current_buffer=buffer)))
+
+            with set_app(app):
+                try:
+                    buffer.document = Document(f"{prefix}{initial}", len(prefix) + len(initial))
+                    await buffer._async_completer()
+                    assert "abcd.py" in str(prompt._get_completion_panel_fragments())
+                    if edit == "backspace":
+                        press(Keys.ControlH)
+                    else:
+                        buffer.insert_text("b")
+                    assert await asyncio.to_thread(started.wait, 5)
+                    for fragment in (intermediate, latest):
+                        if edit == "backspace":
+                            press(Keys.ControlH)
+                        else:
+                            buffer.insert_text(fragment[-1])
+                        await asyncio.sleep(0)
+                        assert buffer.text == f"{prefix}{fragment}"
+                        assert prompt._is_completion_panel_visible()
+                        assert prompt._get_completion_panel_height() > 0
+                        assert "abcd.py" in str(prompt._get_completion_panel_fragments())
+
+                    if outcome == "escape":
+                        press(Keys.Escape)
+                    elif outcome == "leave":
+                        buffer.insert_text(" ")
+                    elif outcome == "move":
+                        buffer.cursor_left()
+                        buffer.cursor_right()
+
+                    release.set()
+                    if outcome in ("results", "stale-empty", "empty"):
+                        assert await asyncio.to_thread(latest_started.wait, 5)
+                        assert prompt._is_completion_panel_visible()
+                        assert "abcd.py" in str(prompt._get_completion_panel_fragments())
+                        latest_release.set()
+                        if outcome == "empty":
+                            await eventually(lambda: prompt._empty_completion_document == buffer.document)
+                            assert prompt._get_completion_panel_fragments() == [("class:meta", "  no match")]
+                        else:
+                            await eventually(lambda: latest_label in str(prompt._get_completion_panel_fragments()))
+                        assert requests == [f"{prefix}{initial}", f"{prefix}{blocked}", f"{prefix}{latest}"]
+                    else:
+                        await eventually(lambda: not app._background_tasks)
+                        assert not prompt._is_completion_panel_visible()
+                        assert not latest_started.is_set()
+                finally:
+                    release.set()
+                    latest_release.set()
+                    await app.cancel_and_wait_for_background_tasks()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("cancel", ["move", "escape"])
+def test_queued_completion_retry_checks_cancellation_before_starting(
+    monkeypatch: pytest.MonkeyPatch, cancel: str
+) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.key_binding.key_processor import KeyPressEvent
+    from prompt_toolkit.keys import Keys
+
+    monkeypatch.setattr(
+        "klaude_code.tui.input.prompt_toolkit.create_repl_completer", lambda **_kwargs: DummyCompleter()
+    )
+
+    async def run() -> None:
+        with create_app_session(input=DummyInput(), output=DummyOutput()):
+            prompt = PromptToolkitInput()
+            buffer = prompt._session.default_buffer
+            app = prompt._session.app
+            with set_app(app):
+                try:
+                    buffer.document = Document("@ab", 3)
+                    prompt._pending_completion_document = buffer.document
+                    prompt._completion_finished(Document("@abc", 4), True)
+                    assert prompt._is_completion_panel_visible()
+
+                    if cancel == "move":
+                        buffer.cursor_left()
+                    else:
+                        assert app.key_bindings is not None
+                        binding = next(
+                            binding
+                            for binding in reversed(app.key_bindings.get_bindings_for_keys((Keys.Escape,)))
+                            if binding.filter()
+                        )
+                        binding.handler(cast(KeyPressEvent, SimpleNamespace(current_buffer=buffer)))
+                    assert not prompt._is_completion_panel_visible()
+
+                    await asyncio.gather(*app._background_tasks, return_exceptions=True)
+                    await asyncio.sleep(0)
+                    assert not prompt._is_completion_panel_visible()
+                    assert buffer.complete_state is None
+                    assert prompt._empty_completion_document is None
+                finally:
+                    await app.cancel_and_wait_for_background_tasks()
+
+    asyncio.run(run())
+
+
+def test_retyping_cancelled_document_restarts_completion(monkeypatch: pytest.MonkeyPatch) -> None:
+    from prompt_toolkit.application.current import create_app_session
+    from prompt_toolkit.key_binding.key_processor import KeyPressEvent
+    from prompt_toolkit.keys import Keys
+
+    started = Event()
+    release = Event()
+    requests: list[str] = []
+
+    class SlowCompleter(Completer):
+        def get_completions(self, document: Document, complete_event: CompleteEvent) -> Iterator[Completion]:
+            requests.append(document.text)
+            if len(requests) == 1:
+                started.set()
+                release.wait(timeout=5)
+            yield Completion("@abcd.py ", display="abcd.py", start_position=-len(document.text))
+
+    monkeypatch.setattr("klaude_code.tui.input.prompt_toolkit.create_repl_completer", lambda **_kwargs: SlowCompleter())
+
+    async def run() -> None:
+        with create_app_session(input=DummyInput(), output=DummyOutput()):
+            prompt = PromptToolkitInput()
+            buffer = prompt._session.default_buffer
+            app = prompt._session.app
+            with set_app(app):
+                try:
+                    buffer.insert_text("@ab")
+                    assert await asyncio.to_thread(started.wait, 5)
+                    assert app.key_bindings is not None
+                    binding = next(
+                        binding
+                        for binding in reversed(app.key_bindings.get_bindings_for_keys((Keys.Escape,)))
+                        if binding.filter()
+                    )
+                    binding.handler(cast(KeyPressEvent, SimpleNamespace(current_buffer=buffer)))
+                    buffer.delete_before_cursor()
+                    buffer.insert_text("b")
+                    assert prompt._completion_task is not None
+                    await asyncio.wait_for(asyncio.shield(prompt._completion_task), 1)
+                    assert requests == ["@ab"]
+                    release.set()
+
+                    async with asyncio.timeout(5):
+                        while app._background_tasks:
+                            await asyncio.sleep(0.001)
+                    assert requests == ["@ab", "@ab"]
+                    assert prompt._is_completion_panel_visible()
+                    assert "abcd.py" in str(prompt._get_completion_panel_fragments())
+                finally:
+                    release.set()
+                    await app.cancel_and_wait_for_background_tasks()
 
     asyncio.run(run())
 

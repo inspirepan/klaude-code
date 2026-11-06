@@ -576,7 +576,7 @@ class _AtFilesCompleter(Completer):
         if self._get_git_repo_root(cwd) is not None:
             results, _truncated = self._git_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
         else:
-            results, _truncated = self._python_paths_for_keyword(cwd, key_norm, max_results=max_scan_results)
+            results, _truncated = self._python_paths_for_keyword(cwd, keyword, max_results=max_scan_results)
 
         if not results:
             return []
@@ -661,34 +661,46 @@ class _AtFilesCompleter(Completer):
         return FormattedText(segments)
 
     # ---- Utilities ----
-    def _python_paths_for_keyword(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
+    def _python_paths_for_keyword(self, cwd: Path, keyword: str, *, max_results: int) -> tuple[list[str], bool]:
         """Return bounded fuzzy matches from a breadth-first filesystem scan."""
         if not self._path_search_lock.acquire(blocking=False):
             return [], True
 
         try:
-            return self._scan_python_paths(cwd, keyword_norm, max_results=max_results)
+            return self._scan_python_paths(cwd, keyword, max_results=max_results)
         finally:
             self._path_search_lock.release()
 
-    def _scan_python_paths(self, cwd: Path, keyword_norm: str, *, max_results: int) -> tuple[list[str], bool]:
+    def _scan_python_paths(self, cwd: Path, keyword: str, *, max_results: int) -> tuple[list[str], bool]:
         excluded = {".git", ".venv", "node_modules"}
+        keyword_norm = keyword.lower()
         ranked: list[_RankedPath] = []
-        pending: deque[tuple[str, str]] = deque([("", str(cwd))])
+        pending: deque[tuple[str, str]] = deque()
+        directory_hint = keyword.rpartition("/")[0]
+        if directory_hint and not any(part in excluded for part in Path(directory_hint).parts):
+            # Visit an existing directory prefix before spending the root scan budget.
+            hinted_path = cwd / directory_hint
+            if hinted_path.is_dir():
+                pending.append((directory_hint, str(hinted_path)))
+        visited: set[str] = set()
         deadline = time.monotonic() + self._filesystem_scan_timeout_sec
         scanned = 0
         truncated = False
 
-        while pending:
+        while pending or "" not in visited:
+            if not pending:
+                pending.append(("", str(cwd)))
             rel_dir, directory = pending.popleft()
+            if rel_dir in visited:
+                continue
+            visited.add(rel_dir)
             try:
                 with os.scandir(directory) as entries:
                     for entry in entries:
                         scanned += 1
                         if scanned > self._filesystem_scan_max_entries or time.monotonic() >= deadline:
                             truncated = True
-                            pending.clear()
-                            break
+                            return [path for _, _, path in ranked], truncated
                         if entry.name in excluded:
                             continue
 

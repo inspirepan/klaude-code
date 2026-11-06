@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -29,8 +28,6 @@ def test_enter_with_legacy_alt_enter_data_submits_follow_up_and_resets_marker() 
 
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
         set_follow_up_submission=set_follow_up,
     )
     buffer = Buffer(document=Document("later"), accept_handler=accept)
@@ -48,8 +45,6 @@ def test_alt_enter_accepts_completion_before_submitting_without_marking_next_ent
     submitted: list[str] = []
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
         set_follow_up_submission=markers.append,
     )
 
@@ -80,8 +75,6 @@ def test_vscode_backslash_newline_applies_only_to_plain_enter(monkeypatch: pytes
 
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
         set_follow_up_submission=markers.append,
     )
     buffer = Buffer(document=Document("path\\"), accept_handler=accept)
@@ -104,8 +97,6 @@ def test_clipboard_image_is_read_only_when_ctrl_v_is_pressed() -> None:
 
     bindings = create_key_bindings(
         capture_clipboard_tag=capture,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
     )
     assert not captures
     buffer = Buffer()
@@ -119,8 +110,6 @@ def test_clipboard_image_is_read_only_when_ctrl_v_is_pressed() -> None:
 def test_ctrl_u_clears_to_start_of_current_logical_line() -> None:
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
     )
     buffer = Buffer(document=Document("first line\nsecond line", cursor_position=18))
 
@@ -135,8 +124,6 @@ def test_ctrl_u_clears_to_start_of_current_logical_line() -> None:
 def test_ctrl_x_clears_entire_input_buffer() -> None:
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
     )
     buffer = Buffer(document=Document("first\nsecond", cursor_position=9))
 
@@ -151,8 +138,6 @@ def test_ctrl_x_clears_entire_input_buffer() -> None:
 def test_large_bracketed_paste_saves_file_and_inserts_marker(tmp_path: Path) -> None:
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
         paste_dir=tmp_path,
     )
     buffer = Buffer()
@@ -170,8 +155,6 @@ def test_large_bracketed_paste_saves_file_and_inserts_marker(tmp_path: Path) -> 
 def test_small_bracketed_paste_stays_inline(tmp_path: Path) -> None:
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
         paste_dir=tmp_path,
     )
     buffer = Buffer()
@@ -193,8 +176,6 @@ def test_bracketed_paste_of_dropped_path_inserts_at_token(tmp_path: Path, monkey
 
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
         paste_dir=tmp_path,
     )
     buffer = Buffer()
@@ -215,8 +196,6 @@ def test_bracketed_paste_in_bash_mode_keeps_plain_path(tmp_path: Path, monkeypat
 
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
         paste_dir=tmp_path,
     )
     buffer = Buffer(document=Document("!wc -l ", cursor_position=7))
@@ -231,8 +210,6 @@ def test_bracketed_paste_in_bash_mode_keeps_plain_path(tmp_path: Path, monkeypat
 def test_tab_toggles_btw_prefix_while_agent_runs() -> None:
     bindings = create_key_bindings(
         capture_clipboard_tag=lambda: None,
-        at_token_pattern=re.compile(r"$^"),
-        skill_token_pattern=re.compile(r"$^"),
         is_agent_running=lambda: True,
     )
     buffer = Buffer(document=Document("explain this", cursor_position=7))

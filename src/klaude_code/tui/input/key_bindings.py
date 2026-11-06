@@ -59,8 +59,6 @@ def copy_to_clipboard(text: str) -> None:
 
 def create_key_bindings(
     capture_clipboard_tag: Callable[[], str | None],
-    at_token_pattern: re.Pattern[str],
-    skill_token_pattern: re.Pattern[str],
     *,
     input_enabled: Filter | None = None,
     open_model_picker: Callable[[], None] | None = None,
@@ -81,8 +79,6 @@ def create_key_bindings(
 
     Args:
         capture_clipboard_tag: Callable to capture clipboard image and return [image ...] marker
-        at_token_pattern: Pattern to match @token for completion refresh
-        skill_token_pattern: Pattern to match skill tokens for completion refresh
         get_prompt_suggestion: Returns the currently active predicted-next-prompt,
             or None when there is nothing to suggest.
         dequeue_pending_messages: Pops all queued messages from the Runtime and
@@ -768,34 +764,13 @@ def create_key_bindings(
 
     @kb.add("backspace", filter=enabled)
     def _(event: KeyPressEvent) -> None:
-        """Ensure completions refresh on backspace when editing an @token.
-
-        We delete the character before cursor (default behavior), then explicitly
-        trigger completion refresh if the caret is still within an @… token.
-        """
+        """Delete the selection or the character before the cursor."""
         buf = event.current_buffer
         # Handle selection: cut selection if present, otherwise delete one character
         if buf.selection_state:  # type: ignore[reportUnknownMemberType]
             buf.cut_selection()  # type: ignore[reportUnknownMemberType]
         else:
             buf.delete_before_cursor()  # type: ignore[reportUnknownMemberType]
-        # If the token pattern still applies, refresh completion popup
-        try:
-            text_before = buf.document.text_before_cursor  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            line_before = buf.document.current_line_before_cursor  # type: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            # Check @ tokens, first-line / command tokens, and inline skill tokens.
-            should_refresh = False
-            if at_token_pattern.search(text_before) or skill_token_pattern.search(line_before):  # type: ignore[reportUnknownArgumentType]
-                should_refresh = True
-            elif buf.document.cursor_position_row == 0:  # type: ignore[reportUnknownMemberType]
-                text_before_str = line_before or ""
-                if re.search(r"^//?[^\s/]*$", text_before_str):
-                    should_refresh = True
-
-            if should_refresh:
-                buf.start_completion(select_first=False)  # type: ignore[reportUnknownMemberType]
-        except (AttributeError, TypeError):
-            pass
 
     @kb.add("left", filter=enabled)
     def _(event: KeyPressEvent) -> None:
