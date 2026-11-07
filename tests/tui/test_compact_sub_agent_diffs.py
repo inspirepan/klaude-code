@@ -118,7 +118,7 @@ def test_compact_sub_agent_edits_print_nothing_and_sum_up_in_the_run_block() -> 
     block = _finish(renderer)
     assert "GeneralPurpose update generated files ✓" in block
     assert "↳ updated the files" in block
-    lines = block.splitlines()
+    lines = [line.rstrip() for line in block.splitlines()]
     assert any(line.endswith("± 4 files  +6") for line in lines)
     for path, added in [("src/demo.py", 2), ("docs/new.md", 2), ("docs/second.md", 1), ("docs/third.md", 1)]:
         assert any(line.endswith(f"./{path}  +{added}") for line in lines)
@@ -134,8 +134,8 @@ def test_ctrl_t_shows_each_sub_agent_diff_under_its_run_block() -> None:
     _record(renderer, _change(tools.EDIT, "edit-1", _diff()))
 
     block = _finish(renderer)
-    assert any(line.endswith("± 1 file  +1") for line in block.splitlines())
-    assert any(line.endswith("./src/demo.py  +1") for line in block.splitlines())
+    assert any(line.rstrip().endswith("± 1 file  +1") for line in block.splitlines())
+    assert any(line.rstrip().endswith("./src/demo.py  +1") for line in block.splitlines())
     assert "new_value = 1" in block and "╭" in block
 
 

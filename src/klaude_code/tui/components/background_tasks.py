@@ -354,19 +354,27 @@ _COMPACT_MESSAGE_MAX_LINES = 2
 
 
 def render_message(direction: Literal["to", "from"], peer: str, body: str, *, detail: Detail) -> RenderableType:
-    """Quote the body under a tool-style action and human peer label."""
-    arrow = "↑" if direction == "to" else "↓"
-    action = "Send Message" if direction == "to" else "Receive Message"
-    header = Text(f"{arrow} ", style=ThemeKey.METADATA, overflow="ellipsis", no_wrap=True)
-    header.append(action, style=ThemeKey.TOOL_NAME)
-    header.append(" ")
-    header.append(peer, style=ThemeKey.TOOL_PARAM)
+    """Distinguish outgoing notes from incoming message blocks."""
     text: RenderableType = Text(body.strip(), style=ThemeKey.PEER_MESSAGE_BODY, overflow="fold")
     if detail.is_compact:
         # Long lines wrap too; the cap counts rows on screen, not source lines.
         text = MaxLines(text, _COMPACT_MESSAGE_MAX_LINES, ellipsis_style=ThemeKey.TOOL_RESULT_TRUNCATED)
-    quote = Padding(Quote(text, prefix="│ ", style=ThemeKey.LINES), (0, 0, 0, TOOL_GROUP_INDENT), expand=False)
-    return AdaptiveIndent(Group(header, quote), TOOL_GROUP_INDENT)
+    if direction == "to":
+        header = Text("→ To ", style=ThemeKey.METADATA, overflow="ellipsis", no_wrap=True)
+        header.append(peer, style=ThemeKey.METADATA_BOLD)
+        quote = Padding(Quote(text, prefix="│ ", style=ThemeKey.LINES), (0, 0, 0, 2), expand=False)
+        content: RenderableType = Group(header, quote)
+    else:
+        header = Text(style=ThemeKey.METADATA, overflow="ellipsis", no_wrap=True)
+        header.append(peer, style=ThemeKey.PEER_MESSAGE_HEADING)
+        header.append(" · Received")
+        content = Padding(
+            Quote(Group(header, text, fit=False), prefix="│ ", style=ThemeKey.PEER_MESSAGE_HEADING),
+            0,
+            style=ThemeKey.PEER_MESSAGE_BACKGROUND,
+            expand=True,
+        )
+    return AdaptiveIndent(content, TOOL_GROUP_INDENT)
 
 
 def render_peer_message(event: events.UserMessageEvent, *, detail: Detail, directory: TaskDirectory) -> RenderableType:

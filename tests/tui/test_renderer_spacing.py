@@ -6,9 +6,10 @@ from itertools import pairwise
 
 import pytest
 from rich.console import Console
+from rich.segment import Segment
 
 from klaude_code.protocol import events, message, tools
-from klaude_code.protocol.models import DeveloperUIExtra, SkillActivatedUIItem, SubAgentState
+from klaude_code.protocol.models import DeveloperUIExtra, MarkdownDocUIExtra, SkillActivatedUIItem, SubAgentState
 from klaude_code.protocol.peer import PeerMessage
 from klaude_code.tui.commands import (
     AppendAssistant,
@@ -34,6 +35,7 @@ from klaude_code.tui.commands import (
     StartThinkingStream,
     SubAgentSummary,
 )
+from klaude_code.tui.components.rich.theme import ThemeKey
 from klaude_code.tui.components.sub_agent import render_sub_agent_call
 from klaude_code.tui.components.tools import render_tool_call, render_tool_result
 from klaude_code.tui.machine import DisplayStateMachine
@@ -173,13 +175,15 @@ def test_collaboration_and_warnings_continue_tool_block(kind: str, child: bool) 
             assert line.startswith("▌ " if child else "  ")
             assert line[2] not in {" ", "▌"}, line
         if kind in {"send", "receive"} and any(
-            mark in line for mark in ("↑ Send Message peer", "↓ Receive Message peer", "│ ")
+            mark in line for mark in ("→ To peer", "peer · Received", "please review", "review ready")
         ):
             assert line.startswith("▌ " if child else "  ")
-            if "│ " in line:
-                assert line[2:5] == "  │", line
+            if kind == "receive":
+                assert line[2:4] == "│ ", line
+            elif "please review" in line:
+                assert line[2:6] == "  │ ", line
             else:
-                assert line[2] in {"↑", "↓"}, line
+                assert line[2] == "→", line
     if kind in {"send", "receive"}:
         assert not any(char in output.getvalue() for char in "╭╮╰╯─")
 
@@ -839,7 +843,7 @@ def test_sub_agent_message_quote_ends_without_gutter_only_line() -> None:
         )
     )
     rendered = output.getvalue()
-    assert "▌ ↑ Send Message main" in rendered
+    assert "▌ → To main" in rendered
     assert rendered.splitlines()[-1].rstrip() == "▌   │ hello"
     assert "▌ \n" not in rendered
 
@@ -969,8 +973,13 @@ def test_child_compaction_kept_items_share_the_quote_margin() -> None:
     assert "▌ Kept uncompacted: Read x 2\n" in output.getvalue()
 
 
-def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("width", [32, 100])
+def test_compact_sub_agent_summary_shows_model_and_success_ellipsis(theme: str, width: int) -> None:
     renderer, output = _renderer_and_output()
+    renderer.set_theme(theme)
+    renderer.console.width = width
+    renderer.console.record = True
     renderer.register_session(
         "sub-success",
         SubAgentState(sub_agent_type="finder", sub_agent_desc="search", sub_agent_prompt="prompt"),
@@ -978,6 +987,17 @@ def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
     renderer.register_session(
         "sub-error",
         SubAgentState(sub_agent_type="finder", sub_agent_desc="fail", sub_agent_prompt="prompt"),
+    )
+    renderer.display_tool_call_result(
+        events.ToolResultEvent(
+            session_id="sub-success",
+            tool_call_id="write",
+            tool_name=tools.WRITE,
+            result="ok",
+            status="success",
+            ui_extra=MarkdownDocUIExtra(file_path="notes.md", content="done"),
+        ),
+        is_sub_agent=True,
     )
 
     asyncio.run(
@@ -995,7 +1015,7 @@ def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
                             duration_s=12.0,
                             tool_count=3,
                             token_count=1200,
-                            result_summary="Found the path.",
+                            result_summary="Found the path.\nSecond line.\nThird line.\nHidden line.",
                         ),
                         SubAgentSummary(
                             session_id="sub-error",
@@ -1013,11 +1033,36 @@ def test_compact_sub_agent_summary_shows_model_and_success_ellipsis() -> None:
             ]
         )
     )
+    renderer.print("ordinary output")
 
     rendered = output.getvalue()
-    assert "gpt-5.6-luna high · 12s · 3 tools · 1.2K tokens" in rendered
+    if width == 100:
+        assert "gpt-5.6-luna high · 12s · 3 tools · 1.2K tokens" in rendered
     assert "▌ ↳ Found the path." in rendered
+    assert "Third line.…" in rendered
+    assert "Hidden line." not in rendered
     assert "Child failed…" not in rendered
+    assert "± 1 file" in rendered and "./notes.md" in rendered
+
+    identities = [renderer._get_session_sub_agent_color(session_id) for session_id in ("sub-success", "sub-error")]
+    assert identities[0].bgcolor != identities[1].bgcolor
+    identity = identities[0]
+    block_lines = [0, 0]
+    for line in Segment.split_lines(renderer.console._record_buffer):
+        text = "".join(segment.text for segment in line)
+        if "Finder fail" in text:
+            identity = identities[1]
+        if text.startswith("▌ "):
+            block_lines[identities.index(identity)] += 1
+            assert Segment.get_line_length(line) == width
+            assert all(segment.style and segment.style.bgcolor == identity.bgcolor for segment in line)
+            assert line[0].style and line[0].style.color == identity.color
+            if "Found the path." in text:
+                body = next(segment for segment in line if "Found the path." in segment.text)
+                assert body.style and body.style.color == renderer.console.get_style(ThemeKey.TOOL_RESULT).color
+        else:
+            assert all(segment.style is None or segment.style.bgcolor is None for segment in line)
+    assert block_lines == [6, 2]
 
 
 def test_compact_sub_agent_summary_before_list_has_one_blank_line() -> None:

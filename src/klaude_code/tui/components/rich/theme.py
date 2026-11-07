@@ -140,6 +140,8 @@ class ThemeKey(str, Enum):
     LINES = "lines"
     # Muted body text for messages between agents.
     PEER_MESSAGE_BODY = "peer_message.body"
+    PEER_MESSAGE_HEADING = "peer_message.heading"
+    PEER_MESSAGE_BACKGROUND = "peer_message.background"
     LINES_DIM = "lines.dim"
 
     # CODE
@@ -313,6 +315,8 @@ def get_theme(theme: str | None = None) -> Themes:
             styles={
                 ThemeKey.LINES.value: palette.grey3,
                 ThemeKey.PEER_MESSAGE_BODY.value: palette.grey2,
+                ThemeKey.PEER_MESSAGE_HEADING.value: "bold " + palette.blue,
+                ThemeKey.PEER_MESSAGE_BACKGROUND.value: f"on {palette.blue_sub_background}",
                 ThemeKey.LINES_DIM.value: palette.dim_grey3,
                 # CODE
                 ThemeKey.CODE_BACKGROUND.value: f"on {palette.code_background}",

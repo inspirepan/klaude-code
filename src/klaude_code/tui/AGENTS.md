@@ -153,7 +153,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   expands every diff without leaving compact mode; expanded mode never folds.
 - A call the agent made keeps its tool mark (`$ Shell`, `◈ Tasks`); input the
   system fills back in later uses `MARK_CALLBACK` (`› Shell`, `› Task`).
-  Peer messages use their own directional quote titles.
+  Peer messages use outgoing titles and incoming quote blocks.
   Compact shell/task reports join the open tool block: no blank line before or
   after them (`_CALLBACK_SOURCES`), and a report subject is clipped to two lines.
 - The primary session changes only on `WelcomeEvent`. A TaskStart or user
@@ -167,7 +167,8 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   description only — the `◈` mark and `Launch` label stay neutral, and no identity color
   paints a background; waits are one
   `◈ Tasks  Waiting for <description>` row (repeats collapse) and still-running
-  results print nothing; a finished agent prints only its `▌` batch block
+  results print nothing; a finished agent prints only its `▌` batch block, whose
+  rows use its identity background while retaining their foreground colors
   (`TaskDirectory.claim_summary` / `claim_report` dedupe the block against task
   reports and wait results, and a report builds the block when none printed);
   a finished Bash task owned by the main agent prints one `› Shell` row; a
@@ -213,11 +214,12 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   normal completion behavior.
 - Peer and task reports are sourced messages, not operator input cards. Render
   `peer_message` fields directly; never parse `<agent-message>` body text.
-  Peer messages render as quotes (`render_message`): left-aligned `↑ Send Message X`
-  or `↓ Receive Message X` titles. Arrows use `grey1`, action names use bold `TOOL_NAME`
-  (`grey1`), and conversation names use green `TOOL_PARAM`.
-  Body text uses `PEER_MESSAGE_BODY` (`grey2`) with a thin, muted `│` prefix.
-  Indent the quoted body two spaces further than its title.
+  `render_message` renders outgoing `→ To X` titles in neutral grey, with a bold
+  peer name and a body quoted with a muted `│ ` prefix indented two spaces. Incoming `X · Received`
+  titles put the blue bold sender first and a neutral suffix after it. A blue
+  `│ ` prefix spans the incoming title and body on `blue_sub_background`, filled
+  by message-local expanding Padding. Keep the shared Quote unpadded.
+  Both bodies use `PEER_MESSAGE_BODY` (`grey2`); both layouts keep `TOOL_GROUP_INDENT`.
   Do not add a Panel border or horizontal rules. Compact shows only the main agent's sends and receives,
   with at most two screen rows of body and an ellipsis on the last row when
   clipped. Expanded keeps all sends/receives, the whole body and incoming metadata.

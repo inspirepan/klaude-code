@@ -1728,10 +1728,15 @@ class TUICommandRenderer:
                 changes=self._sub_agent_change_view(session_id, (fallback_changes or {}).get(session_id)),
             )
             rendered.append(
-                Quote(
-                    content,
-                    style=Style(color=color.color),
-                    prefix="▌ ",
+                Padding(
+                    Quote(
+                        content,
+                        style=Style(color=color.color),
+                        prefix="▌ ",
+                    ),
+                    0,
+                    style=Style(bgcolor=color.bgcolor),
+                    expand=True,
                 )
             )
         if summaries:

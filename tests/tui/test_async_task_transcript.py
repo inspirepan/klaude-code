@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+from typing import Literal
 
 import pytest
 
@@ -194,8 +195,8 @@ def test_compact_transcript_reports_each_background_fact_once(
     assert out.count("Waiting for Find the panel") == 1
     assert "· running" not in out and "interrupted" not in out
     # Messages name the peer by its task, show two body rows, and hide the receipt.
-    assert "↑ Send Message Find the panel" in out and "│ first line" in out and "│ second line" in out
-    assert "↓ Receive Message Find the panel" in out and "│ hello" in out and "queued" not in out
+    assert "→ To Find the panel" in out and "    │ first line" in out and "    │ second line" in out
+    assert "│ Find the panel · Received" in out and "│ hello" in out and "queued" not in out
     # One block per finished agent, with the type, the report head, and no IDs or cost tree.
     assert out.count("Finder Find the panel ✓") == 1
     assert "render_collaboration_result 已解析" in out and "第二点" in out and "第三点" not in out
@@ -357,15 +358,15 @@ def test_child_sourced_and_notice_content_keeps_the_quote_gutter(
     out = capsys.readouterr().out
     lines = out.splitlines()
     if full:
-        assert any(line.startswith("▌") and "↓ Receive Message main" in line for line in lines)
-        assert not any(not line.startswith("▌") and "↓ Receive Message main" in line for line in lines)
+        assert any(line.startswith("▌") and "│ main · Received" in line for line in lines)
+        assert not any(not line.startswith("▌") and "│ main · Received" in line for line in lines)
         assert any(line.startswith("▌") and "│ coordination" in line for line in lines)
         assert any(line.startswith("▌") and "Interrupted by user" in line for line in lines)
         assert not any(not line.startswith("▌") and "Interrupted by user" in line for line in lines)
         assert any(line.startswith("▌") and "Context Compacted" in line for line in lines)
         assert not any(not line.startswith("▌") and "Context Compacted" in line for line in lines)
     else:
-        assert "↓ Receive Message main" not in out and "coordination" not in out
+        assert "main · Received" not in out and "coordination" not in out
         # Compact keeps child lifecycle notices out of the transcript entirely.
         assert "Interrupted by user" not in out and "Context Compacted" not in out
 
@@ -681,13 +682,13 @@ def test_peer_visibility_and_main_received_body_survive_toggle_refresh(
             message_lines = [
                 line
                 for line in output.splitlines()
-                if "↑ Send Message Find the panel" in line or "↓ Receive Message Find the panel" in line
+                if "→ To Find the panel" in line or "Find the panel · Received" in line
             ]
             if expected_count:
                 assert message_lines
             assert not any(line.startswith("▌") for line in message_lines)
-            assert ("↑ Send Message Find the panel" in output) is (sender == "main" and show_call)
-            assert ("↓ Receive Message Find the panel" in output) is (sender == "child-a")
+            assert ("→ To Find the panel" in output) is (sender == "main" and show_call)
+            assert ("Find the panel · Received" in output) is (sender == "child-a")
 
         try:
             for event in script:
@@ -698,7 +699,9 @@ def test_peer_visibility_and_main_received_body_survive_toggle_refresh(
             await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
             expanded = writes[-1][0]
             assert expanded.count(body) == int(show_call) + 2
-            assert any(line.startswith("▌") and "↓ " in line for line in expanded.splitlines()) is (recipient != "main")
+            assert any(line.startswith("▌") and " · Received" in line for line in expanded.splitlines()) is (
+                recipient != "main"
+            )
             assert "transport receipt, not read" in expanded and "stable-message" in expanded
             await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
             check_compact(writes[-1][0])
@@ -763,8 +766,8 @@ def test_listed_external_peer_keeps_its_title_and_received_body(
 
     asyncio.run(run())
     output = capsys.readouterr().out
-    assert "↑ Send Message Other conversation" in output
-    assert "↓ Receive Message Other conversation" in output
+    assert "→ To Other conversation" in output
+    assert "Other conversation · Received" in output
     assert output.count("same text") == 2 and "Message received from" not in output
 
 
@@ -819,15 +822,18 @@ def test_message_targets_resolve_names_and_unique_id_prefixes(target: str, label
         render_collaboration_call(tools.MESSAGE_PEER, json.dumps({"target": target, "body": "hello"}), directory)
     )
     output = console.export_text()
-    assert output.splitlines()[0].rstrip() == f"  ↑ Send Message {label}"
+    assert output.splitlines()[0].rstrip() == f"  → To {label}"
     assert "[finder]" not in output and "[peer]" not in output
 
 
 @pytest.mark.parametrize("width", [12, 32, 40, 80])
+@pytest.mark.parametrize("direction", ["to", "from"])
 @pytest.mark.parametrize(
     "body", ["\n".join(f"line {index}" for index in range(1, 10)), "long body " * 60, "消息正文" * 60]
 )
-def test_peer_message_caps_actual_body_rows_under_left_aligned_title(width: int, body: str) -> None:
+def test_peer_message_caps_actual_body_rows_under_left_aligned_title(
+    width: int, direction: Literal["to", "from"], body: str
+) -> None:
     from rich.console import Console
 
     from klaude_code.tui.components.background_tasks import render_message
@@ -836,30 +842,33 @@ def test_peer_message_caps_actual_body_rows_under_left_aligned_title(width: int,
 
     def plain(detail: Detail) -> str:
         console = Console(width=width, record=True, force_terminal=False, theme=get_theme().app_theme)
-        console.print(render_message("from", "peer", body, detail=detail))
+        console.print(render_message(direction, "peer", body, detail=detail))
         return console.export_text()
 
     compact = plain(Detail.COMPACT)
     rows = compact.splitlines()
-    body_rows = [line for line in rows if "│" in line]
+    body_rows = rows[1:]
     assert len(rows) == 3 and len(body_rows) == 2
     assert body_rows[-1].rstrip().endswith("…")
     assert "more lines" not in compact
     if width >= 32:
-        assert rows[0].rstrip() == "  ↓ Receive Message peer"
+        assert rows[0].rstrip() == ("  → To peer" if direction == "to" else "  │ peer · Received")
     else:
-        assert rows[0].startswith("  ↓ ") and rows[0].rstrip().endswith("…")
-    assert all(row.startswith("    │ ") for row in body_rows)
+        assert rows[0].startswith("  → " if direction == "to" else "  │ ")
+        assert rows[0].rstrip().endswith("peer" if direction == "to" else "…")
+    prefix = "    │ " if direction == "to" else "  │ "
+    assert all(row.startswith(prefix) for row in body_rows)
+    assert "│" in compact
     assert not any(char in compact for char in "╭╮╰╯─")
     expanded = plain(Detail.FULL)
-    assert len([line for line in expanded.splitlines() if "│" in line]) > 2
-    assert all("…" not in line for line in expanded.splitlines() if "│" in line)
+    assert len(expanded.splitlines()[1:]) > 2
+    assert all("…" not in line for line in expanded.splitlines()[1:])
     if "\n" in body:
         assert "line 9" in expanded
     elif body.startswith("long"):
         assert expanded.count("long") == body.count("long")
     else:
-        assert "".join(line.removeprefix("    │ ").rstrip() for line in expanded.splitlines()[1:]) == body
+        assert "".join(line.removeprefix(prefix).rstrip() for line in expanded.splitlines()[1:]) == body
 
 
 @pytest.mark.parametrize("body", ["one row", "one row\nsecond row"])
@@ -873,13 +882,14 @@ def test_short_peer_message_has_no_truncation_marker(body: str) -> None:
     console = Console(width=80, record=True, force_terminal=False, theme=get_theme().app_theme)
     console.print(render_message("from", "peer", body, detail=Detail.COMPACT))
     output = console.export_text()
-    assert len([line for line in output.splitlines() if "│" in line]) == len(body.splitlines())
+    assert len(output.splitlines()[1:]) == len(body.splitlines())
     assert "…" not in output
 
 
 @pytest.mark.parametrize("direction", ["to", "from"])
 @pytest.mark.parametrize("detail", list(Detail))
-def test_peer_message_styles_tool_name_peer_gray_body_and_quote(direction: str, detail: Detail) -> None:
+@pytest.mark.parametrize("theme", ["light", "dark"])
+def test_peer_message_styles_heading_body_and_incoming_background(direction: str, detail: Detail, theme: str) -> None:
     from rich.console import Console
 
     from klaude_code.tui.components.background_tasks import (
@@ -889,7 +899,7 @@ def test_peer_message_styles_tool_name_peer_gray_body_and_quote(direction: str, 
     )
     from klaude_code.tui.components.rich.theme import ThemeKey, get_theme
 
-    console = Console(width=80, force_terminal=False, theme=get_theme().app_theme)
+    console = Console(width=80, force_terminal=False, theme=get_theme(theme).app_theme)
 
     if direction == "to":
         renderable = render_collaboration_call(
@@ -909,13 +919,27 @@ def test_peer_message_styles_tool_name_peer_gray_body_and_quote(direction: str, 
     lines = console.render_lines(renderable)
     segments = [segment for line in lines for segment in line]
     peer = {segment.style for segment in lines[0] if "peer" in segment.text}
-    action = {segment.style for segment in lines[0] if "Message" in segment.text}
-    arrow = {segment.style for segment in lines[0] if "↑" in segment.text or "↓" in segment.text}
     quote = {segment.style for segment in segments if segment.text.strip() == "│"}
     body = {segment.style for segment in segments if "hello there" in segment.text}
-    assert peer == {console.get_style(ThemeKey.TOOL_PARAM)}
-    assert action == {console.get_style(ThemeKey.TOOL_NAME)}
-    assert arrow == {console.get_style(ThemeKey.METADATA)}
-    assert quote == {console.get_style(ThemeKey.LINES)}
-    assert body == {console.get_style(ThemeKey.PEER_MESSAGE_BODY)}
-    assert peer != quote and peer != body
+    if direction == "to":
+        assert peer == {console.get_style(ThemeKey.METADATA_BOLD)}
+        assert {segment.style for segment in lines[0] if "→ To " in segment.text} == {
+            console.get_style(ThemeKey.METADATA)
+        }
+        assert quote == {console.get_style(ThemeKey.LINES)}
+        assert body == {console.get_style(ThemeKey.PEER_MESSAGE_BODY)}
+        assert all(segment.style is None or segment.style.bgcolor is None for segment in segments)
+    else:
+        background = console.get_style(ThemeKey.PEER_MESSAGE_BACKGROUND)
+        heading = background + console.get_style(ThemeKey.PEER_MESSAGE_HEADING)
+        assert peer == quote == {heading}
+        assert {segment.style for segment in lines[0] if " · Received" in segment.text} == {
+            background + console.get_style(ThemeKey.METADATA)
+        }
+        assert body == {background + console.get_style(ThemeKey.PEER_MESSAGE_BODY)}
+        for line in lines[:2]:
+            assert sum(len(segment.text) for segment in line) == 80
+            assert all(
+                segment.style is not None and segment.style.bgcolor == background.bgcolor for segment in line[1:]
+            )
+            assert line[0].text == "  " and (line[0].style is None or line[0].style.bgcolor is None)
