@@ -150,7 +150,10 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   deleted code file shows only its header. A compact sub-agent's file changes
   print nothing as they happen; the run's `▌` block sums them up in one
   `± N files +a -r` total followed by per-file paths and line counts (each diff below them under ctrl-t). ctrl-t (`ToggleDiffDetailEvent`, `TranscriptDetail.diffs_expanded`)
-  expands every diff without leaving compact mode; expanded mode never folds.
+  expands every diff and compaction summary without leaving compact mode;
+  pressing it again folds both. Compact compaction summaries preview 15 rendered
+  screen lines and append an omission count with `ctrl-t` when clipped. Summary
+  wrapping and counts follow the panel's current width. Expanded mode never folds.
 - A call the agent made keeps its tool mark (`$ Shell`, `◈ Tasks`); input the
   system fills back in later uses `MARK_CALLBACK` (`› Shell`, `› Task`).
   Peer messages use outgoing titles and incoming quote blocks.

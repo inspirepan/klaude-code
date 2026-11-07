@@ -4,6 +4,7 @@ from typing import Any, Literal
 from rich.console import Console
 
 from klaude_code.protocol import events, tools
+from klaude_code.protocol.message import KeptItemBrief
 from klaude_code.protocol.models import DiffFileDiff, DiffLine, DiffSpan, DiffUIExtra
 from klaude_code.tui.components.diffs import render_structured_diff
 from klaude_code.tui.components.rich.theme import get_theme
@@ -79,8 +80,29 @@ def test_ctrl_t_rebuilds_transcript_with_diffs_expanded(monkeypatch: Any) -> Non
         try:
             await display.consume_envelope(make_envelope(events.TaskStartEvent(session_id="main")))
             await display.consume_envelope(make_envelope(result))
+            await display.consume_envelope(
+                make_envelope(
+                    events.CompactionEndEvent(
+                        session_id="main",
+                        reason="manual",
+                        summary="  \n".join(f"summary row {index}" for index in range(20)) + "  \nTAIL_SENTINEL",
+                        kept_items_brief=[KeptItemBrief(item_type="Read", count=2)],
+                    )
+                )
+            )
             await display.consume_envelope(make_envelope(events.ToggleDiffDetailEvent(session_id="main")))
             assert display.compact_transcript is True
+            expanded, cleared = writes[-1]
+            assert cleared and "line 20" in expanded and "more lines" not in expanded
+            assert "TAIL_SENTINEL" in expanded and "Read x 2" in expanded
+
+            await display.consume_envelope(make_envelope(events.ToggleDiffDetailEvent(session_id="main")))
+            folded, cleared = writes[-1]
+            assert cleared and "line 20" not in folded and "TAIL_SENTINEL" not in folded
+            assert "more lines" in folded and "Read x 2" in folded
+
+            await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
+            assert display.compact_transcript is False
         finally:
             await display.stop()
         return writes
@@ -88,3 +110,4 @@ def test_ctrl_t_rebuilds_transcript_with_diffs_expanded(monkeypatch: Any) -> Non
     writes = asyncio.run(run())
     expanded, cleared = writes[-1]
     assert cleared and "line 20" in expanded and "more lines" not in expanded
+    assert "TAIL_SENTINEL" in expanded and "Read x 2" in expanded

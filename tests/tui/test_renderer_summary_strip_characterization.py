@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import io
 
+import pytest
 from rich.console import Console
 from rich.text import Text
 
@@ -24,6 +25,7 @@ from klaude_code.tui.commands import (
     SpinnerStatusLine,
 )
 from klaude_code.tui.renderer import TUICommandRenderer
+from klaude_code.tui.transcript_detail import Detail
 
 
 def _renderer_and_output() -> tuple[TUICommandRenderer, io.StringIO]:
@@ -79,6 +81,41 @@ def test_compaction_summary_kept_items_brief_listed() -> None:
     assert "Kept uncompacted" in rendered
     assert "Bash x 2" in rendered
     assert "Read" in rendered
+
+
+@pytest.mark.parametrize("line_count", [5, 15, 16, 30])
+def test_compaction_summary_previews_fifteen_rendered_lines(line_count: int) -> None:
+    renderer, output = _renderer_and_output()
+    summary = "  \n".join(f"row {index}" for index in range(1, line_count + 1))
+    renderer.display_compaction_summary(summary)
+    rendered = output.getvalue()
+    content_lines = [line.strip() for line in rendered.splitlines() if line.strip()][1:]
+    assert content_lines[: min(line_count, 15)] == [f"row {index}" for index in range(1, min(line_count, 15) + 1)]
+    if line_count > 15:
+        assert "row 16" not in rendered
+        assert f"… {line_count - 15} more lines · ctrl-t" in rendered
+    else:
+        assert "more lines" not in rendered
+
+
+@pytest.mark.parametrize("width", [40, 70, 100])
+def test_compaction_summary_counts_wrapped_markdown_at_current_width(width: int) -> None:
+    renderer, output = _renderer_and_output()
+    renderer.console = Console(file=output, theme=renderer.themes.app_theme, width=width, force_terminal=False)
+    summary = "**alpha 中文摘要** " * 150 + "TAIL_SENTINEL"
+    renderer.set_transcript_detail(Detail.FULL)
+    renderer.display_compaction_summary(summary)
+    full_lines = [line.strip() for line in output.getvalue().splitlines() if line.strip()][1:]
+    assert len(full_lines) > 15
+    assert "TAIL_SENTINEL" in full_lines[-1]
+
+    output.seek(0)
+    output.truncate()
+    renderer.set_transcript_detail(Detail.COMPACT)
+    renderer.display_compaction_summary(summary)
+    compact_lines = [line.strip() for line in output.getvalue().splitlines() if line.strip()][1:]
+    assert compact_lines[:-1] == full_lines[:15]
+    assert compact_lines[-1] == f"… {len(full_lines) - 15} more lines · ctrl-t"
 
 
 # ---------------------------------------------------------------------------

@@ -126,12 +126,12 @@ class TranscriptDetail:
 
     def __init__(self, detail: Detail = Detail.COMPACT) -> None:
         self._detail = detail
-        # ctrl-t: show every diff whole without leaving compact mode.
+        # ctrl-t: expand diffs and compaction summaries without leaving compact mode.
         self.diffs_expanded = False
 
     @property
     def folds_diffs(self) -> bool:
-        """Whether file diffs are folded by size; expanded mode always shows them whole."""
+        """Whether diffs and compaction summaries fold; full mode always shows them whole."""
         return self._detail.is_compact and not self.diffs_expanded
 
     def toggle_diffs(self) -> bool:

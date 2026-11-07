@@ -120,6 +120,8 @@ from klaude_code.tui.components.background_tasks import (
     unreported_finished_tasks,
 )
 from klaude_code.tui.components.common import format_more_lines_indicator, format_pascal_case
+from klaude_code.tui.components.diffs import EXPAND_DIFFS_HINT, FOLD_DOC_PREVIEW_LINES
+from klaude_code.tui.components.rich.clip import MaxLines
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText
@@ -1806,8 +1808,18 @@ class TUICommandRenderer:
         panel_width = min(100, terminal_width) - 2
 
         self.console.push_theme(self.themes.markdown_theme)
+        content: RenderableType = NoInsetMarkdown(
+            stripped, code_theme=self.themes.code_theme, style=ThemeKey.COMPACTION_SUMMARY
+        )
+        if self._detail.folds_diffs:
+            content = MaxLines(
+                content,
+                FOLD_DOC_PREVIEW_LINES,
+                ellipsis_style=ThemeKey.COMPACTION_SUMMARY,
+                expand_hint=EXPAND_DIFFS_HINT,
+            )
         panel = Panel(
-            NoInsetMarkdown(stripped, code_theme=self.themes.code_theme, style=ThemeKey.COMPACTION_SUMMARY),
+            content,
             box=box.SIMPLE,
             border_style=ThemeKey.LINES,
             style=ThemeKey.COMPACTION_SUMMARY_PANEL,
