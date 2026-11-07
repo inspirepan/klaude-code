@@ -2502,7 +2502,9 @@ class DisplayStateMachine:
         # Derive the start from the metadata end time so the printed span always
         # agrees with the duration. A replayed first TaskStartEvent can carry the
         # session creation time instead of the turn's actual start.
-        label = f"{_format_time_marker_label(e.timestamp - duration)} → {_format_time_marker_label(e.timestamp)}"
+        label = _format_time_marker_label(e.timestamp)
+        if duration > 3600:
+            label = f"{_format_time_marker_label(e.timestamp - duration)} → {label}"
         return RenderTurnTiming(label=label, duration_s=duration)
 
     def _handle_TaskFileChangeSummaryEvent(

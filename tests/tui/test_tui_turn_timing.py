@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
+import pytest
+
 from klaude_code.protocol import events
 from klaude_code.protocol.models import SubAgentState, TaskMetadata, TaskMetadataItem
 from klaude_code.tui.commands import RenderTaskMetadata, RenderTurnTiming
@@ -26,9 +28,13 @@ def _main_turn(start_hour: int, start_minute: int, *, duration_s: float = 120.0)
     return task_start, metadata
 
 
-def test_compact_main_agent_emits_turn_timing_before_metadata() -> None:
+@pytest.mark.parametrize(
+    ("duration_s", "label"),
+    [(11.0, "19:10"), (120.0, "19:12"), (3600.0, "20:10"), (3601.0, "19:10 → 20:10")],
+)
+def test_compact_main_agent_emits_turn_timing_before_metadata(duration_s: float, label: str) -> None:
     machine = DisplayStateMachine()  # compact by default
-    task_start, metadata = _main_turn(19, 10)
+    task_start, metadata = _main_turn(19, 10, duration_s=duration_s)
 
     machine.transition(task_start)
     cmds = machine.transition(metadata)
@@ -37,8 +43,8 @@ def test_compact_main_agent_emits_turn_timing_before_metadata() -> None:
     assert len(timing) == 1
     metadata_index = next(i for i, cmd in enumerate(cmds) if isinstance(cmd, RenderTaskMetadata))
     assert cmds.index(timing[0]) < metadata_index
-    assert timing[0].label == "19:10 → 19:12"
-    assert timing[0].duration_s == 120.0
+    assert timing[0].label == label
+    assert timing[0].duration_s == duration_s
 
 
 def test_full_mode_does_not_emit_turn_timing() -> None:
@@ -101,18 +107,34 @@ def test_turn_timing_ignores_stale_task_started_at_on_replay() -> None:
     cmds = machine.transition(
         events.TaskMetadataEvent(
             session_id="main",
-            metadata=TaskMetadataItem(main_agent=TaskMetadata(model_name="test", task_duration_s=120.0)),
+            metadata=TaskMetadataItem(main_agent=TaskMetadata(model_name="test", task_duration_s=3720.0)),
             timestamp=end,
         )
     )
 
     timing = [cmd for cmd in cmds if isinstance(cmd, RenderTurnTiming)]
     assert len(timing) == 1
-    assert timing[0].label == "19:10 → 19:12"
+    assert timing[0].label == "18:10 → 19:12"
 
 
-def test_renderer_outputs_turn_timing_line_then_blank_line() -> None:
+@pytest.mark.parametrize(
+    ("duration_s", "label", "duration"),
+    [
+        (0.0, "19:10", "0s"),
+        (11.0, "19:10", "11s"),
+        (126.0, "19:12", "2m 6s"),
+        (3600.0, "20:10", "1h"),
+        (3601.0, "19:10 → 20:10", "1h 1s"),
+    ],
+)
+def test_renderer_keeps_turn_timing_adjacent_to_metadata(duration_s: float, label: str, duration: str) -> None:
     renderer = TUICommandRenderer()
     with renderer.bulk_render_capture() as buf:
-        renderer.display_turn_timing("19:10 → 19:12", 120.0)
-    assert "⌛︎ Worked for 2m00s · 19:10 → 19:12\n\n" in buf.getvalue()
+        renderer.display_turn_timing(label, duration_s)
+        renderer.display_task_metadata(
+            events.TaskMetadataEvent(
+                session_id="main",
+                metadata=TaskMetadataItem(main_agent=TaskMetadata(model_name="test", task_duration_s=duration_s)),
+            )
+        )
+    assert buf.getvalue().startswith(f"  Worked for {duration} · {label}\n• test\n")

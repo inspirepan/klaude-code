@@ -119,7 +119,7 @@ from klaude_code.tui.components.background_tasks import (
     render_task_outcome,
     unreported_finished_tasks,
 )
-from klaude_code.tui.components.common import format_elapsed_compact, format_more_lines_indicator, format_pascal_case
+from klaude_code.tui.components.common import format_more_lines_indicator, format_pascal_case
 from klaude_code.tui.components.rich.markdown import MarkdownStream, NoInsetMarkdown, ThinkingMarkdown
 from klaude_code.tui.components.rich.quote import Quote
 from klaude_code.tui.components.rich.status import DynamicText, ResponsiveDynamicText, StackedStatusText
@@ -1647,8 +1647,12 @@ class TUICommandRenderer:
 
     def display_turn_timing(self, label: str, duration_s: float) -> None:
         """Print the compact-view one-line turn timing above the metadata block."""
-        self.print(Text(f"⌛︎ Worked for {format_elapsed_compact(duration_s)} · {label}", style=ThemeKey.METADATA_GREEN))
-        self.print()
+        hours, remainder = divmod(max(0, int(duration_s)), 3600)
+        minutes, seconds = divmod(remainder, 60)
+        duration = " ".join(f"{value}{unit}" for value, unit in ((hours, "h"), (minutes, "m"), (seconds, "s")) if value)
+        line = Text(f"  Worked for {duration or '0s'}", style=ThemeKey.METADATA)
+        line.append(f" · {label}", style=ThemeKey.METADATA_DIM)
+        self.print(line)
 
     def display_task_file_change_summary(self, event: events.TaskFileChangeSummaryEvent) -> None:
         if not self._visible(event):
