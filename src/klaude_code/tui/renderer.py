@@ -1676,6 +1676,8 @@ class TUICommandRenderer:
                     sub_agent_color=self._current_sub_agent_color,
                 )
             )
+        if event.task_result.strip():
+            self._task_directory.record_quoted_result(event.session_id)
 
     def display_sub_agent_batch_summary(self, summaries: tuple[SubAgentSummary, ...]) -> None:
         summaries = tuple(summary for summary in summaries if self._task_directory.claim_summary(summary.session_id))

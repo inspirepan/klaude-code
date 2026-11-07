@@ -129,7 +129,11 @@ class PeerEndpoint:
                 session_id=agent.session.id,
                 name=agent.session.name,
                 state=self.scheduler.session_status(agent.session.id).category,
-                description=agent.session.title or "",
+                description=(
+                    agent.session.sub_agent_state.sub_agent_desc if agent.session.sub_agent_state is not None else ""
+                )
+                or agent.session.title
+                or "",
                 work_dir=str(agent.session.work_dir),
             )
             for actor in self.runtime.session_registry.list_session_actors()

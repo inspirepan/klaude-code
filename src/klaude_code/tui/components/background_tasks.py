@@ -57,6 +57,7 @@ class TaskDirectory:
         self._reported_sessions: set[str] = set()
         # Child sessions whose `▌` batch block already printed their result.
         self._summarized_sessions: set[str] = set()
+        self._quoted_results: set[str] = set()
 
     def reset(self) -> None:
         """Forget what was printed; keep the labels.
@@ -67,6 +68,7 @@ class TaskDirectory:
         self._reported.clear()
         self._reported_sessions.clear()
         self._summarized_sessions.clear()
+        self._quoted_results.clear()
 
     def name_main(self, session_id: str) -> None:
         if self._main_session_id is not None and self._main_session_id != session_id:
@@ -146,6 +148,12 @@ class TaskDirectory:
             return False
         self._summarized_sessions.add(session_id)
         return True
+
+    def record_quoted_result(self, session_id: str) -> None:
+        self._quoted_results.add(session_id)
+
+    def has_quoted_result(self, session_id: str | None) -> bool:
+        return session_id in self._quoted_results
 
     def claim_task(self, task_id: str) -> bool:
         """Whether this finished task still needs its one transcript row."""
@@ -417,9 +425,13 @@ def render_sourced_message(
     heading = Text("Background report", style=ThemeKey.METADATA)
     if response is None:
         return _report_row(heading, Text("Result: /tasks output TASK_ID", style=ThemeKey.METADATA_DIM))
-    if response.truncated or len(response.output) > 8192:
+    if response.tasks and all(
+        task.ref.kind == "agent" and directory.has_quoted_result(task.ref.session_id) for task in response.tasks
+    ):
+        body: RenderableType = render_task_response(response, detail=detail, show_output=False)
+    elif response.truncated or len(response.output) > 8192:
         task_id = response.tasks[0].ref.task_id if response.tasks else "TASK_ID"
-        body: RenderableType = Group(
+        body = Group(
             render_task_response(response, detail=detail, show_output=False),
             Text(f"Result: /tasks output {task_id}", style=ThemeKey.METADATA_DIM),
         )

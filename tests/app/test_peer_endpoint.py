@@ -5,13 +5,51 @@ import multiprocessing
 import threading
 from multiprocessing.connection import Connection
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
-from klaude_code.app.peer_endpoint import EndpointRecord, call_endpoint, registered_endpoints
+from klaude_code.app.peer_endpoint import EndpointRecord, PeerEndpoint, call_endpoint, registered_endpoints
 from klaude_code.app.session_lease import SessionInUseError, SessionLease
+from klaude_code.protocol.models.sub_agent import SubAgentState
 from klaude_code.protocol.peer import PeerMessage
+from klaude_code.session.session import Session
+
+
+@pytest.mark.parametrize(
+    ("task_description", "title", "expected"),
+    [
+        ("Review changes", None, "Review changes"),
+        ("Review changes", "Inherited title", "Review changes"),
+        ("", "Session title", "Session title"),
+        (None, "Session title", "Session title"),
+        (None, None, ""),
+    ],
+)
+def test_peer_discovery_publishes_subagent_task_description(
+    tmp_path: Path, task_description: str | None, title: str | None, expected: str
+) -> None:
+    session = Session(work_dir=tmp_path, title=title)
+    if task_description is not None:
+        session.sub_agent_state = SubAgentState(
+            sub_agent_type="general-purpose", sub_agent_desc=task_description, sub_agent_prompt="Review the changes."
+        )
+    actor = Mock()
+    actor.get_agent.return_value.session = session
+    runtime = Mock()
+    runtime.session_registry.list_session_actors.return_value = [actor]
+    scheduler = Mock()
+    scheduler.session_status.return_value.category = "idle"
+    endpoint = PeerEndpoint(runtime, scheduler)
+
+    endpoint.refresh()
+
+    records = registered_endpoints()
+    assert len(records) == 1
+    peer = records[0].sessions[0]
+    assert peer.session_id == session.id
+    assert peer.description == expected
+    assert peer.state == "idle"
 
 
 def test_locate_timeout_includes_endpoint_discovery(monkeypatch: pytest.MonkeyPatch) -> None:

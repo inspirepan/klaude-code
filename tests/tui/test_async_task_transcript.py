@@ -222,6 +222,73 @@ def test_single_agent_launch_uses_one_line(monkeypatch: pytest.MonkeyPatch, caps
     assert lines == ["◈ Launch  Finder Find the panel · in background"]
 
 
+@pytest.mark.parametrize("detail", [Detail.COMPACT, Detail.FULL])
+@pytest.mark.parametrize("quoted_result", [None, "Unique child conclusion"])
+def test_agent_callback_keeps_metadata_without_repeating_quoted_body(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], detail: Detail, quoted_result: str | None
+) -> None:
+    async def run() -> None:
+        writes = patch_scrollback_writes(monkeypatch)
+        display = TUIDisplay()
+        body = "Unique child conclusion"
+        done = _agent("task-a", "child-a", "Find the panel", "completed").model_copy(
+            update={"result": BackgroundTaskResult(text=body, summary=body)}
+        )
+        report = TaskResponse(tasks=[done], output=body)
+
+        def check(output: str, current: Detail) -> None:
+            assert output.count(body) == 1
+            if current is Detail.FULL:
+                assert "Background report" in output
+                assert "id: task-a" in output and "session: child-a" in output
+                assert "Agent · completed" in output
+                if quoted_result:
+                    assert any("▌" in line and body in line for line in output.splitlines())
+            else:
+                assert "Background report" not in output and "id: task-a" not in output
+                assert "Finder Find the panel ✓" in output
+
+        try:
+            await display.consume_envelope(make_envelope(_welcome()))
+            if detail is Detail.FULL:
+                await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
+            capsys.readouterr()
+            script: list[events.Event] = [
+                events.TaskStartEvent(session_id="main", model_id="test-model"),
+                events.TaskStartEvent(
+                    session_id="child-a",
+                    parent_session_id="main",
+                    sub_agent_state=SubAgentState(
+                        sub_agent_type="finder", sub_agent_desc="Find the panel", sub_agent_prompt="Inspect the UI."
+                    ),
+                ),
+            ]
+            if quoted_result is not None:
+                script.append(events.TaskFinishEvent(session_id="child-a", task_result=quoted_result))
+            script.extend(
+                [
+                    events.BackgroundTasksUpdatedEvent(session_id="main", tasks=[done]),
+                    events.UserMessageEvent(
+                        session_id="main", source="task_completion", content="", task_response=report
+                    ),
+                ]
+            )
+            for event in script:
+                await display.consume_envelope(make_envelope(event))
+            check(capsys.readouterr().out, detail)
+            await display.consume_envelope(make_envelope(events.RefreshDisplayEvent(session_id="main")))
+            check(writes[-1][0], detail)
+            current = detail
+            for _ in range(2):
+                await display.consume_envelope(make_envelope(events.ToggleTranscriptDetailEvent(session_id="main")))
+                current = Detail.FULL if current is Detail.COMPACT else Detail.COMPACT
+                check(writes[-1][0], current)
+        finally:
+            await display.stop()
+
+    asyncio.run(run())
+
+
 def test_compact_transcript_does_not_report_a_sub_agent_shell_finish(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
