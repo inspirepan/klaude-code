@@ -52,21 +52,6 @@ def test_get_skills_xml_emits_base_dir_only_when_it_differs_from_skill_dir() -> 
     assert 'base_dir="/linked/place"' in loader.get_skills_xml()
 
 
-def test_get_skills_yaml_is_backward_compatible_alias() -> None:
-    loader = SkillLoader()
-    loader.loaded_skills = {
-        "demo": Skill(
-            name="demo",
-            description="demo desc",
-            location="project",
-            skill_path=Path("/demo/SKILL.md"),
-            base_dir=Path("/demo"),
-        )
-    }
-
-    assert loader.get_skills_yaml() == loader.get_skills_xml()
-
-
 def test_extract_skill_listing_paths_round_trips_current_format() -> None:
     loader = SkillLoader()
     loader.loaded_skills = {

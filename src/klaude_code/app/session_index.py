@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import json
 import threading
 import time
 from dataclasses import dataclass
@@ -9,20 +8,10 @@ from pathlib import Path
 from typing import Any, cast
 
 from klaude_code.protocol.models.session_status import SessionRuntimeFacts
-from klaude_code.session.meta import parse_runtime_facts
+from klaude_code.session.meta import parse_runtime_facts, parse_session_timestamp, read_json_dict
 
 type TodoSummary = dict[str, str]
 type FileChangeSummary = dict[str, list[str] | int | dict[str, dict[str, int]]]
-
-
-def _read_json_dict(path: Path) -> dict[str, Any] | None:
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
-    if not isinstance(raw, dict):
-        return None
-    return cast(dict[str, Any], raw)
 
 
 def _iter_meta_files(home: Path) -> list[Path]:
@@ -64,22 +53,8 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
         return None
 
     sid = str(data.get("id", fallback_session_id))
-    created_at_raw = data.get("created_at")
-    if isinstance(created_at_raw, int | float | str):
-        try:
-            created_at = float(created_at_raw)
-        except ValueError:
-            created_at = time.time()
-    else:
-        created_at = time.time()
-    updated_at_raw = data.get("updated_at", created_at)
-    if isinstance(updated_at_raw, int | float | str):
-        try:
-            updated_at = float(updated_at_raw)
-        except ValueError:
-            updated_at = created_at
-    else:
-        updated_at = created_at
+    created_at = parse_session_timestamp(data.get("created_at"), fallback=time.time())
+    updated_at = parse_session_timestamp(data.get("updated_at"), fallback=created_at)
     title = data.get("title") if isinstance(data.get("title"), str) else None
 
     user_messages_raw = data.get("user_messages")
@@ -196,7 +171,7 @@ class SessionIndex:
     def reload(self) -> None:
         sessions: dict[str, SessionSummary] = {}
         for meta_path in _iter_meta_files(self._home):
-            data = _read_json_dict(meta_path)
+            data = read_json_dict(meta_path)
             if data is None:
                 continue
             summary = load_session_summary_from_meta(data, fallback_session_id=meta_path.parent.name)
@@ -230,7 +205,7 @@ def resolve_session_work_dir_fast(index: SessionIndex | None, home: Path, sessio
 
 def resolve_session_work_dir(home: Path, session_id: str) -> Path | None:
     for meta_path in _iter_meta_files(home):
-        data = _read_json_dict(meta_path)
+        data = read_json_dict(meta_path)
         if data is None:
             continue
         if data.get("deleted_at") is not None:

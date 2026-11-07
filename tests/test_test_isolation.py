@@ -39,8 +39,7 @@ def test_unit_tests_ignore_local_credentials_but_network_tests_keep_them(
                 assert name not in os.environ
             assert schema.config_path.parent.parent == Path.home()
             assert schema.example_config_path.parent.parent == Path.home()
-            assert base.KLAUDE_AUTH_FILE == env.KLAUDE_AUTH_FILE
-            assert env.KLAUDE_AUTH_FILE.parent.parent == Path.home()
+            assert base.KLAUDE_AUTH_FILE.parent.parent == Path.home()
             assert env.get_auth_env("OPENAI_API_KEY") is None
             config = load_config()
             assert not config.iter_model_entries(only_available=True)

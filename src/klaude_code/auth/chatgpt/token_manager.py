@@ -7,6 +7,7 @@ from filelock import FileLock
 from pydantic import Field
 
 from klaude_code.auth.base import LOCK_TIMEOUT_SECONDS, BaseAuthState, BaseTokenManager
+from klaude_code.auth.store import load_store, save_store
 
 DEVICE_ID_KEY = "chatgpt_device_id"
 
@@ -36,7 +37,7 @@ class ChatGPTTokenManager(BaseTokenManager[ChatGPTAuthState]):
         reports the same `ext_agent_host_id`.
         """
         with FileLock(self._get_lock_file(), timeout=LOCK_TIMEOUT_SECONDS):
-            store = self._load_store()
+            store = load_store(self.auth_file)
             saved = store.get(DEVICE_ID_KEY)
             if isinstance(saved, str):
                 try:
@@ -46,5 +47,5 @@ class ChatGPTTokenManager(BaseTokenManager[ChatGPTAuthState]):
 
             device_id = str(uuid.uuid4())
             store[DEVICE_ID_KEY] = device_id
-            self._save_store(store)
+            save_store(self.auth_file, store)
             return device_id

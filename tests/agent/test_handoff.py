@@ -272,7 +272,7 @@ class TestRunHandoff:
 
 class TestMemoryReset:
     def test_reset_attachment_loaded_flags(self) -> None:
-        from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
+        from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 
         file_tracker: dict[str, FileStatus] = {
             "src/foo.py": FileStatus(mtime=1.0, is_memory=False),
@@ -295,7 +295,7 @@ class TestMemoryReset:
             "src/bar.py": FileStatus(mtime=4.0, is_memory=False),
         }
 
-        _reset_attachment_loaded_flags(file_tracker)
+        reset_attachment_loaded_flags(file_tracker)
 
         # Attachment-only entries should be removed
         assert "/home/.claude/CLAUDE.md" not in file_tracker

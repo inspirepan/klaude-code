@@ -38,12 +38,9 @@ class CommandName(str, Enum):
 
 ### 3. Register the command
 
-In `__init__.py`, inside `ensure_commands_loaded()`:
-
-1. Import the command class
-2. Call `register(MyCommand())` at the desired position
-
-Registration order determines display order in slash command completion.
+In `__init__.py`, add `"MyCommand": "my_cmd"` to `_COMMAND_MODULES` at the
+desired display position. This ordered mapping drives both lazy class access
+and command initialization; its order determines slash command completion order.
 
 ## Key Conventions
 

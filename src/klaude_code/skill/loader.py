@@ -92,14 +92,8 @@ def get_candidate_skill_dirs_for_anchor(
     return tuple(sorted(candidate_dirs.items()))
 
 
-# Backward-compatible alias for internal callers that still use the old name.
-_get_candidate_skill_dirs_for_anchor = get_candidate_skill_dirs_for_anchor
-
-
 @dataclass
 class Skill:
-    """Skill data structure"""
-
     name: str  # Skill identifier (lowercase-hyphen)
     description: str  # What the skill does and when to use it
     location: str  # Skill source: 'user' or 'project'
@@ -137,7 +131,6 @@ class SkillLoader:
     ]
 
     def __init__(self) -> None:
-        """Initialize the skill loader"""
         self.loaded_skills: dict[str, Skill] = {}
         self.skill_warnings_by_location: dict[str, list[str]] = {"user": [], "project": []}
 
@@ -177,9 +170,6 @@ class SkillLoader:
 
         return skill_files
 
-    def _find_git_repo_root(self, cwd: Path) -> Path | None:
-        return _find_git_repo_root(cwd)
-
     def _get_project_skill_dirs(self, work_dir: Path) -> list[Path]:
         cwd = work_dir.resolve()
         seen = {directory.expanduser().resolve() for directory in self.USER_SKILLS_DIRS}
@@ -212,7 +202,6 @@ class SkillLoader:
         try:
             content = skill_path.read_text(encoding="utf-8")
 
-            # Parse YAML frontmatter
             frontmatter: dict[str, object] = {}
 
             if content.startswith("---"):
@@ -222,7 +211,6 @@ class SkillLoader:
                     if isinstance(loaded, dict):
                         frontmatter = dict(loaded)  # type: ignore[arg-type]
 
-            # Extract skill metadata
             name_val = frontmatter.get("name")
             description = str(frontmatter.get("description", ""))
             parent_dir_name = skill_path.parent.name
@@ -239,17 +227,14 @@ class SkillLoader:
                 )
                 self.skill_warnings_by_location.setdefault(location, []).append(warning)
 
-            # Create Skill object
             license_val = frontmatter.get("license")
             allowed_tools_val = frontmatter.get("allowed-tools")
             metadata_val = frontmatter.get("metadata")
 
-            # Convert allowed_tools
             allowed_tools: list[str] | None = None
             if isinstance(allowed_tools_val, list):
                 allowed_tools = [str(t) for t in allowed_tools_val]  # type: ignore[misc]
 
-            # Convert metadata
             metadata: dict[str, str] | None = None
             if isinstance(metadata_val, dict):
                 metadata = {str(k): str(v) for k, v in metadata_val.items()}  # type: ignore[misc]
@@ -316,7 +301,6 @@ class SkillLoader:
             )
             self.skill_warnings_by_location.setdefault(skill.location, []).append(warning)
 
-        # Load user-level skills.
         for user_dir in self.USER_SKILLS_DIRS:
             expanded_dir = user_dir.expanduser()
             if expanded_dir.exists():
@@ -326,7 +310,6 @@ class SkillLoader:
                         skills.append(skill)
                         register(skill)
 
-        # Load project-level skills (override user skills if same name)
         for resolved_dir in self._get_project_skill_dirs(work_dir):
             if resolved_dir.exists():
                 for skill_file in self.iter_skill_files(resolved_dir):
@@ -335,7 +318,6 @@ class SkillLoader:
                         skills.append(skill)
                         register(skill)
 
-        # Log discovery summary
         if self.loaded_skills:
             selected = list(self.loaded_skills.values())
             user_count = sum(1 for s in selected if s.location == "user")
@@ -395,13 +377,6 @@ class SkillLoader:
             )
             xml_parts.append(f'  <skill name="{name}" path="{path}"{base_dir_attr}>{description}</skill>')
         return "\n".join(xml_parts)
-
-    def get_skills_yaml(self) -> str:
-        """Backward-compatible alias for previous method name.
-
-        Returns XML-like metadata used in the system prompt.
-        """
-        return self.get_skills_xml()
 
 
 def discover_skills_near_paths(paths: Iterable[str], *, work_dir: Path) -> list[Skill]:

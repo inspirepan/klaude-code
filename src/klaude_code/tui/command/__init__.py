@@ -1,3 +1,5 @@
+import importlib
+
 from .command_abc import CommandABC, CommandResult
 from .registry import (
     dispatch_command,
@@ -13,105 +15,53 @@ from .registry import (
 )
 from .types import CommandInfo, CommandName
 
-# Lazy load commands to avoid heavy imports at module load time
+_COMMAND_MODULES: dict[str, str] = {
+    "CopyCommand": "copy_cmd",
+    "CompactCommand": "compact_cmd",
+    "ForkSessionCommand": "fork_session_cmd",
+    "RewindCommand": "rewind_cmd",
+    "RefreshTerminalCommand": "refresh_cmd",
+    "NewCommand": "new_cmd",
+    "ModelCommand": "model_cmd",
+    "ManageProvidersCommand": "manage_providers_cmd",
+    "SubAgentModelCommand": "sub_agent_model_cmd",
+    "StatusCommand": "status_cmd",
+    "ContextCommand": "context_cmd",
+    "LoginCommand": "login_cmd",
+    "LogoutCommand": "logout_cmd",
+    "ContinueCommand": "continue_cmd",
+    "RecapCommand": "recap_cmd",
+    "GrillMeCommand": "grill_me_cmd",
+    "BtwCommand": "btw_cmd",
+    "TasksCommand": "tasks_cmd",
+    "StopCommand": "stop_cmd",
+    "ExitCommand": "exit_cmd",
+}
 _commands_loaded = False
 
 
 def ensure_commands_loaded() -> None:
-    """Ensure all commands are loaded (lazy initialization).
-
-    This function is called internally by registry functions like get_commands(),
-    dispatch_command(), etc. It can also be called explicitly if early loading is desired.
-
-    Commands are registered in display order - the order here determines
-    the order shown in slash command completion.
-    """
+    """Load all command instances before registering them in display order."""
     global _commands_loaded
     if _commands_loaded:
         return
+    commands = [__getattr__(name)() for name in _COMMAND_MODULES]
+    for command in commands:
+        register(command)
     _commands_loaded = True
 
-    # Import and register commands in display order
-    from .btw_cmd import BtwCommand
-    from .compact_cmd import CompactCommand
-    from .context_cmd import ContextCommand
-    from .continue_cmd import ContinueCommand
-    from .copy_cmd import CopyCommand
-    from .exit_cmd import ExitCommand
-    from .fork_session_cmd import ForkSessionCommand
-    from .grill_me_cmd import GrillMeCommand
-    from .login_cmd import LoginCommand
-    from .logout_cmd import LogoutCommand
-    from .manage_providers_cmd import ManageProvidersCommand
-    from .model_cmd import ModelCommand
-    from .new_cmd import NewCommand
-    from .recap_cmd import RecapCommand
-    from .refresh_cmd import RefreshTerminalCommand
-    from .rewind_cmd import RewindCommand
-    from .status_cmd import StatusCommand
-    from .stop_cmd import StopCommand
-    from .sub_agent_model_cmd import SubAgentModelCommand
-    from .tasks_cmd import TasksCommand
 
-    # Register in desired display order
-    register(CopyCommand())
-    register(CompactCommand())
-    register(ForkSessionCommand())
-    register(RewindCommand())
-    register(RefreshTerminalCommand())
-    register(NewCommand())
-    register(ModelCommand())
-    register(ManageProvidersCommand())
-    register(SubAgentModelCommand())
-    register(StatusCommand())
-    register(ContextCommand())
-    register(LoginCommand())
-    register(LogoutCommand())
-    register(ContinueCommand())
-    register(RecapCommand())
-    register(GrillMeCommand())
-    register(BtwCommand())
-    register(TasksCommand())
-    register(StopCommand())
-    register(ExitCommand())
-
-
-# Lazy accessors for command classes
-def __getattr__(name: str) -> object:
-    _commands_map = {
-        "NewCommand": "new_cmd",
-        "BtwCommand": "btw_cmd",
-        "CompactCommand": "compact_cmd",
-        "ContinueCommand": "continue_cmd",
-        "CopyCommand": "copy_cmd",
-        "ExitCommand": "exit_cmd",
-        "ForkSessionCommand": "fork_session_cmd",
-        "GrillMeCommand": "grill_me_cmd",
-        "LoginCommand": "login_cmd",
-        "LogoutCommand": "logout_cmd",
-        "ManageProvidersCommand": "manage_providers_cmd",
-        "ModelCommand": "model_cmd",
-        "RecapCommand": "recap_cmd",
-        "RefreshTerminalCommand": "refresh_cmd",
-        "RewindCommand": "rewind_cmd",
-        "StatusCommand": "status_cmd",
-        "SubAgentModelCommand": "sub_agent_model_cmd",
-        "TasksCommand": "tasks_cmd",
-        "StopCommand": "stop_cmd",
-    }
-    if name in _commands_map:
-        import importlib
-
-        module = importlib.import_module(f".{_commands_map[name]}", __package__)
-        return getattr(module, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+def __getattr__(name: str) -> type[CommandABC]:
+    if name not in _COMMAND_MODULES:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = importlib.import_module(f".{_COMMAND_MODULES[name]}", __package__)
+    command_class = getattr(module, name)
+    if not isinstance(command_class, type) or not issubclass(command_class, CommandABC):
+        raise TypeError(f"{module.__name__}.{name} must be a CommandABC subclass")
+    return command_class
 
 
 __all__ = [
-    # Command classes are lazily loaded via __getattr__
-    # "NewCommand", "DiffCommand", "HelpCommand", "ModelCommand",
-    # "ExportCommand", "RefreshTerminalCommand", "ReleaseNotesCommand",
-    # "StatusCommand",
     "CommandABC",
     "CommandInfo",
     "CommandName",

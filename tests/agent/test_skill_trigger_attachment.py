@@ -254,7 +254,7 @@ def test_skill_attachment_hot_reloads_new_static_skill(tmp_path: Path, monkeypat
 def test_available_skills_attachment_injects_listing_once_per_compaction_window(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
+    from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 
     skills = [
         _make_skill("commit", root=tmp_path, location="user"),
@@ -282,7 +282,7 @@ def test_available_skills_attachment_injects_listing_once_per_compaction_window(
 
     assert _arun(skill_attachments.available_skills_attachment(session)) is None
 
-    _reset_attachment_loaded_flags(session.file_tracker)
+    reset_attachment_loaded_flags(session.file_tracker)
 
     second_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert second_attachment is not None
@@ -399,7 +399,7 @@ def test_available_skills_attachment_restores_state_from_history_for_legacy_sess
 def test_available_skills_attachment_reinjects_after_attachment_flags_reset_even_with_history(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
+    from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 
     skills = [_make_skill("commit", root=tmp_path, location="user", description="initial commit skill")]
     monkeypatch.setattr(skill_attachments, "get_available_skills_for_session", lambda _session: list(skills))  # pyright: ignore[reportUnknownArgumentType,reportUnknownLambdaType]
@@ -411,7 +411,7 @@ def test_available_skills_attachment_reinjects_after_attachment_flags_reset_even
     assert first_attachment is not None
     session.conversation_history.append(first_attachment)
 
-    _reset_attachment_loaded_flags(session.file_tracker)
+    reset_attachment_loaded_flags(session.file_tracker)
 
     second_attachment = _arun(skill_attachments.available_skills_attachment(session))
     assert second_attachment is not None
@@ -601,7 +601,7 @@ def test_last_path_skill_attachment_supersedes_prior_same_name_skill(tmp_path: P
 
 
 def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
-    from klaude_code.agent.task import _reset_attachment_loaded_flags  # pyright: ignore[reportPrivateUsage]
+    from klaude_code.agent.attachments.state import reset_attachment_loaded_flags
 
     work_dir = tmp_path / "repo"
     target_dir = work_dir / "nested"
@@ -630,7 +630,7 @@ def test_at_dir_skill_anchor_survives_attachment_reset(tmp_path: Path) -> None:
     assert str(target_dir.resolve()) in session.file_tracker
     assert session.file_tracker[str(target_dir.resolve())].is_directory is True
 
-    _reset_attachment_loaded_flags(session.file_tracker)
+    reset_attachment_loaded_flags(session.file_tracker)
 
     second_attachment = _arun(skill_attachments.last_path_skill_attachment(session))
     assert second_attachment is not None

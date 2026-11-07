@@ -16,7 +16,6 @@ def setup_src_path():
 setup_src_path()
 
 from klaude_code.auth import base as auth_base  # noqa: E402
-from klaude_code.auth import env as auth_env  # noqa: E402
 from klaude_code.config import config as config_module  # noqa: E402
 from klaude_code.config.builtin_config import SUPPORTED_API_KEYS  # noqa: E402
 from klaude_code.config.loader import load_config  # noqa: E402
@@ -73,7 +72,6 @@ def isolated_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
         monkeypatch.setattr(config_module, "config_path", fake_home / ".klaude" / "klaude-config.yaml")
         monkeypatch.setattr(config_module, "example_config_path", fake_home / ".klaude" / "klaude-config.example.yaml")
         monkeypatch.setattr(auth_base, "KLAUDE_AUTH_FILE", fake_home / ".klaude" / "klaude-auth.json")
-        monkeypatch.setattr(auth_env, "KLAUDE_AUTH_FILE", auth_base.KLAUDE_AUTH_FILE)
         load_config.cache_clear()
 
         try:

@@ -39,7 +39,6 @@ from klaude_code.prompts.messages import EMPTY_RESPONSE_CONTINUATION_PROMPT
 from klaude_code.protocol import events, llm_param, message, user_interaction
 from klaude_code.protocol.models import (
     FileChangeSummary,
-    FileStatus,
     SubAgentState,
     TaskMetadata,
     TaskMetadataItem,
@@ -518,7 +517,7 @@ class TaskExecutor:
                     first_kept_line=ctx.session.line_index_of(compaction.first_kept_index),
                 )
                 log_debug(f"[Compact:{reason.value}] result", str(entry), debug_type=DebugType.RESPONSE)
-                _reset_attachment_loaded_flags(ctx.session.file_tracker)
+                reset_attachment_loaded_flags(ctx.session.file_tracker)
                 self._refresh_attachment_inputs = True
                 session_ctx.append_history([*request_log.ordered_entries, entry])
                 metadata_accumulator.cache.notify_compaction()
@@ -600,7 +599,7 @@ class TaskExecutor:
             )
             entry = result.to_entry(first_kept_line=ctx.session.line_index_of(result.first_kept_index))
             log_debug("[Handoff] result", str(entry), debug_type=DebugType.RESPONSE)
-            _reset_attachment_loaded_flags(ctx.session.file_tracker)
+            reset_attachment_loaded_flags(ctx.session.file_tracker)
             self._refresh_attachment_inputs = True
             session_ctx.append_history([entry])
             metadata_accumulator.cache.notify_compaction()
@@ -1022,10 +1021,6 @@ class TaskExecutor:
             session_id=session_ctx.session_id,
             task_result=task_result,
         )
-
-
-def _reset_attachment_loaded_flags(file_tracker: dict[str, FileStatus]) -> None:
-    reset_attachment_loaded_flags(file_tracker)
 
 
 def _build_tool_registry(tool_schemas: list[llm_param.ToolSchema]) -> dict[str, type[ToolABC]]:

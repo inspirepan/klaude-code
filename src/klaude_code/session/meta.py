@@ -63,6 +63,15 @@ def read_json_dict(path: Path) -> dict[str, Any] | None:
     return cast(dict[str, Any], raw)
 
 
+def parse_session_timestamp(raw: object, *, fallback: float) -> float:
+    if isinstance(raw, int | float | str):
+        try:
+            return float(raw)
+        except ValueError:
+            pass
+    return fallback
+
+
 def _parse_file_tracker(raw: object) -> dict[str, FileStatus]:
     file_tracker: dict[str, FileStatus] = {}
     if not isinstance(raw, dict):
@@ -186,8 +195,6 @@ def parse_runtime_facts(raw: dict[str, Any]) -> SessionRuntimeFacts:
 
 
 def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionMeta:
-    """Parse a meta.json dict; unknown keys (e.g. legacy runtime_owner) are ignored."""
-
     work_dir_str = raw.get("work_dir")
     if not isinstance(work_dir_str, str) or not work_dir_str:
         work_dir_str = str(work_dir)
@@ -205,8 +212,8 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
     else:
         model_effort = model_thinking.reasoning_effort if model_thinking is not None else None
 
-    created_at = float(raw.get("created_at", time.time()))
-    updated_at = float(raw.get("updated_at", created_at))
+    created_at = parse_session_timestamp(raw.get("created_at"), fallback=time.time())
+    updated_at = parse_session_timestamp(raw.get("updated_at"), fallback=created_at)
     runtime = parse_runtime_facts(raw)
     return LoadedSessionMeta(
         work_dir=Path(work_dir_str),
@@ -244,4 +251,4 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
     )
 
 
-__all__ = ["LoadedSessionMeta", "parse_session_meta", "read_json_dict"]
+__all__ = ["LoadedSessionMeta", "parse_session_meta", "parse_session_timestamp", "read_json_dict"]

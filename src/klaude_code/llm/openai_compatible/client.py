@@ -1,7 +1,6 @@
 import asyncio
-from typing import Any, Literal, cast, override
+from typing import Literal, cast, override
 
-import httpx
 import openai
 from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
 
@@ -9,17 +8,16 @@ from klaude_code.llm.client import LLMClientABC, LLMStreamABC, session_headers
 from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_history_to_input, convert_tool_schema
-from klaude_code.llm.openai_compatible.stream import DefaultReasoningHandler, OpenAILLMStream
+from klaude_code.llm.openai_compatible.request import request_chat_completions
+from klaude_code.llm.openai_compatible.stream import DefaultReasoningHandler
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
-from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param
 
 _OPENAI_USER_AGENT = "klaude-code/2"
 
 
 def build_payload(param: llm_param.LLMCallParameter) -> tuple[CompletionCreateParamsStreaming, dict[str, object]]:
-    """Build OpenAI API request parameters."""
     messages = convert_history_to_input(param.input, param.system, param.model_id)
     tools = convert_tool_schema(param.tools)
 
@@ -100,37 +98,14 @@ class OpenAICompatibleClient(LLMClientABC):
         except (ValueError, OSError) as e:
             return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
 
-        log_debug(
-            lambda: debug_json({**payload, **extra_body}),
-            debug_type=DebugType.LLM_PAYLOAD,
-        )
-
         extra_headers = session_headers(self.get_llm_config().provider_name, param.session_id)
 
-        try:
-            stream = await self.client.chat.completions.create(
-                **payload,
-                extra_body=extra_body,
-                extra_headers=extra_headers,
-            )
-        except (openai.OpenAIError, httpx.HTTPError) as e:
-            return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
-
-        reasoning_handler = DefaultReasoningHandler(
-            param_model=str(param.model_id),
-            response_id=None,
-        )
-
-        def on_event(event: Any) -> None:
-            log_debug(
-                event.model_dump_json(exclude_none=True),
-                debug_type=DebugType.LLM_STREAM,
-            )
-
-        return OpenAILLMStream(
-            stream,
+        return await request_chat_completions(
+            self.client,
             param=param,
+            payload=payload,
+            extra_body=extra_body,
+            extra_headers=extra_headers,
             metadata_tracker=metadata_tracker,
-            reasoning_handler=reasoning_handler,
-            on_event=on_event,
+            reasoning_handler=DefaultReasoningHandler(param_model=str(param.model_id), response_id=None),
         )

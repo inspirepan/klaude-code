@@ -1,16 +1,4 @@
-"""Characterization tests for pure / small-contract helpers on TaskExecutor.
-
-Locks in CURRENT observable behavior of:
-- ``TaskExecutor._has_tool`` (membership over profile.tools by ToolSchema.name).
-- ``TaskExecutor._fallback_model`` vs ``TaskExecutor._fallback_compact_model``
-  observable effects on ctx.profile / ctx.tool_registry / appended history /
-  returned event, including the no-fallback (returns None) path.
-- ``is_fallbackable_llm_error`` markers.
-
-We call ``_fallback_model`` / ``_fallback_compact_model`` directly on a minimally
-constructed TaskExecutor instead of running a full task, to isolate their
-observable contract. These tests assert what the code currently DOES.
-"""
+"""Model fallback preserves prompts, tools, and warning history."""
 
 from __future__ import annotations
 
@@ -147,22 +135,16 @@ def test_fallback_model_advances_candidate_and_emits_warning(isolated_home: Path
             llm_client=client,
             tools=[_tool_schema("Bash")],
         )
-        original_profile = ctx.profile
         result = executor._fallback_model("insufficient_quota: credits exhausted")  # pyright: ignore[reportPrivateUsage]
         assert result is not None
         new_profile, event = result
 
-        # No apply_llm_client_change -> a fresh AgentProfile reusing prior prompt/tools.
-        assert new_profile is not original_profile
         assert new_profile.system_prompt == "system prompt"
+        assert new_profile.tools == [_tool_schema("Bash")]
         assert new_profile.llm_client is client
-        # ctx is mutated in place to the new profile.
         assert ctx.profile is new_profile
-        # tool_registry is rebuilt from profile.tools via the global tool registry;
-        # "Bash" is a real registered tool, so it maps to its class.
         assert set(ctx.tool_registry) == {"Bash"}
 
-        # Underlying fallback advanced the active candidate.
         assert client.active_candidate.provider == "openrouter"
 
         assert isinstance(event, events.FallbackModelConfigWarnEvent)
@@ -172,7 +154,6 @@ def test_fallback_model_advances_candidate_and_emits_warning(isolated_home: Path
         assert event.to_model == "gpt-5.4"
         assert event.sub_agent_type is None
 
-        # A FallbackModelConfigWarnEntry was appended to history.
         entries = [it for it in session.conversation_history if isinstance(it, message.FallbackModelConfigWarnEntry)]
         assert len(entries) == 1
         assert entries[0].from_provider == "openai"

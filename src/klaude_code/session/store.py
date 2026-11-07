@@ -9,7 +9,7 @@ from collections.abc import Callable, Iterable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -25,6 +25,7 @@ from klaude_code.protocol.models.session_status import SessionRuntimeFacts
 from klaude_code.session.codec import decode_jsonl_line, encode_conversation_item, encode_jsonl_line
 from klaude_code.session.history import ScanResult, scan_history
 from klaude_code.session.ledger import TurnOrdinals, scan_turn_ordinals
+from klaude_code.session.meta import read_json_dict
 from klaude_code.session.search import SearchScan, scan_search
 
 # Meta keys owned by direct update_meta writes: a queued history batch carries
@@ -66,14 +67,6 @@ def count_file_lines(path: Path) -> int:
     except OSError:
         return 0
     return total if last == b"\n" else total + 1
-
-
-def _read_json_dict(path: Path) -> dict[str, Any] | None:
-    try:
-        raw = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return None
-    return cast(dict[str, Any], raw) if isinstance(raw, dict) else None
 
 
 def _write_json_dict_atomic(path: Path, data: dict[str, Any], suffix: str) -> None:
@@ -242,7 +235,7 @@ class JsonlSessionWriter:
         with self._meta_lock:
             meta = dict(batch.meta)
             if meta_path.exists():
-                current_meta = _read_json_dict(meta_path)
+                current_meta = read_json_dict(meta_path)
                 if current_meta is not None:
                     for key in _RUNTIME_META_KEYS:
                         if key in current_meta:
@@ -310,14 +303,14 @@ class JsonlSessionStore:
         meta_path = self._paths.meta_file(session_id)
         if not meta_path.exists():
             return None
-        return _read_json_dict(meta_path)
+        return read_json_dict(meta_path)
 
     def update_meta(self, session_id: str, updates: dict[str, Any], *, raise_on_error: bool = False) -> bool:
         meta_path = self._paths.meta_file(session_id)
         with self._meta_lock:
             if not meta_path.exists():
                 return False
-            data = _read_json_dict(meta_path)
+            data = read_json_dict(meta_path)
             if data is None:
                 return False
             data.update(updates)
@@ -342,7 +335,7 @@ class JsonlSessionStore:
         with self._meta_lock:
             if not meta_path.exists():
                 return False
-            data = _read_json_dict(meta_path)
+            data = read_json_dict(meta_path)
             if data is None:
                 return False
             queued = data.get("headless_queued_turn")

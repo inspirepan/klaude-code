@@ -147,7 +147,7 @@ def test_execute_xai_login_displays_device_code(monkeypatch: pytest.MonkeyPatch)
 def test_execute_bedrock_login_decline_all_updates_returns_false(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("klaude_code.auth.env.KLAUDE_AUTH_FILE", tmp_path / "klaude-auth.json")
+    monkeypatch.setattr(auth_base, "KLAUDE_AUTH_FILE", tmp_path / "klaude-auth.json")
     monkeypatch.setenv("AWS_BEDROCK_ACCESS_KEY_ID", "AKIA-EXISTING")
     monkeypatch.setenv("AWS_BEDROCK_SECRET_ACCESS_KEY", "secret-existing")
     monkeypatch.setenv("AWS_BEDROCK_REGION", "us-east-1")
@@ -159,7 +159,7 @@ def test_execute_bedrock_login_decline_all_updates_returns_false(
 
 def test_execute_bedrock_login_saves_new_credentials(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     auth_file = tmp_path / "klaude-auth.json"
-    monkeypatch.setattr("klaude_code.auth.env.KLAUDE_AUTH_FILE", auth_file)
+    monkeypatch.setattr(auth_base, "KLAUDE_AUTH_FILE", auth_file)
     for var in ("AWS_BEDROCK_ACCESS_KEY_ID", "AWS_BEDROCK_SECRET_ACCESS_KEY", "AWS_BEDROCK_REGION"):
         monkeypatch.delenv(var, raising=False)
     prompts = iter(["AKIA-NEW", "secret-new", "us-west-2"])

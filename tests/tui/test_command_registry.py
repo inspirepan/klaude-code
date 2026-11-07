@@ -10,6 +10,7 @@ from typing import Any, cast
 import pytest
 
 from klaude_code.protocol import message, op
+from klaude_code.tui import command
 from klaude_code.tui.command import registry
 from klaude_code.tui.command.command_abc import Agent, CommandABC, CommandResult
 from klaude_code.tui.command.types import CommandName
@@ -148,3 +149,57 @@ def test_exit_uses_registered_prefix_resolution(
     registry.register(_DummyCommand("example", "example"))
     assert not registry.is_exit_command("/ex")
     assert registry.is_exit_command("/exit")
+
+
+def test_command_loading_can_retry_without_partial_registration(monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.tui.command import exit_cmd
+    from klaude_code.tui.command.copy_cmd import CopyCommand
+
+    commands_map: dict[CommandName | str, CommandABC] = {}
+    monkeypatch.setattr(registry, "_COMMANDS", commands_map)
+    monkeypatch.setattr(command, "_commands_loaded", False)
+
+    assert command.CopyCommand is CopyCommand
+    with pytest.raises(AttributeError, match="MissingCommand"):
+        _ = command.MissingCommand
+    assert not command._commands_loaded
+    assert commands_map == {}
+
+    class FailingExitCommand(exit_cmd.ExitCommand):
+        def __init__(self) -> None:
+            raise RuntimeError("command construction failed")
+
+    with monkeypatch.context() as failure:
+        failure.setattr(exit_cmd, "ExitCommand", FailingExitCommand)
+        with pytest.raises(RuntimeError, match="command construction failed"):
+            command.get_commands()
+
+    assert commands_map == {}
+    assert not command._commands_loaded
+
+    loaded = command.get_commands()
+    assert [info.name for info in command.get_command_info_list()] == [
+        "copy",
+        "compact",
+        "fork-session",
+        "rewind",
+        "refresh-terminal",
+        "new",
+        "model",
+        "manage-providers",
+        "sub-agent-model",
+        "status",
+        "context",
+        "login",
+        "logout",
+        "continue",
+        "recap",
+        "grill-me",
+        "btw",
+        "tasks",
+        "stop",
+        "exit",
+    ]
+    assert isinstance(loaded[CommandName.COPY], CopyCommand)
+    assert command._commands_loaded
+    assert all(command.get_commands()[name] is instance for name, instance in loaded.items())

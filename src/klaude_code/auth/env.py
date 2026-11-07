@@ -1,32 +1,12 @@
 """Environment variable configuration stored in klaude-auth.json."""
 
-import json
 from typing import Any, cast
 
-from klaude_code.auth.base import KLAUDE_AUTH_FILE
-
-
-def _load_store() -> dict[str, Any]:
-    """Load the auth store from file."""
-    if not KLAUDE_AUTH_FILE.exists():
-        return {}
-    try:
-        data = json.loads(KLAUDE_AUTH_FILE.read_text())
-        if isinstance(data, dict):
-            return cast(dict[str, Any], data)
-        return {}
-    except (json.JSONDecodeError, ValueError):
-        return {}
-
-
-def _save_store(data: dict[str, Any]) -> None:
-    """Save the auth store to file."""
-    KLAUDE_AUTH_FILE.parent.mkdir(parents=True, exist_ok=True)
-    KLAUDE_AUTH_FILE.write_text(json.dumps(data, indent=2))
+from klaude_code.auth import base
+from klaude_code.auth.store import delete_store, load_store, save_store
 
 
 def _get_env_section(store: dict[str, Any]) -> dict[str, Any] | None:
-    """Extract and validate the 'env' section from store."""
     env_section = store.get("env")
     if isinstance(env_section, dict):
         return cast(dict[str, Any], env_section)
@@ -34,12 +14,8 @@ def _get_env_section(store: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def get_auth_env(env_var: str) -> str | None:
-    """Get environment variable value from klaude-auth.json 'env' section.
-
-    This provides a fallback for API keys when real environment variables are not set.
-    Priority: os.environ > klaude-auth.json env
-    """
-    env_section = _get_env_section(_load_store())
+    """Provide a stored fallback when the caller finds no real environment variable."""
+    env_section = _get_env_section(load_store(base.KLAUDE_AUTH_FILE))
     if env_section is None:
         return None
     value = env_section.get(env_var)
@@ -47,17 +23,15 @@ def get_auth_env(env_var: str) -> str | None:
 
 
 def set_auth_env(env_var: str, value: str) -> None:
-    """Set environment variable value in klaude-auth.json 'env' section."""
-    store = _load_store()
+    store = load_store(base.KLAUDE_AUTH_FILE)
     env_section = _get_env_section(store) or {}
     env_section[env_var] = value
     store["env"] = env_section
-    _save_store(store)
+    save_store(base.KLAUDE_AUTH_FILE, store)
 
 
 def delete_auth_env(env_var: str) -> None:
-    """Delete environment variable from klaude-auth.json 'env' section."""
-    store = _load_store()
+    store = load_store(base.KLAUDE_AUTH_FILE)
     env_section = _get_env_section(store)
     if env_section is None:
         return
@@ -67,15 +41,13 @@ def delete_auth_env(env_var: str) -> None:
     else:
         store["env"] = env_section
     if not store:
-        if KLAUDE_AUTH_FILE.exists():
-            KLAUDE_AUTH_FILE.unlink()
+        delete_store(base.KLAUDE_AUTH_FILE)
     else:
-        _save_store(store)
+        save_store(base.KLAUDE_AUTH_FILE, store)
 
 
 def list_auth_env() -> dict[str, str]:
-    """List all environment variables in klaude-auth.json 'env' section."""
-    env_section = _get_env_section(_load_store())
+    env_section = _get_env_section(load_store(base.KLAUDE_AUTH_FILE))
     if env_section is None:
         return {}
     return {k: str(v) for k, v in env_section.items() if v is not None}

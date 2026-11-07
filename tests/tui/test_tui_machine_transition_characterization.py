@@ -1,13 +1,4 @@
-"""Characterization tests for ``DisplayStateMachine._transition``.
-
-These lock in the CURRENT sequence of ``RenderCommand`` objects produced for
-representative protocol event sequences. They exist to protect a future split
-of the ~670-line ``_transition`` method: any refactor must keep the emitted
-command lists byte-for-byte identical (modulo command identity / field values
-asserted here).
-
-We do NOT assert what the behavior *should* be -- only what it currently IS.
-"""
+"""Display commands for lifecycle, streaming, notices, and replay."""
 
 from __future__ import annotations
 

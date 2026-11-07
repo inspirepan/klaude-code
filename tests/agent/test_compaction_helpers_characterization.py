@@ -1,19 +1,4 @@
-"""Characterization tests for compaction decision/scan helpers.
-
-These lock in CURRENT observable behavior of:
-- ``_resolve_compaction_config`` (threshold vs manual reason).
-- ``should_compact_threshold`` decision edges not already covered.
-- The backward-scan helpers (``_last_successful_usage_index``,
-  ``_has_compaction_after_last_successful_usage``,
-  ``_estimate_tokens_after_last_successful_usage``, ``get_last_context_tokens``,
-  ``_find_last_compaction``).
-- Pure collectors (``collect_messages``, ``collect_kept_items_brief``,
-  ``estimate_history_tokens``).
-- ``is_context_overflow`` (used to gate compaction-on-overflow in run()).
-
-They assert what the code currently DOES, not what it should do, so a later
-refactor can be proven behavior-preserving.
-"""
+"""Compaction decisions, usage selection, and summary contents."""
 
 from __future__ import annotations
 
@@ -176,26 +161,26 @@ def test_threshold_uses_session_context_limit_when_llm_config_missing(isolated_h
 # ---------------------------------------------------------------------------
 
 
-def test_last_successful_usage_index_skips_aborted_error_and_no_usage() -> None:
-    history: list[message.HistoryEvent] = [
-        message.AssistantMessage(parts=[message.TextPart(text="a")], usage=Usage(context_size=1)),  # 0 good
-        message.AssistantMessage(parts=[message.TextPart(text="b")], usage=None),  # 1 no usage
+def test_context_tokens_uses_successful_usage_before_aborted_error_and_no_usage(tmp_path: Path) -> None:
+    session = Session(id="successful-usage", work_dir=tmp_path)
+    session.conversation_history = [
+        message.AssistantMessage(parts=[message.TextPart(text="a")], usage=Usage(context_size=1234)),
+        message.AssistantMessage(parts=[message.TextPart(text="b")], usage=None),
         message.AssistantMessage(
             parts=[message.TextPart(text="c")], usage=Usage(context_size=2), stop_reason="aborted"
-        ),  # 2 aborted
-        message.AssistantMessage(
-            parts=[message.TextPart(text="d")], usage=Usage(context_size=3), stop_reason="error"
-        ),  # 3 error
+        ),
+        message.AssistantMessage(parts=[message.TextPart(text="d")], usage=Usage(context_size=3), stop_reason="error"),
     ]
-    assert compaction._last_successful_usage_index(history) == 0  # pyright: ignore[reportPrivateUsage]
+    assert get_last_context_tokens(session) == 1234
 
 
-def test_last_successful_usage_index_none_when_no_usable_assistant() -> None:
-    history: list[message.HistoryEvent] = [
+def test_context_tokens_unavailable_without_successful_usage(tmp_path: Path) -> None:
+    session = Session(id="no-successful-usage", work_dir=tmp_path)
+    session.conversation_history = [
         message.UserMessage(parts=[message.TextPart(text="hi")]),
         message.AssistantMessage(parts=[message.TextPart(text="x")], usage=None),
     ]
-    assert compaction._last_successful_usage_index(history) is None  # pyright: ignore[reportPrivateUsage]
+    assert get_last_context_tokens(session) is None
 
 
 def test_has_compaction_after_last_successful_usage_true_when_compaction_newer(

@@ -1,8 +1,7 @@
 import asyncio
 import os
-from typing import Any, Literal, cast, override
+from typing import Literal, cast, override
 
-import httpx
 import openai
 from openai.types.chat.completion_create_params import CompletionCreateParamsStreaming
 
@@ -14,12 +13,11 @@ from klaude_code.llm.client import LLMClientABC, LLMStreamABC
 from klaude_code.llm.http import create_async_http_client, create_http_timeout
 from klaude_code.llm.input_common import apply_config_defaults
 from klaude_code.llm.openai_compatible.input import convert_tool_schema
-from klaude_code.llm.openai_compatible.stream import OpenAILLMStream
+from klaude_code.llm.openai_compatible.request import request_chat_completions
 from klaude_code.llm.openrouter.input import convert_history_to_input, is_claude_model, is_glm_model, is_xai_model
 from klaude_code.llm.openrouter.reasoning import ReasoningStreamHandler
 from klaude_code.llm.registry import register
 from klaude_code.llm.usage import MetadataTracker, error_llm_stream
-from klaude_code.log import DebugType, debug_json, log_debug
 from klaude_code.protocol import llm_param
 from klaude_code.protocol.model_id import is_gemini4_model, model_supports_temperature, supports_adaptive_thinking
 
@@ -29,7 +27,6 @@ _OPENROUTER_USER_AGENT = "klaude-code/2"
 def build_payload(
     param: llm_param.LLMCallParameter,
 ) -> tuple[CompletionCreateParamsStreaming, dict[str, object], dict[str, str]]:
-    """Build OpenRouter API request parameters."""
     messages = convert_history_to_input(param.input, param.system, param.model_id)
     tools = convert_tool_schema(param.tools)
 
@@ -150,37 +147,14 @@ class OpenRouterClient(LLMClientABC):
         if param.session_id:
             extra_headers["x-session-id"] = param.session_id
 
-        log_debug(
-            lambda: debug_json({**payload, **extra_body}),
-            debug_type=DebugType.LLM_PAYLOAD,
-        )
-
-        try:
-            stream = await self.client.chat.completions.create(
-                **payload,
-                extra_body=extra_body,
-                extra_headers=extra_headers,
-                timeout=1200.0 if is_gemini4_model(param.model_id) else create_http_timeout(),
-            )
-        except (openai.OpenAIError, httpx.HTTPError) as e:
-            return error_llm_stream(metadata_tracker, error=f"{e.__class__.__name__} {e!s}")
-
-        reasoning_handler = ReasoningStreamHandler(
-            param_model=str(param.model_id),
-            response_id=None,
-        )
-
-        def on_event(event: Any) -> None:
-            log_debug(
-                event.model_dump_json(exclude_none=True),
-                debug_type=DebugType.LLM_STREAM,
-            )
-
-        return OpenAILLMStream(
-            stream,
+        return await request_chat_completions(
+            self.client,
             param=param,
+            payload=payload,
+            extra_body=extra_body,
+            extra_headers=extra_headers,
             metadata_tracker=metadata_tracker,
-            reasoning_handler=reasoning_handler,
-            on_event=on_event,
+            reasoning_handler=ReasoningStreamHandler(param_model=str(param.model_id), response_id=None),
+            timeout=1200.0 if is_gemini4_model(param.model_id) else create_http_timeout(),
             provider_prefix="openrouter/",
         )
