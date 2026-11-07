@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import multiprocessing
+import threading
 from multiprocessing.connection import Connection
 from pathlib import Path
 from unittest.mock import patch
@@ -9,8 +10,29 @@ from unittest.mock import patch
 import pytest
 
 from klaude_code.app.peer_endpoint import EndpointRecord, call_endpoint, registered_endpoints
-from klaude_code.app.session_lease import SessionLease
+from klaude_code.app.session_lease import SessionInUseError, SessionLease
 from klaude_code.protocol.peer import PeerMessage
+
+
+def test_locate_timeout_includes_endpoint_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
+    from klaude_code.app import peer_endpoint
+
+    release = threading.Event()
+
+    def blocked_discovery() -> list[EndpointRecord]:
+        release.wait(timeout=5)
+        return []
+
+    monkeypatch.setattr(peer_endpoint, "registered_endpoints", blocked_discovery)
+
+    async def run() -> None:
+        try:
+            async with asyncio.timeout(2):
+                await peer_endpoint.locate_session("busy")
+        finally:
+            release.set()
+
+    asyncio.run(run())
 
 
 def _worker(connection: Connection, work_dir: str, home: str, identity: str) -> None:
@@ -24,16 +46,20 @@ def _worker(connection: Connection, work_dir: str, home: str, identity: str) -> 
     from klaude_code.agent.runtime.llm import LLMClients
     from klaude_code.config import Config
     from klaude_code.config.config import ModelConfig, ProviderConfig
-    from klaude_code.protocol import events, llm_param
+    from klaude_code.protocol import events, llm_param, message, op
+    from klaude_code.protocol.message import UserInputPayload
     from klaude_code.protocol.models.session_status import SessionControl
     from klaude_code.tui.client.local import LocalRuntimeClient
     from tests.fake_llm import FakeLLMClient
 
     async def run() -> None:
+        located: list[bool] = []
+
         async def consume(_event: events.EventEnvelope) -> None:
             pass
 
-        clients = LLMClients(main=FakeLLMClient(), main_model_alias="fake")
+        model = FakeLLMClient()
+        clients = LLMClients(main=model, main_model_alias="fake")
         config = Config(
             provider_list=[
                 ProviderConfig(
@@ -51,7 +77,9 @@ def _worker(connection: Connection, work_dir: str, home: str, identity: str) -> 
             patch("klaude_code.agent.runtime.llm.clone_llm_client", side_effect=lambda value: value),
             patch("klaude_code.tui.client.local.load_config", return_value=config),
         ):
-            client = LocalRuntimeClient(None, on_envelope=consume, work_dir=Path(work_dir), vanilla=True)
+            client = LocalRuntimeClient(
+                None, on_envelope=consume, on_locate=lambda: located.append(True), work_dir=Path(work_dir), vanilla=True
+            )
             await client.start()
             client.start_display()
             agent = client.command_agent()
@@ -74,6 +102,22 @@ def _worker(connection: Connection, work_dir: str, home: str, identity: str) -> 
                         connection.send(receipt.model_dump())
                     elif command[0] == "queue":
                         connection.send([item.model_dump() for item in agent.steering_snapshot()])
+                    elif command[0] == "located":
+                        connection.send(
+                            (located, model.call_count, agent.session.runtime.control.paused, client.is_running())
+                        )
+                    elif command[0] == "run":
+                        agent.session.runtime.control.paused = False
+                        model.enqueue(message.AssistantTextDelta(content="working"), delay_s=60)
+                        await client.submit(
+                            op.RunAgentOperation(
+                                session_id=client.session_id, input=UserInputPayload(text="keep working")
+                            )
+                        )
+                        async with asyncio.timeout(3):
+                            while not model.call_count:
+                                await asyncio.sleep(0.01)
+                        connection.send(True)
                     elif command[0] == "environment":
                         catalog = await client.get_model_catalog()
                         shell = await asyncio.create_subprocess_exec(
@@ -88,6 +132,73 @@ def _worker(connection: Connection, work_dir: str, home: str, identity: str) -> 
                 await client.close()
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("endpoint_state", ["online", "missing", "broken", "timeout"])
+def test_resume_conflict_locates_original_process(
+    tmp_path: Path, isolated_home: Path, monkeypatch: pytest.MonkeyPatch, endpoint_state: str
+) -> None:
+    from klaude_code.agent.runtime.llm import LLMClients
+    from klaude_code.app import peer_endpoint
+    from klaude_code.protocol import events
+    from klaude_code.tui.client.local import LocalRuntimeClient
+    from tests.fake_llm import FakeLLMClient
+
+    clients = LLMClients(main=FakeLLMClient(), main_model_alias="fake")
+    monkeypatch.setattr("klaude_code.app.runtime.build_llm_clients", lambda *_args, **_kwargs: clients)
+    context = multiprocessing.get_context("spawn")
+    parent, child = context.Pipe()
+    process = context.Process(target=_worker, args=(child, str(tmp_path), str(isolated_home), "alpha"))
+    process.start()
+    child.close()
+    try:
+        assert parent.poll(15), "Worker failed to publish its endpoint"
+        record = EndpointRecord.model_validate(parent.recv())
+        session_id = record.sessions[0].session_id
+        if endpoint_state == "online":
+            parent.send(("run",))
+            assert parent.poll(5)
+            assert parent.recv() is True
+        if endpoint_state == "missing":
+            monkeypatch.setattr(peer_endpoint, "registered_endpoints", lambda: [])
+        elif endpoint_state in {"broken", "timeout"}:
+
+            async def failed_call(*_args: object, **_kwargs: object) -> None:
+                if endpoint_state == "timeout":
+                    await asyncio.Event().wait()
+                raise OSError("socket failed")
+
+            monkeypatch.setattr(peer_endpoint, "call_endpoint", failed_call)
+
+        async def resume() -> None:
+            async def consume(_envelope: events.EventEnvelope) -> None:
+                pass
+
+            if endpoint_state == "online":
+                with pytest.raises(ValueError, match="Session is offline"):
+                    await call_endpoint(record, "locate-session", session_id="unknown")
+            client = LocalRuntimeClient(session_id, on_envelope=consume, work_dir=tmp_path, vanilla=True)
+            async with asyncio.timeout(3):
+                with pytest.raises(SessionInUseError, match=f"Session {session_id} is active in another"):
+                    await client.start()
+            assert client._components is None
+
+        asyncio.run(resume())
+        parent.send(("located",))
+        assert parent.poll(5)
+        assert parent.recv() == (([True], 1, False, True) if endpoint_state == "online" else ([], 0, True, False))
+        parent.send(("queue",))
+        assert parent.poll(5)
+        assert parent.recv() == []
+    finally:
+        if process.is_alive():
+            parent.send(("stop",))
+            process.join(10)
+        if process.is_alive():
+            process.terminate()
+            process.join(5)
+        parent.close()
+    assert process.exitcode == 0
 
 
 def test_real_process_discovery_delivery_deduplication_and_shutdown(tmp_path: Path) -> None:

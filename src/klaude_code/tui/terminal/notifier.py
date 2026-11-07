@@ -30,6 +30,7 @@ def resolve_stream(stream: TextIO | None) -> TextIO:
 
 
 class NotificationType(Enum):
+    LOCATE_SESSION = "locate_session"
     AGENT_TASK_COMPLETE = "agent_task_complete"
     ASK_USER_QUESTION = "ask_user_question"
 

@@ -28,6 +28,12 @@ _pending_title: str | None = None
 _retry_task: asyncio.Task[None] | None = None
 _native_status = False
 _last_title: str | None = None
+_current_title: str | None = None
+_locate_handle: asyncio.TimerHandle | None = None
+_locate_task: asyncio.Task[None] | None = None
+_locate_frame = 0
+_LOCATE_DURATION = 4.0
+_LOCATE_INTERVAL = 0.5
 
 
 def set_native_status_supported(supported: bool) -> None:
@@ -95,7 +101,11 @@ def _try_write_title(title: str) -> bool:
 
 def set_terminal_title(title: str) -> None:
     """Set terminal window title using an ANSI escape sequence."""
-    global _pending_title
+    global _pending_title, _current_title
+    _current_title = title
+    if _locate_handle is not None:
+        prefix = "● HERE" if _locate_frame == 0 else "○ HERE"
+        title = f"{prefix} {title}"
     if _try_write_title(title):
         _pending_title = None
         _cancel_title_retry()
@@ -107,6 +117,40 @@ def set_terminal_title(title: str) -> None:
     # it must be retried or it's lost and the stale spinner glyph sticks.
     _pending_title = title
     _ensure_title_retry()
+
+
+def locate_terminal_title() -> None:
+    """Keep a visible locator across spinner and native-status updates."""
+    global _locate_handle, _locate_task, _locate_frame
+    if _locate_handle is not None:
+        _locate_handle.cancel()
+    if _locate_task is not None:
+        _locate_task.cancel()
+    _locate_frame = 0
+    _locate_handle = asyncio.get_running_loop().call_later(_LOCATE_DURATION, clear_terminal_title_locator)
+    set_terminal_title(_current_title or _build_terminal_title(None, None))
+    _locate_task = asyncio.create_task(_animate_locator())
+
+
+async def _animate_locator() -> None:
+    global _locate_frame
+    while True:
+        await asyncio.sleep(_LOCATE_INTERVAL)
+        _locate_frame = 1 - _locate_frame
+        set_terminal_title(_current_title or _build_terminal_title(None, None))
+
+
+def clear_terminal_title_locator() -> None:
+    global _locate_handle, _locate_task
+    if _locate_handle is None:
+        return
+    _locate_handle.cancel()
+    _locate_handle = None
+    if _locate_task is not None:
+        _locate_task.cancel()
+        _locate_task = None
+    if _current_title is not None:
+        set_terminal_title(_current_title)
 
 
 def _ensure_title_retry() -> None:

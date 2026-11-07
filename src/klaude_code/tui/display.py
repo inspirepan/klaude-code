@@ -16,7 +16,12 @@ from klaude_code.tui.input.flicker_safe_stdout import write_scrollback_bulk
 from klaude_code.tui.machine import DisplayStateMachine, is_cancelled_task_result
 from klaude_code.tui.renderer import TUICommandRenderer
 from klaude_code.tui.terminal.notifier import Notification, NotificationType, TerminalNotifier
-from klaude_code.tui.terminal.title import update_terminal_title
+from klaude_code.tui.terminal.title import (
+    clear_terminal_title_locator,
+    locate_terminal_title,
+    update_terminal_title,
+)
+from klaude_code.tui.terminal.tty_state import scrollback_write_in_flight, stdout_writable
 from klaude_code.tui.transcript_detail import Detail, TranscriptDetail
 
 
@@ -75,6 +80,13 @@ class TUIDisplay(DisplayABC):
 
     def task_attention(self) -> dict[str, str]:
         return self._machine.task_attention()
+
+    def locate_session(self) -> None:
+        locate_terminal_title()
+        if stdout_writable() and not scrollback_write_in_flight():
+            self._notifier.notify(
+                Notification(type=NotificationType.LOCATE_SESSION, title="Session open in this terminal")
+            )
 
     def _create_bg_task(self, coro: Coroutine[Any, Any, None]) -> asyncio.Task[None]:
         task = asyncio.create_task(coro)
@@ -319,6 +331,7 @@ class TUIDisplay(DisplayABC):
 
     @override
     async def stop(self) -> None:
+        clear_terminal_title_locator()
         self._stopped = True
         self._sigint_toast_generation += 1
         if self._sigint_toast_clear_handle is not None:

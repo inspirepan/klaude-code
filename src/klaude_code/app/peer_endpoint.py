@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 import secrets
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -71,10 +72,27 @@ async def call_endpoint(record: EndpointRecord, method: str, **payload: Any) -> 
         await writer.wait_closed()
 
 
+async def locate_session(session_id: str) -> None:
+    """Best-effort terminal attention request; never hide the lease conflict."""
+    with contextlib.suppress(Exception):
+        async with asyncio.timeout(0.5):
+            for record in await asyncio.to_thread(registered_endpoints):
+                if any(peer.session_id == session_id for peer in record.sessions):
+                    await call_endpoint(record, "locate-session", session_id=session_id)
+                    return
+
+
 class PeerEndpoint:
-    def __init__(self, runtime: RuntimeFacade, scheduler: HeadlessRuntime) -> None:
+    def __init__(
+        self,
+        runtime: RuntimeFacade,
+        scheduler: HeadlessRuntime,
+        *,
+        on_locate: Callable[[], None] | None = None,
+    ) -> None:
         self.runtime = runtime
         self.scheduler = scheduler
+        self._on_locate = on_locate
         endpoint_id = uuid4().hex
         home_hash = hashlib.sha256(str(Path.home()).encode()).hexdigest()[:12]
         socket_root = Path("/tmp") / f"klaude-{os.getuid()}-{home_hash}"
@@ -214,6 +232,10 @@ class PeerEndpoint:
             raise ValueError("Session is offline")
         work_dir = agent.session.work_dir
         method = request["method"]
+        if method == "locate-session":
+            if self._on_locate is not None:
+                self._on_locate()
+            return {"ok": True, "located": self._on_locate is not None}
         if method == "tasks":
             result = await self.runtime.task_manager.manage(
                 session_id, work_dir, TaskRequest.model_validate(request["request"])

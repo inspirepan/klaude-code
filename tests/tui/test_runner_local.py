@@ -304,6 +304,9 @@ class FakeInputProvider:
 
 
 class FakeDisplay:
+    def locate_session(self) -> None:
+        pass
+
     def task_attention(self) -> dict[str, str]:
         return {}
 

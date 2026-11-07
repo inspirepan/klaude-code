@@ -10,11 +10,12 @@ from threading import Event
 from uuid import uuid4
 
 from klaude_code.agent.runtime.llm import FallbackLLMClient
-from klaude_code.app.peer_endpoint import PeerEndpoint
+from klaude_code.app.peer_endpoint import PeerEndpoint, locate_session
 from klaude_code.app.ports import DisplayABC
 from klaude_code.app.runtime import AppComponents, AppInitConfig, cleanup_app_components, initialize_app_components
 from klaude_code.app.scheduler import HeadlessRuntime
 from klaude_code.app.session_index import load_session_summary_from_meta
+from klaude_code.app.session_lease import SessionInUseError
 from klaude_code.app.session_state import live_descendant_session_ids
 from klaude_code.config import config_revision, load_config
 from klaude_code.config.model_catalog import build_model_catalog_entry
@@ -37,6 +38,7 @@ class LocalRuntimeClient(DisplayABC):
         *,
         on_envelope: Callable[[events.EventEnvelope], Awaitable[None]],
         on_session_info: Callable[[SessionInfoSnapshot], None] | None = None,
+        on_locate: Callable[[], None] | None = None,
         model: str | None = None,
         debug: bool = False,
         vanilla: bool = False,
@@ -48,6 +50,7 @@ class LocalRuntimeClient(DisplayABC):
         self._init_config = AppInitConfig(model=model, debug=debug, vanilla=vanilla)
         self._on_envelope = on_envelope
         self._on_session_info = on_session_info
+        self._on_locate = on_locate
         self._components: AppComponents | None = None
         self._scheduler: HeadlessRuntime | None = None
         self._endpoint: PeerEndpoint | None = None
@@ -85,14 +88,21 @@ class LocalRuntimeClient(DisplayABC):
             with diagnostic_phase("local.initialize_session", self.session_id):
                 await self._initialize_session()
             with diagnostic_phase("local.start_peer", self.session_id):
-                self._endpoint = PeerEndpoint(self.components.runtime, self._scheduler)
+                self._endpoint = PeerEndpoint(self.components.runtime, self._scheduler, on_locate=self._on_locate)
                 await self._endpoint.start()
         except BaseException:
             await self.close()
             raise
 
+    async def _claim_session(self, session_id: str) -> None:
+        try:
+            self.components.runtime.claim_session(session_id)
+        except SessionInUseError:
+            await locate_session(session_id)
+            raise
+
     async def _initialize_session(self) -> None:
-        self.components.runtime.claim_session(self.session_id)
+        await self._claim_session(self.session_id)
         if not Session.exists(self.session_id, work_dir=self._work_dir):
             session = Session.create(id=self.session_id, work_dir=self._work_dir)
             session.model_config_name = self._model
@@ -165,7 +175,7 @@ class LocalRuntimeClient(DisplayABC):
     async def switch_session(self, session_id: str) -> None:
         if self.has_running_tasks():
             raise ValueError("Stop running tasks with /stop before switching sessions")
-        self.components.runtime.claim_session(session_id)
+        await self._claim_session(session_id)
         registry = self.components.runtime.session_registry
         for child_id in live_descendant_session_ids(registry, self.session_id):
             actor = registry.get_session_actor(child_id)

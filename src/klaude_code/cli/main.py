@@ -256,6 +256,7 @@ def main_callback(
 ) -> None:
     # Only run interactive mode when no subcommand is invoked
     if ctx.invoked_subcommand is None:
+        from klaude_code.app.session_lease import SessionInUseError
         from klaude_code.log import log
         from klaude_code.session import Session
         from klaude_code.tui.terminal.title import update_terminal_title
@@ -437,6 +438,12 @@ def main_callback(
                     session_id, model=chosen_model, debug=debug_enabled, vanilla=vanilla, work_dir=session_work_dir
                 )
             )
+        except SessionInUseError:
+            title = Session.load_meta(session_id, work_dir=session_work_dir).title if session_id is not None else None
+            title = " ".join(title.split()) if title else None
+            label = f'"{title}"' if title else "This conversation"
+            log((f"{label} is already open in another terminal.", "yellow"))
+            raise typer.Exit(1) from None
         except ValueError as exc:
             log((str(exc), "red"))
             raise typer.Exit(1) from None

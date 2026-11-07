@@ -9,6 +9,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
+from klaude_code.app.session_lease import SessionInUseError
 from klaude_code.cli import main as cli_main
 from klaude_code.tui.command.model_picker import ModelSelectResult, ModelSelectStatus
 
@@ -147,3 +148,48 @@ def test_resume_by_id_uses_selected_history_directory(
     invoke(resume_by_id="other")
     assert interactive["session_id"] == "other"
     assert interactive["work_dir"] == tmp_path
+
+
+@pytest.mark.parametrize("entry", ["resume", "continue"])
+@pytest.mark.parametrize("title", ["Terminal notifications", None])
+def test_resume_conflict_is_reported_by_cli(
+    interactive, monkeypatch: pytest.MonkeyPatch, entry: str, title: str | None
+) -> None:
+    logged: list[object] = []
+    monkeypatch.setattr("klaude_code.log.log", logged.append)
+    monkeypatch.setattr("klaude_code.session.Session.most_recent_session_id", lambda **_kwargs: "session-1")
+    monkeypatch.setattr(
+        "klaude_code.cli.history.select_history",
+        lambda _target: SimpleNamespace(id="session-1", work_dir=str(Path.cwd())),
+    )
+    monkeypatch.setattr(
+        "klaude_code.session.Session.load_meta",
+        lambda *_a, **_k: SimpleNamespace(model_config_name=None, model_name=None, title=title),
+    )
+    monkeypatch.setattr("klaude_code.config.load_config", lambda: SimpleNamespace(main_model="fake"))
+
+    async def conflict(session_id: str, **_kwargs: Any) -> None:
+        assert session_id == "session-1"
+        raise SessionInUseError(f"Session {session_id} is active in another Klaude process")
+
+    monkeypatch.setattr("klaude_code.tui.runner.run_local", conflict)
+    with pytest.raises(typer.Exit) as exc:
+        invoke(continue_=entry == "continue", resume_by_id="session-1" if entry == "resume" else None)
+    assert exc.value.exit_code == 1
+    label = f'"{title}"' if title else "This conversation"
+    assert logged == [(f"{label} is already open in another terminal.", "yellow")]
+
+
+def test_other_startup_errors_remain_red(interactive, monkeypatch: pytest.MonkeyPatch) -> None:
+    logged: list[object] = []
+    monkeypatch.setattr("klaude_code.log.log", logged.append)
+    monkeypatch.setattr("klaude_code.config.load_config", lambda: SimpleNamespace(main_model="fake"))
+
+    async def run_local(_session_id: str | None, **_kwargs: Any) -> None:
+        raise ValueError("Startup failed")
+
+    monkeypatch.setattr("klaude_code.tui.runner.run_local", run_local)
+    with pytest.raises(typer.Exit) as exc:
+        invoke()
+    assert exc.value.exit_code == 1
+    assert logged == [("Startup failed", "red")]

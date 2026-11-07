@@ -163,6 +163,64 @@ def test_terminal_title_override_blinks(monkeypatch: pytest.MonkeyPatch) -> None
     assert prefixes[-1] == "❔"
 
 
+@pytest.mark.parametrize(
+    "native,running,finish", [(False, False, False), (False, True, False), (False, True, True), (True, True, True)]
+)
+def test_locator_survives_title_updates_and_restores_current_title(
+    monkeypatch: pytest.MonkeyPatch, native: bool, running: bool, finish: bool
+) -> None:
+    writes: list[str] = []
+    monkeypatch.setattr(terminal_title, "_try_write_title", lambda title: writes.append(title) or True)
+    monkeypatch.setattr(terminal_title, "_LOCATE_DURATION", 0.04)
+    monkeypatch.setattr(terminal_title, "_LOCATE_INTERVAL", 0.005)
+    monkeypatch.setattr(terminal_title, "_BLINK_INTERVAL", 0.001)
+    monkeypatch.setattr(terminal_title, "_project_name", lambda _: "project")
+
+    async def run() -> None:
+        terminal_title.set_native_status_supported(native)
+        try:
+            terminal_title.update_terminal_title(work_dir="/tmp/project", session_title="Old title")
+            if running:
+                terminal_title.start_terminal_title_blink("model", "Old title")
+                await asyncio.sleep(0)
+            terminal_title.locate_terminal_title()
+            start = len(writes) - 1
+            if running:
+                await asyncio.sleep(0.005)
+                assert terminal_title.is_title_blinking() is not native
+            if finish:
+                terminal_title.stop_terminal_title_blink()
+            terminal_title.update_blink_params(session_title="New title")
+            terminal_title.update_terminal_title(prefix="done", work_dir="/tmp/project", session_title="New title")
+            assert all(title.startswith(("● HERE ", "○ HERE ")) for title in writes[start:])
+            restored = asyncio.Event()
+
+            def capture(title: str) -> bool:
+                writes.append(title)
+                if not title.startswith(("● HERE ", "○ HERE ")):
+                    restored.set()
+                return True
+
+            monkeypatch.setattr(terminal_title, "_try_write_title", capture)
+            await asyncio.wait_for(restored.wait(), timeout=1)
+            assert any(title.startswith("● HERE ") for title in writes[start:])
+            assert any(title.startswith("○ HERE ") for title in writes[start:])
+            assert {title.index("HERE") for title in writes[start:] if "HERE" in title} == {2}
+            assert terminal_title._locate_task is None
+            if running and not finish:
+                assert writes[-1].endswith("New title · project")
+                assert writes[-1].split()[0] in terminal_title._BLINK_PREFIXES
+                assert terminal_title.is_title_blinking()
+            else:
+                assert writes[-1] == ("New title · project" if native else "done New title · project")
+        finally:
+            terminal_title.clear_terminal_title_locator()
+            terminal_title.stop_terminal_title_blink()
+            terminal_title.set_native_status_supported(False)
+
+    asyncio.run(run())
+
+
 def test_set_terminal_title_retries_when_tty_busy(monkeypatch: pytest.MonkeyPatch) -> None:
     writes: list[str] = []
     busy = True

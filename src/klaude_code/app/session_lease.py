@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import IO
 
 
+class SessionInUseError(ValueError):
+    """The session is already owned by another process."""
+
+
 class SessionLease:
     @staticmethod
     def _path(session_id: str) -> Path:
@@ -33,7 +37,7 @@ class SessionLease:
             fcntl.flock(self._file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             self._file.close()
-            raise ValueError(f"Session {session_id} is active in another Klaude process") from None
+            raise SessionInUseError(f"Session {session_id} is active in another Klaude process") from None
 
     def close(self) -> None:
         self._file.close()

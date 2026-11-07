@@ -436,6 +436,7 @@ async def _run_local_ui(
         session_id,
         on_envelope=_on_envelope,
         on_session_info=_on_session_info,
+        on_locate=tui_display.locate_session,
         model=model,
         debug=debug,
         vanilla=vanilla,
