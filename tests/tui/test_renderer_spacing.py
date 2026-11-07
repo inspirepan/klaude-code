@@ -496,6 +496,31 @@ def test_multiline_error_continuation_uses_single_grid_indent(child: bool) -> No
 
 
 @pytest.mark.parametrize("child", [False, True])
+@pytest.mark.parametrize("can_retry", [False, True])
+@pytest.mark.parametrize("line_count", [6, 7, 12])
+def test_long_error_keeps_first_and_last_three_lines(child: bool, can_retry: bool, line_count: int) -> None:
+    renderer, output = _renderer_and_output()
+    if child and not can_retry:
+        renderer.set_transcript_detail(Detail.FULL)
+    session_id = "child" if child else "main"
+    if child:
+        renderer.register_session(
+            session_id, SubAgentState(sub_agent_type="finder", sub_agent_desc="review", sub_agent_prompt="")
+        )
+    source_lines = [f"error line {index}" for index in range(line_count)]
+    event = events.ErrorEvent(session_id=session_id, error_message="\n".join(source_lines), can_retry=can_retry)
+
+    renderer.display_error(event)
+
+    lines = [line.strip(" ▌✘") for line in output.getvalue().splitlines() if line.strip()]
+    expected = source_lines
+    if line_count > 6:
+        expected = [*source_lines[:3], f"… (more {line_count - 6} lines)", *source_lines[-3:]]
+    assert lines == expected
+    assert event.error_message == "\n".join(source_lines)
+
+
+@pytest.mark.parametrize("child", [False, True])
 def test_wrapped_retry_aligns_with_tool_indent(child: bool) -> None:
     renderer, output = _renderer_and_output()
     renderer.console.width = 40

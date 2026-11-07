@@ -12,7 +12,7 @@ def render_error(error_msg: Text, *, can_retry: bool = False) -> RenderableType:
     message_style = ThemeKey.WARN if can_retry else ThemeKey.ERROR
     mark_style = ThemeKey.WARN_BOLD if can_retry else ThemeKey.ERROR_BOLD
 
-    error_msg.style = message_style
+    error_msg = truncate_middle_lines(error_msg.plain, max_lines=6, base_style=message_style)
     error_msg.overflow = "fold"
     grid.add_row(Text("✘", style=mark_style), error_msg)
     return grid
