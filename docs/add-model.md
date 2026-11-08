@@ -3,7 +3,7 @@
 执行清单：给内置配置加一个模型或一个 provider 时按顺序过一遍。
 落点几乎只有一个文件：`src/klaude_code/config/assets/builtin_config.yaml`。字段语义的权威定义在 `src/klaude_code/protocol/llm_param.py`，本文只管**顺序、落点和坑**。
 
-用户侧 `~/.klaude/config.yaml` 用同一套 schema（`UserProviderConfig`），按字段与内置配置合并，所以本文的字段说明对用户配置同样成立。
+用户侧 `~/.klaude/klaude-config.yaml` 用同一套 schema（`UserProviderConfig`），按字段与内置配置合并，所以本文的字段说明对用户配置同样成立。
 
 ---
 
@@ -128,7 +128,7 @@ cost: { input: 0.75, output: 3.75, cache_read: 0.075 }
 
 分时定价用 `peak`（`windows` + `timezone`，价格留 0 表示沿用平峰价），当前只有 DeepSeek 用到，`tests/config/test_builtin_config_cost.py` 按官方公告钉住了它的窗口和倍数。推广价要在 YAML 注释里写明到期时间与恢复后的价格。
 
-不填 `cost` 不会报错，但用量统计会把这个模型算成 0 成本。
+不填 `cost` 不会报错，但不会计算成本；用量统计显示 `unavailable`，TUI 不显示成本。
 
 ---
 

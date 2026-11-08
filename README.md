@@ -1,466 +1,169 @@
 # Klaude Code
 
-Minimal code agent CLI with independent terminal sessions, asynchronous sub-agents, and local peer messaging.
+A coding agent for your terminal. Klaude reads and edits files, runs commands, and delegates work to specialized sub-agents.
 
-## Agent Multiplexer
+Use models from Anthropic, OpenAI, Google, OpenRouter, and other providers, or sign in with a ChatGPT subscription.
 
-Each TUI owns its main conversation and sub-agents in one process, loading its own configuration and environment. Headless runs use independent processes; local Unix sockets provide discovery and messaging. Inside klaude, prefer `Agent` / `ManageTasks` for owned work and `ListPeers` / `MessagePeer` for explicit collaboration. `Agent` starts asynchronously and returns task/session references; use `ManageTasks` `wait` / `output` before relying on required results, not list polling. The CLI remains the external scripting and fallback interface: `run` returns immediately, multi-target `wait` is a barrier, and `--group` names a fan-out:
+## Get started
 
-```bash
-id=$(klaude run --group me "fix the failing tests under tests/server/")
-klaude ps                                  # ID / NAME / TITLE / STATE / MODEL / ACTIVITY
-klaude brief "$id"                         # compact, bounded status report
-klaude wait "$id" --timeout 600            # block until it settles (exit 0/2/3/124)
-klaude output "$id"                        # last assistant message
-klaude send "$id" "additional context"     # only while the receiving process is online
-```
-
-Parallel fan-out + barrier + synthesis:
-
-```bash
-G="review-$(git rev-parse --short HEAD)"
-git diff --name-only main | \
-  xargs -I{} klaude run --group "$G" --agent code-reviewer "review the changes in {}"
-klaude wait --group "$G" --timeout 900
-klaude output --group "$G" | klaude run --wait "dedupe these findings and rank by severity"
-```
-
-History remains resumable with `klaude -r`. A headless process exits after its main turn, owned asynchronous tasks, and eligible completion reports settle. `send` requires an online process; it does not restart an offline session. `ps` lists online sessions; `ps --history`, `output`, and `wait` can read saved records. Headless approval policies are `hold|auto|deny`; pending questions can be answered with `klaude respond`. Agents must not answer a peer's pending approval/question or route denied actions through peers.
-
-`send` (including `run --session`) delivers structured peer data, not operator approval. `--from` is only a display label; `--steer` is an alias for the default safe-boundary delivery. JSON receipts include `message_id` and `accepted`: queued does not mean read or replied. Use `--message-id` for idempotent retries and `--reply-to` for explicit correlation. `send --wait` waits for the session to settle and reads its output, **not** a reply to that message. `output` never sends a peer reply or acknowledges model consumption.
-
-Native agents use `ListPeers` / `MessagePeer` for explicit messages and `Agent` / `ManageTasks` for owned background work. Scripts can inspect and control that work with `klaude tasks list TARGET`, `klaude tasks output TARGET TASK_ID`, `klaude tasks wait TARGET TASK_ID --timeout 600` (exit 124 on timeout), and `klaude tasks stop TARGET TASK_ID`. `klaude stop TARGET` stops only its child agents; `klaude interrupt TARGET` is Esc-equivalent and interrupts only its current root inference/wait, not children or independent Bash tasks. `ps` / `brief` report background agent counts separately.
-
-Use `klaude unpause TARGET` to allow an online session's pending work to continue after an interrupt.
-
-The `task-result:` message ID prefix is reserved for internal task delivery; `send --message-id` rejects it before acceptance. Explicit `@file` and `/skill:` attachments only run for operator input (`source=None` or `user`), never for peer messages or task/shell completion reports.
-
-Busy TUI input and peer messages enter a durable queue and are admitted as a FIFO batch at the next safe step boundary, after tool results are paired. Steering can release a task wait without stopping the child. Owned Agent completion delivers a report and can wake its owner once when continuation is allowed; Shell completion does not wake an idle owner; a dependency wait is released by its target, not unrelated shell completions. User input, `source=peer_message`, and `source=task_completion` retain distinct origins; peer data and task reports are not operator authorization. Recovery restores history, results, and pending delivery, marks unrecoverable execution `lost`, and uses stable IDs plus durable acknowledgment to prevent duplicate delivery; it does not replay side effects. CLI/TUI output reads and partial pages do not acknowledge model consumption.
-
-Implementation note: current runtime tool descriptions, system tool strategy, and `klaude --skill` define this contract.
-
-For the full integration guide (command cheatsheet, orchestration patterns, current models and agent types, assembled from your live config):
-
-```bash
-klaude --skill    # paste into your agent's CLAUDE.md / AGENTS.md
-```
-
-## Features
-- **Independent sessions**: each terminal owns its conversation; spawn independent headless processes with `run`, track with `ps`/`brief`/`wait`, message online sessions with `send`
-- **Agent-friendly CLI**: bounded `brief` reports, `--json` everywhere, exit-code contracts, plain-text `--help`, `klaude --skill` integration guide
-- **Multi-provider**: Anthropic Message API, OpenAI Responses API, OpenRouter, Sign in with ChatGPT etc.
-- **Keep reasoning item in context**: Interleaved thinking support
-- **Model-aware tools**: Claude Code tool set for Opus, `apply_patch` for GPT-5/Codex
-- **Reminders**: Cooldown-based todo tracking, instruction reinforcement and external file change reminder
-- **Sub-agents**: General Purpose, Finder, Code Reviewer, Code Maintenance Reviewer (+ fork-context variant)
-- **Recursive `@file` mentions**: Circular dependency protection, relative path resolution
-- **External file sync**: Monitoring for external edits (linter, manual)
-- **Interrupt handling**: ctrl-c preserves partial responses and synthesizes tool cancellation results
-- **Output truncation**: Large outputs saved to file system with snapshot links
-- **Agent Skills**: Built-in + user + project Agent Skills (with implicit invocation by Skill tool or explicit invocation by typing `//skill` or `/skill`)
-- **Prompt caching**: Append-only persisted history and stable request prefixes maximize cache hits
-- **Context management**: Auto-compaction, Handoff (compress and continue in fresh context), `/rewind` (fork back to an earlier point with the discarded tail summarized)
-- **Auto memory**: Persistent cross-session memory per project (`~/.klaude/projects/<project>/memory/`)
-- **History viewer**: `klaude web` serves saved history and refreshes it without owning execution
-- **Sessions**: Resumable with `--continue`, forkable with `/fork-session`
-- **Extras**: Slash commands, sub-agents, image paste, terminal notifications, auto-theming
-
-## Installation
+Install with [uv](https://docs.astral.sh/uv/getting-started/installation/):
 
 ```bash
 uv tool install klaude-code
 ```
 
-To update:
+Configure a provider, then start Klaude in your project directory:
 
 ```bash
-uv tool upgrade klaude-code
-```
-
-Or use the built-in command:
-
-```bash
-klaude upgrade
-```
-
-### Development Install
-
-```bash
-git clone https://github.com/inspirepan/klaude-code.git
-cd klaude-code
-make install    # install as editable
-```
-
-Or step by step:
-
-```bash
-uv sync                              # install Python deps
-uv tool install -e .                 # install CLI globally (editable)
-```
-
-## Usage
-
-```bash
-klaude [--model [<name>]] [--continue] [--resume [<id>]]
-```
-
-**Options:**
-- `--model`/`-m`: Choose a model.
-  - `--model` (no value): opens the interactive selector.
-  - `--model <value>`: resolves `<value>` to a single model; if it can't, it opens the interactive selector filtered by `<value>`.
-- `--continue`/`-c`: Restore the most recent saved session.
-- `--resume`/`-r`: Restore saved history in this process without resuming paused work.
-  - `--resume` (no value): open the local history picker with titles, reply previews, and date groups. Sessions still open in another process remain visible and cannot be selected.
-  - `--resume <id>`: restore by ID, unique prefix, or name. An active session cannot be restored by another process.
-- `--skill`: Print the current CLI guide for coding agents and exit.
-- `--vanilla`: Minimal mode with only basic tools (Bash, Read, Edit, Write) and no system prompts.
-
-**Model selection behavior:**
-- Default: uses `main_model` from config.
-- `--model` (no value): always prompts you to pick.
-- `--model <value>`: tries to resolve `<value>` to a single model; if it can't, it prompts with a filtered list (and falls back to showing all models if there are no matches).
-
-**Debug Options:**
-- `--debug`/`-d`: Enable debug mode with verbose logging and LLM trace.
-- `--debug-filter`: Filter debug output by type (comma-separated).
-
-
-### Configuration
-
-#### Quick Start (Zero Config)
-
-Klaude comes with built-in provider configurations. Just set an API key environment variable and start using it:
-
-```bash
-# Pick one (or more) of these:
-export ANTHROPIC_API_KEY=sk-ant-xxx      # Claude models
-export OPENAI_API_KEY=sk-xxx             # GPT models
-export OPENROUTER_API_KEY=sk-or-xxx      # OpenRouter (multi-provider)
-export YOUTU_API_KEY=xxx                  # Youtu gateway (multi-provider)
-export DEEPSEEK_API_KEY=sk-xxx           # DeepSeek models and standalone WebSearch API
-export MOONSHOT_API_KEY=sk-xxx           # Moonshot/Kimi models
-export MINIMAX_API_KEY=xxx               # MiniMax models
-export GOOGLE_API_KEY=xxx                # Google Gemini models (or GEMINI_API_KEY)
-export PARALLEL_API_KEY=xxx              # Parallel Search (optional, WebSearch provider, preferred)
-export EXA_API_KEY=exa-xxx               # Exa Search (optional, WebSearch provider, fallback)
-export BRAVE_API_KEY=BSA-xxx             # Brave Search (optional, WebSearch provider, fallback)
-
-# Then just run:
+klaude login
+cd your-project
 klaude
 ```
 
-On first run, you'll be prompted to select a model. Your choice is saved as `main_model`.
+You can also supply credentials through environment variables such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GOOGLE_API_KEY`. On first run, choose a model from the picker. Klaude saves your choice.
 
-Use `/manage-providers` to enable, disable, or reorder WebSearch providers. The default
-chain is Parallel, Exa, Brave, DeepSeek, then OpenAI; entries without an API key are
-skipped, and request failures fall back to the next provider. DeepSeek uses its
-[standalone Search API](https://api-docs.deepseek.com/guides/search/) without a model
-call; only OpenAI search uses a model.
+To update, run `klaude upgrade` or `uv tool upgrade klaude-code`.
 
-You can also configure fallback lists for the main model and helper models:
+## Work in the terminal
 
-```yaml
-main_model:
-  - gpt-5.5
-  - gpt-5.4
-  - opus
+Describe a task in the input editor. Use `@path` to attach a file or directory, or paste an image with `ctrl-v`.
 
-fast_model:
-  - haiku
-  - gemini-flash
-  - gpt-5-nano
+Klaude can search the codebase, edit files, run tests, and search the web. Specialized sub-agents handle code search, implementation, correctness review, and maintainability review. Use `/tasks` to inspect background agents and shell commands.
 
-compact_model:
-  - gemini-flash
-  - haiku
-```
+While Klaude works, you can send more input. `enter` queues a message for the next safe step boundary. `alt-enter` queues a follow-up for after the current turn.
 
-Klaude expands each entry into concrete provider candidates in `provider_list` order, then falls through to the next model in the list. For example, `gpt-5.4` will try available providers such as `gpt-5.4@openai` and `gpt-5.4@openrouter` before moving to the next model. Runtime fallback is used for non-retryable provider/model failures such as quota, billing, permission, or model-unavailable errors. `fast_model` is used for session-title generation; `compact_model` is used for compact/helper tasks.
-
-When you switch models with `/model`, Klaude updates `main_model` without discarding the fallback chain: the selected model is moved to the front if it already exists, or inserted at the front otherwise.
-
-#### Built-in Providers
-
-| Provider(s) | Credentials |
-|-------------|-------------|
-| `youtu-anthropic` | `YOUTU_API_KEY` |
-| `anthropic` | `ANTHROPIC_API_KEY` |
-| `aws-bedrock` | `AWS_BEDROCK_ACCESS_KEY_ID` + `AWS_BEDROCK_SECRET_ACCESS_KEY` + `AWS_BEDROCK_REGION` (standard `AWS_*` fallbacks are also accepted) |
-| `openai` | `OPENAI_API_KEY` |
-| `azure-openai-responses` | `AZURE_OPENAI_API_KEY` + `AZURE_OPENAI_ENDPOINT` (or `AZURE_OPENAI_BASE_URL`) |
-| `google` | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
-| `google-vertex` | `GOOGLE_APPLICATION_CREDENTIALS` + `GOOGLE_CLOUD_PROJECT` + `GOOGLE_CLOUD_LOCATION` |
-| `deepseek` | `DEEPSEEK_API_KEY` |
-| `moonshot-cn`, `moonshot-ai` | `MOONSHOT_API_KEY` |
-| `minimax` | `MINIMAX_API_KEY` |
-| `opencode-go`, `opencode-go-responses` | `OPENCODE_API_KEY` |
-| `chatgpt` | OAuth via `klaude login chatgpt` |
-| `openrouter` | `OPENROUTER_API_KEY` |
-
-List available models, grouped by provider, with agent-role bindings:
+### Choose a model
 
 ```bash
-klaude models
+klaude models                 # Available models and role bindings
+klaude models --all           # Include disabled entries and missing credentials
+klaude -m                     # Open the model picker
+klaude -m sonnet              # Choose by name
+klaude -m sonnet@anthropic    # Choose a specific provider
 ```
 
-Use `--all` to include disabled models and providers without credentials, or `--json` for machines.
-The built-in model catalog changes more frequently than this README; use `klaude models` for the
-authoritative provider/model list. `klaude --skill` prints the AI-agent integration guide.
+If a model query has several matches, Klaude opens a filtered picker. Inside a session, use `/model` to switch models or `/sub-agent-model` to configure sub-agents.
 
-Use `klaude ps` for an online overview, `ps --watch` for live updates, and `--json` for scripts. Restore history with `klaude -c` or `klaude -r`; use `/tasks` for the current session's owned work.
+The model catalog comes from your installed version and configuration. Use `klaude models` to check availability.
 
-#### Authentication
-
-Use `klaude login` to configure API keys or log in to subscription-based providers:
+### Resume a conversation
 
 ```bash
-# Interactive provider selection
-klaude login
-
-# Configure API keys
-klaude login anthropic   # Set ANTHROPIC_API_KEY
-klaude login openai      # Set OPENAI_API_KEY
-klaude login google      # Set GOOGLE_API_KEY
-klaude login openrouter  # Set OPENROUTER_API_KEY
-klaude login deepseek    # Set DEEPSEEK_API_KEY
-klaude login moonshot    # Set MOONSHOT_API_KEY
-klaude login minimax     # Set MINIMAX_API_KEY
-klaude login aws-bedrock    # Configure AWS Bedrock credentials
-klaude login google-vertex  # Configure Google Vertex credentials
-
-# OAuth login for subscription-based providers
-klaude login chatgpt     # ChatGPT subscription
+klaude -c              # Resume the latest session in this directory
+klaude -r              # Browse saved sessions
+klaude -r SESSION_ID   # Resume by ID, unique prefix, or name
 ```
 
-API keys are stored in `~/.klaude/klaude-auth.json` and used as fallback when environment variables are not set.
+Each terminal runs its own conversation and background tasks. Exiting saves history and stops that process's owned work. Klaude asks for confirmation when tasks are still running. A session open in another process cannot be resumed at the same time.
 
-To logout from OAuth providers:
+Use `/fork-session` to branch a conversation. `/rewind` creates a branch from an earlier message and carries a summary of the discarded tail into the new session. Stop owned tasks before starting a new session or switching branches.
 
-```bash
-klaude logout chatgpt
-```
+### Use interactive commands
 
-#### Custom Configuration
+Type `/` to browse commands and installed skills. These commands cover common tasks:
 
-User config file: `~/.klaude/klaude-config.yaml`
+| Command | Action |
+| --- | --- |
+| `/init` | Create project instructions |
+| `/model` | Switch the main model |
+| `/sub-agent-model` | Configure sub-agent models |
+| `/manage-providers` | Manage model and WebSearch providers |
+| `/tasks` | Browse background tasks and their output |
+| `/stop` | Stop child agents |
+| `/context` | Inspect context usage |
+| `/compact` | Summarize older context |
+| `/status` | Show session usage and cost |
+| `/copy` | Copy the last assistant message |
+| `/fork-session` | Branch the conversation |
+| `/rewind` | Branch from an earlier message with a summary |
+| `/new` | Start a new conversation |
+| `/exit` | Save history and exit |
 
-Open in editor:
+Klaude compacts older context as the conversation approaches the model's limit. The agent can also use Handoff to summarize a long conversation and continue in a fresh context.
 
-```bash
-klaude config
-```
+### Use keyboard shortcuts
 
-##### Model Configuration
+| Key | Action |
+| --- | --- |
+| `enter` | Submit input |
+| `alt-enter` | Queue a follow-up while the agent works |
+| `ctrl-j` | Insert a newline |
+| `shift-enter` | Insert a newline in supported terminals |
+| `ctrl-l` | Open the model picker |
+| `ctrl-v` | Paste an image |
+| `ctrl-o` | Toggle compact and expanded transcript views |
+| `ctrl-t` | Expand or fold diffs and compaction summaries |
+| `esc` or `ctrl-c` | Interrupt the main agent |
 
-You can add custom models to built-in providers or define new ones. Configuration is inherited from built-in providers by matching `provider_name`.
+## Add project instructions and skills
 
-```yaml
-# ~/.klaude/klaude-config.yaml
-main_model:
-  - gpt-5.5
-  - gpt-5.4
-  - opus
+Klaude reads `AGENTS.md`, `CLAUDE.md`, and `AGENT.md` for project instructions. It loads instructions from the initial search paths and discovers scoped instructions near files as you work.
 
-fast_model:
-  - haiku
-  - gemini-flash
-  - gpt-5-nano
+Project memory uses `~/.klaude/projects/<project-key>/memory/MEMORY.md`. Klaude also reads compatible Claude Code project memory. The index enters context automatically; the agent can read additional memory files as needed.
 
-compact_model:
-  - gemini-flash
-  - haiku
-
-provider_list:
-  # Add/Override models for built-in OpenRouter provider
-  - provider_name: openrouter
-    model_list:
-      - model_name: qwen-coder
-        model_id: qwen/qwen-2.5-coder-32b-instruct
-        context_limit: 131072
-        cost: { input: 0.3, output: 0.9 }
-      - model_name: sonnet # Override built-in sonnet params
-        model_id: anthropic/claude-3.5-sonnet
-        context_limit: 200000
-
-  # Add a completely new provider
-  - provider_name: my-azure
-    protocol: openai
-    api_key: ${AZURE_OPENAI_KEY}
-    base_url: https://my-instance.openai.azure.com/
-    is_azure: true
-    azure_api_version: "2024-02-15-preview"
-    model_list:
-      - model_name: gpt-4
-        model_id: gpt-4-deploy-name
-        context_limit: 128000
-```
-
-**Key Tips:**
-- **Merging**: If `provider_name` matches a built-in provider, settings like `protocol` and `api_key` are inherited.
-- **Overriding**: Use the same `model_name` as a built-in model to override its parameters.
-- **Environment Variables**: Use `${VAR_NAME}` syntax for secrets.
-- **Model Preference Lists**: `main_model`, `fast_model`, and `compact_model` accept either a single string or a list of model selectors. When you provide a list, Klaude first tries matching providers in `provider_list` order for each selector, then moves to the next selector.
-- **Updating Defaults**: `/model` keeps saving the selected model back to `main_model`, but preserves fallback order by moving or inserting the selected model at the front of the list.
-
-##### Sub-agent Model Configuration
-
-`sub_agent_models` accepts registered sub-agent type names as keys. Current supported keys are:
-
-- `general-purpose` - Autonomous multi-step task executor
-- `general-purpose-fork-context` - Same as above but inherits parent conversation history
-- `finder` - Fast codebase search and exploration
-- `code-reviewer` - Identifies bugs in proposed changes
-- `code-maintenance-reviewer` - Reviews maintainability, reuse, layering, and unnecessary complexity
-
-If a sub-agent type is not configured, it falls back to the main agent model. Each key also accepts a list for fallback ordering.
-
-```yaml
-sub_agent_models:
-  general-purpose: sonnet
-  finder:
-    - haiku
-    - gemini-flash
-  code-reviewer: opus
-```
-
-##### Supported Protocols
-
-- `anthropic` - Anthropic Messages API
-- `openai` - OpenAI Chat Completion API
-- `responses` - OpenAI Responses API (for o-series, GPT-5, Codex)
-- `chatgpt_oauth` - Sign in with ChatGPT (OAuth-based ChatGPT plan usage)
-- `openrouter` - OpenRouter API (handling `reasoning_details` for interleaved thinking)
-- `google` - Google Gemini API
-- `google_vertex` - Google Vertex AI (uses GCP credentials)
-- `bedrock` - AWS Bedrock for Claude (uses AWS credentials instead of api_key)
-
-List configured providers and models:
-
-```bash
-klaude models
-```
-
-### Cost Tracking
-
-View aggregated usage statistics across all sessions:
-
-```bash
-# Show all historical usage data
-klaude cost
-
-# Show usage for the last 7 days only
-klaude cost --days 7
-
-# Alias for days
-klaude cost --recent 7
-```
-
-### Slash Commands
-
-Inside the interactive session (`klaude`), use these commands to streamline your workflow:
-
-- `/...` supports mixed completion for commands + skills (command names take priority on conflicts).
-- `//...` shows skill-only completion and triggers skills explicitly.
-
-- `/copy` - Copy last assistant message to clipboard.
-- `/compact` - Clear conversation history but keep a summary in context.
-- `/fork-session` - Fork current session from a selected point.
-- `/refresh-terminal` - Refresh terminal display.
-- `/new` - Start a new session (clears context).
-- `/model` - Switch the active LLM and update `main_model` in config while preserving fallback order (the selected model is moved/inserted to the front).
-- `/sub-agent-model` - Configure sub-agent models at runtime.
-- `/status` - Show session usage statistics (cost, tokens, model breakdown).
-- `/login` - Login to provider or configure API key.
-- `/logout` - Logout from provider.
-- `/continue` - Continue current session without a new user message.
-- `/exit` - Stop owned tasks after confirmation, save history, and exit.
-
-
-### Input Shortcuts
-
-| Key                  | Action                                      |
-| -------------------- | ------------------------------------------- |
-| `Enter`              | Submit input                                |
-| `shift-enter`        | Insert newline (terminal-dependent)         |
-| `ctrl-j`             | Insert newline                              |
-| `ctrl-l`             | Open model picker overlay                   |
-| `ctrl-v`             | Paste image from clipboard                  |
-| `Left/Right`         | Move cursor (wraps across lines)            |
-| `Backspace`          | Delete character or selected text           |
-| `c` (with selection) | Copy selected text to clipboard             |
-
-### Sub-Agents
-
-The main agent can spawn specialized sub-agents for specific tasks:
-
-| Sub-Agent | Purpose |
-|-----------|---------|
-| **General Purpose** | Handle complex multi-step tasks autonomously |
-| **General Purpose (Fork Context)** | Same as above, but inherits the parent agent's full conversation history |
-| **Finder** | Fast codebase exploration - find files, search code, answer questions about the codebase |
-| **Code Reviewer** | Identify real bugs in proposed changes |
-| **Code Maintenance Reviewer** | Review maintainability, reuse, layering, and unnecessary complexity |
-
-### Process Lifetime
-
-Each terminal owns one main conversation and its child Agents/Shell tasks. Use a terminal multiplexer to preserve the terminal while disconnected. Exiting Klaude stops owned work and saves history; when tasks are running, the TUI asks before exiting. `/new` and `/fork-session` require owned work to stop first.
-
-Configuration and credentials are read by each process. After upgrading code, restart each process and restore history with `klaude -r` to load the new version. `/reload` and shared execution daemons are removed.
-
-`klaude web` runs a separate read-only HTTP viewer over saved history; it offers no execution controls.
-
-### Prompt Caching
-
-Klaude is designed to maximize prefix cache hit rates across LLM API calls. Cache pricing varies by
-provider and model, but cache hits generally reduce input cost and latency.
-
-**Append-only persisted history.** New messages, tool results, and compaction entries
-are appended to `events.jsonl`. The active LLM-facing view may omit or summarize earlier events,
-but ordinary consecutive requests keep unchanged prefixes byte-identical whenever possible.
-
-Design choices that preserve prefix stability:
-- **Stable system prompt**: The system prompt is composed of a static base prompt + stable tool strategy block + environment info, avoiding per-step variation.
-- **Stable JSON serialization**: Tool schemas and provider payloads use `canonicalize_json()` for deterministic key ordering across calls.
-- **Cache control markers**: For Anthropic and OpenRouter (Claude models), `cache_control: {"type": "ephemeral"}` is placed on the system prompt and the last message part to hint the provider's caching boundary.
-- **Cache-aware compaction**: Compatible main/compact models can reuse the original request prefix
-  while generating the summary; the next request uses the summary plus the retained tail.
-- **Fork-context sub-agents**: Sub-agents with `fork_context=True` inherit the parent's full system prompt and tool list to maximize prefix cache sharing.
-
-The TUI displays cache hit rate per step in the metadata line (e.g. `cache 12.5k (98%)`). Rates below 90% are highlighted as a warning.
-
-### Context Management
-
-The agent automatically manages context window limits:
-
-- **Auto-compaction**: When the conversation approaches the model's context limit, the LLM-facing
-  view replaces older messages with a compact summary while persisted events remain append-only.
-  The agent also recovers from context overflow errors by compacting and retrying.
-- **`/rewind`**: The user can rewind to an earlier user message. The session forks and the discarded tail is carried over as a summary, so nothing is lost and the original session stays resumable.
-- **Handoff**: The agent can compress the current conversation into a summary and continue in a fresh context. Useful for very long sessions where context quality degrades.
-
-### Auto Memory
-
-Klaude maintains persistent memory per project across sessions. Memory files are stored in `~/.klaude/projects/<project-key>/memory/` with a `MEMORY.md` index file. The agent automatically loads relevant memories at session start and can save new memories during a session.
-
-Memory types include user preferences, feedback/corrections, project context, and external references.
-
-### Project Configuration Files
-
-Klaude reads instruction files from your project directory to customize agent behavior:
-
-| File | Purpose |
-|------|---------|
-| `AGENTS.md` | Project-level instructions checked into version control (shared with team) |
-| `CLAUDE.md` | Personal instructions (typically gitignored) |
-
-These files are loaded automatically and injected into the system prompt. They can be placed at the project root or in subdirectories for scoped instructions.
-
-## Install Skills
-
-Skills are installed separately from the application. Shared skills in `~/.agents/skills/` work with klaude and other supporting agents:
+Skills are installed separately. For example:
 
 ```bash
 npx skills add inspirepan/agent-skills --global --agent codex claude-code --skill klaude-config
 ```
 
-The application has no bundled/system skills or skills submodule. Install user and project skills independently; hidden child directories are skipped during discovery.
+Shared user skills can live in `~/.agents/skills/`. Project skills can live in `.agents/skills/` or `.claude/skills/`. Klaude also supports the other user directories listed in the [configuration reference](docs/configuration.md#skill-directories).
+
+Type `//` for skill-only completion. Use `/skill:name` or `//skill:name` to invoke a skill explicitly. The agent can also select a skill from its description and read its instructions.
+
+## Configure providers and models
+
+Run `klaude config` to edit `~/.klaude/klaude-config.yaml`. You can add providers, override built-in models, and set model fallback lists.
+
+The [configuration reference](docs/configuration.md) covers credentials, model selection, sub-agent defaults, custom providers, and WebSearch.
+
+## Run tasks from scripts
+
+Use `klaude run` to start an independent background process:
+
+```bash
+id=$(klaude run "Investigate the failing tests and report the cause")
+klaude brief "$id"
+klaude wait "$id" --timeout 600
+klaude output "$id"
+```
+
+`run` returns a session ID immediately. `wait` returns when the session finishes or needs attention. The default approval policy holds permission requests for your response. Use `klaude respond` to answer pending approvals or questions.
+
+Use `klaude ps` to list online sessions and `klaude send SESSION_ID "message"` to message one. Messages require an online process. For one command that waits and prints the result, use `klaude run --wait "your task"`.
+
+For command options, run `klaude --help` or `klaude COMMAND --help`. `klaude --skill` prints the integration guide with the models and agent types available in your configuration. Inside Klaude, agents use the native `Agent` and task-management tools for delegated work.
+
+## Inspect history and costs
+
+```bash
+klaude web             # Open the read-only viewer of saved history
+klaude cost            # Usage from the last 7 days
+klaude cost --days 30  # Usage from the last 30 days
+klaude cost --all      # All recorded usage
+```
+
+## Develop Klaude
+
+Python 3.13 or later is required. Building the web viewer also requires Node.js and either pnpm or npm.
+
+```bash
+git clone https://github.com/inspirepan/klaude-code.git
+cd klaude-code
+uv sync
+make install
+```
+
+`make install` builds the web viewer and installs the CLI as an editable package. Restart running Klaude processes after code changes to load the new version, then resume with `klaude -r`.
+
+Use the following checks during development:
+
+```bash
+make format      # Apply Python formatting and lint fixes
+make lint        # Run ruff, ty, and import-linter
+make test        # Run the non-network test suite
+make build       # Build the web viewer and Python distributions
+make pre-push    # Run all required checks before pushing
+```
+
+See [AGENTS.md](AGENTS.md) for repository conventions, [the model checklist](docs/add-model.md) to add or upgrade a model, and [CHANGELOG.md](CHANGELOG.md) for release history.

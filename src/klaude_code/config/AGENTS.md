@@ -15,6 +15,6 @@ previous names and previous ids are not kept as aliases, so old selectors stop r
 
 `assets/builtin_config.yaml` is read through `importlib.resources` and cached
 (`builtin_config.py::_load_builtin_yaml`), so it must stay a package asset and must parse without
-the Python-side defaults. User config (`~/.klaude/config.yaml`) merges over it field by field
+the Python-side defaults. User config (`~/.klaude/klaude-config.yaml`) merges over it field by field
 (`merge.py`), which is why an omitted field in user config keeps the builtin value instead of
 resetting it.
