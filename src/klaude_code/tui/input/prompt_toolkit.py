@@ -919,7 +919,7 @@ class PromptToolkitInput(InputProviderABC):
             mode_hint = "tab to steer the agent" if self._is_btw_mode_active() else "tab to ask /btw"
             fragments.extend([(CLASS_META, " · "), (CLASS_META, status_hint), (CLASS_META, f" · {mode_hint}")])
         if not self._is_btw_mode_active():
-            submit_hint = "alt-enter to follow up at task end" if self._agent_running else "enter/alt-enter to send"
+            submit_hint = "alt-enter to queue" if self._agent_running else "enter to send"
             fragments.append((CLASS_META, f" · {submit_hint}"))
         for line in self._bottom_bar.metadata_footer_lines:
             fragments.extend([("", "\n"), (CLASS_METADATA_FOOTER, f"  {line}")])

@@ -924,7 +924,7 @@ def test_input_footer_renders_interrupt_hint_after_context() -> None:
         ("class:meta", " · "),
         ("class:meta", "1m51s · esc to interrupt"),
         ("class:meta", " · tab to ask /btw"),
-        ("class:meta", " · alt-enter to follow up at task end"),
+        ("class:meta", " · alt-enter to queue"),
     ]
 
     prompt_input._agent_running = True
@@ -1654,7 +1654,7 @@ def test_input_footer_renders_metadata_below_context_line() -> None:
         ("class:meta", " · "),
         ("class:meta", "11s · esc to interrupt"),
         ("class:meta", " · tab to ask /btw"),
-        ("class:meta", " · alt-enter to follow up at task end"),
+        ("class:meta", " · alt-enter to queue"),
         ("", "\n"),
         ("class:metadata.footer", "  in 15.3k · cache 28.2k"),
     ]
