@@ -13,7 +13,6 @@ class StaleUserInteractionError(ValueError):
 
 type UserInteractionSource = Literal[
     "tool",
-    "approval",
     "operation_model",
     "operation_sub_agent_model",
 ]

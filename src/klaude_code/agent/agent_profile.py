@@ -92,12 +92,25 @@ def _append_look_at_for_text_only_model(
     return [*agent_tools, *get_tool_schemas([tools.LOOK_AT])]
 
 
+def _finalize_agent_tools(
+    schemas: list[llm_param.ToolSchema],
+    *,
+    supports_vision: bool,
+    allow_user_interaction: bool,
+) -> list[llm_param.ToolSchema]:
+    schemas = _append_look_at_for_text_only_model(schemas, supports_vision)
+    if allow_user_interaction:
+        return schemas
+    return [schema for schema in schemas if schema.name != tools.ASK_USER_QUESTION]
+
+
 def load_agent_tools(
     model_name: str,
     sub_agent_type: tools.SubAgentType | None = None,
     config: Config | None = None,
     *,
     supports_vision: bool = True,
+    allow_user_interaction: bool = True,
 ) -> list[llm_param.ToolSchema]:
     """Get tools for an agent based on model and agent type.
 
@@ -106,13 +119,18 @@ def load_agent_tools(
         sub_agent_type: If None, returns main agent tools. Otherwise returns sub-agent tools.
         config: Config for optional tool decisions.
         supports_vision: Whether the model accepts image input; when False, LookAt is added.
+        allow_user_interaction: Whether AskUserQuestion may reach a human.
     """
 
     if sub_agent_type is not None:
         profile = get_sub_agent_profile(sub_agent_type)
         if profile.tool_set:
             schemas = adapt_sub_agent_tools_for_model(model_name, get_tool_schemas(list(profile.tool_set)))
-            return _append_look_at_for_text_only_model(schemas, supports_vision)
+            return _finalize_agent_tools(
+                schemas,
+                supports_vision=supports_vision,
+                allow_user_interaction=allow_user_interaction,
+            )
         # Empty tool_set means inherit main agent tools; fall through below
 
     # Main agent tools = common + model-specific diff + common
@@ -133,7 +151,11 @@ def load_agent_tools(
         # diff-tool adaptation (Edit/Write -> apply_patch), like tool_set
         # profiles above.
         schemas = adapt_sub_agent_tools_for_model(model_name, schemas)
-    return _append_look_at_for_text_only_model(schemas, supports_vision)
+    return _finalize_agent_tools(
+        schemas,
+        supports_vision=supports_vision,
+        allow_user_interaction=allow_user_interaction,
+    )
 
 
 def load_agent_attachments(
@@ -176,6 +198,7 @@ class ModelProfileProvider(Protocol):
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         work_dir: Path,
+        allow_user_interaction: bool,
     ) -> AgentProfile: ...
 
 
@@ -191,6 +214,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         work_dir: Path,
+        allow_user_interaction: bool,
     ) -> AgentProfile:
         model_name = llm_client.model_name
         agent_tools = load_agent_tools(
@@ -198,6 +222,7 @@ class DefaultModelProfileProvider(ModelProfileProvider):
             sub_agent_type,
             config=self._config,
             supports_vision=llm_client.get_llm_config().supports_vision,
+            allow_user_interaction=allow_user_interaction,
         )
         agent_system_prompt = load_system_prompt(
             model_name, sub_agent_type, available_tools=agent_tools, work_dir=work_dir
@@ -221,8 +246,9 @@ class VanillaModelProfileProvider(ModelProfileProvider):
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         work_dir: Path,
+        allow_user_interaction: bool,
     ) -> AgentProfile:
-        del sub_agent_type, work_dir
+        del sub_agent_type, work_dir, allow_user_interaction
         return AgentProfile(
             llm_client=llm_client,
             system_prompt="You're an agent running in user's terminal",

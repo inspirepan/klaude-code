@@ -526,9 +526,11 @@ def test_model_switcher_keeps_main_fallback_suffix_after_selection(
             sub_agent_type: object = None,
             *,
             work_dir: Path,
+            allow_user_interaction: bool = True,
         ) -> AgentProfile:
             del sub_agent_type
             del work_dir
+            del allow_user_interaction
             return AgentProfile(llm_client=llm_client, system_prompt=None, tools=[], attachments=[])
 
     monkeypatch.setattr("klaude_code.agent.runtime.config_ops.load_config", lambda: config)

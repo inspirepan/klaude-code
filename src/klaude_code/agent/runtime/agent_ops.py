@@ -286,13 +286,6 @@ class AgentOperationHandler:
         payload: user_interaction.UserInteractionRequestPayload,
         tool_call_id: str | None,
     ) -> user_interaction.UserInteractionResponse:
-        allowed_sources: set[user_interaction.UserInteractionSource] = {
-            "tool",
-            "operation_model",
-            "operation_sub_agent_model",
-        }
-        if source not in allowed_sources:
-            raise ValueError(f"Unsupported user interaction source: {source}")
         runtime = self._get_session_actor(session_id)
         if runtime is None:
             raise RuntimeError("No active runtime session")
@@ -604,6 +597,7 @@ class AgentOperationHandler:
             session_clients.main,
             profile_agent_type,
             work_dir=session.work_dir,
+            allow_user_interaction=not session.unattended,
         )
         agent = Agent(
             session=session,
@@ -680,6 +674,7 @@ class AgentOperationHandler:
             session_clients.main,
             profile_agent_type,
             work_dir=session.work_dir,
+            allow_user_interaction=not session.unattended,
         )
         session.model_name = session_clients.main.model_name
         agent = Agent(
@@ -1377,10 +1372,15 @@ class AgentOperationHandler:
         new_session.model_name = agent.session.model_name
         new_session.model_config_name = agent.session.model_config_name
         new_session.model_thinking = agent.session.model_thinking
+        new_session.unattended = agent.session.unattended
 
         new_agent = Agent(
             session=new_session,
-            profile=self._model_profile_provider.build_profile(session_clients.main, work_dir=new_session.work_dir),
+            profile=self._model_profile_provider.build_profile(
+                session_clients.main,
+                work_dir=new_session.work_dir,
+                allow_user_interaction=not new_session.unattended,
+            ),
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
             model_profile_provider=self._model_profile_provider,
@@ -1432,7 +1432,11 @@ class AgentOperationHandler:
 
         new_agent = Agent(
             session=new_session,
-            profile=self._model_profile_provider.build_profile(session_clients.main, work_dir=new_session.work_dir),
+            profile=self._model_profile_provider.build_profile(
+                session_clients.main,
+                work_dir=new_session.work_dir,
+                allow_user_interaction=not new_session.unattended,
+            ),
             compact_llm_client=session_clients.compact,
             request_user_interaction=self._build_request_user_interaction_callback(session_id=new_session.id),
             model_profile_provider=self._model_profile_provider,
@@ -1876,7 +1880,11 @@ class AgentOperationHandler:
                     agent.session.append_history([entry])
                     if session_clients.compact is None and compact_client is session_clients.main:
                         agent.set_model_profile(
-                            self._model_profile_provider.build_profile(compact_client, work_dir=agent.session.work_dir)
+                            self._model_profile_provider.build_profile(
+                                compact_client,
+                                work_dir=agent.session.work_dir,
+                                allow_user_interaction=not agent.session.unattended,
+                            )
                         )
                     await self._emit_event(fallback_event)
             compaction_entry = result.to_entry(

@@ -245,6 +245,7 @@ class SubAgentLauncher:
         child_session.parent_session_id = parent_session.id
         child_session.agent_type = state.sub_agent_type
         child_session.spawn_kind = "subagent"
+        child_session.unattended = parent_session.unattended
         if state.fork_context:
             child_session.vanilla = parent_session.vanilla
         model_config_name = self._resolve_child_model(parent_session, state, child_session)

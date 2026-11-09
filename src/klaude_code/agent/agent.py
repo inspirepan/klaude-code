@@ -437,6 +437,7 @@ class Agent:
                 llm_client,
                 sub_agent_type,
                 work_dir=self.session.work_dir,
+                allow_user_interaction=not self.session.unattended,
             )
         self.set_model_profile(profile)
         return profile

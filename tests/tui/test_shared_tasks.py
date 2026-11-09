@@ -911,8 +911,8 @@ def test_attention_priority_bounded_rows_and_finished_access_survive_replay(
             await emit(snapshot)
             request = events.UserInteractionRequestEvent(
                 session_id="child-7",
-                request_id="approval",
-                source="approval",
+                request_id="question",
+                source="tool",
                 payload=AskUserQuestionRequestPayload(questions=[]),
             )
             for _ in range(2):
@@ -928,7 +928,7 @@ def test_attention_priority_bounded_rows_and_finished_access_survive_replay(
                             "owned": {"active_agents": 8},
                             "control": {"paused": True},
                             "attention": [
-                                {"kind": "needs_input", "code": "approval", "source_session_id": "child-7"},
+                                {"kind": "needs_input", "code": "tool", "source_session_id": "child-7"},
                                 {"kind": "paused", "code": "user_interrupt", "source_session_id": "main"},
                             ],
                         }
@@ -936,7 +936,7 @@ def test_attention_priority_bounded_rows_and_finished_access_survive_replay(
                 )
             )
             before = tuple(line.text for line in updates[-1])
-            assert "Investigate component 7" in before[0] and "Waiting for approval" in before[0]
+            assert "Investigate component 7" in before[0] and "Needs input" in before[0]
             assert sum("Investigate component" in line for line in before) == 8
             assert not any("unread" in line.lower() or "Completed failure" in line for line in before)
             assert before[-1] == " ◈  Needs input · Paused · 8 agents running  /tasks"
@@ -946,18 +946,20 @@ def test_attention_priority_bounded_rows_and_finished_access_survive_replay(
                 events.ToggleTranscriptDetailEvent,
             ):
                 await emit(control(session_id="main"))
-                assert display.task_attention() == {"child-7": "Waiting for approval"}
+                assert display.task_attention() == {"child-7": "Needs input"}
                 assert "Investigate component 7" in updates[-1][0].text
             assert tuple(line.text for line in updates[-1]) == before
             await emit(
                 events.UserInteractionCancelledEvent(
-                    session_id="child-7", request_id="approval", reason="user_cancelled"
+                    session_id="child-7", request_id="question", reason="user_cancelled"
                 )
             )
             assert display.task_attention() == {}
-            assert not any("Waiting for approval" in line.text for line in updates[-1])
+            assert not any(
+                "Investigate component 7" in line.text and "Needs input" in line.text for line in updates[-1]
+            )
             await emit(
-                events.UserInteractionResolvedEvent(session_id="child-7", request_id="approval", status="cancelled")
+                events.UserInteractionResolvedEvent(session_id="child-7", request_id="question", status="cancelled")
             )
             assert display.task_attention() == {}
         finally:

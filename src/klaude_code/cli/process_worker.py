@@ -41,9 +41,9 @@ async def _run_background(payload: dict[str, Any], ready: Callable[[dict[str, An
     session.group = payload.get("group")
     session.agent_type = agent_type
     session.spawn_kind = "headless"
-    session.approval_policy = payload.get("approval") or "hold"
+    session.unattended = True
     session.ensure_meta_exists()
-    client = LocalRuntimeClient(session.id, on_envelope=consume, work_dir=directory, model=model)
+    client = LocalRuntimeClient(session.id, on_envelope=consume, work_dir=directory, model=model, unattended=True)
     try:
         await client.start()
         client.start_display()

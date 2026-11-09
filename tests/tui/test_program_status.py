@@ -252,13 +252,13 @@ def test_structured_attention_and_payload_changes(terminal: FakeTTY) -> None:
             assert base64.b64encode("Continue? 安全".encode()).decode() in terminal.getvalue()
             request = request.model_copy(
                 update={
-                    "payload": OperationSelectRequestPayload(header="Select", question="Authorize?", options=[]),
-                    "source": "approval",
+                    "payload": OperationSelectRequestPayload(header="Select", question="Choose one?", options=[]),
+                    "source": "operation_model",
                 }
             )
             reporter.report_interaction(request)
-            await wait_until(lambda: "kind=permission" in terminal.getvalue())
-            assert base64.b64encode(b"Authorize?").decode() in terminal.getvalue()
+            await wait_until(lambda: base64.b64encode(b"Choose one?").decode() in terminal.getvalue())
+            assert "kind=question" in terminal.getvalue()
             reporter.report_session_state(
                 "s",
                 SessionStatus(
@@ -300,7 +300,7 @@ def test_detection_is_positive_only_and_respects_kinds(terminal: FakeTTY, monkey
                 "s",
                 SessionStatus(
                     category="needs_you",
-                    attention=[SessionAttention(kind="needs_input", code="approval", source_session_id="s")],
+                    attention=[SessionAttention(kind="needs_input", code="tool", source_session_id="s")],
                 ),
             )
             await wait_until(lambda: "state=blocked" in terminal.getvalue())
@@ -359,7 +359,7 @@ def test_interaction_clears_old_completion_and_bounds_message(terminal: FakeTTY)
                     category="needs_you",
                     attention=[
                         SessionAttention(
-                            kind="needs_input", code="approval", source_session_id="s", message="汉" * 1000 + "\n\x07"
+                            kind="needs_input", code="tool", source_session_id="s", message="汉" * 1000 + "\n\x07"
                         )
                     ],
                 ),

@@ -30,7 +30,7 @@ class ProgramStatusReporter:
         self._desired_state = "state=idle:app=klaude"
         self._sent_state: str | None = None
         self._states: set[str] | None = None
-        self._kinds: set[str] = {"question", "permission", "auth"}
+        self._kinds: set[str] = {"question", "auth"}
         self._probe_requested = False
         self._probe_sent = False
         self._closed = False
@@ -72,7 +72,7 @@ class ProgramStatusReporter:
         self._kinds = (
             {value.strip() for value in capabilities["kinds"].split(",")}
             if "kinds" in capabilities
-            else {"question", "permission", "auth"}
+            else {"question", "auth"}
         )
         set_native_status_supported(self._states >= _STANDARD_STATES)
         self._refresh()
@@ -132,15 +132,12 @@ class ProgramStatusReporter:
                 item = blocked[0]
                 request = self._requests.get((item.source_session_id, item.request_id or ""))
                 msg = item.message
-                if item.kind == "needs_input":
-                    if request is not None:
-                        kind = "permission" if request.source == "approval" else "question"
-                        if isinstance(request.payload, AskUserQuestionRequestPayload):
-                            msg = " ".join(question.question for question in request.payload.questions)
-                        else:
-                            msg = request.payload.question
-                    elif item.code == "approval":
-                        kind, msg = "permission", msg or "Permission required"
+                if item.kind == "needs_input" and request is not None:
+                    kind = "question"
+                    if isinstance(request.payload, AskUserQuestionRequestPayload):
+                        msg = " ".join(question.question for question in request.payload.questions)
+                    else:
+                        msg = request.payload.question
                 msg = msg or ("Session paused" if item.kind == "paused" else "Input required")
         elif any(
             state.category == "working"

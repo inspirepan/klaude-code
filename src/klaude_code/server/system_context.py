@@ -25,6 +25,7 @@ from typing import Any, Final
 from klaude_code.agent.agent_profile import load_agent_tools
 from klaude_code.agent.system_prompt import load_system_prompt
 from klaude_code.protocol import llm_param
+from klaude_code.session.meta import meta_is_unattended
 from klaude_code.tool.core.registry import get_tool_schemas
 
 CACHE_TTL_SECONDS: Final = 30.0
@@ -89,7 +90,12 @@ def rebuilt_payload(meta: dict[str, Any], work_dir: Path) -> dict[str, Any]:
     try:
         # supports_vision is a per-model config flag the meta does not keep; the
         # only effect of the default is whether LookAt is appended.
-        tools = load_agent_tools(model_name, sub_agent_type, supports_vision=True)
+        tools = load_agent_tools(
+            model_name,
+            sub_agent_type,
+            supports_vision=True,
+            allow_user_interaction=not meta_is_unattended(meta),
+        )
         system_prompt = load_system_prompt(model_name, sub_agent_type, available_tools=tools, work_dir=work_dir)
     except (KeyError, OSError, ValueError) as exc:
         return unavailable(f"rebuild failed: {exc.__class__.__name__}: {exc}")

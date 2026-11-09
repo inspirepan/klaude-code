@@ -7,6 +7,7 @@ import contextlib
 from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from threading import Event
+from typing import Any
 from uuid import uuid4
 
 from klaude_code.agent.runtime.llm import FallbackLLMClient
@@ -43,10 +44,12 @@ class LocalRuntimeClient(DisplayABC):
         debug: bool = False,
         vanilla: bool = False,
         work_dir: Path | None = None,
+        unattended: bool = False,
     ) -> None:
         self._session_id = session_id or uuid4().hex
         self._work_dir = (work_dir or active_work_dir()).resolve()
         self._model = model
+        self._unattended = unattended
         self._init_config = AppInitConfig(model=model, debug=debug, vanilla=vanilla)
         self._on_envelope = on_envelope
         self._on_session_info = on_session_info
@@ -107,12 +110,16 @@ class LocalRuntimeClient(DisplayABC):
             session = Session.create(id=self.session_id, work_dir=self._work_dir)
             session.model_config_name = self._model
             session.vanilla = self._init_config.vanilla
+            session.unattended = self._unattended
             await asyncio.to_thread(session.ensure_meta_exists)
-        elif self._model is not None:
+        else:
+            updates: dict[str, Any] = {"unattended": self._unattended}
+            if self._model is not None:
+                updates.update({"model_config_name": self._model, "model_from_role": False})
             await asyncio.to_thread(
                 get_store_for_path(self._work_dir).update_meta,
                 self.session_id,
-                {"model_config_name": self._model, "model_from_role": False},
+                updates,
             )
         summary = load_session_summary_from_meta(
             get_store_for_path(self._work_dir).load_meta(self.session_id) or {},

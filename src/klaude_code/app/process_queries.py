@@ -81,7 +81,6 @@ def session_snapshot(
         "pending": pending,
         "todos": [item.model_dump(mode="json") for item in session.todos],
         "file_change_summary": session.file_change_summary.model_dump(mode="json"),
-        "approval_policy": session.approval_policy,
     }
     if summary_only:
         return result

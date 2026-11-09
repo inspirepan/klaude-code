@@ -189,7 +189,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   thinking, shell completions, and peer sends/receives never print in compact;
   successful send receipts stay hidden.
 - Interaction request/resolved/cancelled events join by child session and
-  request ID. The existing approval dialog remains the only approval surface.
+  request ID. Pending requests are questions only; there is no approval surface.
   It cancels the task panel before `pause_for_external_input()` yields stdin;
   embedded overlays never save/restore editor drafts. External modal pause
   restores both the current draft and its cursor exactly once.

@@ -33,7 +33,6 @@
 已确认的关键决策（2026-08-03）：
 
 - TUI 仅作为 server 客户端（tmux 模型），**不保留**本地直连 runtime 的双模式；调试用 `klaude server run` 前台兜底。
-- `run --approval` 默认 `hold`。
 - server 常驻，直到 `server stop` / `server reload`；`reload` 为优雅重启（拾取本地代码改动），非热重载。
 - web 前端、`klaude web` 命令和旧浏览器 REST/SSE session 路由已删除。server 仅保留当前
   CLI/TUI 使用的 session 创建、resume model 配置和每会话 WS 接口。
@@ -95,7 +94,7 @@ Background agents:
   wait       Block until agents finish; print their results
   output     Print a session's output (last reply / transcript)
   send       Send a follow-up message (queued by default)
-  respond    Answer a pending approval/question of a session
+  respond    Answer a pending question of a session
   kill       Interrupt a running agent (session stays resumable)
 
 Attach:
@@ -209,14 +208,6 @@ Options:
                        even after it lost the ids
       --session ID     Send into an existing session instead of
                        creating a new one (same as `klaude send`)
-      --approval MODE  What to do on permission requests when no
-                       human is attached:
-                         hold  park request, state=waiting_input
-                               (default)
-                         auto  approve permission requests;
-                               questions still park as
-                               waiting_input; trusted dirs only
-                         deny  reject; agent must work around
       --wait           Block until finished, print final output
       --timeout SECS   With --wait: exit 124 on timeout
       --json           Print {"session_id": ..., "name": ...}
@@ -245,7 +236,7 @@ calling agent: check exactly the agents it spawned, nothing else.
 
   ID       NAME       TITLE            STATE          LAST     MODEL   DIR          ACTIVITY
   a3f2c1   fix-tests  修复失败的测试     running        3s ago   sonnet  ~/code/proj  Bash: uv run pytest ...
-  9b01d4   -          调整登录流程       waiting_input  2m ago   fable   ~/code/x     approval: Edit main.py
+  9b01d4   -          调整登录流程       waiting_input  2m ago   fable   ~/code/x     question: Choose database
   77e0aa   -          -                completed      12m ago  opus    ~/code/y     -
 
 STATE is completed once a session's last turn is over and no client is
@@ -386,11 +377,11 @@ Options:
 ```text
 Usage: klaude respond [OPTIONS] TARGET
 
-Answer a session's pending interaction (approval, choice, or text).
+Answer a session's pending interaction (choice or text).
 Run `klaude brief TARGET` first to see the request and its options.
 
 Options:
-      --approve / --deny   For permission requests
+      --deny               Cancel the pending request
       --option N           Pick option N of a choice request
       --text TEXT          Free-text answer
       --json               Machine-readable
@@ -528,13 +519,13 @@ headless 会话（由 `run` 创建、无人 attach）在对话开始注入一条
 > your final report. Interactive requests reach a queue nobody may be
 > watching; use them only when truly blocked.
 
-这正是 Claude Code 对自己的 subagent 的做法（其 harness 在自主模式下注入同款提醒）。实现贴合现有机制：attachment 就是 `(Session) -> DeveloperMessage | None`，按 session 标志（如 `spawn_kind: headless`）决定是否发射；参考 `reset_attachment_loaded_flags` 的 transient 模式，上下文压缩后可重注入。
+这正是 Claude Code 对自己的 subagent 的做法（其 harness 在自主模式下注入同款提醒）。实现贴合现有机制：attachment 就是 `(Session) -> DeveloperMessage | None`，按 `session.unattended` 决定是否发射；参考 `reset_attachment_loaded_flags` 的 transient 模式，上下文压缩后可重注入。
 
 可选细化：人类 `attach` 并发言后，下一回合注入一条状态翻转提醒（"a human is now attached; asking is OK when genuinely blocked"）。
 
-### 7.2 策略：`--approval`
+### 7.2 无人值守不提问
 
-模型层的提问被 7.1 压到最少之后，剩余的 `waiting_input` 主要来自 harness 层的权限门（工具审批）。`run --approval` 决定无人值守时的处理：`hold`（默认）落为 `waiting_input` 等人处理；`auto` 自动批准**权限请求**（`source == "approval"`），但 `AskUserQuestion` 类提问仍会停靠为 `waiting_input`——只有 `deny` 做到零卡点（拒绝权限、给提问合成 "no human available" 答复）。`auto` **不会**自动检查目录是否可信，只能在 trusted dir 中使用。
+无人值守会话（`klaude run` 及其子 agent）不下发 `AskUserQuestion`，因此不会产生等待人工回答的交互请求。`autonomy_attachment` 仍会提醒模型自行假设并在最终报告中说明。
 
 ### 7.3 暴露：wait / brief / output 都把 pending request 当一等公民
 
@@ -544,18 +535,15 @@ headless 会话（由 `run` 创建、无人 attach）在对话开始注入一条
 
 ### 7.4 解除：用 `respond`，不是 `send`
 
-结构化交互（审批 / 选择 / 文本问答）用 `respond` 回答——它对应协议里的 `UserInteractionResponse`，直接解除卡点、继续执行。`send` 是对话消息，**不**解除交互卡点；两者语义刻意分开。要改方向而不是回答问题时，组合使用：`respond --deny` + `send "换个方式：..."`。
+结构化交互（选择 / 文本问答）用 `respond` 回答——它对应协议里的 `UserInteractionResponse`，直接解除卡点、继续执行。`send` 是对话消息，**不**解除交互卡点；两者语义刻意分开。要改方向而不是回答问题时，组合使用：`respond --deny` + `send "换个方式：..."`。
 
-主 Agent 的标准闭环：
+无人值守会话不会产生需要人工回答的交互请求，因此 `run` 的主流程只处理完成与失败：
 
 ```bash
 id=$(klaude run --group me "task...")
 klaude wait "$id" --timeout 600
 case $? in
   0) klaude output "$id" ;;             # 完成，取结果
-  2) klaude brief "$id"                 # 看它在问什么
-     klaude respond "$id" --approve     # 或 --deny / --option N / --text
-     klaude wait "$id" ;;               # 继续等
   3) klaude output "$id" ;;             # 看失败原因，决定 send 重试或 kill 重跑
 esac
 ```
@@ -595,7 +583,6 @@ esac
 
 1. **交互请求挂子会话名下，显示层归并到父。** 子 agent 的 AskUserQuestion（及未来的权限审批）park 在子会话自己的 actor：状态投影天然正确（子 = `waiting_input`）、`respond`/`kill`/`attach` 目标精确；TUI attach 父会话时由 server 把 tracked 子会话的 pending 请求转发过去，界面上照常弹窗并标注来源。grok-build 的对照实验佐证了这个选择：它审批挂父/根会话、提问挂子会话，两种归属并存导致 UI 双套路由 + 「父会话被回收后无主请求」的兜底分支，属历史包袱；其提问路径（挂子 + UI 归并到父视图）是被验证的干净做法。
 2. **子会话不占 headless 并发槽位。** 父占槽等子、子排队等槽会直接死锁；子会话绕过 headless 队列直跑，未来如需限流单独加 child cap。
-3. **approval policy 沿 parent 链继承。** `_headless_auto_interaction_response` 目前只认 `spawn_kind == "headless"`；子会话按 `parent_session_id` 上溯取根会话的 policy。
 
 从 grok-build 另外记录三条经验：
 
@@ -669,7 +656,7 @@ loop-until-dry 同理是纯 bash：`while` 里 `run --wait` 一轮 finder，输�
   3. 接实时事件流。
 - **TUI 改造**：TUI 与 runtime 之间抽 `RuntimeClient` 接口，但**只做 UDS 一个实现**（已决策：不保留本地直连双模式）。接口仍然值得抽——单测可以注入内存实现，且隔离 wire 细节。
 - **server 生命周期**：常驻（tmux 语义），退出只经 `server stop` / `server reload`。`reload` = 优雅重启：默认有 running/waiting_input/queued 会话时拒绝并列出，`--force` 直接停机再 re-exec 新代码、重新 bind socket。被打断的 headless turn 在新 server `restore()` 时**从头重跑**（同一条输入重新执行一遍，靠 turn id 去重避免重复入历史）；交互会话不重跑，attach 后从磁盘续。与版本握手互补：CLI 握手发现 server 版本/代码指纹过旧且 server 空闲时，自动触发同样的重启路径（代码指纹可复用现有 git checkout 更新追踪）。
-- **headless 交互**：`--approval hold` 时交互请求落为 `waiting_input` 状态，人类 `attach` 或任一客户端 `respond` 均可解锁（完整闭环见 §7）。
+- **headless 交互**：无人值守会话不下发 `AskUserQuestion`，不会产生等待人工回答的请求（见 §7.2）。
 - **并发上限**：server 维护全局 headless 运行槽位（可配置，默认 ~8），超出的 `run` 进 `queued` 排队（见 §9.1）；交互式 attach 会话不占用该配额。
 - **版本握手**：server status 与 WS `connection_info` 同时返回独立 protocol version 和 code fingerprint。HTTP CLI 遇到任一不匹配时走 stale-server 路径：空闲时自动 reload，busy 时警告；TUI 显示错误 notice。
 
@@ -691,7 +678,7 @@ loop-until-dry 同理是纯 bash：`while` 里 `run --wait` 一轮 finder，输�
 | 阶段 | 状态 | 内容 | 交付 |
 |---|---|---|---|
 | 1 | **已实现** | server 化：UDS + 单例锁 + `klaude server` 子命令（含 reload）；删除 web 前端、浏览器路由与 `klaude web` 命令 | server 可独立起停，web UI 退役 |
-| 2 | **已实现** | headless 命令面：`run/ps/brief/wait/output/send(queue)/respond/kill` + `--group` 全套 + server 并发上限 + thin client + `--approval` 策略 + autonomy attachment + `agents --json/--prime` + 纯文本 help | **Claude Code 的异步子 Agent 可用** |
+| 2 | **已实现** | headless 命令面：`run/ps/brief/wait/output/send(queue)/respond/kill` + `--group` 全套 + server 并发上限 + thin client + autonomy attachment + `agents --json/--prime` + 纯文本 help | **Claude Code 的异步子 Agent 可用** |
 | 3 | **已实现** | TUI attach：`RuntimeClient`（仅 UDS 实现）、attach + 回放 + detach、`--resume/-c` 切 attach 语义、无 server 自动拉起、`send --steer` | 人类工作流完整切换 |
 | 4 | **已实现** | 大扫除：删除跨进程机制（event/meta relay、runtime_owner/心跳、read_only、holder 仲裁、meta 运行时键回填） | 工程收敛 |
 | 5 | **已实现**（增量项除外） | 内部 sub-agent 的 server 化（见 §8）：Agent 工具改走子 actor、子会话入 `ps --tree`、可 attach/kill 单个 subagent、meta 停写 `sub_agent_state`（读兼容保留，回放从 SpawnSubAgentEntry 重建显示状态） | 内外一套任务机制 |

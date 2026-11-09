@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from klaude_code.protocol.models.session_status import SessionRuntimeFacts
-from klaude_code.session.meta import parse_runtime_facts, parse_session_timestamp, read_json_dict
+from klaude_code.session.meta import meta_is_unattended, parse_runtime_facts, parse_session_timestamp, read_json_dict
 
 type TodoSummary = dict[str, str]
 type FileChangeSummary = dict[str, list[str] | int | dict[str, dict[str, int]]]
@@ -38,7 +38,7 @@ class SessionSummary:
     group: str | None = None
     agent_type: str | None = None
     spawn_kind: str | None = None
-    approval_policy: str | None = None
+    unattended: bool = False
     model_config_name: str | None = None
     parent_session_id: str | None = None
     runtime: SessionRuntimeFacts | None = None
@@ -154,7 +154,7 @@ def load_session_summary_from_meta(data: dict[str, Any], *, fallback_session_id:
         group=_optional_str("group"),
         agent_type=_optional_str("agent_type"),
         spawn_kind=_optional_str("spawn_kind"),
-        approval_policy=_optional_str("approval_policy"),
+        unattended=meta_is_unattended(data),
         model_config_name=_optional_str("model_config_name"),
         parent_session_id=_optional_str("parent_session_id"),
         runtime=parse_runtime_facts(data),

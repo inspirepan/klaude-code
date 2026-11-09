@@ -1431,7 +1431,7 @@ class DisplayStateMachine:
     def _handle_UserInteractionRequestEvent(
         self, e: events.UserInteractionRequestEvent, *, s: _SessionState
     ) -> list[RenderCommand]:
-        s.pending_interactions[e.request_id] = "Waiting for approval" if e.source == "approval" else "Needs input"
+        s.pending_interactions[e.request_id] = "Needs input"
         return self._spinner_update_commands()
 
     def _handle_UserInteractionResolvedEvent(

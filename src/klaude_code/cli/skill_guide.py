@@ -202,10 +202,6 @@ def build_agent_guide(config: Any) -> str:
     lines.append(
         "- Headless processes exit after their owned tasks and executable reports settle; `output` and `wait` still read saved results."
     )
-    lines.append(
-        "- `run --approval auto` approves every permission request without checking the directory; "
-        "use it only in trusted directories."
-    )
     lines.append("")
     lines.append("## TARGET rules")
     lines.append("")

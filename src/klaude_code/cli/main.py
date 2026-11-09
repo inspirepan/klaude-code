@@ -46,7 +46,7 @@ Sessions:
 Control:
   interrupt    Interrupt root inference/wait; children and Bash continue
   unpause      Allow an online session's pending work to continue
-  respond      Answer a pending approval or question
+  respond      Answer a pending question
   dismiss      Acknowledge an error without unpausing
   stop         Stop a session's child agents
   tasks        List, inspect, wait for, or stop background tasks

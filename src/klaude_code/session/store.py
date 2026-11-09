@@ -584,7 +584,7 @@ def build_meta_snapshot(
     group: str | None = None,
     agent_type: str | None = None,
     spawn_kind: str | None = None,
-    approval_policy: str | None = None,
+    unattended: bool = False,
     parent_session_id: str | None = None,
     vanilla: bool = False,
 ) -> dict[str, Any]:
@@ -627,7 +627,9 @@ def build_meta_snapshot(
         "group": group,
         "agent_type": agent_type,
         "spawn_kind": spawn_kind,
-        "approval_policy": approval_policy,
+        # Omit the key when it matches the spawn_kind-derived default; write it
+        # only to override (headless sub-agent, or an interactive resume).
+        "unattended": None if unattended == (spawn_kind == "headless") else unattended,
         "parent_session_id": parent_session_id,
         "vanilla": vanilla or None,
     }

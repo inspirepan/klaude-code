@@ -108,8 +108,6 @@ def test_agent_guide_mentions_core_loop_and_inventory() -> None:
         "finder",
         "needs_you",
         "--any",
-        "without checking the directory",
-        "trusted directories",
     ):
         assert needle in guide, f"agent guide is missing: {needle}"
     assert "klaude kill" not in guide

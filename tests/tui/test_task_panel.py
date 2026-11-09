@@ -29,7 +29,7 @@ async def until(predicate: Callable[[], bool]) -> None:
 
 
 @pytest.mark.parametrize(("columns", "rows"), [(80, 24), (60, 20)])
-def test_busy_overlay_escape_preserves_live_draft_and_cursor_and_yields_to_approval(
+def test_busy_overlay_escape_preserves_live_draft_and_cursor_and_yields_to_attention(
     monkeypatch: pytest.MonkeyPatch, columns: int, rows: int
 ) -> None:
     from prompt_toolkit.data_structures import Size
@@ -51,7 +51,7 @@ def test_busy_overlay_escape_preserves_live_draft_and_cursor_and_yields_to_appro
                         "Main working",
                         "Inspect source",
                         "Check output",
-                        "Waiting for approval",
+                        "Needs input",
                         "+5 agents · /tasks",
                         "Steer main · /tasks · /stop agents",
                     )

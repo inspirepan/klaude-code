@@ -85,8 +85,9 @@ class _StubProfileProvider:
         sub_agent_type: str | None = None,
         *,
         work_dir: Path,
+        allow_user_interaction: bool = True,
     ) -> AgentProfile:
-        del sub_agent_type, work_dir
+        del sub_agent_type, work_dir, allow_user_interaction
         return AgentProfile(llm_client=llm_client, system_prompt=None, tools=[], attachments=[])
 
 

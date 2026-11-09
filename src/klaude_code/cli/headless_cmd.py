@@ -473,15 +473,6 @@ def run_command(
     session: str | None = typer.Option(
         None, "--session", help="Send into an existing session instead of creating a new one (same as `klaude send`)"
     ),
-    approval: str = typer.Option(
-        "hold",
-        "--approval",
-        show_default=False,
-        help="What to do on permission requests during unattended execution: "
-        "hold = park request, state=needs_you (default); "
-        "auto = approve permission requests (questions still need input); use only in trusted dirs; "
-        "deny = reject; agent must work around",
-    ),
     wait: bool = typer.Option(False, "--wait", help="Block until finished, print final output"),
     timeout: float | None = typer.Option(None, "--timeout", metavar="SECS", help="With --wait: exit 124 on timeout"),
     json_: bool = typer.Option(False, "--json", help='Print {"session_id": ..., "name": ...}'),
@@ -509,10 +500,6 @@ def run_command(
     if not prompt_text:
         typer.echo("error: no prompt given (pass PROMPT or pipe stdin)", err=True)
         raise typer.Exit(EXIT_USAGE)
-    if approval not in ("hold", "auto", "deny"):
-        typer.echo("error: --approval must be one of: hold, auto, deny", err=True)
-        raise typer.Exit(EXIT_USAGE)
-
     if session is not None:
         _send_message(session, prompt_text, wait=wait, timeout=timeout, json_=json_)
         return
@@ -528,7 +515,6 @@ def run_command(
             "agent": agent,
             "name": name,
             "group": group,
-            "approval": approval,
         },
     )
     session_id = str(body.get("session_id", ""))
@@ -696,8 +682,6 @@ def brief_command(
     lines.append(f"dir: {_abbrev_home(str(body.get('work_dir') or '-'))}")
     if body.get("agent_type"):
         lines.append(f"agent: {body.get('agent_type')}")
-    if body.get("approval_policy"):
-        lines.append(f"approval: {body.get('approval_policy')}")
     if body.get("last_user_message"):
         lines.append(f"request: {body.get('last_user_message')}")
 
@@ -974,7 +958,7 @@ def send_command(
 
     Offline sessions reject delivery. Resume history explicitly with -r;
     send never restarts a process or writes an offline inbox. Messages do
-    not confer operator identity, answer approvals, or resume paused work.
+    not confer operator identity or resume paused work.
     --wait reads settled session output, not a correlated message reply.
     """
     message = " ".join(text).strip()
@@ -999,19 +983,16 @@ def send_command(
 
 def respond_command(
     target: str = typer.Argument(..., metavar="TARGET"),
-    approve: bool = typer.Option(False, "--approve", help="For permission requests"),
-    deny: bool = typer.Option(False, "--deny", help="For permission requests; cancels other request kinds"),
+    deny: bool = typer.Option(False, "--deny", help="Cancel the pending request"),
     option: int | None = typer.Option(None, "--option", metavar="N", help="Pick option N of a choice request"),
     text: str | None = typer.Option(None, "--text", help="Free-text answer"),
     json_: bool = typer.Option(False, "--json", help="Machine-readable"),
 ) -> None:
-    """Answer a session's pending interaction (approval, choice, or text).
+    """Answer a session's pending interaction (choice or text).
 
     Run `klaude brief TARGET` first to see the request and its options.
     """
     actions: list[tuple[str, dict[str, Any]]] = []
-    if approve:
-        actions.append(("approve", {}))
     if deny:
         actions.append(("deny", {}))
     if option is not None:
@@ -1019,7 +1000,7 @@ def respond_command(
     if text is not None:
         actions.append(("text", {"text": text}))
     if len(actions) != 1:
-        typer.echo("error: pass exactly one of --approve / --deny / --option N / --text TEXT", err=True)
+        typer.echo("error: pass exactly one of --deny / --option N / --text TEXT", err=True)
         raise typer.Exit(EXIT_USAGE)
 
     action, extra = actions[0]

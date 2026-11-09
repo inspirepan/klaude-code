@@ -9,7 +9,7 @@ from klaude_code.protocol import user_interaction
 
 
 class HeadlessRespondRequest(BaseModel):
-    action: Literal["approve", "deny", "option", "text"]
+    action: Literal["deny", "option", "text"]
     option: int | None = None
     text: str | None = None
 
@@ -20,10 +20,6 @@ def _build_interaction_response(
     interaction = request.payload
     if payload.action == "deny":
         return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
-    if payload.action == "approve":
-        if request.source == "approval":
-            return user_interaction.UserInteractionResponse(status="submitted", payload=None)
-        raise ValueError("pending request is not a permission request; answer it with --option N or --text")
     if payload.action == "option":
         if payload.option is None or payload.option < 1:
             raise ValueError("--option requires a 1-based option number")

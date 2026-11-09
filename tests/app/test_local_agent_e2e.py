@@ -897,14 +897,13 @@ def test_task_panel_message_requires_owned_running_operation(local_group, monkey
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("policy", ["hold", "auto", "deny"])
-def test_headless_child_question_obeys_owner_policy(local_group, monkeypatch: pytest.MonkeyPatch, policy: str) -> None:
+def test_headless_child_cannot_ask_user_question(local_group, monkeypatch: pytest.MonkeyPatch) -> None:
     async def run() -> None:
         async with local_group() as env:
             owner = await env.create()
             session = owner.command_agent().session
             session.spawn_kind = "headless"
-            session.approval_policy = policy
+            session.unattended = True
             parent_calls, child_calls = 0, 0
             answers: list[str] = []
 
@@ -945,24 +944,9 @@ def test_headless_child_question_obeys_owner_policy(local_group, monkeypatch: py
             await owner.submit_and_wait(
                 op.RunAgentOperation(session_id=owner.session_id, input=message.UserInputPayload(text="delegate"))
             )
-            if policy != "deny":
-                request = await asyncio.wait_for(owner.interaction_requests().get(), 5)
-                assert child_calls == 1 and not answers
-                assert owner._endpoint is not None
-                snapshot = await call_endpoint(owner._endpoint.record, "snapshot", session_id=owner.session_id)
-                assert snapshot["state"] == "needs_you"
-                with pytest.raises(ValueError, match="not a permission"):
-                    await call_endpoint(
-                        owner._endpoint.record, "respond", session_id=owner.session_id, response={"action": "approve"}
-                    )
-                assert not owner.interaction_closed_event(request).is_set()
-                await call_endpoint(
-                    owner._endpoint.record,
-                    "respond",
-                    session_id=owner.session_id,
-                    response={"action": "text", "text": "human answer"},
-                )
             await eventually(lambda: bool(answers) and len(reports(owner)) == 1 and not owner.has_running_tasks())
-            assert ("No human is available" if policy == "deny" else "human answer") in answers[0]
+            assert child_calls == 2
+            assert answers == ["Tool AskUserQuestion not exists"]
+            assert owner.interaction_requests().empty()
 
     asyncio.run(run())

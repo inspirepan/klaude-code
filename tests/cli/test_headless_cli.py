@@ -335,22 +335,23 @@ def test_follow_stream_reads_final_output_when_process_already_exited(
     assert capsys.readouterr().out == "completed before polling\n"
 
 
-def test_headless_help_lists_watch_follow_and_approval_warning() -> None:
+def test_headless_help_lists_watch_follow_and_no_approval_options() -> None:
     from klaude_code.cli.main import app
 
     runner = CliRunner()
     ps_help = runner.invoke(app, ["ps", "--help"])
     output_help = runner.invoke(app, ["output", "--help"])
     run_help = runner.invoke(app, ["run", "--help"])
+    respond_help = runner.invoke(app, ["respond", "--help"])
 
     assert ps_help.exit_code == 0
     assert "--watch" in ps_help.output
     assert output_help.exit_code == 0
     assert "--follow" in output_help.output
     assert run_help.exit_code == 0
-    run_help_text = " ".join(run_help.output.split())
-    assert "questions still need input" in run_help_text
-    assert "use only in trusted dirs" in run_help_text
+    assert "--approval" not in run_help.output
+    assert respond_help.exit_code == 0
+    assert "--approve" not in respond_help.output
 
 
 def test_order_rows_as_tree_places_children_under_parent() -> None:

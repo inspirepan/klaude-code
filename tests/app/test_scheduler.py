@@ -195,7 +195,7 @@ class TestFormatToolCallActivity:
 class TestAutonomyAttachment:
     def test_injects_once_for_headless(self, tmp_path: Path) -> None:
         session = Session.create(work_dir=tmp_path)
-        session.spawn_kind = "headless"
+        session.unattended = True
         first = asyncio.run(autonomy_attachment(session))
         assert first is not None
         part = first.parts[0]
@@ -209,7 +209,7 @@ class TestAutonomyAttachment:
 
     def test_reinjects_after_compaction_reset(self, tmp_path: Path) -> None:
         session = Session.create(work_dir=tmp_path)
-        session.spawn_kind = "headless"
+        session.unattended = True
         assert asyncio.run(autonomy_attachment(session)) is not None
         reset_attachment_loaded_flags(session.file_tracker)
         assert asyncio.run(autonomy_attachment(session)) is not None

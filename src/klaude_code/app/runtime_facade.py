@@ -17,7 +17,6 @@ from klaude_code.control.user_interaction import PendingUserInteractionRequest
 from klaude_code.log import DebugType, log_debug
 from klaude_code.protocol import events, op, user_interaction
 from klaude_code.protocol.shell_task import ShellTaskSnapshot
-from klaude_code.session.session import Session
 from klaude_code.tool.shell.task_manager import ShellTaskManager
 
 
@@ -175,102 +174,13 @@ class RuntimeFacade:
             response=response,
         )
 
-    def _resolve_policy_session(self, session: Session) -> Session:
-        """Walk up the parent chain: sub-agents inherit the root's approval policy."""
-        seen: set[str] = set()
-        while session.parent_session_id and session.id not in seen:
-            seen.add(session.id)
-            parent_actor = self.session_registry.get_session_actor(session.parent_session_id)
-            parent_agent = parent_actor.get_agent() if parent_actor is not None else None
-            if parent_agent is not None:
-                session = parent_agent.session
-                continue
-            try:
-                session = Session.load_meta(session.parent_session_id, work_dir=session.work_dir)
-            except Exception:
-                break
-        return session
-
     async def _request_user_interaction(
         self,
         request: PendingUserInteractionRequest,
     ) -> user_interaction.UserInteractionResponse:
-        auto_response = self._headless_auto_interaction_response(request)
-        if auto_response is not None:
-            await self._emit_interaction_auto_resolved(request, auto_response)
-            return auto_response
         runtime = self.session_registry.ensure_session_actor(request.session_id)
         future = runtime.open_pending_interaction(request)
         return await future
-
-    def _headless_auto_interaction_response(
-        self,
-        request: PendingUserInteractionRequest,
-    ) -> user_interaction.UserInteractionResponse | None:
-        """Resolve an interaction without parking, per the session's approval policy.
-
-        Applies only to headless sessions (`klaude run`):
-        - hold (default): park every request as waiting_input.
-        - auto: approve permission requests (source == "approval"); questions
-          still park — approving a question has no meaning.
-        - deny: never park. Questions get a synthetic "no human available"
-          answer so the turn keeps running; everything else is cancelled.
-        """
-        runtime = self.session_registry.get_session_actor(request.session_id)
-        agent = runtime.get_agent() if runtime is not None else None
-        if agent is None:
-            return None
-        session = self._resolve_policy_session(agent.session)
-        if session.spawn_kind != "headless":
-            return None
-        policy = session.approval_policy or "hold"
-        if policy == "hold":
-            return None
-        if policy == "auto":
-            if request.source == "approval":
-                return user_interaction.UserInteractionResponse(status="submitted", payload=None)
-            return None
-        if policy == "deny":
-            if isinstance(request.payload, user_interaction.AskUserQuestionRequestPayload):
-                answers = [
-                    user_interaction.AskUserQuestionAnswer(
-                        question_id=question.id,
-                        selected_option_ids=["__other__"],
-                        other_text=(
-                            "No human is available to answer (unattended run). "
-                            "Proceed with your best judgment and state the assumption in your final report."
-                        ),
-                    )
-                    for question in request.payload.questions
-                ]
-                return user_interaction.UserInteractionResponse(
-                    status="submitted",
-                    payload=user_interaction.AskUserQuestionResponsePayload(answers=answers),
-                )
-            return user_interaction.UserInteractionResponse(status="cancelled", payload=None)
-        return None
-
-    async def _emit_interaction_auto_resolved(
-        self,
-        request: PendingUserInteractionRequest,
-        response: user_interaction.UserInteractionResponse,
-    ) -> None:
-        await self._operation_dispatcher.emit_event(
-            events.UserInteractionResponseReceivedEvent(
-                session_id=request.session_id,
-                request_id=request.request_id,
-                status=response.status,
-            ),
-            causation_id=request.request_id,
-        )
-        await self._operation_dispatcher.emit_event(
-            events.UserInteractionResolvedEvent(
-                session_id=request.session_id,
-                request_id=request.request_id,
-                status=response.status,
-            ),
-            causation_id=request.request_id,
-        )
 
     def _cancel_pending_user_interactions(
         self,

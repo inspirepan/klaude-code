@@ -51,7 +51,13 @@ class ModelSwitcher:
             raise ValueError(f"Unknown model: {model_name}")
         llm_client = create_llm_client_for_candidates(candidates)
         llm_config = llm_client.get_llm_config()
-        agent.set_model_profile(self._model_profile_provider.build_profile(llm_client, work_dir=agent.session.work_dir))
+        agent.set_model_profile(
+            self._model_profile_provider.build_profile(
+                llm_client,
+                work_dir=agent.session.work_dir,
+                allow_user_interaction=not agent.session.unattended,
+            )
+        )
 
         agent.session.model_config_name = model_name
         agent.session.model_from_role = False

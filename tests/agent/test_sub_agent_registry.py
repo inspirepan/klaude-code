@@ -64,6 +64,20 @@ def test_main_agent_tools_include_registered_sub_agents() -> None:
     assert "Oracle" not in claude_tool_names
 
 
+def test_unattended_agents_drop_ask_user_question() -> None:
+    main_names = {schema.name for schema in load_agent_tools("claude-3")}
+    assert tools.ASK_USER_QUESTION in main_names
+    assert tools.ASK_USER_QUESTION not in {
+        schema.name for schema in load_agent_tools("claude-3", allow_user_interaction=False)
+    }
+
+    general_names = {schema.name for schema in load_agent_tools("claude-3", "general-purpose")}
+    assert tools.ASK_USER_QUESTION in general_names
+    assert tools.ASK_USER_QUESTION not in {
+        schema.name for schema in load_agent_tools("claude-3", "general-purpose", allow_user_interaction=False)
+    }
+
+
 def test_gpt_sub_agent_replaces_edit_and_write_with_apply_patch() -> None:
     gpt_tool_names = [schema.name for schema in load_agent_tools("gpt-4.1", "general-purpose")]
     claude_tool_names = [schema.name for schema in load_agent_tools("claude-3", "general-purpose")]
@@ -229,8 +243,9 @@ class _TestProfileProvider:
         sub_agent_type: tools.SubAgentType | None = None,
         *,
         work_dir: Path,
+        allow_user_interaction: bool = True,
     ) -> AgentProfile:
-        del sub_agent_type, work_dir
+        del sub_agent_type, work_dir, allow_user_interaction
         self.model_names.append(llm_client.model_name)
         return AgentProfile(llm_client=llm_client, system_prompt=None, tools=[], attachments=[])
 
@@ -453,8 +468,17 @@ def test_session_switch_keeps_manage_tasks_available(
         monkeypatch.setattr(handler, "_model_profile_provider", provider)
         original_build = provider.build_profile
 
-        def build(llm_client: LLMClientABC, *, work_dir: Path) -> AgentProfile:
-            profile = original_build(llm_client, work_dir=work_dir)
+        def build(
+            llm_client: LLMClientABC,
+            *,
+            work_dir: Path,
+            allow_user_interaction: bool = True,
+        ) -> AgentProfile:
+            profile = original_build(
+                llm_client,
+                work_dir=work_dir,
+                allow_user_interaction=allow_user_interaction,
+            )
             return AgentProfile(
                 llm_client=profile.llm_client,
                 system_prompt=profile.system_prompt,

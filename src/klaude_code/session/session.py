@@ -97,7 +97,9 @@ class Session(BaseModel):
     group: str | None = None
     agent_type: str | None = None
     spawn_kind: str | None = None
-    approval_policy: str | None = None
+    # No human can answer in this session tree (`klaude run`). Sub-agents
+    # inherit it. Interactive resume clears it.
+    unattended: bool = False
     # Set on sessions spawned by another session's Agent tool call.
     parent_session_id: str | None = None
     # Vanilla mode (basic tools, no system prompts) is a per-session flag.
@@ -248,7 +250,7 @@ class Session(BaseModel):
             group=meta.group,
             agent_type=meta.agent_type,
             spawn_kind=meta.spawn_kind,
-            approval_policy=meta.approval_policy,
+            unattended=meta.unattended,
             parent_session_id=meta.parent_session_id,
             vanilla=meta.vanilla,
         )
@@ -421,7 +423,7 @@ class Session(BaseModel):
             group=self.group,
             agent_type=self.agent_type,
             spawn_kind=self.spawn_kind,
-            approval_policy=self.approval_policy,
+            unattended=self.unattended,
             parent_session_id=self.parent_session_id,
             vanilla=self.vanilla,
         )
@@ -517,7 +519,7 @@ class Session(BaseModel):
             group=self.group,
             agent_type=self.agent_type,
             spawn_kind=self.spawn_kind,
-            approval_policy=self.approval_policy,
+            unattended=self.unattended,
             parent_session_id=self.parent_session_id,
             vanilla=self.vanilla,
         )
@@ -672,6 +674,7 @@ class Session(BaseModel):
             forked.title = self.title if self.title.startswith(_FORK_TITLE_PREFIX) else _FORK_TITLE_PREFIX + self.title
 
         forked.sub_agent_state = None
+        forked.unattended = self.unattended
         forked.model_name = self.model_name
         # A fork pins the selected model, not the source role's fallback chain.
         forked.model_config_name = self.model_config_name

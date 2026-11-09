@@ -22,6 +22,17 @@ from klaude_code.protocol.models.session_status import (
 )
 
 
+def meta_is_unattended(raw: dict[str, Any]) -> bool:
+    """Whether a session tree has no human.
+
+    Legacy headless metas predate the key, so fall back to spawn_kind.
+    """
+    value = raw.get("unattended")
+    if isinstance(value, bool):
+        return value
+    return raw.get("spawn_kind") == "headless"
+
+
 @dataclass(frozen=True)
 class LoadedSessionMeta:
     work_dir: Path
@@ -48,7 +59,7 @@ class LoadedSessionMeta:
     group: str | None
     agent_type: str | None
     spawn_kind: str | None
-    approval_policy: str | None
+    unattended: bool
     parent_session_id: str | None
     vanilla: bool
 
@@ -245,10 +256,10 @@ def parse_session_meta(raw: dict[str, Any], *, work_dir: Path) -> LoadedSessionM
         group=_parse_optional_str(raw.get("group")),
         agent_type=_parse_optional_str(raw.get("agent_type")),
         spawn_kind=_parse_optional_str(raw.get("spawn_kind")),
-        approval_policy=_parse_optional_str(raw.get("approval_policy")),
+        unattended=meta_is_unattended(raw),
         parent_session_id=_parse_optional_str(raw.get("parent_session_id")),
         vanilla=bool(raw.get("vanilla", False)),
     )
 
 
-__all__ = ["LoadedSessionMeta", "parse_session_meta", "parse_session_timestamp", "read_json_dict"]
+__all__ = ["LoadedSessionMeta", "meta_is_unattended", "parse_session_meta", "parse_session_timestamp", "read_json_dict"]

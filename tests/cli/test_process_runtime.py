@@ -53,7 +53,6 @@ def _headless_worker(connection: Connection, directory: str, terminate: bool = F
                         "session_id": "headless-independent",
                         "work_dir": directory,
                         "prompt": "start background work",
-                        "approval": "auto",
                     },
                     connection.send,
                 )
@@ -178,7 +177,6 @@ def _headless_agent_worker(connection: Connection, directory: str) -> None:
                     "session_id": "headless-native-agent",
                     "work_dir": directory,
                     "prompt": "delegate",
-                    "approval": "hold",
                 },
                 connection.send,
             )
