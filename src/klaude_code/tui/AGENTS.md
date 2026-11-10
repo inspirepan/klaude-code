@@ -245,8 +245,9 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   Escape interrupt. Shift+Enter, ctrl-j, and existing backslash handling keep
   their newline behavior. Submission delivery resets after each validation.
 - Follow-ups have a separate client snapshot/mirror and share the steering
-  panel's height budget. Its header identifies each queue; the busy submit hint
-  explains follow-up consumption at task end.
+  panel's height budget. The panel lists steering first, then a
+  `── task end ──` divider, then follow-ups; a single-kind queue is named in
+  the header.
 - Queued messages are stored on `Agent` and are not immediately written to
   session history or emitted as normal user turns.
 - The queue panel is prompt-toolkit dynamic UI, not scrollback. Do not emit
@@ -259,7 +260,7 @@ also preserve sub-agent coloring/truncation semantics and metadata formatting.
   at once. Steering comes first, then follow-ups, joined with blank lines
   before any existing editor text. Enter or Alt+Enter selects the new delivery.
   Explicit `--- split ---` and standalone `---` queue-edit separators remain
-  supported. The hint says `↑ to edit queued messages`. Plain `Up` remains
+  supported. The hint says `↑ to recall queued messages`. Plain `Up` remains
   history navigation when both queues are empty. Escape still interrupts.
 
 ### `/btw` side question flow

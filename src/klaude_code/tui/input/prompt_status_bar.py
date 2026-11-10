@@ -33,6 +33,8 @@ from klaude_code.tui.terminal.tty_state import stdout_writable
 _STATUS_SPINNER_FRAMES = ("·  ", "·· ", "···", " ··", "  ·", "   ")
 _STATUS_SPINNER_INTERVAL_SECONDS = 0.12
 _STARTUP_LOADING_TEXT = "Preparing session…"
+_QUEUE_DIVIDER = "── task end ──"
+_QUEUE_HINT = "↑ to recall queued messages"
 
 # Refresh the renderer-side status snapshot every N spinner ticks instead of
 # every tick. The snapshot only changes with the elapsed-time clock (second
@@ -188,18 +190,25 @@ class PromptBottomBar:
         return self._layout().rows
 
     def _layout(self) -> _BarLayout:
-        pending_count = len(self._pending_messages) + len(self._pending_follow_ups)
+        steering_count = len(self._pending_messages)
+        follow_up_count = len(self._pending_follow_ups)
+        pending_count = steering_count + follow_up_count
+        both = bool(steering_count and follow_up_count)
         head_lines = self._status_head_lines()
         tail_lines = self._status_tail_lines()
         remaining = self._available_rows() if self._available_rows is not None else None
+        # The divider shares the item budget, so count it as a candidate row.
+        item_capacity = pending_count + int(both)
         if remaining is None:
+            visible_steering, visible_follow_ups, divider = self._visible_queue(item_capacity)
+            queue = 1 + visible_steering + visible_follow_ups + int(divider) if pending_count else 0
             return _BarLayout(
                 gap=1,
                 head=max(1, len(head_lines)),
                 stream=len(self._stream_lines),
                 tail=len(tail_lines),
                 queue_gap=int(bool(pending_count)),
-                queue=pending_count + 1 if pending_count else 0,
+                queue=queue,
             )
 
         remaining = max(0, remaining)
@@ -208,8 +217,8 @@ class PromptBottomBar:
         queue_minimum = int(bool(pending_count) and remaining > 1)
         head = min(remaining - queue_minimum, max(1, min(len(head_lines), 3)))
         remaining -= head
-        queue = int(bool(pending_count) and remaining > 0)
-        remaining -= queue
+        queue_header = int(bool(pending_count) and remaining > 0)
+        remaining -= queue_header
         gap = int(remaining > 0)
         remaining -= gap
         queue_gap = int(bool(pending_count) and remaining > 0)
@@ -221,8 +230,33 @@ class PromptBottomBar:
         remaining -= tail
         stream = min(len(self._stream_lines), remaining)
         remaining -= stream
-        queue += min(pending_count, remaining)
+        visible_steering, visible_follow_ups, divider = self._visible_queue(min(item_capacity, remaining))
+        queue = queue_header + visible_steering + visible_follow_ups + int(divider)
         return _BarLayout(gap=gap, head=head, stream=stream, tail=tail, queue_gap=queue_gap, queue=queue)
+
+    def _visible_queue(self, item_rows: int) -> tuple[int, int, bool]:
+        """Split the item budget in consumption order.
+
+        Steering is admitted at the next safe step and always drains before
+        follow-ups, which wait for task end. The returned divider flag says
+        whether the block shows both groups, so a clipped list never leaves a
+        divider without a follow-up under it.
+        """
+        steering_count = len(self._pending_messages)
+        follow_up_count = len(self._pending_follow_ups)
+        if item_rows <= 0:
+            return 0, 0, False
+        if not steering_count:
+            return 0, min(follow_up_count, item_rows), False
+        if not follow_up_count:
+            return min(steering_count, item_rows), 0, False
+
+        visible_steering = min(steering_count, item_rows)
+        remaining = item_rows - visible_steering
+        visible_follow_ups = min(follow_up_count, max(0, remaining - 1))
+        if visible_follow_ups == 0:
+            return visible_steering, 0, False
+        return visible_steering, visible_follow_ups, True
 
     # ---- layout integration ---------------------------------------------
 
@@ -268,10 +302,7 @@ class PromptBottomBar:
     # ---- fragment generators --------------------------------------------
 
     def _get_stream_fragments(self) -> StyleAndTextTuples:
-        try:
-            columns = get_app().output.get_size().columns
-        except Exception:
-            columns = 80
+        columns = _available_columns()
         fragments: StyleAndTextTuples = []
         limit = self._layout().stream
         visible = self._stream_lines[-limit:] if limit else ()
@@ -381,31 +412,53 @@ class PromptBottomBar:
 
     def _get_pending_message_fragments(self) -> StyleAndTextTuples:
         count = len(self._pending_messages) + len(self._pending_follow_ups)
-        visible_count = max(0, self._layout().queue - 1)
-        headers: list[str] = []
-        if self._pending_messages:
-            headers.append(f"Steering ({len(self._pending_messages)} pending)")
-        if self._pending_follow_ups:
-            headers.append(f"Follow-up ({len(self._pending_follow_ups)} pending)")
-        header = " · ".join(headers)
-        if self._pending_messages:
-            if not self._pending_follow_ups:
-                header += " · next safe step"
-        else:
-            header += " · at task end"
-        header += " · ↑ to edit queued messages"
-        if visible_count < count:
-            header += f" · {count - visible_count} more"
-        fragments: StyleAndTextTuples = [(CLASS_META, header)]
-        messages = [("steering", message) for message in self._pending_messages]
-        messages.extend(("follow-up", message) for message in self._pending_follow_ups)
-        for index, (delivery, message) in enumerate(messages[:visible_count], start=1):
-            preview = " ".join(message.split())
+        if not count:
+            return []
+        columns = _available_columns()
+        layout = self._layout()
+        visible_steering, visible_follow_ups, divider = self._visible_queue(max(0, layout.queue - 1))
+        visible_count = visible_steering + visible_follow_ups
+        fragments: StyleAndTextTuples = [
+            (CLASS_META, _truncate_line(self._pending_header(count - visible_count), columns))
+        ]
+        index = 0
+        for message in self._pending_messages[:visible_steering]:
+            index += 1
+            fragments.extend(self._pending_entry_fragments(index, message, columns))
+        if divider:
             fragments.append(("", "\n"))
-            label = f"{delivery}: " if self._pending_follow_ups else ""
-            fragments.append((CLASS_META, f"  {index}. {label}"))
-            fragments.append((CLASS_USER_INPUT, preview))
+            fragments.append((CLASS_META, _truncate_line(f"  {_QUEUE_DIVIDER}", columns)))
+        for message in self._pending_follow_ups[:visible_follow_ups]:
+            index += 1
+            fragments.extend(self._pending_entry_fragments(index, message, columns))
         return fragments
+
+    def _pending_header(self, hidden_count: int) -> str:
+        steering_count = len(self._pending_messages)
+        follow_up_count = len(self._pending_follow_ups)
+        if steering_count and follow_up_count:
+            header = (
+                f"Queued {steering_count + follow_up_count} · {steering_count} steering · {follow_up_count} follow-up"
+            )
+        elif steering_count:
+            header = f"Steering ({steering_count} pending) · next safe step"
+        else:
+            header = f"Follow-up ({follow_up_count} pending) · at task end"
+        # Keep the omission count ahead of the hint so a narrow terminal
+        # truncates the hint instead of the count.
+        if hidden_count:
+            header += f" · {hidden_count} more"
+        return f"{header} · {_QUEUE_HINT}"
+
+    def _pending_entry_fragments(self, index: int, message: str, columns: int) -> StyleAndTextTuples:
+        prefix = f"  {index}. "
+        preview = " ".join(message.split())
+        available = max(1, columns - get_cwidth(prefix))
+        return [
+            ("", "\n"),
+            (CLASS_META, prefix),
+            (CLASS_USER_INPUT, _truncate_line(preview, available)),
+        ]
 
     # ---- spinner task ----------------------------------------------------
 
@@ -448,6 +501,13 @@ class PromptBottomBar:
 
 def _spacer() -> Window:
     return Window(content=FormattedTextControl(""), height=1, dont_extend_height=True)
+
+
+def _available_columns() -> int:
+    try:
+        return max(1, get_app().output.get_size().columns)
+    except Exception:
+        return 80
 
 
 def _truncate_line(line: str, max_width: int) -> str:

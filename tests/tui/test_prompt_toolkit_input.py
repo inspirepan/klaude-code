@@ -1894,7 +1894,7 @@ def test_pending_messages_render_above_prompt() -> None:
     # no trailing blank between the queue and the input rule.
     assert bar.reserved_layout_rows() == 6
     assert bar._get_pending_message_fragments() == [
-        ("class:meta", "Steering (2 pending) · next safe step · ↑ to edit queued messages"),
+        ("class:meta", "Steering (2 pending) · next safe step · ↑ to recall queued messages"),
         ("", "\n"),
         ("class:meta", "  1. "),
         ("class:user.input", "first queued"),
@@ -1904,29 +1904,73 @@ def test_pending_messages_render_above_prompt() -> None:
     ]
 
 
-@pytest.mark.parametrize("budget", [2, 5, 8])
-def test_follow_up_and_steering_share_queue_budget(budget: int) -> None:
+@pytest.mark.parametrize(("budget", "visible"), [(2, 0), (5, 1), (8, 3)])
+def test_follow_up_and_steering_share_queue_budget(budget: int, visible: int) -> None:
     bar = PromptBottomBar(invalidate=lambda: None, available_rows=lambda: budget)
     bar.set_pending_messages(("steer now",))
     bar.set_pending_follow_ups(("follow later", "another follow-up"))
     rendered = "".join(text for _style, text, *_ in bar._get_pending_message_fragments())
-    assert "Steering (1 pending)" in rendered and "Follow-up (2 pending)" in rendered
-    assert "↑ to edit queued messages" in rendered
+    assert "Queued 3 · 1 steering · 2 follow-up" in rendered
+    assert "↑ to recall queued messages" in rendered
     assert bar.reserved_layout_rows() <= budget
     assert len(rendered.splitlines()) <= bar._layout().queue
-    omitted = 3 - max(0, bar._layout().queue - 1)
+    omitted = 3 - visible
     if omitted:
         assert f"{omitted} more" in rendered
-    else:
-        assert "steering: steer now" in rendered and "follow-up: follow later" in rendered
+    assert ("── task end ──" in rendered) == (visible == 3)
+    if visible >= 1:
+        assert "steer now" in rendered
+    if visible == 3:
+        assert "follow later" in rendered and "another follow-up" in rendered
 
     bar.set_pending_messages(())
     assert bar.has_pending_messages
     rendered = "".join(text for _style, text, *_ in bar._get_pending_message_fragments())
-    assert "Follow-up (2 pending)" in rendered
-    assert "↑ to edit queued messages" in rendered
+    assert "Follow-up (2 pending) · at task end" in rendered
+    assert "↑ to recall queued messages" in rendered
+    assert "── task end ──" not in rendered
     bar.set_pending_follow_ups(())
     assert not bar.has_pending_messages
+
+
+def test_queue_places_task_end_divider_between_steering_and_follow_up() -> None:
+    bar = PromptBottomBar(invalidate=lambda: None)
+    bar.set_pending_messages(("first steer msg",))
+    bar.set_pending_follow_ups(("second follow msg",))
+
+    rendered = "".join(text for _style, text, *_ in bar._get_pending_message_fragments())
+
+    assert "Queued 2 · 1 steering · 1 follow-up" in rendered
+    assert rendered.index("  1. ") < rendered.index("── task end ──") < rendered.index("  2. ")
+    assert rendered.index("first steer msg") < rendered.index("second follow msg")
+
+
+def test_pending_message_preview_truncates_to_one_row() -> None:
+    bar = PromptBottomBar(invalidate=lambda: None)
+    bar.set_pending_messages(("x" * 200,))
+
+    fragments = bar._get_pending_message_fragments()
+
+    prefix = "  1. "
+    assert fragments[2] == ("class:meta", prefix)
+    preview = fragments[3][1]
+    assert preview.endswith("…")
+    assert len(prefix) + len(preview) <= 80
+
+
+def test_narrow_queue_header_keeps_hidden_count(monkeypatch: pytest.MonkeyPatch) -> None:
+    import klaude_code.tui.input.prompt_status_bar as module
+
+    monkeypatch.setattr(module, "_available_columns", lambda: 45)
+    bar = PromptBottomBar(invalidate=lambda: None, available_rows=lambda: 4)
+    bar.set_pending_messages(("first", "second"))
+    bar.set_pending_follow_ups(("third",))
+
+    rendered = "".join(text for _style, text, *_ in bar._get_pending_message_fragments())
+
+    # The hint is the part a narrow terminal may drop; the count must survive.
+    assert "· 3 more" in rendered
+    assert "recall" not in rendered
 
 
 def test_merge_dequeued_messages_keeps_queue_before_current_editor_text() -> None:
@@ -2125,8 +2169,7 @@ def test_24_row_renderer_keeps_editor_with_large_status_and_queue(monkeypatch: p
         text = "\n".join(rendered)
         assert "Window too small" not in text
         assert "agent 0" in text
-        assert "Steering (20 pending)" in text
-        assert "Follow-up (1 pending)" in text
+        assert "Queued 21 · 20 steering · 1 follow-up" in text
         assert "more" in text
         assert "draft" in text if draft else USER_MESSAGE_MARK in text
     finally:
