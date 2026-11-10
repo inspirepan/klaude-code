@@ -428,7 +428,7 @@ provider_list:
 # ######################################## google ########################################
 - provider_name: google
   protocol: google
-  api_key: ${GOOGLE_API_KEY|GEMINI_API_KEY}
+  api_key: ${GEMINI_API_KEY}
   model_list:
 
   # Argon introductory USD / million tokens through 2026-11-30;

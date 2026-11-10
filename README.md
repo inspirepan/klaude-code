@@ -20,7 +20,7 @@ cd your-project
 klaude
 ```
 
-You can also supply credentials through environment variables such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GOOGLE_API_KEY`. On first run, choose a model from the picker. Klaude saves your choice.
+You can also supply credentials through environment variables such as `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GEMINI_API_KEY`. On first run, choose a model from the picker. Klaude saves your choice.
 
 To update, run `klaude upgrade` or `uv tool upgrade klaude-code`.
 

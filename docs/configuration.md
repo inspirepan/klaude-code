@@ -17,7 +17,7 @@ Common credential variables include:
 | Anthropic | `ANTHROPIC_API_KEY` |
 | OpenAI | `OPENAI_API_KEY` |
 | OpenRouter | `OPENROUTER_API_KEY` |
-| Google | `GOOGLE_API_KEY` or `GEMINI_API_KEY` |
+| Google | `GEMINI_API_KEY` |
 | DeepSeek | `DEEPSEEK_API_KEY` |
 | Moonshot | `MOONSHOT_API_KEY` |
 | MiniMax | `MINIMAX_API_KEY` |

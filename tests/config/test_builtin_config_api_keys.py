@@ -5,6 +5,7 @@ def test_supported_api_keys_include_recent_providers() -> None:
     env_vars = {item.env_var for item in SUPPORTED_API_KEYS}
 
     assert "GEMINI_API_KEY" in env_vars
+    assert "GOOGLE_API_KEY" not in env_vars
     assert "BRAVE_API_KEY" in env_vars
     assert "EXA_API_KEY" in env_vars
 

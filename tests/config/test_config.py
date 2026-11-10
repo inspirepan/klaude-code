@@ -318,22 +318,22 @@ class TestConfig:
 
     def test_parse_env_var_syntax_supports_fallback(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(_config_module, "get_auth_env", _auth_env_none)
-        monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-        monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
+        monkeypatch.delenv("PRIMARY_API_KEY", raising=False)
+        monkeypatch.setenv("FALLBACK_API_KEY", "fallback-test-key")
 
-        env_var, resolved = parse_env_var_syntax("${GOOGLE_API_KEY|GEMINI_API_KEY}")
+        env_var, resolved = parse_env_var_syntax("${PRIMARY_API_KEY|FALLBACK_API_KEY}")
 
-        assert env_var == "GOOGLE_API_KEY|GEMINI_API_KEY"
-        assert resolved == "gemini-test-key"
+        assert env_var == "PRIMARY_API_KEY|FALLBACK_API_KEY"
+        assert resolved == "fallback-test-key"
 
     def test_parse_env_var_syntax_prefers_first_env_var(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(_config_module, "get_auth_env", _auth_env_none)
-        monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
-        monkeypatch.setenv("GEMINI_API_KEY", "gemini-key")
+        monkeypatch.setenv("PRIMARY_API_KEY", "primary-key")
+        monkeypatch.setenv("FALLBACK_API_KEY", "fallback-key")
 
-        _, resolved = parse_env_var_syntax("${GOOGLE_API_KEY|GEMINI_API_KEY}")
+        _, resolved = parse_env_var_syntax("${PRIMARY_API_KEY|FALLBACK_API_KEY}")
 
-        assert resolved == "google-key"
+        assert resolved == "primary-key"
 
     def test_google_vertex_provider_requires_all_credentials(self, monkeypatch: pytest.MonkeyPatch) -> None:
         provider = ProviderConfig(
@@ -2419,7 +2419,6 @@ class TestOutOfBoxExperience:
             "ANTHROPIC_API_KEY",
             "OPENAI_API_KEY",
             "OPENROUTER_API_KEY",
-            "GOOGLE_API_KEY",
             "GEMINI_API_KEY",
             "DEEPSEEK_API_KEY",
             "MOONSHOT_API_KEY",
@@ -2449,7 +2448,6 @@ class TestOutOfBoxExperience:
             "ANTHROPIC_API_KEY",
             "OPENAI_API_KEY",
             "OPENROUTER_API_KEY",
-            "GOOGLE_API_KEY",
             "DEEPSEEK_API_KEY",
             "MOONSHOT_API_KEY",
             "MINIMAX_API_KEY",
