@@ -141,6 +141,9 @@ class _PreprocessingTyperGroup(TyperGroup):
         windows_expand_args: bool = True,
         **extra: Any,
     ) -> Any:
+        from klaude_code.skill.builtin_sync import sync_builtin_skills
+
+        sync_builtin_skills()
         click_args = _preprocess_cli_args(list(args) if args is not None else sys.argv[1:])
         return super().main(
             args=click_args,

@@ -101,13 +101,9 @@ Klaude reads `AGENTS.md`, `CLAUDE.md`, and `AGENT.md` for project instructions. 
 
 Project memory uses `~/.klaude/projects/<project-key>/memory/MEMORY.md`. Klaude also reads compatible Claude Code project memory. The index enters context automatically; the agent can read additional memory files as needed.
 
-Skills are installed separately. For example:
+The bundled skills `klaude-config` and `klaude-session-logs` sync to `~/.klaude/skills/`. A manifest protects local edits and user-deleted skills from being overwritten or restored. Other skills can be installed separately with `npx skills`.
 
-```bash
-npx skills add inspirepan/agent-skills --global --agent codex claude-code --skill klaude-config
-```
-
-Shared user skills can live in `~/.agents/skills/`. Project skills can live in `.agents/skills/` or `.claude/skills/`. Klaude also supports the other user directories listed in the [configuration reference](docs/configuration.md#skill-directories).
+Shared user skills can live in `~/.agents/skills/`. Project skills can live in `.agents/skills/` or `.claude/skills/`. Same-name project skills override user skills; later user directories override earlier ones, so `~/.agents/skills/` takes precedence over `~/.klaude/skills/`. See the full order in the [configuration reference](docs/configuration.md#skill-directories).
 
 Type `//` for skill-only completion. Use `/skill:name` or `//skill:name` to invoke a skill explicitly. The agent can also select a skill from its description and read its instructions.
 

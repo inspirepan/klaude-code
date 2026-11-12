@@ -9,7 +9,8 @@ there is no index to maintain here — put area-specific rules next to the code 
 
 - `make lint` / `make format` / `make test` — lint, format, and test.
 - `uv run pytest tests/<area>/test_foo.py -x -q --tb=short` — single file.
-- Skills are installed separately with `npx skills`; the application does not bundle skills.
+- Bundle `klaude-config` and `klaude-session-logs` with the application and sync them to
+  `~/.klaude/skills/`, respecting manifest-based protection for local edits and deletions.
 
 ## Usage Model Semantics
 

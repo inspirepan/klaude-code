@@ -138,7 +138,7 @@ DeepSeek uses its standalone Search API. OpenAI search uses a model.
 
 ## Skill directories
 
-Skills are installed independently of the application. User directories are searched in this order, with later entries overriding earlier entries of the same name:
+The bundled skills `klaude-config` and `klaude-session-logs` sync to `~/.klaude/skills/`. A manifest protects local edits and user-deleted skills from being overwritten or restored. Other skills can be installed independently. User directories are searched in this order, with later entries overriding earlier entries of the same name:
 
 1. `~/.claude/skills/`
 2. `~/.klaude/skills/`
