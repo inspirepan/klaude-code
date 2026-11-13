@@ -481,6 +481,82 @@ def test_parse_anthropic_stream_reads_stop_reason_from_nested_delta() -> None:
     assert items[-1].stop_reason == "tool_use"
 
 
+def test_parse_anthropic_stream_skips_malformed_start_and_custom_gateway_events() -> None:
+    param = llm_param.LLMCallParameter(
+        input=_dummy_history(),
+        model_id="claude-sonnet-4-6",
+        context_limit=1000,
+        max_tokens=256,
+    )
+    # Newer SDKs construct unknown SSE frames as the first union variant, and a gateway
+    # may send message_start without a message or without usage. None may crash the
+    # parser or clobber state from the real message_start.
+    usage_less_start = BetaRawMessageStartEvent.model_construct(
+        type="message_start",
+        message={
+            "id": "msg_no_usage",
+            "type": "message",
+            "role": "assistant",
+            "content": [],
+            "model": "claude-sonnet-4-6",
+        },
+    )
+    malformed_start = BetaRawMessageStartEvent.model_construct(type="message_start")
+    custom_gateway_event = BetaRawMessageStartEvent.model_construct(
+        type="gateway_cost",
+        gateway_cost={"currency": "USD", "cost_usd": "0.00172"},
+    )
+    stream = _FakeAnthropicStream(
+        [
+            usage_less_start,
+            BetaRawMessageStartEvent.model_validate(
+                {
+                    "type": "message_start",
+                    "message": {
+                        "id": "msg_test",
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [],
+                        "model": "claude-sonnet-4-6",
+                        "usage": {
+                            "input_tokens": 10,
+                            "output_tokens": 0,
+                            "cache_read_input_tokens": 0,
+                            "cache_creation_input_tokens": 0,
+                        },
+                    },
+                }
+            ),
+            malformed_start,
+            custom_gateway_event,
+            BetaRawMessageDeltaEvent.model_validate(
+                {
+                    "type": "message_delta",
+                    "delta": {"stop_reason": "tool_use"},
+                    "usage": {"output_tokens": 5},
+                }
+            ),
+        ]
+    )
+
+    async def _collect() -> list[message.LLMStreamItem]:
+        items: list[message.LLMStreamItem] = []
+        async for item in parse_anthropic_stream(
+            stream,
+            param,
+            MetadataTracker(),
+            AnthropicStreamStateManager(model_id=str(param.model_id)),
+        ):
+            items.append(item)
+        return items
+
+    items = asyncio.run(_collect())
+
+    assert isinstance(items[-1], message.AssistantMessage)
+    assert items[-1].response_id == "msg_test"
+    assert items[-1].stop_reason == "tool_use"
+
+
 def test_parse_anthropic_stream_adds_deepseek_empty_thinking_for_tool_use_without_thinking() -> None:
     param = llm_param.LLMCallParameter(
         input=_dummy_history(),

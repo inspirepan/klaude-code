@@ -69,6 +69,19 @@ _ANTHROPIC_STOP_REASON_OVERRIDES: dict[str, StopReason] = {
 _ANTHROPIC_USER_AGENT = "klaude-code/2"
 _THINKING_DISPLAY_UPDATES_BETA = "thinking-display-updates-2026-08-18"
 
+# Event types this parser consumes. Anthropic-compatible gateways may add custom
+# frames (e.g. `gateway_cost`); newer SDKs pass those through and construct them as
+# the first union variant, which is a BetaRawMessageStartEvent with no message.
+_HANDLED_STREAM_EVENT_TYPES = frozenset(
+    {
+        "message_start",
+        "content_block_start",
+        "content_block_delta",
+        "content_block_stop",
+        "message_delta",
+    }
+)
+
 
 def _map_anthropic_stop_reason(reason: str) -> StopReason | None:
     return map_stop_reason(reason, _ANTHROPIC_STOP_REASON_OVERRIDES)
@@ -304,12 +317,17 @@ async def parse_anthropic_stream(
             lambda event=event: event.model_dump_json(exclude_none=True),
             debug_type=DebugType.LLM_STREAM,
         )
+        if getattr(event, "type", None) not in _HANDLED_STREAM_EVENT_TYPES:
+            continue
         match event:
-            case BetaRawMessageStartEvent() as event:
-                state.response_id = event.message.id
-                state.cached_token = event.message.usage.cache_read_input_tokens or 0
-                state.cache_write_token = event.message.usage.cache_creation_input_tokens or 0
-                state.input_token = event.message.usage.input_tokens
+            case BetaRawMessageStartEvent() as event if getattr(event, "message", None) is not None:
+                start_message = event.message
+                state.response_id = start_message.id
+                start_usage = getattr(start_message, "usage", None)
+                if start_usage is not None:
+                    state.cached_token = start_usage.cache_read_input_tokens or 0
+                    state.cache_write_token = start_usage.cache_creation_input_tokens or 0
+                    state.input_token = start_usage.input_tokens or 0
             case BetaRawContentBlockDeltaEvent() as event:
                 match event.delta:
                     case BetaThinkingDelta() as delta:
